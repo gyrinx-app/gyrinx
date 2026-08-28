@@ -163,12 +163,10 @@ class TestHowTheLogReads:
             act.set_budget(1200)
         assert told(campaign) == ["set the gang budget to 1200¢"]
 
-    def test_lifting_the_budget_reads_as_no_ceiling(self, campaign, arbitrator):
+    def test_removing_the_budget_says_so(self, campaign, arbitrator):
         with campaign_operation(campaign, actor=arbitrator) as act:
             act.set_budget(None)
-        assert told(campaign) == [
-            "removed the gang budget — gangs enter at whatever they are worth"
-        ]
+        assert told(campaign) == ["removed the gang budget"]
 
     def test_the_reader_is_named_as_themselves(self, campaign, arbitrator):
         with campaign_operation(campaign, actor=arbitrator) as act:

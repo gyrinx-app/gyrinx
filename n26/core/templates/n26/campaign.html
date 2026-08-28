@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% load richtext %}
 {% comment %}
 One campaign, as its arbitrator sees it.
@@ -6,13 +7,22 @@ One campaign, as its arbitrator sees it.
 The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
 carries its own — each a small fact that is also something to change.
 
-Three sections, in the order a reader wants them: the summary says what this
-campaign is, the roll says who is playing it, and the log says what has been
-done since. The log reads newest first and stops after the most recent few,
-because this is a campaign's page rather than its history.
+Four sections, in the order a reader wants them: the summary says what this
+campaign is, the roll says who is playing it, the battles say what has been
+fought, and the log says what has been done since. Battles and the log both
+read newest first and stop after the most recent few, because this is a
+campaign's page rather than its history.
 {% endcomment %}
 {% block head_title %}{{ campaign.name }}{% endblock head_title %}
-{% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
+{% comment %}
+The bar names the campaign through the switcher rather than a plain heading:
+the name is a link back to this page, and the chevron beside it offers the
+reader's other campaigns — the same pattern a gang's screens use.
+{% endcomment %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
@@ -73,7 +83,7 @@ because this is a campaign's page rather than its history.
         <c-n26.detail-list>
             <c-n26.detail-list.row label="Gang budget">
                 {% if campaign.budget is None %}
-                    No ceiling
+                    None set
                 {% else %}
                     {{ campaign.budget }}¢
                 {% endif %}
@@ -118,6 +128,36 @@ because this is a campaign's page rather than its history.
                 </ul>
             {% else %}
                 <p class="text-sm text-muted">No gangs yet.</p>
+            {% endif %}
+        </section>
+        {% comment %}
+        What has been fought, newest first. A battle carries only its date and
+        who was in it — what it did to a gang is on that gang, which is why
+        there is nothing here to click through to.
+        {% endcomment %}
+        <section class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-medium text-muted">Battles</h2>
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-battle' campaign.pk %}">
+                    Record battle
+                </c-ui.button>
+            </div>
+            {% if battles %}
+                <ul class="flex flex-col">
+                    {% for battle in battles %}
+                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <span class="w-28 shrink-0 text-sm tabular-nums whitespace-nowrap">{{ battle.date|date:"j M Y" }}</span>
+                            <span class="min-w-0 flex-1 text-sm text-muted">
+                                {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}Nobody named{% endfor %}
+                            </span>
+                            <c-n26.link href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}">Remove</c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-sm text-muted">No battles yet.</p>
             {% endif %}
         </section>
         {% comment %}

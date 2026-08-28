@@ -2,15 +2,18 @@
 The answers a campaign is made of, shared by the set-up and edit screens so
 the two cannot drift into asking different questions.
 
-The budget is the one worth reading twice. Blank is not zero — it means
-the campaign sets no starting credit limit, and gangs enter at whatever
-they are worth. A reader who clears the field gets a campaign that
-refuses nobody. The 1000 default lives on the unbound form, so it is
-only for set-up; edit supplies the stored value, including blank. The
-box uses default_if_none so a stored 0 still draws as 0.
+The budget is the one worth reading twice. It is what a gang founded for
+this campaign has to spend on models and gear; whatever is left goes to its
+stash, so it settles what a gang is worth on the day it starts.
 
-Unlike a gang's budget, this one has no floor: a campaign holds no money and
-owns nothing, so there is no sum it has to cover.
+Blank is not zero — it means the campaign sets no budget at all. The 1000
+default lives on the unbound form, so it is only for set-up; edit supplies
+the stored value, including blank. The box uses default_if_none so a stored
+0 still draws as 0.
+
+Blank is not zero and is not the usual 1000 — it means the campaign sets no
+budget at all, and the placeholder says so, because a reader who leaves it
+empty expecting a default gets a campaign that caps nobody.
 {% endcomment %}
 <c-n26.form-section title="General">
     <c-ui.field label="Campaign name *"
@@ -24,7 +27,7 @@ owns nothing, so there is no sum it has to cover.
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
     <c-ui.field label="Gang budget"
-                description="Leave blank for no starting credit limit."
+                description="What a gang has to spend when it is founded. Blank sets none."
                 error="x"
                 :form="form"
                 name="budget"
@@ -34,7 +37,7 @@ owns nothing, so there is no sum it has to cover.
                     type="number"
                     min="0"
                     inputmode="numeric"
-                    placeholder="No limit"
+                    placeholder="None"
                     right_addon="¢"
                     value="{{ form.budget.value|default_if_none:'' }}" />
     </c-ui.field>

@@ -19,6 +19,11 @@ from n26.flags import CAMPAIGNS, requires_flag
 #: and its controls — shorter than a gang's, so a page holds more of them.
 CAMPAIGNS_PER_PAGE = 25
 
+#: How many battles the campaign's page lists, newest first. A campaign
+#: played for a year has more than a page wants; the rest wait for a screen
+#: of their own.
+BATTLES_ON_THE_PAGE = 10
+
 #: How many acts the campaign's own page shows before saying there are more.
 #: Enough to see what happened since last time without burying the page.
 LOG_ON_THE_PAGE = 10
@@ -131,12 +136,14 @@ def campaign(request, pk):
         .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
+    battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
     return render(
         request,
         "n26/campaign.html",
         {
             "campaign": found,
             "playing": playing,
+            "battles": battles,
             "acts": list(reversed(recent)),
             "more_acts": max(campaign_history_size(found) - len(recent), 0),
         },
@@ -275,4 +282,64 @@ def remove_gang(request, pk, gang_pk):
         request,
         "n26/remove_gang_from_campaign.html",
         {"campaign": found, "gang": membership.gang},
+    )
+
+
+def _playing(campaign):
+    """The gangs currently in this campaign, for a picker to offer."""
+    from n26.core.models import Gang
+
+    return Gang.objects.filter(
+        campaign_memberships__campaign=campaign,
+        campaign_memberships__left__isnull=True,
+    ).order_by("name")
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_battle(request, pk):
+    """Write down a battle that was fought."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import BattleForm
+
+    found = _own_campaign_or_404(request, pk)
+    playing = _playing(found)
+
+    if request.method == "POST":
+        form = BattleForm(request.POST, playing=playing)
+        if form.is_valid():
+            with campaign_operation(found, actor=request.user) as act:
+                act.record_battle(form.cleaned_data["date"], form.cleaned_data["gangs"])
+            messages.success(request, "Battle recorded.")
+            return redirect("n26-campaign", pk=found.pk)
+    else:
+        form = BattleForm(playing=playing)
+
+    return render(
+        request,
+        "n26/add_battle.html",
+        {"form": form, "campaign": found},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def remove_battle(request, pk, battle_pk):
+    """The question at its own address, then the act."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import Battle
+
+    found = _own_campaign_or_404(request, pk)
+    battle = get_object_or_404(Battle, pk=battle_pk, campaign=found)
+
+    if request.method == "POST":
+        with campaign_operation(found, actor=request.user) as act:
+            act.remove_battle(battle)
+        messages.success(request, "Battle removed.")
+        return redirect("n26-campaign", pk=found.pk)
+
+    return render(
+        request,
+        "n26/remove_battle.html",
+        {"campaign": found, "battle": battle},
     )

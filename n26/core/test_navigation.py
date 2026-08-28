@@ -19,6 +19,7 @@ from django.urls import reverse
 from n26.core.models import Gang
 from n26.core.navigation import (
     NAV_SIBLINGS,
+    campaign_switcher,
     fighter_switcher,
     gang_switcher,
     owned_gangs,
@@ -482,3 +483,71 @@ class TestTheColourScheme:
             "n26/layouts/base.html", {"user": AnonymousUser()}, request=request
         )
         assert 'aria-label="Toggle dark mode"' in body
+
+
+class TestWhoseCampaignsAreListed:
+    """The same rules a gang's switcher follows, on the screens that belong
+    to one campaign."""
+
+    @pytest.fixture
+    def make_campaign(self, tester):
+        def make(name, owner=None):
+            from n26.core.models import Campaign
+
+            return Campaign.objects.create(name=name, owner=owner or tester)
+
+        return make
+
+    def test_it_lists_the_viewers_campaigns(self, tester, make_campaign):
+        make_campaign("Ashfall")
+        make_campaign("Sump City")
+        switcher = campaign_switcher(request_for(tester), make_campaign("Dust Falls"))
+        assert {item.label for item in switcher.items} == {
+            "Ashfall",
+            "Sump City",
+            "Dust Falls",
+        }
+
+    def test_someone_elses_campaigns_are_not_in_it(
+        self, tester, stranger, make_campaign
+    ):
+        mine = make_campaign("Ashfall")
+        make_campaign("Theirs", owner=stranger)
+        switcher = campaign_switcher(request_for(tester), mine)
+        assert [item.label for item in switcher.items] == ["Ashfall"]
+
+    def test_an_archived_campaign_is_not_offered(self, tester, make_campaign):
+        mine = make_campaign("Ashfall")
+        make_campaign("Gone").archive()
+        switcher = campaign_switcher(request_for(tester), mine)
+        assert [item.label for item in switcher.items] == ["Ashfall"]
+
+    def test_the_campaign_you_are_on_is_marked(self, tester, make_campaign):
+        make_campaign("Sump City")
+        here = make_campaign("Ashfall")
+        switcher = campaign_switcher(request_for(tester), here)
+        assert [item.label for item in switcher.items if item.current] == ["Ashfall"]
+        assert switcher.label == "Ashfall"
+
+    def test_the_campaign_you_are_on_survives_the_cap(self, tester, make_campaign):
+        """Named last in the alphabet, so a capped query drops it — and a
+        switcher that omits the page it is on says the reader is nowhere."""
+        for index in range(NAV_SIBLINGS + 2):
+            make_campaign(f"Campaign {index:02d}")
+        here = make_campaign("Zzz, the last one")
+        switcher = campaign_switcher(request_for(tester), here)
+        assert switcher.items[0].label == "Zzz, the last one"
+        assert switcher.items[0].current
+
+    def test_the_list_is_read_once_however_often_it_is_drawn(
+        self, tester, make_campaign, django_assert_num_queries
+    ):
+        """Memoised on the request: a page drawing the bar and the switcher
+        beside a heading would otherwise fetch the same campaigns twice."""
+        for index in range(5):
+            make_campaign(f"Campaign {index}")
+        here = make_campaign("Ashfall")
+        request = request_for(tester)
+        with django_assert_num_queries(1):
+            campaign_switcher(request, here)
+            campaign_switcher(request, here)

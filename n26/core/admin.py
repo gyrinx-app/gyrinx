@@ -25,8 +25,10 @@ from django.contrib import admin
 from n26.core.models import (
     Assignment,
     AssignmentSet,
+    Battle,
     Campaign,
     CampaignEvent,
+    CampaignMembership,
     Gang,
     LedgerEntry,
     LedgerEvent,
@@ -312,6 +314,29 @@ class CampaignEventAdmin(ReadOnlyAdmin):
     list_filter = ["kind"]
     search_fields = ["campaign__name", "note"]
     list_select_related = ["campaign", "actor"]
+
+
+@admin.register(CampaignMembership)
+class CampaignMembershipAdmin(ReadOnlyAdmin):
+    """Read-only: joining and leaving are written by an operation that logs
+    them in the same breath, and a membership edited by hand here would leave
+    the log saying something else happened."""
+
+    list_display = ["gang", "campaign", "created", "left"]
+    list_filter = ["campaign"]
+    search_fields = ["campaign__name", "gang__name"]
+    list_select_related = ["campaign", "gang"]
+
+
+@admin.register(Battle)
+class BattleAdmin(ReadOnlyAdmin):
+    """Read-only for the same reason a membership is: recording one writes a
+    line in the campaign's log, and the two are meant to agree."""
+
+    list_display = ["date", "campaign", "created"]
+    list_filter = ["campaign"]
+    search_fields = ["campaign__name"]
+    list_select_related = ["campaign"]
 
 
 # Registering this edition's maintenance operations happens on import, and

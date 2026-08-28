@@ -1,0 +1,75 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Writing down a battle that was fought.
+
+Only the date and who was in it. What a battle did to a gang is recorded
+against that gang, so this screen asks for nothing about the fighting.
+{% endcomment %}
+{% block head_title %}Record a battle in {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-add-battle' campaign.pk %}"
+                     title="Record a battle in {{ campaign.name }}"
+                     :form="form"
+                     submit_label="Record battle"
+                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Record a battle
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="The battle">
+            <c-ui.field label="Date *" error="x" :form="form" name="date" for="battle-date">
+                <c-ui.input id="battle-date"
+                            name="date"
+                            type="date"
+                            value="{{ form.date.value|default:'' }}" />
+            </c-ui.field>
+            {% comment %}
+            Plain boxes rather than the kit's checkbox, which drives itself
+            from Alpine and does nothing with scripting off. Styled the way
+            <c-n26.tick-list> styles its own: a native box takes its colour
+            from accent, never from a border class.
+            {% endcomment %}
+            <c-ui.field label="Participants"
+                        error="x"
+                        :form="form"
+                        name="gangs"
+                        for="battle-gangs">
+                {% if form.fields.gangs.queryset %}
+                    <div class="flex flex-col gap-1.5">
+                        {% for gang in form.fields.gangs.queryset %}
+                            <label class="flex items-center gap-2 text-base">
+                                <input type="checkbox"
+                                       name="gangs"
+                                       value="{{ gang.pk }}"
+                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                {{ gang.name }}
+                                <span class="text-sm text-muted">{{ gang.gang_type }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+                {% endif %}
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

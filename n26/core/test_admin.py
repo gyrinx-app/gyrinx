@@ -56,9 +56,11 @@ def test_every_n26_model_is_registered():
     skips admin registration should be a decision, not a default."""
     assert {model.__name__ for model in N26_MODELS} == {
         "Assignment",
+        "Battle",
         "AssignmentSet",
         "Campaign",
         "CampaignEvent",
+        "CampaignMembership",
         "Gang",
         "LedgerEntry",
         "LedgerEvent",

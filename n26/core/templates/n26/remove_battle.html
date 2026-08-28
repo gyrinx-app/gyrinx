@@ -1,23 +1,11 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% load static %}
 {% comment %}
-Editing a standing campaign. The same fields as the set-up screen, from the
-same include, so the two cannot drift into asking different questions.
-
-The submit takes the footer's default green: green is the commit, whether it
-is a Save or a Create. Blue is for a control that *opens* a form.
+The question asked before a battle is taken off a campaign, at an address of
+its own. Following the link that leads here changes nothing; the POST is the
+act.
 {% endcomment %}
-{% block head_title %}Edit {{ campaign.name }}{% endblock head_title %}
-{% comment %}
-richtext.js before form.media, as on the set-up screen: the listener that
-swaps the editor's skin with the colour mode has to be registered before
-django-tinymce reads its config.
-{% endcomment %}
-{% block extra_head %}
-    <script src="{% static 'n26/richtext.js' %}"></script>
-    {{ form.media }}
-{% endblock extra_head %}
+{% block head_title %}Remove the battle of {{ battle.date }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -26,10 +14,10 @@ django-tinymce reads its config.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-edit-campaign' campaign.pk %}"
-                     title="Edit {{ campaign.name }}"
-                     :form="form"
-                     submit_label="Save campaign"
+    <c-n26.form-page action="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                     title="Remove the battle of {{ battle.date|date:'j F Y' }}?"
+                     submit_label="Remove battle"
+                     submit_variant="danger"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -41,11 +29,20 @@ django-tinymce reads its config.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Edit
+                    Remove a battle
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% include 'n26/includes/campaign_form_fields.html' %}
+        {% comment %}
+        For a battle written down in error. It says what survives, because the
+        gangs' own records are the part a reader would fear losing.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="The gangs keep their records">
+            This takes the battle off {{ campaign.name }}. What each gang did keeps
+            its own record and simply stops naming a battle — nothing a gang gained
+            or lost is undone. The campaign's log keeps the line saying the battle
+            happened, and gains one saying it was removed.
+        </c-ui.alert>
     </c-n26.form-page>
 {% endblock content %}

@@ -8,7 +8,7 @@ import pytest
 from django.contrib.auth.models import Group, User
 
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core.models import Campaign, CampaignEvent, CampaignMembership
+from n26.core.models import Battle, Campaign, CampaignEvent, CampaignMembership
 from n26.core.views.campaigns import LOG_ON_THE_PAGE
 from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_gang
@@ -211,7 +211,9 @@ class TestSettingOneUp:
         assert response.context["form"]["budget"].value() == 1000
         body = response.content.decode()
         assert 'value="1000"' in body
-        assert "Leave blank for no starting credit limit." in body
+        # The field still says what clearing it does, which is the one thing
+        # a reader cannot see from a box that already holds a figure.
+        assert "Blank sets none." in body
 
     def test_a_blank_budget_means_no_limit_rather_than_zero(
         self, client, arbitrator, open_to_everyone
@@ -542,3 +544,163 @@ class TestTheRollOfGangs:
             f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/",
         ):
             assert client.get(address).status_code == 404, address
+
+
+class TestBattlesOnTheCampaignsPage:
+    @pytest.fixture
+    def gang(self, gang_type):
+        player = User.objects.create_user("player")
+        return found_gang("The Ashen Choir", gang_type, owner=player)
+
+    def page(self, client, campaign):
+        return client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+
+    def test_a_campaign_with_no_battles_says_so(
+        self, client, campaign, open_to_everyone
+    ):
+        drawn = self.page(client, campaign)
+        assert "Battles" in drawn
+        assert "No battles yet." in drawn
+
+    def test_recording_one_draws_it_and_logs_it(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            {"date": "2026-08-03", "gangs": [str(gang.pk)]},
+        )
+        assert response.status_code == 302
+
+        drawn = self.page(client, campaign)
+        assert "3 Aug 2026" in drawn
+        assert "recorded a battle fought on 3 August" in drawn
+        assert Battle.objects.get(campaign=campaign).gangs.count() == 1
+
+    def test_a_battle_with_nobody_named_still_draws(
+        self, client, campaign, open_to_everyone
+    ):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+        )
+        assert "Nobody named" in self.page(client, campaign)
+
+    def test_only_this_campaigns_gangs_are_offered(
+        self, client, campaign, gang, arbitrator, open_to_everyone
+    ):
+        """A picker over every gang there is would let an arbitrator record a
+        battle between gangs that were never in the campaign."""
+        elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
+
+        drawn = client.get(
+            f"/n26/campaigns/{campaign.pk}/battles/new/"
+        ).content.decode()
+        # The gang's id rather than its name: a flash message from the last
+        # request carries the name and would match wherever the picker stood.
+        assert f'value="{gang.pk}"' not in drawn
+        assert "No gangs in this campaign yet" in drawn
+
+    def test_a_battle_needs_a_date(self, client, campaign, open_to_everyone):
+        response = client.post(f"/n26/campaigns/{campaign.pk}/battles/new/", {})
+        assert response.status_code == 200
+        assert not Battle.objects.exists()
+
+    def test_the_question_page_removes_nothing(
+        self, client, campaign, open_to_everyone
+    ):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+        )
+        battle = Battle.objects.get()
+        address = f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/"
+        assert client.get(address).status_code == 200
+        assert Battle.objects.exists()
+
+    def test_the_post_removes_it(self, client, campaign, open_to_everyone):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+        )
+        battle = Battle.objects.get()
+        client.post(f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/")
+
+        assert not Battle.objects.exists()
+        drawn = self.page(client, campaign)
+        assert "No battles yet." in drawn
+        assert "removed the battle of 2026-08-03" in drawn
+
+    def test_another_campaigns_battle_is_not_reachable(
+        self, client, campaign, arbitrator, open_to_everyone
+    ):
+        elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        client.post(
+            f"/n26/campaigns/{elsewhere.pk}/battles/new/", {"date": "2026-08-03"}
+        )
+        battle = Battle.objects.get()
+        assert (
+            client.get(
+                f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/"
+            ).status_code
+            == 404
+        )
+
+    def test_the_battle_routes_are_shut_when_the_feature_is(
+        self, client, campaign, shut
+    ):
+        assert (
+            client.get(f"/n26/campaigns/{campaign.pk}/battles/new/").status_code == 404
+        )
+
+
+class TestTheCampaignInTheBar:
+    """Every screen belonging to one campaign names it in the app header, as
+    a link, with the switcher beside it — the same as a gang's screens. Read
+    off the rendered markup, because a component that draws nothing still
+    answers 200."""
+
+    @pytest.fixture
+    def gang(self, gang_type):
+        player = User.objects.create_user("player")
+        return found_gang("The Ashen Choir", gang_type, owner=player)
+
+    def screens(self, campaign, gang, battle):
+        return [
+            f"/n26/campaigns/{campaign.pk}/",
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            f"/n26/campaigns/{campaign.pk}/archive/",
+            f"/n26/campaigns/{campaign.pk}/gangs/add/",
+            f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/",
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/",
+        ]
+
+    def test_every_screen_carries_it(
+        self, client, campaign, gang, arbitrator, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+        )
+        battle = Battle.objects.get()
+
+        for address in self.screens(campaign, gang, battle):
+            drawn = client.get(address).content.decode()
+            # The switcher's own menu label: the list page has a search
+            # box with the same placeholder, so that would not tell them apart.
+            assert "Switch to another campaign" in drawn, address
+            assert f'href="/n26/campaigns/{campaign.pk}/"' in drawn, address
+
+    def test_it_offers_the_readers_other_campaigns(
+        self, client, campaign, arbitrator, open_to_everyone
+    ):
+        Campaign.objects.create(name="Sump City", owner=arbitrator)
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assert "Sump City" in drawn
+
+    def test_the_list_and_the_setup_screen_keep_the_places_switcher(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """Neither is one campaign, so neither names one in the bar."""
+        for address in ("/n26/campaigns/", "/n26/campaigns/new/"):
+            drawn = client.get(address).content.decode()
+            assert "Switch to another campaign" not in drawn, address

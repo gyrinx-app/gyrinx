@@ -27,7 +27,7 @@ field draws as a plain textarea and no editor ever appears.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-create-campaign' %}"
                      title="Set up a campaign"
-                     lead="A name, and what a gang may spend to join."
+                     lead="A name, and what a gang is founded with."
                      :form="form"
                      submit_label="Set up campaign"
                      cancel_url="{% url 'n26-campaigns' %}">

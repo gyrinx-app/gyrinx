@@ -6,8 +6,9 @@ Every campaign you arbitrate, and the way to set another up.
 The same <c-n26.record-table> the gangs list draws, over a row shaped for a
 campaign: one component and one search, so the two lists cannot come to
 disagree about what a list of things looks like. What differs is the row — a
-gang carries a type and a strip of money, a campaign carries the budget a
-gang joins at.
+gang carries a type and a strip of money, a campaign carries its name alone.
+The budget is a ceiling on what a gang may be worth, which says nothing
+useful about the campaign until you are in it.
 
 Setting one up is the page's action, in the header, because a list of
 campaigns is where someone goes when they want one more.
@@ -41,9 +42,7 @@ campaigns is where someone goes when they want one more.
                 {% endif %}
             </c-slot>
             {% for row in campaigns %}
-                <c-n26.record-table.campaign-row name="{{ row.name }}"
-                                                 budget="{{ row.budget|default_if_none:'' }}"
-                                                 href="{% url 'n26-campaign' row.pk %}" />
+                <c-n26.record-table.campaign-row name="{{ row.name }}" href="{% url 'n26-campaign' row.pk %}" />
             {% endfor %}
         </c-n26.record-table>
         {% comment %}

@@ -32,8 +32,9 @@ class Campaign(Base, Owned, Archived):
         null=True,
         blank=True,
         help_text=(
-            "What a gang may spend to join, where the campaign says. Null "
-            "means no ceiling — gangs enter at whatever they are worth."
+            "What a gang founded for this campaign has to spend on models and "
+            "gear. Whatever is left goes to its stash, so this is what a gang "
+            "is worth on the day it starts. Null means the campaign sets none."
         ),
     )
     #: The arbitrator's own words: what this campaign is, and whatever the
@@ -77,6 +78,8 @@ class CampaignEvent(Base):
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
         ARCHIVED = "archived", "Archived"
+        BATTLE_RECORDED = "battle_recorded", "Battle recorded"
+        BATTLE_REMOVED = "battle_removed", "Battle removed"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -88,6 +91,16 @@ class CampaignEvent(Base):
     #: a record of what happened to it rather than of who is still here.
     actor = models.ForeignKey(
         "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    #: The battle an act was about, where it was about one. Set to nothing if
+    #: the battle goes, which leaves the line saying a battle was recorded
+    #: without offering a page that is not there.
+    battle = models.ForeignKey(
+        "n26.Battle",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -166,3 +179,42 @@ class CampaignMembership(Base):
     def playing(self):
         """Whether the gang is still in the campaign."""
         return self.left is None
+
+
+class Battle(Base):
+    """One battle fought in a campaign: when, and who was in it.
+
+    Deliberately little. What a battle *did* — who won, what it dealt out,
+    what changed hands — is recorded against the gangs it happened to, in
+    their own ledgers, each event naming this battle. The row itself is only
+    the occasion those records hang from, so nothing here has to be kept in
+    step with them.
+
+    A gang in the fight need not still be in the campaign: a battle is a thing
+    that happened, and stays true after a gang leaves.
+    """
+
+    campaign = models.ForeignKey(
+        "n26.Campaign",
+        on_delete=models.CASCADE,
+        related_name="battles",
+    )
+    #: When it was fought, which is the players' own date rather than when
+    #: somebody got round to writing it down.
+    date = models.DateField()
+    gangs = models.ManyToManyField(
+        "n26.Gang",
+        related_name="battles",
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "battle"
+        verbose_name_plural = "battles"
+        ordering = ["-date", "-created"]
+        indexes = [
+            models.Index(fields=["campaign", "-date"], name="battle_by_date_idx"),
+        ]
+
+    def __str__(self):
+        return f"Battle on {self.date} in {self.campaign}"
