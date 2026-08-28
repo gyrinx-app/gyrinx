@@ -14,8 +14,12 @@ from n26.core.capture import differences, gang_state
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.library.authoring import attach_modifiers_to
-from n26.library.conversion import apply, plan_variant
-from n26.library.conversion.base import _canonicalize_unanswered, carriers_of
+from n26.library.conversion import ConversionRefused, apply, plan_variant
+from n26.library.conversion.base import (
+    ArchivePick,
+    _canonicalize_unanswered,
+    carriers_of,
+)
 from n26.library.models import Affiliation, Hidden, Modifier, Pickable, Slot
 from n26.tests.sandbox.actions import (
     adds,
@@ -351,6 +355,29 @@ class TestTheApply:
         )
         assert archived.archived
         assert archived.pickable_id is None
+
+    def test_every_planned_archive_lands(self, world):
+        plan = plan_variant()
+        wanted = [
+            step.assignment_id for step in plan.steps if isinstance(step, ArchivePick)
+        ]
+        assert wanted
+
+        apply(plan)
+
+        assert Assignment.objects.filter(pk__in=wanted, archived=True).count() == len(
+            wanted
+        )
+        assert not Assignment.objects.filter(pk__in=wanted, archived=False).exists()
+
+    def test_a_planned_archive_that_did_not_land_is_refused(self, world, monkeypatch):
+        """The page proof treats a printed None as unanswered, so it
+        cannot tell a landed archive from a no-op. Apply still has to
+        see that every planned archive actually archived."""
+        monkeypatch.setattr(ArchivePick, "perform", lambda self, made: None)
+
+        with pytest.raises(ConversionRefused, match="planned archive"):
+            apply(plan_variant())
 
     def test_every_corruption_is_a_pickable_even_if_nobody_picked_it(self, world):
         apply(plan_variant())

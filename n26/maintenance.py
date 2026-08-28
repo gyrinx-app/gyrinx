@@ -941,7 +941,9 @@ register_operation(
             "the three corruptions become pickables (Chaos Corrupted keeps "
             "its Chaos God grant), every stored corruption pick is re-said "
             "as a pick, and every stored None is archived so the question "
-            "reads unanswered. Proves a spread of gangs' pages read the "
+            "reads unanswered. Cards that print the word None today will "
+            "print nothing after — an optional slot with nothing chosen "
+            "already says that. Proves a spread of gangs' pages read the "
             "same and every reached gang still reconciles, or writes nothing."
         ),
         view=convert_variant_view,
