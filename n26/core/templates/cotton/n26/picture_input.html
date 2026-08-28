@@ -24,11 +24,15 @@ dialog chooses, it is not trusted.
   max — the stored picture's long side, the server's cap handed the
     same way; the dialog encodes no bigger, since the server would
     only shrink it.
-  submit_on_crop — confirming the crop submits the input's form, so the
+  submit_on_crop — confirming the crop saves the input's form, so the
     picture lands without a second click. Only for a form that is the
     picture's own: on a form carrying other fields it would save them
     all. The form's own submit control, marked data-crop-fallback, is
     hidden once the script is driving — it is the scriptless path.
+    The save happens from the open dialog: the confirm button works,
+    and a picture the server refuses says why in the dialog, on the
+    same rectangle that can be sent again. Only a save that landed
+    closes it.
 {% endcomment %}
 <c-vars id="" name="image" crop="" max="" :submit_on_crop="False" class="" />
 
@@ -50,6 +54,16 @@ dialog chooses, it is not trusted.
             <div class="n26-crop-stage">
                 <img data-crop-image alt="">
             </div>
+            {% comment %}
+            Where a refused save is read. Drawn empty and hidden; the crop
+            script fills it with what the server said and shows it, leaving the
+            dialog open so the same rectangle can be sent again. The alert
+            carries role="alert", so a reason arriving while the dialog is open
+            is announced rather than only drawn.
+            {% endcomment %}
+            <c-ui.alert data-crop-error hidden variant="error" class="text-left">
+                <span data-crop-error-text></span>
+            </c-ui.alert>
             <div class="flex justify-end gap-2">
                 <c-ui.button type="button" variant="default" size="sm" data-crop-cancel>
                     Cancel

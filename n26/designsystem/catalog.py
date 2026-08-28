@@ -1942,7 +1942,12 @@ GROUPS: list[Group] = [
                     "input is an ordinary file box, and either way the "
                     "server centre-crops every upload to the same shape "
                     "(n26/core/images.py): the dialog chooses, it is not "
-                    "trusted."
+                    "trusted. With submit_on_crop the save runs from the "
+                    "open dialog, and a refusal is drawn into the alert the "
+                    "dialog carries for it — the script reads it off the "
+                    "data-message hook that n26/includes/messages.html "
+                    "stamps on every alert, so a page that renders its "
+                    "messages some other way would leave that alert empty."
                 ),
             ),
             Component(

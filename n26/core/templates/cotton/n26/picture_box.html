@@ -18,10 +18,11 @@ to fill in. Both post act=picture to the given action, so the page
 behind it answers one act for both.
 
 The wrapper is the unit the crop script redraws in place
-(n26/imagecrop.js): after a background save it swaps this box for the
+(n26/imagecrop.js): after a save that landed it swaps this box for the
 same box from the fresh page, so the picture appears without the page
-moving. Without the script the fallback Save control submits the form
-plainly.
+moving. A save the server refuses swaps nothing and is read in the crop
+dialog instead. Without the script the fallback Save control submits the
+form plainly.
 
   action — where both forms post; the page must answer act=picture.
   id — the file input's own.
