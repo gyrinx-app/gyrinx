@@ -49,7 +49,9 @@ def world(prod_shape, owner):
 def build_prod_shape():
     """The system as production holds it: two Chaos God offers, one
     menu of four gods with no payload, Chaos Corrupted still an
-    Affiliation."""
+    Affiliation. The Helot hidden is itself named Chaos God — the
+    same word as the slot — so the two slot rows are told apart by
+    kind (Hidden) rather than by the hidden's name."""
     gods = {name: create_affiliation(name) for name in GODS}
     menu = section_of(
         create_collection("Chaos Gods", entries=[(gods[name], {}) for name in GODS]),
@@ -57,7 +59,7 @@ def build_prod_shape():
         0,
         is_default=True,
     )
-    helot_hidden = create_hidden("Chaos God — Helots")
+    helot_hidden = create_hidden("Chaos God")
     modifier(
         "Helots: the gang is asked its Chaos God",
         targets_gang(),
@@ -138,7 +140,7 @@ def build_world(prod_shape, owner):
 
 
 def _helot_slot():
-    return Slot.objects.get(name="Chaos God", qualifier="Chaos God — Helots")
+    return Slot.objects.get(name="Chaos God", qualifier="Hidden")
 
 
 def _corrupted_slot():
@@ -159,7 +161,9 @@ class TestThePlan:
         assert "create pickable “Plague Lord”" in said
         assert said.count("create slot “Chaos God”") == 2
         assert "pick landing on the gang" in said
-        assert "the “Chaos God — Helots” hidden" in said
+        assert "told apart as “Hidden”" in said
+        assert "told apart as “Chaos Corrupted”" in said
+        assert "the “Chaos God” hidden" in said
         assert "the “Chaos Corrupted” affiliation" in said
         assert "made_pickable" not in said
         assert "retire" not in said
@@ -193,28 +197,31 @@ class TestThePlan:
         assert plan.nothing_here
         assert apply(plan) == plan.preview()
 
-    def test_a_hidden_that_shares_the_slot_name_is_told_apart_by_kind(
+    def test_a_hidden_named_apart_from_the_slot_is_told_apart_by_name(
         self, owner, default_pack
     ):
-        """Production's Helot hidden is called Chaos God, the same word
-        as the slot. The two slot rows still need distinct qualifiers."""
+        """A hidden not called Chaos God still uses its own name as
+        qualifier. The default fixture matches production; this is the
+        other shape."""
         shape = build_prod_shape()
         _, _, _, helot_hidden, _, _ = shape
-        helot_hidden.name = "Chaos God"
+        helot_hidden.name = "Chaos God — Helots"
         helot_hidden.save()
-        build_world(shape, owner)
+        gangs, _, _ = build_world(shape, owner)
+        before = {key: gang_state(g) for key, g in gangs.items()}
 
         plan = plan_chaos_god()
 
         assert plan.ok
         said = "\n".join(plan.preview())
-        assert "told apart as “Hidden”" in said
-        assert "told apart as “Chaos Corrupted”" in said
+        assert "told apart as “Chaos God — Helots”" in said
         apply(plan)
-        assert Slot.objects.filter(name="Chaos God", qualifier="Hidden").exists()
         assert Slot.objects.filter(
-            name="Chaos God", qualifier="Chaos Corrupted"
+            name="Chaos God", qualifier="Chaos God — Helots"
         ).exists()
+        for key, gang in gangs.items():
+            assert differences(before[key], gang_state(gang)) == []
+            assert_reconciled(gang)
 
 
 class TestTheApply:
