@@ -110,6 +110,10 @@ class Operation(models.TextChoices):
         "n26_convert_outcast_affiliation",
         "n26: the Outcast affiliations become picks",
     )
+    CONVERT_CHAOS_GOD = (
+        "n26_convert_chaos_god",
+        "n26: the Chaos Gods become picks",
+    )
     SWEEP_ARCHIVED = (
         "n26_sweep_archived",
         "n26: the answers already taken back become picks",
@@ -145,6 +149,7 @@ LOCK_KEYS = {
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
     Operation.AUDIT_RECONCILE: 826_020_607,
     Operation.CONVERT_OUTCAST_AFFILIATION: 826_020_608,
+    Operation.CONVERT_CHAOS_GOD: 826_020_609,
     Operation.REPAIR_DOUBLED_REFUNDS: 826_020_609,
 }
 
@@ -503,6 +508,17 @@ def convert_outcast_affiliation(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def convert_chaos_god(backfill_id, **said_by_whoever_enqueued_it):
+    """The Chaos God conversion, as a task."""
+    _run_conversion(
+        backfill_id,
+        Operation.CONVERT_CHAOS_GOD,
+        "chaos_god",
+        **said_by_whoever_enqueued_it,
+    )
+
+
 def _proof_words(plan):
     """What a conversion's page says about its own proof."""
     # Same fallback as Plan.preview — a plan may omit `reaches`.
@@ -581,6 +597,15 @@ def convert_outcast_affiliation_view(request):
         Operation.CONVERT_OUTCAST_AFFILIATION,
         "outcast_affiliation",
         convert_outcast_affiliation,
+    )
+
+
+def convert_chaos_god_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_CHAOS_GOD,
+        "chaos_god",
+        convert_chaos_god,
     )
 
 
@@ -862,6 +887,26 @@ register_operation(
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.CONVERT_CHAOS_GOD.value,
+        name=Operation.CONVERT_CHAOS_GOD.label,
+        added=date(2026, 8, 28),
+        description=(
+            "Move the Chaos God choice onto slots and picks, both doors: "
+            "the Hidden built into Chaos Helot Cult and the Chaos Corrupted "
+            "affiliation each grant a Chaos God slot instead of offering a "
+            "choice, and every stored god pick — live and archived — is "
+            "re-said as a pick. Chaos Corrupted stays an Affiliation. "
+            "Proves a spread of gangs' pages read the same and every reached "
+            "gang still reconciles, or writes nothing."
+        ),
+        view=convert_chaos_god_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
         name=Operation.DELETE_NAMELESS_GANG_TYPE.label,
         added=date(2026, 8, 21),
@@ -914,6 +959,7 @@ register_operation(
 task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),
     TaskRoute(propagate_built_ins, ack_deadline=600),
     TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
     TaskRoute(audit_reconcile),
