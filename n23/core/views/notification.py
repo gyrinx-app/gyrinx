@@ -72,6 +72,13 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
         # relations, so Django batches them one query per content type. Without
         # this, `target_url` dereferences each row's target individually and the
         # inbox issues a query per notification.
+        #
+        # The prefetch resolves nothing for a row whose target keys itself with
+        # anything but a plain UUID: it maps the fetched objects by their own
+        # pk and looks those up against the uuid column, and the two are not
+        # equal even when they are the same bytes. Such a row's `target` reads
+        # as None here, which is why the template decides whether to link on
+        # the stored key instead.
         qs = (
             Notification.objects.for_recipient(self.request.user)
             .select_related("sender")

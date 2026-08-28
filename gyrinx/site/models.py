@@ -5,6 +5,7 @@ being built.
 """
 
 import logging
+import uuid
 from itertools import islice
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -450,6 +451,37 @@ class Notification(AppBase):
 #
 
 
+def _generic_key(obj):
+    """The content type and object id for a generic link.
+
+    The id columns are ``uuid``, and an edition may key its rows with
+    something that is a UUID underneath while rendering as something else — a
+    ULID is the same 128 bits in a different alphabet. Handing the field that
+    object raises, and because :func:`notify` swallows its own errors the
+    notification is simply lost. Worse, inside a transaction the failed
+    statement has already poisoned it, so the act being announced rolls back
+    too.
+
+    So the key is coerced here rather than left to the field: anything that
+    knows how to become a UUID is asked to, and anything that does not is
+    linked to nothing rather than costing the caller their notification.
+    """
+    if obj is None:
+        return None, None
+    key = obj.pk
+    if not isinstance(key, uuid.UUID):
+        becomes = getattr(key, "to_uuid", None)
+        try:
+            key = becomes() if callable(becomes) else uuid.UUID(str(key))
+        except AttributeError, TypeError, ValueError:
+            logger.warning(
+                "Cannot link a notification to %r: its key is not a UUID",
+                type(obj).__name__,
+            )
+            return None, None
+    return ContentType.objects.get_for_model(obj), key
+
+
 def notify(
     *,
     recipient,
@@ -483,6 +515,8 @@ def notify(
         if recipient is None:
             logger.warning("notify() called with no recipient; skipping")
             return None
+        target_type, target_key = _generic_key(target)
+        scope_type, scope_key = _generic_key(scope)
         return Notification.objects.create_with_user(
             user=sender,  # history user (no-op — no history table); harmless
             owner=recipient,  # AppBase owner == recipient
@@ -490,8 +524,10 @@ def notify(
             subject=subject,
             content=content,
             notification_type=notification_type,
-            target=target,
-            scope=scope,
+            target_content_type=target_type,
+            target_object_id=target_key,
+            scope_content_type=scope_type,
+            scope_object_id=scope_key,
             show_as_banner=show_as_banner,
             banner_colour=banner_colour,
             icon=icon,

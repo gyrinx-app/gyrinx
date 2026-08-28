@@ -173,6 +173,7 @@ class CampaignOperation:
             subject=f"{asked_by} invited you to {campaign.name}",
             content=message,
             sender=self.actor,
+            about=participant,
         )
         return participant
 
@@ -209,6 +210,7 @@ class CampaignOperation:
             campaign.owner,
             subject=f"{user.username} {word} your invitation to {campaign.name}",
             sender=user,
+            about=participant,
         )
         return participant
 

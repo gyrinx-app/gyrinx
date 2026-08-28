@@ -301,3 +301,14 @@ class CampaignParticipant(Base):
     def waiting(self):
         """Whether the question still stands."""
         return self.state == self.State.INVITED
+
+    def get_absolute_url(self):
+        """Where this invitation is answered.
+
+        The campaigns list rather than the campaign: a campaign's own pages
+        are its arbitrator's, and the person asked cannot open one until they
+        are in it. What they can do is answer, and that is here.
+        """
+        from django.urls import reverse
+
+        return reverse("n26-campaigns")

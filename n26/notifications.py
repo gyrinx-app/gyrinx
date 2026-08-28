@@ -18,13 +18,14 @@ act, never the record that it happened; that is the campaign's log.
 from gyrinx.site.models import NotificationType, notify
 
 
-def tell(recipient, subject, content="", sender=None):
+def tell(recipient, subject, content="", sender=None, about=None):
     """Put one notification in somebody's inbox, about a campaign.
 
-    No ``target`` or ``scope``. The platform stores those as generic links
-    whose key column is a UUID, and this edition's rows are keyed by ULID —
-    handing one over raises, and the notification is lost. What a reader needs
-    is in the words, so the words carry it.
+    ``about`` is what the notification concerns, and makes the inbox row a
+    link: the platform asks the object where it lives, so anything given here
+    must answer ``get_absolute_url`` with an address the *recipient* can open.
+    An invitation answers with the page it is answered on, not the campaign's
+    own pages, which belong to its arbitrator.
 
     **Call this after the transaction that recorded the act, never inside
     it.** ``notify`` catches its own errors, but a database error inside an
@@ -38,10 +39,11 @@ def tell(recipient, subject, content="", sender=None):
         content=content,
         notification_type=NotificationType.CAMPAIGN,
         sender=sender,
+        target=about,
     )
 
 
-def deliver(recipient, subject, content="", sender=None):
+def deliver(recipient, subject, content="", sender=None, about=None):
     """Tell somebody once the act that prompted it is safely written.
 
     Telling is not the record — the campaign's log is — so it waits for the
@@ -50,5 +52,5 @@ def deliver(recipient, subject, content="", sender=None):
     from django.db import transaction
 
     transaction.on_commit(
-        lambda: tell(recipient, subject, content=content, sender=sender)
+        lambda: tell(recipient, subject, content=content, sender=sender, about=about)
     )

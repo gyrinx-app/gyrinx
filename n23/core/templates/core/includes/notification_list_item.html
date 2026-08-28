@@ -20,7 +20,16 @@
         <span class="d-inline-flex align-items-center">{% include "core/includes/notification_source.html" with notification=notification %}{% dot %}{{ notification.created|timesince }} ago</span>
     </div>
     <div class="fw-semibold">
-        {% if notification.target_url %}
+        {% comment %}
+        The stored key rather than target_url, which dereferences it: the
+        inbox prefetches its generic relations, and a prefetch cannot match a
+        row whose model keys itself with something other than a plain UUID —
+        it maps by the object's own pk and looks up by the uuid column. The
+        open view resolves the target directly, so the link works even where
+        the list could not say what it points at, and falls back to the inbox
+        for a target that has since gone.
+        {% endcomment %}
+        {% if notification.target_object_id or notification.scope_object_id %}
             <a href="{% url 'core:notification-open' notification.id %}"
                class="link-body-emphasis link-underline-opacity-25 link-underline-opacity-100-hover">{{ notification.subject }}</a>
         {% else %}

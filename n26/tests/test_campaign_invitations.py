@@ -166,3 +166,48 @@ class TestRemoving:
             "invited vex_ordo",
             "removed vex_ordo from the campaign",
         ]
+
+
+class TestTheInboxRowLinksSomewhere:
+    """A notification about an invitation is a link to where it is answered.
+
+    The platform stores that link keyed by a uuid column, and this edition's
+    rows are keyed by ULID — the same 128 bits under a different alphabet. The
+    key is coerced when the notification is written, so the link survives; if
+    that stops happening the notification is not merely unlinked, it is lost,
+    because the failed statement poisons the transaction that wrote the act.
+    """
+
+    def test_the_notification_names_the_invitation(
+        self, campaign, arbitrator, player, django_capture_on_commit_callbacks
+    ):
+        with django_capture_on_commit_callbacks(execute=True):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                invitation = act.invite(player)
+
+        sent = Notification.objects.get(owner=player)
+        assert sent.target_object_id == invitation.pk.to_uuid()
+        assert sent.target == invitation
+
+    def test_the_row_leads_where_the_invitation_is_answered(
+        self, campaign, arbitrator, player, django_capture_on_commit_callbacks
+    ):
+        """The campaigns list, not the campaign: its own pages belong to the
+        arbitrator and would answer 404 to the person invited."""
+        with django_capture_on_commit_callbacks(execute=True):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.invite(player)
+
+        assert Notification.objects.get(owner=player).target_url == "/n26/campaigns/"
+
+    def test_the_arbitrators_notification_links_too(
+        self, campaign, arbitrator, player, django_capture_on_commit_callbacks
+    ):
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.invite(player)
+        with django_capture_on_commit_callbacks(execute=True):
+            with campaign_operation(campaign, actor=player) as act:
+                act.answer_invitation(player, accepted=True)
+
+        told_them = Notification.objects.get(owner=arbitrator)
+        assert told_them.target_url == "/n26/campaigns/"
