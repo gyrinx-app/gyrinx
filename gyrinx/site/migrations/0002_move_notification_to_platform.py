@@ -17,9 +17,6 @@ class Migration(migrations.Migration):
     """
 
     dependencies = [
-        # State-only: this adopts core_notification rather than making it. Naming the
-        # core migration the paired release depends on is what holds this
-        # app's chain back until the table exists — #2231.
         ("core", "0211_drop_notification_related_columns"),
         ("contenttypes", "0002_remove_content_type_name"),
         ("gyrinxsite", "0001_move_site_models_to_platform"),
