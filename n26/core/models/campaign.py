@@ -32,8 +32,9 @@ class Campaign(Base, Owned, Archived):
         null=True,
         blank=True,
         help_text=(
-            "What a gang may spend to join, where the campaign says. Null "
-            "means no ceiling — gangs enter at whatever they are worth."
+            "What a gang founded for this campaign has to spend on models and "
+            "gear. Whatever is left goes to its stash, so this is what a gang "
+            "is worth on the day it starts. Null means the campaign sets none."
         ),
     )
     #: The arbitrator's own words: what this campaign is, and whatever the

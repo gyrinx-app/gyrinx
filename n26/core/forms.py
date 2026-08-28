@@ -332,11 +332,12 @@ class RenameFighterForm(forms.Form):
 class CampaignForm(forms.Form):
     """Setting a campaign up, and editing one afterwards.
 
-    ``budget`` is the starting credit limit a gang may spend to join.
-    Blank is not zero: it means no limit, which is how a campaign runs
-    where the table has not agreed one. The field's ``initial`` is 1000,
-    so set-up opens at that figure. Edit supplies the stored value, so
-    an unlimited campaign stays blank. Clearing it lands as ``budget=None``.
+    ``budget`` is what a gang founded for this campaign has to spend on
+    models and gear; whatever is left goes to its stash, so it settles what
+    the gang is worth on the day it starts. The field's ``initial`` is 1000,
+    the usual figure, so set-up opens there. Edit supplies the stored value,
+    so a campaign that sets none stays blank. Blank is not zero — it means
+    no budget at all — and lands as ``budget=None``.
     """
 
     name = forms.CharField(
@@ -349,7 +350,7 @@ class CampaignForm(forms.Form):
         min_value=0,
         initial=1000,
         label="Gang budget",
-        help_text="Leave blank for no starting credit limit.",
+        help_text="What a gang has to spend when it is founded. Blank sets none.",
     )
     summary = forms.CharField(
         required=False,

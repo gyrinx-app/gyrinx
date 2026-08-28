@@ -799,11 +799,7 @@ def _tell_campaign(e):
         case kinds.BUDGET_SET:
             _, _, now = e.note.rpartition(" → ")
             if now == NO_CEILING:
-                return (
-                    Span(
-                        "removed the gang budget — gangs enter at whatever they are worth"
-                    ),
-                ), "campaign"
+                return (Span("removed the gang budget"),), "campaign"
             if now:
                 return (Span(f"set the gang budget to {now}¢"),), "campaign"
             return (Span("changed the gang budget"),), "campaign"

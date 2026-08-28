@@ -81,12 +81,12 @@ class CampaignOperation:
         return campaign
 
     def set_budget(self, credits):
-        """Change what a gang may spend to join, and record it.
+        """Change what a gang is founded with here, and record it.
 
-        ``credits`` is the new budget, or ``None`` for no ceiling at all.
-        Nothing moves and no gang is touched: this is the figure a gang is
-        measured against on its way in, so a reader owed an explanation of
-        why a gang could not join is owed this.
+        ``credits`` is the new budget, or ``None`` for none at all. Nothing
+        moves and no gang already playing is touched: this settles what the
+        next gang founded for this campaign has to spend, and so what it is
+        worth on the day it starts.
         """
         campaign = self.campaign
         was = campaign.budget
