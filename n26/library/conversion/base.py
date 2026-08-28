@@ -13,7 +13,11 @@ what any page says. Three stages, the ingest discipline:
   pages say (``n26.core.capture``); after writing it captures again and
   **refuses** — unwinding the whole transaction — on any difference, and
   on any touched gang that no longer reconciles. A conversion that would
-  change what a reader is told never lands.
+  change what a reader is told never lands — except a printed “None”
+  that an optional slot already says with nothing chosen. That exception
+  is named on the plan (``unanswered_as``) so the proof treats the two
+  as equal; apply then checks every planned :class:`ArchivePick` landed
+  by identity, because that proof can no longer see them.
 * A plan whose system is absent (``plan.nothing_here``) applies as a
   no-op, so the migration that ships a conversion is safe on databases
   that never held the system — a fresh environment, a pack without it.
@@ -454,6 +458,28 @@ class SwapSharedCarrier:
 
 
 @dataclass(frozen=True)
+class ArchivePick:
+    """A stored pick archived in place — the declared ledger change for
+    a printed “None” that an optional slot already says with nothing
+    chosen. Already-archived picks stay archived; this does not revive
+    them. No money, no event: the conversion exception."""
+
+    assignment_id: object
+    gang: str
+    name: str = "None"
+
+    def say(self):
+        return f"archive pick {self.assignment_id} ({self.gang}) — “{self.name}”"
+
+    def perform(self, made):
+        from n26.core.models import Assignment
+
+        pick = Assignment.objects.get(pk=self.assignment_id)
+        if not pick.archived:
+            pick.archive()
+
+
+@dataclass(frozen=True)
 class RewritePick:
     """One stored choice, re-said as a pick: the old kind's column moves
     to ``pickable``, the anchor it already hangs from (``caused_by``)
@@ -532,6 +558,11 @@ class Plan:
     #: True when the system simply is not here — nothing to convert and
     #: nothing wrong: the apply is a clean no-op.
     nothing_here: bool = False
+    #: Choice pairs this conversion treats as unanswered after the write.
+    #: Archiving a printed “None” leaves the same question with nothing
+    #: settled; capture otherwise sees the stored name become "". Each
+    #: pair is ``(kind_label, chosen)``.
+    unanswered_as: tuple = ()
 
     @property
     def ok(self):
@@ -567,7 +598,8 @@ def apply(plan):
 
     Returns the report lines. Raises :class:`ConversionRefused` — after
     unwinding everything — if the plan carries problems, any affected
-    gang's pages change, or any touched gang stops reconciling.
+    gang's pages change, any planned archive did not land, or any
+    touched gang stops reconciling.
     """
     if plan.problems:
         raise ConversionRefused(
@@ -655,6 +687,58 @@ def _one_snapshot():
             )
 
 
+def _assert_archives_landed(plan):
+    """Every planned ArchivePick must now be an archived row.
+
+    The page proof treats a printed None as unanswered, so it cannot
+    tell a landed archive from a no-op. Check the planned rows by
+    identity instead.
+    """
+    from n26.core.models import Assignment
+
+    wanted = [
+        step.assignment_id for step in plan.steps if isinstance(step, ArchivePick)
+    ]
+    if not wanted:
+        return
+    landed = set(
+        Assignment.objects.filter(pk__in=wanted, archived=True).values_list(
+            "pk", flat=True
+        )
+    )
+    missing = [pk for pk in wanted if pk not in landed]
+    if missing:
+        n = len(missing)
+        raise ConversionRefused(
+            f"[{plan.system}] refused — {n} planned archive"
+            f"{'' if n == 1 else 's'} did not land"
+        )
+
+
+def _canonicalize_unanswered(state, pairs):
+    """Rewrite captured choices so listed ``(kind, chosen)`` pairs read
+    as unanswered. A conversion that archives a printed None in favour
+    of an optional slot uses this rather than weakening ``differences``
+    for every caller."""
+    if not pairs:
+        return state
+    equivalent = set(pairs)
+
+    def choices(rows):
+        return sorted(
+            (kind, "") if (kind, chosen) in equivalent else (kind, chosen)
+            for kind, chosen in rows
+        )
+
+    rewritten = dict(state)
+    rewritten["choices"] = choices(state["choices"])
+    rewritten["models"] = {
+        model_id: {**model, "choices": choices(model["choices"])}
+        for model_id, model in state.get("models", {}).items()
+    }
+    return rewritten
+
+
 def _perform(plan, report):
     from n26.core.capture import differences, gang_state
     from n26.core.models import Gang
@@ -678,13 +762,26 @@ def _perform(plan, report):
                 raise ConversionRefused(
                     f"[{plan.system}] failed at “{step.say()}”: {failed}"
                 ) from failed
+        # unanswered_as makes a printed None compare equal to an unanswered
+        # optional slot, so the proof cannot tell a landed archive from a
+        # no-op. The planned rows are checked by identity instead.
+        _assert_archives_landed(plan)
         # Fresh instances: the steps may have moved column-backed facts,
         # and a stale row would compare stale with stale.
         after = {
             str(gang.pk): gang_state(gang)
             for gang in Gang.objects.filter(pk__in=plan.gang_ids)
         }
-        changed = differences(before, after)
+        changed = differences(
+            {
+                key: _canonicalize_unanswered(state, plan.unanswered_as)
+                for key, state in before.items()
+            },
+            {
+                key: _canonicalize_unanswered(state, plan.unanswered_as)
+                for key, state in after.items()
+            },
+        )
         if changed:
             raise ConversionRefused(
                 f"[{plan.system}] refused — the pages would change:\n  "
