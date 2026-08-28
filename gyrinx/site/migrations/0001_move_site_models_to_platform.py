@@ -19,6 +19,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        ("core", "0203_move_userprofile_to_accounts"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

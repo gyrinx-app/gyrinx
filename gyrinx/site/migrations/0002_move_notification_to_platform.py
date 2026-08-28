@@ -17,6 +17,7 @@ class Migration(migrations.Migration):
     """
 
     dependencies = [
+        ("core", "0211_drop_notification_related_columns"),
         ("contenttypes", "0002_remove_content_type_name"),
         ("gyrinxsite", "0001_move_site_models_to_platform"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

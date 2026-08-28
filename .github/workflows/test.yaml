@@ -84,3 +84,68 @@ jobs:
         run: |
           source .venv/bin/activate && \
           bandit -c pyproject.toml -r . --baseline bandit/bandit-baseline.json
+
+  # Applies the whole migration graph to an empty database, which nothing else
+  # here does: pytest builds the schema straight from the models
+  # (--nomigrations), and the conflict check reads the graph without running
+  # it. Both stay green while a from-scratch apply is broken, which is how
+  # #2231 survived — a state-only app-move migration ran before the n23 core
+  # migration that made the table it had adopted, and only a database that
+  # already had the table hid it.
+  #
+  # Its own job rather than a step in `test` so a four-minute migrate does not
+  # sit in front of the test result.
+  fresh-database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_NAME: gyrinx_fresh
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_CONFIG: '{"user":"postgres","password":"postgres"}'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Write to .env file
+        run: |
+          echo "SECRET_KEY=test-secret" >> .env
+          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+
+      # A database of its own, so the run starts from genuinely nothing rather
+      # than from whatever the service image left in `postgres`.
+      - name: Create an empty database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c 'CREATE DATABASE gyrinx_fresh;'
+
+      - name: Migrate the empty database
+        timeout-minutes: 30
+        run: |
+          source .venv/bin/activate
+          manage migrate

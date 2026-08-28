@@ -14,12 +14,13 @@ class Migration(migrations.Migration):
     State-only. The tables (core_userprofile, core_historicaluserprofile) are
     pinned via db_table and already exist — this migration teaches Django that
     they now belong to `accounts`, and touches no data. Paired with
-    core.0201, which drops them from `core`'s state the same way.
+    core.0203, which drops them from `core`'s state the same way.
     """
 
     initial = True
 
     dependencies = [
+        ("core", "0202_migrate_stat_overrides_operation"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

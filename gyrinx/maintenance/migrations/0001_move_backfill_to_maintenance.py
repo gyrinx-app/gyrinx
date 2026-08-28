@@ -19,6 +19,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        ("core", "0213_document_pre_mod_advancement_flag"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
