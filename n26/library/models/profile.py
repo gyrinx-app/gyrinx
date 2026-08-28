@@ -30,9 +30,7 @@ class ProfileType(Content):
     Vehicle like anything else. So there are exactly two of these rows,
     created as standard content and never authored by hand.
 
-    Each fixes the shape of the statline its profiles carry, and what
-    they call a lasting effect — Injury for fighters, Damage for
-    vehicles.
+    Each fixes the shape of the statline its profiles carry.
     """
 
     family = Family.FOUNDATION
@@ -44,16 +42,6 @@ class ProfileType(Content):
     )
     statline_type = models.ForeignKey(
         StatlineType, on_delete=models.PROTECT, related_name="profile_types"
-    )
-    #: The first of the profile type's *terms*: the kind is one
-    #: (LastingEffect), the word is the profile type's own.
-    lasting_effect_term = models.CharField(
-        max_length=50,
-        default="Injury",
-        help_text=(
-            'What this profile type calls a lasting effect — "Injury" for '
-            'fighters, "Damage" for vehicles.'
-        ),
     )
 
     class Meta:

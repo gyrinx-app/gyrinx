@@ -22,7 +22,6 @@ from n26.tests.sandbox.actions import (
     adds,
     assign,
     create_assignment_set,
-    create_injury,
     create_skill,
     create_subtype,
     create_trait,
@@ -168,10 +167,10 @@ class TestNamedSelections:
 
 class TestSelectionRules:
     def test_only_equipment_may_vary(self, yolanda):
-        injury = create_injury("Eye Injury")
-        injured = assign(injury, miniature=yolanda)
+        skill = create_skill("Nerves of Steel")
+        skilled = assign(skill, miniature=yolanda)
         with pytest.raises(ValidationError, match="only weapons and wargear"):
-            create_assignment_set(yolanda, "Cheat", [injured])
+            create_assignment_set(yolanda, "Cheat", [skilled])
 
     def test_another_model_s_kit_is_rejected(self, yolanda, gang_type, make_profile):
         other = hire(yolanda.gang, make_profile("Another Ganger"), "Mad Donna", paid=55)
@@ -188,16 +187,17 @@ class TestSelectionRules:
         with pytest.raises(IntegrityError), transaction.atomic():
             create_assignment_set(yolanda, "riding KIT", [])
 
-    def test_injuries_ride_every_card(self, yolanda, kits=None):
-        injury = create_injury("Eye Injury")
-        assign(injury, miniature=yolanda)
+    def test_everything_that_is_not_equipment_rides_every_card(
+        self, yolanda, kits=None
+    ):
+        assign(create_skill("Nerves of Steel"), miniature=yolanda)
         equipment = equipment_of(yolanda)
         knife_only = create_assignment_set(
             yolanda, "Knife only", [equipment["Stiletto knife"]]
         )
         card = build_card(yolanda, assignment_set=knife_only)
         names = [node.name for node in card.roots]
-        assert "Eye Injury" in names
+        assert "Nerves of Steel" in names
 
 
 class TestRendering:

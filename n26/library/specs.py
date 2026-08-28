@@ -341,7 +341,6 @@ def _build_registry():
         InCategories,
         IsOneOf,
         IsProfile,
-        LastingEffect,
         OffersChoice,
         OpAddsMiniature,
         OpChangesCounter,
@@ -777,16 +776,6 @@ def _build_registry():
                 "qualifier": Text(source=(Power, "qualifier")),
                 "library_author_help": Text(
                     source=(Power, "library_author_help"), long=True
-                ),
-            },
-        ),
-        Spec(
-            authoring.create_lasting_effect,
-            {
-                "name": Text(source=(LastingEffect, "name")),
-                "qualifier": Text(source=(LastingEffect, "qualifier")),
-                "library_author_help": Text(
-                    source=(LastingEffect, "library_author_help"), long=True
                 ),
             },
         ),

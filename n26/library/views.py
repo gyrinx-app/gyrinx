@@ -51,7 +51,6 @@ LEAF_KINDS = {
     "trait": "create_trait",
     "skill": "create_skill",
     "power": "create_power",
-    "lasting-effect": "create_lasting_effect",
     "counter": "create_counter",
     "hidden": "create_hidden",
     "slot-type": "create_slot_type",

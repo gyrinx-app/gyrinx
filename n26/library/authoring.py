@@ -145,11 +145,10 @@ def add_stat_to_statline_type(
     )
 
 
-def create_profile_type(name, statline_type, lasting_effect_term="Injury", **kwargs):
+def create_profile_type(name, statline_type, **kwargs):
     return ProfileType.objects.create(
         name=name,
         statline_type=statline_type,
-        lasting_effect_term=lasting_effect_term,
         **kwargs,
     )
 
@@ -385,19 +384,6 @@ def create_skill(
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
         usable_by_profiles=usable_by_profiles,
-    )
-
-
-def create_lasting_effect(name, qualifier="", library_author_help="", **kwargs):
-    """What a Lasting Injury or Lasting Damage table deals out — the
-    profile type's term decides what a card calls it."""
-    from n26.library.models import LastingEffect
-
-    return LastingEffect.objects.create(
-        name=name,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
     )
 
 

@@ -29,7 +29,6 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     create_default_set,
     create_gang_type,
     create_hidden,
-    create_lasting_effect,
     create_option_group,
     create_pack,
     create_pickable,
@@ -106,12 +105,6 @@ def targets_model(with_subtypes=(), when_counter=None, at_least=0):
 def targets_weapons(with_trait=None):
     conditions = (has_traits(with_trait),) if with_trait is not None else ()
     return _targets_weapons(*conditions)
-
-
-def create_injury(name, **kwargs):
-    """Old name for a lasting effect — the kind is one, the word is
-    the profile type's."""
-    return create_lasting_effect(name, **kwargs)
 
 
 def modifier(name, scope, effect, carried_by=None, **kwargs):

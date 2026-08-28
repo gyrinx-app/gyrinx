@@ -47,7 +47,6 @@ ASSIGNABLE_FIELDS = {
     "subtype": "library.Subtype",
     "skill": "library.Skill",
     "trait": "library.Trait",
-    "lasting_effect": "library.LastingEffect",
     "collection": "library.Collection",
     "power": "library.Power",
     "rule": "library.Rule",
@@ -115,13 +114,6 @@ class Assignment(NamesAnAssignable, Base, Archived):
     )
     trait = models.ForeignKey(
         "library.Trait",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="assignments",
-    )
-    lasting_effect = models.ForeignKey(
-        "library.LastingEffect",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
