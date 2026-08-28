@@ -1279,16 +1279,33 @@
     cursor: progress;
 }
 
-/* Pseudo-elements are not element children, so the spinner below is not caught
- * by this. */
+/* Element children — an icon, or the span a label is often wrapped in — go
+ * with the label.
+ *
+ * Faded rather than hidden, because `visibility: hidden` takes them out of the
+ * accessibility tree as well as off the screen: a button whose label lives in
+ * a span would be left with no name at all for the moment it is working, which
+ * is exactly the moment a reader might ask what it is. Both this and the label
+ * above are visual-only hides, so what the button announces never changes.
+ *
+ * Pseudo-elements are not element children, so the spinner below is untouched. */
 :is(button, a)[data-busy="on"] > * {
-    visibility: hidden;
+    opacity: 0;
 }
 
 /* A link cannot be disabled the way a button can, so the second click is
  * refused here instead. */
 a[data-busy="on"] {
     pointer-events: none;
+}
+
+/* A control the script disabled for the moment a click is in flight keeps its
+ * normal weight. It is not disabled in the sense a reader knows — it comes
+ * back on its own — and a screen whose whole catalogue is one form would
+ * otherwise grey out every button on it because a purchase is under way in
+ * one row. The one that was clicked says so with its spinner. */
+:is(button, a)[data-busy-disabled] {
+    opacity: 1;
 }
 
 /* The spinner: the kit's <c-ui.spinner> as a ring rather than an SVG, because
@@ -1309,9 +1326,8 @@ a[data-busy="on"] {
     animation: n26-busy-spin 0.85s linear infinite;
 }
 
-/* Slowed rather than stopped, the way Bootstrap treats its own spinner: a
- * still ring says the same thing as a broken one, and this is the only sign
- * the click was heard. */
+/* Slowed rather than stopped: a still ring says the same thing as a broken
+ * one, and this is the only sign the click was heard. */
 @media (prefers-reduced-motion: reduce) {
     :is(button, a)[data-busy="on"]::after {
         animation-duration: 1.5s;

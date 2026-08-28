@@ -33,33 +33,45 @@
         "[hx-get],[hx-post],[hx-put],[hx-patch],[hx-delete]," +
         "[data-hx-get],[data-hx-post],[data-hx-put],[data-hx-patch],[data-hx-delete]";
 
-    /* Every control a form sends itself with. A <button> in a form with no
+    /* The controls a form sends itself with. A <button> in a form with no
      * type at all is a submit — HTML's default, and easy to forget. */
     var SUBMITS =
-        'button[type="submit"], input[type="submit"], button:not([type])';
+        'button[type="submit"], input[type="submit"], input[type="image"], ' +
+        "button:not([type])";
 
-    function isHtmx(element) {
-        return !!element && !!element.closest && !!element.closest(HTMX_VERBS);
+    /* Every element reaching these came from an event, and an event's target
+     * is not always an element with questions to answer. */
+    function element(candidate) {
+        return candidate && candidate.closest && candidate.matches
+            ? candidate
+            : null;
     }
 
-    function optedOut(element) {
-        return !!element.closest('[data-busy="off"]');
+    function isHtmx(candidate) {
+        var el = element(candidate);
+        return !!el && !!el.closest(HTMX_VERBS);
     }
 
-    function markBusy(element) {
-        if (!element || optedOut(element)) return;
+    function optedOut(candidate) {
+        var el = element(candidate);
+        return !!el && !!el.closest('[data-busy="off"]');
+    }
+
+    function markBusy(candidate) {
+        var el = element(candidate);
+        if (!el || optedOut(el)) return;
         /* The spinner is a pseudo-element, and a replaced element has none:
          * an <input type="submit"> marked busy would lose its label and show
          * nothing in its place. It is still disabled, just not painted. */
-        if (!element.matches("button, a")) return;
-        if (element.getAttribute("data-busy") === "on") return;
+        if (!el.matches("button, a")) return;
+        if (el.getAttribute("data-busy") === "on") return;
 
-        element.setAttribute("data-busy", "on");
-        element.setAttribute("aria-busy", "true");
-        /* What the script put on is what the script takes off. A page can
-         * carry the state in its own markup — the gallery's demo does — and a
-         * sweep that could not tell the two apart would quietly undo it. */
-        element.setAttribute("data-busy-applied", "");
+        el.setAttribute("data-busy", "on");
+        el.setAttribute("aria-busy", "true");
+        /* What the script put on is what the script takes off: markup may
+         * carry the state itself, and a sweep that could not tell the two
+         * apart would quietly undo it. */
+        el.setAttribute("data-busy-applied", "");
     }
 
     function disable(element) {
@@ -92,15 +104,27 @@
         }
     }
 
-    /* Undo every busy control at or inside `root`. Scoped rather than
-     * document-wide: one settled request must not hand back the buttons of a
-     * form that is still posting somewhere else on the page. */
-    function releaseWithin(root) {
-        if (!root) return;
-        if (root.nodeType === 1) release(root);
-        root.querySelectorAll(
-            "[data-busy-applied], [data-busy-disabled]",
-        ).forEach(release);
+    /* Undo one request, and only what that request made busy.
+     *
+     * A form gets its submit controls back, which is exactly the set its
+     * submission touched — the button that went busy and the ones disabled
+     * beside it. Nothing else inside it is released: a catalogue is one form,
+     * and a row's own link can have a request of its own still in flight
+     * while a purchase in another row settles. Anything that is not a form
+     * asked on its own behalf and is released on its own. */
+    function releaseRequest(root) {
+        var el = element(root);
+        if (!el) return;
+        release(el);
+        if (el.tagName === "FORM")
+            el.querySelectorAll(SUBMITS).forEach(release);
+    }
+
+    /* Undo everything this script has applied anywhere on the page. */
+    function releaseEverything() {
+        document
+            .querySelectorAll("[data-busy-applied], [data-busy-disabled]")
+            .forEach(release);
     }
 
     /*
@@ -119,12 +143,8 @@
     document.addEventListener(
         "click",
         function (event) {
-            var target = event.target;
-            /* Every click on the page passes through here, including ones
-             * raised on nodes that are not elements, which have nothing to
-             * ask. */
-            if (!target || !target.closest) return;
-            if (!target.closest('[data-busy="on"]')) return;
+            var target = element(event.target);
+            if (!target || !target.closest('[data-busy="on"]')) return;
             event.preventDefault();
             event.stopPropagation();
         },
@@ -152,7 +172,11 @@
         if (event.defaultPrevented && !handledByHtmx) return;
         if (optedOut(form)) return;
 
-        markBusy(submitter);
+        /* A form submitted from a script carries no submitter. Its first
+         * submit is the button a reader would have pressed to do the same
+         * thing, and the one to show working — without it the form is left
+         * dead, every control disabled and nothing saying why. */
+        markBusy(submitter || form.querySelector(SUBMITS));
         form.querySelectorAll(SUBMITS).forEach(function (control) {
             /* An opted-out control is out of all of it: a button left alive on
              * purpose is one the reader is meant to still be able to click. */
@@ -214,13 +238,14 @@
      * A control that fetches its own fragment is marked when the request goes
      * out and released when it settles, in whatever way it settles. What sends
      * the request is not always a button: a form sends its own, and a request
-     * made from script has no source element at all, so the element here is
-     * offered as it comes and markBusy keeps the ones it can paint. A form's
-     * button is already busy from the submit above, which is the control the
-     * reader is watching.
+     * made from a script names whichever control it came from. A form's button
+     * is already busy from the submit above, which is the control the reader
+     * is watching.
      *
-     * The scope released is the whole form where there is one: the submit
-     * above disabled every control in it, not just the one that went busy.
+     * A request naming no source at all is reported against the document body.
+     * Nothing was marked for it, so there is nothing to release — and reaching
+     * for its element would hand back every busy control on the page,
+     * including one whose own request is still in flight.
      */
     document.addEventListener("htmx:beforeRequest", function (event) {
         markBusy(event.detail && event.detail.elt);
@@ -234,12 +259,12 @@
         "htmx:abort",
     ].forEach(function (name) {
         document.addEventListener(name, function (event) {
-            /* Only what this request made busy. A form releases the controls
-             * inside it, because its submit disabled all of them; anything
-             * else releases itself alone. Two links in one form can have
-             * requests in flight at once, and the first to settle must not
-             * hand back the other one. */
-            releaseWithin((event.detail && event.detail.elt) || document.body);
+            var source = event.detail && event.detail.elt;
+            /* A request naming no source is reported against the document
+             * body. Nothing was marked for it, and treating the body as the
+             * control would hand back every busy thing on the page. */
+            if (!source || source === document.body) return;
+            releaseRequest(source);
         });
     });
 
@@ -251,6 +276,6 @@
      * else undoes that, so the whole document is handed back here.
      */
     window.addEventListener("pageshow", function (event) {
-        if (event.persisted) releaseWithin(document);
+        if (event.persisted) releaseEverything();
     });
 })();

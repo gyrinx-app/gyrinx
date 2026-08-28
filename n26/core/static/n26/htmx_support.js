@@ -17,6 +17,11 @@
  * A control htmx did wire handles its own click and calls preventDefault
  * before this listener runs, so the defaultPrevented test is what stops a
  * second request being sent for the same click.
+ *
+ * The request names the link it came from. A request with no source is
+ * reported against the document body, and anything watching the request —
+ * the busy state a control takes on while it works, for one — then has no
+ * way to tell which control to act on, or reaches the whole page.
  */
 document.body.addEventListener("click", function (event) {
     if (event.defaultPrevented || event.button !== 0) return;
@@ -25,7 +30,10 @@ document.body.addEventListener("click", function (event) {
     var link = event.target.closest("a[hx-get]");
     if (!link || !window.htmx) return;
     event.preventDefault();
-    window.htmx.ajax("GET", link.getAttribute("hx-get"), { swap: "none" });
+    window.htmx.ajax("GET", link.getAttribute("hx-get"), {
+        source: link,
+        swap: "none",
+    });
 });
 
 /*
