@@ -67,12 +67,6 @@ WEAPON_CHARACTERISTICS = [
 MODEL_STATLINE = "Model"
 WEAPON_STATLINE = "Weapon"
 
-#: What each Type calls a lasting effect (core rules: the Lasting
-#: Injury and Lasting Damage tables). The Types themselves are the
-#: model's closed set — stated there, never restated here — and a
-#: guard test keeps this covering exactly them.
-LASTING_EFFECT_TERMS = {"Fighter": "Injury", "Vehicle": "Damage"}
-
 #: Every Subtype the core rules name (core rules). Gang lists add their
 #: own; these are the ones any pack can rely on.
 FIGHTER_SUBTYPES = [
@@ -292,10 +286,7 @@ def _create_model_characteristics():
     for name in TYPE_NAMES:
         ProfileType.objects.get_or_create(
             name=name,
-            defaults={
-                "statline_type": statline_type,
-                "lasting_effect_term": LASTING_EFFECT_TERMS[name],
-            },
+            defaults={"statline_type": statline_type},
         )
 
 

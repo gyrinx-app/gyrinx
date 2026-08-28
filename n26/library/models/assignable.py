@@ -855,34 +855,6 @@ class Subtype(Content, Assignable):
         ]
 
 
-class LastingEffect(Content, Assignable):
-    """What the Lasting Injury and Lasting Damage tables deal out.
-
-    One kind for both — a fighter's Humiliated and a vehicle's Cracked
-    Axle are the same shape of thing — and what a card *calls* it is the
-    profile type's own term (``ProfileType.lasting_effect_term``:
-    "Injury" for fighters, "Damage" for vehicles).
-    Rides every card — lasting effects are recorded on all of a model's
-    cards, so they are never selectable.
-    """
-
-    family = Family.MODEL
-
-    class Meta:
-        verbose_name = "lasting effect"
-        verbose_name_plural = "lasting effects"
-        ordering = ["name"]
-        constraints = [
-            models.UniqueConstraint(
-                "pack",
-                Lower("name"),
-                Lower("qualifier"),
-                name="lasting_effect_unique_per_pack",
-            ),
-            exclusive_has_no_trade_points("lasting_effect"),
-        ]
-
-
 class Skill(Content, Assignable, UsableBy):
     """A skill a fighter has selected, homed in the set it comes from.
 

@@ -643,10 +643,8 @@ class TestTheDoorIsStaffed:
         assert "login" in response["Location"]
 
 
-class TestSectionsAndLastingEffects:
-    """The taxonomy heading is a leaf object, not free text; and
-    'Injury' is one kind — Lasting Effect — whose card label is the
-    profile type's own term."""
+class TestSections:
+    """The taxonomy heading is a leaf object, not free text."""
 
     def test_the_category_form_picks_a_section(self, author, client, default_pack):
         from n26.library.forms import generate_form
@@ -683,18 +681,6 @@ class TestSectionsAndLastingEffects:
         create_category("Skills", "Combat")
         create_category("Skills", "Savant")
         assert Section.objects.filter(name="Skills").count() == 1
-
-    def test_the_lasting_effect_page_and_the_profile_types_term(
-        self, author, client, default_pack, fighter_type, vehicle_type
-    ):
-        from n26.library.models import LastingEffect
-
-        client.post("/n26/authoring/lasting-effect/new/", {"name": "Humiliated"})
-        assert LastingEffect.objects.filter(name="Humiliated").exists()
-
-        # One kind, two words: the label is the profile type's own.
-        assert fighter_type.lasting_effect_term == "Injury"
-        assert vehicle_type.lasting_effect_term == "Damage"
 
 
 class TestAProfilesHome:
@@ -911,7 +897,6 @@ class TestFamilies:
             Counter,
             GangType,
             Hidden,
-            LastingEffect,
             Pickable,
             Picklist,
             Profile,
@@ -930,7 +915,7 @@ class TestFamilies:
 
         by_family = {
             Family.BASE: [Rule, Counter, Hidden, Section, Category],
-            Family.MODEL: [Subtype, Skill, LastingEffect],
+            Family.MODEL: [Subtype, Skill],
             Family.GEAR: [Trait, Wargear, Weapon, WeaponProfile],
             Family.GANG: [
                 GangType,
@@ -1509,7 +1494,6 @@ class TestKindHelp:
 
     def test_the_menu_shows_the_definitions(self, author, client, default_pack):
         body = client.get("/n26/authoring/").content.decode()
-        assert "What the Lasting Injury and Lasting Damage tables deal out." in body
         assert "A carrier for effects that draws no row of its own." in body
 
     def test_the_page_leads_with_the_definition(self, author, client, default_pack):

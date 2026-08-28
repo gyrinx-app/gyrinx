@@ -100,22 +100,11 @@ class TestWhatTheSeedsCreate:
         for short in ("Ld", "Cl", "Wil", "Int"):
             assert not Stat.objects.get(short_name=short).is_target
 
-    def test_the_closed_set_is_stated_once(self):
-        """The model owns which Types exist; standard content only says
-        what each calls a lasting effect. If those two ever disagreed,
-        a Type would be created that the database then refused."""
-        from n26.library.models.profile import TYPE_NAMES
-        from n26.library.standard_content import LASTING_EFFECT_TERMS
-
-        assert set(LASTING_EFFECT_TERMS) == set(TYPE_NAMES)
-
-    def test_both_profile_types_with_their_own_word(self, default_pack):
+    def test_both_profile_types_are_created(self, default_pack):
         STANDARD_CONTENT["model-characteristics"].create()
 
         fighter = ProfileType.objects.get(name="Fighter")
         vehicle = ProfileType.objects.get(name="Vehicle")
-        assert fighter.lasting_effect_term == "Injury"
-        assert vehicle.lasting_effect_term == "Damage"
         # One shape serves both; the Type line tells them apart.
         assert fighter.statline_type == vehicle.statline_type
 
@@ -194,7 +183,6 @@ class TestThePage:
         STANDARD_CONTENT["model-characteristics"].create()
         body = client.get("/n26/authoring/foundations/").content.decode()
         assert "Fighter" in body and "Vehicle" in body
-        assert "lasting injury" in body and "lasting damage" in body
         assert "Fighter or Vehicle and nothing else" in body
 
     def test_it_links_to_each_kinds_own_page(self, author, client, default_pack):

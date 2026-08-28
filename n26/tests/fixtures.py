@@ -131,11 +131,10 @@ def fighter_type(fighter_statline_type):
 @pytest.fixture
 def vehicle_type(fighter_statline_type):
     """Vehicles use the same characteristics profile — only the Type
-    line differs (core rules), and what they call a lasting effect."""
+    line differs (core rules)."""
     return ProfileType.objects.create(
         name="Vehicle",
         statline_type=fighter_statline_type,
-        lasting_effect_term="Damage",
     )
 
 
