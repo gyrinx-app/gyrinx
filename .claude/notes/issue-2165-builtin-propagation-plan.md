@@ -314,8 +314,14 @@ SQL-detects >1 REFUNDED/SOLD leg per assignment, deletes the surplus
 legs and repeated REMOVED lines in their batches, repins, requires
 `check_gang` clean or unwinds; prod preview: 4 gangs, 17 events, 455
 credits never owed — two of them ARCHIVED gangs the audit skips, so
-the audit should probably walk archived gangs too). **C7 is gated on:
-run the repair in the prod console, re-run the audit to zero failures,
+the audit should probably walk archived gangs too). The first prod run of the repair REFUSED whole: one archived gang had
+SPENT its phantom 190 credits, so dropping its legs would breach the
+`credits >= 0` constraint and the single transaction unwound. PR #2344
+(merged 2026-08-28) makes `apply` per-gang: an overspent gang is
+skipped and reported — maintainer's ruling: skip, decide by hand —
+and the rest repair. **C7 is gated on: re-run the repair (expect 3
+repaired, 1 skipped), re-run the audit (expect only the skipped gang
+if it is ever unarchived — the audit walks unarchived gangs only),
 then backfill.***
 
 **C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
