@@ -23,6 +23,7 @@ from gyrinx.maintenance.registry import (
 )
 from n26.core.reconcile import assert_reconciled
 from n26.maintenance import (
+    LOCK_KEYS,
     Operation,
     convert_chaos_god_view,
     convert_outcast_affiliation_view,
@@ -311,6 +312,14 @@ class TestTheOutcastAffiliationConversion:
 
 class TestTheChaosGodConversion:
     """The repair still on offer: the Chaos Gods become picks."""
+
+    def test_its_lock_is_not_shared(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert (
+            LOCK_KEYS[Operation.CONVERT_CHAOS_GOD]
+            != LOCK_KEYS[Operation.REPAIR_DOUBLED_REFUNDS]
+        )
 
     def test_the_operation_is_registered_and_named(self):
         registered = {op.operation for op in operations()}
