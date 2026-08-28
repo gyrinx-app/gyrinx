@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
     """
 
     dependencies = [
-        ("n26", "0034_a_gang_plays_one_campaign_at_a_time"),
+        ("n26", "0036_a_campaigns_budget_is_what_a_gang_is_founded_with"),
     ]
 
     operations = [

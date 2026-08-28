@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0070_drop_lasting_effect_columns"),
-        ("n26", "0035_clear_lasting_effect_assignments"),
+        ("n26", "0037_clear_lasting_effect_assignments"),
     ]
 
     operations = [
