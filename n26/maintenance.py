@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Operation",
     "delete_nameless_gang_type",
+    "repair_doubled_refunds",
     "run_batched",
     "task_routes",
 ]
@@ -133,6 +134,10 @@ class Operation(models.TextChoices):
         "n26_audit_reconcile",
         "n26: every gang's books are checked against its ledger",
     )
+    REPAIR_DOUBLED_REFUNDS = (
+        "n26_repair_doubled_refunds",
+        "n26: the second refund a doubled click wrote is dropped",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -140,6 +145,7 @@ LOCK_KEYS = {
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
     Operation.AUDIT_RECONCILE: 826_020_607,
     Operation.CONVERT_OUTCAST_AFFILIATION: 826_020_608,
+    Operation.REPAIR_DOUBLED_REFUNDS: 826_020_609,
 }
 
 
@@ -704,6 +710,62 @@ def delete_nameless_gang_type_view(request):
 
 
 @task
+def repair_doubled_refunds(backfill_id, **said_by_whoever_enqueued_it):
+    """Drop the surplus refund, sale and removal legs a doubled click
+    wrote, and prove every affected gang's books whole, once.
+
+    Two gangs' worth of events in one transaction: small enough to hold,
+    and a gang that still fails to reconcile unwinds the lot.
+    """
+    from n26.core.doubled_refunds import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.REPAIR_DOUBLED_REFUNDS,
+        "Doubled refund repair",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+DOUBLED_WORDS = {
+    "noun": "repair",
+    "intro": (
+        "This deletes ledger events from players' gangs. A refund, sale or "
+        "removal whose click reached the server twice used to be written "
+        "twice: the line was archived once, but a second refunded or sold "
+        "leg — and, for a fighter, a second removed leg for each thing "
+        "they brought — went into the books, so the entry's events fold "
+        "to minus what it was worth while its pins say zero, and the gang "
+        "holds credits it was never owed. Every leg after the first of its "
+        "kind on a line is dropped, along with the removal legs written in "
+        "the same act, and each gang's pinned numbers are written again "
+        "from what remains. A line still on the roster with a doubled leg "
+        "is refused rather than touched."
+    ),
+    "nothing_heading": "Nothing to drop",
+    "nothing_flash": "There was nothing to drop — no line carries a second refund or sale.",
+    "nothing_words": "No line in any gang carries a second refund or sale.",
+    "refuses_heading": "The repair refuses",
+    "button": "Drop the surplus legs",
+    "confirm": "Drop every surplus refund, sale and removal leg and rewrite the affected gangs' pinned numbers? This cannot be undone.",
+}
+
+
+def repair_doubled_refunds_view(request):
+    """Preview the repair (GET), or record a run and enqueue it."""
+    from n26.core.doubled_refunds import find
+
+    return _deletion_view(
+        request,
+        Operation.REPAIR_DOUBLED_REFUNDS,
+        find,
+        repair_doubled_refunds,
+        DOUBLED_WORDS,
+    )
+
+
+@task
 def audit_reconcile(backfill_id, **said_by_whoever_enqueued_it):
     """Check every unarchived gang's books against its ledger.
 
@@ -817,6 +879,23 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.REPAIR_DOUBLED_REFUNDS.value,
+        name=Operation.REPAIR_DOUBLED_REFUNDS.label,
+        added=date(2026, 8, 28),
+        description=(
+            "Drop the second refunded or sold leg a doubled click wrote onto "
+            "a line, and the removal legs written in the same act, then "
+            "write each affected gang's pinned numbers again. The books "
+            "audit reports these gangs as entries pinned 0 whose events "
+            "fold to minus what the thing was worth."
+        ),
+        view=repair_doubled_refunds_view,
+        detail_template="admin/maintenance/n26/_delete_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a repair holds one
 #: transaction for as long as proving what it touched takes. It is also
@@ -838,6 +917,7 @@ task_routes = [
     TaskRoute(propagate_built_ins, ack_deadline=600),
     TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
     TaskRoute(audit_reconcile),
+    TaskRoute(repair_doubled_refunds, ack_deadline=600, min_retry_delay=60),
 ]
 
 
