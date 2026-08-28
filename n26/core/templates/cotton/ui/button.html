@@ -9,6 +9,11 @@ app.css gives solid buttons their inset shadow by matching background utility
 classes by name (`:is(.bg-accent, .bg-red-500, .bg-ink-100, .bg-green-700)`).
 A new solid variant must be added to that list there too, or its button
 renders flatter than every other button.
+
+A button that submits, fetches or navigates goes busy — spinner, no label, no
+second click — until the work ends. Nothing is declared here for it: the shell
+loads n26/core/static/n26/busy.js, which finds the control through the event.
+Pass `data-busy="off"` on the button or on its form to keep a control out of it.
 {% endcomment %}
 <c-vars
     variant="default"

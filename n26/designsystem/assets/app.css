@@ -1250,3 +1250,76 @@
 [data-variant="segmented"] label:has(input:checked) :is(div, span) {
     color: inherit;
 }
+
+/* A control that is working — unlayered for the same reason as the rules above.
+ *
+ * n26/core/static/n26/busy.js writes data-busy="on" on the button or link that
+ * started a submission, an htmx request or a navigation, and takes it off again
+ * when the work ends. Everything the reader sees for it is here: the script
+ * writes one attribute and holds no styling of its own.
+ *
+ * The label is hidden rather than removed, and element children are hidden
+ * rather than detached, so the button keeps the width it had — a control that
+ * shrinks under the cursor as it is clicked reads as a mis-click.
+ *
+ * -webkit-text-fill-color, not `color`, is what hides the label. It paints the
+ * glyphs and nothing else, so the button's own colour survives and the spinner
+ * below can be drawn in it. `color: transparent` would take the spinner with
+ * the label, and the real colour would then have to be measured in the browser
+ * and handed back through a variable — which a call site writing the attribute
+ * by hand would have to supply too. Prefixed, but every engine has it; where it
+ * is missing the label stays visible under the spinner and nothing else changes.
+ *
+ * No !important is needed because layer order settles it: the variant's `text-*`
+ * classes are utilities, and an unlayered rule beats every layer whatever the
+ * selector says. */
+:is(button, a)[data-busy="on"] {
+    position: relative;
+    -webkit-text-fill-color: transparent;
+    cursor: progress;
+}
+
+/* Pseudo-elements are not element children, so the spinner below is not caught
+ * by this. */
+:is(button, a)[data-busy="on"] > * {
+    visibility: hidden;
+}
+
+/* A link cannot be disabled the way a button can, so the second click is
+ * refused here instead. */
+a[data-busy="on"] {
+    pointer-events: none;
+}
+
+/* The spinner: the kit's <c-ui.spinner> as a ring rather than an SVG, because
+ * an SVG would have to be built per click on screens that draw hundreds of
+ * buttons. Sized in em so it tracks the button's own scale, from xs to 2xl,
+ * and drawn in the button's own text colour, so every variant and size gets a
+ * spinner that reads against its fill without being told which. */
+:is(button, a)[data-busy="on"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.15em;
+    height: 1.15em;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in oklab, currentColor 25%, transparent);
+    border-top-color: currentColor;
+    animation: n26-busy-spin 0.85s linear infinite;
+}
+
+/* Slowed rather than stopped, the way Bootstrap treats its own spinner: a
+ * still ring says the same thing as a broken one, and this is the only sign
+ * the click was heard. */
+@media (prefers-reduced-motion: reduce) {
+    :is(button, a)[data-busy="on"]::after {
+        animation-duration: 1.5s;
+    }
+}
+
+@keyframes n26-busy-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
