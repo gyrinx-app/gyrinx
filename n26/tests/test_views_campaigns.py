@@ -648,3 +648,57 @@ class TestBattlesOnTheCampaignsPage:
         assert (
             client.get(f"/n26/campaigns/{campaign.pk}/battles/new/").status_code == 404
         )
+
+
+class TestTheCampaignInTheBar:
+    """Every screen belonging to one campaign names it in the app header, as
+    a link, with the switcher beside it — the same as a gang's screens. Read
+    off the rendered markup, because a component that draws nothing still
+    answers 200."""
+
+    @pytest.fixture
+    def gang(self, gang_type):
+        player = User.objects.create_user("player")
+        return found_gang("The Ashen Choir", gang_type, owner=player)
+
+    def screens(self, campaign, gang, battle):
+        return [
+            f"/n26/campaigns/{campaign.pk}/",
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            f"/n26/campaigns/{campaign.pk}/archive/",
+            f"/n26/campaigns/{campaign.pk}/gangs/add/",
+            f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/",
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/",
+        ]
+
+    def test_every_screen_carries_it(
+        self, client, campaign, gang, arbitrator, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+        )
+        battle = Battle.objects.get()
+
+        for address in self.screens(campaign, gang, battle):
+            drawn = client.get(address).content.decode()
+            # The switcher's own menu label: the list page has a search
+            # box with the same placeholder, so that would not tell them apart.
+            assert "Switch to another campaign" in drawn, address
+            assert f'href="/n26/campaigns/{campaign.pk}/"' in drawn, address
+
+    def test_it_offers_the_readers_other_campaigns(
+        self, client, campaign, arbitrator, open_to_everyone
+    ):
+        Campaign.objects.create(name="Sump City", owner=arbitrator)
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assert "Sump City" in drawn
+
+    def test_the_list_and_the_setup_screen_keep_the_places_switcher(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """Neither is one campaign, so neither names one in the bar."""
+        for address in ("/n26/campaigns/", "/n26/campaigns/new/"):
+            drawn = client.get(address).content.decode()
+            assert "Switch to another campaign" not in drawn, address

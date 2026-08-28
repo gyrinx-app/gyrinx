@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% comment %}
 The question asked before a gang is taken out of a campaign, at an address of
 its own. Following the link that leads here changes nothing; the POST is the
@@ -8,7 +9,10 @@ The alert is warning rather than error: an error reports something that
 already went wrong, and nothing has yet.
 {% endcomment %}
 {% block head_title %}Remove {{ gang.name }} from {{ campaign.name }}{% endblock head_title %}
-{% block nav_heading %}Remove a gang{% endblock nav_heading %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}

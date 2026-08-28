@@ -85,6 +85,21 @@ def model_screen_tabs(miniature, active):
 
 
 @register.simple_tag(takes_context=True)
+def campaign_switcher(
+    context, campaign, named=True, menu_label="Switch to another campaign"
+):
+    """The switcher on a screen that belongs to one campaign.
+
+    A tag for the same reason the gang's is: the rows are the reader's own
+    campaigns, wanted only by the pages that draw one, and read through the
+    same memo so the bar spends one query on them however often it is drawn.
+    """
+    from n26.core.navigation import campaign_switcher as build
+
+    return build(context["request"], campaign, named=named, menu_label=menu_label)
+
+
+@register.simple_tag(takes_context=True)
 def gang_switcher(context, gang, named=True, menu_label="Switch to another gang"):
     """The switcher on a screen that belongs to one gang.
 

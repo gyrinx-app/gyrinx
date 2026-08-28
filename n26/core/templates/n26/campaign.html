@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% load richtext %}
 {% comment %}
 One campaign, as its arbitrator sees it.
@@ -13,7 +14,15 @@ read newest first and stop after the most recent few, because this is a
 campaign's page rather than its history.
 {% endcomment %}
 {% block head_title %}{{ campaign.name }}{% endblock head_title %}
-{% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
+{% comment %}
+The bar names the campaign through the switcher rather than a plain heading:
+the name is a link back to this page, and the chevron beside it offers the
+reader's other campaigns — the same pattern a gang's screens use.
+{% endcomment %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% comment %}
 Writing down a battle that was fought.
 
@@ -6,7 +7,10 @@ Only the date and who was in it. What a battle did to a gang is recorded
 against that gang, so this screen asks for nothing about the fighting.
 {% endcomment %}
 {% block head_title %}Record a battle in {{ campaign.name }}{% endblock head_title %}
-{% block nav_heading %}Record a battle{% endblock nav_heading %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
@@ -44,7 +48,7 @@ against that gang, so this screen asks for nothing about the fighting.
             <c-n26.tick-list> styles its own: a native box takes its colour
             from accent, never from a border class.
             {% endcomment %}
-            <c-ui.field label="Who fought"
+            <c-ui.field label="Participants"
                         error="x"
                         :form="form"
                         name="gangs"

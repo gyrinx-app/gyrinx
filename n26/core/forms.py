@@ -411,7 +411,7 @@ class BattleForm(forms.Form):
     gangs = forms.ModelMultipleChoiceField(
         queryset=None,
         required=False,
-        label="Who fought",
+        label="Participants",
         widget=forms.CheckboxSelectMultiple,
     )
 

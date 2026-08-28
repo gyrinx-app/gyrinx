@@ -155,6 +155,67 @@ def owned_gangs(request):
     return found
 
 
+def owned_campaigns(request):
+    """The signed-in reader's campaigns, at most ``NAV_SIBLINGS`` of them.
+
+    Memoised on the request for the same reason a gang's list is: every
+    screen belonging to one campaign offers the others in the bar, and a
+    page drawing that twice would otherwise fetch them twice.
+    """
+    from n26.core.models import Campaign
+
+    found = getattr(request, "_n26_owned_campaigns", None)
+    if found is not None:
+        return found
+
+    user = getattr(request, "user", None)
+    if user is None or not user.is_authenticated:
+        found = []
+    else:
+        found = list(
+            Campaign.objects.filter(owner=user, archived=False).order_by("name")[
+                :NAV_SIBLINGS
+            ]
+        )
+    request._n26_owned_campaigns = found
+    return found
+
+
+def campaign_switcher(
+    request, campaign, named=True, menu_label="Switch to another campaign"
+):
+    """The switcher on any screen that belongs to one campaign.
+
+    Every screen under a campaign draws this, naming the campaign rather
+    than the screen: what an arbitrator wants from the bar halfway through
+    recording a battle is the way to their other campaign, and the screen
+    is named by the page's own heading directly below.
+
+    ``named`` draws the campaign's name as the leading link, which is what
+    the bar wants. ``menu_label`` is the chevron's accessible name, and a
+    page drawing this twice must give the second one its own.
+    """
+    from django.urls import reverse
+
+    def item(row):
+        return SwitcherItem(
+            label=row.name,
+            href=reverse("n26-campaign", args=[row.pk]),
+            current=row.pk == campaign.pk,
+        )
+
+    here = item(campaign)
+    return Switcher(
+        label=campaign.name if named else "",
+        href=here.href if named else "",
+        heading="Your campaigns",
+        menu_label=menu_label,
+        placeholder="Search campaigns",
+        empty="No campaigns match",
+        items=with_current([item(row) for row in owned_campaigns(request)], here),
+    )
+
+
 def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"):
     """The switcher on any screen that belongs to one gang.
 
