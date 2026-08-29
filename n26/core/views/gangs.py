@@ -26,7 +26,7 @@ GANGS_PER_PAGE = 25
 #: Drawn beside the Campaigns tab's label when something is waiting there.
 #: Safe because it is ours: no part of it comes from anybody's input, and the
 #: tab strip takes markup as a string because it is built in the browser.
-CAMPAIGNS_WAITING = mark_safe(  # noqa: S308
+CAMPAIGNS_WAITING = mark_safe(  # nosec B703 B308 - literal, no user input
     '<span class="inline-block size-2 rounded-full bg-accent align-middle"></span>'
 )
 
