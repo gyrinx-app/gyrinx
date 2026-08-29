@@ -311,6 +311,11 @@ class ChoiceLine:
     #: picker lives. Empty draws the prompt as plain text, which is what a
     #: print sheet and a gallery sample want.
     href: str = ""
+    #: Whether the choice will take another pick. A choice that holds one
+    #: is full the moment it is resolved; one worked at a pick at a time
+    #: stays open past its first, and the card keeps offering Choose
+    #: beside what is already held until this says otherwise.
+    is_full: bool = True
 
     @property
     def is_resolved(self):
@@ -816,6 +821,7 @@ def _choice_line(slot, host):
     return ChoiceLine(
         kind_label=slot.kind_label,
         chosen=slot.chosen_name,
+        is_full=slot.is_full,
         key=_slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
@@ -907,6 +913,11 @@ def build_choice_offer(slot, computed):
         )
 
     several = slot.max_picks > 1
+    # Where the slot type allows repeats, a held pick is still on offer:
+    # a second Eye Injury is a second Eye Injury, so a held row carries
+    # both controls until the choice is full, when only the way back is
+    # left. Elsewhere a held pick offers only its way back.
+    repeats = slot.slot is not None and slot.slot.slot_type.allows_repeats
     held = {option_key(pick.assignable) for pick in slot.picks}
     taken = _taken_elsewhere(slot, computed)
     options = []
@@ -918,14 +929,17 @@ def build_choice_offer(slot, computed):
             # Full: the way to something else is to take one back, not to
             # push one out unasked.
             continue
+        if not several:
+            control = ""
+        elif key not in held:
+            control = "choose"
+        elif repeats and not slot.is_full:
+            control = "both"
+        else:
+            control = "remove"
         options.append(
             _choosable(
-                thing,
-                current,
-                taken=taken,
-                name=name,
-                held=held,
-                control=("remove" if key in held else "choose") if several else "",
+                thing, current, taken=taken, name=name, held=held, control=control
             )
         )
 

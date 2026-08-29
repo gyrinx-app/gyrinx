@@ -28,6 +28,7 @@ from n26.tests.sandbox.actions import (
     add_picklist_member,
     assign,
     buy,
+    changes_stat,
     choose,
     create_affiliation,
     create_collection,
@@ -1858,3 +1859,333 @@ class TestTheKindsKeepOutOfTheWay:
         from n26.core.effects import kind_of
 
         assert kind_of(houses["Cawdor"]) == ""
+
+
+# --- Example B: a choice worked at a pick at a time, allowing repeats ------
+
+
+class TestAChoiceThatAllowsRepeats:
+    """A standing choice that holds several picks and may hold the same
+    one twice — the shape a lasting injury takes: a fighter carries the
+    slot from hire, and a second Eye Injury is a second Eye Injury.
+
+    Nothing here is a new kind. The slot type says it allows repeats,
+    the slot says how many it holds, and the card and the picker draw
+    what those two already mean.
+    """
+
+    @pytest.fixture
+    def injury(self, default_pack):
+        return create_slot_type(
+            "Lasting Injury", plural_name="Lasting Injuries", allows_repeats=True
+        )
+
+    @pytest.fixture
+    def results(self, injury, person_type):
+        from n26.library.models import Stat
+
+        eye = create_pickable("Eye Injury", injury)
+        modifier(
+            "Eye Injury: worsens WS",
+            targets_model(),
+            changes_stat(Stat.objects.get(short_name="WS"), "worsen", 1),
+            carried_by=eye,
+        )
+        return {
+            "Eye Injury": eye,
+            "Out Cold": create_pickable("Out Cold", injury),
+        }
+
+    @pytest.fixture
+    def injuries(self, injury, results):
+        return create_picklist(
+            "Lasting Injury Table", injury, members=list(results.values())
+        )
+
+    @pytest.fixture
+    def injury_slot(self, injury, injuries):
+        return create_slot(
+            "Lasting Injury",
+            injury,
+            injuries,
+            label="Lasting Injuries",
+            min_picks=0,
+            max_picks=3,
+        )
+
+    @pytest.fixture
+    def yolanda(self, gang, person_type, gang_type, injury_slot):
+        profile = create_profile("Ganger", person_type, gang_type, price=50)
+        add_built_in(profile, injury_slot)
+        return hire(gang, profile, "Yolanda", paid=50)
+
+    def _slot(self, miniature):
+        return next(
+            s for s in choices_of(miniature) if s.kind_label == "Lasting Injuries"
+        )
+
+    def _line(self, miniature):
+        return next(
+            line
+            for line in drawn_card(miniature).choices
+            if line.kind_label == "Lasting Injuries"
+        )
+
+    def _pick(self, miniature, thing):
+        choose(self._slot(miniature).anchor.assignment, thing)
+
+    def test_it_arrives_open_under_its_own_label(self, yolanda):
+        line = self._line(yolanda)
+        assert not line.is_resolved
+        assert not line.is_full
+
+    def test_the_same_result_twice_stands_twice(self, yolanda, results):
+        self._pick(yolanda, results["Eye Injury"])
+        self._pick(yolanda, results["Eye Injury"])
+
+        picks = [p.assignable for p in self._slot(yolanda).picks]
+        assert picks == [results["Eye Injury"]] * 2
+        assert self._line(yolanda).chosen == "Eye Injury, Eye Injury"
+
+    def test_and_what_it_does_is_done_twice(self, yolanda, results):
+        self._pick(yolanda, results["Eye Injury"])
+        self._pick(yolanda, results["Eye Injury"])
+
+        _, computed = card_of(yolanda)
+        from_eye = [c for c in computed.stat_changes if c.source == "Eye Injury"]
+        assert len(from_eye) == 2
+
+    def test_the_card_keeps_asking_until_it_is_full(self, yolanda, results):
+        self._pick(yolanda, results["Out Cold"])
+        line = self._line(yolanda)
+        assert line.is_resolved and not line.is_full
+
+        self._pick(yolanda, results["Eye Injury"])
+        self._pick(yolanda, results["Eye Injury"])
+        assert self._line(yolanda).is_full
+
+    def test_a_choice_that_holds_one_is_full_once_chosen(self, gang, hunter, houses):
+        """The one-pick shape is unchanged: chosen is full, so the card
+        stops asking exactly when it did before."""
+        sev = hire(gang, hunter, "Sev", paid=100)
+        assert not next(iter(drawn_card(sev).choices)).is_full
+
+        choose(next(iter(choices_of(sev))).anchor.assignment, houses["Cawdor"])
+        line = next(iter(drawn_card(sev).choices))
+        assert line.is_resolved and line.is_full
+
+    def test_the_picker_offers_a_held_result_again(self, yolanda, results):
+        self._pick(yolanda, results["Eye Injury"])
+
+        _, computed = card_of(yolanda)
+        offer = build_choice_offer(self._slot(yolanda), computed)
+        held = next(
+            o for g in offer.groups for o in g.options if o.name == "Eye Injury"
+        )
+        assert held.is_current
+        assert held.control == "both"
+
+    def test_where_repeats_are_not_allowed_a_held_pick_is_only_removable(
+        self, gang, person_type, gang_type, legacy, houses
+    ):
+        """The same picker under the other doctrine: a several-pick
+        choice of a type that forbids repeats offers a held pick only its
+        way back."""
+        picklist = create_picklist(
+            "Two Legacies", legacy, members=list(houses.values())
+        )
+        slot = create_slot("Two Legacies", legacy, picklist, max_picks=2)
+        profile = create_profile("Twice Hunter", person_type, gang_type, price=100)
+        add_built_in(profile, slot)
+        sev = hire(gang, profile, "Sev", paid=100)
+
+        choose(next(iter(choices_of(sev))).anchor.assignment, houses["Cawdor"])
+
+        _, computed = card_of(sev)
+        offer = build_choice_offer(next(iter(choices_of(sev))), computed)
+        held = next(o for g in offer.groups for o in g.options if o.name == "Cawdor")
+        assert held.control == "remove"
+
+    def test_removing_the_slot_takes_every_pick_and_its_effects(self, yolanda, results):
+        self._pick(yolanda, results["Eye Injury"])
+        self._pick(yolanda, results["Eye Injury"])
+        assert (
+            Assignment.objects.filter(
+                pickable=results["Eye Injury"], archived=False
+            ).count()
+            == 2
+        )
+
+        remove(self._slot(yolanda).anchor.assignment)
+
+        assert not Assignment.objects.filter(
+            pickable=results["Eye Injury"], archived=False
+        ).exists()
+        assert not any(
+            line.kind_label == "Lasting Injuries"
+            for line in drawn_card(yolanda).choices
+        )
+        _, computed = card_of(yolanda)
+        assert not any(c.source == "Eye Injury" for c in computed.stat_changes)
+        yolanda.gang.refresh_from_db()
+        assert_reconciled(yolanda.gang)
+
+
+class TestAChoiceThatAllowsRepeatsOnScreen:
+    """The same choice through the pages: the picker takes a second
+    click on a held result as a second pick, and the card keeps its
+    Choose beside what is already held until the choice is full."""
+
+    @pytest.fixture
+    def injury(self, default_pack):
+        return create_slot_type(
+            "Lasting Injury", plural_name="Lasting Injuries", allows_repeats=True
+        )
+
+    @pytest.fixture
+    def results(self, injury):
+        return {
+            name: create_pickable(name, injury) for name in ("Eye Injury", "Out Cold")
+        }
+
+    @pytest.fixture
+    def ganger(self, person_type, gang_type, injury, results):
+        picklist = create_picklist(
+            "Lasting Injury Table", injury, members=list(results.values())
+        )
+        slot = create_slot(
+            "Lasting Injury",
+            injury,
+            picklist,
+            label="Lasting Injuries",
+            min_picks=0,
+            max_picks=2,
+        )
+        profile = create_profile("Ganger", person_type, gang_type, price=50)
+        add_built_in(profile, slot)
+        return profile
+
+    @pytest.fixture
+    def yolanda(self, gang, ganger):
+        return hire(gang, ganger, "Yolanda", paid=50)
+
+    def _href(self, gang):
+        from django.urls import reverse
+
+        from n26.core.views.choose import link_slots
+
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        line = next(
+            line
+            for card in sheet.models
+            for line in card.questions
+            if line.kind_label == "Lasting Injuries"
+        )
+        return line.href, reverse("n26-gang", args=[gang.pk])
+
+    def _post(self, client, href, thing):
+        return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
+
+    def test_a_second_click_on_a_held_result_is_a_second_pick(
+        self, client, owner, gang, yolanda, results
+    ):
+        client.force_login(owner)
+        href, _ = self._href(gang)
+        eye = results["Eye Injury"]
+
+        assert self._post(client, href, eye).status_code == 302
+        assert self._post(client, href, eye).status_code == 302
+
+        assert Assignment.objects.filter(pickable=eye, archived=False).count() == 2
+        assert_reconciled(gang)
+
+    def test_the_picker_draws_both_controls_on_a_held_result(
+        self, client, owner, gang, yolanda, results
+    ):
+        client.force_login(owner)
+        href, _ = self._href(gang)
+        self._post(client, href, results["Eye Injury"])
+
+        body = client.get(href).content.decode()
+        assert 'aria-label="Remove Eye Injury"' in body
+        assert 'aria-label="Choose Eye Injury again"' in body
+        # The result not yet held offers only the one way in.
+        assert 'aria-label="Choose Out Cold"' in body
+        assert 'aria-label="Remove Out Cold"' not in body
+
+    def test_the_card_keeps_its_choose_beside_a_held_result(
+        self, client, owner, gang, yolanda, results
+    ):
+        client.force_login(owner)
+        href, sheet_url = self._href(gang)
+        self._post(client, href, results["Out Cold"])
+
+        body = client.get(sheet_url).content.decode()
+        # The row, not the flash message that also names the choice.
+        row = body[body.index("Lasting Injuries</dt>") :]
+        assert "Out Cold" in row
+        assert ">Choose</" in row[: row.index("</dd>")]
+
+    def test_and_stops_asking_once_full(self, client, owner, gang, yolanda, results):
+        client.force_login(owner)
+        href, sheet_url = self._href(gang)
+        self._post(client, href, results["Eye Injury"])
+        self._post(client, href, results["Eye Injury"])
+
+        body = client.get(sheet_url).content.decode()
+        # The row, not the flash message that also names the choice.
+        row = body[body.index("Lasting Injuries</dt>") :]
+        assert "Eye Injury, Eye Injury" in row
+        assert ">Choose</" not in row[: row.index("</dd>")]
+
+    def test_a_third_click_on_a_full_choice_is_refused_in_words(
+        self, client, owner, gang, yolanda, results
+    ):
+        client.force_login(owner)
+        href, _ = self._href(gang)
+        eye = results["Eye Injury"]
+        self._post(client, href, eye)
+        self._post(client, href, eye)
+
+        response = self._post(client, href, eye)
+        assert response.status_code == 302
+        assert Assignment.objects.filter(pickable=eye, archived=False).count() == 2
+        from django.contrib.messages import get_messages
+
+        said = [str(m) for m in get_messages(response.wsgi_request)]
+        assert any("holds all the picks" in m for m in said)
+
+    def test_the_sheet_reads_flat_however_many_are_hurt(
+        self, client, owner, gang, ganger, yolanda, results
+    ):
+        """Whether a choice is full is read off picks the card already
+        holds, so a sheet of injured fighters costs what a sheet of
+        unhurt ones does."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(owner)
+        href, sheet_url = self._href(gang)
+        self._post(client, href, results["Eye Injury"])
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(sheet_url).status_code == 200
+
+        for name in ("Mad Donna", "Kaustos"):
+            hurt = hire(gang, ganger, name, paid=50)
+            self._post(client, self._href_of(gang, hurt), results["Out Cold"])
+        with CaptureQueriesContext(connection) as more:
+            assert client.get(sheet_url).status_code == 200
+        assert len(more) <= len(few)
+
+    def _href_of(self, gang, miniature):
+        from n26.core.views.choose import link_slots
+
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        card = next(c for c in sheet.models if c.name == miniature.name)
+        return next(
+            line.href
+            for line in card.questions
+            if line.kind_label == "Lasting Injuries"
+        )

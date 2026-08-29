@@ -250,10 +250,19 @@ def choose(request, pk, slot):
                     taken = _pick_of(fresh, wanted)
                     if taken is not None:
                         op.remove(taken.assignment)
-                elif offer.takes_several and _pick_of(fresh, wanted) is not None:
+                elif (
+                    offer.takes_several
+                    and _pick_of(fresh, wanted) is not None
+                    and not (
+                        fresh.slot.slot is not None
+                        and fresh.slot.slot.slot_type.allows_repeats
+                    )
+                ):
                     # A worked-at choice, and this pick is already among
                     # them: the click has landed once already, and once is
-                    # what it asked for.
+                    # what it asked for. Where the slot type allows
+                    # repeats a second click is a second pick, and falls
+                    # through to be written like any other.
                     pass
                 else:
                     if not offer.takes_several:

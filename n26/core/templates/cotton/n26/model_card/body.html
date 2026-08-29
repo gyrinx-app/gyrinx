@@ -154,8 +154,13 @@ draw the same thing.
                 same lightness as the card's text, so colour alone would not
                 tell "Choose" apart from the label beside it.
                 {% endcomment %}
-                {% if choice.is_resolved %}<c-n26.link href="{{ choice.href }}" tone="current">{{ choice.chosen }}</c-n26.link>
-                {% else %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
+                {% if choice.is_resolved %}<c-n26.link href="{{ choice.href }}" tone="current">{{ choice.chosen }}</c-n26.link>{% endif %}
+                {% comment %}
+                A choice with room left keeps its Choose beside what it
+                holds — smaller there, so the picks stay the thing read.
+                {% endcomment %}
+                {% if choice.is_resolved and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always" class="ms-2 text-xs">Choose</c-n26.link>
+                {% elif not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
             </dd>
         {% endfor %}
 
