@@ -64,20 +64,21 @@ that holds one.
                             twenty-six buttons all called "Choose" are twenty-six
                             unlabelled buttons.
                             {% endcomment %}
-                            {% if option.control == "remove" %}
+                            {% if option.control == "remove" or option.control == "both" %}
                                 <c-ui.button type="submit"
                                              name="remove"
                                              value="{{ option.key }}"
                                              variant="danger"
                                              size="sm"
                                              aria-label="Remove {{ option.name }}">Remove</c-ui.button>
-                            {% elif option.control == "choose" %}
+                            {% endif %}
+                            {% if option.control == "choose" or option.control == "both" %}
                                 <c-ui.button type="submit"
                                              name="{{ name }}"
                                              value="{{ option.key }}"
                                              variant="success"
                                              size="sm"
-                                             aria-label="Choose {{ option.name }}">Choose</c-ui.button>
+                                             aria-label="Choose {{ option.name }}{% if option.control == "both" %} again{% endif %}">Choose{% if option.control == "both" %} again{% endif %}</c-ui.button>
                             {% endif %}
                         </li>
                     {% endfor %}

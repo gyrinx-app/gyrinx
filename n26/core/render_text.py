@@ -82,6 +82,8 @@ def render_model_card(card, indent=""):
         # Drawn like any other assignable's row; a real UI hangs the picker
         # link here. The provenance is deliberately not shown.
         chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
+        if choice.is_resolved and not choice.is_full:
+            chosen = f"{chosen} (choose)"
         lines.append(f"{indent}  {choice.kind_label}: {chosen}")
     if card.equipment:
         names = ", ".join(line.name for line in card.equipment)
@@ -132,6 +134,8 @@ def render_gang_sheet(sheet):
         lines.append(f"{counter.name}: {counter.value}")
     for choice in sheet.choices:
         chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
+        if choice.is_resolved and not choice.is_full:
+            chosen = f"{chosen} (choose)"
         lines.append(f"{choice.kind_label}: {chosen}")
     if sheet.stash:
         lines.append(f"Stash — {sheet.stash_rating}cr")

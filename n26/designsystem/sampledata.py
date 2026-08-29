@@ -1417,6 +1417,17 @@ def model_card():
                     source="Specialist", source_kind="subtype", computed=True
                 ),
             ),
+            # A choice worked at a pick at a time, with room left: what it
+            # holds is drawn, and Choose stays beside it until it is full.
+            ChoiceLine(
+                kind_label="Lasting Injuries",
+                chosen="Eye Injury, Out Cold",
+                is_full=False,
+                href="#",
+                provenance=Provenance(
+                    source="Ganger", source_kind="profile", computed=True
+                ),
+            ),
         ],
         # A question asking for a skill, kept apart because the card draws it
         # in the Skills row rather than as a row of its own. Only open ones are
