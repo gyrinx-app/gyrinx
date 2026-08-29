@@ -1150,6 +1150,7 @@ class Operation:
         strict=True,
         fresh=(),
         event_kind=None,
+        _chain=(),
     ):
         """Create what the carrier's sets say is missing, and nothing else.
 
@@ -1211,7 +1212,9 @@ class Operation:
         carrier in turn, with its grants caused by the copy, so the
         provenance reads the same as the propagation pass writes later
         and a hire and a catch-up can never disagree about what a
-        model holds.
+        model holds. The nesting is the library's own, and a library
+        that nests a thing inside itself is a content bug: the chain is
+        refused in words rather than followed off the end of the stack.
         """
         from n26.core.builtins import ReconcileOutcome, copies_of, plan_defaults
         from n26.core.models import CounterValue, Reason
@@ -1267,15 +1270,23 @@ class Operation:
                 # A counter opens at its member's amount — Starting XP.
                 CounterValue.objects.create(assignment=assignment, value=member.amount)
 
+        chain = (*_chain, carrier.assignable)
         for assignment in list(created):
             if getattr(assignment.assignable, "built_ins_id", None) is None:
                 continue
+            if assignment.assignable in chain:
+                raise ValueError(
+                    "Built-ins nest in a circle: "
+                    + " → ".join(str(link) for link in (*chain, assignment.assignable))
+                    + "."
+                )
             nested = self.reconcile_defaults(
                 assignment,
                 kinds=kinds,
                 gang=gang,
                 strict=strict,
                 event_kind=event_kind,
+                _chain=chain,
             )
             created.extend(nested.created)
             skipped.extend(nested.skipped)

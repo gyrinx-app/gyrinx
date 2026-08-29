@@ -710,3 +710,13 @@ class TestBuiltInsOfBuiltIns:
         assert {copy.gang_id for copy in counters} == {gang.pk}
         gang.refresh_from_db()
         assert_reconciled(gang)
+
+    def test_a_library_that_nests_a_thing_inside_itself_is_refused_in_words(
+        self, gang, hunter, spyrer
+    ):
+        hunted = create_subtype("Hunted")
+        add_built_in(spyrer, hunted)
+        add_built_in(hunted, spyrer)
+
+        with pytest.raises(ValueError, match="Built-ins nest in a circle"):
+            hire(gang, hunter, "Ana", paid=100)
