@@ -164,7 +164,7 @@ draw the same thing.
                 {% endcomment %}
                 {% if choice.takes_several and choice.is_resolved and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always" class="ms-2 text-xs">Add</c-n26.link>
                 {% elif choice.takes_several and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always" class="text-xs">Add</c-n26.link>
-                {% elif not choice.is_resolved %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
+                {% elif not choice.is_resolved and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
             </dd>
         {% endfor %}
 

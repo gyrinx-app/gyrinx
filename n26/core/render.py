@@ -316,8 +316,8 @@ class ChoiceLine:
     #: stays open past its first, and the card keeps offering a way in
     #: beside what is already held until this says otherwise.
     is_full: bool = True
-    #: Whether the choice holds more than one pick. Decides the word on
-    #: the control: a choice of one is chosen, a choice of several has
+    #: Whether the choice may hold more than one pick. Decides the word
+    #: on the control: a choice of one is chosen, a choice of several has
     #: picks added to it.
     takes_several: bool = False
 

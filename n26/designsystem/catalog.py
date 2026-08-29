@@ -1464,8 +1464,10 @@ GROUPS: list[Group] = [
                 notes=(
                     "A flat list of options, one per row: the name, an "
                     "optional muted remark, and a button. Options the choice "
-                    "already holds show a red Remove; the rest show a green "
-                    "Choose. When the choice is full, only what it holds is "
+                    "already holds show a red Remove — and a green Add again, "
+                    "where the slot type allows repeats and there is room; "
+                    "the rest show a green Add. When the choice is full, only "
+                    "what it holds is "
                     "listed. Plain submit buttons and no script: the page "
                     "wraps this in its own form, and only the clicked button "
                     "is sent, so the view knows which option to add or take "

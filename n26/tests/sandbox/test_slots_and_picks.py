@@ -1817,6 +1817,23 @@ class TestAChoiceThatHoldsNone:
         ).exists()
         assert_reconciled(gang)
 
+    def test_the_card_draws_the_row_and_no_way_in(
+        self, gang, asks_nothing, client, owner
+    ):
+        """The row still stands, headed as authored, but nothing on it
+        is clickable: a choice that asks nothing is full from the start,
+        and a link there would lead to a picker with nothing on it."""
+        from django.urls import reverse
+
+        hire(gang, asks_nothing, "Kaustos", paid=100)
+        client.force_login(owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        row = body[body.index("Gang Legacy</dt>") :]
+        row = row[: row.index("</dd>")]
+        assert ">Choose</" not in row
+        assert ">Add</" not in row
+
 
 class TestThePickerStaysFlatHoweverLongTheList:
     def test_the_page_reads_flat_as_the_list_grows(
