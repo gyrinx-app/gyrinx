@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.safestring import mark_safe
 
 from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
@@ -20,6 +21,15 @@ from n26.core.views.permissions import (
 #: and a half of scrolling — enough to read down, few enough that the
 #: page is not the whole table.
 GANGS_PER_PAGE = 25
+
+
+#: Drawn beside the Campaigns tab's label when something is waiting there.
+#: Safe because it is ours: no part of it comes from anybody's input, and the
+#: tab strip takes markup as a string because it is built in the browser.
+CAMPAIGNS_WAITING = mark_safe(  # nosec B703 B308 - literal, no user input
+    '<span aria-hidden="true" class="inline-block size-2 rounded-full'
+    ' bg-accent align-middle"></span>'
+)
 
 
 @login_required
@@ -38,6 +48,7 @@ def dashboard(request):
     edition.
     """
     from n26.core.models import Campaign
+    from n26.core.views.campaigns import invitations_for
     from n26.flags import CAMPAIGNS, enabled
 
     # The tab is a place this reader can go only where the feature is open to
@@ -50,6 +61,11 @@ def dashboard(request):
         if campaigns_open
         else []
     )
+    # An invitation waiting is the one thing on this page worth interrupting
+    # for, so the tab wears a mark and the rows sit above the reader's own.
+    # The mark is markup rather than a flag because the tab strip is built in
+    # the browser from a registered string, and a string is what it can take.
+    invitations = list(invitations_for(request.user)) if campaigns_open else []
 
     return render(
         request,
@@ -59,6 +75,9 @@ def dashboard(request):
             "changelog": changelog_entries()[:5],
             "campaigns_open": campaigns_open,
             "campaigns": campaigns,
+            "invitations": invitations,
+            "waiting_invitations": len(invitations),
+            "campaigns_mark": CAMPAIGNS_WAITING if invitations else "",
         },
     )
 

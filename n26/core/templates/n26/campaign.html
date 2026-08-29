@@ -7,9 +7,10 @@ One campaign, as its arbitrator sees it.
 The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
 carries its own — each a small fact that is also something to change.
 
-Four sections, in the order a reader wants them: the summary says what this
-campaign is, the roll says who is playing it, the battles say what has been
-fought, and the log says what has been done since. Battles and the log both
+Five sections, in the order a reader wants them: the summary says what this
+campaign is, the participants say who is at the table, the roll says which
+gangs are playing, the battles say what has been fought, and the log says what
+has been done since. Battles and the log both
 read newest first and stop after the most recent few, because this is a
 campaign's page rather than its history.
 {% endcomment %}
@@ -100,6 +101,44 @@ reader's other campaigns — the same pattern a gang's screens use.
             </c-n26.prose>
         {% endif %}
         {% comment %}
+        The people, above the gangs: a campaign is a table of players first,
+        and which gangs they bring is the next question rather than the first.
+        {% endcomment %}
+        <section class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-medium text-muted">Participants</h2>
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-participant' campaign.pk %}">
+                    Add participants
+                </c-ui.button>
+            </div>
+            {% if participants %}
+                <ul class="flex flex-col">
+                    {% for participant in participants %}
+                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <span class="min-w-0 flex-1 text-base">{{ participant.user.username }}</span>
+                            {% if participant.state == 'accepted' %}
+                                <c-ui.badge color="green" size="sm">
+                                    Accepted
+                                </c-ui.badge>
+                            {% elif participant.state == 'declined' %}
+                                <c-ui.badge color="ink" size="sm">
+                                    Declined
+                                </c-ui.badge>
+                            {% else %}
+                                <c-ui.badge color="orange" size="sm">
+                                    Invited
+                                </c-ui.badge>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-sm text-muted">Nobody yet.</p>
+            {% endif %}
+        </section>
+        {% comment %}
         Every gang playing, and the way to add another. A gang's name leads to
         its own sheet, which opens for anybody holding the address — the roll
         is a list of links, not a claim on anybody's roster.
@@ -122,7 +161,15 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
                             </div>
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
-                            <c-n26.link href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}">Remove</c-n26.link>
+                            <c-ui.button size="sm"
+                                         variant="ghost"
+                                         href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"
+                                         aria-label="Remove {{ membership.gang.name }}"
+                                         title="Remove {{ membership.gang.name }}">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="x-mark" class="size-4" />
+                                </span>
+                            </c-ui.button>
                         </li>
                     {% endfor %}
                 </ul>
@@ -152,7 +199,15 @@ reader's other campaigns — the same pattern a gang's screens use.
                             <span class="min-w-0 flex-1 text-sm text-muted">
                                 {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}Nobody named{% endfor %}
                             </span>
-                            <c-n26.link href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}">Remove</c-n26.link>
+                            <c-ui.button size="sm"
+                                         variant="ghost"
+                                         href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                                         aria-label="Remove the battle of {{ battle.date|date:'j F Y' }}"
+                                         title="Remove this battle">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="x-mark" class="size-4" />
+                                </span>
+                            </c-ui.button>
                         </li>
                     {% endfor %}
                 </ul>

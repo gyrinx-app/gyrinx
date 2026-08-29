@@ -64,6 +64,29 @@
  * Naming the full scale here costs a few KB and makes any shade legitimate. */
 @source inline("bg-{red,orange,amber,yellow,lime,green,emerald,teal,cyan,sky,blue,indigo,violet,purple,fuchsia,pink,rose,slate,gray,zinc,neutral,stone}-{50,100,200,300,400,500,600,700,800,900,950}");
 
+/* The mark drawn beside a tab whose panel has something waiting in it. Its
+ * markup is built in a view rather than a template, because the tab strip is
+ * assembled in the browser and takes its label decoration as a string — and a
+ * class named only in Python is a class the scan above never sees, so the
+ * element renders at nothing by nothing. */
+@source inline("inline-block size-2 rounded-full bg-accent align-middle");
+
+/* An area waiting on htmx keeps showing what it has, dimmed, with the mark
+ * laid over it — so it holds its own height and the answer arriving moves
+ * nothing further down the page. htmx marks the element it was told to
+ * indicate, and names the classes; the look is ours. */
+.n26-awaiting > .n26-awaiting-mark {
+    display: none;
+}
+
+.n26-awaiting.htmx-request > .n26-awaiting-mark {
+    display: flex;
+}
+
+/* The veil is painted over the rows rather than fading the rows themselves:
+ * htmx replaces that element wholesale, and a rule reaching into it has to
+ * survive being swapped. Covering it needs nothing of it at all. */
+
 /* Mynor, loaded from Typekit in the base template.
  *
  * Set as --font-sans rather than as a font-family on body, because that is the

@@ -16,6 +16,8 @@ from n26.core.views.api import preview_view
 from n26.core.views.campaigns import (
     add_battle,
     add_gang,
+    add_participant,
+    answer_invitation,
     archive_campaign,
     campaign,
     campaigns,
@@ -23,6 +25,7 @@ from n26.core.views.campaigns import (
     edit_campaign,
     remove_battle,
     remove_gang,
+    remove_participant,
 )
 from n26.core.views.changelog import changelog, changelog_entry
 from n26.core.views.choose import choose
@@ -66,6 +69,8 @@ __all__ = [
     "create_gang",
     "dashboard",
     "add_battle",
+    "add_participant",
+    "answer_invitation",
     "add_gang",
     "archive_campaign",
     "delete_fighter",
@@ -73,6 +78,7 @@ __all__ = [
     "edit_campaign",
     "remove_battle",
     "remove_gang",
+    "remove_participant",
     "edit_fighter",
     "edit_gang",
     "equip",

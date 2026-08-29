@@ -7,6 +7,7 @@ from n26.core.models.campaign import (
     Campaign,
     CampaignEvent,
     CampaignMembership,
+    CampaignParticipant,
 )
 from n26.core.models.gang import Gang
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
@@ -32,6 +33,7 @@ __all__ = [
     "Campaign",
     "CampaignEvent",
     "CampaignMembership",
+    "CampaignParticipant",
     "ChosenProfileOption",
     "CounterValue",
     "Gang",

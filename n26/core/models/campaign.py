@@ -80,6 +80,10 @@ class CampaignEvent(Base):
         ARCHIVED = "archived", "Archived"
         BATTLE_RECORDED = "battle_recorded", "Battle recorded"
         BATTLE_REMOVED = "battle_removed", "Battle removed"
+        INVITED = "invited", "Invited somebody"
+        INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
+        INVITE_DECLINED = "invite_declined", "Invitation declined"
+        PARTICIPANT_REMOVED = "participant_removed", "Participant removed"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -90,6 +94,16 @@ class CampaignEvent(Base):
     #: Who did this. Kept when the account goes, because the campaign's log is
     #: a record of what happened to it rather than of who is still here.
     actor = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    #: The person an act was about, where it was about one. Kept as a plain
+    #: link: the name a line reads is looked up when the page is drawn, as
+    #: every other name here is.
+    about_user = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,
         null=True,
@@ -218,3 +232,84 @@ class Battle(Base):
 
     def __str__(self):
         return f"Battle on {self.date} in {self.campaign}"
+
+
+class CampaignParticipant(Base):
+    """One person the arbitrator has asked into a campaign, and their answer.
+
+    Being a participant is about the *person*, not their gangs: an invitation
+    says somebody is at this table, and which gangs they bring is a separate
+    question the campaign answers elsewhere. So there is one row per person
+    per campaign, and inviting somebody who has already declined asks the same
+    row again rather than starting a second conversation.
+
+    The arbitrator owns the campaign and is not a participant of it. Being
+    one grants membership and nothing else: what a participant may do is a
+    question their campaign's own screens answer.
+    """
+
+    class State(models.TextChoices):
+        INVITED = "invited", "Invited"
+        ACCEPTED = "accepted", "Accepted"
+        DECLINED = "declined", "Declined"
+
+    campaign = models.ForeignKey(
+        "n26.Campaign",
+        on_delete=models.CASCADE,
+        related_name="participants",
+    )
+    user = models.ForeignKey(
+        "auth.User",
+        on_delete=models.CASCADE,
+        related_name="n26_campaign_participations",
+    )
+    state = models.CharField(max_length=20, choices=State, default=State.INVITED)
+    #: What the arbitrator said when they asked. Theirs, not ours: shown to
+    #: the person invited and never rewritten.
+    message = models.TextField(blank=True, default="")
+    #: Who asked. Kept when the account goes, because the invitation is a
+    #: record of what happened rather than of who is still here.
+    invited_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    #: When they answered, either way. Unset while the question stands.
+    answered = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "campaign participant"
+        verbose_name_plural = "campaign participants"
+        ordering = ["created"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign", "user"],
+                name="campaign_participant_one_per_person",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["user", "state"], name="campaign_participant_inbox_idx"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user} in {self.campaign}"
+
+    @property
+    def waiting(self):
+        """Whether the question still stands."""
+        return self.state == self.State.INVITED
+
+    def get_absolute_url(self):
+        """The campaign this invitation is to.
+
+        What a notification about it points at, because the campaign is what
+        somebody asked into one wants to look at. Who may open that page is
+        the campaign's own question, answered by its views.
+        """
+        from django.urls import reverse
+
+        return reverse("n26-campaign", args=[self.campaign_id])

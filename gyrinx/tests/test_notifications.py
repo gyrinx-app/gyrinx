@@ -1,10 +1,13 @@
 """Tests for the Notification model and creation service."""
 
+import uuid
+
 import pytest
 
 from gyrinx.site.models import (
     Notification,
     NotificationType,
+    _generic_key,
     notify,
     notify_campaign_arbitrator,
     notify_list_changed,
@@ -267,3 +270,55 @@ def test_target_url_prefers_target_then_scope(user, make_list, make_campaign):
 
     plain = notify(recipient=user, subject="no target")
     assert plain.target_url == ""
+
+
+class KeyThatKnowsItself:
+    """A primary key that is a UUID underneath but renders as something else,
+    the way a ULID does."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def to_uuid(self):
+        return self.value
+
+    def __str__(self):
+        return "01M0ZXBBE1PN2Q0A8WB700CXRC"
+
+
+class KeyThatIsNoUUID:
+    def __str__(self):
+        return "not-a-key"
+
+
+@pytest.mark.django_db
+def test_a_uuid_key_is_linked_as_it_is(user):
+    """The id columns are uuid, and most keys already are one."""
+    key = uuid.uuid4()
+    user.pk = key
+    content_type, found = _generic_key(user)
+    assert found == key
+    assert content_type.model_class() is type(user)
+
+
+@pytest.mark.django_db
+def test_a_key_that_knows_how_to_become_a_uuid_is_asked(user):
+    """An edition may key its rows with something that is a UUID underneath
+    while rendering as something else. Coercing it here is what keeps the
+    link — and, because notify swallows its own errors inside a caller's
+    transaction, what keeps the notification and the act it announces."""
+    key = uuid.uuid4()
+    user.pk = KeyThatKnowsItself(key)
+    _, found = _generic_key(user)
+    assert found == key
+
+
+@pytest.mark.django_db
+def test_a_key_that_cannot_be_one_links_nothing_and_raises_nothing(user):
+    """Losing the link is survivable. Losing the notification is not."""
+    user.pk = KeyThatIsNoUUID()
+    assert _generic_key(user) == (None, None)
+
+
+def test_nothing_links_to_nothing():
+    assert _generic_key(None) == (None, None)

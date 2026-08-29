@@ -30,7 +30,14 @@ places — the same pattern a gang's screens use for their siblings.
     Everyone else keeps the "working on it" panel the tab has always shown —
     a button leading somewhere that answers 404 is worse than no button.
     {% endcomment %}
+    {% comment %}
+    A mark on the tab rather than a count: what matters is that something is
+    waiting, and a reader who opens the tab sees how many for themselves. The
+    markup is the view's, so nothing here quotes HTML inside an attribute, and
+    the classes sit somewhere the stylesheet's scan can find them.
+    {% endcomment %}
     <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
+                          :campaigns_mark="campaigns_mark"
                           new_campaign_href="{% if campaigns_open %}{% url 'n26-create-campaign' %}{% endif %}"
                           new_campaign_label="Set up campaign">
         {% comment %}
@@ -72,6 +79,7 @@ places — the same pattern a gang's screens use for their siblings.
         {% endcomment %}
         {% if campaigns_open %}
             <c-slot name="campaigns">
+                {% include 'n26/includes/campaign_invitations.html' with back=request.get_full_path %}
                 <c-n26.record-table noun="campaigns"
                                     singular="campaign"
                                     action="{% url 'n26-campaigns' %}">

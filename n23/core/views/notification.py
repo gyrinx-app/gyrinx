@@ -72,6 +72,10 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
         # relations, so Django batches them one query per content type. Without
         # this, `target_url` dereferences each row's target individually and the
         # inbox issues a query per notification.
+        #
+        # A row whose model renders its key differently from the uuid column
+        # comes back unresolved from this, so the list decides whether to draw
+        # a link from the stored key and leaves resolving it to the open view.
         qs = (
             Notification.objects.for_recipient(self.request.user)
             .select_related("sender")

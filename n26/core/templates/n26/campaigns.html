@@ -28,6 +28,12 @@ campaigns is where someone goes when they want one more.
                 <c-ui.button variant="primary" href="{% url 'n26-create-campaign' %}">Set up campaign</c-ui.button>
             </c-slot>
         </c-n26.page-header>
+        {% comment %}
+        Under the heading and above the reader's own campaigns: a question
+        waiting is what they came back for, but a page says what it is before
+        it says what is on it. The include is shared with the home page's tab.
+        {% endcomment %}
+        {% include 'n26/includes/campaign_invitations.html' with back=request.get_full_path %}
         <c-n26.record-table noun="campaigns"
                             singular="campaign"
                             action="{% url 'n26-campaigns' %}"

@@ -45,6 +45,21 @@ urlpatterns = [
         name="n26-campaign-remove-gang",
     ),
     path(
+        "campaigns/<str:pk>/participants/add/",
+        views.add_participant,
+        name="n26-campaign-add-participant",
+    ),
+    path(
+        "campaigns/<str:pk>/participants/<int:user_pk>/remove/",
+        views.remove_participant,
+        name="n26-campaign-remove-participant",
+    ),
+    path(
+        "campaigns/<str:pk>/invitation/",
+        views.answer_invitation,
+        name="n26-campaign-answer-invitation",
+    ),
+    path(
         "campaigns/<str:pk>/battles/new/",
         views.add_battle,
         name="n26-campaign-add-battle",

@@ -8,7 +8,13 @@ import pytest
 from django.contrib.auth.models import Group, User
 
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core.models import Battle, Campaign, CampaignEvent, CampaignMembership
+from n26.core.models import (
+    Battle,
+    Campaign,
+    CampaignEvent,
+    CampaignMembership,
+    CampaignParticipant,
+)
 from n26.core.views.campaigns import LOG_ON_THE_PAGE
 from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_gang
@@ -704,3 +710,232 @@ class TestTheCampaignInTheBar:
         for address in ("/n26/campaigns/", "/n26/campaigns/new/"):
             drawn = client.get(address).content.decode()
             assert "Switch to another campaign" not in drawn, address
+
+
+class TestInvitingSomebody:
+    @pytest.fixture
+    def player(self):
+        return User.objects.create_user("vex_ordo")
+
+    def add_page(self, campaign, query=""):
+        address = f"/n26/campaigns/{campaign.pk}/participants/add/"
+        return f"{address}?q={query}" if query else address
+
+    def test_the_search_finds_by_part_of_a_name(
+        self, client, campaign, player, open_to_everyone
+    ):
+        drawn = client.get(self.add_page(campaign, "vex")).content.decode()
+        assert "vex_ordo" in drawn
+
+    def test_an_empty_search_offers_nobody(
+        self, client, campaign, player, open_to_everyone
+    ):
+        """A page that listed every account by default would be a directory."""
+        drawn = client.get(self.add_page(campaign)).content.decode()
+        assert "vex_ordo" not in drawn
+        assert "Type a username to find somebody" in drawn
+
+    def test_the_arbitrator_is_not_offered_themselves(
+        self, client, campaign, arbitrator, open_to_everyone
+    ):
+        drawn = client.get(self.add_page(campaign, "arbitrator")).content.decode()
+        assert "Nobody by that name" in drawn
+
+    def test_the_message_box_opens_from_the_address(
+        self, client, campaign, player, open_to_everyone
+    ):
+        drawn = client.get(
+            f"{self.add_page(campaign, 'vex')}&invite={player.pk}"
+        ).content.decode()
+        assert "Invite vex_ordo" in drawn
+        assert f'value="{player.pk}"' in drawn
+
+    def test_inviting_records_it_and_says_so(
+        self, client, campaign, player, arbitrator, open_to_everyone
+    ):
+        response = client.post(
+            self.add_page(campaign),
+            {"user": str(player.pk), "message": "Sunday."},
+        )
+        assert response.status_code == 302
+        invitation = CampaignParticipant.objects.get()
+        assert invitation.user == player
+        assert invitation.message == "Sunday."
+        assert (
+            "invited vex_ordo"
+            in client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        )
+
+    def test_somebody_already_asked_is_not_offered_again(
+        self, client, campaign, player, open_to_everyone
+    ):
+        client.post(self.add_page(campaign), {"user": str(player.pk)})
+        drawn = client.get(self.add_page(campaign, "vex")).content.decode()
+        assert "Already asked" in drawn
+
+    def test_an_account_that_has_gone_is_refused_in_words(
+        self, client, campaign, open_to_everyone
+    ):
+        response = client.post(self.add_page(campaign), {"user": "999999"}, follow=True)
+        assert "no longer exists" in response.content.decode()
+        assert not CampaignParticipant.objects.exists()
+
+    def test_somebody_elses_campaign_takes_no_participants(
+        self, client, player, open_to_everyone
+    ):
+        theirs = Campaign.objects.create(
+            name="Not Yours", owner=User.objects.create_user("someone-else")
+        )
+        assert client.get(self.add_page(theirs)).status_code == 404
+        assert (
+            client.post(self.add_page(theirs), {"user": str(player.pk)}).status_code
+            == 404
+        )
+
+    def test_the_routes_are_shut_when_the_feature_is(self, client, campaign, shut):
+        assert client.get(self.add_page(campaign)).status_code == 404
+
+
+class TestAnsweringAnInvitation:
+    @pytest.fixture
+    def theirs(self, arbitrator):
+        """A campaign somebody else runs, so the reader is the one asked."""
+        from n26.core.campaigns import campaign_operation
+
+        owner = User.objects.create_user("kesh")
+        campaign = Campaign.objects.create(name="Sump Wars", owner=owner)
+        with campaign_operation(campaign, actor=owner) as act:
+            act.invite(arbitrator, message="You in?")
+        return campaign
+
+    def test_it_shows_on_the_campaigns_list(self, client, theirs, open_to_everyone):
+        drawn = client.get("/n26/campaigns/").content.decode()
+        assert "Sump Wars" in drawn
+        assert "You in?" in drawn
+
+    def test_the_home_page_knows_an_invitation_is_waiting(
+        self, client, theirs, open_to_everyone
+    ):
+        """The mark itself is drawn by the tab strip, which Alpine builds in
+        the browser from a registered string — so what is checked here is the
+        view's answer, which is the part that can quietly stop being right."""
+        response = client.get("/n26/")
+        assert response.context["waiting_invitations"] == 1
+        assert "Sump Wars" in response.content.decode()
+
+    def test_accepting_joins_and_stops_the_page_asking(
+        self, client, theirs, arbitrator, open_to_everyone
+    ):
+        client.post(
+            f"/n26/campaigns/{theirs.pk}/invitation/",
+            {"answer": "accept", "next": "/n26/campaigns/"},
+        )
+        assert CampaignParticipant.objects.get(user=arbitrator).state == (
+            CampaignParticipant.State.ACCEPTED
+        )
+        assert client.get("/n26/").context["waiting_invitations"] == 0
+
+    def test_declining_is_recorded(self, client, theirs, arbitrator, open_to_everyone):
+        client.post(f"/n26/campaigns/{theirs.pk}/invitation/", {"answer": "decline"})
+        assert CampaignParticipant.objects.get(user=arbitrator).state == (
+            CampaignParticipant.State.DECLINED
+        )
+
+    def test_answering_lands_back_where_the_reader_was(
+        self, client, theirs, open_to_everyone
+    ):
+        response = client.post(
+            f"/n26/campaigns/{theirs.pk}/invitation/",
+            {"answer": "accept", "next": "/n26/"},
+        )
+        assert response["Location"] == "/n26/"
+
+    def test_it_will_not_be_sent_somewhere_else(self, client, theirs, open_to_everyone):
+        """The address to return to arrives in a form, so it is checked."""
+        response = client.post(
+            f"/n26/campaigns/{theirs.pk}/invitation/",
+            {"answer": "accept", "next": "https://example.test/"},
+        )
+        assert response["Location"] == "/n26/campaigns/"
+
+    def test_somebody_never_asked_gets_404(self, client, arbitrator, open_to_everyone):
+        uninvited = Campaign.objects.create(
+            name="Elsewhere", owner=User.objects.create_user("stranger")
+        )
+        assert (
+            client.post(
+                f"/n26/campaigns/{uninvited.pk}/invitation/", {"answer": "accept"}
+            ).status_code
+            == 404
+        )
+
+
+class TestNothingTypedIntoAnAddressIsAServerError:
+    """Ids reach these views from forms and addresses, where anything can be
+    typed. A key column refuses what it cannot parse by raising, so every one
+    of them has to be checked before it reaches a query."""
+
+    @pytest.fixture
+    def gone(self, campaign):
+        return f"/n26/campaigns/{campaign.pk}/participants/add/"
+
+    def test_a_post_with_no_account_says_so(
+        self, client, campaign, gone, open_to_everyone
+    ):
+        response = client.post(gone, {"message": "hello"}, follow=True)
+        assert response.status_code == 200
+        assert "no longer exists" in response.content.decode()
+
+    def test_a_post_naming_nonsense_says_so(
+        self, client, campaign, gone, open_to_everyone
+    ):
+        response = client.post(gone, {"user": "not-a-number"}, follow=True)
+        assert response.status_code == 200
+        assert "no longer exists" in response.content.decode()
+
+    def test_an_invite_parameter_of_nonsense_draws_the_page(
+        self, client, campaign, gone, open_to_everyone
+    ):
+        assert client.get(f"{gone}?invite=not-a-number").status_code == 200
+
+    def test_removing_a_participant_by_nonsense_is_a_404(
+        self, client, campaign, open_to_everyone
+    ):
+        address = f"/n26/campaigns/{campaign.pk}/participants/not-a-number/remove/"
+        assert client.get(address).status_code == 404
+
+    def test_answering_at_a_malformed_campaign_is_a_404(
+        self, client, arbitrator, open_to_everyone
+    ):
+        response = client.post(
+            "/n26/campaigns/not-a-ulid/invitation/", {"answer": "accept"}
+        )
+        assert response.status_code == 404
+
+
+class TestTheArbitratorIsNotAParticipant:
+    """The model says so, so the write says so — the search screens them out,
+    and a request that goes round the search must not get past this."""
+
+    def test_inviting_the_owner_is_refused_in_words(
+        self, client, campaign, arbitrator, open_to_everyone
+    ):
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/participants/add/",
+            {"user": str(arbitrator.pk)},
+            follow=True,
+        )
+        assert "not a participant of their own campaign" in response.content.decode()
+        assert not CampaignParticipant.objects.exists()
+
+    def test_an_account_switched_off_is_not_invited(
+        self, client, campaign, open_to_everyone
+    ):
+        gone = User.objects.create_user("retired", is_active=False)
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/participants/add/",
+            {"user": str(gone.pk)},
+            follow=True,
+        )
+        assert "no longer exists" in response.content.decode()
+        assert not CampaignParticipant.objects.exists()

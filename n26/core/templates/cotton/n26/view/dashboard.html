@@ -18,6 +18,10 @@ screen whichever tab is showing.
   new_gang_href, new_campaign_href — each draws its button only when given.
   campaigns, content_packs — left empty, each tab falls back to
     <c-n26.coming-soon>, so the strip holds three tabs either way.
+  campaigns_mark — markup drawn beside the Campaigns tab's label, for a
+    question waiting there. Empty draws nothing. The strip renders it
+    through the tab's own icon, which is the only thing it will draw
+    that is not the label's text.
 {% endcomment %}
 {# The slots are declared: an undeclared slot name is not empty when nobody #}
 {# fills it — it resolves to the caller's own variable of that name, and a #}
@@ -30,6 +34,7 @@ screen whichever tab is showing.
     new_campaign_label="Create Campaign"
     gangs=""
     campaigns=""
+    campaigns_mark=""
     content_packs=""
     changelog=""
     class=""
@@ -89,7 +94,7 @@ screen whichever tab is showing.
             <c-ui.tabs default_tab="Gangs">
                 <c-ui.tabs.tab name="Gangs">{{ gangs }}</c-ui.tabs.tab>
 
-                <c-ui.tabs.tab name="Campaigns">
+                <c-ui.tabs.tab name="Campaigns" icon="{{ campaigns_mark }}">
                     {% if campaigns %}{{ campaigns }}{% else %}
                         <c-n26.coming-soon>We're working hard on it.</c-n26.coming-soon>
                     {% endif %}
