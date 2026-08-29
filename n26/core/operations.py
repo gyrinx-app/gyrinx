@@ -1161,6 +1161,7 @@ class Operation:
         strict=True,
         fresh=(),
         event_kind=None,
+        omit=(),
         _chain=(),
     ):
         """Create what the carrier's sets say is missing, and nothing else.
@@ -1216,6 +1217,11 @@ class Operation:
         pass says its grants arrived by catch-up, so a reader asking
         why a thing appeared long after the hire gets the answer.
 
+        ``omit`` names members, by primary key, the caller has judged
+        the carrier already holds another way. Each is treated as
+        satisfied and recorded among the skips with that reason, so
+        nothing is created for it and the outcome still says so.
+
         A copy created here is itself an arrival, and a thing with
         built-ins of its own brings them wherever it arrives — a subtype
         granted by a profile brings the counters built into the subtype.
@@ -1240,7 +1246,10 @@ class Operation:
         from n26.library.models import Weapon, WeaponProfile
 
         narrowed = kinds if kinds is not None else kinds_for(carrier)
-        plan = plan_defaults(carrier, kinds=narrowed, built_ins=built_ins, fresh=fresh)
+        omitted = set(omit)
+        plan = plan_defaults(
+            carrier, kinds=narrowed, built_ins=built_ins, fresh=fresh, omit=omitted
+        )
 
         miniature = None if gang is not None else carrier.miniature_root
         if gang is not None:
@@ -1260,10 +1269,14 @@ class Operation:
             entry
             for entry in plan.entries
             if isinstance(entry.member.assignable, WeaponProfile)
+            and entry.member.pk not in omitted
         ]
         for entry in plan.entries:
             member = entry.member
             assignable = member.assignable
+            if member.pk in omitted:
+                skipped.append((entry, f"{assignable} is already held another way."))
+                continue
             if isinstance(assignable, WeaponProfile):
                 continue
             if entry.satisfied:

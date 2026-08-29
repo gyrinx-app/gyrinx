@@ -1,0 +1,63 @@
+{% comment %}
+    The summary of one built-ins backfill run, on the Backfill detail
+    page: how far the walk has got, the totals so far, the carriers
+    left holding a member's thing another way, and the gangs that
+    could not be settled. Every gang commits on its own, so the totals
+    of a run still working are what it has already done.
+{% endcomment %}
+<h2>Progress</h2>
+<p>
+    {{ backfill.summary.done|default:0 }} of {{ backfill.summary.total|default:"?" }} gang{{ backfill.summary.total|pluralize }} settled.
+    {% if backfill.summary.attempts %}
+        Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }} since the last batch landed.
+    {% endif %}
+</p>
+{% if backfill.summary.totals %}
+    <h2>Totals</h2>
+    <table class="table">
+        <tr>
+            <th>Legacy grants tagged with their provenance</th>
+            <td>{{ backfill.summary.totals.tagged|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Left untagged: a tagged copy already stood for the member</th>
+            <td>{{ backfill.summary.totals.already|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Left untagged: more copies than the set has members</th>
+            <td>{{ backfill.summary.totals.ambiguous|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Left untagged: no set of the carrier names the thing</th>
+            <td>{{ backfill.summary.totals.unmatched|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Members granted as caught up</th>
+            <td>{{ backfill.summary.totals.granted|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Members skipped: already held another way</th>
+            <td>{{ backfill.summary.totals.held_another_way|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Members skipped: nothing to place them on</th>
+            <td>{{ backfill.summary.totals.skipped|default:0 }}</td>
+        </tr>
+    </table>
+{% endif %}
+{% if backfill.summary.held_another_way %}
+    <h2>Held another way</h2>
+    <ul>
+        {% for line in backfill.summary.held_another_way %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.failures %}
+    <h2>Gangs that could not be settled</h2>
+    <ul>
+        {% for gang_id, why in backfill.summary.failures.items %}
+            <li>
+                <code>{{ gang_id }}</code>: {{ why }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}

@@ -126,7 +126,7 @@ class ReconcileOutcome:
     skipped: list
 
 
-def plan_defaults(carrier, kinds=None, built_ins=True, fresh=()):
+def plan_defaults(carrier, kinds=None, built_ins=True, fresh=(), omit=()):
     """Walk a carrier's sets and say which members lack their copy.
 
     Only live members count — an archived member is a built-in an
@@ -141,10 +141,15 @@ def plan_defaults(carrier, kinds=None, built_ins=True, fresh=()):
     re-gift what an owner parted with — while taking a set is an
     acquisition, and what is bought arrives: the copies a set's earlier
     tenure left archived are history, not a settled grant.
+
+    ``omit`` names members, by primary key, to treat as satisfied
+    whatever provenance says — for a caller that has judged the carrier
+    already holds the thing another way and must not be handed a second.
     """
     if kinds is None:
         kinds = kinds_for(carrier)
     fresh_pks = {default_set.pk for default_set in fresh}
+    omitted = set(omit)
     entries = []
     for default_set in sets_for(carrier, built_ins=built_ins):
         include_archived = default_set.pk not in fresh_pks
@@ -157,9 +162,8 @@ def plan_defaults(carrier, kinds=None, built_ins=True, fresh=()):
             entries.append(
                 MemberPlan(
                     member=member,
-                    satisfied=is_satisfied(
-                        member, carrier, include_archived=include_archived
-                    ),
+                    satisfied=member.pk in omitted
+                    or is_satisfied(member, carrier, include_archived=include_archived),
                 )
             )
     return DefaultsPlan(carrier=carrier, entries=tuple(entries))

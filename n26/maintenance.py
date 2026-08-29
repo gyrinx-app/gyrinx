@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Operation",
+    "backfill_built_ins",
     "delete_nameless_gang_type",
     "repair_doubled_refunds",
     "run_batched",
@@ -146,6 +147,10 @@ class Operation(models.TextChoices):
         "n26_repair_doubled_refunds",
         "n26: the second refund a doubled click wrote is dropped",
     )
+    BACKFILL_BUILT_INS = (
+        "n26_backfill_built_ins",
+        "n26: fighters catch up with the built-ins they were hired without",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -156,6 +161,7 @@ LOCK_KEYS = {
     Operation.REPAIR_DOUBLED_REFUNDS: 826_020_609,
     Operation.CONVERT_CHAOS_GOD: 826_020_610,
     Operation.CONVERT_VARIANT: 826_020_611,
+    Operation.BACKFILL_BUILT_INS: 826_020_612,
 }
 
 
@@ -873,6 +879,120 @@ def audit_reconcile_view(request):
     return render(request, "admin/maintenance/n26/audit.html", context)
 
 
+@task
+def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
+    """Tag every legacy built-in grant with its provenance and catch
+    every live carrier up with its sets, one unarchived gang at a time.
+
+    Batched, because the whole estate is walked and each gang is its
+    own operation, committing on its own. What each gang came to is
+    added to the record's totals as it lands, so a run read part-way
+    still says what it has done so far.
+    """
+    from n26.core.backfill_built_ins import catch_up
+    from n26.core.models import Gang
+
+    record = Backfill.objects.get(pk=backfill_id)
+    totals = dict(record.summary.get("totals", {}))
+    held_another_way = list(record.summary.get("held_another_way", []))
+
+    def do_one(pk):
+        outcome = catch_up(pk)
+        for key, count in outcome.counts().items():
+            totals[key] = int(totals.get(key, 0)) + count
+        held_another_way.extend(outcome.held_another_way)
+        _write(
+            backfill_id,
+            summary_patch={"totals": totals, "held_another_way": held_another_way},
+        )
+
+    run_batched(
+        backfill_id,
+        operation=Operation.BACKFILL_BUILT_INS,
+        what="Built-ins backfill",
+        items=Gang.objects.filter(archived=False),
+        do_one=do_one,
+        again=lambda: backfill_built_ins.enqueue(backfill_id=backfill_id),
+    )
+
+
+def backfill_built_ins_view(request):
+    """Say what would be walked (GET), or record a run and enqueue it.
+
+    The preview is deliberately cheap — one count of the grants still
+    without provenance, by kind, and the number of gangs — because the
+    exact grant count is only known by walking every carrier, which is
+    the run's job, not the page's.
+    """
+    from n26.core.backfill_built_ins import TAGGABLE_KINDS, legacy_grants_by_kind
+    from n26.core.models import Gang
+
+    operation = Operation.BACKFILL_BUILT_INS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That backfill is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"attempts": 0},
+        )
+        backfill_built_ins.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The backfill is running. This page shows what it does."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    by_kind = legacy_grants_by_kind()
+    context = page_context(
+        request,
+        operation.label,
+        gangs=Gang.objects.filter(archived=False).count(),
+        legacy=[
+            {
+                "kind": kind.replace("_", " "),
+                "count": count,
+                "taggable": kind in TAGGABLE_KINDS,
+            }
+            for kind, count in by_kind.items()
+        ],
+        legacy_total=sum(
+            count for kind, count in by_kind.items() if kind in TAGGABLE_KINDS
+        ),
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/backfill_built_ins.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.BACKFILL_BUILT_INS.value,
+        name=Operation.BACKFILL_BUILT_INS.label,
+        added=date(2026, 8, 29),
+        description=(
+            "Walk every unarchived gang. Each built-in grant written before "
+            "provenance was recorded is tagged with the set member it came "
+            "from and the carrier it came for; then every live carrier — "
+            "each model's membership, the gang's founding, a bought mount — "
+            "catches up with what its sets say it comes with, so a member "
+            "added after the hire arrives now, told in the history as "
+            "caught up. A model that already holds a member's thing some "
+            "other way is skipped and named on the record. Tagging moves no "
+            "money; every gang is proved to reconcile."
+        ),
+        view=backfill_built_ins_view,
+        detail_template="admin/maintenance/n26/_backfill_built_ins_detail.html",
+    )
+)
+
+
 register_operation(
     MaintenanceOperation(
         operation=Operation.AUDIT_RECONCILE.value,
@@ -1012,6 +1132,7 @@ task_routes = [
     TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
     TaskRoute(audit_reconcile),
     TaskRoute(repair_doubled_refunds, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(backfill_built_ins, ack_deadline=600),
 ]
 
 

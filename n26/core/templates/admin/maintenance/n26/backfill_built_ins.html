@@ -1,0 +1,82 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The built-ins backfill's console page: the grants still carrying no
+provenance, by kind; how many gangs the run would walk; a run button;
+the recent runs. The exact number of members the run will grant is
+only known by walking every carrier, so the page does not say it.
+Context from backfill_built_ins_view (n26/maintenance.py): title,
+gangs, legacy, legacy_total, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-hint { color: #888; font-size: 0.85em; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Walks every unarchived gang. Each built-in grant written before
+        provenance was recorded is tagged with the set member it came from
+        and the carrier it came for; then every live carrier catches up with
+        what its sets say it comes with. A model that already holds a
+        member's thing some other way is skipped and named on the record.
+    </p>
+    <p>
+        {{ gangs }} gang{{ gangs|pluralize }} would be walked, holding {{ legacy_total }} grant{{ legacy_total|pluralize }} still without provenance.
+        How many members are granted is reported by the run.
+    </p>
+    <table class="mt-table">
+        <thead>
+            <tr>
+                <th>Kind</th>
+                <th>Grants without provenance</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in legacy %}
+                <tr>
+                    <td>{{ line.kind }}</td>
+                    <td>{{ line.count }}</td>
+                    <td class="mt-hint">{% if not line.taggable %}a weapon's own firing lines — left alone{% endif %}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <form method="post" class="mt-form">
+        {% csrf_token %}
+        <button type="submit" class="button default">Catch every gang up</button>
+    </form>
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}
