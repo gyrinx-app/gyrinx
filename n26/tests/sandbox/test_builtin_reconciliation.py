@@ -34,6 +34,7 @@ from n26.tests.sandbox.actions import (
     create_rule,
     create_slot,
     create_slot_type,
+    create_subtype,
     create_wargear,
     create_weapon,
     found_gang,
@@ -639,5 +640,73 @@ class TestChosenSetsGrowLater:
             ).count()
             == 1
         )
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+class TestBuiltInsOfBuiltIns:
+    """A copy a set creates is an arrival of its own: a subtype granted by
+    a profile brings the counters built into the subtype, caused by the
+    subtype's copy — the same provenance the propagation pass writes."""
+
+    @pytest.fixture
+    def spyrer(self, default_pack):
+        subtype = create_subtype("Spyrer")
+        add_built_in(subtype, create_counter("Kill Count"))
+        add_built_in(subtype, create_counter("Glitch Count"), amount=2)
+        return subtype
+
+    @pytest.fixture
+    def hunter(self, person_type, gang_type, spyrer):
+        profile = create_profile("Spyre Hunter", person_type, gang_type, price=100)
+        add_built_in(profile, spyrer)
+        return profile
+
+    def test_a_hire_brings_what_its_built_ins_are_built_with(
+        self, gang, hunter, spyrer
+    ):
+        fighter = hire(gang, hunter, "Ana", paid=100)
+
+        subtype_copy = Assignment.objects.get(subtype=spyrer, miniature_root=fighter)
+        counters = Assignment.objects.filter(
+            counter__isnull=False, miniature_root=fighter, archived=False
+        )
+        assert counters.count() == 2
+        for copy in counters:
+            assert copy.caused_by == subtype_copy
+            assert copy.materialised_for == subtype_copy
+            assert copy.materialised_from.default_set == spyrer.built_ins
+        assert copies_by_member(subtype_copy) == {
+            member.pk: 1 for member in spyrer.built_ins.members.all()
+        }
+        glitch = counters.get(counter__name="Glitch Count")
+        assert glitch.counter_value.value == 2
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_a_second_pass_creates_nothing_at_either_level(self, gang, hunter, spyrer):
+        fighter = hire(gang, hunter, "Ana", paid=100)
+        subtype_copy = Assignment.objects.get(subtype=spyrer, miniature_root=fighter)
+        before = Assignment.objects.filter(miniature_root=fighter).count()
+
+        assert reconcile(gang, fighter.membership).created == []
+        assert reconcile(gang, subtype_copy).created == []
+
+        assert Assignment.objects.filter(miniature_root=fighter).count() == before
+
+    def test_a_founding_brings_nested_built_ins_onto_the_gang(
+        self, gang_type, player, spyrer, default_pack
+    ):
+        add_built_in(gang_type, spyrer)
+
+        gang = found_gang("The Bad Girls", gang_type, owner=player, budget=1000)
+
+        subtype_copy = Assignment.objects.get(subtype=spyrer, gang_root=gang)
+        counters = Assignment.objects.filter(
+            counter__isnull=False, gang_root=gang, archived=False
+        )
+        assert counters.count() == 2
+        assert {copy.caused_by for copy in counters} == {subtype_copy}
+        assert {copy.gang_id for copy in counters} == {gang.pk}
         gang.refresh_from_db()
         assert_reconciled(gang)

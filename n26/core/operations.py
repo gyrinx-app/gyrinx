@@ -1203,6 +1203,15 @@ class Operation:
         a grant reads as any caused assignment does; the propagation
         pass says its grants arrived by catch-up, so a reader asking
         why a thing appeared long after the hire gets the answer.
+
+        A copy created here is itself an arrival, and a thing with
+        built-ins of its own brings them wherever it arrives — a subtype
+        granted by a profile brings its own counters exactly as the
+        subtype would if bought. Each such copy is reconciled as a
+        carrier in turn, with its grants caused by the copy, so the
+        provenance reads the same as the propagation pass writes later
+        and a hire and a catch-up can never disagree about what a
+        model holds.
         """
         from n26.core.builtins import ReconcileOutcome, copies_of, plan_defaults
         from n26.core.models import CounterValue, Reason
@@ -1257,6 +1266,19 @@ class Operation:
             elif member.counter_id is not None:
                 # A counter opens at its member's amount — Starting XP.
                 CounterValue.objects.create(assignment=assignment, value=member.amount)
+
+        for assignment in list(created):
+            if getattr(assignment.assignable, "built_ins_id", None) is None:
+                continue
+            nested = self.reconcile_defaults(
+                assignment,
+                kinds=kinds,
+                gang=gang,
+                strict=strict,
+                event_kind=event_kind,
+            )
+            created.extend(nested.created)
+            skipped.extend(nested.skipped)
 
         for entry in ammo:
             if entry.satisfied:
