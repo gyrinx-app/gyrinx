@@ -71,6 +71,17 @@
  * element renders at nothing by nothing. */
 @source inline("inline-block size-2 rounded-full bg-accent align-middle");
 
+/* An htmx indicator waits out of the way until the request it belongs to is
+ * in flight; htmx marks the element itself for as long as that lasts. The
+ * library names the classes and leaves the look to whoever is drawing. */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-indicator.htmx-request {
+    display: inline-flex;
+}
+
 /* Mynor, loaded from Typekit in the base template.
  *
  * Set as --font-sans rather than as a font-family on body, because that is the

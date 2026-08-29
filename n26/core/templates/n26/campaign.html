@@ -161,7 +161,15 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
                             </div>
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
-                            <c-n26.link href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}">Remove</c-n26.link>
+                            <c-ui.button size="sm"
+                                         variant="ghost"
+                                         href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"
+                                         aria-label="Remove {{ membership.gang.name }}"
+                                         title="Remove {{ membership.gang.name }}">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="x-mark" class="size-4" />
+                                </span>
+                            </c-ui.button>
                         </li>
                     {% endfor %}
                 </ul>
@@ -191,7 +199,15 @@ reader's other campaigns — the same pattern a gang's screens use.
                             <span class="min-w-0 flex-1 text-sm text-muted">
                                 {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}Nobody named{% endfor %}
                             </span>
-                            <c-n26.link href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}">Remove</c-n26.link>
+                            <c-ui.button size="sm"
+                                         variant="ghost"
+                                         href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                                         aria-label="Remove the battle of {{ battle.date|date:'j F Y' }}"
+                                         title="Remove this battle">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="x-mark" class="size-4" />
+                                </span>
+                            </c-ui.button>
                         </li>
                     {% endfor %}
                 </ul>

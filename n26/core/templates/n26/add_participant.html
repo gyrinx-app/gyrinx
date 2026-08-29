@@ -25,7 +25,7 @@ question and Back closes it.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div class="flex flex-col gap-8">
         <c-n26.page-header title="Participants">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
@@ -62,7 +62,15 @@ question and Back closes it.
                                     Invited
                                 </c-ui.badge>
                             {% endif %}
-                            <c-n26.link href="{% url 'n26-campaign-remove-participant' campaign.pk participant.user.pk %}">Remove</c-n26.link>
+                            <c-ui.button size="sm"
+                                         variant="ghost"
+                                         href="{% url 'n26-campaign-remove-participant' campaign.pk participant.user.pk %}"
+                                         aria-label="Remove {{ participant.user.username }}"
+                                         title="Remove {{ participant.user.username }}">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="x-mark" class="size-4" />
+                                </span>
+                            </c-ui.button>
                         </li>
                     {% endfor %}
                 </ul>
@@ -77,17 +85,28 @@ question and Back closes it.
             it is: without scripting the button submits it, and with scripting
             the wrapper watches the field it contains and swaps the results.
             {% endcomment %}
-            <div hx-get="{% url 'n26-campaign-add-participant' campaign.pk %}"
+            <div class="flex items-center gap-3"
+                 hx-get="{% url 'n26-campaign-add-participant' campaign.pk %}"
                  hx-trigger="input changed delay:300ms from:find input"
                  hx-include="find input"
                  hx-target="#people-found"
                  hx-select="#people-found"
                  hx-swap="outerHTML"
+                 hx-indicator="#looking"
                  hx-push-url="true">
-                <c-n26.search-bar action="{% url 'n26-campaign-add-participant' campaign.pk %}"
+                <c-n26.search-bar class="min-w-0 flex-1"
+                                  action="{% url 'n26-campaign-add-participant' campaign.pk %}"
                                   name="q"
                                   value="{{ query }}"
                                   placeholder="Search by username" />
+                {% comment %}
+                Only drawn while a request is out, so a reader typing knows the
+                list they are looking at is about to be replaced.
+                {% endcomment %}
+                <span id="looking" class="htmx-indicator shrink-0 items-center text-muted">
+                    <c-ui.spinner size="sm" />
+                    <span class="sr-only">Searching</span>
+                </span>
             </div>
             <div id="people-found" class="flex flex-col">
                 {% for person in people %}
@@ -127,7 +146,7 @@ question and Back closes it.
                       cancel_url="?q={{ query|urlencode }}"
                       submit_label="Send invitation">
             <c-slot name="lead">
-                They are told, and can accept or decline.
+                This will send a notification. They can accept or decline.
             </c-slot>
             {% csrf_token %}
             <input type="hidden" name="user" value="{{ asking.pk }}">

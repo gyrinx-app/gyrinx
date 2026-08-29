@@ -464,10 +464,6 @@ def add_participant(request, pk):
 @login_required
 def remove_participant(request, pk, user_pk):
     """The question at its own address, then the act."""
-    from urllib.parse import quote
-
-    from django.urls import reverse
-
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignParticipant
 
@@ -483,10 +479,7 @@ def remove_participant(request, pk, user_pk):
         with campaign_operation(found, actor=request.user) as act:
             act.remove_participant(participant)
         messages.success(request, f"Removed {name}.")
-        return redirect(
-            f"{reverse('n26-campaign-add-participant', args=[found.pk])}"
-            f"?q={quote(request.POST.get('q', ''))}"
-        )
+        return redirect("n26-campaign-add-participant", pk=found.pk)
 
     return render(
         request,
@@ -529,8 +522,14 @@ def answer_invitation(request, pk):
     except ValidationError as malformed:
         raise Http404("No such campaign") from malformed
     campaign = participant.campaign
-    accepted = request.POST.get("answer") == "accept"
+    answer = request.POST.get("answer")
+    if answer not in ("accept", "decline"):
+        messages.error(request, "Say whether you are accepting or declining.")
+        return _safe_redirect(
+            request, request.POST.get("next", ""), fallback_url=reverse("n26-campaigns")
+        )
 
+    accepted = answer == "accept"
     with campaign_operation(campaign, actor=request.user) as act:
         act.answer_invitation(request.user, accepted)
 
