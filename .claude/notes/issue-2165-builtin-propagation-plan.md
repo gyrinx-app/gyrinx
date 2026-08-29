@@ -40,6 +40,7 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
 | D12 | *(settled 2026-08-23)* **A removal that would leave a priced option set empty warns or refuses** — a player must never pay for a set that grants nothing. Built in C6 (or C5's preview if it lands first). |
 | D13 | *(settled 2026-08-23)* **An ammo built-in names its gun member.** `DefaultAssignment` gains a nullable self-reference: a weapon-profile member whose set holds a matching weapon member MUST name which one it rides — authoring validates, the form asks "for which gun?", ingest auto-links and errors on ambiguity instead of guessing. Null keeps a real meaning: "ammo for whatever live gun of this type the carrier holds" (the cross-set case, e.g. an option set arming a built-in gun). Reconcile resolution becomes a receipt lookup; the FIFO queue, occupied-gun set, and type-derived `dependent_members` are deleted. The flat-sibling shape is a launch-era mistake killed at authorship (the D11/D12 principle). Built as chunk **C2b**, after #2286 merges, before C4. |
 | D14 | *(settled 2026-08-25)* **Propagation history: dedicated event kind, empty actor, sentence anchored on "comes with", one folded line per gang per pass.** A propagated grant is a new `LedgerEvent.Kind` (identifier settled in the C4 plan — candidates `CAUGHT_UP` / `KIT_UPDATED`) whose sentence names the source in the equip screen's own words: *"Bruta gained Frag Grenades — now part of what a Stimmer comes with"*. No synthetic actor — the `Act.actor` stays empty (the documented "nobody in particular" case); never invent a named speaker like "Gyrinx". All of one pass's events for a gang share a batch mark so several models fold into one line with sub-items (*"what a Stimmer comes with changed — Bruta and Skarr each gained Frag Grenades"*). C6's explicit removal takes the mirror wording ("no longer part of what a Stimmer comes with"); C7's backfill reuses the kind and may add a catch-up clause, decided inside C7. Rejected: bare `GRANTED` reuse (indistinguishable from modifier gains, answers "why did this appear?" with silence). |
+| D15 | *(settled 2026-08-29)* **The backfill never creates a duplicate.** A backfill-only exception to D3: where the carrier's model (or the gang, for a gang-hosted carrier) already holds a live copy of the member's item that arrived by any non-built-in route — bought, owner-edited, rewarded, modifier-granted — the backfill treats the member as satisfied, skips the grant, and names the carrier in its report. Measured in prod 2026-08-29: 2 such cases in 492 genuinely-missing carriers (both reward skills), zero bought, zero self-refunds — the rule is cheap insurance, not a policy shift. D3 stands for live propagation. |
 
 ## Open questions (resolve inside the relevant chunk, with the maintainer)
 
@@ -439,7 +440,23 @@ missing members via C2, per-gang outcomes recorded, rerun reports zero.
 Before prod: fork content mirror at measured volume, time it, and verify
 from outside — compare affected cards/assignment counts/ratings/credits
 independently before and after.
-*Status: not started.*
+*Sized against prod 2026-08-29 (read-only):* 92,545 DEFAULT grants;
+26,510 already carry provenance; 66,035 legacy rows without it, of
+which 21,092 are a weapon's own free firing lines (NOT set members —
+out of scope, correct as they are) and ~45,000 are set-member grants
+that tag unambiguously 99.7% of the time (~118 no candidate: member
+hard-deleted pre-C1 → leave untagged, report; 16 weapons with two
+candidates = twin guns → pair newest-first, as many as the set
+granted, exactly the `_granted_rows_without_provenance` rule). After
+tagging, the GENUINE gap is 949 (member, carrier) pairs on 492
+carriers in ~100 gangs: 894 counters (one counter added to a
+widely-held set after founding — free, no rating), 38 skills, 14
+slots, 3 weapons — so rating moves touch a handful of fighters. Live
+carriers in unarchived gangs only; archived gangs skipped as C4 does.
+D15 applies (2 cases in prod, both reward skills). Tagging rule for
+ammo: none needed. The operation's GET preview should reproduce these
+counts; the fork dry-run proves them before prod.
+*Status: IN PROGRESS 2026-08-29.*
 
 **C8 — Tighten + acceptance.** Remove the legacy `_granted_rows`
 fallback; retire `_something_materialised`'s loose-evidence clause and
