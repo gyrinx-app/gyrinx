@@ -1,14 +1,16 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Every campaign you arbitrate, and the way to set another up.
+Every campaign you are in, and the way to set another up.
 
 The same <c-n26.record-table> the gangs list draws, over a row shaped for a
 campaign: one component and one search, so the two lists cannot come to
 disagree about what a list of things looks like. What differs is the row — a
-gang carries a type and a strip of money, a campaign carries its name alone.
+gang carries a type and a strip of money, a campaign carries its name.
 The budget is a ceiling on what a gang may be worth, which says nothing
-useful about the campaign until you are in it.
+useful about the campaign until you are in it. A campaign somebody only plays
+in says who runs it and offers no button, because the row already opens it and
+there is nothing on the far side of it for them to change.
 
 Setting one up is the page's action, in the header, because a list of
 campaigns is where someone goes when they want one more.
@@ -48,7 +50,10 @@ campaigns is where someone goes when they want one more.
                 {% endif %}
             </c-slot>
             {% for row in campaigns %}
-                <c-n26.record-table.campaign-row name="{{ row.name }}" href="{% url 'n26-campaign' row.pk %}" />
+                <c-n26.record-table.campaign-row name="{{ row.name }}"
+                                                 href="{% url 'n26-campaign' row.pk %}"
+                                                 by="{% if not row.arbitrated %}{{ row.owner.username }}{% endif %}"
+                                                 action_label="{% if row.arbitrated %}Edit{% endif %}" />
             {% endfor %}
         </c-n26.record-table>
         {% comment %}

@@ -86,14 +86,38 @@ def _any_gang_or_404(pk):
         raise Http404("No such gang") from None
 
 
+def _any_campaign_or_404(pk):
+    """The campaign, whoever arbitrates it — a table anybody may read.
+
+    A campaign's page is shareable the way a gang sheet is: the address an
+    arbitrator sends round shows the same campaign to whoever opens it.
+    What differs is what the page lets them *do* — every control on it is
+    the arbitrator's, and the page decides that by asking who is reading,
+    never by hiding the campaign.
+
+    Archived campaigns stay out, as archived rosters do: one its arbitrator
+    has put away is not something a link should keep alive. A pk that is
+    not a ULID is a bad URL rather than a server error.
+    """
+    from n26.core.models import Campaign
+
+    try:
+        return get_object_or_404(
+            Campaign.objects.select_related("owner"),
+            pk=pk,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such campaign") from None
+
+
 def _own_campaign_or_404(request, pk):
     """The campaign, if the viewer is its arbitrator.
 
-    Owner-scoped where a gang sheet is not: a roster is a thing players
-    send each other, while a campaign's own pages are where its arbitrator
-    sets it up. What a player in a campaign gets to see is a different
-    question, answered by a different view when there are players to ask
-    about.
+    Owner-scoped where the page itself is not: reading a campaign is one
+    question and changing it is another, so the screens that set a campaign
+    up ask for its arbitrator by name rather than gating a control on a
+    page anybody may open.
     """
     from n26.core.models import Campaign
 

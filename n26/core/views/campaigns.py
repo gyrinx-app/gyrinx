@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
-from n26.core.views.permissions import _own_campaign_or_404
+from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
 
 #: How many campaigns a page of the list holds. A row is a name, a budget
@@ -36,7 +36,13 @@ LOG_ON_THE_PAGE = 10
 @requires_flag(CAMPAIGNS)
 @login_required
 def campaigns(request):
-    """Every campaign this reader arbitrates, narrowed by ``?q=``.
+    """Every campaign this reader is in, narrowed by ``?q=``.
+
+    Both kinds together: the campaigns they arbitrate and the ones they
+    were asked into and accepted. Somebody looking for a campaign does not
+    first decide which sort it was, and a page that held only one sort
+    would leave the other reachable by nothing but the invitation that has
+    already been answered.
 
     Drawn by the same table the gangs list uses, so the two pages search the
     same way and count the same way. The matching is the platform's
@@ -51,23 +57,27 @@ def campaigns(request):
     from n26.core.views.gangs import _pages
 
     query = request.GET.get("q", "").strip()
-    listed = Campaign.objects.filter(owner=request.user, archived=False).order_by(
-        "name"
+    listed = (
+        Campaign.objects.involving(request.user)
+        .filter(archived=False)
+        .select_related("owner")
+        .order_by("name")
     )
     found = search_queryset(listed, query, ["name"])
 
     page = Paginator(found, CAMPAIGNS_PER_PAGE).get_page(request.GET.get("page"))
+    rows = campaign_rows(page.object_list, request.user)
     return render(
         request,
         "n26/campaigns.html",
         {
             "invitations": invitations_for(request.user),
-            "campaigns": page.object_list,
+            "campaigns": rows,
             "query": query,
             # How many rows this page carries, for a reader with no script:
             # the live count is Alpine's, and without it the number beside
             # the noun would be blank.
-            "listed": len(page.object_list),
+            "listed": len(rows),
             "total": page.paginator.count,
             # Drawn only where there is more than one, so a short list is a
             # list rather than a list with a pager saying "1 of 1".
@@ -76,6 +86,21 @@ def campaigns(request):
             "page": page,
         },
     )
+
+
+def campaign_rows(campaigns, user):
+    """The listed campaigns, each told whether this reader arbitrates it.
+
+    A list holding both the campaigns somebody runs and the ones they play
+    in has to say which is which, and the row draws its controls from the
+    answer: what an arbitrator may do to a campaign is not what somebody
+    playing in it may. The home page's campaigns tab draws the same rows,
+    off the same helper, so the two cannot come to disagree.
+    """
+    rows = list(campaigns)
+    for row in rows:
+        row.arbitrated = row.owner_id == getattr(user, "id", None)
+    return rows
 
 
 @requires_flag(CAMPAIGNS)
@@ -122,7 +147,14 @@ def create_campaign(request):
 @requires_flag(CAMPAIGNS)
 @login_required
 def campaign(request, pk):
-    """One campaign, as its arbitrator sees it.
+    """One campaign, whoever is reading it.
+
+    Shareable like a gang sheet: an arbitrator can send the address to the
+    table, and everybody who opens it reads the same campaign — the same
+    facts, the same gangs, the same battles, the same log. What the page
+    withholds from a reader who does not arbitrate it is every control,
+    and not a disabled one either: the acts belong to the arbitrator, so
+    for anybody else they are simply not there.
 
     The log reads newest first and is cut to the most recent acts: the page
     is a campaign, not its history, and a log that grew without bound would
@@ -131,7 +163,8 @@ def campaign(request, pk):
     from n26.core.history import campaign_history, campaign_history_size
     from n26.core.models import CampaignMembership
 
-    found = _own_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(pk)
+    yours = found.owner_id == request.user.id
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
@@ -147,6 +180,7 @@ def campaign(request, pk):
         "n26/campaign.html",
         {
             "campaign": found,
+            "yours": yours,
             "participants": _participants(found),
             "playing": playing,
             "battles": battles,

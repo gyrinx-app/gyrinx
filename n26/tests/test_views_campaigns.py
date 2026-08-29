@@ -236,8 +236,9 @@ class TestSettingOneUp:
 
 
 class TestSomebodyElsesCampaign:
-    """Owner-scoped, and answered with 404 rather than 403 — the same way
-    every other page holding player data answers a stranger."""
+    """The page reads for anybody holding the address; the screens that
+    change it are the arbitrator's, and answer a stranger with 404 rather
+    than 403 — the same way every other page holding player data does."""
 
     @pytest.fixture
     def theirs(self):
@@ -245,7 +246,30 @@ class TestSomebodyElsesCampaign:
             name="Not Yours", owner=User.objects.create_user("someone-else")
         )
 
-    def test_it_is_not_readable(self, client, arbitrator, theirs, open_to_everyone):
+    def test_it_is_readable(self, client, arbitrator, theirs, open_to_everyone):
+        response = client.get(f"/n26/campaigns/{theirs.pk}/")
+        assert response.status_code == 200
+        assert "Not Yours" in response.content.decode()
+
+    def test_it_offers_no_controls(self, client, arbitrator, theirs, open_to_everyone):
+        """Not a disabled button but nothing at all, so every address that
+        would refuse this reader is absent from what they are given."""
+        drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
+        for address in (
+            f"/n26/campaigns/{theirs.pk}/edit/",
+            f"/n26/campaigns/{theirs.pk}/archive/",
+            f"/n26/campaigns/{theirs.pk}/participants/add/",
+            f"/n26/campaigns/{theirs.pk}/gangs/add/",
+            f"/n26/campaigns/{theirs.pk}/battles/new/",
+        ):
+            assert address not in drawn
+
+    def test_an_archived_one_is_gone(
+        self, client, arbitrator, theirs, open_to_everyone
+    ):
+        """A link does not keep alive what its arbitrator has put away."""
+        theirs.archived = True
+        theirs.save()
         assert client.get(f"/n26/campaigns/{theirs.pk}/").status_code == 404
 
     def test_it_is_not_editable(self, client, arbitrator, theirs, open_to_everyone):
@@ -868,6 +892,78 @@ class TestAnsweringAnInvitation:
             ).status_code
             == 404
         )
+
+
+class TestWhatAParticipantSees:
+    """Accepting puts the campaign among the reader's own, because the
+    invitation it arrived on is answered and gone: without this a player
+    who said yes has nothing left pointing at the campaign."""
+
+    @pytest.fixture
+    def theirs(self, arbitrator):
+        from n26.core.campaigns import campaign_operation
+
+        owner = User.objects.create_user("kesh")
+        campaign = Campaign.objects.create(name="Sump Wars", owner=owner)
+        with campaign_operation(campaign, actor=owner) as act:
+            act.invite(arbitrator)
+        return campaign
+
+    def accept(self, client, campaign):
+        client.post(f"/n26/campaigns/{campaign.pk}/invitation/", {"answer": "accept"})
+
+    def test_the_list_holds_it_once_accepted(self, client, theirs, open_to_everyone):
+        self.accept(client, theirs)
+        response = client.get("/n26/campaigns/")
+        assert [row.pk for row in response.context["campaigns"]] == [theirs.pk]
+
+    def test_the_home_page_holds_it_too(self, client, theirs, open_to_everyone):
+        self.accept(client, theirs)
+        response = client.get("/n26/")
+        assert [row.pk for row in response.context["campaigns"]] == [theirs.pk]
+
+    def test_the_row_names_who_runs_it_and_offers_nothing(
+        self, client, theirs, open_to_everyone
+    ):
+        self.accept(client, theirs)
+        drawn = client.get("/n26/campaigns/").content.decode()
+        assert "arbitrated by kesh" in drawn
+        assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
+
+    def test_a_question_still_waiting_is_not_one_of_their_campaigns(
+        self, client, theirs, open_to_everyone
+    ):
+        """It is drawn on the page as an invitation, which is a different
+        thing from being in the campaign."""
+        assert list(client.get("/n26/campaigns/").context["campaigns"]) == []
+
+    def test_declining_leaves_it_out(self, client, theirs, open_to_everyone):
+        client.post(f"/n26/campaigns/{theirs.pk}/invitation/", {"answer": "decline"})
+        assert list(client.get("/n26/campaigns/").context["campaigns"]) == []
+
+    def test_the_bar_offers_it(self, client, theirs, open_to_everyone):
+        """The chevron beside a campaign's name is how somebody reaches
+        another of theirs, and a player has no other way through."""
+        from n26.core.navigation import reader_campaigns
+
+        self.accept(client, theirs)
+        response = client.get(f"/n26/campaigns/{theirs.pk}/")
+        assert [row.pk for row in reader_campaigns(response.wsgi_request)] == [
+            theirs.pk
+        ]
+
+    def test_they_read_the_log(self, client, theirs, arbitrator, open_to_everyone):
+        """Everybody who can open the page can read what has happened."""
+        self.accept(client, theirs)
+        response = client.get(f"/n26/campaigns/{theirs.pk}/")
+        assert response.context["acts"]
+
+    def test_the_arbitrator_still_gets_the_controls(
+        self, client, campaign, open_to_everyone
+    ):
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assert f"/n26/campaigns/{campaign.pk}/edit/" in drawn
+        assert f"/n26/campaigns/{campaign.pk}/participants/add/" in drawn
 
 
 class TestNothingTypedIntoAnAddressIsAServerError:

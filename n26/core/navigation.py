@@ -155,8 +155,12 @@ def owned_gangs(request):
     return found
 
 
-def owned_campaigns(request):
+def reader_campaigns(request):
     """The signed-in reader's campaigns, at most ``NAV_SIBLINGS`` of them.
+
+    Both the ones they arbitrate and the ones they play in, because the
+    chevron beside a campaign's name is how somebody gets to another one
+    and a player has no other way through to theirs.
 
     Memoised on the request for the same reason a gang's list is: every
     screen belonging to one campaign offers the others in the bar, and a
@@ -164,7 +168,7 @@ def owned_campaigns(request):
     """
     from n26.core.models import Campaign
 
-    found = getattr(request, "_n26_owned_campaigns", None)
+    found = getattr(request, "_n26_reader_campaigns", None)
     if found is not None:
         return found
 
@@ -173,11 +177,11 @@ def owned_campaigns(request):
         found = []
     else:
         found = list(
-            Campaign.objects.filter(owner=user, archived=False).order_by("name")[
-                :NAV_SIBLINGS
-            ]
+            Campaign.objects.involving(user)
+            .filter(archived=False)
+            .order_by("name")[:NAV_SIBLINGS]
         )
-    request._n26_owned_campaigns = found
+    request._n26_reader_campaigns = found
     return found
 
 
@@ -212,7 +216,7 @@ def campaign_switcher(
         menu_label=menu_label,
         placeholder="Search campaigns",
         empty="No campaigns match",
-        items=with_current([item(row) for row in owned_campaigns(request)], here),
+        items=with_current([item(row) for row in reader_campaigns(request)], here),
     )
 
 

@@ -2,7 +2,14 @@
 {% load navigation %}
 {% load richtext %}
 {% comment %}
-One campaign, as its arbitrator sees it.
+One campaign, to whoever opens it.
+
+Shareable the way a gang sheet is: the arbitrator sends the address round and
+everybody at the table reads the same page. Every control on it is the
+arbitrator's, and a reader who is not one gets none of them — not a disabled
+button, which is a control saying no, but nothing at all. What is left is the
+whole of the campaign: its facts, its people, its gangs, its battles and its
+log.
 
 The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
 carries its own — each a small fact that is also something to change.
@@ -43,43 +50,46 @@ reader's other campaigns — the same pattern a gang's screens use.
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
-            {% comment %}
-            Archiving sits behind the second click rather than beside Edit:
-            it is the one control here that takes the campaign away, and a
-            page's own actions should read as the things you came to do.
-            {% endcomment %}
-            <c-slot name="actions">
-                <c-n26.button-group>
-                    {% comment %}
+            {% if yours %}
+                {% comment %}
+                Archiving sits behind the second click rather than beside
+                Edit: it is the one control here that takes the campaign
+                away, and a page's own actions should read as the things
+                you came to do.
+                {% endcomment %}
+                <c-slot name="actions">
+                    <c-n26.button-group>
+                        {% comment %}
                     Default rather than primary, as on the gang sheet: blue
                     is the page's one creative act, and editing what is
                     already here is not it.
-                    {% endcomment %}
-                    <c-ui.button size="sm"
-                                 variant="default"
-                                 href="{% url 'n26-edit-campaign' campaign.pk %}">
-                        Edit
-                    </c-ui.button>
-                    <c-ui.dropdown>
-                        <c-slot name="trigger">
-                            <c-ui.button size="sm" variant="default" aria-label="More actions">
-                                <span class="n26-icon-only gap-0.5">
-                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        {% comment %}
+                        {% endcomment %}
+                        <c-ui.button size="sm"
+                                     variant="default"
+                                     href="{% url 'n26-edit-campaign' campaign.pk %}">
+                            Edit
+                        </c-ui.button>
+                        <c-ui.dropdown>
+                            <c-slot name="trigger">
+                                <c-ui.button size="sm" variant="default" aria-label="More actions">
+                                    <span class="n26-icon-only gap-0.5">
+                                        <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                    </span>
+                                </c-ui.button>
+                            </c-slot>
+                            {% comment %}
                         A page that asks, not the act: following this link
                         archives nothing, and the POST it leads to is the
                         only thing that does.
-                        {% endcomment %}
-                        <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
-                            Archive campaign
-                        </c-ui.dropdown.item>
-                    </c-ui.dropdown>
-                </c-n26.button-group>
-            </c-slot>
+                            {% endcomment %}
+                            <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
+                                Archive campaign
+                            </c-ui.dropdown.item>
+                        </c-ui.dropdown>
+                    </c-n26.button-group>
+                </c-slot>
+            {% endif %}
         </c-n26.page-header>
         <c-n26.detail-list>
             <c-n26.detail-list.row label="Gang budget">
@@ -107,11 +117,13 @@ reader's other campaigns — the same pattern a gang's screens use.
         <section class="flex flex-col gap-2">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="text-sm font-medium text-muted">Participants</h2>
-                <c-ui.button size="sm"
-                             variant="primary"
-                             href="{% url 'n26-campaign-add-participant' campaign.pk %}">
-                    Add participants
-                </c-ui.button>
+                {% if yours %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-participant' campaign.pk %}">
+                        Add participants
+                    </c-ui.button>
+                {% endif %}
             </div>
             {% if participants %}
                 <ul class="flex flex-col">
@@ -146,11 +158,13 @@ reader's other campaigns — the same pattern a gang's screens use.
         <section class="flex flex-col gap-2">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="text-sm font-medium text-muted">Gangs</h2>
-                <c-ui.button size="sm"
-                             variant="primary"
-                             href="{% url 'n26-campaign-add-gang' campaign.pk %}">
-                    Add gang
-                </c-ui.button>
+                {% if yours %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-gang' campaign.pk %}">
+                        Add gang
+                    </c-ui.button>
+                {% endif %}
             </div>
             {% if playing %}
                 <ul class="flex flex-col">
@@ -161,15 +175,17 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
                             </div>
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
-                            <c-ui.button size="sm"
-                                         variant="ghost"
-                                         href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"
-                                         aria-label="Remove {{ membership.gang.name }}"
-                                         title="Remove {{ membership.gang.name }}">
-                                <span class="n26-icon-only">
-                                    <c-n26.icon name="x-mark" class="size-4" />
-                                </span>
-                            </c-ui.button>
+                            {% if yours %}
+                                <c-ui.button size="sm"
+                                             variant="ghost"
+                                             href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"
+                                             aria-label="Remove {{ membership.gang.name }}"
+                                             title="Remove {{ membership.gang.name }}">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="x-mark" class="size-4" />
+                                    </span>
+                                </c-ui.button>
+                            {% endif %}
                         </li>
                     {% endfor %}
                 </ul>
@@ -185,11 +201,13 @@ reader's other campaigns — the same pattern a gang's screens use.
         <section class="flex flex-col gap-2">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="text-sm font-medium text-muted">Battles</h2>
-                <c-ui.button size="sm"
-                             variant="primary"
-                             href="{% url 'n26-campaign-add-battle' campaign.pk %}">
-                    Record battle
-                </c-ui.button>
+                {% if yours %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-battle' campaign.pk %}">
+                        Record battle
+                    </c-ui.button>
+                {% endif %}
             </div>
             {% if battles %}
                 <ul class="flex flex-col">
@@ -199,15 +217,17 @@ reader's other campaigns — the same pattern a gang's screens use.
                             <span class="min-w-0 flex-1 text-sm text-muted">
                                 {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}Nobody named{% endfor %}
                             </span>
-                            <c-ui.button size="sm"
-                                         variant="ghost"
-                                         href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
-                                         aria-label="Remove the battle of {{ battle.date|date:'j F Y' }}"
-                                         title="Remove this battle">
-                                <span class="n26-icon-only">
-                                    <c-n26.icon name="x-mark" class="size-4" />
-                                </span>
-                            </c-ui.button>
+                            {% if yours %}
+                                <c-ui.button size="sm"
+                                             variant="ghost"
+                                             href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                                             aria-label="Remove the battle of {{ battle.date|date:'j F Y' }}"
+                                             title="Remove this battle">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="x-mark" class="size-4" />
+                                    </span>
+                                </c-ui.button>
+                            {% endif %}
                         </li>
                     {% endfor %}
                 </ul>

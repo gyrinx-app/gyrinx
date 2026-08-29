@@ -3,6 +3,26 @@ from django.db import models
 from n26.core.models.abstract import Archived, Base, Owned
 
 
+class CampaignQuerySet(models.QuerySet):
+    def involving(self, user):
+        """Every campaign this person arbitrates or has accepted a place in.
+
+        The two halves of what somebody means by their campaigns: the ones
+        they run, and the ones they were asked into and said yes to. An
+        invitation still waiting is not one of them — an unanswered question
+        belongs with the questions, and a declined one is over.
+        """
+        if user is None or not user.is_authenticated:
+            return self.none()
+        return self.filter(
+            models.Q(owner=user)
+            | models.Q(
+                participants__user=user,
+                participants__state=CampaignParticipant.State.ACCEPTED,
+            )
+        ).distinct()
+
+
 class Campaign(Base, Owned, Archived):
     """A run of linked battles, and the gangs playing them.
 
@@ -42,6 +62,8 @@ class Campaign(Base, Owned, Archived):
     #: way out (n26.core.templatetags.richtext), so a tightened allowlist
     #: reaches what was already saved.
     summary = models.TextField(blank=True, default="")
+
+    objects = CampaignQuerySet.as_manager()
 
     class Meta:
         verbose_name = "campaign"
