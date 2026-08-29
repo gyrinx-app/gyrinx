@@ -1591,6 +1591,10 @@ def detail(request, kind, pk):
                     edit_form.apply_to(thing)
                     if statline_edit is not None:
                         statline_edit.save_every_value(thing)
+            except ValidationError as refused:
+                # The row's own sense check turned the edit away in words;
+                # they belong on the form the values were typed into.
+                edit_form.add_error(None, refused)
             except IntegrityError:
                 named = spec.identity
                 edit_form.add_error(
@@ -1848,6 +1852,8 @@ def weapon_profile(request, pk):
                     edit_form.apply_to(profile)
                     if statline_edit is not None:
                         statline_edit.save_every_value(profile)
+            except ValidationError as refused:
+                edit_form.add_error(None, refused)
             except IntegrityError as refused:
                 _refuse_the_line(edit_form, spec, refused)
             else:
@@ -3083,6 +3089,8 @@ def collection_page(request, pk):
                 try:
                     with transaction.atomic():
                         edit_form.apply_to(collection)
+                except ValidationError as refused:
+                    edit_form.add_error(None, refused)
                 except IntegrityError:
                     edit_form.add_error(
                         "name",
@@ -3427,6 +3435,8 @@ def slot_type_page(request, pk):
             try:
                 with transaction.atomic():
                     edit_form.apply_to(slot_type)
+            except ValidationError as refused:
+                edit_form.add_error(None, refused)
             except IntegrityError:
                 edit_form.add_error(
                     "name",

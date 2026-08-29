@@ -555,6 +555,16 @@ class GeneratedForm(forms.Form):
                 continue
             else:
                 columns[name] = value
+        # The row's own sense check runs before anything is written, so
+        # two boxes that make no sense together are refused in words on
+        # the form — the database would refuse them too, but the page
+        # can only read that as a name already taken. Only clean(): the
+        # form has checked each field, and uniqueness and constraints
+        # are the database's, whose refusals the pages already put into
+        # words of their own.
+        for name, value in columns.items():
+            setattr(thing, name, value)
+        thing.clean()
         revise(thing, **columns)
         owned = {}
         for name, value in sets.items():

@@ -212,7 +212,7 @@ def band_problem(roll_low, roll_high):
     if (roll_low is None) != (roll_high is None):
         return (
             "A band has both ends or neither: the lowest and the highest "
-            "roll that land here, or nothing."
+            "rolls that land here, or nothing."
         )
     if roll_low is not None and roll_low > roll_high:
         return f"A band runs upwards, and {roll_low}-{roll_high} does not."

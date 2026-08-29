@@ -1521,6 +1521,49 @@ class TestAPicklistsOwnPage:
         assert "names its dice and how" in body
         assert not Picklist.objects.filter(name="Half").exists()
 
+    def test_editing_a_table_into_half_a_one_is_refused_on_the_form(
+        self, author, client, legacy
+    ):
+        """The same words as on creation, on the same form. Without the
+        row's own check running first, the database's refusal reached
+        the author as a name already taken."""
+        from n26.library.authoring import create_picklist
+        from n26.library.models import Picklist
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        body = client.post(
+            f"/n26/authoring/picklist/{table.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Injuries",
+                "edit-dice": "d66",
+                "edit-roll_selects": "",
+            },
+        ).content.decode()
+
+        assert "names its dice and how" in body
+        assert "already exists" not in body
+        assert Picklist.objects.get(pk=table.pk).roll_selects == "band"
+
+    def test_an_ordinary_edit_still_saves(self, author, client, legacy):
+        """The check runs on every edit, so a plain rename must pass it."""
+        from n26.library.authoring import create_picklist
+        from n26.library.models import Picklist
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        response = client.post(
+            f"/n26/authoring/picklist/{table.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Lasting Injuries",
+                "edit-dice": "d66",
+                "edit-roll_selects": "band",
+            },
+        )
+
+        assert response.status_code == 302
+        assert Picklist.objects.get(pk=table.pk).name == "Lasting Injuries"
+
     def test_a_band_on_a_list_with_no_dice_is_refused_on_the_page(
         self, author, client, legacy
     ):
