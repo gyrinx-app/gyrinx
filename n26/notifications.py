@@ -23,9 +23,8 @@ def tell(recipient, subject, content="", sender=None, about=None):
 
     ``about`` is what the notification concerns, and makes the inbox row a
     link: the platform asks the object where it lives, so anything given here
-    must answer ``get_absolute_url`` with an address the *recipient* can open.
-    An invitation answers with the page it is answered on, not the campaign's
-    own pages, which belong to its arbitrator.
+    answers ``get_absolute_url``. Where that address leads is the object's
+    business, and who may open it is the business of the views behind it.
 
     **Call this after the transaction that recorded the act, never inside
     it.** ``notify`` catches its own errors, but a database error inside an

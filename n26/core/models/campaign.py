@@ -303,12 +303,12 @@ class CampaignParticipant(Base):
         return self.state == self.State.INVITED
 
     def get_absolute_url(self):
-        """Where this invitation is answered.
+        """The campaign this invitation is to.
 
-        The campaigns list rather than the campaign: a campaign's own pages
-        are its arbitrator's, and the person asked cannot open one until they
-        are in it. What they can do is answer, and that is here.
+        What a notification about it points at, because the campaign is what
+        somebody asked into one wants to look at. Who may open that page is
+        the campaign's own question, answered by its views.
         """
         from django.urls import reverse
 
-        return reverse("n26-campaigns")
+        return reverse("n26-campaign", args=[self.campaign_id])
