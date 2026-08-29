@@ -300,9 +300,9 @@ God) refuse them.
 
 **Runner.** One write per system: create, move modifiers, swap, rewrite
 every pick, in one transaction, with the reached gangs locked. Prove a
-spread in that transaction and unwind on a diff. `run_batched` walks
-every reached gang afterwards and reconciles — it does not drip the
-switch. No dual-read, no per-gang flag, no dormant slots.
+spread in that transaction and unwind on a diff. Reconcile every reached
+gang in that same transaction. No dual-read, no per-gang flag, no
+dormant slots.
 
 ## Engine work
 
@@ -315,8 +315,8 @@ the behaviour on Malstrain itself).
 
 Put back a small `n26.library.conversion` — frozen plan, typed steps,
 one apply — not the 7,000-line module #2287 deleted. Console operations
-call it through `_run_recorded`, then enqueue `run_batched` for the
-reconcile walk. Capture (`n26.core.capture.gang_state`) is still here.
+call it through `_run_recorded`. Capture
+(`n26.core.capture.gang_state`) is still here.
 
 Authoring already refuses a bare pickable built in. Recipes and
 `concepts.md` still teach Affiliation as the way to author a gang-level
