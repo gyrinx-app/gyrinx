@@ -78,7 +78,7 @@ that holds one.
                                              value="{{ option.key }}"
                                              variant="success"
                                              size="sm"
-                                             aria-label="{% if offer.takes_several %}Add{% else %}Choose{% endif %} {{ option.name }}{% if option.control == "both" %} again{% endif %}">{% if offer.takes_several %}Add{% else %}Choose{% endif %}{% if option.control == "both" %} again{% endif %}</c-ui.button>
+                                             aria-label="Add {{ option.name }}{% if option.control == "both" %} again{% endif %}">Add{% if option.control == "both" %} again{% endif %}</c-ui.button>
                             {% endif %}
                         </li>
                     {% endfor %}

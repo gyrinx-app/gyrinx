@@ -1773,7 +1773,10 @@ class TestAChoiceThatHoldsSeveral:
         said = button_labels(client.get(picker_href(gang)).content.decode())
 
         assert "Save" in said
-        assert "Add" not in said
+        # Neither verb: a one-pick picker draws radios and a Save, and a
+        # per-option button under either word would mean it was drawn as
+        # the several-pick list by mistake.
+        assert "Add" not in said and "Choose" not in said
         assert_reconciled(gang)
 
 
@@ -2155,6 +2158,18 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         row = body[body.index("Lasting Injuries</dt>") :]
         assert "Eye Injury, Eye Injury" in row
         assert ">Add</" not in row[: row.index("</dd>")]
+
+    def test_the_confirmation_uses_the_verb_the_button_did(
+        self, client, owner, gang, yolanda, results
+    ):
+        from django.contrib.messages import get_messages
+
+        client.force_login(owner)
+        href, _ = self._href(gang)
+        response = self._post(client, href, results["Eye Injury"])
+
+        said = [str(m) for m in get_messages(response.wsgi_request)]
+        assert any(m.startswith("Added Eye Injury") for m in said), said
 
     def test_a_third_click_on_a_full_choice_is_refused_in_words(
         self, client, owner, gang, yolanda, results

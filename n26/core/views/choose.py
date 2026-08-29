@@ -299,7 +299,14 @@ def choose(request, pk, slot):
             offer=offer.label,
             picked=picked.name,
         )
-        said = "Removed" if dropped else "Chose"
+        # The confirmation uses the verb the button did: a several-pick
+        # choice has picks added, a choice of one is chosen.
+        if dropped:
+            said = "Removed"
+        elif offer.takes_several:
+            said = "Added"
+        else:
+            said = "Chose"
         messages.success(request, f"{said} {picked.name} — {offer.label}.")
         return redirect(landing)
 
