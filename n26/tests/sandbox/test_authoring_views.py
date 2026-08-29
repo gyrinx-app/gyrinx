@@ -1426,6 +1426,59 @@ class TestAPicklistsOwnPage:
 
         assert [member.label for member in houses.members.all()] == ["Cawdor", "Escher"]
 
+    def test_the_add_form_offers_a_band_and_stores_what_it_is_given(
+        self, author, client, legacy
+    ):
+        """A roll table's rows carry bands, so the form that adds a row
+        asks for one — and a picklist that is not a table leaves the
+        fields blank rather than hiding them, since making it a table is
+        one edit away."""
+        from n26.library.authoring import create_pickable, create_picklist
+        from n26.library.models import PicklistMember
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        hobbled = create_pickable("Hobbled", legacy)
+
+        body = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
+        assert 'name="roll_low"' in body and 'name="roll_high"' in body
+
+        client.post(
+            f"/n26/authoring/picklist/{table.pk}/",
+            {
+                "pickable": str(hobbled.pk),
+                "label_override": "",
+                "position": "0",
+                "roll_low": "53",
+                "roll_high": "53",
+            },
+        )
+        assert PicklistMember.objects.get(pickable=hobbled).band == "53"
+
+    def test_a_roll_tables_page_leads_each_row_with_its_band(
+        self, author, client, legacy
+    ):
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+        )
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        add_picklist_member(
+            table, create_pickable("Out Cold", legacy), roll_low=21, roll_high=26
+        )
+        page = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
+        assert "21-26" in page
+
+        # The die is said where lists are told apart: on the listing.
+        listing = client.get("/n26/authoring/picklist/").content.decode()
+        assert "rolled on a D66" in listing
+
+    def test_the_create_form_offers_the_dice(self, author, client, legacy):
+        body = client.get("/n26/authoring/picklist/new/").content.decode()
+        assert 'name="dice"' in body and 'name="roll_selects"' in body
+        assert 'value="d66"' in body
+
     def test_only_this_slot_types_pickables_are_offered(
         self, author, client, legacy, affiliation
     ):

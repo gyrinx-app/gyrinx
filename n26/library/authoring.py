@@ -545,27 +545,41 @@ def create_pickable(
     return pickable
 
 
-def create_picklist(name, slot_type, members=(), **kwargs):
+def create_picklist(name, slot_type, members=(), dice="", roll_selects="", **kwargs):
     """A flat, ordered list of one slot type's pickables.
 
     ``members`` are pickables, in order, or ``(pickable, "wording")``
-    where this list calls one of them something else.
+    where this list calls one of them something else. A list given
+    ``dice`` is a roll table, and ``roll_selects`` says how a roll finds
+    its row on it.
     """
     from n26.library.models import Picklist
 
-    picklist = Picklist.objects.create(name=name, slot_type=slot_type, **kwargs)
+    picklist = Picklist.objects.create(
+        name=name, slot_type=slot_type, dice=dice, roll_selects=roll_selects, **kwargs
+    )
     for member in members:
         pickable, label = member if isinstance(member, tuple) else (member, "")
         add_picklist_member(picklist, pickable, label_override=label, **kwargs)
     return picklist
 
 
-def add_picklist_member(picklist, pickable, label_override="", position=None, **kwargs):
+def add_picklist_member(
+    picklist,
+    pickable,
+    label_override="",
+    position=None,
+    roll_low=None,
+    roll_high=None,
+    **kwargs,
+):
     """One more pickable on a list, at the end unless placed.
 
     Refused where the pickable belongs to another slot type: a list
     offers one slot type's pickables and a choice reading it has to be
-    settleable by every one of them.
+    settleable by every one of them. On a roll table, ``roll_low`` and
+    ``roll_high`` are the band of rolls that lands here — give both, or
+    give ``roll_low`` alone for a band of one roll.
     """
     from n26.library.models import PicklistMember
 
@@ -576,11 +590,15 @@ def add_picklist_member(picklist, pickable, label_override="", position=None, **
         )
     if position is None:
         position = picklist.members.count()
+    if roll_low is not None and roll_high is None:
+        roll_high = roll_low
     return PicklistMember.objects.create(
         picklist=picklist,
         pickable=pickable,
         label_override=label_override,
         position=position,
+        roll_low=roll_low,
+        roll_high=roll_high,
         **kwargs,
     )
 

@@ -285,3 +285,111 @@ class TestSayingExcept:
         scope = targets_model(has_pickable(cawdor, negate=True))
         assert not scope.as_selector().matches(select.matchable(None, [cawdor]))
         assert scope.as_selector().matches(select.matchable(None, []))
+
+
+class TestARollTable:
+    """A picklist may be a roll table: it names its dice, and each
+    member claims the band of rolls that lands on it. The bands are
+    numbers and nothing else — a lookup only ever asks about a roll that
+    happened, so "31-46" on a D66 is a band of twelve rolls, not sixteen,
+    and no arithmetic here pretends otherwise.
+    """
+
+    @pytest.fixture
+    def injury(self, default_pack):
+        return create_slot_type("Lasting Injury", allows_repeats=True)
+
+    @pytest.fixture
+    def table(self, injury):
+        return create_picklist(
+            "Lasting Injury Table", injury, dice="d66", roll_selects="band"
+        )
+
+    def test_the_bands_read_back_as_authored(self, injury, table):
+        eye = add_picklist_member(
+            table, create_pickable("Eye Injury", injury), roll_low=51, roll_high=51
+        )
+        cold = add_picklist_member(
+            table, create_pickable("Out Cold", injury), roll_low=21, roll_high=26
+        )
+        assert (eye.roll_low, eye.roll_high) == (51, 51)
+        assert (cold.roll_low, cold.roll_high) == (21, 26)
+        assert eye.band == "51"
+        assert cold.band == "21-26"
+
+    def test_a_member_with_no_band_says_nothing(self, table, injury):
+        plain = add_picklist_member(table, create_pickable("Lesson Learnt", injury))
+        assert plain.roll_low is None and plain.roll_high is None
+        assert plain.band == ""
+
+    def test_one_roll_alone_is_a_band_of_one(self, table, injury):
+        """The verb fills the high end in: "51" is the band 51-51."""
+        eye = add_picklist_member(
+            table, create_pickable("Eye Injury", injury), roll_low=51
+        )
+        assert (eye.roll_low, eye.roll_high) == (51, 51)
+
+    def test_one_end_of_a_band_alone_is_refused_where_the_verb_was_bypassed(
+        self, table, injury
+    ):
+        from n26.library.models import PicklistMember
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            PicklistMember.objects.create(
+                picklist=table,
+                pickable=create_pickable("Half", injury),
+                roll_low=None,
+                roll_high=51,
+            )
+
+    def test_a_band_running_backwards_is_refused(self, table, injury):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            add_picklist_member(
+                table, create_pickable("Backwards", injury), roll_low=26, roll_high=21
+            )
+
+    def test_a_band_on_a_list_that_names_no_dice_is_refused_in_words(
+        self, injury, legacies, legacy
+    ):
+        member = add_picklist_member(legacies, create_pickable("Escher", legacy))
+        member.roll_low = member.roll_high = 11
+        with pytest.raises(ValidationError, match="names no dice"):
+            member.full_clean()
+
+    def test_the_dice_are_a_closed_set(self, injury):
+        from n26.library.models import Picklist
+
+        picklist = Picklist(name="Loaded", slot_type=injury, dice="d20")
+        with pytest.raises(ValidationError):
+            picklist.full_clean()
+
+    def test_a_list_that_is_not_a_roll_table_names_no_dice(self, legacies):
+        assert legacies.dice == ""
+        assert legacies.roll_selects == ""
+
+
+class TestWhatEachDieCanRoll:
+    """The rolls a table has to cover, per die. D66 is the one worth
+    stating: it is two D6 read as tens and units, so 37 through 40 can
+    never come up and a table that claims them claims nothing."""
+
+    def test_d3_d6_and_2d6(self):
+        from n26.library.models import Dice
+
+        assert Dice.rolls(Dice.D3) == (1, 2, 3)
+        assert Dice.rolls(Dice.D6) == (1, 2, 3, 4, 5, 6)
+        assert Dice.rolls(Dice.TWO_D6) == tuple(range(2, 13))
+
+    def test_d66_is_thirty_six_rolls_with_gaps_between_the_tens(self):
+        from n26.library.models import Dice
+
+        rolls = Dice.rolls(Dice.D66)
+        assert len(rolls) == 36
+        assert rolls[:6] == (11, 12, 13, 14, 15, 16)
+        assert rolls[-1] == 66
+        assert 37 not in rolls and 40 not in rolls and 47 not in rolls
+
+    def test_a_blank_die_rolls_nothing(self):
+        from n26.library.models import Dice
+
+        assert Dice.rolls("") == ()

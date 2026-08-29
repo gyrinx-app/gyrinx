@@ -971,6 +971,8 @@ def _build_registry():
                 "slot_type": One(
                     model=SlotType, source=(Picklist, "slot_type"), fixed=True
                 ),
+                "dice": Choice(source=(Picklist, "dice")),
+                "roll_selects": Choice(source=(Picklist, "roll_selects")),
             },
         ),
         Spec(
@@ -985,6 +987,8 @@ def _build_registry():
                 ),
                 "label_override": Text(source=(PicklistMember, "label_override")),
                 "position": Int(source=(PicklistMember, "position")),
+                "roll_low": Int(source=(PicklistMember, "roll_low")),
+                "roll_high": Int(source=(PicklistMember, "roll_high")),
             },
             model=PicklistMember,
         ),

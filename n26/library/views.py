@@ -156,7 +156,9 @@ def _describe_picklist_member(member):
     notes = []
     if member.label_override:
         notes.append(f"the {member.pickable} pickable, under another name")
-    return member.label, notes
+    # The band leads on a roll table, as the book prints it.
+    label = f"{member.band}  {member.label}" if member.band else member.label
+    return label, notes
 
 
 def _weapon_parts(parts):
@@ -868,8 +870,12 @@ def _describe_pickable(pickable):
 
 
 def _describe_picklist(picklist):
-    """The slot type it offers, and how many pickables are on it."""
-    return [picklist.slot_type.name, *_picklist_notes(picklist)]
+    """The slot type it offers, how many pickables are on it, and — on a
+    roll table — the die it is rolled on."""
+    notes = [picklist.slot_type.name, *_picklist_notes(picklist)]
+    if picklist.dice:
+        notes.append(f"rolled on a {picklist.get_dice_display()}")
+    return notes
 
 
 def _picks_said(slot):

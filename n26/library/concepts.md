@@ -192,9 +192,11 @@ The linked category is consulted for categorisation decisions: a rule that place
 
 *A flat, ordered list of pickables that the player chooses from.*
 
-Fields of its own: a **slot type** and a **name**. Each pickable on it carries its place in the order and, where this list calls it something else, a wording of its own.
+Fields of its own: a **slot type** and a **name**; and, where the list is a roll table, the **dice** it is rolled on and how a roll **selects** its row. Each pickable on it carries its place in the order and, where this list calls it something else, a wording of its own — and, on a roll table, the **band** of rolls that lands on it, "51" as readily as "21-26".
 
 A set of pickables available in a slot. One slot type throughout, no headings and no prices — where a collection is a catalogue, this is a menu. One slot type may have several different picklists, which is how a limited selection of the pickables is made available in certain situations: what a leader picks from and what a champion picks from could be two lists of one slot type. Not an assignable; a slot names it.
+
+A roll table is a picklist that names its dice. Its rows claim bands of rolls, and the die is a closed set — D3, D6, D66 or 2D6 — so that the authoring page can say whether the bands cover it. A band is plain numbers even on a D66, where "31-46" spans rolls that can never come up: a lookup only ever asks about a roll that did. Nothing rolls yet; the bands are authored and the picks are chosen.
 
 ### Slot
 
