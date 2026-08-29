@@ -25,7 +25,7 @@ question and Back closes it.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <div class="flex flex-col gap-8">
+    <div class="max-w-3xl space-y-8">
         <c-n26.page-header title="Participants">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
@@ -85,8 +85,7 @@ question and Back closes it.
             it is: without scripting the button submits it, and with scripting
             the wrapper watches the field it contains and swaps the results.
             {% endcomment %}
-            <div class="flex items-center gap-3"
-                 hx-get="{% url 'n26-campaign-add-participant' campaign.pk %}"
+            <div hx-get="{% url 'n26-campaign-add-participant' campaign.pk %}"
                  hx-trigger="input changed delay:300ms from:find input"
                  hx-include="find input"
                  hx-target="#people-found"
@@ -94,20 +93,16 @@ question and Back closes it.
                  hx-swap="outerHTML"
                  hx-indicator="#looking"
                  hx-push-url="true">
-                <c-n26.search-bar class="min-w-0 flex-1"
-                                  action="{% url 'n26-campaign-add-participant' campaign.pk %}"
+                <c-n26.search-bar action="{% url 'n26-campaign-add-participant' campaign.pk %}"
                                   name="q"
                                   value="{{ query }}"
                                   placeholder="Search by username" />
-                {% comment %}
-                Only drawn while a request is out, so a reader typing knows the
-                list they are looking at is about to be replaced.
-                {% endcomment %}
-                <span id="looking" class="htmx-indicator shrink-0 items-center text-muted">
-                    <c-ui.spinner size="sm" />
-                    <span class="sr-only">Searching</span>
-                </span>
             </div>
+            <span id="looking"
+                  class="htmx-indicator w-full items-center justify-center gap-2 py-4 text-sm text-muted">
+                <c-ui.spinner size="sm" />
+                Searching
+            </span>
             <div id="people-found" class="flex flex-col">
                 {% for person in people %}
                     <div class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
