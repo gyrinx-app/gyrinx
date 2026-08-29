@@ -73,9 +73,9 @@ question and Back closes it.
         <section class="flex flex-col gap-3">
             <h2 class="text-sm font-medium text-muted">Invite somebody</h2>
             {% comment %}
-            The htmx lives on the wrapper rather than the bar, because the bar
-            renders the form itself and a second one inside it would be
-            dropped by the browser.
+            The htmx sits on a wrapper so the search bar stays the plain form
+            it is: without scripting the button submits it, and with scripting
+            the wrapper watches the field it contains and swaps the results.
             {% endcomment %}
             <div hx-get="{% url 'n26-campaign-add-participant' campaign.pk %}"
                  hx-trigger="input changed delay:300ms from:find input"
@@ -131,7 +131,7 @@ question and Back closes it.
             </c-slot>
             {% csrf_token %}
             <input type="hidden" name="user" value="{{ asking.pk }}">
-            <c-ui.field label="Message" error="x" name="message" for="invite-message">
+            <c-ui.field label="Message" for="invite-message">
                 <c-ui.textarea id="invite-message" name="message" rows="3" />
             </c-ui.field>
         </c-n26.dialog>

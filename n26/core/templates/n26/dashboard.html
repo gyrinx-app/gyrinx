@@ -33,8 +33,8 @@ places — the same pattern a gang's screens use for their siblings.
     {% comment %}
     A mark on the tab rather than a count: what matters is that something is
     waiting, and a reader who opens the tab sees how many for themselves. The
-    markup is the view's, so nothing here has to quote HTML inside an
-    attribute.
+    markup is the view's, so nothing here quotes HTML inside an attribute, and
+    the classes sit somewhere the stylesheet's scan can find them.
     {% endcomment %}
     <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
                           :campaigns_mark="campaigns_mark"

@@ -27,7 +27,8 @@ GANGS_PER_PAGE = 25
 #: Safe because it is ours: no part of it comes from anybody's input, and the
 #: tab strip takes markup as a string because it is built in the browser.
 CAMPAIGNS_WAITING = mark_safe(  # nosec B703 B308 - literal, no user input
-    '<span class="inline-block size-2 rounded-full bg-accent align-middle"></span>'
+    '<span aria-hidden="true" class="inline-block size-2 rounded-full'
+    ' bg-accent align-middle"></span>'
 )
 
 

@@ -372,6 +372,22 @@ def invitations_for(user):
     )
 
 
+def _person(value):
+    """The active account with this id, or None.
+
+    Ids arrive from forms and addresses, where anything can be typed. A
+    primary key column refuses a value it cannot parse by raising, so asking
+    for one straight from a request is a way to answer a stray character with
+    a server error.
+    """
+    from django.contrib.auth.models import User
+
+    try:
+        return User.objects.filter(pk=int(value), is_active=True).first()
+    except TypeError, ValueError:
+        return None
+
+
 def _participants(campaign):
     """Everybody asked into this campaign, and what they said."""
     from n26.core.models import CampaignParticipant
@@ -397,22 +413,28 @@ def add_participant(request, pk):
     from django.contrib.auth.models import User
 
     from n26.core.campaigns import campaign_operation
+    from n26.core.operations import Refusal
 
     found = _own_campaign_or_404(request, pk)
     query = request.GET.get("q", "").strip()
 
     if request.method == "POST":
-        asked = User.objects.filter(pk=request.POST.get("user", "")).first()
+        asked = _person(request.POST.get("user"))
         if asked is None:
             messages.error(request, "That account no longer exists.")
         else:
-            with campaign_operation(found, actor=request.user) as act:
-                act.invite(asked, message=request.POST.get("message", "").strip())
-            messages.success(request, f"Invited {asked.username}.")
+            try:
+                with campaign_operation(found, actor=request.user) as act:
+                    act.invite(asked, message=request.POST.get("message", "").strip())
+            except Refusal as refused:
+                messages.error(request, str(refused))
+            else:
+                messages.success(request, f"Invited {asked.username}.")
         return redirect("n26-campaign-add-participant", pk=found.pk)
 
+    participants = list(_participants(found))
     # Already asked, so the search offers them as asked rather than again.
-    asked_already = set(_participants(found).values_list("user_id", flat=True))
+    asked_already = {participant.user_id for participant in participants}
     people = []
     if query:
         people = list(
@@ -422,17 +444,14 @@ def add_participant(request, pk):
         )
 
     # Which person the message box is being written for, from the address.
-    asking = None
-    wanted = request.GET.get("invite", "")
-    if wanted:
-        asking = User.objects.filter(pk=wanted, is_active=True).first()
+    asking = _person(request.GET.get("invite")) if request.GET.get("invite") else None
 
     return render(
         request,
         "n26/add_participant.html",
         {
             "campaign": found,
-            "participants": _participants(found),
+            "participants": participants,
             "query": query,
             "people": people,
             "asked_already": asked_already,
@@ -445,6 +464,10 @@ def add_participant(request, pk):
 @login_required
 def remove_participant(request, pk, user_pk):
     """The question at its own address, then the act."""
+    from urllib.parse import quote
+
+    from django.urls import reverse
+
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignParticipant
 
@@ -460,7 +483,10 @@ def remove_participant(request, pk, user_pk):
         with campaign_operation(found, actor=request.user) as act:
             act.remove_participant(participant)
         messages.success(request, f"Removed {name}.")
-        return redirect("n26-campaign-add-participant", pk=found.pk)
+        return redirect(
+            f"{reverse('n26-campaign-add-participant', args=[found.pk])}"
+            f"?q={quote(request.POST.get('q', ''))}"
+        )
 
     return render(
         request,
@@ -479,22 +505,30 @@ def answer_invitation(request, pk):
     is the invitation itself — no invitation, no answer, and the address says
     nothing about a campaign the reader was never asked into.
     """
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
     from django.urls import reverse
 
     from n26.core.campaigns import campaign_operation
-    from n26.core.models import Campaign, CampaignParticipant
+    from n26.core.models import CampaignParticipant
     from n26.core.views.permissions import _safe_redirect
 
     if request.method != "POST":
         return redirect("n26-campaigns")
 
-    participant = get_object_or_404(
-        CampaignParticipant.objects.select_related("campaign"),
-        campaign__pk=pk,
-        user=request.user,
-        state=CampaignParticipant.State.INVITED,
-    )
-    campaign = Campaign.objects.get(pk=participant.campaign_id)
+    # A malformed address is a 404, not a server error: the key column
+    # refuses what it cannot parse by raising, and anybody may type anything.
+    try:
+        participant = get_object_or_404(
+            CampaignParticipant.objects.select_related("campaign"),
+            campaign__pk=pk,
+            campaign__archived=False,
+            user=request.user,
+            state=CampaignParticipant.State.INVITED,
+        )
+    except ValidationError as malformed:
+        raise Http404("No such campaign") from malformed
+    campaign = participant.campaign
     accepted = request.POST.get("answer") == "accept"
 
     with campaign_operation(campaign, actor=request.user) as act:

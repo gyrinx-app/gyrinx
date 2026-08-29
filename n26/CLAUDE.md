@@ -64,8 +64,8 @@ Concretely:
   one place whichever game filled it. A second store here would give them
   two, and neither would be the whole of what they were told. What crosses
   is one call — the words are ours, because an edition knows what happened
-  and how to say it, and the delivery is the platform's. Nothing else in
-  `n26/` imports `gyrinx.site.models`.
+  and how to say it, and the delivery is the platform's. It is the only file
+  here that writes a notification.
 - **`n26/analytics.py` is the third platform module n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
   events table, one log stream, one dashboard, and every question asked

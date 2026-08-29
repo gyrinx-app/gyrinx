@@ -53,9 +53,9 @@ class TestAsking:
     ):
         """The record is the point; the notification is how somebody hears.
 
-        Telling happens after the commit for exactly this reason: a failure
-        while telling used to poison the transaction that wrote the
-        invitation, and roll it back with nothing on screen to say so.
+        Telling happens after the commit because a failure inside the
+        transaction poisons it: the block rolls back on the way out and takes
+        the invitation with it, with nothing on screen to say so.
         """
         with django_capture_on_commit_callbacks(execute=True):
             with campaign_operation(campaign, actor=arbitrator) as act:

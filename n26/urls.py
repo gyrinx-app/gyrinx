@@ -50,7 +50,7 @@ urlpatterns = [
         name="n26-campaign-add-participant",
     ),
     path(
-        "campaigns/<str:pk>/participants/<str:user_pk>/remove/",
+        "campaigns/<str:pk>/participants/<int:user_pk>/remove/",
         views.remove_participant,
         name="n26-campaign-remove-participant",
     ),

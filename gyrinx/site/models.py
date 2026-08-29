@@ -404,7 +404,11 @@ class Notification(AppBase):
         Asks the object where it lives rather than reversing a URL name here, so
         this works for anything an edition might point a notification at.
         Returns "" when there is no target, when the target has been deleted, or
-        when its model does not define ``get_absolute_url``.
+        when its model does not define ``get_absolute_url``. It also returns ""
+        for a prefetched row whose model renders its key differently from the
+        uuid column it is stored in, since the prefetch cannot pair the two —
+        which is why a surface deciding whether to *offer* a link asks the
+        stored key rather than this.
         """
         for obj in (self.target, self.scope):
             if obj is None:
@@ -464,7 +468,7 @@ def _generic_key(obj):
 
     So the key is coerced here rather than left to the field: anything that
     knows how to become a UUID is asked to, and anything that does not is
-    linked to nothing rather than costing the caller their notification.
+    linked to nothing rather than losing the caller their notification.
     """
     if obj is None:
         return None, None

@@ -243,8 +243,9 @@ class CampaignParticipant(Base):
     per campaign, and inviting somebody who has already declined asks the same
     row again rather than starting a second conversation.
 
-    The arbitrator owns the campaign and is not a participant of it. What a
-    participant may do beyond being listed is not settled here.
+    The arbitrator owns the campaign and is not a participant of it. Being
+    one grants membership and nothing else: what a participant may do is a
+    question their campaign's own screens answer.
     """
 
     class State(models.TextChoices):

@@ -868,3 +868,74 @@ class TestAnsweringAnInvitation:
             ).status_code
             == 404
         )
+
+
+class TestNothingTypedIntoAnAddressIsAServerError:
+    """Ids reach these views from forms and addresses, where anything can be
+    typed. A key column refuses what it cannot parse by raising, so every one
+    of them has to be checked before it reaches a query."""
+
+    @pytest.fixture
+    def gone(self, campaign):
+        return f"/n26/campaigns/{campaign.pk}/participants/add/"
+
+    def test_a_post_with_no_account_says_so(
+        self, client, campaign, gone, open_to_everyone
+    ):
+        response = client.post(gone, {"message": "hello"}, follow=True)
+        assert response.status_code == 200
+        assert "no longer exists" in response.content.decode()
+
+    def test_a_post_naming_nonsense_says_so(
+        self, client, campaign, gone, open_to_everyone
+    ):
+        response = client.post(gone, {"user": "not-a-number"}, follow=True)
+        assert response.status_code == 200
+        assert "no longer exists" in response.content.decode()
+
+    def test_an_invite_parameter_of_nonsense_draws_the_page(
+        self, client, campaign, gone, open_to_everyone
+    ):
+        assert client.get(f"{gone}?invite=not-a-number").status_code == 200
+
+    def test_removing_a_participant_by_nonsense_is_a_404(
+        self, client, campaign, open_to_everyone
+    ):
+        address = f"/n26/campaigns/{campaign.pk}/participants/not-a-number/remove/"
+        assert client.get(address).status_code == 404
+
+    def test_answering_at_a_malformed_campaign_is_a_404(
+        self, client, arbitrator, open_to_everyone
+    ):
+        response = client.post(
+            "/n26/campaigns/not-a-ulid/invitation/", {"answer": "accept"}
+        )
+        assert response.status_code == 404
+
+
+class TestTheArbitratorIsNotAParticipant:
+    """The model says so, so the write says so — the search screens them out,
+    and a request that goes round the search must not get past this."""
+
+    def test_inviting_the_owner_is_refused_in_words(
+        self, client, campaign, arbitrator, open_to_everyone
+    ):
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/participants/add/",
+            {"user": str(arbitrator.pk)},
+            follow=True,
+        )
+        assert "not a participant of their own campaign" in response.content.decode()
+        assert not CampaignParticipant.objects.exists()
+
+    def test_an_account_switched_off_is_not_invited(
+        self, client, campaign, open_to_everyone
+    ):
+        gone = User.objects.create_user("retired", is_active=False)
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/participants/add/",
+            {"user": str(gone.pk)},
+            follow=True,
+        )
+        assert "no longer exists" in response.content.decode()
+        assert not CampaignParticipant.objects.exists()

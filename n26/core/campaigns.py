@@ -37,7 +37,6 @@ NO_CEILING = "unlimited"
 
 
 def _now():
-    """The clock, in one place, so tests can see one."""
     return timezone.now()
 
 
@@ -137,9 +136,15 @@ class CampaignOperation:
         never the second.
         """
         from n26.core.models import CampaignParticipant
+        from n26.core.operations import Refusal
         from n26.notifications import deliver
 
         campaign = self.campaign
+        if user.pk == campaign.owner_id:
+            raise Refusal(
+                f"{user.username} runs {campaign.name}. "
+                "An arbitrator is not a participant of their own campaign."
+            )
         participant, made = CampaignParticipant.objects.get_or_create(
             campaign=campaign,
             user=user,

@@ -17,6 +17,11 @@ act, never the record that it happened; that is the campaign's log.
 
 from gyrinx.site.models import NotificationType, notify
 
+#: What a subject line may run to before the column refuses it. A campaign
+#: name and a username together can exceed it, and a refused insert costs the
+#: recipient the whole notification.
+SUBJECT_LENGTH = 255
+
 
 def tell(recipient, subject, content="", sender=None, about=None):
     """Put one notification in somebody's inbox, about a campaign.
@@ -34,7 +39,7 @@ def tell(recipient, subject, content="", sender=None, about=None):
     """
     return notify(
         recipient=recipient,
-        subject=subject,
+        subject=subject[:SUBJECT_LENGTH],
         content=content,
         notification_type=NotificationType.CAMPAIGN,
         sender=sender,

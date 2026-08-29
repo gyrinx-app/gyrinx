@@ -21,13 +21,13 @@
     </div>
     <div class="fw-semibold">
         {% comment %}
-        The stored key rather than target_url, which dereferences it: the
-        inbox prefetches its generic relations, and a prefetch cannot match a
-        row whose model keys itself with something other than a plain UUID —
-        it maps by the object's own pk and looks up by the uuid column. The
-        open view resolves the target directly, so the link works even where
-        the list could not say what it points at, and falls back to the inbox
-        for a target that has since gone.
+        The stored key, not target_url: the inbox prefetches its generic
+        relations, and that prefetch pairs the rows it fetched by the string
+        form of their own key — which a model may render differently from the
+        uuid column. Such a row resolves to nothing here however real it is.
+        Dereferencing each one instead would cost a query per row, which is
+        what the prefetch exists to avoid, so the decision is made on the key
+        and the destination is resolved by the view behind the link.
         {% endcomment %}
         {% if notification.target_object_id or notification.scope_object_id %}
             <a href="{% url 'core:notification-open' notification.id %}"
