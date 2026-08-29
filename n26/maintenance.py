@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Operation",
     "backfill_built_ins",
+    "delete_empty_affiliations",
     "delete_nameless_gang_type",
     "rehost_gang_picks",
     "repair_doubled_refunds",
@@ -166,6 +167,10 @@ class Operation(models.TextChoices):
         "n26_repoint_champion_picks",
         "n26: the Champion picks move onto the Champion archetypes",
     )
+    DELETE_EMPTY_AFFILIATIONS = (
+        "n26_delete_empty_affiliations",
+        "n26: the emptied Affiliation rows are deleted",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -180,6 +185,7 @@ LOCK_KEYS = {
     Operation.DROP_DUPLICATE_GRANTS: 826_020_613,
     Operation.REHOST_GANG_PICKS: 826_020_614,
     Operation.REPOINT_CHAMPION_PICKS: 826_020_615,
+    Operation.DELETE_EMPTY_AFFILIATIONS: 826_020_616,
 }
 
 
@@ -859,6 +865,25 @@ def rehost_gang_picks(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def delete_empty_affiliations(backfill_id, **said_by_whoever_enqueued_it):
+    """Delete emptied Affiliation library rows, and record it.
+
+    The runner discipline of a conversion around work that deletes
+    library rows only. Nothing a player holds is touched, which is why
+    what it proves is that no page moves at all.
+    """
+    from n26.library.empty_affiliations import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.DELETE_EMPTY_AFFILIATIONS,
+        "Empty Affiliation deletion",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
 REHOST_WORDS = {
     "noun": "move",
     "intro": (
@@ -901,6 +926,44 @@ def rehost_gang_picks_view(request):
         find,
         rehost_gang_picks,
         REHOST_WORDS,
+    )
+
+
+EMPTY_AFFILIATION_WORDS = {
+    "noun": "deletion",
+    "intro": (
+        "This deletes library rows and nothing a player holds: the "
+        "Affiliation kind rows the conversions emptied, the menus those "
+        "kinds were chosen from, the fossil offers nothing carries, and "
+        "the vestigial Hidden that grants a slot nobody holds. Every row "
+        "it would delete is listed below, along with anything it leaves "
+        "alone and why. The slot types named Affiliation, Clan House, "
+        "Chaos God and Variant — and their pickables, picklists and "
+        "slots — stay; those are the new system. Because none of what "
+        "goes is in use, no page should move at all — and that is what "
+        "it proves before committing. It refuses while any assignment "
+        "still names an Affiliation, which belongs to a conversion that "
+        "has not run."
+    ),
+    "nothing_heading": "Nothing to delete",
+    "nothing_flash": "There was nothing to delete — the emptied Affiliation rows have gone already.",
+    "nothing_words": "The emptied Affiliation rows have gone already.",
+    "refuses_heading": "The deletion refuses",
+    "button": "Delete the emptied Affiliation rows",
+    "confirm": "Delete these library rows? This cannot be undone.",
+}
+
+
+def delete_empty_affiliations_view(request):
+    """Preview the deletion (GET), or record a run and enqueue it."""
+    from n26.library.empty_affiliations import find
+
+    return _deletion_view(
+        request,
+        Operation.DELETE_EMPTY_AFFILIATIONS,
+        find,
+        delete_empty_affiliations,
+        EMPTY_AFFILIATION_WORDS,
     )
 
 
@@ -1440,6 +1503,25 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.DELETE_EMPTY_AFFILIATIONS.value,
+        name=Operation.DELETE_EMPTY_AFFILIATIONS.label,
+        added=date(2026, 8, 29),
+        description=(
+            "Delete what the Affiliation conversions left behind: the "
+            "emptied kind rows, the menus nothing offers from, the fossil "
+            "offers, and the vestigial Hidden that nothing holds. All "
+            "library, none of it in use, so it proves that no page moves "
+            "at all. The slot types named Affiliation, Clan House, Chaos "
+            "God and Variant stay. Refuses while any assignment still "
+            "names an Affiliation."
+        ),
+        view=delete_empty_affiliations_view,
+        detail_template="admin/maintenance/n26/_delete_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a repair holds one
 #: transaction for as long as proving what it touched takes. It is also
@@ -1468,6 +1550,7 @@ task_routes = [
     TaskRoute(drop_duplicate_grants, ack_deadline=600),
     TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
     TaskRoute(repoint_champion_picks, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
 ]
 
 

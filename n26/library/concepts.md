@@ -4,9 +4,9 @@ This should give you a solid grounding in how Gyrinx N26 fits together.
 
 If you take nothing else away:
 
-1. **To control who gets a thing, control where it lands — don't look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a choice whose "will be assigned to" field is "the gang". Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on an affiliation or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
+1. **To control who gets a thing, control where it lands — don't look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a slot whose pick is assigned to the gang. Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on a pickable or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
 
-2. **Behaviour is always a modifier on a carrier — and modifiers are shared, so edit with care.** A rule, an affiliation, a pickable are just names; everything they do rides them as modifiers (scope + effect, conditions ANDed). Two practical consequences: to make content do something, attach the modifier to the thing that should carry it; and before editing an existing modifier, check its carriers — the change lands everywhere it's attached. Know the two effect families: computed effects (gives, takes away, stat changes, counter contributions, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and won't undo — author those as one-way doors.
+2. **Behaviour is always a modifier on a carrier — and modifiers are shared, so edit with care.** A rule or a pickable is just a name; everything they do rides them as modifiers (scope + effect, conditions ANDed). Two practical consequences: to make content do something, attach the modifier to the thing that should carry it; and before editing an existing modifier, check its carriers — the change lands everywhere it's attached. Know the two effect families: computed effects (gives, takes away, stat changes, counter contributions, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and won't undo — author those as one-way doors.
 
 3. **Being in a collection and being offered from a section of it are two separate authoring acts.** Entries and sweeps decide **membership** of the collection; **placement** decides whether a particular category appears. If you narrow a choice "from section: Primary" and the skill's category hasn't been placed into Primary for that fighter, it will not be offered — it's sitting in "Other". So a working "choose a Primary skill" needs both halves authored: the content in the collection, and a placement putting its category in that section for the right models.
 
@@ -14,15 +14,15 @@ If you take nothing else away:
 
 ## Assignment
 
-**An assignment has three components**: *what* is held (an **assignable** — a weapon, a skill, an affiliation…), *who it is assigned to* (the **host**), and *what brought it* (its **cause** — remove the cause and the assignment goes too). Nothing gets onto a card any other way; everything from a hired fighter's profile to a granted rule is one of these assignments.
+**An assignment has three components**: *what* is held (an **assignable** — a weapon, a skill, a pickable…), *who it is assigned to* (the **host**), and *what brought it* (its **cause** — remove the cause and the assignment goes too). Nothing gets onto a card any other way; everything from a hired fighter's profile to a granted rule is one of these assignments.
 
-An **assignable** is typically very simple: a piece of data that, once assigned, can carry modifiers. Sometimes they have extra configuration. Affiliation, Rule and Skill are all assignables.
+An **assignable** is typically very simple: a piece of data that, once assigned, can carry modifiers. Sometimes they have extra configuration. Rule, Skill and a pickable are all assignables.
 
 The **host** is the specific object the assignment sits on: a model, the gang, a parent item (a scope fitted to a gun), or the stash *only*. Host decides *reach*: an assignment hosted on a model is that model's; an assignment hosted on the gang is **broadcast** to every member's card.
 
 The **cause** is then the action that brought a particular assignment into existence, answering "why is this here?" Cause powers one important behaviour: **removal cascades down the cause chain**. Remove an assignment and everything caused by it (and caused by *those*, recursively) goes too. It's also where provenance comes from — the card can say "came with X" because the assignment knows its cause.
 
-A **modifier** is attached to a specific instance of an assignable (e.g. Aranthian Affiliation) which we call the **carrier**, asserting who it reaches (**scope**), and what it does (**effect**). Conditions limit the scope — AND-ed across conditions, any-of within a single condition — to allowlist modifier effects only in certain contexts.
+A **modifier** is attached to a specific instance of an assignable (e.g. the Aranthian pickable) which we call the **carrier**, asserting who it reaches (**scope**), and what it does (**effect**). Conditions limit the scope — AND-ed across conditions, any-of within a single condition — to allowlist modifier effects only in certain contexts.
 
 Modifiers are shared by design: they can attach on any number of specific assignables ("carriers"), and editing the modifier changes it everywhere it is carried.
 
@@ -31,7 +31,7 @@ Effects are split by when they happen:
 - **computed** ones (gives, takes away, changes a stat, adds to a counter, offers a choice, places a category, notes a limit) are re-derived on every read and vanish with their carrier
 - **written** ones (brings a model, moves a counter) run once at arrival and are never undone by removal.
 
-We use **carrier** as a library-side word for one specific piece of *content*, typically because they "carry" a modifier. A power maul carries its "+1 Strength" modifier; the Clan House affiliation carries a choice of affiliation from Clan Houses. Carrier is about authoring — edit the carrier's modifier and it changes everywhere that carrier appears.
+We use **carrier** as a library-side word for one specific piece of *content*, typically because they "carry" a modifier. A power maul carries its "+1 Strength" modifier; the Clan House pickable carries a grant of the house slot. Carrier is about authoring — edit the carrier's modifier and it changes everywhere that carrier appears.
 
 **Bearer** is used to describe the thing being affected by a modifier. The maul's modifier says "+1 Strength *to its bearer*" — whoever holds a *specific* maul, no name attached.
 
@@ -73,13 +73,13 @@ So the relationships after one hire, spelled out:
 
 ## Assignable types
 
-### Affiliation
+### A gang-level choice (slot type)
 
-*Who the gang sides with, chosen once when the gang is created.*
+*Who the gang sides with, which god it follows, which corruption it took — chosen once, as a pick.*
 
-Fields of its own: none. Chosen, not bought: it refuses built-ins (nothing would ever hand over items built into it), arrives free through an offered choice, and leaves when the thing that offered it leaves.
+Do not author a new kind for this. Create a **slot type** (Affiliation, Chaos God, Variant, or a new name), its **pickables**, a **picklist**, and a **slot** assigned to the gang. Grant that slot from a hidden built into the gang type, or from the gang type itself. What the choice does rides the pickable as ordinary modifiers — equipment lists opened to some ranks, a further slot granted while this pick stands.
 
-Its payload is usually access — equipment lists opened to some ranks — so its gives are typically scoped ("to Leaders and Champions") while the affiliation itself rides gang-wide. It may itself offer the next choice (Clan House: "choose one of the six Houses"), which simply computes into another open slot on the gang.
+The slot type's name is the word the card and the history use. The slot's label is the question on one card. See **Slot type** below.
 
 ### Rule (special rule)
 
@@ -169,7 +169,7 @@ Within a collection, when displayed, items are grouped by collection section and
 
 > Draft, for review.
 
-*What is chosen: Gang Legacy is the first, and new ones are authored.*
+*What is chosen: Gang Legacy, Affiliation, Clan House, Chaos God, Variant — and new ones are authored.*
 
 Fields of its own: a **plural** (what several of them are called, so a page can say "Gang Legacies"), and **allows repeats** (whether one holder may pick the same pickable for two slots of this type).
 

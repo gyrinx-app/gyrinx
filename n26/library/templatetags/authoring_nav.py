@@ -42,7 +42,7 @@ def kinds_switcher(here="", menu_label="Switch kind", named=False):
 
     from n26.core.navigation import Switcher, SwitcherItem
     from n26.library.specs import specs
-    from n26.library.views import LEAF_KINDS, _model_for
+    from n26.library.views import LEAF_KINDS, RETIRED_KINDS, _model_for
 
     items = sorted(
         (
@@ -54,6 +54,7 @@ def kinds_switcher(here="", menu_label="Switch kind", named=False):
                 current=kind == here,
             )
             for kind, verb in LEAF_KINDS.items()
+            if kind not in RETIRED_KINDS
         ),
         key=lambda item: item.label,
     )

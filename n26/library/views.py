@@ -71,6 +71,14 @@ LEAF_KINDS = {
 }
 
 
+#: Kinds a menu no longer offers. What they said is said by slots and
+#: picks now, and the rows that remain are history: emptied leftovers
+#: waiting to be deleted. They keep their listing and detail pages, so
+#: those rows stay reachable — it is the invitation to make another one
+#: that goes.
+RETIRED_KINDS = frozenset({"affiliation"})
+
+
 #: Kinds whose page is a place you come back to: the thing, and the
 #: parts you add to it over time. ``kind -> the verb that adds a part``.
 def _describe_weapon_profile(profile):
@@ -1105,6 +1113,8 @@ def index(request):
     qualities, the kit, the gang-scale picks."""
     grouped = {family: [] for family in Family}
     for kind, verb_name in LEAF_KINDS.items():
+        if kind in RETIRED_KINDS:
+            continue
         model = _model_for(specs()[verb_name])
         grouped[model.family].append(
             {
@@ -1288,6 +1298,7 @@ def leaf(request, kind):
             # where the act exists: hanging a modifier on a thing that
             # can carry one.
             "bulk_attach": _carries_modifiers(kind),
+            "retired": kind in RETIRED_KINDS,
         },
     )
 
@@ -1387,6 +1398,8 @@ def _selected(rows, pks):
 @staff_member_required
 def create(request, kind):
     """The form that makes one more of a leaf kind, on its own page."""
+    if kind in RETIRED_KINDS:
+        raise Http404(f"No authoring page for {kind!r}")
     spec = _spec_for(kind)
     model = _model_for(spec)
     form_class = generate_form(spec)
@@ -3738,7 +3751,8 @@ def foundations(request):
                     "count": _model_for(specs()[verb]).objects.count(),
                 }
                 for kind, verb in LEAF_KINDS.items()
-                if _model_for(specs()[verb]).family == Family.FOUNDATION
+                if kind not in RETIRED_KINDS
+                and _model_for(specs()[verb]).family == Family.FOUNDATION
             ],
         },
     )

@@ -28,6 +28,7 @@ from n26.maintenance import (
     convert_chaos_god_view,
     convert_outcast_affiliation_view,
     convert_variant_view,
+    delete_empty_affiliations_view,
     delete_nameless_gang_type_view,
 )
 
@@ -478,3 +479,124 @@ class TestTheVariantConversion:
             name="Chaos Corrupted", slot_type__name="Variant"
         ).exists()
         assert not Pickable.objects.filter(name="None").exists()
+
+
+class TestTheEmptyAffiliationDeletion:
+    """The repair still on offer: emptied Affiliation library rows go."""
+
+    def test_its_lock_is_not_shared(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert LOCK_KEYS[Operation.DELETE_EMPTY_AFFILIATIONS] == 826_020_614
+        assert (
+            LOCK_KEYS[Operation.DELETE_EMPTY_AFFILIATIONS]
+            != LOCK_KEYS[Operation.BACKFILL_BUILT_INS]
+        )
+        assert (
+            LOCK_KEYS[Operation.DELETE_EMPTY_AFFILIATIONS]
+            != LOCK_KEYS[Operation.DROP_DUPLICATE_GRANTS]
+        )
+        assert Operation.DELETE_EMPTY_AFFILIATIONS.value == (
+            "n26_delete_empty_affiliations"
+        )
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.DELETE_EMPTY_AFFILIATIONS.value in registered
+        found = resolve_operation(Operation.DELETE_EMPTY_AFFILIATIONS.value)
+        assert found.name == Operation.DELETE_EMPTY_AFFILIATIONS.label
+        assert found.view is delete_empty_affiliations_view
+
+    def test_it_is_not_retired(self):
+        assert (
+            Operation.DELETE_EMPTY_AFFILIATIONS not in TestARepairThatHasBeenRun.RETIRED
+        )
+        assert (
+            resolve_operation(Operation.DELETE_EMPTY_AFFILIATIONS.value).view
+            is not None
+        )
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_delete_empty_affiliations")
+        )
+
+        assert response.status_code in (302, 403)
+
+    def test_its_page_shows_nothing_to_delete_when_the_rows_are_gone(
+        self, client, superuser, default_pack
+    ):
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_delete_empty_affiliations")
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Nothing to delete" in page
+        assert not Backfill.objects.exists()
+
+    def test_its_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, leftover_world
+    ):
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_delete_empty_affiliations")
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "delete the emptied affiliation" in page
+        assert "those are the new system" in page
+        assert not Backfill.objects.exists()
+
+    def test_applying_records_what_it_deleted(self, client, superuser, leftover_world):
+        from n26.library.models import Affiliation
+
+        client.force_login(superuser)
+
+        response = client.post(
+            reverse("admin:maintenance_n26_delete_empty_affiliations")
+        )
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.DELETE_EMPTY_AFFILIATIONS)
+        assert run.status == Backfill.Status.DONE
+        assert any("deleted" in line for line in run.summary["report"])
+        assert not Affiliation.objects.exists()
+
+    def test_its_page_refuses_while_an_assignment_still_names_one(
+        self, client, superuser, leftover_world
+    ):
+        from n26.core.models import Assignment
+        from n26.library.models import Affiliation
+
+        gang, names, _, _, _ = leftover_world
+        Assignment.objects.create(
+            affiliation=names["Mutant"],
+            gang=gang,
+            gang_root=gang,
+        )
+        client.force_login(superuser)
+        address = reverse("admin:maintenance_n26_delete_empty_affiliations")
+
+        page = client.get(address).content.decode()
+        posted = client.post(address)
+
+        assert "The deletion refuses" in page
+        assert "assignment" in page and "Mutant" in page
+        assert posted.status_code == 302
+        assert not Backfill.objects.exists()
+        assert Affiliation.objects.filter(pk=names["Mutant"].pk).exists()
+
+
+@pytest.fixture
+def leftover_world(default_pack, person_type, owner):
+    from n26.tests.sandbox.test_empty_affiliations import build_leftover_world
+
+    return build_leftover_world(person_type, owner)

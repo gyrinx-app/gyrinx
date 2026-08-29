@@ -920,16 +920,12 @@ class Rule(Content, Assignable):
 
 
 class Affiliation(Content, Assignable):
-    """Who the gang sides with, chosen once when the gang is created.
+    """A leftover chosen-carrier kind. Author a slot type instead.
 
-    A chosen carrier: the whole of what it means rides it as ordinary
-    modifiers, and it is its own kind so the card says "Affiliation:".
-    An affiliation's payload is typically *access* —
-    equipment lists opened to some ranks, so its gives are scoped while
-    the affiliation itself rides gang-wide — and an affiliation may
-    itself offer a further choice (Clan House's "choose one of the six
-    Houses"): what is chosen is an ordinary assignment hosted on the
-    gang, so a choice carried on it simply computes into another slot.
+    Gang-level choices — who the gang sides with, which god it follows,
+    which corruption it took — are a slot type, its pickables, and a
+    grant of that slot. The leftover rows stay reachable until they are
+    deleted; nothing new is authored here.
     """
 
     family = Family.GANG
