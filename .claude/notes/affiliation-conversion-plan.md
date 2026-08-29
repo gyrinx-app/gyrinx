@@ -11,10 +11,12 @@ part that made them slow: **one write per system**, then an operator
 runs `audit_reconcile` afterwards. Do not run the old offer and the
 new slot on the same gang. Do not rewrite picks one gang at a time.
 
-The writes are a few hundred assignment rows. What used to hold the
-transaction for minutes was rendering pages inside it. Do not enqueue
-`run_batched` on the same Backfill — the conversion already marks
-that record DONE. The after-the-fact check is the existing
+The writes are a few hundred assignments and are quick. The reconcile
+walk is the slow part: the apply reconciles every reached gang inside
+the transaction, and each gang needs several queries against a database
+across the network. Duration depends on the gangs a system reaches. Do not
+enqueue `run_batched` on the same Backfill — the conversion already
+marks that record DONE. The after-the-fact check is the existing
 `audit_reconcile` operation, run by hand.
 
 ## Decisions
@@ -33,7 +35,9 @@ that record DONE. The after-the-fact check is the existing
 | Writes | Assignment updates are the sanctioned conversion exception (`n26/core/CLAUDE.md`): no `operation()`, no money, no ledger events. |
 
 If the fork write is not short (seconds, not minutes), stop and look
-again. Do not then invent a per-gang window.
+again. Do not then invent a per-gang window. A fork time is a floor:
+the fork answers over a socket, and production answers over the
+network, so production is slower than the assignment counts suggest.
 
 ## Reusable machinery
 

@@ -33,6 +33,19 @@ its assignment names now, so moving an assignment from one kind to
 another rewrites the wording of things that already happened. Every
 conversion must check the history page against a converted assignment
 and keep those words the same — see the note in ``n26/core/CLAUDE.md``.
+
+An apply's duration depends on the gangs it reaches, not on the
+assignments it writes. The write is a few hundred updates and is quick.
+The reconcile walk is the slow part: the apply reconciles every reached
+gang inside the transaction, and each gang needs several queries. In
+production every query crosses the network to the database. A thousand
+gangs take tens of minutes, and all of them stay locked for that time.
+
+Time an apply on a fork of the content mirror before it runs in
+production, and count the gangs the plan reaches. A local time is a
+floor, not a forecast: a local database answers over a socket, and
+production answers over the network. If the apply is not short, stop and
+look again.
 """
 
 import logging
@@ -542,9 +555,8 @@ class Plan:
     steps: tuple = ()
     #: The gangs the apply proves unchanged before committing — a spread
     #: chosen by the system's own plan to hold every shape it comes in,
-    #: not every gang it reaches. Rendering everyone with the transaction
-    #: open is the part that used to take minutes; a few hundred row
-    #: updates do not.
+    #: not every gang it reaches. Capturing a gang's pages is slow, so
+    #: the proof reads a sample.
     gang_ids: tuple = ()
     problems: tuple = ()
     #: How many gangs the change reaches in all, proven or not.
