@@ -4077,7 +4077,7 @@ class TestTheCollectionPage:
         assert Collection.objects.filter(name="House Escher Armoury").exists()
 
     def test_the_affiliation_pick_list_is_buildable_end_to_end(
-        self, author, client, default_pack, gang_type
+        self, author, client, default_pack, gang_type, owner
     ):
         """The whole guide, through the pages: a slot type, its
         pickables, a picklist, a slot granted by a hidden built into the
@@ -4151,9 +4151,6 @@ class TestTheCollectionPage:
         )
         assert aboard.status_code == 302
 
-        from django.contrib.auth.models import User
-
-        owner = User.objects.create_user("outcast-founder")
         gang_type.refresh_from_db()
         gang = found_gang("The Unmade", gang_type, owner=owner)
         line = next(
