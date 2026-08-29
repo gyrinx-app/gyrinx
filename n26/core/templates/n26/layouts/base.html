@@ -84,6 +84,7 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             </script>
             {# djlint:on #}
         {% endif %}
+        {% include "platform/includes/timezone_cookie.html" %}
     </head>
     {% comment %}
     --n26-sticky-top tells sticky descendants (e.g. <c-n26.collection-picker>)

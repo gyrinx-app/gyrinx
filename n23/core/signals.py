@@ -109,13 +109,22 @@ def log_user_signup(request, user, **kwargs):
 @traced("signal_create_user_profile_and_record_tos")
 def create_user_profile_and_record_tos(request, user, **kwargs):
     """Create UserProfile and record ToS agreement when a new user signs up."""
+    from gyrinx.timezones import detect_timezone
+
     # Create the user profile if it doesn't exist
     profile, created = UserProfile.objects.get_or_create(user=user)
+
+    if not profile.timezone:
+        guessed = detect_timezone(request)
+        if guessed:
+            profile.timezone = guessed
 
     # Record ToS agreement if the form data indicates agreement
     # The form data is available in the request POST data
     if request and hasattr(request, "POST") and request.POST.get("tos_agreement"):
         profile.record_tos_agreement()
+    elif profile.timezone:
+        profile.save(update_fields=["timezone"])
 
 
 @receiver(email_confirmed)

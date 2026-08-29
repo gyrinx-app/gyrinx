@@ -489,6 +489,7 @@ class UserProfileAdmin(admin.ModelAdmin):
         "patreon_status",
         "patreon_tier",
         "selected_badge",
+        "timezone",
     ]
     search_fields = [
         "user__username",

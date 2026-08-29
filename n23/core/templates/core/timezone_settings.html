@@ -1,0 +1,21 @@
+{% extends "account/base_manage.html" %}
+{% load i18n %}
+{% block head_title %}
+    {% trans "Timezone" %}
+{% endblock head_title %}
+{% block content %}
+    <h1 class="h3 mb-2">{% trans "Timezone" %}</h1>
+    <p class="text-secondary">Campaign log times and other timestamps are shown in this timezone.</p>
+    <form method="post" class="vstack gap-3">
+        {% csrf_token %}
+        <c-form.field :field="form.timezone" />
+        <div class="hstack gap-2 mt-2">
+            <c-btn variant="primary" size="sm" type="submit">
+                <i class="bi-check-lg"></i> {% trans "Save" %}
+            </c-btn>
+            <c-btn variant="link" size="sm" href="{% url 'core:account_home' %}">
+                {% trans "Cancel" %}
+            </c-btn>
+        </div>
+    </form>
+{% endblock content %}

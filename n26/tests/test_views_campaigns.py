@@ -417,6 +417,26 @@ class TestTheLogOnTheCampaignsPage:
         drawn = self.page(client, campaign)
         assert drawn.index("set the gang budget") < drawn.index("renamed the campaign")
 
+    def test_log_timestamps_follow_the_reader_timezone(
+        self, client, arbitrator, campaign, open_to_everyone
+    ):
+        """A 06:27 UTC act reads as 02:27 in Eastern Daylight Time."""
+        from datetime import UTC, datetime
+
+        from gyrinx.accounts.models import UserProfile
+
+        UserProfile.objects.create(user=arbitrator, timezone="America/New_York")
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": "Dust Falls II", "budget": "1000", "summary": ""},
+        )
+        CampaignEvent.objects.filter(campaign=campaign).update(
+            created=datetime(2026, 8, 29, 6, 27, tzinfo=UTC)
+        )
+        drawn = self.page(client, campaign)
+        assert "29 Aug 02:27" in drawn
+        assert "29 Aug 06:27" not in drawn
+
     def test_archiving_is_recorded_even_though_the_page_shuts(
         self, client, campaign, open_to_everyone
     ):

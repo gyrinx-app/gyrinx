@@ -21,7 +21,7 @@ from .notification import (
     notifications_bulk,
 )
 from .upload import tinymce_upload
-from .user import badge_settings, change_username, user
+from .user import badge_settings, change_username, timezone_settings, user
 
 
 def make_query_params_str(**kwargs) -> str:
@@ -39,6 +39,7 @@ __all__ = [
     "user",
     "change_username",
     "badge_settings",
+    "timezone_settings",
     # Dice views
     "dice",
     # Banner views

@@ -268,6 +268,14 @@ class UserProfile(Base):
         help_text="Slug of the supporter badge the user has chosen to display "
         "(blank = no badge).",
     )
+    timezone = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="IANA timezone used when showing timestamps. Blank until "
+        "detected from the browser or IP country, or chosen on the "
+        "account page.",
+    )
 
     # Both tables are pinned to their original names. This model moved from the
     # `core` app to `accounts`, and the whole point is that no table is renamed

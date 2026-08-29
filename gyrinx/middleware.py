@@ -1,6 +1,7 @@
 """Platform middleware — edition-agnostic request handling."""
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import RequestDataTooBig
@@ -29,6 +30,7 @@ from gyrinx.impersonation import (
     IMPERSONATE_STARTED_KEY,
     can_impersonate,
 )
+from gyrinx.timezones import resolve_request_timezone
 
 
 class ClearLoggingRequestMiddleware:
@@ -284,3 +286,27 @@ class ImpersonationMiddleware:
             )
         for key in IMPERSONATE_SESSION_KEYS:
             session.pop(key, None)
+
+
+class TimezoneMiddleware:
+    """Activate the reader's timezone so ``|date`` and ``localtime`` follow it.
+
+    Must sit after ``ImpersonationMiddleware`` so an overlay uses the target's
+    zone rather than the admin's. The zone is deactivated after the response
+    so a pooled worker cannot leak it into the next request.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        tzname = resolve_request_timezone(request)
+        request.timezone_name = tzname
+        if tzname:
+            timezone.activate(ZoneInfo(tzname))
+        else:
+            timezone.deactivate()
+        try:
+            return self.get_response(request)
+        finally:
+            timezone.deactivate()

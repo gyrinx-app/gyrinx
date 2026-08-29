@@ -16,6 +16,11 @@ patterns = [
         n23.core.views.badge_settings,
         name="badge-settings",
     ),
+    path(
+        "accounts/timezone/",
+        n23.core.views.timezone_settings,
+        name="timezone-settings",
+    ),
     path("dice/", n23.core.views.dice, name="dice"),
     # Users
     path("user/<slug_or_id>", n23.core.views.user, name="user"),

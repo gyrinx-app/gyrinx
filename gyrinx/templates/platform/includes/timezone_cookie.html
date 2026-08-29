@@ -1,0 +1,17 @@
+{% comment %}
+    Records the browser's IANA timezone as a cookie so the next request can
+    guess a default before the user has opened the timezone settings page.
+    Harmless if the zone is already saved on the profile — the middleware
+    prefers the stored value. Keep COOKIE_NAME in gyrinx/timezones.py in step.
+{% endcomment %}
+<script>
+    (function() {
+        try {
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (!tz) return;
+            var match = document.cookie.match(/(?:^|; )gyrinx_tz=([^;]*)/);
+            if (match && decodeURIComponent(match[1]) === tz) return;
+            document.cookie = "gyrinx_tz=" + encodeURIComponent(tz) + ";path=/;max-age=31536000;samesite=lax";
+        } catch (e) {}
+    })();
+</script>

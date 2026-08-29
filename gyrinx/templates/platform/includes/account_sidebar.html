@@ -40,6 +40,14 @@
                    href="{{ badge_settings_url_ }}"><i class="bi-patch-check me-2"></i>{% trans "Badge" %}</a>
             </li>
         {% endif %}
+        {% url 'core:timezone-settings' as timezone_settings_url_ %}
+        {% if timezone_settings_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'core:timezone-settings' %}"
+                   {% active_aria 'core:timezone-settings' %}
+                   href="{{ timezone_settings_url_ }}"><i class="bi-globe me-2"></i>{% trans "Timezone" %}</a>
+            </li>
+        {% endif %}
         {% url 'account_email' as email_url_ %}
         {% if email_url_ %}
             <li class="nav-item">
