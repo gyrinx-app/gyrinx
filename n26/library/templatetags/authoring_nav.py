@@ -54,7 +54,7 @@ def kinds_switcher(here="", menu_label="Switch kind", named=False):
                 current=kind == here,
             )
             for kind, verb in LEAF_KINDS.items()
-            if kind not in RETIRED_KINDS
+            if kind not in RETIRED_KINDS or kind == here
         ),
         key=lambda item: item.label,
     )

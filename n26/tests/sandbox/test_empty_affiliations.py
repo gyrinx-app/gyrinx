@@ -206,7 +206,7 @@ class TestWhatItWouldDelete:
 
 class TestDeletingIt:
     def test_the_rows_go(self, leftover_world):
-        _, _, menus, vestigial, house = leftover_world
+        gang, _, menus, vestigial, house = leftover_world
         grant = house.modifiers.get()
 
         apply(find())
@@ -223,6 +223,7 @@ class TestDeletingIt:
         assert Modifier.objects.filter(pk=grant.pk).exists()
         assert house.modifiers.filter(pk=grant.pk).exists()
         assert Slot.objects.filter(name="Variant").exists()
+        assert_reconciled(gang)
 
     def test_no_page_moves(self, leftover_world):
         gang, _, _, _, _ = leftover_world

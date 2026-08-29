@@ -150,6 +150,12 @@ class TestAffiliationIsRetiredFromTheMenu:
         assert page.status_code == 200
         assert "Clanless" in page.content.decode()
         assert "/n26/authoring/affiliation/new/" not in listing.content.decode()
+        listing_body = listing.content.decode()
+        assert re.search(
+            r'<a href="/n26/authoring/affiliation/"[^>]*aria-current="page"',
+            listing_body,
+        )
+        assert ">Affiliations</span>" in listing_body
 
 
 class TestTheIndex:

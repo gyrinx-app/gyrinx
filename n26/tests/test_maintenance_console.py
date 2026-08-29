@@ -558,6 +558,7 @@ class TestTheEmptyAffiliationDeletion:
     def test_applying_records_what_it_deleted(self, client, superuser, leftover_world):
         from n26.library.models import Affiliation
 
+        gang, *_ = leftover_world
         client.force_login(superuser)
 
         response = client.post(
@@ -569,6 +570,7 @@ class TestTheEmptyAffiliationDeletion:
         assert run.status == Backfill.Status.DONE
         assert any("deleted" in line for line in run.summary["report"])
         assert not Affiliation.objects.exists()
+        assert_reconciled(gang)
 
     def test_its_page_refuses_while_an_assignment_still_names_one(
         self, client, superuser, leftover_world
