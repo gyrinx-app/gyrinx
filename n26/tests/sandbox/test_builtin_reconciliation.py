@@ -15,7 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
 from n26.core.models import Assignment, ChosenProfileOption, Miniature, Reason
-from n26.core.operations import operation
+from n26.core.operations import LibraryError, operation
 from n26.core.reconcile import assert_reconciled
 from n26.library.authoring import add_default_member
 from n26.library.models import WeaponProfile
@@ -718,5 +718,6 @@ class TestBuiltInsOfBuiltIns:
         add_built_in(spyrer, hunted)
         add_built_in(hunted, spyrer)
 
-        with pytest.raises(ValueError, match="Built-ins nest in a circle"):
+        with pytest.raises(LibraryError, match="Built-ins nest in a circle"):
             hire(gang, hunter, "Ana", paid=100)
+        assert not Miniature.objects.filter(membership__gang_root=gang).exists()

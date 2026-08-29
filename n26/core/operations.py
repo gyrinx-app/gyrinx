@@ -142,6 +142,16 @@ class Refusal(Exception):
     """
 
 
+class LibraryError(Exception):
+    """The library asks for something no operation can do.
+
+    A content bug, not a player's act: nobody clicked their way to it
+    and no sentence would help them. It is neither a ``Refusal`` a view
+    shows nor the ``ValueError`` a view reads as a tampered link, so it
+    surfaces as the error it is, and the operation unwinds whole.
+    """
+
+
 class NotEnoughCredits(Refusal):
     """A spend would take the gang below zero credits.
 
@@ -1277,7 +1287,7 @@ class Operation:
             if assignment.assignable.built_ins_id is None:
                 continue
             if assignment.assignable in chain:
-                raise ValueError(
+                raise LibraryError(
                     "Built-ins nest in a circle: "
                     + " → ".join(str(link) for link in (*chain, assignment.assignable))
                     + "."
