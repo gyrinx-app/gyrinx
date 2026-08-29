@@ -1208,10 +1208,12 @@ class Operation:
         A copy created here is itself an arrival, and a thing with
         built-ins of its own brings them wherever it arrives — a subtype
         granted by a profile brings its own counters exactly as the
-        subtype would if bought. Each such copy is reconciled as a
-        carrier in turn, with its grants caused by the copy, so the
-        provenance reads the same as the propagation pass writes later
-        and a hire and a catch-up can never disagree about what a
+        subtype would if bought. Each copy created here is reconciled
+        as a carrier in turn, its grants caused by the copy — so the
+        outcome returned covers every level, and a grant's ``caused_by``
+        is its own carrier, not always the one passed in. A grant's
+        cause is the copy that brought it whichever pass writes it, so
+        a hire and a later catch-up can never disagree about what a
         model holds. The nesting is the library's own, and a library
         that nests a thing inside itself is a content bug: the chain is
         refused in words rather than followed off the end of the stack.
@@ -1272,7 +1274,7 @@ class Operation:
 
         chain = (*_chain, carrier.assignable)
         for assignment in list(created):
-            if getattr(assignment.assignable, "built_ins_id", None) is None:
+            if assignment.assignable.built_ins_id is None:
                 continue
             if assignment.assignable in chain:
                 raise ValueError(
@@ -1282,7 +1284,6 @@ class Operation:
                 )
             nested = self.reconcile_defaults(
                 assignment,
-                kinds=kinds,
                 gang=gang,
                 strict=strict,
                 event_kind=event_kind,
