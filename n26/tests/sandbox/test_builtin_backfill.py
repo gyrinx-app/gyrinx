@@ -311,6 +311,43 @@ class TestWhatTheOwnerAlreadySettled:
         assert held.get().ledger_entry.reason == Reason.REWARD
         assert settled(gang).rating == rating
 
+    def test_a_legacy_ammo_line_under_the_gun_is_not_granted_twice(
+        self, gang, person_type, gang_type, default_pack, launcher
+    ):
+        """A set's ammo member materialised before provenance existed
+        looks exactly like the gun's own free line — caused by the gun,
+        reason DEFAULT — so tagging leaves it alone; catch-up must still
+        see it under the gun rather than stack a second."""
+        from n26.library.models import WeaponProfile
+
+        smoke = WeaponProfile.objects.create(
+            name="Smoke", weapon=launcher, price=10, position=1
+        )
+        profile = create_profile("Gunner", person_type, gang_type, price=50)
+        gun_member = add_built_in(profile, launcher)
+        ammo_member = add_built_in(profile, smoke, gun_member=gun_member)
+        fighter = hire(gang, profile, "Ana", paid=50)
+        strip_provenance(gang)
+        rating = settled(gang).rating
+
+        record = run_backfill()
+
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["totals"]["granted"] == 0
+        assert record.summary["held_another_way"] == [
+            "Ana (Gunner) already carries Smoke under its Launcher"
+        ]
+        gun = Assignment.objects.get(
+            materialised_from=gun_member, materialised_for=fighter.membership
+        )
+        lines = Assignment.objects.filter(
+            parent=gun, weapon_profile=smoke, archived=False
+        )
+        assert lines.count() == 1
+        assert lines.get().materialised_from_id is None
+        assert not Assignment.objects.filter(materialised_from=ammo_member).exists()
+        assert settled(gang).rating == rating
+
 
 class TestRunningTwice:
     """The walk is idempotent: a second run tags nothing and grants

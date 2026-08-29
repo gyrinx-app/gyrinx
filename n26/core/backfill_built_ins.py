@@ -191,12 +191,10 @@ def _catch_up_carriers(op, gang, outcome):
         host_gang = carrier.gang if hosted_on_gang else None
         omit = []
         for member in plan_defaults(carrier).missing:
-            if _held_another_way(member, carrier, host_gang):
+            held = _held_another_way(member, carrier, host_gang)
+            if held:
                 omit.append(member.pk)
-                outcome.held_another_way.append(
-                    f"{_name_of(carrier, host_gang)} already holds "
-                    f"{member.assignable} another way"
-                )
+                outcome.held_another_way.append(held)
         result = op.reconcile_defaults(
             carrier,
             gang=host_gang,
@@ -224,29 +222,62 @@ def _carriers_in(gang):
 
 
 def _held_another_way(member, carrier, host_gang):
-    """Whether the carrier's model — or the gang, for a gang-hosted
-    carrier — holds a live copy of the member's thing that no set
-    materialised: bought, rewarded, edited in, or granted by a
-    modifier. Such a copy carries no provenance and a reason other
-    than ``DEFAULT``."""
+    """A sentence saying how the carrier's model — or the gang, for a
+    gang-hosted carrier — already holds the member's thing without a
+    set having materialised it, or None where it does not.
+
+    For most kinds that is a live copy with no provenance and a reason
+    other than ``DEFAULT``: bought, rewarded, edited in, or granted by
+    a modifier. Ammo is read differently: a firing line stacked on a
+    gun with no provenance is held whatever its reason, because a
+    weapon's own free lines and a legacy ammo grant are written in the
+    same shape, and a second line under the same gun is the duplicate
+    this check exists to prevent. The gun is the one the member would
+    land under — its named gun member's live copy for this carrier, or
+    any live gun of that weapon on the host where it names none.
+    """
+    from n26.core.builtins import copies_of
+    from n26.library.models import WeaponProfile
+
     assignable = member.assignable
-    scope = {
-        Assignment.field_for(assignable): assignable,
-        "archived": False,
-        "removes": False,
-        "materialised_from__isnull": True,
-    }
     if host_gang is not None:
-        scope["gang"] = host_gang
+        host = {"gang": host_gang}
     elif carrier.miniature_root_id is not None:
-        scope["miniature_root_id"] = carrier.miniature_root_id
+        host = {"miniature_root_id": carrier.miniature_root_id}
     else:
-        return False
-    return (
-        Assignment.objects.filter(**scope)
+        return None
+    who = _name_of(carrier, host_gang)
+
+    if isinstance(assignable, WeaponProfile):
+        if member.gun_member_id is not None:
+            guns = copies_of(member.gun_member, carrier, include_archived=False)
+        else:
+            guns = Assignment.objects.filter(
+                weapon=assignable.weapon, archived=False, **host
+            )
+        line = Assignment.objects.filter(
+            weapon_profile=assignable,
+            parent__in=guns,
+            archived=False,
+            removes=False,
+            materialised_from__isnull=True,
+        ).first()
+        if line is None:
+            return None
+        return f"{who} already carries {assignable} under its {assignable.weapon}"
+
+    held = (
+        Assignment.objects.filter(
+            archived=False,
+            removes=False,
+            materialised_from__isnull=True,
+            **{Assignment.field_for(assignable): assignable},
+            **host,
+        )
         .exclude(ledger_entry__reason=Reason.DEFAULT)
         .exists()
     )
+    return f"{who} already holds {assignable} another way" if held else None
 
 
 def _name_of(carrier, host_gang):
