@@ -291,8 +291,7 @@ class TestARollTable:
     """A picklist may be a roll table: it names its dice, and each
     member claims the band of rolls that lands on it. The bands are
     numbers and nothing else — a lookup only ever asks about a roll that
-    happened, so "31-46" on a D66 is a band of twelve rolls, not sixteen,
-    and no arithmetic here pretends otherwise.
+    happened, so "31-46" on a D66 is a band of twelve rolls, not sixteen.
     """
 
     @pytest.fixture
@@ -349,12 +348,27 @@ class TestARollTable:
             )
 
     def test_a_band_on_a_list_that_names_no_dice_is_refused_in_words(
-        self, injury, legacies, legacy
+        self, legacies, legacy
     ):
-        member = add_picklist_member(legacies, create_pickable("Escher", legacy))
-        member.roll_low = member.roll_high = 11
+        """Refused by the verb, which is the path every page and every
+        importer takes; the model's own check is the backstop for a
+        bare write."""
         with pytest.raises(ValidationError, match="names no dice"):
-            member.full_clean()
+            add_picklist_member(
+                legacies, create_pickable("Escher", legacy), roll_low=11
+            )
+
+    def test_a_half_roll_table_is_refused_in_words(self, injury):
+        with pytest.raises(ValidationError, match="names its dice and how"):
+            create_picklist("Half", injury, dice="d66")
+        with pytest.raises(ValidationError, match="names its dice and how"):
+            create_picklist("Other half", injury, roll_selects="band")
+
+    def test_the_database_refuses_a_half_roll_table_too(self, injury):
+        from n26.library.models import Picklist
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Picklist.objects.create(name="Bare", slot_type=injury, dice="d66")
 
     def test_the_dice_are_a_closed_set(self, injury):
         from n26.library.models import Picklist

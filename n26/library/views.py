@@ -157,7 +157,7 @@ def _describe_picklist_member(member):
     if member.label_override:
         notes.append(f"the {member.pickable} pickable, under another name")
     # The band leads on a roll table, as the book prints it.
-    label = f"{member.band}  {member.label}" if member.band else member.label
+    label = f"{member.band} — {member.label}" if member.band else member.label
     return label, notes
 
 

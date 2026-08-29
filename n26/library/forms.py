@@ -232,10 +232,16 @@ def _form_fields(spec, name, kind):
             ),
         }
     if isinstance(kind, Choice):
+        # A choice the verb defaults may be left alone, and a select
+        # with no empty entry submits its first option — so the blank
+        # has to be offered, or "none of these" is unsayable and every
+        # form quietly picks the first.
+        wanted = _is_required(spec, name)
+        blank = [] if wanted else [("", "—")]
         return {
             name: forms.ChoiceField(
-                choices=kind.choices,
-                required=_is_required(spec, name),
+                choices=blank + list(kind.choices),
+                required=wanted,
                 help_text=kind.help,
                 label=kind.label,
             )

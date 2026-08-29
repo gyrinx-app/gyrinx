@@ -158,9 +158,9 @@ class Pickable(Content, Assignable):
 
 
 class Dice(models.TextChoices):
-    """The dice a roll table is rolled on. A closed set, because the
-    authoring page has to enumerate every roll to say whether a table
-    covers them."""
+    """The dice a roll table is rolled on. A closed set, so that every
+    roll a die can produce is known and a table's bands can be checked
+    against them."""
 
     D3 = "d3", "D3"
     D6 = "d6", "D6"
@@ -210,7 +210,7 @@ class Picklist(Content):
     Collections.
 
     A list that names dice is a roll table: its members claim bands of
-    rolls, and the authoring page says whether those bands cover the die.
+    rolls, and it says how a roll finds its row.
     """
 
     family = Family.CHOICE
@@ -255,6 +255,14 @@ class Picklist(Content):
                 "slot_type",
                 Lower("name"),
                 name="picklist_unique_per_pack",
+            ),
+            # A roll table names its die and how a roll finds its row,
+            # or is not a roll table: one without the other is a table
+            # nothing could read.
+            models.CheckConstraint(
+                condition=models.Q(dice="", roll_selects="")
+                | (~models.Q(dice="") & ~models.Q(roll_selects="")),
+                name="picklist_roll_table_is_whole",
             ),
         ]
 
