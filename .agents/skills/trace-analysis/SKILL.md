@@ -17,6 +17,7 @@ You are helping analyze OpenTelemetry/Google Cloud Trace files for performance o
 ## When to Use
 
 This skill applies when:
+
 - User wants to analyze a trace file for performance issues
 - User mentions "trace playbook" or similar
 - User has a `.json` trace file from Google Cloud Trace
@@ -60,6 +61,7 @@ This skill applies when:
 ## Output Location
 
 All analysis outputs go to `playbooks/trace/output/{trace-id}/`:
+
 - `SUMMARY.md` - Start here for executive summary
 - `groups/` - Per-operation analysis
 - `aggregation/` - Pattern clusters
