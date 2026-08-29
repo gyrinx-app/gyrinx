@@ -299,8 +299,9 @@ def choose(request, pk, slot):
             offer=offer.label,
             picked=picked.name,
         )
-        # The confirmation uses the verb the button did: a several-pick
-        # choice has picks added, a choice of one is chosen.
+        # The confirmation says what happened in the choice's own terms: a
+        # several-pick choice has picks added to it, a choice of one is
+        # chosen — whatever the button that sent it was called.
         if dropped:
             said = "Removed"
         elif offer.takes_several:
