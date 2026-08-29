@@ -98,36 +98,44 @@ question and Back closes it.
                                   value="{{ query }}"
                                   placeholder="Search by username" />
             </div>
-            <span id="looking"
-                  class="htmx-indicator w-full items-center justify-center gap-2 py-4 text-sm text-muted">
-                <c-ui.spinner size="sm" />
-                Searching
-            </span>
-            <div id="people-found" class="flex flex-col">
-                {% for person in people %}
-                    <div class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                        <span class="min-w-0 flex-1 text-base">{{ person.username }}</span>
-                        {% if person.pk in asked_already %}
-                            <span class="text-sm text-muted">Already asked</span>
-                        {% else %}
-                            {% comment %}
+            {% comment %}
+            A translucent veil over the results, rather than a row pushed
+            above them: what is already there keeps its height and shows
+            through, so an answer arriving swaps the rows without moving
+            anything further down the page. It sits outside the element htmx
+            replaces, which would otherwise take the veil with it.
+            {% endcomment %}
+            <div id="looking" class="n26-awaiting relative">
+                <span class="n26-awaiting-mark absolute inset-0 z-10 items-center justify-center gap-2 bg-white/70 text-sm text-muted dark:bg-ink-950/70">
+                    <c-ui.spinner size="sm" />
+                    Searching
+                </span>
+                <div id="people-found" class="n26-awaiting-rows flex flex-col">
+                    {% for person in people %}
+                        <div class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <span class="min-w-0 flex-1 text-base">{{ person.username }}</span>
+                            {% if person.pk in asked_already %}
+                                <span class="text-sm text-muted">Already asked</span>
+                            {% else %}
+                                {% comment %}
                             A link, not a button: it opens the message box by
                             going to the address that draws it.
-                            {% endcomment %}
-                            <c-ui.button size="sm"
-                                         variant="primary"
-                                         href="?q={{ query|urlencode }}&amp;invite={{ person.pk }}">
-                                Invite
-                            </c-ui.button>
+                                {% endcomment %}
+                                <c-ui.button size="sm"
+                                             variant="primary"
+                                             href="?q={{ query|urlencode }}&amp;invite={{ person.pk }}">
+                                    Invite
+                                </c-ui.button>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        {% if query %}
+                            <p class="py-2 text-sm text-muted">Nobody by that name.</p>
+                        {% else %}
+                            <p class="py-2 text-sm text-muted">Type a username to find somebody.</p>
                         {% endif %}
-                    </div>
-                {% empty %}
-                    {% if query %}
-                        <p class="py-2 text-sm text-muted">Nobody by that name.</p>
-                    {% else %}
-                        <p class="py-2 text-sm text-muted">Type a username to find somebody.</p>
-                    {% endif %}
-                {% endfor %}
+                    {% endfor %}
+                </div>
             </div>
         </section>
     </div>
