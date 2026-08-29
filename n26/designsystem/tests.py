@@ -139,7 +139,7 @@ class TestTheChoicePicksPage:
         buttons, so each act says what it acts on."""
         page = reader.get("/n26/design/c/choice-picks/").content.decode()
         assert 'aria-label="Remove Cawdor"' in page
-        assert 'aria-label="Choose Ironhead Squats"' in page
+        assert 'aria-label="Add Ironhead Squats"' in page
 
 
 class TestTheOwnedDialogsPage:
@@ -371,3 +371,15 @@ class TestTheModelCardsTooltips:
         assert 'role="tooltip"' in page
         assert "From Leader" in page
         assert "Rating, including weapons and wargear" in page
+
+    def test_both_kinds_of_open_choice_draw_their_way_in(self, reader):
+        """The sample carries an open one-pick choice and a several-pick
+        choice with room left. A line built without a slot behind it
+        defaults to the one-pick rule, so the open one must still prompt
+        — a sample that quietly drew nothing would document the wrong
+        thing."""
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        legacy = page[page.index("Gang Legacy</dt>") :]
+        assert ">Choose</" in legacy[: legacy.index("</dd>")]
+        injuries = page[page.index("Lasting Injuries</dt>") :]
+        assert ">Add</" in injuries[: injuries.index("</dd>")]

@@ -313,9 +313,19 @@ class ChoiceLine:
     href: str = ""
     #: Whether the choice will take another pick. A choice that holds one
     #: is full the moment it is resolved; one worked at a pick at a time
-    #: stays open past its first, and the card keeps offering Choose
-    #: beside what is already held until this says otherwise.
-    is_full: bool = True
+    #: stays open past its first, and the card keeps offering a way in
+    #: beside what is already held until this says otherwise. Left unsaid,
+    #: it follows the one-pick rule — full once chosen — so a line built
+    #: without a slot behind it, as a sample or a preview is, draws right.
+    is_full: bool | None = None
+    #: Whether the choice may hold more than one pick. Decides the word
+    #: on the control: a choice of one is chosen, a choice of several has
+    #: picks added to it.
+    takes_several: bool = False
+
+    def __post_init__(self):
+        if self.is_full is None:
+            object.__setattr__(self, "is_full", self.is_resolved)
 
     @property
     def is_resolved(self):
@@ -822,6 +832,7 @@ def _choice_line(slot, host):
         kind_label=slot.kind_label,
         chosen=slot.chosen_name,
         is_full=slot.is_full,
+        takes_several=slot.max_picks > 1,
         key=_slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
