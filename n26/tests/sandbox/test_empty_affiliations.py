@@ -310,7 +310,7 @@ class TestWhatItRefuses:
 
         assert fossils.ok
         assert any(
-            f"the menu “{menu}”: not everything in it names Affiliation" in note
+            f"the menu “{menu}”: not everything in it is going" in note
             for note in fossils.left_alone
         )
 

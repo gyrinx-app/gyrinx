@@ -29,9 +29,9 @@ Four rules keep the reading honest:
 * A kind row anything still names cannot be deleted at all. Those
   answers belong to a conversion that has not run, so this refuses and
   says which, rather than running before its turn.
-* A menu is deleted only when everything in it names Affiliation and
-  nothing outside what is going asks for it. A menu holding one live
-  entry keeps its shape and loses only the entries.
+* A menu is deleted only when everything in it is going and nothing
+  outside what is going asks for it. A menu holding one live entry
+  keeps its shape and loses only the entries.
 * A marker that grants a slot, that nobody holds and nothing is built
   with, is leftover conversion wiring. The grant stays if anything else
   carries it — the real doors still need it. Markers a profile is built
@@ -314,8 +314,8 @@ def find():
         )
         if held - doomed_entries:
             left_alone.append(
-                f"the menu “{collection}”: not everything in it names "
-                "Affiliation, so it loses those entries and keeps its shape"
+                f"the menu “{collection}”: not everything in it is going, "
+                "so it loses those entries and keeps its shape"
             )
             continue
         asked_of = set(
