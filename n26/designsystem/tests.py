@@ -139,7 +139,7 @@ class TestTheChoicePicksPage:
         buttons, so each act says what it acts on."""
         page = reader.get("/n26/design/c/choice-picks/").content.decode()
         assert 'aria-label="Remove Cawdor"' in page
-        assert 'aria-label="Choose Ironhead Squats"' in page
+        assert 'aria-label="Add Ironhead Squats"' in page
 
 
 class TestTheOwnedDialogsPage:

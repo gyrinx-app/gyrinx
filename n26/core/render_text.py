@@ -83,7 +83,7 @@ def render_model_card(card, indent=""):
         # link here. The provenance is deliberately not shown.
         chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
         if choice.is_resolved and not choice.is_full:
-            chosen = f"{chosen} (choose)"
+            chosen = f"{chosen} (add)"
         lines.append(f"{indent}  {choice.kind_label}: {chosen}")
     if card.equipment:
         names = ", ".join(line.name for line in card.equipment)
@@ -135,7 +135,7 @@ def render_gang_sheet(sheet):
     for choice in sheet.choices:
         chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
         if choice.is_resolved and not choice.is_full:
-            chosen = f"{chosen} (choose)"
+            chosen = f"{chosen} (add)"
         lines.append(f"{choice.kind_label}: {chosen}")
     if sheet.stash:
         lines.append(f"Stash — {sheet.stash_rating}cr")

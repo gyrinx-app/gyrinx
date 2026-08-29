@@ -80,7 +80,7 @@ def detail_groups(card) -> list[DetailGroup]:
         if choice.is_resolved and not choice.is_full:
             # On paper as on screen: a choice with room left says so,
             # because the sheet is read away from the picker.
-            chosen = f"{chosen} (choose)"
+            chosen = f"{chosen} (add)"
         groups.append(DetailGroup(choice.kind_label, chosen))
     for effect in card.effects:
         # "(when taken)" on paper as on screen. A printed card is read away

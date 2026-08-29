@@ -1752,7 +1752,7 @@ class TestAChoiceThatHoldsSeveral:
         body = client.get(href).content.decode()
 
         assert "Ironhead Squats" in body
-        assert button_labels(body).count("Choose") == 2
+        assert button_labels(body).count("Add") == 2
         assert_reconciled(gang)
 
     def test_the_page_ends_with_no_save(self, gang, wanderer, client):
@@ -1761,7 +1761,7 @@ class TestAChoiceThatHoldsSeveral:
         said = button_labels(client.get(picker_href(gang)).content.decode())
 
         assert "Save" not in said
-        assert said.count("Choose") == 3
+        assert said.count("Add") == 3
         assert_reconciled(gang)
 
     def test_a_choice_of_one_still_ends_with_save(self, gang, hunter, client, owner):
@@ -1773,7 +1773,7 @@ class TestAChoiceThatHoldsSeveral:
         said = button_labels(client.get(picker_href(gang)).content.decode())
 
         assert "Save" in said
-        assert "Choose" not in said
+        assert "Add" not in said
         assert_reconciled(gang)
 
 
@@ -2109,9 +2109,9 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
 
         body = client.get(href).content.decode()
         assert 'aria-label="Remove Eye Injury"' in body
-        assert 'aria-label="Choose Eye Injury again"' in body
+        assert 'aria-label="Add Eye Injury again"' in body
         # The result not yet held offers only the one way in.
-        assert 'aria-label="Choose Out Cold"' in body
+        assert 'aria-label="Add Out Cold"' in body
         assert 'aria-label="Remove Out Cold"' not in body
 
     def test_the_card_keeps_its_choose_beside_a_held_result(
@@ -2125,7 +2125,7 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         # The row, not the flash message that also names the choice.
         row = body[body.index("Lasting Injuries</dt>") :]
         assert "Out Cold" in row
-        assert ">Choose</" in row[: row.index("</dd>")]
+        assert ">Add</" in row[: row.index("</dd>")]
 
     def test_and_stops_asking_once_full(self, client, owner, gang, yolanda, results):
         client.force_login(owner)
@@ -2137,7 +2137,7 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         # The row, not the flash message that also names the choice.
         row = body[body.index("Lasting Injuries</dt>") :]
         assert "Eye Injury, Eye Injury" in row
-        assert ">Choose</" not in row[: row.index("</dd>")]
+        assert ">Add</" not in row[: row.index("</dd>")]
 
     def test_a_third_click_on_a_full_choice_is_refused_in_words(
         self, client, owner, gang, yolanda, results

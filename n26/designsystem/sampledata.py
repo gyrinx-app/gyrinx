@@ -1418,11 +1418,12 @@ def model_card():
                 ),
             ),
             # A choice worked at a pick at a time, with room left: what it
-            # holds is drawn, and Choose stays beside it until it is full.
+            # holds is drawn, and Add stays beside it until it is full.
             ChoiceLine(
                 kind_label="Lasting Injuries",
                 chosen="Eye Injury, Out Cold",
                 is_full=False,
+                takes_several=True,
                 href="#",
                 provenance=Provenance(
                     source="Ganger", source_kind="profile", computed=True
