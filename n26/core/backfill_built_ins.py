@@ -12,12 +12,16 @@ settles both, one gang at a time, inside one ``operation(gang)``:
    its carrier's sets (``sets_for``: the carrier's built-ins and the
    option sets it took) naming the same assignable — and the pair is
    written onto it. A weapon's own free firing lines are not set
-   members and are left alone. Where a set names the same assignable
-   more than once (twin guns), the carrier's untagged copies are paired
-   to the members newest copy first, one per member, as many as the
-   set has members and provenance does not already account for; a copy
-   left over stays untagged and is counted as ambiguous. A copy whose
-   member is gone stays untagged and is counted.
+   members and are left alone. Sets claim copies one at a time, never
+   pooled — the option sets first, last recorded first, then the
+   built-ins — so that where two sets name the same thing each gets
+   the copies it wrote (``_tag_legacy_grants``). Within a set, where
+   it names the same assignable more than once (twin guns), the
+   carrier's untagged copies are paired to the members newest copy
+   first, one per member, as many as the set has members and
+   provenance does not already account for; a copy left over stays
+   untagged and is counted as ambiguous. A copy whose member is gone
+   stays untagged and is counted.
 
    Tagging writes provenance and nothing else — no ledger entry, no
    event, no repin. It changes how a grant is recorded, not what the
@@ -45,7 +49,7 @@ from dataclasses import dataclass, field
 
 from django.db.models import Count, Q
 
-from n26.core.builtins import plan_defaults, sets_for
+from n26.core.builtins import plan_defaults
 from n26.core.models import Assignment, Gang, LedgerEvent, Reason
 from n26.core.operations import operation
 from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
@@ -115,6 +119,21 @@ def catch_up(gang_id):
 
 
 def _tag_legacy_grants(gang, outcome):
+    """Give every legacy grant in the gang its provenance.
+
+    Grants are grouped by carrier and by the thing they name, then
+    each of the carrier's sets claims copies one set at a time — never
+    pooled — because the built-ins and a chosen option set may name
+    the same thing, and pooling their members would pair the copies
+    backwards. The invariant: the pairing written here is the one
+    ``_granted_rows(carrier, set)`` reads for every set. That read
+    takes a set's copies newest first, on the rule that where the
+    built-ins and an option set grant the same thing, the option's copy
+    is the newer one — the built-ins materialise first, then the option
+    sets in the order they were recorded. So the option sets claim
+    first, the one recorded last claiming first from the newest copies,
+    and the built-ins set claims last, from what remains.
+    """
     legacy = (
         Assignment.objects.filter(
             gang_root=gang, caused_by__isnull=False, **LEGACY_SHAPE
@@ -134,34 +153,55 @@ def _tag_legacy_grants(gang, outcome):
     for (carrier_id, kind, assignable_id), copies in groups.items():
         carrier = copies[0].caused_by
         if carrier_id not in sets_by_carrier:
-            sets_by_carrier[carrier_id] = sets_for(carrier)
-        candidates = [
-            member
-            for default_set in sets_by_carrier[carrier_id]
-            for member in default_set.members.filter(**{f"{kind}_id": assignable_id})
-        ]
-        if not candidates:
+            sets_by_carrier[carrier_id] = _sets_in_claiming_order(carrier)
+        remaining = list(copies)
+        named = False
+        accounted = 0
+        for default_set in sets_by_carrier[carrier_id]:
+            members = list(
+                default_set.members.filter(**{f"{kind}_id": assignable_id}).order_by(
+                    "pk"
+                )
+            )
+            if not members:
+                continue
+            named = True
+            # A member already accounted for by a tagged copy — live or
+            # archived — is settled; only the rest may claim a legacy copy.
+            settled = set(
+                Assignment.objects.filter(
+                    materialised_from__in=members, materialised_for=carrier
+                ).values_list("materialised_from_id", flat=True)
+            )
+            accounted += len(settled)
+            open_members = [member for member in members if member.pk not in settled]
+            for copy, member in zip(remaining, open_members, strict=False):
+                copy.materialised_from = member
+                copy.materialised_for = carrier
+                copy.save(
+                    update_fields=["materialised_from", "materialised_for", "modified"]
+                )
+                outcome.tagged += 1
+            remaining = remaining[len(open_members) :]
+        if not named:
             outcome.unmatched += len(copies)
             continue
-        # A member already accounted for by a tagged copy — live or
-        # archived — is settled; only the rest may claim a legacy copy.
-        accounted = set(
-            Assignment.objects.filter(
-                materialised_from__in=candidates, materialised_for=carrier
-            ).values_list("materialised_from_id", flat=True)
-        )
-        open_members = [member for member in candidates if member.pk not in accounted]
-        for copy, member in zip(copies, open_members, strict=False):
-            copy.materialised_from = member
-            copy.materialised_for = carrier
-            copy.save(
-                update_fields=["materialised_from", "materialised_for", "modified"]
-            )
-            outcome.tagged += 1
-        left_over = max(len(copies) - len(open_members), 0)
-        already = min(left_over, len(accounted))
+        already = min(len(remaining), accounted)
         outcome.already += already
-        outcome.ambiguous += left_over - already
+        outcome.ambiguous += len(remaining) - already
+
+
+def _sets_in_claiming_order(carrier):
+    """The carrier's sets, in the order they claim legacy copies: the
+    chosen option sets, last recorded first, then the built-ins. The
+    reverse of the order they materialised in, so that newest-first
+    claiming hands each set the copies it wrote."""
+    chosen = carrier.chosen_options.select_related("default_set").order_by("-pk")
+    ordered = [taken.default_set for taken in chosen]
+    built = getattr(carrier.assignable, "built_ins", None)
+    if built is not None and built.pk not in {s.pk for s in ordered}:
+        ordered.append(built)
+    return ordered
 
 
 def _of_kinds(kinds):

@@ -26,11 +26,13 @@ from django.urls import reverse
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import operations, resolve_operation
 from n26.core.models import Assignment, LedgerEvent, Reason
+from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library.models import DefaultAssignment
 from n26.maintenance import Operation, backfill_built_ins, backfill_built_ins_view
 from n26.tests.sandbox.actions import (
     add_built_in,
+    create_option_group,
     create_profile,
     create_rule,
     create_skill,
@@ -256,6 +258,76 @@ class TestEveryKindOfCarrier:
             materialised_from=fancy_style, materialised_for=went_plain.membership
         ).exists()
         assert not legacy_grants(gang).exists()
+        settled(gang)
+
+    def test_a_built_in_and_an_option_naming_the_same_gun_each_keep_their_own_copy(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        """The built-ins materialise first, so the older copy is the
+        built-in's and the newer the option's — and dropping the option
+        later must take only its own copy."""
+        autopistol = create_weapon("Autopistol", profiles=[("Standard", 0)], price=10)
+        profile = create_profile("Pistolier", person_type, gang_type, price=50)
+        built_in = add_built_in(profile, autopistol)
+        plain = offer_option(profile, "Plain", thing=create_rule("Plain Style"))
+        twin = offer_option(profile, "Second pistol", thing=autopistol)
+        twin_member = twin.default_set.members.get()
+        fighter = hire_with_option(gang, profile, "Ana", option=twin.default_set)
+        strip_provenance(gang)
+
+        run_backfill()
+
+        older, newer = Assignment.objects.filter(
+            miniature_root=fighter, weapon=autopistol
+        ).order_by("pk")
+        assert older.materialised_from_id == built_in.pk
+        assert newer.materialised_from_id == twin_member.pk
+
+        with operation(gang, actor=gang.owner) as op:
+            op.rechoose(fighter.membership, option=plain.default_set)
+
+        older.refresh_from_db()
+        newer.refresh_from_db()
+        assert older.archived is False
+        assert newer.archived is True
+        settled(gang)
+
+    def test_two_options_naming_the_same_thing_each_unwind_their_own_copy(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        """Two chosen sets naming one thing pair deterministically: the
+        set recorded last claims the newest copy, so each copy leaves
+        with the set that brought it."""
+        grit = create_rule("Grit")
+        profile = create_profile("Stubborn", person_type, gang_type, price=50)
+        first = offer_option(profile, "First grit", thing=grit)
+        extra = create_option_group(profile, "Extra", choose="any")
+        second = offer_option(profile, "Second grit", thing=grit, group=extra)
+        first_member = first.default_set.members.get()
+        second_member = second.default_set.members.get()
+        fighter = hire_with_option(
+            gang, profile, "Ana", option=[first.default_set, second.default_set]
+        )
+        strip_provenance(gang)
+
+        record = run_backfill()
+
+        assert record.summary["totals"]["ambiguous"] == 0
+        older, newer = Assignment.objects.filter(
+            miniature_root=fighter, rule=grit
+        ).order_by("pk")
+        recorded_last = fighter.membership.chosen_options.order_by("-pk").first()
+        assert recorded_last.default_set_id == second.default_set.pk
+        assert older.materialised_from_id == first_member.pk
+        assert newer.materialised_from_id == second_member.pk
+
+        with operation(gang, actor=gang.owner) as op:
+            op.rechoose(fighter.membership, option=[first.default_set])
+
+        older.refresh_from_db()
+        newer.refresh_from_db()
+        assert older.archived is False
+        assert newer.archived is True
         settled(gang)
 
 
