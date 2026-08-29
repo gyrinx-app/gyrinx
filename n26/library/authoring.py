@@ -554,12 +554,10 @@ def create_picklist(name, slot_type, members=(), dice="", roll_selects="", **kwa
     its row on it.
     """
     from n26.library.models import Picklist
+    from n26.library.models.slots import ROLL_TABLE_IS_WHOLE
 
     if bool(dice) != bool(roll_selects):
-        raise ValidationError(
-            "A roll table names its dice and how a roll finds its row, or "
-            "neither: one without the other is a table nothing could read."
-        )
+        raise ValidationError(ROLL_TABLE_IS_WHOLE)
     picklist = Picklist.objects.create(
         name=name, slot_type=slot_type, dice=dice, roll_selects=roll_selects, **kwargs
     )
@@ -602,6 +600,10 @@ def add_picklist_member(
         position = picklist.members.count()
     if roll_low is not None and roll_high is None:
         roll_high = roll_low
+    from n26.library.models.slots import band_problem
+
+    if problem := band_problem(roll_low, roll_high):
+        raise ValidationError(problem)
     return PicklistMember.objects.create(
         picklist=picklist,
         pickable=pickable,

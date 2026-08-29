@@ -341,10 +341,15 @@ class TestARollTable:
                 roll_high=51,
             )
 
-    def test_a_band_running_backwards_is_refused(self, table, injury):
+    def test_the_database_refuses_a_backwards_band_too(self, table, injury):
+        from n26.library.models import PicklistMember
+
         with pytest.raises(IntegrityError), transaction.atomic():
-            add_picklist_member(
-                table, create_pickable("Backwards", injury), roll_low=26, roll_high=21
+            PicklistMember.objects.create(
+                picklist=table,
+                pickable=create_pickable("Backwards", injury),
+                roll_low=26,
+                roll_high=21,
             )
 
     def test_a_band_on_a_list_that_names_no_dice_is_refused_in_words(
@@ -369,6 +374,38 @@ class TestARollTable:
 
         with pytest.raises(IntegrityError), transaction.atomic():
             Picklist.objects.create(name="Bare", slot_type=injury, dice="d66")
+
+    def test_the_model_refuses_a_half_roll_table_where_a_verb_was_bypassed(
+        self, injury
+    ):
+        """An edit through the admin, or any path that runs clean(), is
+        turned away in words rather than by the database."""
+        from n26.library.models import Picklist
+
+        half = Picklist(name="Half", slot_type=injury, dice="d66")
+        with pytest.raises(ValidationError, match="names its dice and how"):
+            half.clean()
+
+    def test_the_high_end_of_a_band_alone_is_refused_in_words(self, table, injury):
+        with pytest.raises(ValidationError, match="both ends or neither"):
+            add_picklist_member(
+                table, create_pickable("Half", injury), roll_low=None, roll_high=51
+            )
+
+    def test_a_band_running_backwards_is_refused_in_words(self, table, injury):
+        with pytest.raises(ValidationError, match="runs upwards"):
+            add_picklist_member(
+                table, create_pickable("Backwards", injury), roll_low=26, roll_high=21
+            )
+
+    def test_the_model_says_the_same_where_a_verb_was_bypassed(self, table, injury):
+        from n26.library.models import PicklistMember
+
+        member = PicklistMember(
+            picklist=table, pickable=create_pickable("Stray", injury), roll_high=51
+        )
+        with pytest.raises(ValidationError, match="both ends or neither"):
+            member.clean()
 
     def test_the_dice_are_a_closed_set(self, injury):
         from n26.library.models import Picklist

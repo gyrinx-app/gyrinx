@@ -196,6 +196,29 @@ class RollSelects(models.TextChoices):
     THRESHOLD = "threshold", "Every row at or below the roll"
 
 
+#: One statement of the rule, so the verb that refuses in words and the
+#: constraint that holds it say the same thing.
+ROLL_TABLE_IS_WHOLE = (
+    "A roll table names its dice and how a roll finds its row, or neither: "
+    "one without the other is a table nothing could read."
+)
+
+
+def band_problem(roll_low, roll_high):
+    """What is wrong with a band, in words — or None where nothing is.
+
+    Both ends or neither, and running upwards. Stated once so the verb,
+    the model's own check and the constraint cannot come to disagree."""
+    if (roll_low is None) != (roll_high is None):
+        return (
+            "A band has both ends or neither: the lowest and the highest "
+            "roll that land here, or nothing."
+        )
+    if roll_low is not None and roll_low > roll_high:
+        return f"A band runs upwards, and {roll_low}-{roll_high} does not."
+    return None
+
+
 class Picklist(Content):
     """A flat, ordered list of Pickables.
 
@@ -268,6 +291,11 @@ class Picklist(Content):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if bool(self.dice) != bool(self.roll_selects):
+            raise ValidationError({"dice": ROLL_TABLE_IS_WHOLE})
 
     @property
     def may_offer(self):
@@ -366,6 +394,8 @@ class PicklistMember(Content):
 
     def clean(self):
         super().clean()
+        if problem := band_problem(self.roll_low, self.roll_high):
+            raise ValidationError({"roll_low": problem})
         if self.roll_low is not None and self.picklist_id and not self.picklist.dice:
             raise ValidationError(
                 {
