@@ -14,7 +14,6 @@ from __future__ import annotations
 import zoneinfo
 from datetime import datetime
 from functools import cache
-from zoneinfo import ZoneInfo
 
 COOKIE_NAME = "gyrinx_tz"
 SESSION_TZ_KEY = "timezone"
@@ -463,7 +462,7 @@ def timezone_label(name: str) -> str:
     """``Europe/London (UTC+01:00)`` using the current offset in that zone."""
     if not is_valid_timezone(name):
         return name
-    now = datetime.now(ZoneInfo(name))
+    now = datetime.now(zoneinfo.ZoneInfo(name))
     offset = now.strftime("%z")
     if len(offset) == 5:
         pretty = f"UTC{offset[:3]}:{offset[3:]}"

@@ -11,7 +11,9 @@
             if (!tz) return;
             var match = document.cookie.match(/(?:^|; )gyrinx_tz=([^;]*)/);
             if (match && decodeURIComponent(match[1]) === tz) return;
-            document.cookie = "gyrinx_tz=" + encodeURIComponent(tz) + ";path=/;max-age=31536000;samesite=lax";
+            document.cookie = "gyrinx_tz=" + encodeURIComponent(tz) +
+                ";path=/;max-age=31536000;samesite=lax" +
+                (location.protocol === "https:" ? ";secure" : "");
         } catch (e) {}
     })();
 </script>
