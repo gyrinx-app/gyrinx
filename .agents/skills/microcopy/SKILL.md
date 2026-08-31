@@ -136,7 +136,7 @@ required). When in doubt, put the words back.
 
 The feature is described, never sold. Ban outright: "successfully", trailing
 "!", "Get started", "Ready to…" headings, "powerful", "seamless", "robust",
-"leverage", "unlock", "delve", "We are sorry". Also the shapes: false
+"leverage", "unlock", "delve", "Oops", "We are sorry". Also the shapes: false
 antithesis ("It's not X, it's Y"), staccato triads ("Clear. Simple. Done."),
 rule-of-three adjective padding.
 

@@ -50,7 +50,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   author-facing string** (template text, labels, help_text, `messages.*`,
   emails, admin screens). Plain, explicit, one-pass comprehension; no
   cleverness, no personification, no marketing-speak. The skill
-  (`.claude/skills/microcopy/SKILL.md`) is the canonical home of the word
+  (`.agents/skills/microcopy/SKILL.md`) is the canonical home of the word
   bans. A warn-only hook (`scripts/check_microcopy.py`) flags the greppable
   subset after each edit; the **copywriter** agent does the full pass.
 - Look up model definitions before use - don't assume field names
@@ -288,7 +288,7 @@ Keep the fully technical version for commit messages and code comments.
 **Commit and PR titles have their own rules — see
 [.github/COMMIT_STYLE.md](.github/COMMIT_STYLE.md).** Read that file rather than
 copying the phrasing of recent commits; the log has drifted before. Note that the
-noun bans in [.claude/skills/microcopy/SKILL.md](.claude/skills/microcopy/SKILL.md)
+noun bans in [.agents/skills/microcopy/SKILL.md](.agents/skills/microcopy/SKILL.md)
 (no "shelf", no "shop", no "row" for an assignment, and others)
 govern product copy, UI strings and identifiers — they do not apply to commit
 titles, which should freely name model classes, functions and flags.

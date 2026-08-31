@@ -24,7 +24,7 @@ for the specifics.
 input with `safe_redirect` / `get_return_url` (`gyrinx/http.py`).
 
 **Microcopy is plain, explicit, and invisible.** The canonical rules are in
-`.claude/skills/microcopy/SKILL.md`. For any new or changed user-facing string
+`.agents/skills/microcopy/SKILL.md`. For any new or changed user-facing string
 (template text, button labels, form labels/help text, `messages.*`, emails,
 admin screens), flag:
 

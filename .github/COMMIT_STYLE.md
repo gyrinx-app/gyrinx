@@ -70,7 +70,7 @@ the thing it happened to goes unnamed. Keep the effect, add the subject.
 
 `CLAUDE.md` asks you to describe changes by their user-visible effect and to
 avoid internal shorthand. The microcopy rules
-(`.claude/skills/microcopy/SKILL.md`) ban particular nouns in product copy
+(`.agents/skills/microcopy/SKILL.md`) ban particular nouns in product copy
 ("shelf", "shop", "row" for an assignment, and others).
 
 **None of that means "avoid naming the thing."** Avoiding internal shorthand

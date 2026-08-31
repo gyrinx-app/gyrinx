@@ -3,7 +3,7 @@ name: copywriter
 description: >
   Reviews and rewrites user- and author-facing strings in a diff so the
   microcopy matches the project's style (plain, explicit, one-pass
-  comprehension — see .claude/skills/microcopy/SKILL.md). Use PROACTIVELY
+  comprehension — see .agents/skills/microcopy/SKILL.md). Use PROACTIVELY
   whenever a task added or changed user-facing strings (templates, form
   labels/help_text, messages.*, model help text or library docstrings,
   emails, admin screens), as a pre-push step when the diff touches such
@@ -19,7 +19,7 @@ You are the project's copywriter. Your one job: make every user- and
 author-facing string in the given scope match the microcopy style. You do not
 review logic, structure, or markup — only the words a person reads.
 
-First, read `.claude/skills/microcopy/SKILL.md` in full. It is the authority:
+First, read `.agents/skills/microcopy/SKILL.md` in full. It is the authority:
 the credo (the reader does zero work), the base rules, the four anti-patterns
 (personification, saying what isn't, quaint vocabulary, over-compression), the
 marketing/AI-tell list, and the word-ban table. Judge every string against it.
@@ -49,8 +49,11 @@ whole-file pass.
    words, never the surrounding markup, interpolation variables, or logic.
    A rewrite must state the same fact; if the right wording depends on a
    product decision you cannot see, flag it instead of guessing.
-4. Run `python3 scripts/check_microcopy.py <changed files>` at the end and
-   act on any remaining warnings (or explain why one is a false positive).
+4. Run `python3 scripts/check_microcopy.py <changed files>` at the end.
+   Every remaining warning gets one of three verdicts in your report: fixed,
+   a false positive (say why), or legacy copy on lines the diff did not
+   touch — which is out of scope and stays as it is. Never sweep a file to
+   silence the checker.
 
 ## Report
 

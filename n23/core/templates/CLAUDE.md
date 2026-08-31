@@ -81,7 +81,7 @@ the gate, fix the call site.
 ## Microcopy Guidelines
 
 The canonical rules live in the `microcopy` skill
-(`.claude/skills/microcopy/SKILL.md`) — load it before writing or editing any
+(`.agents/skills/microcopy/SKILL.md`) — load it before writing or editing any
 user-facing string. Two notes specific to this tree:
 
 - **Casing: sentence case throughout, domain nouns lowercase.** "Add a gang to
