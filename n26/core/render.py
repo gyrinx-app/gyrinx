@@ -128,6 +128,11 @@ class CounterLine:
     value: int
     assignment_id: str = ""
     href: str = ""
+    #: Whether this is the XP counter, decided where the counter itself is
+    #: to hand rather than re-derived from ``name`` — which is what a
+    #: reader sees, and carries the counter's annotation with it, so an
+    #: annotated XP would stop being recognised as XP.
+    is_xp: bool = False
 
 
 @dataclass
@@ -613,11 +618,7 @@ class ModelCard:
         hire preview — it would say the same number twice and is left
         out. Every other counter has no cell and draws either way.
         """
-        return [
-            line
-            for line in self.counters
-            if line.href or line.name.casefold() != XP_COUNTER.casefold()
-        ]
+        return [line for line in self.counters if line.href or not line.is_xp]
 
 
 @dataclass
@@ -1358,6 +1359,7 @@ def card_to_model_card(
             # tally moves — because the cell carries the target beside it
             # and a line has no room for one.
             standing = _counter_value(node)
+            is_xp = thing.name.casefold() == XP_COUNTER.casefold()
             counters.append(
                 CounterLine(
                     name=node.name,
@@ -1365,9 +1367,10 @@ def card_to_model_card(
                     assignment_id=(
                         str(node.assignment.pk) if node.assignment is not None else ""
                     ),
+                    is_xp=is_xp,
                 )
             )
-            if thing.name.casefold() == XP_COUNTER.casefold():
+            if is_xp:
                 counted_xp = standing
         elif node.is_profile:
             # A Legacy profile rides the card but is not drawn from: it is
@@ -1472,9 +1475,7 @@ def card_to_model_card(
         owned_by=owned_by,
         # XP first, then the rest in the order the card holds them: it is
         # the one every model keeps and the one a reader looks for.
-        counters=sorted(
-            counters, key=lambda line: line.name.casefold() != XP_COUNTER.casefold()
-        ),
+        counters=sorted(counters, key=lambda line: not line.is_xp),
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
     )

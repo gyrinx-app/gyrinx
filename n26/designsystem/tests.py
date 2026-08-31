@@ -348,6 +348,43 @@ class TestTheShellStillDraws:
         assert "Choose one, or none" in page
 
 
+class TestTheGallerysCounterLines:
+    """Only one sample card offers to move a number.
+
+    The base sample is what the gang sheet's sample, the hire previews
+    and the print specimens are all built from, so an address on its
+    counters would put a pair of buttons on every one of them — screens
+    that never carry the control in the app. It would also give XP a
+    line beside the statline cell that already holds it, which is the
+    doubled reading the card exists to avoid.
+    """
+
+    def test_the_base_sample_offers_nothing_to_click(self):
+        from n26.designsystem import sampledata
+
+        assert all(not line.href for line in sampledata.model_card().counter_lines)
+
+    def test_the_base_sample_keeps_xp_to_its_cell(self):
+        from n26.designsystem import sampledata
+
+        assert not [
+            line for line in sampledata.model_card().counter_lines if line.is_xp
+        ]
+
+    def test_the_gang_sheets_members_offer_nothing_either(self):
+        from n26.designsystem import sampledata
+
+        member = sampledata.gang_sheet().models[0]
+        assert all(not line.href for line in member.counter_lines)
+
+    def test_the_editable_sample_carries_every_line_and_its_address(self):
+        from n26.designsystem import sampledata
+
+        lines = sampledata.model_card_editable().counter_lines
+        assert [line.name for line in lines] == ["XP", "Kill Count", "Glitch Count"]
+        assert all(line.href for line in lines)
+
+
 class TestTheModelCardsTooltips:
     """The card's tooltips are real components, never a native title —
     which shows only under a mouse and never on touch."""

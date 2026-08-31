@@ -43,7 +43,7 @@ def xp(db):
 
 @pytest.fixture
 def kills(db):
-    """A Spyrer's second counter — the one the card drew nowhere."""
+    """A second counter, so a card has to keep more than one."""
     return create_counter("Kill Count")
 
 
@@ -77,7 +77,11 @@ def queen(make_profile, xp, gang_type):
 
 
 def xp_row(miniature):
-    return Assignment.objects.get(miniature=miniature, counter__isnull=False)
+    return Assignment.objects.get(miniature=miniature, counter__name="XP")
+
+
+def kill_row(miniature):
+    return Assignment.objects.get(miniature=miniature, counter__name="Kill Count")
 
 
 def drawn(miniature):
@@ -134,14 +138,18 @@ class TestWhatTheCardShows:
 
         assert [line.name for line in drawn(yolanda)[0].equipment] == []
 
-    def test_a_counter_draws_a_line_of_its_own(self, gang, queen):
-        """The bug this class was written for, in its second half: a
-        Spyrer's Kill Count was granted, stored and tallied, and appeared
-        on no card at all."""
+    def test_a_counter_draws_a_line_of_its_own(self, gang, queen, kills):
+        """Every counter a model keeps is a line on their card. A
+        Spyrer's Kill Count is granted, stored and tallied like any
+        other, and reads on the card like any other."""
+        from n26.tests.sandbox.actions import assign
+
         yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(kills, miniature=yolanda)
 
         assert [(line.name, line.value) for line in drawn(yolanda)[0].counters] == [
-            ("XP", 61)
+            ("XP", 61),
+            ("Kill Count", 0),
         ]
 
     def test_the_line_follows_the_tally(self, gang, queen):
@@ -200,9 +208,9 @@ class TestWhatTheCardShows:
 class TestMovingACounterByHand:
     """The control on the model's own page, and the address behind it.
 
-    Nothing could change a counter before this: ``tally`` had one caller,
-    a rule firing off an assignment. XP included — a fighter could earn
-    none, and a Spyrer's Kill Count could only be watched.
+    A counter is drawn wherever a card is and moved in one place. The
+    same address serves XP, a Spyrer's Kill Count and the gang's own
+    tallies, because what it names is the assignment.
     """
 
     def address(self, miniature):
@@ -314,6 +322,26 @@ class TestMovingACounterByHand:
 
         assert response.status_code == 404
 
+    def test_a_step_of_nothing_is_not_an_act(self, client, gang, queen):
+        """It would write a ledger event recording that nothing
+        happened. No control offers it; a crafted post is refused."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        response = client.post(self.address(yolanda), {"change": "0"})
+
+        assert response.status_code == 404
+        assert not xp_row(yolanda).ledger_events.filter(kind="tallied").exists()
+
+    def test_a_step_past_what_the_column_holds_is_refused(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        response = client.post(self.address(yolanda), {"change": "99999999999"})
+
+        assert response.status_code == 404
+        assert xp_row(yolanda).counter_value.value == 61
+
     def test_a_change_that_is_not_a_number_is_no_address_at_all(
         self, client, gang, queen
     ):
@@ -324,6 +352,108 @@ class TestMovingACounterByHand:
 
         assert response.status_code == 404
         assert xp_row(yolanda).counter_value.value == 61
+
+
+class TestTheOtherSurfaces:
+    """Print and text draw the same counters the screen card draws.
+
+    Both read ``counter_lines``, so neither can disagree with the card
+    about which counters a model keeps — nor about XP, which has a cell
+    in the statline on all three and draws a line on none of them.
+    """
+
+    def test_the_text_card_lists_them(self, gang, queen, kills):
+        from n26.core.render_text import render_model_card
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(kills, miniature=yolanda)
+        tally(kill_row(yolanda), +3)
+
+        assert "Kill Count: 3" in "\n".join(render_model_card(drawn(yolanda)[0]))
+
+    def test_the_text_card_keeps_xp_to_its_own_line(self, gang, queen):
+        from n26.core.render_text import render_model_card
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        told = render_model_card(drawn(yolanda)[0])
+        assert len([line for line in told if "XP" in line]) == 1
+
+    def test_the_print_sheet_leads_with_them(self, gang, queen, kills):
+        from n26.core.printing import detail_groups
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(kills, miniature=yolanda)
+
+        groups = detail_groups(drawn(yolanda)[0])
+        assert (groups[0].label, groups[0].text) == ("Kill Count", "0")
+
+    def test_the_print_sheet_says_xp_once(self, gang, queen):
+        """It has a cell in the statline above, and a card somebody cuts
+        out has no room to say a number twice."""
+        from n26.core.printing import detail_groups
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        assert not [
+            group for group in detail_groups(drawn(yolanda)[0]) if group.label == "XP"
+        ]
+
+
+class TestWhatTheHistorySays:
+    """A tally drawn as a sentence: what moved, and where it landed.
+
+    The number on the card is the only thing a reader can check the log
+    against, so the log has to state it.
+    """
+
+    def told(self, gang):
+        from n26.core import history
+
+        return [
+            "".join(span.text for span in act.spans)
+            for act in history.build(gang, viewer=gang.owner)
+        ]
+
+    def test_it_says_what_moved_and_where_it_landed(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +5)
+
+        assert any(
+            "changed XP" in told and "+5, now 66" in told for told in self.told(gang)
+        )
+
+    def test_a_step_that_hit_the_floor_says_where_it_stopped(self, gang, queen):
+        """The movement stated is the one that happened, not the one
+        asked for."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), -100)
+
+        assert any("-61, now 0" in told for told in self.told(gang))
+
+    def test_what_caused_it_rides_along(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +5, note="won a battle")
+
+        assert any("(won a battle)" in told for told in self.told(gang))
+
+    def test_the_note_is_not_printed_under_the_sentence_as_well(self, gang, queen):
+        """The sentence already holds both halves of it."""
+        from n26.core import history
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +5, note="won a battle")
+
+        # Spans carry their own spacing, so the phrase only reads whole
+        # once they are joined.
+        tallied = [
+            act
+            for act in history.build(gang, viewer=gang.owner)
+            if "changed XP" in "".join(span.text for span in act.spans)
+        ]
+        assert tallied and all(not act.note for act in tallied)
 
 
 class TestEffectsHangOffValues:
@@ -414,9 +544,8 @@ class TestARuleThatMovesACounter:
         assign(leader_mark, miniature=yolanda)
 
         event = xp_row(yolanda).ledger_events.filter(kind="tallied").latest("created")
-        # What moved and where it landed, then what caused it: a reader
-        # auditing the number wants both, and the source alone answers
-        # only half of it.
+        # What moved and where it landed, then what caused it. A reader
+        # auditing the number needs both halves.
         assert event.note == "+0 → 61: Chosen Leader"
 
     def test_add_and_subtract_move_it_relative(self, gang, xp, make_profile):

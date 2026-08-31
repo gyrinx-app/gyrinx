@@ -447,17 +447,16 @@ def _movement(note):
     """What a tally moved, as words: "— +1, now 4".
 
     ``Operation.tally`` writes the movement and where it landed in front
-    of whatever reason the caller gave. An event from before it did —
-    or one whose note is only a reason — has no movement to state, and
-    says its reason alone.
+    of whatever reason the caller gave. A note carrying only a reason,
+    or none at all, has no movement to state and gives its reason alone.
     """
     movement, _, reason = note.partition(":")
     change, arrow, standing = movement.partition(" → ")
     if not arrow:
         return (Span(f" — {note}"),) if note else ()
-    said = f" — {change}, now {standing}"
+    moved = f" — {change}, now {standing}"
     reason = reason.strip()
-    return (Span(f"{said} ({reason})"),) if reason else (Span(said),)
+    return (Span(f"{moved} ({reason})"),) if reason else (Span(moved),)
 
 
 def _tell(e, row, alive):

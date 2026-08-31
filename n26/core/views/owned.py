@@ -1,6 +1,6 @@
 """What a fighter already owns — selling it, handing it on, taking it off.
 
-Six acts, six addresses, one shape each: a POST names the assignment
+Seven acts, seven addresses, one shape each: a POST names the assignment
 in its path, an ``operation`` writes it, and the reader lands back where
 they clicked. They are addressed by *assignment* rather than by
 fighter, because that is what they are about — a weapon on a fighter, a
@@ -73,8 +73,8 @@ from n26.core.owned import (
 from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 
-#: The largest step this address will take, either way. The control posts
-#: one; the bulk act that comes later will post a handful.
+#: The largest step this address will take, either way. Far above any
+#: step a control offers, and far below what the column holds.
 MOST_A_TALLY_MOVES = 1000
 
 
@@ -1030,10 +1030,9 @@ def tally_counter(request, pk):
     business. Only counters, though — every other assignment has verbs
     of its own, and none of them is a running number.
 
-    Written a step at a time on purpose. The rulebook's own acts move
-    these by more (a Spyrer spends four Kill Count on Suit Evolution),
-    and doing that in one go — with a note saying why — is the dialog
-    this control makes room for rather than replaces.
+    A step at a time. The rulebook's own acts move these by more — a
+    Spyrer spends four Kill Count on Suit Evolution — and ``change``
+    being signed and free is what lets one address serve both.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -1052,10 +1051,12 @@ def tally_counter(request, pk):
         change = int(request.POST.get("change", ""))
     except ValueError:
         raise Http404("Not a change to make") from None
-    if abs(change) > MOST_A_TALLY_MOVES:
-        # A counter's value is a database integer, and a number past what
-        # one holds would be a 500 rather than a refusal. Nothing offers
-        # a step anywhere near this, so it is a bound and not a rule.
+    if not change or abs(change) > MOST_A_TALLY_MOVES:
+        # Zero moves nothing, and writing an event to say so fills a
+        # gang's history with rows that record nothing happening. The
+        # bound beside it is because a counter's value is a database
+        # integer: a number past what one holds would be a 500 rather
+        # than a refusal, and no control offers a step anywhere near it.
         raise Http404("Not a change to make")
 
     try:

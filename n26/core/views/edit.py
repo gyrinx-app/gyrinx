@@ -554,10 +554,9 @@ def edit_fighter(request, pk):
     )
     if card is None:
         raise Http404("No such model")
-    # Only here. A counter is drawn wherever a card is, and moved on the
-    # model's own page: doing it quickly, for a whole roster after a
-    # battle, is a screen built for that and not a control the gang
-    # sheet grows.
+    # Only here. A counter is drawn wherever a card is; the model's own
+    # page is the one place it is moved, so this is the one place the
+    # lines are given addresses.
     link_counters(card)
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
