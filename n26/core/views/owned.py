@@ -560,10 +560,9 @@ def _acted(request, touched, gang, back, also=""):
     n26/core/static/n26/htmx_support.js) — so the update draws the row
     in the state the reader left it.
 
-    ``also`` is a second row the same act changed, on the same screen:
-    fitting an accessory to a gun empties the accessory's row and fills
-    the gun's, and a screen redrawing one of the two would still be
-    showing the click as half done.
+    ``also`` is a second row on the same screen that the act changed as
+    well; :func:`n26.core.views.equip.render_update` says when there is
+    one.
     """
     from n26.core.views.equip import render_update
 

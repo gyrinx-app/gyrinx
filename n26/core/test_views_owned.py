@@ -955,6 +955,23 @@ class TestFittingOneTheFighterIsCarrying:
         assert dialog["weapons"] == []
         assert dialog["submit_label"] == ""
 
+    def test_the_panel_with_no_gun_to_offer_carries_no_destination(
+        self, client, tester, fighter, loose
+    ):
+        """Rendered rather than read off the dialog: the destinations are
+        one if/elif chain, and a fitting that fell through to its end
+        would carry the move's hidden stash field — a panel asking to fit
+        something, quietly posting a move instead."""
+        client.force_login(tester)
+
+        response = client.get(
+            reverse("n26-equip", args=[fighter.pk]), {"fit": str(loose.pk)}
+        )
+
+        body = response.content.decode()
+        assert "Fit Telescopic sight to a weapon" in body
+        assert 'name="to"' not in body
+
     def test_only_an_accessory_is_asked_the_question(self, fighter, gun, sword, loose):
         """A gun's own address would otherwise open a picker holding that
         same gun, and fitting a thing to itself is not an act."""
@@ -1012,9 +1029,8 @@ class TestFittingOneTheFighterIsCarrying:
     def test_the_screen_is_told_about_both_rows_it_changed(
         self, client, tester, fighter, gun, loose
     ):
-        """The accessory leaves a row of its own and arrives under the
-        gun, so a screen redrawing one of the two would be showing the
-        click as half done."""
+        """Both keys are delivered: the gun's row redrawn with the sight
+        under it, and the accessory's own row answered for."""
         from n26.core.owned import thing_key
 
         client.force_login(tester)
@@ -1035,10 +1051,10 @@ class TestFittingOneTheFighterIsCarrying:
         gun_row = body.split(f'data-row="{thing_key(gun.assignable)}"', 1)[1]
         gun_row = gun_row.split("n26-accessorise-host", 1)[0]
         assert "Telescopic sight" in gun_row
-        # Nothing holds it any more, so its own row goes rather than
-        # standing there offering to fit it a second time. One string,
-        # because an id and a delete asserted apart are both satisfied by
-        # a response carrying only the first row.
+        # This listing does not sell the sight, so with nothing holding it
+        # the screen has no row for it at all and the update says to take
+        # it away. One string, because an id and a delete asserted apart
+        # are both satisfied by a response carrying only the first row.
         gone = row_dom_id(thing_key(loose.assignable))
         assert f'id="{gone}" hx-swap-oob="delete"' in body
 
