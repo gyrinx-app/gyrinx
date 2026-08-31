@@ -204,10 +204,18 @@ def _skills_here(request, miniature):
     The form carries which listing drew it, so settling the boxes leaves
     the reader looking at the same ones. A form naming no tab, or one
     this page does not draw, lands on the page's own default.
+
+    What was posted chooses between addresses; it never becomes part of
+    one. Every address here is built from this page's own route and one
+    of its two constants, so no value a form carries can reach the
+    reader's browser as somewhere to go.
     """
     here = reverse("n26-edit-fighter", args=[miniature.pk])
-    tab = request.POST.get("tab")
-    return f"{here}?skills={tab}" if tab in (OWN_SETS, ALL_SETS) else here
+    asked = request.POST.get("tab")
+    for tab in (OWN_SETS, ALL_SETS):
+        if asked == tab:
+            return f"{here}?skills={tab}"
+    return here
 
 
 def _apply_edits(op, miniature, own, computed, field, ticked):

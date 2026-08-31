@@ -40,16 +40,17 @@ thing at a time and the other settles the whole list at once, and the
 two draw different lists: this screen keeps to the fighter's own
 placements, while the edit page offers every set the library holds.
 
-That is a difference of *reach*, not of rules. Both write the same
-assignment, and neither can do anything to a model the other could not.
-What separates them is who is reading. This screen is the fighter's own
-view — theirs, tier by tier, one click at a time — and offering every
-set here would bury the two that are actually theirs under every set
-that is not. The edit page is where an owner settles what a model is,
-beside the boxes for their subtypes and special rules, and there the
-answer to "may I take a skill from another house's tree" is yes: the
-game allows it, and a skill already held from such a set could be
-cleared nowhere else.
+The difference is in what each offers, not in what either may write:
+both make the same assignment, at no price and caused by nothing, and a
+skill selected on one is indistinguishable from the same skill selected
+on the other. What separates them is who is reading. This screen is the
+fighter's own view — theirs, tier by tier, one click at a time — and
+offering every set here would bury the two that are actually theirs
+under every set that is not. The edit page is where an owner settles
+what a model is, beside the boxes for their subtypes and special rules,
+and there the answer to "may I take a skill from another house's tree"
+is yes: the game allows it, and a skill already held from such a set can
+be cleared nowhere else.
 """
 
 import dataclasses

@@ -999,8 +999,10 @@ class TestTheQueryBudget:
                 assert client.get(at_tab(yolanda, tab)).status_code == 200
             return len(captured.captured_queries)
 
+        # The first reading pays one-time caches that no later one does.
         measure(OWN_SETS)
-        assert measure(ALL_SETS) == measure(OWN_SETS)
+        theirs = measure(OWN_SETS)
+        assert measure(ALL_SETS) == theirs
 
     def test_the_page_costs_the_same_however_much_she_knows(
         self, client, player, gang, yolanda, sets, library
