@@ -16,7 +16,7 @@ The composer and the preview pane hang off this same skeleton later
 import inspect
 import re
 from collections import Counter
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from django import forms
 from django.contrib import messages
@@ -1737,6 +1737,13 @@ def detail(request, kind, pk):
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
             "edit_form": edit_form,
+            # A roll table's gaps and overlaps live on a page of their
+            # own; an ordinary picklist has no such page to offer.
+            "table_href": (
+                reverse("authoring-picklist-table", args=[thing.pk])
+                if kind == "picklist" and thing.dice
+                else ""
+            ),
             "statline_cells": statline_edit.cells() if statline_edit else None,
             "part_sections": drawn,
             "hire_options": hire_options,
@@ -3977,3 +3984,117 @@ def _rows(model, kind=None):
         )
     hint = LEAF_LISTING_HINTS.get(kind)
     return hint(rows) if hint else rows
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """Whether a roll table's bands claim its die.
+
+    Gaps and overlaps make a table unrollable, and neither is a fact
+    about any one row — only the whole table can say. ``covered`` counts
+    rolls claimed by at least one result; a roll claimed twice is
+    covered and doubled both.
+    """
+
+    #: Every roll the die can produce.
+    total: int
+    #: How many of them at least one band claims.
+    covered: int
+    #: The rolls no band claims, in roll order.
+    unclaimed: list
+    #: ``(roll, members)`` for every roll more than one band claims.
+    doubled: list
+    #: Results with no band at all: on the list, never rolled.
+    bandless: list
+
+
+def coverage(picklist):
+    """The table's bands checked against its die, as :class:`Coverage`.
+
+    Pure over the rows it is handed, so a page can say "34 of 36 rolls
+    covered; 23 and 24 unclaimed" and a test can assert it without
+    rendering anything. A band may span rolls the die cannot produce —
+    "31-46" on a D66 — and such rolls count for nothing: the check walks
+    the die's own rolls, never the band's arithmetic.
+    """
+    from n26.library.models import Dice
+
+    rolls = Dice.rolls(picklist.dice)
+    # One query however long the table: a member's label falls back to
+    # its pickable's name, and the page prints every label it is handed.
+    members = list(picklist.members.select_related("pickable"))
+    claimed = {}
+    for member in members:
+        if member.roll_low is None:
+            continue
+        for roll in rolls:
+            if member.roll_low <= roll <= member.roll_high:
+                claimed.setdefault(roll, []).append(member)
+    return Coverage(
+        total=len(rolls),
+        covered=len(claimed),
+        unclaimed=[roll for roll in rolls if roll not in claimed],
+        doubled=[(roll, who) for roll, who in claimed.items() if len(who) > 1],
+        bandless=[member for member in members if member.roll_low is None],
+    )
+
+
+@staff_member_required
+def picklist_table(request, pk):
+    """One roll table, whole: its rows in roll order, and whether its
+    bands cover the die.
+
+    The picklist's own page adds and removes members one at a time; this
+    page exists for the fact no single row carries — a gap or an overlap
+    in the table. The add-a-row form is the detail page's own, handed
+    the picklist so its picker offers this slot type's pickables and
+    nothing else. An ordinary list opens here too, drawn without the
+    coverage it has no die to check against.
+    """
+    from django.db.models import F
+
+    from n26.library.models import Picklist
+
+    picklist = get_object_or_404(Picklist, pk=pk)
+    spec = specs()["add_picklist_member"]
+    form_class = generate_form(spec)
+
+    if request.method == "POST":
+        form = form_class(request.POST, carrier=picklist)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    member = spec.verb(picklist, **form.verb_data())
+            except ValidationError as refused:
+                form.add_error(None, refused)
+            else:
+                messages.success(request, f"Added {member.label}.")
+                return redirect("authoring-picklist-table", pk=pk)
+    else:
+        form = form_class(carrier=picklist)
+
+    members = picklist.members.select_related("pickable").order_by(
+        F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+    )
+    said = coverage(picklist) if picklist.dice else None
+    doubled_said = (
+        [
+            (roll, ", ".join(member.label for member in who))
+            for roll, who in said.doubled
+        ]
+        if said
+        else []
+    )
+    unclaimed_said = ", ".join(str(roll) for roll in said.unclaimed) if said else ""
+    return render(
+        request,
+        "authoring/picklist_table.html",
+        {
+            "picklist": picklist,
+            "members": members,
+            "coverage": said,
+            "unclaimed_said": unclaimed_said,
+            "doubled_said": doubled_said,
+            "form": form,
+        },
+    )

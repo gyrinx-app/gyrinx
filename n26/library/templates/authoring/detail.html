@@ -17,6 +17,11 @@ thing twice, a line apart.
         hundred rows costs the page the same as a kind with three.
         {% endcomment %}
         <c-slot name="trailing">
+            {% if table_href %}
+                <c-ui.button variant="primary" :outlined="True" size="sm" href="{{ table_href }}">
+                    Roll table
+                </c-ui.button>
+            {% endif %}
             {% siblings_switcher kind thing as siblings_ %}
             <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
         </c-slot>

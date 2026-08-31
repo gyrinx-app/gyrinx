@@ -341,6 +341,10 @@ class Choosable:
     #: a bare key is ambiguous across the assignable tables.
     key: str
     name: str
+    #: The band of rolls that lands on this option, where the list behind
+    #: the choice is a roll table — "51", "21-26" — or nothing. Drawn
+    #: ahead of the name so a player finds their roll by scanning.
+    band: str = ""
     thing: object = None
     #: True for a thing the surface opens on already marked: what a slot
     #: already holds, or — where a list is ticked rather than picked — one
@@ -950,7 +954,13 @@ def build_choice_offer(slot, computed):
             control = "remove"
         options.append(
             _choosable(
-                thing, current, taken=taken, name=name, held=held, control=control
+                thing,
+                current,
+                taken=taken,
+                name=name,
+                held=held,
+                control=control,
+                band=getattr(item, "band", ""),
             )
         )
 
@@ -1058,7 +1068,15 @@ def option_key(thing):
 
 
 def _choosable(
-    thing, current, notes=(), held=(), granted=None, taken=None, name=None, control=""
+    thing,
+    current,
+    notes=(),
+    held=(),
+    granted=None,
+    taken=None,
+    name=None,
+    control="",
+    band="",
 ):
     key = option_key(thing)
     granted_by = (granted or {}).get(key, "")
@@ -1067,6 +1085,7 @@ def _choosable(
         # The wording a list gives a pickable, where it gives it one. The
         # thing's own name everywhere else, and on every other surface.
         name=name or str(thing),
+        band=band,
         thing=thing,
         is_current=(current is not None and thing == current)
         or key in held

@@ -257,6 +257,14 @@ urlpatterns = [
         authoring_views.picklist_member_remove,
         name="authoring-picklist-member-remove",
     ),
+    # A literal address, so it matches ahead of the kind catch-all: a
+    # roll table's gaps and overlaps are facts about the whole list, and
+    # the picklist's own page shows only one row at a time.
+    path(
+        "authoring/picklists/<str:pk>/table/",
+        authoring_views.picklist_table,
+        name="authoring-picklist-table",
+    ),
     # A firing line belongs to its weapon rather than being an authored
     # kind of its own — there is no listing of every profile in the
     # library, and no making one apart from the weapon it fires — so

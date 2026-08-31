@@ -1,0 +1,86 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    {{ picklist }} — table
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="{{ picklist }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'picklist' %}">Picklists</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-detail' 'picklist' picklist.pk %}">
+                    {{ picklist }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Table
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if coverage %}
+        <c-n26.prose class="mt-2">
+            <p>
+                Rolled on a {{ picklist.get_dice_display }} — a roll picks
+                {% if picklist.roll_selects == "threshold" %}
+                    every row at or below it.
+                {% else %}
+                    the one row it lands in.
+                {% endif %}
+            </p>
+        </c-n26.prose>
+        {% if coverage.covered == coverage.total and not doubled_said %}
+            <c-ui.alert variant="success" class="mt-4">
+                {{ coverage.covered }} of {{ coverage.total }} rolls covered.
+            </c-ui.alert>
+        {% else %}
+            <c-ui.alert variant="warning" class="mt-4">
+                {{ coverage.covered }} of {{ coverage.total }} rolls covered{% if unclaimed_said %} — {{ unclaimed_said }} unclaimed{% endif %}.
+                {% for roll, results in doubled_said %}
+                    <br />
+                    {{ roll }} is claimed by more than one result — {{ results }}.
+                {% endfor %}
+                {% for member in coverage.bandless %}
+                    <br />
+                    {{ member.label }} has no band, so no roll lands on it.
+                {% endfor %}
+            </c-ui.alert>
+        {% endif %}
+    {% endif %}
+    <c-n26.form-section title="Results" class="mt-8">
+        {% if members %}
+            <c-ui.table>
+                <tbody>
+                    {% for member in members %}
+                        <tr>
+                            <td class="w-16 text-right tabular-nums text-muted">{{ member.band }}</td>
+                            <td>
+                                <c-n26.link href="{% url 'authoring-detail' 'pickable' member.pickable.pk %}">{{ member.label }}</c-n26.link>
+                            </td>
+                            <td class="text-right">
+                                <c-n26.link href="{% url 'authoring-picklist-member-remove' member.pk %}"
+                                            tone="muted"
+                                            underline="always"
+                                            class="text-xs">Remove</c-n26.link>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% else %}
+            <c-ui.description>
+                Nothing on this list yet.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-section>
+    <c-n26.form-section title="Add a result" class="mt-8">
+        <form method="post">
+            {% csrf_token %}
+            {% include "authoring/_form.html" %}
+            <div class="mt-4">
+                <c-ui.button type="submit" variant="success">
+                    Add result
+                </c-ui.button>
+            </div>
+        </form>
+    </c-n26.form-section>
+{% endblock content %}
