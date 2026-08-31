@@ -306,6 +306,15 @@ DETAIL_KINDS = {
         "statline": False,
         "describe": _describe_picklist_member,
         "parts_hint": lambda parts: parts.select_related("pickable"),
+        # A roll table's gaps and overlaps are facts about the whole
+        # list, so they get a page of their own; an ordinary picklist
+        # has no die to check and no such page.
+        "door": lambda picklist: (
+            reverse("authoring-picklist-table", args=[picklist.pk])
+            if picklist.dice
+            else ""
+        ),
+        "door_label": "Roll table",
         # The row is the listing, but the name on it is the pickable's,
         # and the pickable's page is where what it does is written.
         "opens": lambda member: reverse(
@@ -1737,13 +1746,6 @@ def detail(request, kind, pk):
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
             "edit_form": edit_form,
-            # A roll table's gaps and overlaps live on a page of their
-            # own; an ordinary picklist has no such page to offer.
-            "table_href": (
-                reverse("authoring-picklist-table", args=[thing.pk])
-                if kind == "picklist" and thing.dice
-                else ""
-            ),
             "statline_cells": statline_edit.cells() if statline_edit else None,
             "part_sections": drawn,
             "hire_options": hire_options,
