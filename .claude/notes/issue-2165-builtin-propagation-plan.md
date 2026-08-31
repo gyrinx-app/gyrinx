@@ -425,7 +425,7 @@ review, no separate smoke agent.*
 **C6 — DROPPED 2026-08-31 (maintainer's call).** Removal-propagation is
 not being built: instead the removal page warns, with the count, that
 what already holds the thing keeps it. If authors complain, build C6
-then. Shipped as PR #2364: `standing_copies_of(member)` in
+then. Shipped as PR #2364 (MERGED 2026-08-31): `standing_copies_of(member)` in
 `n26/core/propagation.py` (live copies naming the member, and their
 gangs — the same shape `reach_of` uses on the adding side) surfaced as a
 warning on `authoring/built_in_remove.html`. The two author-side
