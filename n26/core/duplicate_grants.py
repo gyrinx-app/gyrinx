@@ -145,6 +145,54 @@ def _tally_under(assignment, goes_with=None):
     return max(values, default=None)
 
 
+def _verdict(grant, owner, gang=None):
+    """What the repair would do with one pair, as (action, sentence).
+
+    The single reading behind both the run and the page that previews
+    it, so the page can never describe something the run would not do.
+    """
+    goes_with = _goes_with(grant)
+    where = grant.miniature_root or gang or "the gang"
+    if _money_under(grant, goes_with):
+        return (
+            "stands",
+            f"{grant.assignable} on {where} brought something that was paid "
+            f"for, so its duplicate stands.",
+        )
+    tally = _tally_under(grant, goes_with)
+    if tally and not _can_carry(grant, owner, goes_with):
+        return (
+            "stands",
+            f"{grant.assignable} on {where} counts {tally} where the copy "
+            f"already held has no place for it, so its duplicate stands.",
+        )
+    brought = (
+        f", and the {len(goes_with)} thing{'' if len(goes_with) == 1 else 's'} "
+        f"it brought"
+        if goes_with
+        else ""
+    )
+    counted = f" It counts {tally}, which moves across." if tally else ""
+    return (
+        "drops",
+        f"{grant.assignable}: the caught-up copy goes{brought}, and the copy "
+        f"already held takes its provenance.{counted}",
+    )
+
+
+def _can_carry(grant, owner, goes_with):
+    """Whether a tally on the duplicate has a twin to move to."""
+    from n26.core.models import CounterValue
+
+    if grant.counter_id is None or owner.counter_id != grant.counter_id:
+        return False
+    # Something beneath the duplicate counts as well, and that has
+    # nowhere to go.
+    return not CounterValue.objects.filter(
+        assignment_id__in=goes_with, value__gt=0
+    ).exists()
+
+
 def _carry_the_tally(grant, owner, tally, goes_with):
     """Move a tally from the duplicate onto the copy that stays, where
     there is somewhere for it to go.
@@ -158,11 +206,7 @@ def _carry_the_tally(grant, owner, tally, goes_with):
 
     if not tally:
         return True
-    if grant.counter_id is None or owner.counter_id != grant.counter_id:
-        return False
-    if CounterValue.objects.filter(assignment_id__in=goes_with, value__gt=0).exists():
-        # Something beneath the duplicate counts as well, and that has
-        # nowhere to go.
+    if not _can_carry(grant, owner, goes_with):
         return False
     standing, _ = CounterValue.objects.get_or_create(assignment=owner)
     if standing.value < tally:
@@ -321,27 +365,12 @@ def duplicate_grants_by_kind():
 
 
 def what_one_model_carries(miniature):
-    """The duplicates standing on one model, as sentences — what a
-    single-model run would drop, read before running it."""
-    lines = []
+    """The duplicates standing on one model, as sentences — exactly what
+    a single-model run would do, read before running it."""
     if miniature.membership_id is None:
-        return lines
-    for grant, _owner in duplicates_in(miniature.membership.gang_root, miniature.pk):
-        goes_with = _goes_with(grant)
-        tally = _tally_under(grant, goes_with)
-        swept = len(goes_with)
-        if tally:
-            lines.append(
-                f"{grant.assignable}: the duplicate counts {tally}, so it stands."
-            )
-            continue
-        brought = (
-            f", and the {swept} thing{'' if swept == 1 else 's'} it brought"
-            if swept
-            else ""
-        )
-        lines.append(
-            f"{grant.assignable}: the caught-up copy goes{brought}, and the "
-            f"copy already held takes its provenance."
-        )
-    return lines
+        return []
+    gang = miniature.membership.gang_root
+    return [
+        _verdict(grant, owner, gang)[1]
+        for grant, owner in duplicates_in(gang, miniature.pk)
+    ]
