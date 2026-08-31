@@ -19,6 +19,10 @@ card alone. Only a screen holding the card's host may set it — see
 n26/core/templates/cotton/n26/view/model_edit.html. It stays an ordinary form
 to an ordinary address, so without JavaScript the whole page is served.
 
+The screen to return to rides on the line rather than being read off the
+request: a card redrawn after an act is rendered under that act's address, and
+a control built from it would send the next reader to a POST-only endpoint.
+
 Minus is not drawn at zero — the value floors there, so the control would be
 offering something that cannot happen.
 
@@ -34,7 +38,7 @@ offering something that cannot happen.
               {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none"{% endif %}
               class="inline">
             {% csrf_token %}
-            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+            <input type="hidden" name="back" value="{{ counter.back }}">
             <input type="hidden" name="change" value="-1">
             <c-ui.button type="submit"
                          size="xs"
@@ -50,7 +54,7 @@ offering something that cannot happen.
           {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none"{% endif %}
           class="inline">
         {% csrf_token %}
-        <input type="hidden" name="back" value="{{ request.get_full_path }}">
+        <input type="hidden" name="back" value="{{ counter.back }}">
         <input type="hidden" name="change" value="1">
         <c-ui.button type="submit"
                      size="xs"

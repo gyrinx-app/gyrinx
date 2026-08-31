@@ -396,6 +396,33 @@ class TestMovingOneWithoutReloading:
 
         assert self.address(yolanda) in page.content.decode()
 
+    def test_the_card_it_sends_back_returns_to_the_page_not_the_act(
+        self, client, gang, queen
+    ):
+        """The redrawn card is rendered under the act's own address. A
+        control built from that would send a reader with no scripting to
+        a POST-only endpoint, so the screen to return to rides on the
+        line instead."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        drawn = client.post(
+            self.address(yolanda), {"change": "1", "back": page}, **self.HTMX
+        ).content.decode()
+
+        assert f'name="back" value="{page}"' in drawn
+        assert f'name="back" value="{self.address(yolanda)}"' not in drawn
+
+    def test_the_page_itself_returns_to_itself(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        drawn = client.get(page).content.decode()
+
+        assert f'name="back" value="{page}"' in drawn
+
     def test_a_refusal_redraws_nothing_and_says_why(self, client, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)

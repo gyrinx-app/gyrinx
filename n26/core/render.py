@@ -122,12 +122,19 @@ class CounterLine:
     URL space — like a choice's own href, and empty by default. A line
     with none draws as a fact with nothing to click, which is what a
     gang sheet, a print sheet and a hire preview all want.
+
+    ``back`` is the screen the control belongs to, carried so a reader
+    with no scripting lands on it rather than on the address the act
+    posts to. Filled in beside the href, because the same caller knows
+    both — and it cannot be read off the request, which for a card
+    redrawn after an act is the act's own address.
     """
 
     name: str
     value: int
     assignment_id: str = ""
     href: str = ""
+    back: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
     #: reader sees, and carries the counter's annotation with it, so an

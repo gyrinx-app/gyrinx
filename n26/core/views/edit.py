@@ -297,7 +297,7 @@ def render_card_update(request, miniature, at):
     )
     if card is None:
         raise Http404("No such model")
-    link_counters(card)
+    link_counters(card, back=at)
 
     response = render(
         request,
@@ -306,9 +306,6 @@ def render_card_update(request, miniature, at):
             "card": card,
             "miniature": miniature,
             "equip_href": reverse("n26-equip", args=[miniature.pk]),
-            # The card is drawn on the page this act came from, so its
-            # controls are addressed from there.
-            "at": at,
         },
     )
     return with_toasts(request, response)
@@ -614,7 +611,7 @@ def edit_fighter(request, pk):
     # Only here. A counter is drawn wherever a card is; the model's own
     # page is the one place it is moved, so this is the one place the
     # lines are given addresses.
-    link_counters(card)
+    link_counters(card, back=request.get_full_path())
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes"
