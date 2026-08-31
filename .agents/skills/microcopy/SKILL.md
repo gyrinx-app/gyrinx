@@ -69,9 +69,10 @@ genuinely varies at that call site.
 **Success messages state the fact.** "Battle recorded." "Sold Bolt pistol for
 45¢." Never "successfully", never "has been Xed!".
 
-**Refusals state the rule.** "Only the campaign owner can edit this battle."
-— the reader learns who can, not just that they cannot. Never bare jargon
-("Invalid flow parameters.") and never apology ("We are sorry, but…").
+**Refusals say no, then the rule.** "You cannot edit this battle. Only the
+battle's owner or a campaign admin can." — the reader hears the refusal and
+learns who can. Never bare jargon ("Invalid flow parameters.") and never
+apology ("We are sorry, but…").
 
 **Empty states say what is absent and what fills it.** "No sheets uploaded
 yet. Upload one first." "No gangs in this campaign yet." The "yet" marks a
@@ -184,7 +185,7 @@ Strings that pass, verbatim from the codebase — match this register:
 - "No gangs in this campaign yet."
 - "Paste the link a player sent you, or the gang's id."
 - "Where it sits in the list. Ties fall back to name."
-- "Only the campaign owner can edit this battle."
+- "You cannot edit this battle. Only the battle's owner or a campaign admin can."
 
 ## Cold read
 
