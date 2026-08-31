@@ -38,6 +38,7 @@ import logging
 import traceback
 from contextlib import contextmanager
 from datetime import date, timedelta
+from uuid import UUID
 
 from django.contrib import messages
 from django.db import connection, models, transaction
@@ -1057,9 +1058,17 @@ def drop_duplicate_grants_view(request):
     # estate is walked. A GET reads what would happen to it; the POST
     # from the same page runs that model alone.
     asked = (request.POST.get("model") or request.GET.get("model") or "").strip()
-    one = Miniature.objects.filter(pk=asked).first() if asked else None
-    if asked and one is None:
-        messages.warning(request, "No model has that id.")
+    one = None
+    if asked:
+        try:
+            one = Miniature.objects.filter(pk=UUID(asked)).first()
+        except ValueError:
+            one = None
+        if one is not None and one.membership_id is None:
+            # Nothing to walk: a model with no membership sits in no gang.
+            one = None
+        if one is None:
+            messages.warning(request, "No model in a gang has that id.")
     if request.method == "POST":
         running = running_guard(operation)
         if running is not None:

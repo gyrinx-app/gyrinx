@@ -84,6 +84,18 @@ def _kind_of(assignment):
     return None
 
 
+def _goes_with(assignment):
+    """Everything the database takes with the copy: what it caused, and
+    what names it as the carrier it materialised for. Both cascade."""
+    return set(
+        Assignment.objects.filter(caused_by=assignment).values_list("pk", flat=True)
+    ) | set(
+        Assignment.objects.filter(materialised_for=assignment).values_list(
+            "pk", flat=True
+        )
+    )
+
+
 def _tally_under(assignment):
     """The highest counter value on the copy or anything it caused, or
     None where nothing under it counts anything."""
@@ -138,11 +150,14 @@ def duplicates_in(gang, only_miniature_id=None):
             and getattr(copy, "ledger_entry", None) is not None
             and copy.ledger_entry.reason == Reason.DEFAULT
         ]
-        # Pairs only, deliberately: a group with more caught-up grants
-        # than owner's copies has as many duplicates as there are copies
-        # to keep, and the rest are grants standing on their own.
+        # Oldest against oldest, so the same reading twice pairs the same
+        # copies. Pairs only, deliberately: a group with more caught-up
+        # grants than owner's copies has as many duplicates as there are
+        # copies to keep, and the rest are grants standing on their own.
         for grant, owner in zip(
-            sorted(granted, key=lambda copy: copy.pk), owners, strict=False
+            sorted(granted, key=lambda copy: copy.pk),
+            sorted(owners, key=lambda copy: copy.pk),
+            strict=False,
         ):
             pairs.append((grant, owner))
     return pairs
@@ -171,7 +186,7 @@ def de_duplicate(gang_id, only_miniature_id=None):
                     f"counts {tally}, so its duplicate stands."
                 )
                 continue
-            swept = grant.caused.count()
+            swept = len(_goes_with(grant))
             member_id = grant.materialised_from_id
             carrier_id = grant.materialised_for_id
             grant.delete()
@@ -222,9 +237,11 @@ def what_one_model_carries(miniature):
     """The duplicates standing on one model, as sentences — what a
     single-model run would drop, read before running it."""
     lines = []
+    if miniature.membership_id is None:
+        return lines
     for grant, _owner in duplicates_in(miniature.membership.gang_root, miniature.pk):
         tally = _tally_under(grant)
-        swept = grant.caused.count()
+        swept = len(_goes_with(grant))
         if tally:
             lines.append(
                 f"{grant.assignable}: the duplicate counts {tally}, so it stands."

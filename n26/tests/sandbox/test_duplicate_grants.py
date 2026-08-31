@@ -353,6 +353,19 @@ class TestTheConsoleDoor:
         assert duplicate_grants_by_kind() == {"rule": 1}
         settled(gang)
 
+    def test_a_word_that_is_not_an_id_is_refused_in_words(self, client, superuser):
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_drop_duplicate_grants"),
+            {"model": "not-an-id"},
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        assert "No model in a gang has that id." in response.content.decode()
+        assert not Backfill.objects.exists()
+
     def test_the_run_walks_every_gang(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
         strip_provenance(gang)
