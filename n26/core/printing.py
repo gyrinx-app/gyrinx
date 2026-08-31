@@ -66,14 +66,18 @@ def detail_groups(card) -> list[DetailGroup]:
     do. The screen card leaves it out for the same reason and sends a
     reader to Equip instead — this is the last surface that printed it.
 
-    The counters a model keeps lead, as they do on screen. Which of them
-    print is ``ModelCard.counter_lines``' decision: nothing on paper can
-    be changed, so an XP that has a cell in the statline above does not
-    draw a line here as well.
+    The counters a model keeps lead, as they do on screen — bar XP, which
+    has a cell in the statline above and would be saying the same number
+    twice. Nothing on paper can be changed, so the line XP draws on the
+    screen it is edited from has nothing to do here.
     """
     groups = []
     for counter in card.counter_lines:
-        groups.append(DetailGroup(counter.name, str(counter.value)))
+        # XP is in the statline above, with its target beside it. Skipped
+        # here rather than left to counter_lines, which keeps XP for a
+        # card whose lines can be moved — nothing on paper can be.
+        if not counter.is_xp:
+            groups.append(DetailGroup(counter.name, str(counter.value)))
     if card.skills:
         groups.append(DetailGroup("Skills", ", ".join(s.name for s in card.skills)))
     if card.rules:

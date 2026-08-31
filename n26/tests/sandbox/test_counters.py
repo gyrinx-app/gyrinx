@@ -444,6 +444,20 @@ class TestTheOtherSurfaces:
             group for group in detail_groups(drawn(yolanda)[0]) if group.label == "XP"
         ]
 
+    def test_neither_repeats_xp_for_a_card_that_could_be_edited(self, gang, queen):
+        """Paper and text carry no controls, so the line XP draws on the
+        screen it is edited from has nothing to do on either."""
+        from n26.core.printing import detail_groups
+        from n26.core.render_text import render_model_card
+        from n26.core.views.owned import link_counters
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        card = drawn(yolanda)[0]
+        link_counters(card)
+
+        assert not [group for group in detail_groups(card) if group.label == "XP"]
+        assert len([line for line in render_model_card(card) if "XP" in line]) == 1
+
 
 class TestWhatTheHistorySays:
     """A tally drawn as a sentence: what moved, and where it landed.
