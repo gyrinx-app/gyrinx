@@ -85,7 +85,7 @@
                                                 <td>
                                                     <input type="number"
                                                            name="cost_{{ weapon.equipment.id }}"
-                                                           value="0"
+                                                           value="{{ weapon.equipment.cost_int }}"
                                                            min="0"
                                                            class="form-control form-control-sm text-center p-0 w-em-5">
                                                 </td>
@@ -115,7 +115,7 @@
                                                 <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
                                                     <input type="number"
                                                            name="cost_{{ weapon.equipment.id }}"
-                                                           value="0"
+                                                           value="{{ weapon.equipment.cost_int }}"
                                                            min="0"
                                                            class="form-control form-control-sm text-center p-0 w-em-5">
                                                 </td>
@@ -146,7 +146,7 @@
                                             <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
                                                 <input type="number"
                                                        name="profile_cost_{{ profile.id }}"
-                                                       value="0"
+                                                       value="{{ profile.cost }}"
                                                        min="0"
                                                        class="form-control form-control-sm text-center p-0 w-em-5">
                                             </td>

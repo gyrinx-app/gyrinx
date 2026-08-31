@@ -1,5 +1,7 @@
 """Tests for pack fighter equipment list views."""
 
+import re
+
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
@@ -290,6 +292,36 @@ def test_add_equipment_list_weapon_get(
 
 
 @pytest.mark.django_db
+def test_add_equipment_list_weapon_get_defaults_cost_to_trading_post_price(
+    client, group_user, pack, pack_fighter, base_weapon, weapon_with_profiles
+):
+    """Cost inputs prefill with the Trading Post price, not zero."""
+    fighter, pack_item = pack_fighter
+    non_standard = ContentWeaponProfile.objects.get(
+        equipment=weapon_with_profiles, cost__gt=0
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-weapon-add", args=(pack.id, pack_item.id)
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert re.search(
+        rf'name="cost_{re.escape(str(base_weapon.pk))}"\s+value="15"',
+        html,
+    )
+    assert re.search(
+        rf'name="cost_{re.escape(str(weapon_with_profiles.pk))}"\s+value="35"',
+        html,
+    )
+    assert re.search(
+        rf'name="profile_cost_{re.escape(str(non_standard.pk))}"\s+value="15"',
+        html,
+    )
+
+
+@pytest.mark.django_db
 def test_add_equipment_list_weapon_post(
     client, group_user, pack, pack_fighter, base_weapon
 ):
@@ -423,6 +455,25 @@ def test_add_equipment_list_gear_get(client, group_user, pack, pack_fighter, bas
     assert response.status_code == 200
     assert b"Configure equipment list" in response.content
     assert b"Mesh Armour" in response.content
+
+
+@pytest.mark.django_db
+def test_add_equipment_list_gear_get_defaults_cost_to_trading_post_price(
+    client, group_user, pack, pack_fighter, base_gear
+):
+    """Cost inputs prefill with the Trading Post price, not zero."""
+    fighter, pack_item = pack_fighter
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-gear-add", args=(pack.id, pack_item.id)
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert re.search(
+        rf'name="cost_{re.escape(str(base_gear.pk))}"\s+value="15"',
+        html,
+    )
 
 
 @pytest.mark.django_db
