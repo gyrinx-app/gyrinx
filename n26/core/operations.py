@@ -189,26 +189,6 @@ class AlreadyInACampaign(Refusal):
         )
 
 
-class OverCampaignBudget(Refusal):
-    """A gang worth more than the campaign's budget.
-
-    The budget is what a gang may be worth to join, and the arbitrator who
-    set the number is the one who may go past it: this stops a player
-    adding a gang the table has not agreed to, and never stops the
-    arbitrator.
-    """
-
-    def __init__(self, gang, campaign, worth):
-        self.gang = gang
-        self.campaign = campaign
-        self.worth = worth
-        super().__init__(
-            f"You cannot add {gang.name} to {campaign.name}. It is worth "
-            f"{worth}¢ with its stash counted, and the campaign's budget is "
-            f"{campaign.budget}¢. Ask the arbitrator to add it."
-        )
-
-
 class NotOnOffer(Refusal):
     """The thing picked cannot settle the choice that was offered.
 
@@ -429,7 +409,7 @@ class Operation:
             self._campaign = membership.campaign if membership else None
         return self._campaign
 
-    def join_campaign(self, campaign, over_budget_allowed=False):
+    def join_campaign(self, campaign):
         """Put this operation's gang into a campaign, and say so in its history.
 
         A gang plays one campaign at a time, so joining a second while still in
@@ -437,12 +417,10 @@ class Operation:
         the same line, and a player owed an explanation is better served by the
         sentence than by a constraint error.
 
-        Where the campaign has a budget, a gang may join only if it is worth
-        no more than that, counting models, their gear and the stash.
-        ``over_budget_allowed`` is the arbitrator's say-so: they set the
-        number, so they are the one who may go past it. It defaults to
-        refusing, because the caller that forgets to think about it is the
-        one letting a player in unchecked.
+        A campaign's budget stops nobody: it is a size the table agreed on,
+        and a gang bigger than it joins and is said to be bigger. What
+        counts against the budget is the gang's wealth — see
+        :func:`over_budget` — and the screens that add a gang say so.
 
         Nothing about the gang changes but where it plays. The event is the
         gang's own, and names the campaign, so it reads in both histories from
@@ -459,20 +437,6 @@ class Operation:
             if already.campaign_id == campaign.pk:
                 return already
             raise AlreadyInACampaign(gang, already.campaign)
-
-        if campaign.budget is not None and not over_budget_allowed:
-            # Read again now the gang's line is held. What the caller
-            # handed over was loaded before the lock, so its pinned rating
-            # is from before whatever else was waiting to write; weighing
-            # that copy would seat a gang that grew while this request
-            # queued. The stash carries its own pinned rating, so it is
-            # fetched with the row rather than left cached.
-            from n26.core.models import Gang
-
-            weighed = Gang.objects.select_related("stash").get(pk=gang.pk)
-            worth = weighed.rating_with_stash
-            if worth > campaign.budget:
-                raise OverCampaignBudget(gang, campaign, worth)
 
         membership = CampaignMembership.objects.create(campaign=campaign, gang=gang)
         # Set before the event is written, so the event that records the

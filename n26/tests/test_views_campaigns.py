@@ -1092,7 +1092,7 @@ class TestAPlayerBringingTheirOwnGang:
         assert "No gangs yet" in drawn
         assert "/n26/gangs/new/" in drawn
 
-    def test_a_gang_over_the_budget_is_refused(
+    def test_a_gang_over_the_budget_joins_and_is_said_to_be_over(
         self, client, arbitrator, gang_type, make_profile, open_to_everyone
     ):
         from n26.core.campaigns import campaign_operation
@@ -1114,13 +1114,19 @@ class TestAPlayerBringingTheirOwnGang:
             {"gang": str(rich.pk)},
             follow=True,
         )
-        # Not merely that nothing happened: a 404, or a form rejecting the
-        # gang for some other reason, would leave the same absence behind.
         assert response.status_code == 200
+        assert CampaignMembership.objects.filter(
+            campaign=tight, gang=rich, left__isnull=True
+        ).exists()
+
         said = [str(message) for message in response.context["messages"]]
-        assert any("You cannot add" in message for message in said), said
-        assert any("budget is 0¢" in message for message in said), said
-        assert not CampaignMembership.objects.filter(gang=rich).exists()
+        assert any("joined" in message for message in said), said
+        # The sum is spelled out, so a reader can check it against the
+        # figures their own gang sheet gives them.
+        over = next(message for message in said if "over the budget" in message)
+        assert "rating 55¢" in over, over
+        assert "stash 0¢" in over, over
+        assert "budget is 0¢" in over, over
 
     def test_somebody_with_no_place_at_the_table_gets_404(
         self, client, arbitrator, open_to_everyone
@@ -1250,7 +1256,7 @@ class TestTheRollsQueryCount:
                     paid=25,
                 )
             with operation(gang, actor=arbitrator) as op:
-                op.join_campaign(campaign, over_budget_allowed=True)
+                op.join_campaign(campaign)
 
         seat("One", stashed=True)
         # Once first, so nothing one-off is counted as part of the page.

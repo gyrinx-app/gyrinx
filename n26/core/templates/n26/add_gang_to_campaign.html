@@ -75,7 +75,7 @@ between them restates what the heading has said.
                 {% endif %}
             {% else %}
                 <c-ui.field label="Gang *"
-                            description="Your gangs that are not already in a campaign.{% if campaign.budget is not None %} The campaign's budget is {{ campaign.budget }}¢.{% endif %}"
+                            description="Your gangs that are not already in a campaign.{% if campaign.budget is not None %} The campaign's budget is {{ campaign.budget }}¢, and a bigger gang can still join.{% endif %}"
                             error="x"
                             :form="form"
                             name="gang"

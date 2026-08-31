@@ -8,10 +8,10 @@ import pytest
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 
-from n26.core.campaigns import campaign_operation
+from n26.core.campaigns import campaign_operation, over_budget
 from n26.core.history import build, campaign_history, campaign_history_size
 from n26.core.models import Campaign, CampaignMembership, Gang, LedgerEvent
-from n26.core.operations import AlreadyInACampaign, OverCampaignBudget, operation
+from n26.core.operations import AlreadyInACampaign, operation
 from n26.library.authoring import create_wargear
 from n26.tests.sandbox.actions import assign, found_gang, hire
 
@@ -103,96 +103,76 @@ class TestJoiningACampaign:
                 CampaignMembership.objects.create(campaign=other_campaign, gang=gang)
 
 
-class TestTheBudgetAtTheDoor:
-    """What a campaign says it will take, and who may go past it."""
+class TestWhatCountsAgainstTheBudget:
+    """A budget is a size the table agreed on, and nothing is refused for
+    being over it. What it is measured against is the gang's wealth: its
+    rating, its stash and the credits it has not spent. Spending moves
+    credits into rating or stash and changes none of the total, so wealth
+    today is what a gang's rating and stash come to once it has bought
+    everything it can.
+    """
 
     @pytest.fixture
     def gang(self, gang_type, make_profile):
-        """A gang with somebody in it, so it is worth something to weigh."""
+        """A gang with one hired model and no budget of its own, so its
+        wealth is exactly what it holds."""
         player = User.objects.create_user("player")
         founded = found_gang("The Ashen Choir", gang_type, owner=player)
         hire(founded, make_profile("Escher Ganger"), "Yolanda", paid=55)
-        founded.refresh_from_db()
-        return founded
+        return Gang.objects.get(pk=founded.pk)
 
-    @pytest.fixture
-    def shoestring(self, arbitrator):
-        """A campaign nobody's gang fits into."""
-        return Campaign.objects.create(name="Shoestring", owner=arbitrator, budget=1)
-
-    def test_the_gang_is_worth_what_it_holds(self, gang):
-        """The premise the rest of the class rests on."""
-        assert gang.rating_with_stash == gang.rating + gang.stash_rating
-        assert gang.rating_with_stash > 1
-
-    def test_a_gang_worth_more_is_refused(self, gang, shoestring, arbitrator):
-        with pytest.raises(OverCampaignBudget) as refused:
-            with operation(gang, actor=arbitrator) as op:
-                op.join_campaign(shoestring)
-        said = str(refused.value)
-        assert "Shoestring" in said
-        assert str(gang.rating_with_stash) in said
-        assert not CampaignMembership.objects.filter(gang=gang).exists()
-
-    def test_the_arbitrator_may_seat_it_anyway(self, gang, shoestring, arbitrator):
-        """They set the number, so they are the one who may go past it."""
-        with operation(gang, actor=arbitrator) as op:
-            op.join_campaign(shoestring, over_budget_allowed=True)
-        assert CampaignMembership.objects.filter(
-            gang=gang, campaign=shoestring, left__isnull=True
-        ).exists()
-
-    def test_a_gang_that_fits_walks_in(self, gang, campaign, arbitrator):
-        with operation(gang, actor=arbitrator) as op:
-            op.join_campaign(campaign)
-        assert CampaignMembership.objects.filter(
-            gang=gang, campaign=campaign, left__isnull=True
-        ).exists()
-
-    def test_a_campaign_with_no_budget_takes_anything(
-        self, gang, other_campaign, arbitrator
-    ):
-        assert other_campaign.budget is None
-        with operation(gang, actor=arbitrator) as op:
-            op.join_campaign(other_campaign)
-        assert CampaignMembership.objects.filter(
-            gang=gang, campaign=other_campaign, left__isnull=True
-        ).exists()
-
-    def test_the_stash_is_counted(self, gang, arbitrator):
-        """Gear put aside still belongs to the gang, so it still weighs."""
-        before = gang.rating_with_stash
-        assign(create_wargear("Ammo crate", price=25), stash=gang.stash, paid=25)
-        # Fetched again rather than refreshed: the stash is a cached reverse
-        # relation, and its pinned rating is what changed.
-        gang = Gang.objects.get(pk=gang.pk)
-        assert gang.rating_with_stash == before + 25
-
-        snug = Campaign.objects.create(name="Snug", owner=arbitrator, budget=before)
-        with pytest.raises(OverCampaignBudget):
-            with operation(gang, actor=arbitrator) as op:
-                op.join_campaign(snug)
-
-    def test_cash_in_hand_is_not_counted(self, gang, arbitrator):
-        """The cap is on what the gang owns, so money it has not spent
-        cannot put it over one."""
-        gang.credits = 100_000
-        gang.save()
-        roomy = Campaign.objects.create(
-            name="Roomy", owner=arbitrator, budget=gang.rating_with_stash
+    def campaign_of(self, arbitrator, budget):
+        return Campaign.objects.create(
+            name=f"Budget {budget}", owner=arbitrator, budget=budget
         )
-        with operation(gang, actor=arbitrator) as op:
-            op.join_campaign(roomy)
-        assert CampaignMembership.objects.filter(gang=gang, campaign=roomy).exists()
 
-    def test_worth_exactly_the_budget_fits(self, gang, arbitrator):
+    def test_a_gang_that_fits_is_not_over(self, gang, arbitrator):
+        assert gang.wealth == 55
+        assert over_budget(self.campaign_of(arbitrator, 1000), gang) is False
+
+    def test_exactly_the_budget_is_not_over(self, gang, arbitrator):
         """Up to the number, not short of it."""
-        exact = Campaign.objects.create(
-            name="Exact", owner=arbitrator, budget=gang.rating_with_stash
-        )
+        assert over_budget(self.campaign_of(arbitrator, gang.wealth), gang) is False
+
+    def test_a_penny_more_is_over(self, gang, arbitrator):
+        assert over_budget(self.campaign_of(arbitrator, gang.wealth - 1), gang) is True
+
+    def test_a_campaign_with_no_budget_is_never_over(self, gang, arbitrator):
+        assert over_budget(self.campaign_of(arbitrator, None), gang) is False
+
+    def test_the_stash_counts(self, gang, arbitrator):
+        """Gear put aside still belongs to the gang."""
+        before = gang.wealth
+        assign(create_wargear("Ammo crate", price=25), stash=gang.stash, paid=25)
+        grown = Gang.objects.get(pk=gang.pk)
+        assert grown.wealth == before + 25
+        assert over_budget(self.campaign_of(arbitrator, before), grown) is True
+
+    def test_credits_not_yet_spent_count(self, gang_type, make_profile, arbitrator):
+        """The case the whole measure turns on: a gang founded on a large
+        budget that has spent almost none of it is not small. It will be
+        as big as its founding budget the moment it goes shopping."""
+        player = User.objects.create_user("spender")
+        rich = found_gang("Deep Pockets", gang_type, owner=player, budget=5000)
+        hire(rich, make_profile("Escher Ganger"), "Yolanda", paid=55)
+        rich = Gang.objects.get(pk=rich.pk)
+
+        assert rich.rating == 55
+        assert rich.stash_rating == 0
+        assert rich.credits == 4945
+        assert rich.wealth == 5000
+
+        # What it holds today would fit; what it can buy will not.
+        assert over_budget(self.campaign_of(arbitrator, 1000), rich) is True
+
+    def test_a_gang_over_the_budget_still_joins(self, gang, arbitrator):
+        """Nothing is refused for being over: the budget informs."""
+        snug = self.campaign_of(arbitrator, gang.wealth - 1)
         with operation(gang, actor=arbitrator) as op:
-            op.join_campaign(exact)
-        assert CampaignMembership.objects.filter(gang=gang, campaign=exact).exists()
+            op.join_campaign(snug)
+        assert CampaignMembership.objects.filter(
+            gang=gang, campaign=snug, left__isnull=True
+        ).exists()
 
 
 class TestLeavingACampaign:

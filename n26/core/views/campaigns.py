@@ -175,6 +175,7 @@ def campaign(request, pk):
     is a campaign, not its history, and a log that grew without bound would
     push everything else off the bottom.
     """
+    from n26.core.campaigns import over_budget
     from n26.core.history import campaign_history, campaign_history_size
     from n26.core.models import CampaignMembership, CampaignParticipant
 
@@ -196,10 +197,8 @@ def campaign(request, pk):
     # past the campaign's ceiling since is as much worth saying as one that
     # arrived over it, and neither is anything the page stops.
     for membership in playing:
-        membership.worth = membership.gang.rating_with_stash
-        membership.over_budget = (
-            found.budget is not None and membership.worth > found.budget
-        )
+        membership.wealth = membership.gang.wealth
+        membership.over_budget = over_budget(found, membership.gang)
         # The arbitrator may take any gang out; a player only their own.
         membership.may_remove = yours or membership.gang.owner_id == reading
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
@@ -310,6 +309,7 @@ def add_gang(request, pk):
     """
     from django.http import Http404
 
+    from n26.core.campaigns import over_budget
     from n26.core.forms import BringGangForm, JoinCampaignForm
     from n26.core.models import Gang
     from n26.core.operations import Refusal, operation
@@ -330,11 +330,24 @@ def add_gang(request, pk):
             gang = form.cleaned_data["gang"]
             try:
                 with operation(gang, actor=request.user) as op:
-                    op.join_campaign(found, over_budget_allowed=arbitrating)
+                    op.join_campaign(found)
             except Refusal as refused:
                 messages.error(request, str(refused))
             else:
                 messages.success(request, f"{gang.name} joined {found.name}.")
+                # Said after the fact, because the budget stops nobody. The
+                # sum is spelled out: a reader comparing this against their
+                # gang sheet should not have to work out which figures it
+                # added together.
+                gang.refresh_from_db()
+                if over_budget(found, gang):
+                    messages.warning(
+                        request,
+                        f"{gang.name} is over the budget. Its rating "
+                        f"{gang.rating:,}¢, stash {gang.stash_rating:,}¢ and "
+                        f"credits {gang.credits:,}¢ add up to "
+                        f"{gang.wealth:,}¢. The budget is {found.budget:,}¢.",
+                    )
                 return redirect("n26-campaign", pk=found.pk)
     else:
         form = build()

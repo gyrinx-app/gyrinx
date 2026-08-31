@@ -174,10 +174,10 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
                             </div>
                             {% comment %}
-                            A gang worth more than the campaign said it would
-                            take is marked and nothing else: the arbitrator
-                            seated it, or it has grown since, and neither is
-                            something this page undoes.
+                            A gang bigger than the campaign's budget is
+                            marked and nothing else. The budget stops
+                            nobody joining; it says what size the table
+                            agreed on.
                             {% endcomment %}
                             {% comment %}
                             Amber rather than orange: orange is what an
@@ -191,11 +191,12 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 </c-ui.badge>
                             {% endif %}
                             {% comment %}
-                            The number the mark is measured against: the
-                            gang's rating and its stash together, which is
-                            not the rating its own sheet shows.
+                            Wealth, which is what the mark beside it is
+                            measured against — rating, stash and unspent
+                            credits, the same figure the gang's own sheet
+                            gives that name.
                             {% endcomment %}
-                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.worth }}¢</span>
+                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.wealth }}¢</span>
                             {% if membership.may_remove %}
                                 <c-ui.button size="sm"
                                              variant="ghost"

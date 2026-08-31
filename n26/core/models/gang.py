@@ -166,18 +166,6 @@ class Gang(Base, Owned, Archived, Rated):
         return stash.rating if stash else 0
 
     @property
-    def rating_with_stash(self):
-        """What the gang owns: its models and their gear, and the stash.
-
-        Wealth without the cash, and what a campaign's budget is measured
-        against. Money in hand is not yet anything — two gangs holding the
-        same kit are the same size whichever of them has spent down — so a
-        cap on what a gang may bring counts what it has, not what it could
-        still buy. Column reads.
-        """
-        return self.rating + self.stash_rating
-
-    @property
     def wealth(self):
-        """What the gang owns, plus the cash it has not spent. Column reads."""
-        return self.rating_with_stash + self.credits
+        """Rating, plus cash, plus what the stash holds. Column reads."""
+        return self.rating + self.credits + self.stash_rating
