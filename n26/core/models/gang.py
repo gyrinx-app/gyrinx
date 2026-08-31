@@ -179,5 +179,5 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def wealth(self):
-        """Rating, plus cash, plus what the stash holds. Column reads."""
-        return self.rating + self.credits + self.stash_rating
+        """What the gang owns, plus the cash it has not spent. Column reads."""
+        return self.rating_with_stash + self.credits

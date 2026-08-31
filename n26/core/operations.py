@@ -461,7 +461,16 @@ class Operation:
             raise AlreadyInACampaign(gang, already.campaign)
 
         if campaign.budget is not None and not over_budget_allowed:
-            worth = gang.rating_with_stash
+            # Read again now the gang's line is held. What the caller
+            # handed over was loaded before the lock, so its pinned rating
+            # is from before whatever else was waiting to write; weighing
+            # that copy would seat a gang that grew while this request
+            # queued. The stash carries its own pinned rating, so it is
+            # fetched with the row rather than left cached.
+            from n26.core.models import Gang
+
+            weighed = Gang.objects.select_related("stash").get(pk=gang.pk)
+            worth = weighed.rating_with_stash
             if worth > campaign.budget:
                 raise OverCampaignBudget(gang, campaign, worth)
 

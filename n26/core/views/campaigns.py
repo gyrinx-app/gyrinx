@@ -195,9 +195,9 @@ def campaign(request, pk):
     # past the campaign's ceiling since is as much worth saying as one that
     # arrived over it, and neither is anything the page stops.
     for membership in playing:
+        membership.worth = membership.gang.rating_with_stash
         membership.over_budget = (
-            found.budget is not None
-            and membership.gang.rating_with_stash > found.budget
+            found.budget is not None and membership.worth > found.budget
         )
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the participants, and
@@ -348,6 +348,9 @@ def add_gang(request, pk):
             for row in form.fields["gang"].queryset
         ]
 
+    # A player with nothing to bring is told so, rather than shown a picker
+    # with nothing in it.
+    nothing_to_bring = not arbitrating and not options
     return render(
         request,
         "n26/add_gang_to_campaign.html",
@@ -356,16 +359,11 @@ def add_gang(request, pk):
             "campaign": found,
             "arbitrating": arbitrating,
             "gang_options": options,
-            # A player with nothing to bring is told so, rather than shown a
-            # picker with nothing in it — and told which of the two reasons
-            # it is, because owning no gangs and owning only busy ones lead
-            # somewhere different. Asked only when there is nothing to offer.
-            "nothing_to_bring": not arbitrating and not options,
-            "owns_a_gang": (
-                not arbitrating
-                and not options
-                and Gang.objects.filter(owner=request.user, archived=False).exists()
-            ),
+            "nothing_to_bring": nothing_to_bring,
+            # Which of the two reasons the picker is empty: owning no gangs
+            # and owning only gangs already playing lead somewhere different.
+            "every_gang_busy": nothing_to_bring
+            and Gang.objects.filter(owner=request.user, archived=False).exists(),
         },
     )
 

@@ -8,6 +8,9 @@ list. The arbitrator pastes an address instead: a gang sheet opens for anybody
 holding its address, so a player choosing to send one is already how a roster
 travels here — the paste is the consent, and no screen has to offer a search
 across other people's gangs.
+
+One control, so the page is the heading, the field and the buttons. Anything
+between them restates what the heading has said.
 {% endcomment %}
 {% block head_title %}Add a gang to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -20,9 +23,8 @@ across other people's gangs.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-gang' campaign.pk %}"
                      title="Add a gang to {{ campaign.name }}"
-                     lead="A gang plays one campaign at a time."
                      :form="form"
-                     submit_label="{% if nothing_to_bring %}{% else %}Add gang{% endif %}"
+                     submit_label="{% if not nothing_to_bring %}Add gang{% endif %}"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -39,7 +41,7 @@ across other people's gangs.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="The gang">
+        <c-n26.form-section>
             {% if arbitrating %}
                 <c-ui.field label="Gang *"
                             description="Paste the link a player sent you, or the gang’s id."
@@ -50,6 +52,7 @@ across other people's gangs.
                     <c-ui.input id="join-gang"
                                 name="gang"
                                 autocomplete="off"
+                                :required="True"
                                 value="{{ form.gang.value|default:'' }}" />
                 </c-ui.field>
             {% elif nothing_to_bring %}
@@ -58,7 +61,7 @@ across other people's gangs.
                 the page says which rather than covering both and leaving them
                 to work it out.
                 {% endcomment %}
-                {% if owns_a_gang %}
+                {% if every_gang_busy %}
                     <c-ui.alert variant="info" title="Every gang of yours is in a campaign">
                         A gang plays one campaign at a time, so none of yours
                         can join this one.
@@ -72,15 +75,21 @@ across other people's gangs.
                 {% endif %}
             {% else %}
                 <c-ui.field label="Gang *"
-                            description="{% if campaign.budget is None %}One of yours.{% else %}One of yours, worth {{ campaign.budget }}¢ or less. That counts models, their gear and the stash.{% endif %}"
+                            description="Your gangs that are not already in a campaign.{% if campaign.budget is not None %} The campaign's budget is {{ campaign.budget }}¢.{% endif %}"
                             error="x"
                             :form="form"
                             name="gang"
                             for="join-gang">
-                    <c-ui.select.native name="gang" id="join-gang" placeholder="">
-                        <c-ui.select.option value="">
-                            Select a gang
-                        </c-ui.select.option>
+                    {% comment %}
+                    The kit's own placeholder draws the blank option, disabled
+                    and selected. A hand-written one is neither, so a reader
+                    can pick the blank back and submit an empty form.
+                    {% endcomment %}
+                    <c-ui.select.native name="gang"
+                                        id="join-gang"
+                                        placeholder="Select one"
+                                        :required="True"
+                                        value="{{ form.gang.value|default:'' }}">
                         {% for option in gang_options %}
                             <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
                                 {{ option.label }}

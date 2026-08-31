@@ -372,9 +372,11 @@ class BringGangForm(forms.Form):
 
     #: The screen draws the picker itself, so what the reader is told about
     #: it is written there. A help_text here would say nothing to anybody.
+    #: ``owner`` has no default: a queryset built without one would filter
+    #: on a null owner and offer gangs belonging to nobody.
     gang = forms.ModelChoiceField(queryset=None, label="Gang")
 
-    def __init__(self, *args, owner=None, **kwargs):
+    def __init__(self, *args, owner, **kwargs):
         from n26.core.models import CampaignMembership, Gang
 
         super().__init__(*args, **kwargs)

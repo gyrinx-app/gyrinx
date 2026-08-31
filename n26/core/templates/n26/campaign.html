@@ -179,21 +179,23 @@ reader's other campaigns — the same pattern a gang's screens use.
                             seated it, or it has grown since, and neither is
                             something this page undoes.
                             {% endcomment %}
+                            {% comment %}
+                            Amber rather than orange: orange is what an
+                            invitation still waiting wears further up this
+                            page, and one colour cannot mean two things on
+                            one screen.
+                            {% endcomment %}
                             {% if membership.over_budget %}
-                                <c-ui.badge color="orange" size="sm">
+                                <c-ui.badge color="amber" size="sm" class="shrink-0">
                                     Over budget
                                 </c-ui.badge>
                             {% endif %}
                             {% comment %}
-                            What the campaign weighs, which counts the stash —
-                            not the gang's own rating, which does not. A roll
-                            showing one number and marking against the other
-                            reads as a mistake in whichever the reader trusts.
+                            The number the mark is measured against: the
+                            gang's rating and its stash together, which is
+                            not the rating its own sheet shows.
                             {% endcomment %}
-                            <span class="shrink-0 text-sm tabular-nums text-muted"
-                                  title="Counts models, their gear and the stash.">
-                                {{ membership.gang.rating_with_stash }}¢
-                            </span>
+                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.worth }}¢</span>
                             {% if yours %}
                                 <c-ui.button size="sm"
                                              variant="ghost"
