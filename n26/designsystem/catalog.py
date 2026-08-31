@@ -1868,7 +1868,10 @@ GROUPS: list[Group] = [
                     "settled, an open one being information rather than an error. "
                     "Every control is drawn from an href on the structure, so a "
                     "print sheet and a hire preview draw none of them without "
-                    "asking. A stored model's card is three segmented tabs — Card, "
+                    "asking — the counter lines included, which draw as settled "
+                    "numbers wherever nobody may move them. XP is both a line "
+                    "and a cell in the statline: the cell carries the target "
+                    "beside it, the line is where the number is changed. A stored model's card is three segmented tabs — Card, "
                     "then Lore and Notes, the sections a player writes; a card with "
                     "no id (a preview, a picker option) draws the body plain. "
                     "Two modes: gang, the sheet's — dense, with the open "
@@ -1907,6 +1910,13 @@ GROUPS: list[Group] = [
                         "c-n26.model-card.prose",
                         "n26/model_card/prose.html",
                         "A written section of a card: the Lore and Notes panels.",
+                    ),
+                    Part(
+                        "c-n26.counter-controls",
+                        "n26/counter_controls.html",
+                        "The pair that moves one counter a step either way. "
+                        "Drawn only where the line carries an address, and "
+                        "without the minus at zero.",
                     ),
                 ),
             ),

@@ -1719,14 +1719,26 @@ class Operation:
 
         ``change`` is signed; the value floors at zero. Every change is a
         ledger event, so the history of a Kill Count reads like the
-        history of anything else the gang owns.
+        history of anything else the gang owns — and carries what moved
+        and where it landed, which is what a reader auditing a number is
+        looking for. ``note`` is why, where the caller knows.
         """
         from n26.core.models import CounterValue, LedgerEvent
 
         held, _ = CounterValue.objects.get_or_create(assignment=assignment)
+        before = held.value
         held.value = max(0, held.value + change)
         held.save(update_fields=["value", "modified"])
-        self.event(assignment, LedgerEvent.Kind.TALLIED, note=note)
+        # What moved and where it landed, so the history can be read
+        # against the number on the card. The movement recorded is the
+        # one that happened rather than the one asked for: a subtraction
+        # that would go below zero stops at zero.
+        moved = f"{held.value - before:+d} → {held.value}"
+        self.event(
+            assignment,
+            LedgerEvent.Kind.TALLIED,
+            note=f"{moved}: {note}" if note else moved,
+        )
         return held.value
 
     def move(self, assignment, to, note=""):

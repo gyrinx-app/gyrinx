@@ -1,0 +1,44 @@
+{% comment %}
+<c-n26.counter-controls> — the way to move one counter up or down by one.
+
+    <c-n26.counter-controls :counter="counter" />
+
+Drawn beside the number on a card's counter line, and only where the line
+carries an address: a card that depicts nobody, a print sheet and the gang
+sheet all draw the number alone. Changing a counter quickly is a bulk act and
+belongs to a screen built for it; this is the single-model control on the
+model's own page.
+
+One form, two buttons: each submits the same address with its own signed
+`change`, so the pair works with no script and posts what the bulk act will
+post later. Minus is not drawn at zero — the value floors there, so the
+control would be offering something that cannot happen.
+
+  :counter — a n26.render.CounterLine.
+{% endcomment %}
+<c-vars :counter="None" />
+
+<form method="post" action="{{ counter.href }}" class="ms-1 inline-flex items-center gap-1 align-middle">
+    {% csrf_token %}
+    <input type="hidden" name="back" value="{{ request.get_full_path }}">
+    {% if counter.value %}
+        <c-ui.button type="submit"
+                     name="change"
+                     value="-1"
+                     size="xs"
+                     variant="default"
+                     class="py-0!"
+                     aria-label="Take one off {{ counter.name }}">
+            <span aria-hidden="true">&minus;</span>
+        </c-ui.button>
+    {% endif %}
+    <c-ui.button type="submit"
+                 name="change"
+                 value="1"
+                 size="xs"
+                 variant="default"
+                 class="py-0!"
+                 aria-label="Add one to {{ counter.name }}">
+        <span aria-hidden="true">+</span>
+    </c-ui.button>
+</form>

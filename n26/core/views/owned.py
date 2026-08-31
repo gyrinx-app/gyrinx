@@ -73,6 +73,24 @@ from n26.core.owned import (
 from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 
+#: The largest step this address will take, either way. The control posts
+#: one; the bulk act that comes later will post a handful.
+MOST_A_TALLY_MOVES = 1000
+
+
+def link_counters(card):
+    """Point every counter line on this card at what changes it.
+
+    Costs no queries: the line already carries the assignment behind it,
+    and this only turns it into a URL. A line with none keeps an empty
+    href and draws as a number with nothing to click — which is right
+    for a card depicting nobody, and for every screen that shows a
+    counter without offering to move it.
+    """
+    for line in card.counters:
+        if line.assignment_id:
+            line.href = reverse("n26-tally", args=[line.assignment_id])
+
 
 def _possession_or_404(request, pk):
     """One of the viewer's own assignments, and one these acts are *about*.
@@ -995,3 +1013,68 @@ def refund_assignment(request, pk):
     )
     messages.success(request, f"Refunded {name} — {paid}¢ back.")
     return _acted(request, touched, gang, back)
+
+
+@login_required
+@require_POST
+def tally_counter(request, pk):
+    """Move one counter up or down.
+
+    ``change`` is signed and the value floors at zero, both of which are
+    ``Operation.tally``'s — so a stale control that offers a subtraction
+    a later reader has already made impossible takes the value to zero
+    rather than below it.
+
+    The same address serves a model's counter and the gang's own: what
+    is being changed is the assignment, and who is carrying it is its
+    business. Only counters, though — every other assignment has verbs
+    of its own, and none of them is a running number.
+
+    Written a step at a time on purpose. The rulebook's own acts move
+    these by more (a Spyrer spends four Kill Count on Suit Evolution),
+    and doing that in one go — with a note saying why — is the dialog
+    this control makes room for rather than replaces.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import Refusal, operation
+    from n26.library.models import Counter
+
+    assignment = _own_assignment_or_404(request, pk)
+    if not isinstance(assignment.assignable, Counter):
+        raise Http404("Not a counter")
+    gang = assignment.gang_root
+    miniature = assignment.miniature_root
+    name = str(assignment.assignable)
+    back = request.POST.get("back", "")[:500]
+    here = reverse("n26-gang", args=[gang.pk])
+
+    try:
+        change = int(request.POST.get("change", ""))
+    except ValueError:
+        raise Http404("Not a change to make") from None
+    if abs(change) > MOST_A_TALLY_MOVES:
+        # A counter's value is a database integer, and a number past what
+        # one holds would be a 500 rather than a refusal. Nothing offers
+        # a step anywhere near this, so it is a bound and not a rule.
+        raise Http404("Not a change to make")
+
+    try:
+        with operation(gang, actor=request.user) as op:
+            standing = op.tally(assignment, change)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return _safe_redirect(request, back, here)
+
+    record(
+        request,
+        N26Noun.ASSIGNMENT,
+        EventVerb.UPDATE,
+        assignment,
+        gang_id=str(gang.pk),
+        miniature_id=str(miniature.pk) if miniature else None,
+        thing=name,
+        action="tally",
+        change=change,
+    )
+    messages.success(request, f"{name} is now {standing}.")
+    return _safe_redirect(request, back, here)

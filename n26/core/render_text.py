@@ -36,6 +36,10 @@ def render_model_card(card, indent=""):
         *render_statline(card.statline, indent=indent + "  "),
         f"{indent}  XP: {card.xp_display}",
     ]
+    # XP has its own line above, with the target on it, and so is not
+    # among these — see ModelCard.counter_lines.
+    for counter in card.counter_lines:
+        lines.append(f"{indent}  {counter.name}: {counter.value}")
     if card.weapons:
         lines.append(f"{indent}  Weapons:")
         for weapon in card.weapons:

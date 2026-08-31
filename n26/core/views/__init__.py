@@ -55,6 +55,7 @@ from n26.core.views.owned import (
     refund_assignment,
     remove_assignment,
     sell_assignment,
+    tally_counter,
 )
 from n26.core.views.printing import print_gang, print_setup
 
@@ -102,4 +103,5 @@ __all__ = [
     "remove_assignment",
     "rename_fighter",
     "sell_assignment",
+    "tally_counter",
 ]

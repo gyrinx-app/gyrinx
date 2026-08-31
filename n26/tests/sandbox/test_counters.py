@@ -11,6 +11,7 @@ one ledger event per change.
 
 import pytest
 from django.contrib.auth.models import User
+from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
@@ -38,6 +39,12 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def xp(db):
     return create_counter("XP")
+
+
+@pytest.fixture
+def kills(db):
+    """A Spyrer's second counter — the one the card drew nowhere."""
+    return create_counter("Kill Count")
 
 
 @pytest.fixture
@@ -126,6 +133,197 @@ class TestWhatTheCardShows:
         yolanda = hire_with_option(gang, queen, "Yolanda")
 
         assert [line.name for line in drawn(yolanda)[0].equipment] == []
+
+    def test_a_counter_draws_a_line_of_its_own(self, gang, queen):
+        """The bug this class was written for, in its second half: a
+        Spyrer's Kill Count was granted, stored and tallied, and appeared
+        on no card at all."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        assert [(line.name, line.value) for line in drawn(yolanda)[0].counters] == [
+            ("XP", 61)
+        ]
+
+    def test_the_line_follows_the_tally(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +5)
+
+        assert drawn(yolanda)[0].counters[0].value == 66
+
+    def test_xp_leads_however_the_card_holds_them(self, gang, queen, kills):
+        """XP first: it is the one every model keeps and the one a
+        reader looks for."""
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(kills, miniature=yolanda)
+
+        assert [line.name for line in drawn(yolanda)[0].counters] == [
+            "XP",
+            "Kill Count",
+        ]
+
+    def test_a_line_carries_the_assignment_behind_it(self, gang, queen):
+        """What a control posts to. A card built from library alone has
+        none, which is how it says there is nothing here to change."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        assert drawn(yolanda)[0].counters[0].assignment_id == str(xp_row(yolanda).pk)
+
+    def test_a_line_has_no_address_until_somebody_gives_it_one(self, gang, queen):
+        """Every control is drawn from an href, and nothing here fills
+        one: a gang sheet and a print sheet draw settled numbers."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        assert drawn(yolanda)[0].counters[0].href == ""
+
+    def test_an_xp_nobody_can_move_is_the_cell_and_not_a_line(self, gang, queen, kills):
+        """XP has a cell with its target in it. The line earns its place
+        by being where the number is changed, so where nothing can be
+        changed it would only say 61 twice."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        from n26.tests.sandbox.actions import assign
+
+        assign(kills, miniature=yolanda)
+        card = drawn(yolanda)[0]
+
+        assert [line.name for line in card.counter_lines] == ["Kill Count"]
+
+    def test_it_is_a_line_again_once_it_can_be_moved(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        card = drawn(yolanda)[0]
+        card.counters[0].href = "/somewhere/"
+
+        assert [line.name for line in card.counter_lines] == ["XP"]
+
+
+class TestMovingACounterByHand:
+    """The control on the model's own page, and the address behind it.
+
+    Nothing could change a counter before this: ``tally`` had one caller,
+    a rule firing off an assignment. XP included — a fighter could earn
+    none, and a Spyrer's Kill Count could only be watched.
+    """
+
+    def address(self, miniature):
+        """Where this model's XP is moved from."""
+        row = Assignment.objects.get(miniature=miniature, counter__name="XP")
+        return reverse("n26-tally", args=[row.pk])
+
+    def test_the_models_own_page_offers_the_control(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert self.address(yolanda) in page.content.decode()
+
+    def test_the_gang_sheet_does_not(self, client, gang, queen, kills):
+        """Changing these quickly, for a roster at a time after a battle,
+        is a screen built for it — not a control the sheet grows."""
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        counted = assign(kills, miniature=yolanda)
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-gang", args=[gang.pk]))
+
+        drawn_there = page.content.decode()
+        # The number is on the sheet; the way to change it is not.
+        assert "Kill Count" in drawn_there
+        assert reverse("n26-tally", args=[counted.pk]) not in drawn_there
+
+    def test_a_step_up_moves_it(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        client.post(self.address(yolanda), {"change": "1"})
+
+        assert xp_row(yolanda).counter_value.value == 62
+
+    def test_a_step_down_moves_it_back(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        client.post(self.address(yolanda), {"change": "-1"})
+
+        assert xp_row(yolanda).counter_value.value == 60
+
+    def test_it_floors_at_zero(self, client, gang, queen):
+        """The floor is ``tally``'s own, so a control that has gone
+        stale takes the value to zero rather than below it."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), -61)
+        client.force_login(gang.owner)
+
+        client.post(self.address(yolanda), {"change": "-1"})
+
+        assert xp_row(yolanda).counter_value.value == 0
+
+    def test_the_change_is_a_ledger_event(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        client.post(self.address(yolanda), {"change": "1"})
+
+        event = xp_row(yolanda).ledger_events.filter(kind="tallied").latest("created")
+        assert event.note == "+1 → 62"
+
+    def test_it_returns_to_the_page_the_click_came_from(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        back = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        response = client.post(self.address(yolanda), {"change": "1", "back": back})
+
+        assert response.status_code == 302
+        assert response["Location"] == back
+
+    def test_it_will_not_be_sent_somewhere_else(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        response = client.post(
+            self.address(yolanda), {"change": "1", "back": "https://elsewhere.test/"}
+        )
+
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
+
+    def test_somebody_elses_counter_is_not_theirs_to_move(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(User.objects.create_user("interloper"))
+
+        response = client.post(self.address(yolanda), {"change": "1"})
+
+        assert response.status_code == 404
+        assert xp_row(yolanda).counter_value.value == 61
+
+    def test_only_counters_are_tallied(self, client, gang, queen):
+        """Every other assignment has verbs of its own, and none of them
+        is a running number."""
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        not_a_counter = assign(create_rule("Bonded to the Rig"), miniature=yolanda)
+        client.force_login(gang.owner)
+
+        response = client.post(
+            reverse("n26-tally", args=[not_a_counter.pk]), {"change": "1"}
+        )
+
+        assert response.status_code == 404
+
+    def test_a_change_that_is_not_a_number_is_no_address_at_all(
+        self, client, gang, queen
+    ):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        response = client.post(self.address(yolanda), {"change": "lots"})
+
+        assert response.status_code == 404
+        assert xp_row(yolanda).counter_value.value == 61
 
 
 class TestEffectsHangOffValues:
@@ -216,7 +414,10 @@ class TestARuleThatMovesACounter:
         assign(leader_mark, miniature=yolanda)
 
         event = xp_row(yolanda).ledger_events.filter(kind="tallied").latest("created")
-        assert event.note == "Chosen Leader"
+        # What moved and where it landed, then what caused it: a reader
+        # auditing the number wants both, and the source alone answers
+        # only half of it.
+        assert event.note == "+0 → 61: Chosen Leader"
 
     def test_add_and_subtract_move_it_relative(self, gang, xp, make_profile):
         from n26.tests.sandbox.actions import (

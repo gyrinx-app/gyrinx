@@ -34,6 +34,7 @@ from n26.core.render import (
     ChoiceOffer,
     Choosable,
     ChoosableGroup,
+    CounterLine,
     EffectLine,
     GangSheet,
     ModelCard,
@@ -1513,6 +1514,19 @@ def model_card():
             ),
         ],
         owned_by="tom",
+        # The running numbers. XP is here as well as in the statline's own
+        # cell: the cell carries the target beside it, and the line is
+        # where the number is changed. A line with an href grows the pair
+        # of controls; without one it is a settled number, which is what
+        # the gang sheet and a print sheet draw. The addresses here go
+        # nowhere, as every href in this gallery does.
+        counters=[
+            CounterLine(name="XP", value=61, assignment_id="xp", href="#"),
+            CounterLine(name="Kill Count", value=3, assignment_id="kills", href="#"),
+            # At zero, so the demo shows that the minus is not drawn: the
+            # value floors there and the control would offer nothing.
+            CounterLine(name="Glitch Count", value=0, assignment_id="glitch", href="#"),
+        ],
         xp=61,
         xp_target=79,
     )
