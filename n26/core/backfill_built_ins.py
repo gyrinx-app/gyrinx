@@ -345,11 +345,14 @@ def _name_of(carrier, host_gang):
 
 
 def legacy_grants_by_kind():
-    """How many grants in unarchived gangs still carry no provenance,
-    by what they name. One query."""
-    counted = Assignment.objects.filter(
-        gang_root__archived=False, **LEGACY_SHAPE
-    ).aggregate(
+    """How many grants still carry no provenance, by what they name.
+    One query.
+
+    Archived gangs are counted with the rest: an archived gang is one
+    its owner may bring back, and a gang whose grants were never tagged
+    comes back holding kit nothing can account for.
+    """
+    counted = Assignment.objects.filter(**LEGACY_SHAPE).aggregate(
         **{
             kind: Count("pk", filter=Q(**{f"{kind}__isnull": False}))
             for kind in DEFAULT_ASSIGNABLE_FIELDS

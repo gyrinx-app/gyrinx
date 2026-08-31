@@ -882,7 +882,12 @@ def audit_reconcile_view(request):
 @task
 def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
     """Tag every legacy built-in grant with its provenance and catch
-    every live carrier up with its sets, one unarchived gang at a time.
+    every live carrier up with its sets, one gang at a time.
+
+    Archived gangs are walked too. An archived gang is one its owner
+    may bring back, and one left untagged comes back holding grants
+    nothing can account for — while the live propagation pass, which
+    only ever visits gangs in play, would never reach it.
 
     Batched, because the whole estate is walked and each gang is its
     own operation, committing on its own. What each gang came to is
@@ -910,7 +915,7 @@ def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
         backfill_id,
         operation=Operation.BACKFILL_BUILT_INS,
         what="Built-ins backfill",
-        items=Gang.objects.filter(archived=False),
+        items=Gang.objects.all(),
         do_one=do_one,
         again=lambda: backfill_built_ins.enqueue(backfill_id=backfill_id),
     )
@@ -953,7 +958,7 @@ def backfill_built_ins_view(request):
     context = page_context(
         request,
         operation.label,
-        gangs=Gang.objects.filter(archived=False).count(),
+        gangs=Gang.objects.count(),
         legacy=[
             {
                 "kind": kind.replace("_", " "),
@@ -977,7 +982,8 @@ register_operation(
         name=Operation.BACKFILL_BUILT_INS.label,
         added=date(2026, 8, 29),
         description=(
-            "Walk every unarchived gang. Each built-in grant written before "
+            "Walk every gang, archived ones included. Each built-in grant "
+            "written before "
             "provenance was recorded is tagged with the set member it came "
             "from and the carrier it came for; then every live carrier — "
             "each model's membership, the gang's founding, a bought mount — "
