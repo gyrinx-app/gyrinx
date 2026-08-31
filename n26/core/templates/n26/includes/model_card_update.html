@@ -1,12 +1,7 @@
 {% comment %}
 The partial update for an act on a model's card — rendered by
-n26.core.views.edit.render_card_update, never included by a page.
-
-Nothing here is targeted by the click that caused it. The card carries
-hx-swap-oob and the id of the host it replaces, so what an act updates is
-decided here rather than at the control. Messages are not among them: they
-ride the HX-Trigger response header as toasts, because a page that is not
-re-rendered draws no alert block.
+n26.core.views.edit.render_card_update, never included by a page. The pattern
+these responses follow is documented in n26/core/views/htmx.py.
 
 The whole card, not the line that changed. Redrawing all of it is what keeps
 a tally honest where a value crosses a threshold: an effect conditioned on a

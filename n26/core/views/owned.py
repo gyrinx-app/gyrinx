@@ -1090,9 +1090,14 @@ def tally_counter(request, pk):
         change=change,
     )
     if miniature is not None and is_htmx(request):
-        # No message: the number on the card moves where the reader is
-        # looking, and a toast for every step of a tally somebody is
-        # working through is noise. A refusal still speaks, above.
-        return render_card_update(request, miniature, back or here)
+        # No message queued: the number on the card moves where the
+        # reader is looking, and a toast for every step of a tally
+        # somebody is working through is noise. A refusal is the one
+        # thing they cannot see, and it is queued where it is raised.
+        return render_card_update(
+            request,
+            miniature,
+            back or reverse("n26-edit-fighter", args=[miniature.pk]),
+        )
     messages.success(request, f"{name} is now {standing}.")
     return _safe_redirect(request, back, here)

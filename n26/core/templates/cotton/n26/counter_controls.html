@@ -8,11 +8,14 @@ carries an address: a card that depicts nobody, a print sheet and the gang
 sheet all draw the number alone. This is the single-model control, on the
 model's own page.
 
-A form each way rather than one form with two buttons. The value has to reach
-the server, and htmx does not read a form's submitter — so a single form
-posting over htmx would carry no `change` at all and be refused, while working
-perfectly without scripting. Two forms carry it in a field, which both paths
-read the same way.
+A form each way, because the value has to reach the server in a field: htmx
+does not read a form's submitter, so a single form with two buttons would post
+no `change` at all.
+
+`hx-sync` queues them against the document rather than letting them overlap.
+Each form disables only its own submit while it is in flight, so without this
+a quick reader could have two tallies running at once and the card would paint
+whichever answer arrived last, not the one that is true.
 
 With htmx set, the act posts through htmx and the server sends back the model
 card alone. Only a screen holding the card's host may set it — see
@@ -35,7 +38,7 @@ offering something that cannot happen.
     {% if counter.value %}
         <form method="post"
               action="{{ counter.href }}"
-              {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none"{% endif %}
+              {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none" hx-sync="body:queue all"{% endif %}
               class="inline">
             {% csrf_token %}
             <input type="hidden" name="back" value="{{ counter.back }}">
@@ -51,7 +54,7 @@ offering something that cannot happen.
     {% endif %}
     <form method="post"
           action="{{ counter.href }}"
-          {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none"{% endif %}
+          {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none" hx-sync="body:queue all"{% endif %}
           class="inline">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ counter.back }}">

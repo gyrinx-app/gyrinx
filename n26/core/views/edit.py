@@ -265,38 +265,35 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
-    The whole card, rather than the part that changed. An effect
-    conditioned on a counter's value can confer a rule, reveal a choice
-    or shift a characteristic the moment the value crosses, and all of
-    those are drawn on this card — redrawing it entire is what keeps the
-    screen honest without this having to work out which of them moved.
+    Why the whole card is sent back rather than the part that moved is
+    the template's own comment.
 
-    The boxes a player writes in are the card's siblings rather than its
-    children, so replacing the card leaves their editors standing and
-    whatever is typed in them with it.
+    ``at`` is the screen the act came from, and reaches the counter
+    controls as the address they return to. Nothing else needs it: the
+    rename is relative and the browser resolves it against whatever page
+    it lands on.
 
-    ``at`` is the address the act came from, and every control on the
-    redrawn card is built from it: a card rendered without one hands back
-    a rename that leads nowhere.
-
-    The gang is derived again rather than reused, because the act changed
-    what this reports on. That costs what a plain visit costs.
+    The model is read again rather than trusted from the request, because
+    the act changed what this reports on — and read the way the page
+    itself reads it, from this one model rather than from the gang
+    around it, so an act costs what the page costs and not more.
     """
-    from n26.core.render import render_gang
+    from n26.core.access import model_collections
+    from n26.core.card import build_card, build_modifier_index
+    from n26.core.effects import compute
+    from n26.core.render import build_model_card
     from n26.core.views.choose import link_slots
     from n26.core.views.htmx import with_toasts
     from n26.core.views.learn import link_skills
     from n26.core.views.owned import link_counters
 
     gang = miniature.membership.gang
-    sheet = render_gang(gang)
-    link_slots(gang, sheet, *sheet.models)
-    link_skills(*sheet.models)
-    card = next(
-        (member for member in sheet.models if member.id == str(miniature.pk)), None
-    )
-    if card is None:
-        raise Http404("No such model")
+    own = build_card(miniature, with_statlines=True)
+    index = build_modifier_index([node.assignable for node in own.all_nodes()])
+    computed = compute(own, index)
+    card = build_model_card(miniature, card=own, computed=computed)
+    link_slots(gang, card)
+    link_skills(card, among=model_collections())
     link_counters(card, back=at)
 
     response = render(

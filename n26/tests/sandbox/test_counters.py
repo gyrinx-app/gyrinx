@@ -386,6 +386,16 @@ class TestMovingOneWithoutReloading:
 
         assert "62" in page.content.decode()
 
+    def test_the_card_it_sends_back_still_carries_the_rename(self, client, gang, queen):
+        """It is drawn from the page rather than the card, so a redrawn
+        card is exactly where it could go missing."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert f"?rename={yolanda.pk}" in page.content.decode()
+
     def test_the_card_it_sends_back_can_be_acted_on_again(self, client, gang, queen):
         """A redrawn card whose controls had lost their addresses would
         move once and then go quiet."""
@@ -424,12 +434,29 @@ class TestMovingOneWithoutReloading:
         assert f'name="back" value="{page}"' in drawn
 
     def test_a_refusal_redraws_nothing_and_says_why(self, client, gang, queen):
+        """The card is not redrawn for an act that did not happen; the
+        reason reaches the reader as a toast, which is the only channel
+        into a page that is not re-rendered."""
+        from unittest.mock import patch
+
+        from n26.core.operations import Operation, Refusal
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        with patch.object(Operation, "tally", side_effect=Refusal("No.")):
+            page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert page.status_code == 204
+        assert "No." in page["HX-Trigger"]
+        assert xp_row(yolanda).counter_value.value == 61
+
+    def test_a_zero_step_is_turned_away_over_htmx_too(self, client, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
 
         page = client.post(self.address(yolanda), {"change": "0"}, **self.HTMX)
 
-        # A step of nothing is no address at all, htmx or not.
         assert page.status_code == 404
 
     def test_without_htmx_the_same_act_is_a_redirect(self, client, gang, queen):
@@ -443,9 +470,9 @@ class TestMovingOneWithoutReloading:
         assert page["Location"] == back
 
     def test_the_page_is_not_open_to_a_signed_out_reader(self, client, gang, queen):
-        """A guard worth a test of its own: the helper that renders the
-        card update sits directly above the view, and an insertion in
-        that gap would take the view's decorator with it."""
+        """The view is guarded, and the guard is a decorator with a
+        helper directly above it — a place where anything inserted
+        carries the guard off with it."""
         yolanda = hire_with_option(gang, queen, "Yolanda")
 
         page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
