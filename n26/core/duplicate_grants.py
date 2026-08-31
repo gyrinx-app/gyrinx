@@ -196,7 +196,17 @@ def de_duplicate(gang_id, only_miniature_id=None):
     gang = Gang.objects.get(pk=gang_id)
     outcome = GangOutcome(gang_id=str(gang_id))
     with transaction.atomic():
+        # A duplicate may sit beneath another: a granted subtype brings
+        # its own built-ins, and one of those may be a duplicate in its
+        # own right. Dropping the one above takes it, so what has
+        # already gone is remembered — a pair whose grant or whose
+        # survivor is gone has nothing left to settle, and writing the
+        # provenance of a deleted carrier onto anything would fail the
+        # whole gang.
+        gone = set()
         for grant, owner in duplicates_in(gang, only_miniature_id):
+            if grant.pk in gone or owner.pk in gone:
+                continue
             goes_with = _goes_with(grant)
             tally = _tally_under(grant, goes_with)
             if tally:
@@ -209,6 +219,7 @@ def de_duplicate(gang_id, only_miniature_id=None):
             member_id = grant.materialised_from_id
             carrier_id = grant.materialised_for_id
             grant.delete()
+            gone |= {grant.pk} | goes_with
             owner.materialised_from_id = member_id
             owner.materialised_for_id = carrier_id
             owner.save(

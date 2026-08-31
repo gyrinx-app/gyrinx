@@ -338,6 +338,48 @@ class TestATallyFurtherDown:
         assert Assignment.objects.filter(pk=beneath.pk).exists()
 
 
+class TestADuplicateBeneathADuplicate:
+    """A granted subtype brings its own built-ins, and one of those can
+    be a duplicate too. Dropping the subtype takes it, and the pass must
+    not then try to settle a pair whose halves have already gone."""
+
+    def test_the_gang_settles_and_one_of_each_thing_stands(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        counter = create_counter("Kill Count")
+        spyrer = create_subtype("Spyrer")
+        add_built_in(spyrer, counter)
+        profile = create_profile("Hunter", person_type, gang_type, price=100)
+        add_built_in(profile, spyrer)
+        fighter = hire(gang, profile, "Ana", paid=100)
+        strip_provenance(gang)
+        member = profile.built_ins.members.get(subtype__isnull=False)
+        duplicate = caught_up_copy(gang, fighter, member, fighter.membership, spyrer)
+        with operation(gang, actor=gang.owner) as op:
+            # The pass says its grants arrived by catch-up, which is what
+            # makes the nested counter a duplicate in its own right.
+            op.reconcile_defaults(
+                duplicate, strict=False, event_kind=LedgerEvent.Kind.CAUGHT_UP
+            )
+
+        outcome = de_duplicate(gang.pk)
+
+        assert outcome.dropped >= 1
+        assert (
+            Assignment.objects.filter(
+                subtype=spyrer, miniature_root=fighter, archived=False
+            ).count()
+            == 1
+        )
+        assert (
+            Assignment.objects.filter(
+                counter=counter, miniature_root=fighter, archived=False
+            ).count()
+            <= 1
+        )
+        settled(gang)
+
+
 class TestRunningTwice:
     def test_a_second_run_finds_nothing(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
