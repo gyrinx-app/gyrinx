@@ -264,4 +264,3 @@ result they rolled.
 The player's picker then lists the results in roll order with their
 bands leading, so someone who rolled 24 scans to "21-26" and adds Out
 Cold.
-\n

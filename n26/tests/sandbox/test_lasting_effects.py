@@ -129,6 +129,29 @@ class TestTheTablesAsSeeded:
         assert said.doubled == []
         assert said.bandless == []
 
+    def test_running_the_seed_again_creates_nothing(self, tables):
+        from n26.library.models import Pickable, PicklistMember, Slot, SlotType
+
+        kinds = (SlotType, Pickable, PicklistMember, Slot)
+        counts = {kind: kind.objects.count() for kind in kinds}
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        assert counts == {kind: kind.objects.count() for kind in kinds}
+
+        present, total = STANDARD_CONTENT["lasting-effect-tables"].check()
+        assert present == total
+
+    def test_a_name_owned_by_another_slot_type_is_refused_in_words(self, default_pack):
+        """A pack holds one pickable per name and qualifier, whichever
+        slot type it belongs to — so a name already claimed elsewhere
+        stops the seed with an explanation, never a bare constraint."""
+        from n26.library.authoring import create_pickable, create_slot_type
+
+        other = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
+        create_pickable("Captured", other)
+
+        with pytest.raises(RuntimeError, match="Captured"):
+            STANDARD_CONTENT["lasting-effect-tables"].create()
+
     def test_the_shared_names_are_separate_results_per_table(self, tables):
         """Lesson Learnt, the three Enmities and Captured sit on both
         tables at the same rolls — as two pickables each, because a

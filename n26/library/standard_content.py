@@ -576,26 +576,48 @@ LASTING_EFFECT_TABLES = [
 ]
 
 
+def _lasting_row(model, name, qualifier, slot_type, defaults):
+    """One pickable or slot, matched the way its uniqueness is defined:
+    per pack on lowercased name and qualifier, not per slot type. An
+    exact-key lookup scoped to the slot type would miss a row that
+    differs only in case or belongs to another type, then trip the
+    unique constraint trying to insert its double."""
+    row = model.objects.filter(name__iexact=name, qualifier__iexact=qualifier).first()
+    if row is None:
+        return model.objects.create(
+            name=name, qualifier=qualifier, slot_type=slot_type, **defaults
+        )
+    if row.slot_type_id != slot_type.pk:
+        raise RuntimeError(
+            f'A {model._meta.verbose_name} named "{name}" already belongs '
+            f'to the "{row.slot_type}" slot type, so the "{slot_type}" '
+            f"table cannot claim the name."
+        )
+    return row
+
+
 def _create_lasting_effect_tables():
     from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
 
     for name, plural, rows, twin_qualifier in LASTING_EFFECT_TABLES:
-        slot_type, _ = SlotType.objects.get_or_create(
-            name=name,
-            defaults={"plural_name": plural, "allows_repeats": True},
-        )
-        table, _ = Picklist.objects.get_or_create(
-            name=f"{name} Table",
-            slot_type=slot_type,
-            defaults={"dice": "d66", "roll_selects": "band"},
-        )
+        slot_type = SlotType.objects.filter(name__iexact=name).first()
+        if slot_type is None:
+            slot_type = SlotType.objects.create(
+                name=name, plural_name=plural, allows_repeats=True
+            )
+        table = Picklist.objects.filter(
+            slot_type=slot_type, name__iexact=f"{name} Table"
+        ).first()
+        if table is None:
+            table = Picklist.objects.create(
+                name=f"{name} Table",
+                slot_type=slot_type,
+                dice="d66",
+                roll_selects="band",
+            )
         for position, (low, high, result) in enumerate(rows):
             qualifier = twin_qualifier if result in SHARED_LASTING_RESULTS else ""
-            pickable, _ = Pickable.objects.get_or_create(
-                name=result,
-                slot_type=slot_type,
-                defaults={"qualifier": qualifier},
-            )
+            pickable = _lasting_row(Pickable, result, qualifier, slot_type, {})
             PicklistMember.objects.get_or_create(
                 picklist=table,
                 pickable=pickable,
@@ -605,27 +627,27 @@ def _create_lasting_effect_tables():
                     "position": position,
                 },
             )
-        Slot.objects.get_or_create(
-            name=name,
-            slot_type=slot_type,
-            defaults={
-                "picklist": table,
-                "label": plural,
-                "min_picks": 0,
-                "max_picks": 20,
-            },
+        _lasting_row(
+            Slot,
+            name,
+            "",
+            slot_type,
+            {"picklist": table, "label": plural, "min_picks": 0, "max_picks": 20},
         )
 
 
 def _check_lasting_effect_tables():
-    from n26.library.models import PicklistMember
+    from n26.library.models import PicklistMember, Slot, SlotType
 
-    total = sum(len(rows) for _, _, rows, _ in LASTING_EFFECT_TABLES)
-    present = _count(
+    names = [name for name, _, _, _ in LASTING_EFFECT_TABLES]
+    members = sum(len(rows) for _, _, rows, _ in LASTING_EFFECT_TABLES)
+    present = _count(SlotType, name__in=names)
+    present += _count(
         PicklistMember,
-        picklist__name__in=[f"{name} Table" for name, _, _, _ in LASTING_EFFECT_TABLES],
+        picklist__name__in=[f"{name} Table" for name in names],
     )
-    return present, total
+    present += _count(Slot, name__in=names)
+    return present, len(names) + members + len(names)
 
 
 STANDARD_CONTENT = {
