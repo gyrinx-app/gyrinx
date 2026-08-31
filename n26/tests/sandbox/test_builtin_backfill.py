@@ -447,6 +447,26 @@ class TestWhatTheOwnerAlreadySettled:
         assert settled(gang).rating == rating
 
 
+class TestArchivedGangsAreWalkedToo:
+    """An archived gang is one its owner may bring back. Left untagged it
+    would come back holding grants nothing can account for, and the live
+    propagation pass — which only visits gangs in play — would never
+    reach it."""
+
+    def test_an_archived_gang_is_tagged_and_caught_up(self, gang, ganger, default_pack):
+        hire(gang, ganger, "Ana", paid=50)
+        strip_provenance(gang)
+        add_built_in(ganger, create_rule("Late Addition"))
+        gang.archived = True
+        gang.save()
+
+        record = run_backfill()
+
+        assert record.summary["totals"]["tagged"] == 2
+        assert record.summary["totals"]["granted"] == 1
+        assert not legacy_grants(gang).exists()
+
+
 class TestRunningTwice:
     """The walk is idempotent: a second run tags nothing and grants
     nothing."""
@@ -504,3 +524,18 @@ class TestTheConsoleDoor:
         assert not Backfill.objects.exists()
         assert legacy_grants(gang).count() == 2
         settled(gang)
+
+    def test_an_archived_gang_counts_among_what_would_be_walked(
+        self, client, superuser, gang, ganger
+    ):
+        hire(gang, ganger, "Ana", paid=50)
+        strip_provenance(gang)
+        gang.archived = True
+        gang.save()
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_backfill_built_ins"))
+
+        page = response.content.decode()
+        assert "1 gang would be walked" in page
+        assert "2 grants still without provenance" in page

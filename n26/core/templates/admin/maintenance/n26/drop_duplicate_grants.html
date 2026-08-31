@@ -1,0 +1,113 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The duplicate-grants repair's console page: how many caught-up grants
+sit beside an owner's untagged copy of the same thing, by kind; how many
+gangs the run would walk; a run button; the recent runs.
+Context from drop_duplicate_grants_view (n26/maintenance.py): title,
+gangs, duplicates, duplicate_total, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-hint { color: #888; font-size: 0.85em; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        A catch-up pass tells whether a model already holds a built-in by the
+        provenance on its copies. Grants written before provenance existed
+        carry none, so a pass granted a second copy of what the model plainly
+        already had. This drops the pass's copy and gives the owner's copy the
+        provenance it should have had, so nothing grants it again. What the
+        dropped copy caused goes with it. A copy somebody has been counting on
+        is left alone and named on the record.
+    </p>
+    <p>
+        {{ gangs }} gang{{ gangs|pluralize }} would be walked, holding {{ duplicate_total }} duplicate grant{{ duplicate_total|pluralize }}.
+    </p>
+    <h2>Try it on one model first</h2>
+    <p class="mt-hint">
+        Paste a model's id to read what the repair would do to that one, then
+        run it for that model alone. The rest of the estate is left untouched.
+    </p>
+    <form method="get" class="mt-form">
+        <input type="text"
+               name="model"
+               value="{{ asked }}"
+               size="40"
+               placeholder="model id">
+        <button type="submit" class="button">Read what it would do</button>
+    </form>
+    {% if one %}
+        <h3>{{ one.name }}</h3>
+        {% if one_carries %}
+            <ul>
+                {% for line in one_carries %}<li>{{ line }}</li>{% endfor %}
+            </ul>
+            <form method="post" class="mt-form">
+                {% csrf_token %}
+                <input type="hidden" name="model" value="{{ one.pk }}">
+                <button type="submit" class="button default">Drop them for this model only</button>
+            </form>
+        {% else %}
+            <p>Nothing standing beside a copy this model already had.</p>
+        {% endif %}
+    {% endif %}
+    <h2>The whole estate</h2>
+    <table class="mt-table">
+        <thead>
+            <tr>
+                <th>Kind</th>
+                <th>Duplicates</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in duplicates %}
+                <tr>
+                    <td>{{ line.kind }}</td>
+                    <td>{{ line.count }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="2" class="mt-hint">Nothing stands beside an owner's own copy.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <form method="post" class="mt-form">
+        {% csrf_token %}
+        <button type="submit" class="button default">Drop the duplicates</button>
+    </form>
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

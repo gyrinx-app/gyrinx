@@ -40,6 +40,7 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import connection, models, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
@@ -151,6 +152,10 @@ class Operation(models.TextChoices):
         "n26_backfill_built_ins",
         "n26: fighters catch up with the built-ins they were hired without",
     )
+    DROP_DUPLICATE_GRANTS = (
+        "n26_drop_duplicate_grants",
+        "n26: the second copy a catch-up granted is dropped",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -162,6 +167,7 @@ LOCK_KEYS = {
     Operation.CONVERT_CHAOS_GOD: 826_020_610,
     Operation.CONVERT_VARIANT: 826_020_611,
     Operation.BACKFILL_BUILT_INS: 826_020_612,
+    Operation.DROP_DUPLICATE_GRANTS: 826_020_613,
 }
 
 
@@ -882,7 +888,12 @@ def audit_reconcile_view(request):
 @task
 def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
     """Tag every legacy built-in grant with its provenance and catch
-    every live carrier up with its sets, one unarchived gang at a time.
+    every live carrier up with its sets, one gang at a time.
+
+    Archived gangs are walked too. An archived gang is one its owner
+    may bring back, and one left untagged comes back holding grants
+    nothing can account for — while the live propagation pass, which
+    only ever visits gangs in play, would never reach it.
 
     Batched, because the whole estate is walked and each gang is its
     own operation, committing on its own. What each gang came to is
@@ -910,7 +921,7 @@ def backfill_built_ins(backfill_id, **said_by_whoever_enqueued_it):
         backfill_id,
         operation=Operation.BACKFILL_BUILT_INS,
         what="Built-ins backfill",
-        items=Gang.objects.filter(archived=False),
+        items=Gang.objects.all(),
         do_one=do_one,
         again=lambda: backfill_built_ins.enqueue(backfill_id=backfill_id),
     )
@@ -953,7 +964,7 @@ def backfill_built_ins_view(request):
     context = page_context(
         request,
         operation.label,
-        gangs=Gang.objects.filter(archived=False).count(),
+        gangs=Gang.objects.count(),
         legacy=[
             {
                 "kind": kind.replace("_", " "),
@@ -977,7 +988,8 @@ register_operation(
         name=Operation.BACKFILL_BUILT_INS.label,
         added=date(2026, 8, 29),
         description=(
-            "Walk every unarchived gang. Each built-in grant written before "
+            "Walk every gang, archived ones included. Each built-in grant "
+            "written before "
             "provenance was recorded is tagged with the set member it came "
             "from and the carrier it came for; then every live carrier — "
             "each model's membership, the gang's founding, a bought mount — "
@@ -989,6 +1001,140 @@ register_operation(
         ),
         view=backfill_built_ins_view,
         detail_template="admin/maintenance/n26/_backfill_built_ins_detail.html",
+    )
+)
+
+
+@task
+def drop_duplicate_grants(backfill_id, **said_by_whoever_enqueued_it):
+    """Drop every duplicate a catch-up pass granted, one gang at a time.
+
+    Batched, because the whole estate is walked and each gang is its own
+    transaction, proved to reconcile before it commits.
+    """
+    from n26.core.duplicate_grants import de_duplicate
+    from n26.core.models import Gang
+
+    record = Backfill.objects.get(pk=backfill_id)
+    totals = dict(record.summary.get("totals", {}))
+    kept_a_tally = list(record.summary.get("kept_a_tally", []))
+    # A run may be confined to one model, which is how the repair is
+    # tried and read back before the whole estate is walked. Its gang is
+    # recorded beside it so the walk is one row long.
+    only_model = record.summary.get("only_model")
+    only_gang = record.summary.get("only_gang")
+
+    def do_one(pk):
+        outcome = de_duplicate(pk, only_miniature_id=only_model)
+        for key, count in outcome.counts().items():
+            totals[key] = int(totals.get(key, 0)) + count
+        kept_a_tally.extend(outcome.kept_a_tally)
+        _write(
+            backfill_id,
+            summary_patch={"totals": totals, "kept_a_tally": kept_a_tally},
+        )
+
+    run_batched(
+        backfill_id,
+        operation=Operation.DROP_DUPLICATE_GRANTS,
+        what="Duplicate grants",
+        items=Gang.objects.filter(pk=only_gang) if only_gang else Gang.objects.all(),
+        do_one=do_one,
+        again=lambda: drop_duplicate_grants.enqueue(backfill_id=backfill_id),
+    )
+
+
+def drop_duplicate_grants_view(request):
+    """Say what would be dropped (GET), or record a run and enqueue it."""
+    from n26.core.duplicate_grants import (
+        duplicate_grants_by_kind,
+        what_one_model_carries,
+    )
+    from n26.core.models import Gang, Miniature
+
+    operation = Operation.DROP_DUPLICATE_GRANTS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    # One model may be named, by id, to try the repair on before the
+    # estate is walked. A GET reads what would happen to it; the POST
+    # from the same page runs that model alone.
+    asked = (request.POST.get("model") or request.GET.get("model") or "").strip()
+    one = None
+    if asked:
+        try:
+            one = Miniature.objects.filter(pk=asked).first()
+        except ValidationError, ValueError, TypeError:
+            # Anything that is not an id at all: the field refuses it
+            # while the query is being built, before any row is read.
+            one = None
+        if one is not None and one.membership_id is None:
+            # Nothing to walk: a model with no membership sits in no gang.
+            one = None
+        if one is None:
+            messages.warning(request, "No model in a gang has that id.")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That repair is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        if asked and one is None:
+            return HttpResponseRedirect(address)
+        summary = {"attempts": 0}
+        if one is not None:
+            summary["only_model"] = str(one.pk)
+            summary["only_gang"] = str(one.membership.gang_root_id)
+            summary["only_model_name"] = one.name
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary=summary,
+        )
+        drop_duplicate_grants.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The repair is running. This page shows what it does."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    by_kind = duplicate_grants_by_kind()
+    context = page_context(
+        request,
+        operation.label,
+        asked=asked,
+        one=one,
+        one_carries=what_one_model_carries(one) if one is not None else [],
+        gangs=Gang.objects.count(),
+        duplicates=[
+            {"kind": kind.replace("_", " "), "count": count}
+            for kind, count in sorted(by_kind.items())
+        ],
+        duplicate_total=sum(by_kind.values()),
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/drop_duplicate_grants.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.DROP_DUPLICATE_GRANTS.value,
+        name=Operation.DROP_DUPLICATE_GRANTS.label,
+        added=date(2026, 8, 31),
+        description=(
+            "A catch-up pass tells whether a model already holds a built-in "
+            "by the provenance on its copies. Grants written before "
+            "provenance existed carry none, so a pass granted a second copy "
+            "of what the model plainly already had. This drops the pass's "
+            "copy and gives the owner's copy the provenance it should have "
+            "had, so the member stays accounted for and no pass grants it "
+            "again. What the dropped copy caused goes with it. A copy "
+            "somebody has been counting on is left alone and named on the "
+            "record. No money moves; every gang is proved to reconcile."
+        ),
+        view=drop_duplicate_grants_view,
+        detail_template="admin/maintenance/n26/_drop_duplicate_grants_detail.html",
     )
 )
 
@@ -1133,6 +1279,7 @@ task_routes = [
     TaskRoute(audit_reconcile),
     TaskRoute(repair_doubled_refunds, ack_deadline=600, min_retry_delay=60),
     TaskRoute(backfill_built_ins, ack_deadline=600),
+    TaskRoute(drop_duplicate_grants, ack_deadline=600),
 ]
 
 
