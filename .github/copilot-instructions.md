@@ -23,6 +23,27 @@ for the specifics.
 `safe_rich_text` filter for sanitising. Always validate redirect targets from user
 input with `safe_redirect` / `get_return_url` (`gyrinx/http.py`).
 
+**Microcopy is plain, explicit, and invisible.** The canonical rules are in
+`.claude/skills/microcopy/SKILL.md`. For any new or changed user-facing string
+(template text, button labels, form labels/help text, `messages.*`, emails,
+admin screens), flag:
+
+- "successfully", trailing exclamation marks, "Get started", "Ready to…",
+  marketing adjectives ("powerful", "seamless", "robust") — success messages
+  state the fact ("Battle recorded."), refusals state the rule ("Only the
+  campaign owner can edit this battle.").
+- Cleverness of any kind: personification (the app, the rules, or a number
+  never asks, knows, refuses, or sells), negation riddles ("the rules know no
+  other Type" — say "Type is Fighter or Vehicle."), quaint vocabulary
+  ("nought", "had already gone"), and compression the reader must decode.
+  Plain and slightly wordy beats short and clever.
+- Title Case in labels — sentence case throughout, domain nouns lowercase
+  ("Add gang", not "Add Gang"); only true proper nouns capitalised.
+- Banned words in product copy: "cost" in n26 (price vs rating), "row" for an
+  assignment, "shelf"/"shop"/"till", a collection that "sells" its contents
+  (it contains them), "pressed" (say clicked), "obligation"/"debt", "answer"
+  (pick and choose are distinct domain verbs), "please", emoji.
+
 **The fighter list is the hot query path.** Adding a FK or M2M to `ListFighter`
 means updating `ListFighterQuerySet.with_related_data()` and the query-count
 snapshot at `n23/core/tests/fixtures/performance_view_queries.json`. Missing a

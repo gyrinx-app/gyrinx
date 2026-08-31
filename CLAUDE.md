@@ -46,6 +46,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   [n23/core/templates/CLAUDE.md](n23/core/templates/CLAUDE.md) for the call-site
   traps — several of them fail *silently*.
 - Mobile-first design
+- **Microcopy: load the `microcopy` skill before writing any user- or
+  author-facing string** (template text, labels, help_text, `messages.*`,
+  emails, admin screens). Plain, explicit, one-pass comprehension; no
+  cleverness, no personification, no marketing-speak. The skill
+  (`.claude/skills/microcopy/SKILL.md`) is the canonical home of the word
+  bans. A warn-only hook (`scripts/check_microcopy.py`) flags the greppable
+  subset after each edit; the **copywriter** agent does the full pass.
 - Look up model definitions before use - don't assume field names
 - Always validate redirect URLs with `safe_redirect`
 
@@ -141,6 +148,8 @@ in the workflow.
   layers, and documenting dependencies.
 - **code-architect** — Designs feature architectures by analyzing existing patterns and providing implementation
   blueprints with component designs, data flows, and build sequences.
+- **copywriter** — Reviews and rewrites user-facing strings in a diff against the microcopy rules. Run it
+  proactively after any task that added or changed such strings, and as a pre-push step on UI PRs.
 - **code-reviewer** — Reviews code for bugs, security vulnerabilities, and convention adherence using confidence-based
   filtering (only reports high-confidence issues).
 
@@ -160,6 +169,8 @@ in the workflow.
 Skills are loaded automatically by agents that need them. They can also be referenced directly:
 
 - **gyrinx-conventions** — Canonical architectural patterns for the project (views, handlers, models, templates, tests)
+- **microcopy** — Rules for user- and author-facing strings: the credo, base rules, anti-patterns, and the
+  canonical word-ban list. Load before writing or editing any such string.
 - **code-analysis-lenses** — Four structured lenses for evaluating code quality
 - **edit-github-discussion** — Workflow for editing GitHub Discussions via GraphQL API
 - **trace-analysis** — Guide for analyzing OpenTelemetry trace files
@@ -277,7 +288,8 @@ Keep the fully technical version for commit messages and code comments.
 **Commit and PR titles have their own rules — see
 [.github/COMMIT_STYLE.md](.github/COMMIT_STYLE.md).** Read that file rather than
 copying the phrasing of recent commits; the log has drifted before. Note that the
-noun bans recorded elsewhere (no "shelf", no "shop", no "row" for an assignment)
+noun bans in [.claude/skills/microcopy/SKILL.md](.claude/skills/microcopy/SKILL.md)
+(no "shelf", no "shop", no "row" for an assignment, and others)
 govern product copy, UI strings and identifiers — they do not apply to commit
 titles, which should freely name model classes, functions and flags.
 
@@ -304,7 +316,10 @@ titles, which should freely name model classes, functions and flags.
 2. Run tests: `pytest -n auto`
 3. Fix any failing tests
 4. Consider running the **code-simplifier** agent on changed files for a quality check
-5. Commit and push changes
+5. If the diff added or changed user-facing strings, run the **copywriter** agent
+   over it (also run it proactively right after finishing UI work — don't wait
+   for push time)
+6. Commit and push changes
 
 - Manually test changes through the running app (dev server + browser) before
   shipping — skip only when the change is trivial
