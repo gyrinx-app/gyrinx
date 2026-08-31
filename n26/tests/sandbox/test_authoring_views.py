@@ -1426,32 +1426,26 @@ class TestAPicklistsOwnPage:
 
         assert [member.label for member in houses.members.all()] == ["Cawdor", "Escher"]
 
-    def test_the_add_form_offers_a_band_and_stores_what_it_is_given(
+    def test_a_roll_tables_results_are_worked_on_the_table_page(
         self, author, client, legacy
     ):
-        """A roll table's rows carry bands, so the form that adds a row
-        asks for one. A picklist that is not a table shows the fields
-        blank rather than hiding them."""
-        from n26.library.authoring import create_pickable, create_picklist
-        from n26.library.models import PicklistMember
+        """A result only means anything with its band and the coverage
+        check, so a roll table's detail page offers no member form — the
+        section says what the table is and sends an author to its page.
+        An ordinary picklist keeps its form, band fields included."""
+        from n26.library.authoring import create_picklist
 
         table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
-        hobbled = create_pickable("Hobbled", legacy)
-
         body = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
-        assert 'name="roll_low"' in body and 'name="roll_high"' in body
+        assert "Roll table" in body
+        assert "0 of 36 rolls covered" in body
+        assert 'name="pickable"' not in body
+        assert f'href="/n26/authoring/picklists/{table.pk}/table/"' in body
 
-        client.post(
-            f"/n26/authoring/picklist/{table.pk}/",
-            {
-                "pickable": str(hobbled.pk),
-                "label_override": "",
-                "position": "0",
-                "roll_low": "53",
-                "roll_high": "53",
-            },
-        )
-        assert PicklistMember.objects.get(pickable=hobbled).band == "53"
+        plain = create_picklist("Plain", legacy)
+        body = client.get(f"/n26/authoring/picklist/{plain.pk}/").content.decode()
+        assert 'name="pickable"' in body
+        assert 'name="roll_low"' in body and 'name="roll_high"' in body
 
     def test_a_roll_tables_page_leads_each_row_with_its_band(
         self, author, client, legacy
@@ -1727,14 +1721,17 @@ class TestARollTablesOwnPage:
         assert f'value="{elsewhere.pk}"' not in body
         assert f'value="{Pickable.objects.get(name="Cawdor").pk}"' in body
 
-    def test_a_list_that_is_no_roll_table_shows_rows_and_no_coverage(
+    def test_an_ordinary_lists_table_address_leads_back_to_its_page(
         self, author, client, legacy
     ):
+        """An ordinary picklist is worked on its detail page; it has no
+        table to show, so the address does not pretend otherwise."""
         from n26.library.authoring import create_picklist
 
         plain = create_picklist("Plain", legacy)
-        body = client.get(self.url(plain)).content.decode()
-        assert "rolls covered" not in body
+        response = client.get(self.url(plain))
+        assert response.status_code == 302
+        assert response["Location"] == f"/n26/authoring/picklist/{plain.pk}/"
 
     def test_the_page_is_the_staff_s(self, client, db, legacy, table):
         from django.contrib.auth.models import User

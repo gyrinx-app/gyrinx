@@ -161,6 +161,31 @@ def _describe_picklist_member(member):
     return label, notes
 
 
+def _roll_table_summary(picklist):
+    """What the members section says under its heading, for a roll table.
+
+    The one fact worth a glance before opening the table page: how much
+    of the die the bands claim. An ordinary picklist says nothing here.
+    """
+    if not picklist.dice:
+        return ""
+    said = coverage(picklist)
+    words = [
+        f"Rolled on a {picklist.get_dice_display()}.",
+        f"{said.covered} of {said.total} rolls covered"
+        + (
+            f"; {', '.join(str(roll) for roll in said.unclaimed)} unclaimed"
+            if said.unclaimed
+            else ""
+        )
+        + ".",
+    ]
+    if said.doubled:
+        rolls = ", ".join(str(roll) for roll, _ in said.doubled)
+        words.append(f"Claimed by more than one result: {rolls}.")
+    return " ".join(words)
+
+
 def _weapon_parts(parts):
     """What ``_describe_weapon_profile`` reads, loaded for every line at
     once — unhinted, each profile fetches its weapon, its statline's
@@ -306,29 +331,33 @@ DETAIL_KINDS = {
         "statline": False,
         "describe": _describe_picklist_member,
         "parts_hint": lambda parts: parts.select_related("pickable"),
-        # A roll table's gaps and overlaps are facts about the whole
-        # list, so they get a page of their own; an ordinary picklist
-        # has no die to check and no such page.
-        "door": lambda picklist: (
+        # A roll table's results only mean anything with their bands and
+        # the coverage check, so they are worked on the table page — this
+        # section names the shape, says how covered it is, and sends an
+        # author there. An ordinary picklist keeps its form here.
+        "adds": lambda picklist: (
             reverse("authoring-picklist-table", args=[picklist.pk])
             if picklist.dice
             else ""
         ),
-        "door_label": "Roll table",
+        "parts_label": lambda picklist: "roll table" if picklist.dice else "pickables",
         # The row is the listing, but the name on it is the pickable's,
         # and the pickable's page is where what it does is written.
         "opens": lambda member: reverse(
             "authoring-detail", args=["pickable", member.pickable_id]
         ),
-        "parts_label": "pickables",
         # The part model's own name is accurate and nothing an author
-        # says; what they are adding is one more pickable to choose from.
-        "part_name": "pickable",
-        "parts_description": (
-            "A list of pickables for a particular slot type, in the order "
-            "a player reads them. Taking one off changes only what is "
-            "offered next: the pickable itself stays in the library, and "
-            "anyone who already made a pick keeps it."
+        # says; what they are adding is one more pickable to choose from —
+        # or, on a roll table, one more result at its band.
+        "part_name": lambda picklist: "result" if picklist.dice else "pickable",
+        "parts_description": lambda picklist: (
+            _roll_table_summary(picklist)
+            or (
+                "A list of pickables for a particular slot type, in the order "
+                "a player reads them. Taking one off changes only what is "
+                "offered next: the pickable itself stays in the library, and "
+                "anyone who already made a pick keeps it."
+            )
         ),
         "nothing_yet": (
             "No pickables yet — a choice drawing on this list has nothing to offer."
@@ -1566,10 +1595,23 @@ def detail(request, kind, pk):
 
     composer = None
     act = request.POST.get("act", "")
+
+    def adds_elsewhere(one):
+        """Where this section's parts are added, or nothing — a route
+        name for every row of the kind, a callable deciding row by row."""
+        where = one.get("adds")
+        if callable(where):
+            return where(thing)
+        return reverse(where, args=[thing.pk]) if where else ""
+
     # A section whose add form lives elsewhere has no form here to post
     # to, so it is not a candidate however the act reads.
     posted_to = next(
-        (one for one in sections if one.get("act", "") == act and not one.get("adds")),
+        (
+            one
+            for one in sections
+            if one.get("act", "") == act and not adds_elsewhere(one)
+        ),
         None,
     )
     if (
@@ -1624,7 +1666,7 @@ def detail(request, kind, pk):
         part_model = _model_for(part_spec)
         # A section that adds its parts elsewhere draws a way there
         # instead of a form, so neither form is built at all.
-        elsewhere = section.get("adds")
+        elsewhere = adds_elsewhere(section)
         form_class = None if elsewhere else generate_form(part_spec)
         statline_class = (
             statline_form_for(thing.statline_type)
@@ -1683,7 +1725,11 @@ def detail(request, kind, pk):
             )
         arrange = section.get("arrange")
         parts = arrange(pairs) if arrange else [drawn for _part, drawn in pairs]
-        part_name = str(section.get("part_name", part_model._meta.verbose_name))
+
+        def worded(value):
+            return value(thing) if callable(value) else value
+
+        part_name = str(worded(section.get("part_name", part_model._meta.verbose_name)))
         drawn.append(
             {
                 "act": section.get("act", ""),
@@ -1692,10 +1738,10 @@ def detail(request, kind, pk):
                 # than written beside each name, so a kind renamed on its
                 # model never leaves the heading ungrammatical.
                 "part_article": _article_for(part_name),
-                "part_verbose_name_plural": section.get(
-                    "parts_label", part_model._meta.verbose_name_plural
+                "part_verbose_name_plural": worded(
+                    section.get("parts_label", part_model._meta.verbose_name_plural)
                 ),
-                "parts_description": section.get("parts_description", ""),
+                "parts_description": worded(section.get("parts_description", "")),
                 "nothing_yet": section.get("nothing_yet", ""),
                 # Said beside the add form, so an author knows how far
                 # the addition travels before committing it. Only the
@@ -1713,7 +1759,7 @@ def detail(request, kind, pk):
                 "statline_form": statline_form,
                 # Blank for a section adding its parts in a form here;
                 # the page then draws that form rather than a way out.
-                "add_url": reverse(elsewhere, args=[thing.pk]) if elsewhere else "",
+                "add_url": elsewhere or "",
                 # A further way in for parts the form cannot offer —
                 # blank for every section that has none.
                 "door_url": section.get("door", lambda thing: "")(thing),
@@ -4058,6 +4104,8 @@ def picklist_table(request, pk):
     from n26.library.models import Picklist
 
     picklist = get_object_or_404(Picklist, pk=pk)
+    if not picklist.dice:
+        return redirect("authoring-detail", kind="picklist", pk=pk)
     spec = specs()["add_picklist_member"]
     form_class = generate_form(spec)
 
