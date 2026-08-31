@@ -153,6 +153,13 @@ def _verdict(grant, owner, gang=None):
     """
     goes_with = _goes_with(grant)
     where = grant.miniature_root or gang or "the gang"
+    if _named_more_than_once(grant):
+        return (
+            "stands",
+            f"{grant.assignable} on {where} is named by more than one "
+            f"built-in of the same set, so which copy answers which cannot "
+            f"be told and the duplicate stands.",
+        )
     if _money_under(grant, goes_with):
         return (
             "stands",
@@ -177,6 +184,30 @@ def _verdict(grant, owner, gang=None):
         "drops",
         f"{grant.assignable}: the caught-up copy goes{brought}, and the copy "
         f"already held takes its provenance.{counted}",
+    )
+
+
+def _named_more_than_once(grant):
+    """Whether the set behind the grant names its thing more than once.
+
+    Twin members leave two copies that both belong, and an untagged one
+    beside a granted one is then two members doing their job rather than
+    a duplicate. Which copy answers which member cannot be told once the
+    provenance has gone, so such a group is left exactly as it stands.
+    """
+    from n26.library.models import DefaultAssignment
+
+    member = grant.materialised_from
+    if member is None or member.assignable is None:
+        return False
+    field = Assignment.field_for(member.assignable)
+    return (
+        DefaultAssignment.objects.filter(
+            default_set_id=member.default_set_id,
+            archived=False,
+            **{field: member.assignable},
+        ).count()
+        > 1
     )
 
 
@@ -297,24 +328,14 @@ def de_duplicate(gang_id, only_miniature_id=None):
         for grant, owner in duplicates_in(gang, only_miniature_id):
             if grant.pk in gone or owner.pk in gone:
                 continue
+            action, sentence = _verdict(grant, owner, gang)
+            if action == "stands":
+                outcome.kept_a_tally.append(sentence)
+                continue
             goes_with = _goes_with(grant)
-            if _money_under(grant, goes_with):
-                outcome.kept_a_tally.append(
-                    f"{grant.assignable} on {grant.miniature_root or gang} "
-                    f"brought something that was paid for, so its duplicate "
-                    f"stands."
-                )
-                continue
             tally = _tally_under(grant, goes_with)
-            carried = _carry_the_tally(grant, owner, tally, goes_with)
-            if not carried:
-                outcome.kept_a_tally.append(
-                    f"{grant.assignable} on {grant.miniature_root or gang} "
-                    f"counts {tally} where the copy already held has no place "
-                    f"for it, so its duplicate stands."
-                )
-                continue
             if tally:
+                _carry_the_tally(grant, owner, tally, goes_with)
                 outcome.merged += 1
             swept = len(goes_with)
             member_id = grant.materialised_from_id

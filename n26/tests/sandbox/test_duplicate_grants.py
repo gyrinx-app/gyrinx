@@ -232,6 +232,38 @@ class TestACopySomebodyCountedOn:
         assert standing.counter_value.value == 9
 
 
+class TestTwinsAreLeftExactlyAsTheyStand:
+    """Where one set names a thing twice, two copies both belong. Once
+    the provenance has gone from one of them, which copy answers which
+    member cannot be told, so nothing is dropped."""
+
+    def test_a_group_a_set_names_twice_stands_and_is_named(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        rule = create_rule("Gang Fighter")
+        profile = create_profile("Ganger", person_type, gang_type, price=50)
+        add_built_in(profile, rule)
+        second = add_built_in(profile, rule)
+        fighter = hire(gang, profile, "Ana", paid=50)
+        strip_provenance(gang)
+        caught_up_copy(gang, fighter, second, fighter.membership, rule)
+        before = Assignment.objects.filter(
+            rule=rule, miniature_root=fighter, archived=False
+        ).count()
+
+        outcome = de_duplicate(gang.pk)
+
+        assert outcome.dropped == 0
+        assert len(outcome.kept_a_tally) == 1
+        assert "more than one built-in" in outcome.kept_a_tally[0]
+        assert (
+            Assignment.objects.filter(
+                rule=rule, miniature_root=fighter, archived=False
+            ).count()
+            == before
+        )
+
+
 class TestWhatIsNotADuplicate:
     """Only a caught-up grant beside an owner's untagged copy is one."""
 
