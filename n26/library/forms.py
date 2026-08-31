@@ -232,10 +232,16 @@ def _form_fields(spec, name, kind):
             ),
         }
     if isinstance(kind, Choice):
+        # A choice the verb defaults may be left alone, and a select
+        # with no empty entry submits its first option — so the blank
+        # has to be offered, or "none of these" is unsayable and every
+        # form quietly picks the first.
+        wanted = _is_required(spec, name)
+        blank = [] if wanted else [("", "—")]
         return {
             name: forms.ChoiceField(
-                choices=kind.choices,
-                required=_is_required(spec, name),
+                choices=blank + list(kind.choices),
+                required=wanted,
                 help_text=kind.help,
                 label=kind.label,
             )
@@ -549,6 +555,16 @@ class GeneratedForm(forms.Form):
                 continue
             else:
                 columns[name] = value
+        # The row's own sense check runs before anything is written, so
+        # two boxes that make no sense together are refused in words on
+        # the form — the database would refuse them too, but the page
+        # can only read that as a name already taken. Only clean(): the
+        # form has checked each field, and uniqueness and constraints
+        # are the database's, whose refusals the pages already put into
+        # words of their own.
+        for name, value in columns.items():
+            setattr(thing, name, value)
+        thing.clean()
         revise(thing, **columns)
         owned = {}
         for name, value in sets.items():

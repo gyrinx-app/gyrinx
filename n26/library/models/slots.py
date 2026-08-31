@@ -157,6 +157,68 @@ class Pickable(Content, Assignable):
         ]
 
 
+class Dice(models.TextChoices):
+    """The dice a roll table is rolled on. A closed set, so that every
+    roll a die can produce is known and a table's bands can be checked
+    against them."""
+
+    D3 = "d3", "D3"
+    D6 = "d6", "D6"
+    D66 = "d66", "D66"
+    TWO_D6 = "2d6", "2D6"
+
+    @classmethod
+    def rolls(cls, dice):
+        """Every roll this die can produce, in order — the rolls a table
+        has to claim. D66 is two D6 read as tens and units, so 37 through
+        40 are not rolls at all and a band spanning them claims only what
+        can come up."""
+        match dice:
+            case cls.D3:
+                return (1, 2, 3)
+            case cls.D6:
+                return tuple(range(1, 7))
+            case cls.D66:
+                return tuple(
+                    10 * tens + units for tens in range(1, 7) for units in range(1, 7)
+                )
+            case cls.TWO_D6:
+                return tuple(range(2, 13))
+        return ()
+
+
+class RollSelects(models.TextChoices):
+    """How a roll finds its result on a table. A band table gives the
+    one row whose band holds the roll; a threshold table gives every row
+    whose band starts at or below it."""
+
+    BAND = "band", "The one row the roll lands in"
+    THRESHOLD = "threshold", "Every row at or below the roll"
+
+
+#: One statement of the rule, so the verb that refuses in words and the
+#: constraint that holds it say the same thing.
+ROLL_TABLE_IS_WHOLE = (
+    "A roll table names its dice and how a roll finds its row, or neither: "
+    "one without the other is a table nothing could read."
+)
+
+
+def band_problem(roll_low, roll_high):
+    """What is wrong with a band, in words — or None where nothing is.
+
+    Both ends or neither, and running upwards. Stated once so the verb,
+    the model's own check and the constraint cannot come to disagree."""
+    if (roll_low is None) != (roll_high is None):
+        return (
+            "A band has both ends or neither: the lowest and the highest "
+            "rolls that land here, or nothing."
+        )
+    if roll_low is not None and roll_low > roll_high:
+        return f"A band runs upwards, and {roll_low}-{roll_high} does not."
+    return None
+
+
 class Picklist(Content):
     """A flat, ordered list of Pickables.
 
@@ -169,6 +231,9 @@ class Picklist(Content):
     available in certain situations, but under the same slot type. This
     is meant to be a simpler alternative to the "places" system of
     Collections.
+
+    A list that names dice is a roll table: its members claim bands of
+    rolls, and it says how a roll finds its row.
     """
 
     family = Family.CHOICE
@@ -182,6 +247,23 @@ class Picklist(Content):
     name = models.CharField(
         max_length=200,
         help_text='What this picklist is called, e.g. "Gang Legacies".',
+    )
+    dice = models.CharField(
+        max_length=8,
+        blank=True,
+        default="",
+        choices=Dice,
+        help_text=(
+            "The die this table is rolled on, where it is one. Blank is an "
+            "ordinary list, chosen from rather than rolled."
+        ),
+    )
+    roll_selects = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        choices=RollSelects,
+        help_text="How a roll finds its result on this table.",
     )
 
     class Meta:
@@ -197,10 +279,23 @@ class Picklist(Content):
                 Lower("name"),
                 name="picklist_unique_per_pack",
             ),
+            # A roll table names its die and how a roll finds its row,
+            # or is not a roll table: one without the other is a table
+            # nothing could read.
+            models.CheckConstraint(
+                condition=models.Q(dice="", roll_selects="")
+                | (~models.Q(dice="") & ~models.Q(roll_selects="")),
+                name="picklist_roll_table_is_whole",
+            ),
         ]
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if bool(self.dice) != bool(self.roll_selects):
+            raise ValidationError({"dice": ROLL_TABLE_IS_WHOLE})
 
     @property
     def may_offer(self):
@@ -245,6 +340,20 @@ class PicklistMember(Content):
         default=0,
         help_text="Where it sits in the list. Ties fall back to name.",
     )
+    #: The band of rolls that lands on this row, both ends inclusive —
+    #: "21-26" as readily as "11", which is the band with one roll in it.
+    #: Plain integers even on a D66, where a band may span rolls that
+    #: cannot come up: a lookup only ever asks about a roll that did.
+    roll_low = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="The lowest roll that lands here, on a roll table.",
+    )
+    roll_high = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="The highest roll that lands here. The same as the lowest for one roll.",
+    )
 
     class Meta:
         verbose_name = "picklist member"
@@ -253,6 +362,16 @@ class PicklistMember(Content):
         constraints = [
             models.UniqueConstraint(
                 "picklist", "pickable", name="picklist_member_listed_once"
+            ),
+            # A band is both ends or neither, and runs upwards.
+            models.CheckConstraint(
+                condition=models.Q(roll_low__isnull=True, roll_high__isnull=True)
+                | models.Q(
+                    roll_low__isnull=False,
+                    roll_high__isnull=False,
+                    roll_low__lte=models.F("roll_high"),
+                ),
+                name="picklist_member_band_is_whole",
             ),
         ]
 
@@ -264,8 +383,28 @@ class PicklistMember(Content):
         """What this list calls the pickable."""
         return self.label_override or str(self.pickable)
 
+    @property
+    def band(self):
+        """The band as a table prints it: "51", "21-26", or nothing."""
+        if self.roll_low is None:
+            return ""
+        if self.roll_low == self.roll_high:
+            return str(self.roll_low)
+        return f"{self.roll_low}-{self.roll_high}"
+
     def clean(self):
         super().clean()
+        if problem := band_problem(self.roll_low, self.roll_high):
+            raise ValidationError({"roll_low": problem})
+        if self.roll_low is not None and self.picklist_id and not self.picklist.dice:
+            raise ValidationError(
+                {
+                    "roll_low": (
+                        f"{self.picklist} names no dice, so a band here would "
+                        "never be rolled. Give the list its dice first."
+                    )
+                }
+            )
         if self.picklist_id and self.pickable_id:
             if self.pickable.slot_type_id != self.picklist.slot_type_id:
                 raise ValidationError(
@@ -338,8 +477,9 @@ class Slot(Content, Assignable):
         blank=True,
         default="",
         help_text=(
-            'The name on this slot, e.g. "Gang Legacy". Blank uses this '
-            "slot's own name."
+            "What the card calls this choice — the heading on its row, and "
+            'what the Choose control asks for, e.g. "Lasting Injuries". '
+            "Blank uses this slot's own name."
         ),
     )
     min_picks = models.PositiveIntegerField(

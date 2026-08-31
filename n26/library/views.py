@@ -156,7 +156,9 @@ def _describe_picklist_member(member):
     notes = []
     if member.label_override:
         notes.append(f"the {member.pickable} pickable, under another name")
-    return member.label, notes
+    # The band leads on a roll table, as the book prints it.
+    label = f"{member.band} — {member.label}" if member.band else member.label
+    return label, notes
 
 
 def _weapon_parts(parts):
@@ -868,8 +870,12 @@ def _describe_pickable(pickable):
 
 
 def _describe_picklist(picklist):
-    """The slot type it offers, and how many pickables are on it."""
-    return [picklist.slot_type.name, *_picklist_notes(picklist)]
+    """The slot type it offers, how many pickables are on it, and — on a
+    roll table — the die it is rolled on."""
+    notes = [picklist.slot_type.name, *_picklist_notes(picklist)]
+    if picklist.dice:
+        notes.append(f"rolled on a {picklist.get_dice_display()}")
+    return notes
 
 
 def _picks_said(slot):
@@ -1585,6 +1591,10 @@ def detail(request, kind, pk):
                     edit_form.apply_to(thing)
                     if statline_edit is not None:
                         statline_edit.save_every_value(thing)
+            except ValidationError as refused:
+                # The row's own sense check turned the edit away in words;
+                # they belong on the form the values were typed into.
+                edit_form.add_error(None, refused)
             except IntegrityError:
                 named = spec.identity
                 edit_form.add_error(
@@ -1842,6 +1852,8 @@ def weapon_profile(request, pk):
                     edit_form.apply_to(profile)
                     if statline_edit is not None:
                         statline_edit.save_every_value(profile)
+            except ValidationError as refused:
+                edit_form.add_error(None, refused)
             except IntegrityError as refused:
                 _refuse_the_line(edit_form, spec, refused)
             else:
@@ -3077,6 +3089,8 @@ def collection_page(request, pk):
                 try:
                     with transaction.atomic():
                         edit_form.apply_to(collection)
+                except ValidationError as refused:
+                    edit_form.add_error(None, refused)
                 except IntegrityError:
                     edit_form.add_error(
                         "name",
@@ -3421,6 +3435,8 @@ def slot_type_page(request, pk):
             try:
                 with transaction.atomic():
                     edit_form.apply_to(slot_type)
+            except ValidationError as refused:
+                edit_form.add_error(None, refused)
             except IntegrityError:
                 edit_form.add_error(
                     "name",

@@ -60,9 +60,11 @@ from n26.library.models.modifier import (
 from n26.library.models.pack import ContentPack, default_pack_id, get_default_pack
 from n26.library.models.profile import Profile, ProfileType
 from n26.library.models.slots import (
+    Dice,
     Pickable,
     Picklist,
     PicklistMember,
+    RollSelects,
     Slot,
     SlotType,
 )
@@ -122,8 +124,10 @@ __all__ = [
     "OpAddsMiniature",
     "OpChangesCounter",
     "Pickable",
+    "Dice",
     "Picklist",
     "PicklistMember",
+    "RollSelects",
     "Power",
     "Profile",
     "ProfileType",

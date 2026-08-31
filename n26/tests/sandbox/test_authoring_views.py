@@ -1426,6 +1426,164 @@ class TestAPicklistsOwnPage:
 
         assert [member.label for member in houses.members.all()] == ["Cawdor", "Escher"]
 
+    def test_the_add_form_offers_a_band_and_stores_what_it_is_given(
+        self, author, client, legacy
+    ):
+        """A roll table's rows carry bands, so the form that adds a row
+        asks for one. A picklist that is not a table shows the fields
+        blank rather than hiding them."""
+        from n26.library.authoring import create_pickable, create_picklist
+        from n26.library.models import PicklistMember
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        hobbled = create_pickable("Hobbled", legacy)
+
+        body = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
+        assert 'name="roll_low"' in body and 'name="roll_high"' in body
+
+        client.post(
+            f"/n26/authoring/picklist/{table.pk}/",
+            {
+                "pickable": str(hobbled.pk),
+                "label_override": "",
+                "position": "0",
+                "roll_low": "53",
+                "roll_high": "53",
+            },
+        )
+        assert PicklistMember.objects.get(pickable=hobbled).band == "53"
+
+    def test_a_roll_tables_page_leads_each_row_with_its_band(
+        self, author, client, legacy
+    ):
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+        )
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        add_picklist_member(
+            table, create_pickable("Out Cold", legacy), roll_low=21, roll_high=26
+        )
+        page = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
+        assert "21-26" in page
+
+        # The die is said where lists are told apart: on the listing.
+        listing = client.get("/n26/authoring/picklist/").content.decode()
+        assert "rolled on a D66" in listing
+
+    def test_the_create_form_offers_the_dice(self, author, client, legacy):
+        body = client.get("/n26/authoring/picklist/new/").content.decode()
+        assert 'name="dice"' in body and 'name="roll_selects"' in body
+        assert 'value="d66"' in body
+
+    def test_the_form_offers_no_dice_at_all(self, author, client, legacy):
+        """Most picklists are not roll tables. A select with no empty
+        entry submits its first option, so the blank has to be drawn or
+        every list made here would quietly become a D3 table. The
+        rendered option is what a browser sends, so it is what is
+        pinned — a posted empty string cleans to empty either way and
+        would not tell the two apart."""
+        body = client.get("/n26/authoring/picklist/new/").content.decode()
+        for field in ("dice", "roll_selects"):
+            select = body[body.index(f'name="{field}"') :]
+            select = select[: select.index("</select>")]
+            assert 'value=""' in select, field
+
+    def test_a_list_made_with_no_dice_is_an_ordinary_list(self, author, client, legacy):
+        from n26.library.models import Picklist
+
+        client.post(
+            "/n26/authoring/picklist/new/",
+            {
+                "name": "Plain",
+                "slot_type": str(legacy.pk),
+                "dice": "",
+                "roll_selects": "",
+            },
+        )
+        made = Picklist.objects.get(name="Plain")
+        assert made.dice == "" and made.roll_selects == ""
+
+    def test_a_half_roll_table_is_refused_on_the_form(self, author, client, legacy):
+        from n26.library.models import Picklist
+
+        body = client.post(
+            "/n26/authoring/picklist/new/",
+            {
+                "name": "Half",
+                "slot_type": str(legacy.pk),
+                "dice": "d66",
+                "roll_selects": "",
+            },
+        ).content.decode()
+        assert "names its dice and how" in body
+        assert not Picklist.objects.filter(name="Half").exists()
+
+    def test_editing_a_table_into_half_a_one_is_refused_on_the_form(
+        self, author, client, legacy
+    ):
+        """The same words as on creation, on the same form. Without the
+        row's own check running first, the database's refusal reached
+        the author as a name already taken."""
+        from n26.library.authoring import create_picklist
+        from n26.library.models import Picklist
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        body = client.post(
+            f"/n26/authoring/picklist/{table.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Injuries",
+                "edit-dice": "d66",
+                "edit-roll_selects": "",
+            },
+        ).content.decode()
+
+        assert "names its dice and how" in body
+        assert "already exists" not in body
+        assert Picklist.objects.get(pk=table.pk).roll_selects == "band"
+
+    def test_an_ordinary_edit_still_saves(self, author, client, legacy):
+        """The check runs on every edit, so a plain rename must pass it."""
+        from n26.library.authoring import create_picklist
+        from n26.library.models import Picklist
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        response = client.post(
+            f"/n26/authoring/picklist/{table.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Lasting Injuries",
+                "edit-dice": "d66",
+                "edit-roll_selects": "band",
+            },
+        )
+
+        assert response.status_code == 302
+        assert Picklist.objects.get(pk=table.pk).name == "Lasting Injuries"
+
+    def test_a_band_on_a_list_with_no_dice_is_refused_on_the_page(
+        self, author, client, legacy
+    ):
+        from n26.library.authoring import create_pickable
+        from n26.library.models import PicklistMember
+
+        escher = create_pickable("Escher", legacy)
+        body = client.post(
+            f"/n26/authoring/picklist/{self.picklist().pk}/",
+            {
+                "pickable": str(escher.pk),
+                "label_override": "",
+                "position": "1",
+                "roll_low": "11",
+                "roll_high": "11",
+            },
+        ).content.decode()
+        assert "names no dice" in body
+        assert not PicklistMember.objects.filter(pickable=escher).exists()
+
     def test_only_this_slot_types_pickables_are_offered(
         self, author, client, legacy, affiliation
     ):
