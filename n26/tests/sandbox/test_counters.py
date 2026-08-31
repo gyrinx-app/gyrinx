@@ -415,6 +415,17 @@ class TestMovingOneWithoutReloading:
         assert page.status_code == 302
         assert page["Location"] == back
 
+    def test_the_page_is_not_open_to_a_signed_out_reader(self, client, gang, queen):
+        """A guard worth a test of its own: the helper that renders the
+        card update sits directly above the view, and an insertion in
+        that gap would take the view's decorator with it."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert page.status_code == 302
+        assert "/accounts/login/" in page["Location"]
+
     def test_the_page_holds_the_host_the_update_addresses(self, client, gang, queen):
         """htmx drops an out-of-band element whose id is missing from the
         page, silently — so opting in and holding the host have to travel

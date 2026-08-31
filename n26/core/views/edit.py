@@ -262,7 +262,6 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
     return added, taken, restored
 
 
-@login_required
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
@@ -315,6 +314,7 @@ def render_card_update(request, miniature, at):
     return with_toasts(request, response)
 
 
+@login_required
 def edit_fighter(request, pk):
     """One model, whole: their card with its edit affordances, the
     characteristics they can set by hand, and the notes box.
