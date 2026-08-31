@@ -26,4 +26,13 @@ The whole run sits in {% spaceless %}, and every piece — a plain name, the
 rating, the comma — is its own <span>: a granted line's tooltip is a sizeable
 component with line breaks of its own, and without this its trailing
 whitespace lands beside the next comma as a visible gap before the mark.
-{% endcomment %}<c-vars :lines="None" :ratings="True" />{% spaceless %}{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> ({% if line.provenance.source %}from {{ line.provenance.source }}{% else %}granted{% endif %})</span></span><c-slot name="content">{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}</c-slot></c-ui.tooltip>{% else %}<span>{{ line.name }}</span>{% endif %}{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}{% endfor %}{% else %}&mdash;{% endif %}{% endspaceless %}
+
+A granted line's tooltip trigger is an inline-block, and a line may break on
+either side of one however the text around it reads — so a comma sitting after
+the trigger can be carried to the start of the next line alone. Its comma and
+rating go inside the trigger instead, where nothing breaks; the space after
+that comma is a non-breaking one, because a breaking space at the end of an
+inline-block collapses and the names would run together. A plain name's comma
+needs none of this — text never breaks before a comma — and the plain space
+after it is what lets a long run wrap between names.
+{% endcomment %}<c-vars :lines="None" :ratings="True" />{% spaceless %}{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> ({% if line.provenance.source %}from {{ line.provenance.source }}{% else %}granted{% endif %})</span></span>{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}<c-slot name="content">{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}</c-slot></c-ui.tooltip>{% else %}<span>{{ line.name }}</span>{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>, </span>{% endif %}{% endif %}{% endfor %}{% else %}&mdash;{% endif %}{% endspaceless %}
