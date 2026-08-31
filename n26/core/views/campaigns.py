@@ -292,26 +292,69 @@ def archive_campaign(request, pk):
     return render(request, "n26/archive_campaign.html", {"campaign": found})
 
 
+def _addable_gangs(campaign, reader, arbitrating):
+    """The gangs this reader may put into this campaign, newest first.
+
+    The arbitrator draws on everybody at the table — the people who have
+    accepted a place, and themselves — because a campaign's gangs come
+    from its players and asking for an address is asking somebody to
+    fetch one. A player draws on their own and nobody else's.
+
+    Ordered by the last thing that happened to each, which is the ledger's
+    to answer: the gang somebody is picking is nearly always the one they
+    were last working on. A gang nothing has happened to yet sorts last
+    rather than first, where a null would put it.
+    """
+    from django.db.models import Exists, F, Max, OuterRef
+
+    from n26.core.models import (
+        CampaignMembership,
+        CampaignParticipant,
+        Gang,
+    )
+
+    if arbitrating:
+        owners = set(
+            CampaignParticipant.objects.filter(
+                campaign=campaign, state=CampaignParticipant.State.ACCEPTED
+            ).values_list("user_id", flat=True)
+        )
+        owners.add(campaign.owner_id)
+    else:
+        owners = {reader.pk}
+
+    return (
+        Gang.objects.filter(owner_id__in=owners, archived=False)
+        .select_related("owner", "stash")
+        .annotate(
+            last_touched=Max("ledger_events__created"),
+            playing_now=Exists(
+                CampaignMembership.objects.filter(
+                    gang=OuterRef("pk"), left__isnull=True
+                )
+            ),
+        )
+        .order_by(F("last_touched").desc(nulls_last=True), "name")
+    )
+
+
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_gang(request, pk):
-    """Put a gang into this campaign — the same address, read two ways.
+    """Put a gang into this campaign, chosen from the ones at its table.
 
-    A player at the table brings one of their own, chosen from a list, and
-    the campaign's budget is the entry condition they have to meet. The
-    arbitrator brings anybody's, named by the address they were sent, and
-    may seat a gang worth more than the budget: they set that number, so
-    they are the one who may go past it.
+    The arbitrator sees every gang belonging to somebody who has accepted
+    a place, and their own; a player sees their own. Both pick from a list
+    rather than naming an address, and the same list decides what the POST
+    will accept — a gang the screen would not offer is not one it takes.
 
     Nothing about the gang changes but where it plays, and the gang's own
-    history says it happened and who did it. Taking a gang back out is the
-    arbitrator's act.
+    history says it happened and who did it.
     """
     from django.http import Http404
 
     from n26.core.campaigns import over_budget
-    from n26.core.forms import BringGangForm, JoinCampaignForm
-    from n26.core.models import Gang
+    from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal, operation
 
     found = _any_campaign_or_404(pk)
@@ -319,13 +362,10 @@ def add_gang(request, pk):
     if not arbitrating and not _plays_in(found, request.user):
         raise Http404("No such campaign")
 
-    def build(data=None):
-        if arbitrating:
-            return JoinCampaignForm(data)
-        return BringGangForm(data, owner=request.user)
+    offering = _addable_gangs(found, request.user, arbitrating)
 
     if request.method == "POST":
-        form = build(request.POST)
+        form = BringGangForm(request.POST, gangs=offering)
         if form.is_valid():
             gang = form.cleaned_data["gang"]
             try:
@@ -350,22 +390,23 @@ def add_gang(request, pk):
                     )
                 return redirect("n26-campaign", pk=found.pk)
     else:
-        form = build()
+        form = BringGangForm(gangs=offering)
 
-    # The options are built here because a component attribute takes a
-    # variable and not an expression: a comparison written at the call site
-    # would evaluate to nothing and every option would draw unselected.
-    options = []
-    if not arbitrating:
-        chosen = str(form["gang"].value() or "")
-        options = [
-            {"value": str(row.pk), "label": row.name, "selected": str(row.pk) == chosen}
-            for row in form.fields["gang"].queryset
-        ]
-
-    # A player with nothing to bring is told so, rather than shown a picker
-    # with nothing in it.
-    nothing_to_bring = not arbitrating and not options
+    # Drawn here rather than in the template, which cannot ask a gang what
+    # it is worth without a query per row.
+    gangs = [
+        {
+            "pk": str(row.pk),
+            "name": row.name,
+            "owner": row.owner.username if row.owner else "",
+            "wealth": row.wealth,
+            "playing": row.playing_now,
+        }
+        for row in offering
+    ]
+    # Only where there is somebody to tell apart: a list of one person's
+    # gangs is not narrowed by asking which person.
+    people = sorted({row["owner"] for row in gangs if row["owner"]})
     return render(
         request,
         "n26/add_gang_to_campaign.html",
@@ -373,12 +414,15 @@ def add_gang(request, pk):
             "form": form,
             "campaign": found,
             "arbitrating": arbitrating,
-            "gang_options": options,
-            "nothing_to_bring": nothing_to_bring,
-            # Which of the two reasons the picker is empty: owning no gangs
-            # and owning only gangs already playing lead somewhere different.
-            "every_gang_busy": nothing_to_bring
-            and Gang.objects.filter(owner=request.user, archived=False).exists(),
+            "gangs": gangs,
+            "free_gangs": sum(1 for row in gangs if not row["playing"]),
+            "people": [{"value": name, "label": name} for name in people]
+            if len(people) > 1
+            else [],
+            # The ends of the wealth filter, which are also its off positions.
+            "wealth_ceiling": max([row["wealth"] for row in gangs], default=0),
+            "nothing_to_offer": not gangs,
+            "owns_a_gang": bool(gangs),
         },
     )
 
