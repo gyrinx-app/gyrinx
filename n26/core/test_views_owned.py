@@ -846,6 +846,25 @@ class TestFittingOneBackOntoAGun:
         assert stashed.parent_id is None
         assert_reconciled(gang)
 
+    def test_the_gun_it_lands_on_is_not_a_row_of_the_screen_it_left(
+        self, client, tester, gang, fighter, gun, stashed
+    ):
+        """The stash screen holds no row for a fighter's gun, and an
+        update naming one would tell the page to remove a row that is not
+        there."""
+        from n26.core.owned import thing_key
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", stashed),
+            {"to": "weapon", "weapon": str(gun.pk)},
+            headers={"HX-Request": "true"},
+        )
+
+        assert (
+            f'data-row="{thing_key(gun.assignable)}"' not in response.content.decode()
+        )
+
     def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun, stash):
         """The listing offers no control for this, so a click that reaches
         it is hand-made — and it is answered with a sentence rather than a
@@ -858,6 +877,186 @@ class TestFittingOneBackOntoAGun:
         line.refresh_from_db()
         assert line.parent_id == gun.pk
         assert "is part of" in response.content.decode()
+
+
+class TestFittingOneTheFighterIsCarrying:
+    """An accessory bought on a model's own equip page is loose on the
+    card until somebody bolts it to something. The question is the one the
+    stash asks, narrowed to the guns that model is carrying — and it is
+    asked on its own, so Reassign goes on meaning which model holds it."""
+
+    @pytest.fixture
+    def loose(self, gang, tester, fighter, sight):
+        with operation(gang, actor=tester) as op:
+            return op.buy(fighter, thing=sight)
+
+    @staticmethod
+    def dialog(fighter, **query):
+        from django.test import RequestFactory
+
+        from n26.core.card import build_card
+        from n26.core.owned import EquipHost
+        from n26.core.views.owned import owned_dialog
+
+        request = RequestFactory().get(AT, query)
+        host = EquipHost.fighter(fighter.gang, build_card(fighter), fighter, AT)
+        return owned_dialog(request, host)
+
+    @staticmethod
+    def copy_of(fighter, assignment):
+        from n26.core.card import build_card
+        from n26.core.owned import owned_things, thing_key
+
+        held = owned_things(build_card(fighter), AT)
+        (copy,) = held[thing_key(assignment.assignable)]
+        return copy
+
+    def test_a_loose_accessory_offers_the_fitting(self, fighter, gun, loose):
+        assert self.copy_of(fighter, loose).fit_href == f"{AT}&fit={loose.pk}"
+
+    def test_a_fighter_with_no_gun_is_offered_nowhere_to_fit_it(self, fighter, loose):
+        """A screen must not ask a question its answer refuses."""
+        assert self.copy_of(fighter, loose).fit_href == ""
+
+    def test_nothing_but_an_accessory_offers_it(self, fighter, gun, sword, loose):
+        assert self.copy_of(fighter, gun).fit_href == ""
+        assert self.copy_of(fighter, sword).fit_href == ""
+
+    def test_the_question_offers_the_guns_this_model_is_carrying(
+        self, gang, tester, fighter, other, gun, loose, stash
+    ):
+        """Somebody else's gun and the gang's spare are both places this
+        could end up, and neither is on the screen the question was asked
+        from."""
+        from n26.library.authoring import create_weapon
+
+        with operation(gang, actor=tester) as op:
+            op.buy(other, thing=create_weapon("Autogun", price=20, profiles=[("", 0)]))
+            op.buy(stash, thing=create_weapon("Stub gun", price=5, profiles=[("", 0)]))
+
+        dialog = self.dialog(fighter, fit=str(loose.pk))
+
+        assert dialog["title"] == "Fit Telescopic sight to a weapon"
+        assert dialog["weapons"] == [{"pk": str(gun.pk), "label": "Lasgun"}]
+
+    def test_the_question_is_answered_by_the_move_that_does_it(
+        self, fighter, gun, loose
+    ):
+        dialog = self.dialog(fighter, fit=str(loose.pk))
+
+        assert dialog["action"] == reverse("n26-reassign", args=[loose.pk])
+        assert dialog["submit_label"] == "Fit"
+
+    def test_a_hand_made_address_with_no_gun_to_name_draws_no_submit(
+        self, fighter, loose
+    ):
+        dialog = self.dialog(fighter, fit=str(loose.pk))
+
+        assert dialog["weapons"] == []
+        assert dialog["submit_label"] == ""
+
+    def test_the_panel_with_no_gun_to_offer_carries_no_destination(
+        self, client, tester, fighter, loose
+    ):
+        """Rendered rather than read off the dialog: the destinations are
+        one if/elif chain, and a fitting that fell through to its end
+        would carry the move's hidden stash field — a panel asking to fit
+        something, quietly posting a move instead."""
+        client.force_login(tester)
+
+        response = client.get(
+            reverse("n26-equip", args=[fighter.pk]), {"fit": str(loose.pk)}
+        )
+
+        body = response.content.decode()
+        assert "Fit Telescopic sight to a weapon" in body
+        assert 'name="to"' not in body
+
+    def test_only_an_accessory_is_asked_the_question(self, fighter, gun, sword, loose):
+        """A gun's own address would otherwise open a picker holding that
+        same gun, and fitting a thing to itself is not an act."""
+        assert self.dialog(fighter, fit=str(gun.pk)) is None
+        assert self.dialog(fighter, fit=str(sword.pk)) is None
+
+    def test_a_hand_made_click_naming_its_own_weapon_is_answered_in_words(
+        self, client, tester, gang, gun
+    ):
+        """Nothing draws this address for a gun, so a click that arrives
+        is hand-made — and it gets a sentence rather than a traceback."""
+        client.force_login(tester)
+
+        response = client.post(
+            url("n26-reassign", gun),
+            {"to": "weapon", "weapon": str(gun.pk)},
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        assert "There is nowhere to move" in response.content.decode()
+        gun.refresh_from_db()
+        assert gun.parent_id is None
+        assert_reconciled(gang)
+
+    def test_a_click_bolts_it_onto_the_named_gun(
+        self, client, tester, gang, fighter, gun, loose
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(
+            url("n26-reassign", loose), {"to": "weapon", "weapon": str(gun.pk)}
+        )
+
+        assert response.status_code == 302
+        loose.refresh_from_db()
+        assert loose.parent_id == gun.pk
+        assert loose.miniature_root_id == fighter.pk
+        gang.refresh_from_db()
+        # A move never re-prices, and nothing is charged for one.
+        assert gang.credits == before
+        assert_reconciled(gang)
+
+    def test_the_click_lands_back_on_the_fighters_equip_page(
+        self, client, tester, fighter, gun, loose
+    ):
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", loose), {"to": "weapon", "weapon": str(gun.pk)}
+        )
+        assert response.url.startswith(reverse("n26-equip", args=[fighter.pk]))
+
+    def test_the_screen_is_told_about_both_rows_it_changed(
+        self, client, tester, fighter, gun, loose
+    ):
+        """Both keys are delivered: the gun's row redrawn with the sight
+        under it, and the accessory's own row answered for."""
+        from n26.core.owned import thing_key
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", loose),
+            {"to": "weapon", "weapon": str(gun.pk)},
+            headers={"HX-Request": "true"},
+        )
+
+        from n26.core.templatetags.listing import row_dom_id
+
+        body = response.content.decode()
+        assert f'data-row="{thing_key(gun.assignable)}"' in body
+        # Inside the gun's row rather than anywhere in the response: the
+        # update also re-delivers every accessory panel, and the panel
+        # for this gun offers the sight by name whether or not the second
+        # row was drawn at all.
+        gun_row = body.split(f'data-row="{thing_key(gun.assignable)}"', 1)[1]
+        gun_row = gun_row.split("n26-accessorise-host", 1)[0]
+        assert "Telescopic sight" in gun_row
+        # This listing does not sell the sight, so with nothing holding it
+        # the screen has no row for it at all and the update says to take
+        # it away. One string, because an id and a delete asserted apart
+        # are both satisfied by a response carrying only the first row.
+        gone = row_dom_id(thing_key(loose.assignable))
+        assert f'id="{gone}" hx-swap-oob="delete"' in body
 
 
 @pytest.fixture

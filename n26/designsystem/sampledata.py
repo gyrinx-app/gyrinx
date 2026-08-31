@@ -2092,7 +2092,7 @@ def carried():
     """
     from n26.core.owned import OwnedPart, OwnedThing, thing_key
 
-    def copy(name, rating, index=0, parts=(), chosen=()):
+    def copy(name, rating, index=0, parts=(), chosen=(), fit_href=""):
         stock = _stock(name)
         pk = f"{stock.pk}-{index}"
         return thing_key(stock), OwnedThing(
@@ -2105,6 +2105,7 @@ def carried():
             reassign_href="#",
             refund_href="#",
             remove_href="#",
+            fit_href=fit_href,
             chosen=chosen,
         )
 
@@ -2131,6 +2132,9 @@ def carried():
             125,
             chosen=("Ridge-runner harpoon", "Ridge-runner spikes"),
         ),
+        # An accessory nothing is holding yet, so its row is the one that
+        # offers to bolt it onto one of the guns above.
+        copy("Infra-sight", 40, fit_href="#"),
     ):
         held.setdefault(key, []).append(thing)
     return held
@@ -2181,6 +2185,30 @@ def owned_context():
         # handed over. The two figures differ here on purpose — this gun
         # was haggled down, which is the case that makes the distinction
         # visible at all.
+        # The guns the card is carrying, which is the whole of what a
+        # fitting may name — and the same question with none to offer,
+        # since a card carrying no gun is the state that draws no submit.
+        "owned_fit_dialog": {
+            **named,
+            "kind": "fit",
+            "name": "Infra-sight",
+            "title": "Fit Infra-sight to a weapon",
+            "weapons": [
+                {"pk": "meltagun", "label": "Meltagun"},
+                {"pk": "stub-gun", "label": "Stub gun"},
+            ],
+            "submit_label": "Fit",
+            "submit_variant": "primary",
+        },
+        "owned_fit_nothing_dialog": {
+            **named,
+            "kind": "fit",
+            "name": "Infra-sight",
+            "title": "Fit Infra-sight to a weapon",
+            "weapons": [],
+            "submit_label": "",
+            "submit_variant": "primary",
+        },
         "owned_refund_dialog": {
             **named,
             "kind": "refund",

@@ -34,8 +34,11 @@ The acts are deliberately distinct, and the ledger says which happened:
     sales at two prices.
 ``reassign``
     A move to another model, to the stash, or onto a weapon. No money,
-    and no re-pricing. The last of the three is how a stashed accessory
-    is fitted to a gun: the same act, one level down the chain.
+    and no re-pricing. The last of the three is how an accessory is
+    fitted to a gun: the same act, one level down the chain. It is asked
+    as a question of its own — ``?fit=`` rather than ``?reassign=`` —
+    because which model holds a thing and which gun it is bolted to are
+    not one question, however much they are one act.
 ``refund``
     Undoing the purchase: every credit that was paid comes back. The amount
     paid and the rating part company at the first discount, which is why
@@ -64,6 +67,7 @@ from n26.core.owned import (
     EquipHost,
     is_possession,
     thing_key,
+    weapons_on,
     with_query,
 )
 from n26.core.views.htmx import is_htmx, no_update
@@ -206,13 +210,20 @@ def _asked(request):
     return None, None
 
 
+#: The act a question submits to, where that is not the question's own
+#: name. Fitting an accessory to a gun is asked on its own, because
+#: Reassign is about which model holds a thing and this is not, and it is
+#: answered by the move that does it.
+ROUTES = {"fit": "reassign"}
+
+
 def _panel(request, assignment, kind, at):
     """What every one of these dialogs says, whatever it is asking."""
     return {
         "kind": kind,
         "name": str(assignment.assignable),
         "cancel_url": at,
-        "action": reverse(f"n26-{kind}", args=[assignment.pk]),
+        "action": reverse(f"n26-{ROUTES.get(kind, kind)}", args=[assignment.pk]),
         "list": request.GET.get("list", ""),
         # Which section tab the reader had open, carried through the
         # click so the answer lands where the question was asked. The
@@ -237,17 +248,8 @@ def accessorise_dialogs(request, host: EquipHost):
     carrying six guns asks the database exactly what a screen carrying one
     does — and a screen carrying none asks nothing.
     """
-    from n26.library.models import Weapon
-
     kind, named = _asked(request)
-    weapons = [
-        node
-        for node in host.roots
-        if node.assignment is not None
-        and not node.suppressed
-        and not node.broadcast
-        and isinstance(node.assignable, Weapon)
-    ]
+    weapons = weapons_on(host)
     if not weapons:
         return []
 
@@ -399,6 +401,27 @@ def owned_dialog(request, host: EquipHost):
             "submit_variant": "primary",
         }
 
+    if kind == "fit":
+        # An accessory is the only thing bolted onto anything, so a URL
+        # naming something else draws no dialog at all. Without this a
+        # gun's own address opens a picker holding that same gun, whose
+        # answer would be attaching it to itself — a screen must not ask
+        # a question its answer refuses.
+        if assignment.weapon_accessory_id is None:
+            return None
+        # Every gun on the card, and not only the ones the accessory was
+        # written for: what fits what is information rather than a gate,
+        # and an owner may bolt anything to anything.
+        weapons = weapons_on(host)
+        return dialog | {
+            "title": f"Fit {name} to a weapon",
+            "weapons": [
+                {"pk": str(node.assignment.pk), "label": node.name} for node in weapons
+            ],
+            "submit_label": "Fit" if weapons else "",
+            "submit_variant": "primary",
+        }
+
     if kind == "rechoose":
         # The same controls the row for sale draws, starting on what this
         # copy took rather than on what a buyer would be handed. What a
@@ -524,7 +547,7 @@ def _unchanged(request, back):
     return no_update(request)
 
 
-def _acted(request, touched, gang, back):
+def _acted(request, touched, gang, back, also=""):
     """The response for an act that changed a row.
 
     With htmx: the partial update for the row, with the confirmation
@@ -536,6 +559,10 @@ def _acted(request, touched, gang, back):
     and every htmx request carries it along (see
     n26/core/static/n26/htmx_support.js) — so the update draws the row
     in the state the reader left it.
+
+    ``also`` is a second row on the same screen that the act changed as
+    well; :func:`n26.core.views.equip.render_update` says when there is
+    one.
     """
     from n26.core.views.equip import render_update
 
@@ -551,6 +578,7 @@ def _acted(request, touched, gang, back):
         expanded_key=request.POST.get("owned", "")[:200],
         at=back,
         closed=True,
+        also=also,
     )
     response["HX-Replace-Url"] = back
     return response
@@ -669,6 +697,12 @@ def reassign_assignment(request, pk):
                     archived=False,
                 )
                 .exclude(weapon=None)
+                # Nothing hangs off itself. The operation says so too, but
+                # it says it by raising rather than refusing, so a
+                # hand-made click naming its own weapon is answered here
+                # with the same sentence as any other impossible
+                # destination.
+                .exclude(pk=assignment.pk)
                 .first()
             )
         except ValidationError:
@@ -685,6 +719,13 @@ def reassign_assignment(request, pk):
     if destination is None:
         messages.error(request, f"There is nowhere to move {name} to.")
         return _unchanged(request, back)
+
+    # Fitting takes the thing out of a row of its own and draws it under
+    # the gun instead, so two rows on the screen change. The gun's row
+    # counts only where the reader is looking at it: a stash fit reaches
+    # a gun on somebody's card, and that is not the screen this answers.
+    landed = _row_behind(destination) if isinstance(destination, Assignment) else None
+    also = landed.key if landed and landed.miniature == touched.miniature else ""
 
     try:
         with operation(gang, actor=request.user) as op:
@@ -710,7 +751,7 @@ def reassign_assignment(request, pk):
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
-    return _acted(request, touched, gang, back)
+    return _acted(request, touched, gang, back, also=also)
 
 
 @login_required
