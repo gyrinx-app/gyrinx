@@ -517,6 +517,139 @@ def _check_subtypes():
     return _count(Subtype, name__in=names), len(names)
 
 
+#: The two lasting-effect tables (core rules: the Lasting Injury and
+#: Lasting Damage tables), as ``(band low, band high, result)``. Names
+#: and bands only — what a result *does* is a modifier, which seeds
+#: never write, so the ten characteristic results are finished by hand.
+LASTING_INJURY_TABLE = [
+    (11, 11, "Lesson Learnt"),
+    (12, 12, "Eternal Enmity"),
+    (13, 13, "Bitter Enmity"),
+    (14, 14, "Personal Enmity"),
+    (15, 15, "Horrid Scars"),
+    (16, 16, "Impressive Scars"),
+    (21, 26, "Out Cold"),
+    (31, 46, "Grievous Wound"),
+    (51, 51, "Eye Injury"),
+    (52, 52, "Hand Injury"),
+    (53, 53, "Hobbled"),
+    (54, 54, "Spinal Injury"),
+    (55, 55, "Enfeebled"),
+    (56, 56, "Head Injury"),
+    (61, 62, "Captured"),
+    (63, 65, "Critical Injury"),
+    (66, 66, "Memorable Death"),
+]
+
+LASTING_DAMAGE_TABLE = [
+    (11, 11, "Lesson Learnt"),
+    (12, 12, "Eternal Enmity"),
+    (13, 13, "Bitter Enmity"),
+    (14, 14, "Personal Enmity"),
+    (15, 16, "Percussive Repair"),
+    (21, 26, "Superficial Damage"),
+    (31, 46, "Major Damage"),
+    (51, 52, "Busted Sights"),
+    (53, 53, "Drive System Fault"),
+    (54, 54, "Buckled Frame"),
+    (55, 56, "Engine Fracture"),
+    (61, 62, "Captured"),
+    (63, 65, "Critical Damage"),
+    (66, 66, "Catastrophic Explosion!"),
+]
+
+#: On both tables at the same rolls. A pack holds one pickable per name,
+#: so the damage twin of each carries a qualifier — author-facing only,
+#: never a player's word.
+SHARED_LASTING_RESULTS = {
+    "Lesson Learnt",
+    "Eternal Enmity",
+    "Bitter Enmity",
+    "Personal Enmity",
+    "Captured",
+}
+
+#: (slot type, plural, rows, the damage twins' qualifier)
+LASTING_EFFECT_TABLES = [
+    ("Lasting Injury", "Lasting Injuries", LASTING_INJURY_TABLE, ""),
+    ("Lasting Damage", "Lasting Damage", LASTING_DAMAGE_TABLE, "vehicle"),
+]
+
+
+def _lasting_row(model, name, qualifier, slot_type, defaults):
+    """One pickable or slot, matched the way its uniqueness is defined:
+    per pack on lowercased name and qualifier, not per slot type. An
+    exact-key lookup scoped to the slot type would miss a row that
+    differs only in case or belongs to another type, then trip the
+    unique constraint trying to insert its double."""
+    row = model.objects.filter(name__iexact=name, qualifier__iexact=qualifier).first()
+    if row is None:
+        return model.objects.create(
+            name=name, qualifier=qualifier, slot_type=slot_type, **defaults
+        )
+    if row.slot_type_id != slot_type.pk:
+        raise RuntimeError(
+            f'A {model._meta.verbose_name} named "{name}" already belongs '
+            f'to the "{row.slot_type}" slot type, so the "{slot_type}" '
+            f"table cannot claim the name."
+        )
+    return row
+
+
+def _create_lasting_effect_tables():
+    from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
+
+    for name, plural, rows, twin_qualifier in LASTING_EFFECT_TABLES:
+        slot_type = SlotType.objects.filter(name__iexact=name).first()
+        if slot_type is None:
+            slot_type = SlotType.objects.create(
+                name=name, plural_name=plural, allows_repeats=True
+            )
+        table = Picklist.objects.filter(
+            slot_type=slot_type, name__iexact=f"{name} Table"
+        ).first()
+        if table is None:
+            table = Picklist.objects.create(
+                name=f"{name} Table",
+                slot_type=slot_type,
+                dice="d66",
+                roll_selects="band",
+            )
+        for position, (low, high, result) in enumerate(rows):
+            qualifier = twin_qualifier if result in SHARED_LASTING_RESULTS else ""
+            pickable = _lasting_row(Pickable, result, qualifier, slot_type, {})
+            PicklistMember.objects.get_or_create(
+                picklist=table,
+                pickable=pickable,
+                defaults={
+                    "roll_low": low,
+                    "roll_high": high,
+                    "position": position,
+                },
+            )
+        _lasting_row(
+            Slot,
+            name,
+            "",
+            slot_type,
+            {"picklist": table, "label": plural, "min_picks": 0, "max_picks": 20},
+        )
+
+
+def _check_lasting_effect_tables():
+    from n26.library.models import PicklistMember, Slot, SlotType
+
+    names = [name for name, _, _, _ in LASTING_EFFECT_TABLES]
+    members = sum(len(rows) for _, _, rows, _ in LASTING_EFFECT_TABLES)
+    present = _count(SlotType, name__in=names)
+    present += _count(
+        PicklistMember,
+        picklist__name__in=[f"{name} Table" for name in names],
+    )
+    present += _count(Slot, name__in=names)
+    return present, len(names) + members + len(names)
+
+
 STANDARD_CONTENT = {
     item.key: item
     for item in [
@@ -542,6 +675,19 @@ STANDARD_CONTENT = {
             ),
             check=_check_weapon_characteristics,
             create=_create_weapon_characteristics,
+        ),
+        StandardContent(
+            key="lasting-effect-tables",
+            name="Lasting effect tables",
+            help=(
+                "The Lasting Injury and Lasting Damage tables as D66 roll "
+                "tables — a slot type, results at their bands, and a "
+                "standing choice each. Names and bands only: the ten "
+                "results that worsen a characteristic still need their "
+                "modifiers attached, and the choices built into entries."
+            ),
+            check=_check_lasting_effect_tables,
+            create=_create_lasting_effect_tables,
         ),
         StandardContent(
             key="core-subtypes",

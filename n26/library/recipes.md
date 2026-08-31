@@ -234,3 +234,33 @@ clicks Choose and lands on an empty page. The reverse is a real setup
 rather than a mistake: place the family and offer nothing, and the model
 may select powers from it whenever they like, but was never handed the
 founding one.
+
+## The Lasting Injury and Lasting Damage tables
+
+> Draft, for review.
+
+A model taken out of action rolls on one of the book's two D66 tables
+and keeps the result for good. Each table is a slot type of its own —
+two, not one, so a fighter can never be handed vehicle damage — and
+the app never rolls: the dice are the table's, and a player adds the
+result they rolled.
+
+1. On **Foundations**, create the **lasting effect tables**. One press
+   makes both tables whole: a slot type each with *allows repeats* set —
+   a second Eye Injury is a second Eye Injury — every result at its
+   band, and a standing choice each. Each table's own page shows every
+   roll covered. (Five results sit on both tables at the same rolls; a
+   pack holds one pickable per name, so the damage twins arrive with a
+   qualifier, which players never see.)
+2. Standard content carries names and numbers only, so finish the ten
+   results that worsen a characteristic by hand: on each, attach a
+   **modifier** — targets the model, worsens that characteristic by
+   one. A result that changes no number needs nothing — the card says
+   the model has it, and the rest is played at the table.
+3. Build each table's choice into the matching fighter or vehicle
+   entries, so every model carries its empty row from the moment it is
+   hired.
+
+The player's picker then lists the results in roll order with their
+bands leading, so someone who rolled 24 scans to "21-26" and adds Out
+Cold.
