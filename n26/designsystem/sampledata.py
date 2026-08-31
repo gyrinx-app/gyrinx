@@ -830,6 +830,9 @@ def context():
         # the library its panel offers.
         "pick_list_held": pick_list_held(),
         "pick_list_addable": pick_list_addable(),
+        # The same control where the groups are the point: skill sets,
+        # each sitting in a tier.
+        "pick_list_grouped": pick_list_grouped(),
         "editable_statline": editable_statline(),
         # A profile nobody has typed a statline for yet, and one where a
         # value was refused: the two states the editor has that a card
@@ -1023,6 +1026,43 @@ def pick_list_held():
                     ),
                 ],
             )
+        ],
+    )
+
+
+def pick_list_grouped():
+    """The same control where the headings carry meaning: two skill sets,
+    each saying which tier it sits in, one of them holding a skill a rule
+    gives that no click can clear."""
+    return ChoiceOffer(
+        label="",
+        groups=[
+            ChoosableGroup(
+                name="Agility",
+                caption="Primary",
+                options=[
+                    Choosable(key="library.skill:1", name="Catfall", is_current=True),
+                    Choosable(key="library.skill:2", name="Clamber"),
+                    Choosable(
+                        key="library.skill:3",
+                        name="Dodge",
+                        is_current=True,
+                        granted_by="Keen-eyed",
+                    ),
+                ],
+            ),
+            ChoosableGroup(
+                name="Savant",
+                caption="Secondary",
+                options=[
+                    Choosable(key="library.skill:4", name="Connected"),
+                    Choosable(
+                        key="library.skill:5",
+                        name="Fixer",
+                        detail="usable by Leaders only",
+                    ),
+                ],
+            ),
         ],
     )
 

@@ -162,7 +162,8 @@ Within a collection, when displayed, items are grouped by collection section and
 
 - Membership is entries and sweeps — *placement* has nothing to do with whether a *thing is in the collection*.
 - Where it appears: when a fighter's view of a collection is built, everything unplaced falls into the collection's own default section (part of its schema, so its name and position are content too), or a code-level "Other", drawn last. So browsing Skills & Powers, an unplaced set ("category") is there, under Other.
-- But narrowing excludes it: a Primary-narrowed picker (e.g. used by the "offers a choice" modifier, by setting that the choice comes "from section") only shows categories *placed* within that section. An unplaced skill category lives in Other, not Primary, so it isn't offered. Same for the skills square on the edit page: that surface is the *fighter's* view — their placements — so a collection that hasn't been placed for them isn't shown.
+- But narrowing excludes it: a Primary-narrowed picker (e.g. used by the "offers a choice" modifier, by setting that the choice comes "from section") only shows categories *placed* within that section. An unplaced skill category lives in Other, not Primary, so it isn't offered. The fighter's own skills screen narrows this way too: it is the *fighter's* view, so a set nobody placed for them isn't on it.
+- The skills square on the edit page does not narrow. It draws every set the library holds, under two tabs: the sets a fighter's placements name (plus any they already hold something in) and, a click away, all of them. The placements sort that listing rather than shorten it — an owner settling what a model *is* may take a skill from any set, and a skill already held from an unplaced set could be removed nowhere else.
 
 ### Slot type
 

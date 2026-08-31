@@ -34,11 +34,22 @@ stays a standing selection and the question stays open. Otherwise the
 card would keep asking beside a skill the owner just picked from the
 list, and a later Choose would hand out a second starting skill.
 
-The same listing is offered a second way, as a box to tick on the
-fighter's own edit page (``ticked_offer`` and ``apply_ticks``). One
-screen selects a thing at a time and the other settles the whole list at
-once, but both read the same grid through the same browse: two ways of
-saying it, never two ideas of what a fighter may have.
+A listing is offered a second way, as a box to tick on the fighter's own
+edit page (``skills_offer`` and ``apply_ticks``). One screen selects a
+thing at a time and the other settles the whole list at once, and the
+two draw different lists: this screen keeps to the fighter's own
+placements, while the edit page offers every set the library holds.
+
+That is a difference of *reach*, not of rules. Both write the same
+assignment, and neither can do anything to a model the other could not.
+What separates them is who is reading. This screen is the fighter's own
+view — theirs, tier by tier, one click at a time — and offering every
+set here would bury the two that are actually theirs under every set
+that is not. The edit page is where an owner settles what a model is,
+beside the boxes for their subtypes and special rules, and there the
+answer to "may I take a skill from another house's tree" is yes: the
+game allows it, and a skill already held from such a set could be
+cleared nowhere else.
 """
 
 import dataclasses
@@ -104,60 +115,121 @@ def _grants_on(computed):
     }
 
 
-def ticked_offer(card, computed):
-    """What this model may hold, as a list to tick rather than to click.
+@dataclasses.dataclass(frozen=True)
+class SkillsOffer:
+    """One derivation, in the three shapes the edit page draws it in.
 
-    The skills screen's own listing: the same browse of the same
-    collections, resectioned by the same placements and narrowed to the
-    same tiers, so the two surfaces cannot come to disagree about what is
-    theirs. Skills and powers alike — a tier holds whatever the content
-    swept into it, and a family of powers a fighter's grid places is as
-    much theirs as a skill set is.
-
-    The tiers are the ones their grid names, which for the published
-    lists is Primary and Secondary; the unplaced fallback stays off,
-    because another house's sets are not this fighter's. A tier their
-    grid reaches nothing in simply has no heading.
-
-    Ticked where the model already holds the thing, by any route. What a
-    modifier grants says what grants it and is fixed: no assignment is
-    behind it, so there is nothing a click here could take away.
+    ``everything`` is the whole of it and the only one a save is applied
+    against. ``own`` and ``rest`` are the same options partitioned for
+    reading, so which tab a click came from can never decide what it is
+    allowed to do.
     """
-    from n26.core.access import learnable_for
+
+    #: Every set, grouped, tier by tier — the All sets tab.
+    everything: object
+    #: The sets this model's placements name, plus any they already hold
+    #: something in, so a skill from elsewhere can be cleared without
+    #: going looking for it.
+    own: object
+    #: The other sets' options, flat, for the panel that searches them.
+    rest: list
+
+
+def _sets_on_offer(card, computed):
+    """Every set a model could hold something from, one group each, said
+    with whether their placements name the tier it sits in.
+
+    The browse and the resectioning are the skills screen's own, minus
+    the one call that screen makes and this one does not: it narrows to
+    the tiers the placements name, and so drops the fallback the rest of
+    the library gathers under. Keeping the fallback is the whole of what
+    widens this surface, and it costs nothing — ``regrouped_by_placement``
+    has already put those categories there.
+
+    Built a section at a time so each group knows which tier it came
+    from. A one-section view is not tiered and ``offer_from_view`` writes
+    no caption for it, so the caption is put back here where the whole
+    listing spans more than one — the reader is being told Primary from
+    Secondary, and that is a fact about the listing rather than about the
+    slice it is being built in.
+    """
+    from n26.core.access import model_collections
     from n26.core.browse import (
         EQUIPMENT_LIST,
         browse,
-        narrow,
         placements_for,
         regrouped_by_placement,
         usability_for,
         with_use_notes,
     )
-    from n26.core.render import ChoiceOffer, offer_from_view
+    from n26.core.render import offer_from_view
 
     held = _rows_on(card)
     granted = _grants_on(computed)
-    groups = []
-    for collection in learnable_for(computed):
+    found = []
+    for collection in model_collections():
         placements = placements_for(computed, collection)
-        listed = narrow(
-            with_use_notes(
-                regrouped_by_placement(
-                    browse(collection, EQUIPMENT_LIST),
-                    placements,
-                    fallback=collection.default_section(),
-                    name=str(collection),
-                ),
-                usability_for(computed),
+        placed = {placement.section.name for placement in placements.values()}
+        listed = with_use_notes(
+            regrouped_by_placement(
+                browse(collection, EQUIPMENT_LIST),
+                placements,
+                fallback=collection.default_section(),
+                name=str(collection),
             ),
-            sections=[placement.section.name for placement in placements.values()],
+            usability_for(computed),
         )
-        groups.extend(
-            offer_from_view(
-                listed, label=str(collection), held=held, granted=granted
-            ).groups
-        )
-    return ChoiceOffer(label="", groups=groups)
+        tiered = len(listed.sections) > 1
+        for section in listed.sections:
+            offer = offer_from_view(
+                dataclasses.replace(listed, sections=[section]),
+                label=str(collection),
+                held=held,
+                granted=granted,
+            )
+            for group in offer.groups:
+                if tiered:
+                    group.caption = section.name
+                found.append((section.name in placed, group))
+    return found
+
+
+def skills_offer(card, computed):
+    """What this model may hold, as a list to tick rather than to click.
+
+    Every set the library holds for a model, skills and powers alike —
+    not only the ones their placements reach. A set nobody placed for
+    them is still a set the game has, and an owner reaching for one is
+    doing something the rules allow; the placements say which are
+    *theirs*, which is worth drawing, and not much more.
+
+    So the tiers are drawn as the placements name them, and everything
+    unplaced keeps the heading the browse filed it under — the
+    collection's own default section, or "Other" last of all.
+
+    Ticked where the model already holds the thing, by any route. What a
+    modifier grants says what grants it and is fixed: no assignment is
+    behind it, so there is nothing a click here could take away.
+
+    The partition is a reading aid, never a permission: a set the model
+    holds something in is drawn among their own so it can be cleared
+    where they will look for it, and everything else is on the same
+    listing one tab or one search away.
+    """
+    from n26.core.render import ChoiceOffer
+
+    own, rest, every = [], [], []
+    for placed, group in _sets_on_offer(card, computed):
+        every.append(group)
+        if placed or any(option.is_current for option in group.options):
+            own.append(group)
+        else:
+            rest.extend(group.options)
+    return SkillsOffer(
+        everything=ChoiceOffer(label="", groups=every),
+        own=ChoiceOffer(label="", groups=own),
+        rest=rest,
+    )
 
 
 def _offered_keys(slot, computed):
@@ -244,9 +316,12 @@ def apply_ticks(op, miniature, card, computed, ticked):
 
     The listing is derived again here rather than trusted from the page,
     so a stale form or a hand-made click can only name things that are on
-    the list now. Nothing off the list is touched: a skill selected from a
-    set the grid has since stopped reaching keeps its assignment, because it is
-    not being offered and so cannot have been cleared.
+    the list now. That listing is the whole of it, never the half a tab
+    is showing: both tabs draw the same options and the panel searches
+    the rest of them, so which one a save came from settles nothing and
+    is not asked. What follows is that a form submitted from a page
+    drawn long ago clears whatever has been selected since, across the
+    whole library rather than one corner of it.
 
     A newly ticked thing is selected — free, and caused by nothing, the
     same write the skills screen makes — unless the card is still asking
@@ -262,7 +337,7 @@ def apply_ticks(op, miniature, card, computed, ticked):
     fixed box submits nothing and reading its silence as a clearing
     would take away the assignment of anything a modifier also grants.
     """
-    offer = ticked_offer(card, computed)
+    offer = skills_offer(card, computed).everything
     rows = _rows_on(card)
     granted = _grants_on(computed)
     questions = _open_questions(computed)

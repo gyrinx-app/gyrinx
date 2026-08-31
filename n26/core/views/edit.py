@@ -167,6 +167,49 @@ def _edits_offer(own, computed, field, heading):
     return held, rest, bool(state.own_adds or state.removed)
 
 
+#: How the skills box's two listings are named in the address.
+OWN_SETS, ALL_SETS = "their-sets", "all-sets"
+
+
+def _skills_tabs(miniature, current):
+    """The two ways the skills box lists a model's sets.
+
+    Their own first, because it is the everyday answer: the handful of
+    sets somebody wrote a placement for, which is what a reader came to
+    settle. The whole library is a tab away rather than the default,
+    since it holds every set the content has and the two that are theirs
+    would be lost among them.
+
+    Both addresses render the whole page on a plain visit, so a tab is
+    somewhere a link can point and a reload comes back to.
+    """
+    here = reverse("n26-edit-fighter", args=[miniature.pk])
+    return [
+        {
+            "label": "Their sets",
+            "href": f"{here}?skills={OWN_SETS}",
+            "current": current == OWN_SETS,
+        },
+        {
+            "label": "All sets",
+            "href": f"{here}?skills={ALL_SETS}",
+            "current": current == ALL_SETS,
+        },
+    ]
+
+
+def _skills_here(request, miniature):
+    """Where a skills save goes back to: the tab it was made from.
+
+    The form carries which listing drew it, so settling the boxes leaves
+    the reader looking at the same ones. A form naming no tab, or one
+    this page does not draw, lands on the page's own default.
+    """
+    here = reverse("n26-edit-fighter", args=[miniature.pk])
+    tab = request.POST.get("tab")
+    return f"{here}?skills={tab}" if tab in (OWN_SETS, ALL_SETS) else here
+
+
 def _apply_edits(op, miniature, own, computed, field, ticked):
     """Make what the card shows match what was ticked, and say what moved.
 
@@ -258,8 +301,8 @@ def edit_fighter(request, pk):
     from n26.core.render import render_gang, roster, summarise_roster
     from n26.core.views.choose import link_slots
     from n26.core.views.gangs import _fighter_named
-    from n26.core.views.htmx import stay_or_redirect
-    from n26.core.views.learn import apply_ticks, link_skills, ticked_offer
+    from n26.core.views.htmx import is_htmx, stay_or_redirect
+    from n26.core.views.learn import apply_ticks, link_skills, skills_offer
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -294,7 +337,7 @@ def edit_fighter(request, pk):
                 )
         except Refusal as refusal:
             messages.error(request, str(refusal))
-            return redirect("n26-edit-fighter", pk=miniature.pk)
+            return redirect(_skills_here(request, miniature))
         record(
             request,
             N26Noun.MODEL,
@@ -317,7 +360,7 @@ def edit_fighter(request, pk):
             request,
             f"{miniature.name} {' and '.join(moved)}." if moved else "Skills saved.",
         )
-        return redirect("n26-edit-fighter", pk=miniature.pk)
+        return redirect(_skills_here(request, miniature))
     elif request.method == "POST" and request.POST.get("act") in EDITABLE_KINDS:
         field = EDITABLE_KINDS[request.POST["act"]]
         own = build_card(miniature)
@@ -450,6 +493,50 @@ def edit_fighter(request, pk):
     if statline_edit is None and statline_class is not None:
         statline_edit = statline_class.opened_on(miniature)
 
+    # The model's own card, computed: the boxes need the assignments and
+    # the grants behind what the card shows, which the sheet does not
+    # carry. A fixed reading, however much this model knows.
+    own = build_card(miniature)
+    index = build_modifier_index([node.assignable for node in own.all_nodes()])
+    computed = compute(own, index)
+    skills = skills_offer(own, computed)
+    asked = request.GET.get("skills")
+    # A model no placement names has nothing under the first heading, so
+    # the box opens on the listing holding every set. An address naming a
+    # tab is obeyed either way: the first one saying so is a real answer.
+    tab = (
+        asked
+        if asked in (OWN_SETS, ALL_SETS)
+        else (ALL_SETS if skills.own.is_empty else OWN_SETS)
+    )
+    skills_box = {
+        "miniature": miniature,
+        "edit_url": reverse("n26-edit-fighter", args=[miniature.pk]),
+        # Nothing rather than an empty box: a library with no set for a
+        # model to take anything from is not worth asking about. Which of
+        # the two listings is empty is the box's own business, and it says
+        # so under its own heading.
+        "skills": None
+        if skills.everything.is_empty
+        else (skills.own if tab == OWN_SETS else skills.everything),
+        # The panel searches what the drawn listing leaves out, which on
+        # the listing holding every set is nothing.
+        "skills_more": skills.rest if tab == OWN_SETS else [],
+        "skills_tab": tab,
+        "skills_tabs": _skills_tabs(miniature, tab),
+    }
+
+    # A tab clicked with script running is answered with the box alone,
+    # before the gang sheet is built: changing which sets are listed
+    # changes nothing else on the page, and the address still says which
+    # tab is open so a reload draws the same screen.
+    if request.method == "GET" and asked and is_htmx(request):
+        answer = render(
+            request, "n26/includes/skills_box.html", {**skills_box, "oob": True}
+        )
+        answer["HX-Replace-Url"] = request.get_full_path()
+        return answer
+
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     link_skills(*sheet.models)
@@ -459,13 +546,6 @@ def edit_fighter(request, pk):
     if card is None:
         raise Http404("No such model")
 
-    # The model's own card again, computed: the sheet hands back what to
-    # draw, and the tick list needs the assignments and the grants behind it.
-    # A fixed reading, however much this model knows.
-    own = build_card(miniature)
-    index = build_modifier_index([node.assignable for node in own.all_nodes()])
-    computed = compute(own, index)
-    skills = ticked_offer(own, computed)
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes"
     )
@@ -497,15 +577,13 @@ def edit_fighter(request, pk):
             # bound form is display logic, and the component that draws
             # them has no business knowing what a form looks like.
             "statline_cells": statline_edit.cells() if statline_edit else None,
-            # Nothing rather than an empty box: a model whose grid reaches
-            # no set has nothing to tick, and a heading over a blank
-            # square would read as a list that failed to load. The card's
-            # own Skills row still leads to the screen that says why.
-            "skills": None if skills.is_empty else skills,
-            # The same rule for the edits box: a library offering no
-            # subtypes and no rules is not asked about either. Each
-            # section carries its own Reset, drawn only while the owner
-            # has edits of that kind to undo.
+            # Which sets are listed, which tab is open, and what the
+            # panel searches — the same box the tab click is answered
+            # with, so the two cannot draw different things.
+            **skills_box,
+            # A library offering no subtypes and no rules draws no edits
+            # box at all. Each section carries its own Reset, drawn only
+            # while the owner has edits of that kind to undo.
             "subtype_edits": subtype_edits,
             "subtype_more": subtype_more,
             "subtype_edits_dirty": subtype_edits_dirty,
@@ -513,7 +591,6 @@ def edit_fighter(request, pk):
             "rule_more": rule_more,
             "rule_edits_dirty": rule_edits_dirty,
             "renaming": _fighter_named(request, gang, "rename"),
-            "edit_url": reverse("n26-edit-fighter", args=[miniature.pk]),
             # The crop spec the picture box stamps onto the browser's
             # dialog — handed from the same constants the server crops
             # with, so the two cannot disagree.

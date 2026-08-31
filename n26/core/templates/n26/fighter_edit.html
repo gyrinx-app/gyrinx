@@ -233,30 +233,18 @@ is named by the page's own heading directly below.
             {% endif %}
         </c-slot>
         {% comment %}
-        Everything this model's grid puts within reach, ticked where they
-        have it. Ticking selects and clearing takes away, in one click and
-        one operation — which is why Save is green here as it is above.
-        What a rule grants is fixed: it is theirs while the thing granting
-        it stands, and no click on this page could take it away.
+        Every skill and power the library holds for a model, ticked where
+        they have it, under the set it belongs to. Ticking selects and
+        clearing takes away, in one click and one operation — which is why
+        Save is green here as it is above. What a rule grants is fixed: it
+        is theirs while the thing granting it stands, and no click on this
+        page could take it away.
 
-        The square is drawn only where there is something to tick. A model
-        nobody has graded reaches no set, and their card's Skills row still
-        leads to the screen that says so.
+        A file of its own because a tab click is answered with the box
+        alone — see n26/includes/skills_box.html.
         {% endcomment %}
         <c-slot name="skills">
-            {% if skills %}
-                <form method="post" action="{{ edit_url }}">
-                    {% csrf_token %}
-                    <input type="hidden" name="act" value="skills">
-                    <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">Edit the model's skills &amp; powers</p>
-                    <c-n26.tick-list :offer="skills" name="skills" />
-                    <div class="mt-3 flex justify-end">
-                        <c-ui.button type="submit" variant="success" size="sm">
-                            Save skills
-                        </c-ui.button>
-                    </div>
-                </form>
-            {% endif %}
+            {% include "n26/includes/skills_box.html" %}
         </c-slot>
         {% comment %}
         The same boxes an author types a statline into, filled with what
