@@ -25,9 +25,8 @@ settles both, one gang at a time, inside one ``operation(gang)``:
 
    Tagging writes provenance and nothing else — no ledger entry, no
    event, no repin. It changes how a grant is recorded, not what the
-   owner has, which is the one exception ``n26/core/CLAUDE.md`` allows
-   to the rule that player data is written only by an operation's
-   verbs: it moves no money, and the gang is proved to reconcile after.
+   owner has: it moves no money, and the gang is proved to reconcile
+   after.
 
 2. **Catch up.** Every live carrier in the gang is reconciled against
    its sets, so a member added after the hire arrives now, recorded as
@@ -35,9 +34,10 @@ settles both, one gang at a time, inside one ``operation(gang)``:
    gang-hosted carrier — already holds a live copy of the member's
    thing that arrived some other way (bought, rewarded, edited in,
    granted by a modifier), the member is skipped and the carrier named
-   in the outcome: the backfill never creates a duplicate. That is a
-   backfill-only reading; live propagation judges by provenance alone
-   (``n26.core.builtins``).
+   in the outcome: for the carrier's own set members, the backfill
+   never creates a duplicate. That is a backfill-only reading; live
+   propagation judges by provenance alone (``n26.core.builtins``), and
+   so does the reconcile of anything the catch-up itself creates.
 
 Both steps are idempotent, so a gang may be walked again: a second
 pass tags nothing and grants nothing. Archived grants are tagged like
@@ -169,9 +169,12 @@ def _tag_legacy_grants(gang, outcome):
         named = False
         accounted = 0
         for default_set in sets_by_carrier[carrier_id]:
+            # Live members first: a copy bound to an archived member
+            # leaves its live twin unsatisfied, and catch-up would then
+            # grant the duplicate this pairing exists to prevent.
             members = list(
                 default_set.members.filter(**{f"{kind}_id": assignable_id}).order_by(
-                    "pk"
+                    "archived", "pk"
                 )
             )
             if not members:

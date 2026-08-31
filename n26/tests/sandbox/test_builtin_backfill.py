@@ -105,6 +105,32 @@ def settled(gang):
     return gang
 
 
+class TestArchivedAndLiveTwinsPairLiveFirst:
+    """Where a set names the same thing through an archived member and a
+    live one, the live member claims the legacy copy — a copy bound to
+    the archived twin would leave the live one unsatisfied, and the
+    catch-up would grant the duplicate the pairing exists to prevent."""
+
+    def test_the_live_member_claims_the_copy_and_nothing_is_granted(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        profile = create_profile("Sergeant", person_type, gang_type, price=50)
+        sharp = create_skill("Sharp Eye")
+        gone = add_built_in(profile, sharp)
+        gone.archived = True
+        gone.save()
+        live = add_built_in(profile, sharp)
+        fighter = hire(gang, profile, "Ana", paid=50)
+        strip_provenance(gang)
+
+        run_backfill()
+
+        copies = Assignment.objects.filter(skill=sharp, miniature_root=fighter)
+        assert copies.count() == 1
+        assert copies.get().materialised_from == live
+        settled(gang)
+
+
 class TestTaggingLegacyGrants:
     """A grant written without provenance is matched to the member it
     came from, and the tag is all that is written."""
