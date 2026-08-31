@@ -176,12 +176,12 @@ class TestWhatTheDroppedCopyBrought:
 
 
 class TestACopySomebodyCountedOn:
-    """A duplicate carrying a tally is left alone: the number is
-    somebody's play, and no repair throws that away."""
+    """A number somebody kept is never thrown away. Where the duplicate
+    is itself the counter, its twin stands beside it and takes the
+    higher of the two; where the tally is deeper in what the duplicate
+    brought, there is nowhere to carry it and the duplicate stands."""
 
-    def test_a_tallied_duplicate_stands_and_is_named(
-        self, gang, person_type, gang_type, default_pack
-    ):
+    def tallied_duplicate(self, gang, person_type, gang_type, value):
         counter = create_counter("Kill Count")
         profile = create_profile("Hunter", person_type, gang_type, price=100)
         add_built_in(profile, counter)
@@ -190,15 +190,46 @@ class TestACopySomebodyCountedOn:
         member = profile.built_ins.members.get(counter__isnull=False)
         duplicate = caught_up_copy(gang, fighter, member, fighter.membership, counter)
         CounterValue.objects.update_or_create(
-            assignment=duplicate, defaults={"value": 7}
+            assignment=duplicate, defaults={"value": value}
+        )
+        return fighter, counter, duplicate
+
+    def test_the_number_moves_to_the_copy_that_stays(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        fighter, counter, duplicate = self.tallied_duplicate(
+            gang, person_type, gang_type, 7
         )
 
         outcome = de_duplicate(gang.pk)
 
-        assert outcome.dropped == 0
-        assert len(outcome.kept_a_tally) == 1
-        assert "counts 7" in outcome.kept_a_tally[0]
-        assert Assignment.objects.filter(pk=duplicate.pk).exists()
+        assert outcome.dropped == 1
+        assert outcome.merged == 1
+        assert outcome.kept_a_tally == []
+        assert not Assignment.objects.filter(pk=duplicate.pk).exists()
+        standing = Assignment.objects.get(
+            counter=counter, miniature_root=fighter, archived=False
+        )
+        assert standing.counter_value.value == 7
+        settled(gang)
+
+    def test_the_higher_of_the_two_numbers_is_the_one_kept(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        fighter, counter, duplicate = self.tallied_duplicate(
+            gang, person_type, gang_type, 3
+        )
+        standing = Assignment.objects.exclude(pk=duplicate.pk).get(
+            counter=counter, miniature_root=fighter, archived=False
+        )
+        CounterValue.objects.update_or_create(
+            assignment=standing, defaults={"value": 9}
+        )
+
+        de_duplicate(gang.pk)
+
+        standing.refresh_from_db()
+        assert standing.counter_value.value == 9
 
 
 class TestWhatIsNotADuplicate:

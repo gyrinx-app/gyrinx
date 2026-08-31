@@ -34,7 +34,11 @@
             <td>{{ backfill.summary.totals.swept|default:0 }}</td>
         </tr>
         <tr>
-            <th>Left standing: somebody was counting on them</th>
+            <th>Tallies carried onto the copy that stayed</th>
+            <td>{{ backfill.summary.totals.merged|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Left standing: nothing here could be moved</th>
             <td>{{ backfill.summary.totals.kept_a_tally|default:0 }}</td>
         </tr>
     </table>

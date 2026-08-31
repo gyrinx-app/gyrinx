@@ -57,8 +57,11 @@ class GangOutcome:
     retagged: int = 0
     #: Assignments that went with a dropped copy because it caused them.
     swept: int = 0
-    #: Sentences, one per group left alone because dropping it would
-    #: destroy a tally somebody had kept.
+    #: Tallies carried from a dropped duplicate onto the copy that stays.
+    merged: int = 0
+    #: Sentences, one per group left standing because dropping it would
+    #: destroy something the repair cannot move: a tally with nowhere to
+    #: go, or something that was paid for.
     kept_a_tally: list = field(default_factory=list)
 
     def counts(self):
@@ -66,6 +69,7 @@ class GangOutcome:
             "dropped": self.dropped,
             "retagged": self.retagged,
             "swept": self.swept,
+            "merged": self.merged,
             "kept_a_tally": len(self.kept_a_tally),
         }
 
@@ -107,6 +111,22 @@ def _goes_with(assignment):
     return found
 
 
+def _money_under(assignment, goes_with):
+    """Whether anything going with the copy was paid for or counts
+    towards the gang's rating.
+
+    A grant never is, but a thing the duplicate spawned may have been
+    bought since, and money the owner spent is not a repair's to delete.
+    """
+    from n26.core.models import LedgerEntry
+
+    return (
+        LedgerEntry.objects.filter(assignment_id__in={assignment.pk} | goes_with)
+        .exclude(paid=0, rating_contribution=0)
+        .exists()
+    )
+
+
 def _tally_under(assignment, goes_with=None):
     """The highest counter value on the copy or anywhere beneath it, or
     None where nothing under it counts anything.
@@ -123,6 +143,32 @@ def _tally_under(assignment, goes_with=None):
         "value", flat=True
     )
     return max(values, default=None)
+
+
+def _carry_the_tally(grant, owner, tally, goes_with):
+    """Move a tally from the duplicate onto the copy that stays, where
+    there is somewhere for it to go.
+
+    A counter duplicated outright has its twin standing beside it, and
+    the higher of the two numbers is the one somebody kept. A tally
+    deeper in the subtree has no twin to carry it to, and says so by
+    answering False, so the duplicate is left standing instead.
+    """
+    from n26.core.models import CounterValue
+
+    if not tally:
+        return True
+    if grant.counter_id is None or owner.counter_id != grant.counter_id:
+        return False
+    if CounterValue.objects.filter(assignment_id__in=goes_with, value__gt=0).exists():
+        # Something beneath the duplicate counts as well, and that has
+        # nowhere to go.
+        return False
+    standing, _ = CounterValue.objects.get_or_create(assignment=owner)
+    if standing.value < tally:
+        standing.value = tally
+        standing.save(update_fields=["value", "modified"])
+    return True
 
 
 def duplicates_in(gang, only_miniature_id=None):
@@ -208,13 +254,24 @@ def de_duplicate(gang_id, only_miniature_id=None):
             if grant.pk in gone or owner.pk in gone:
                 continue
             goes_with = _goes_with(grant)
-            tally = _tally_under(grant, goes_with)
-            if tally:
+            if _money_under(grant, goes_with):
                 outcome.kept_a_tally.append(
                     f"{grant.assignable} on {grant.miniature_root or gang} "
-                    f"counts {tally}, so its duplicate stands."
+                    f"brought something that was paid for, so its duplicate "
+                    f"stands."
                 )
                 continue
+            tally = _tally_under(grant, goes_with)
+            carried = _carry_the_tally(grant, owner, tally, goes_with)
+            if not carried:
+                outcome.kept_a_tally.append(
+                    f"{grant.assignable} on {grant.miniature_root or gang} "
+                    f"counts {tally} where the copy already held has no place "
+                    f"for it, so its duplicate stands."
+                )
+                continue
+            if tally:
+                outcome.merged += 1
             swept = len(goes_with)
             member_id = grant.materialised_from_id
             carrier_id = grant.materialised_for_id
