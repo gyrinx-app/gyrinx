@@ -544,7 +544,7 @@ dropped, 10,660 retagged, 2,788 tallies moved, 669 swept, 6 stood.
 Verified from outside: duplicated subtypes, rules and counters all zero;
 what remains is 6 twin-named weapons (the guard, correctly), 101 hidden
 items granted by two distinct members (legitimate), and 2 equipment
-lists that predate the rollout. A named fighter checked in detail: 32
+lists that predate the rollout. Audit re-run after it (record 9a8b0e39): 1,859/1,859 gangs, 0 failures, no drift — deleting ~11,000 rows moved no money. A named fighter checked in detail: 32
 live assignments to 17, 15 things-held-twice to 0, 5 models in the gang
 to 4 (its duplicated spawned servitor gone), XP [61,61] to [61],
 credits and rating unmoved.
