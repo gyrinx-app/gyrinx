@@ -1,0 +1,7 @@
+{% comment %}
+One assignable's name, with the granted mark. Expects `line` — an
+n26.render.AssignableLine. The same mark <c-n26.assignable-lines> uses
+in a run, so a stacked list and a comma-separated one cannot disagree
+about which names were granted.
+{% endcomment %}
+{% if line.provenance.computed %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> ({% if line.provenance.source %}from {{ line.provenance.source }}{% else %}granted{% endif %})</span></span><c-slot name="content">{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}</c-slot></c-ui.tooltip>{% else %}<span>{{ line.name }}</span>{% endif %}

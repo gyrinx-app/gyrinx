@@ -1,0 +1,88 @@
+{% comment %}
+<c-n26.owned-actions> — Sell and the rest of what can happen to one copy.
+
+    <c-n26.owned-actions :sell="copy.sell" :more="copy.more" label="{{ copy.name }}" />
+    <c-n26.owned-actions :sell="weapon.sell" :more="weapon.more" size="xs" label="{{ weapon.name }}" />
+
+The same pair the equip listing draws next to something owned: Sell out
+in the open, everything else behind a chevron. Which acts those are,
+and which of them is red, is the structure's word (see
+n26/includes/row_action.html), so an act added there appears here with
+nothing edited.
+
+size is sm on a listing row and xs on a model card, so the controls
+match the buttons around them. A line with nothing to click draws
+nothing.
+
+  :sell — n26.core.listing.Action, or empty when this line cannot be sold.
+  :more — the rest of the acts, each a link to a confirmation.
+  size — sm (the listing) or xs (the card).
+  label — the thing's name, for the chevron's accessible name.
+  :htmx — as n26/includes/row_action.html: the click fetches the panel
+    alone. Off by default; only a screen holding the update's hosts may
+    set it.
+{% endcomment %}
+<c-vars :sell="None" :more="None" size="sm" label="" :htmx="False" class="" />
+
+{% if sell or more %}
+    <span class="flex shrink-0 items-center gap-1 {{ class }}">
+        {% if sell %}
+            {% if size == "xs" %}
+                {% include "n26/includes/row_action.html" with action=sell size="xs" extra_class="py-0! px-1.5!" %}
+            {% else %}
+                {% include "n26/includes/row_action.html" with action=sell %}
+            {% endif %}
+        {% endif %}
+        {% if more %}
+            <c-ui.dropdown align="end" min_width="10rem">
+                <c-slot name="trigger">
+                    {% if size == "xs" %}
+                        <c-ui.button size="xs"
+                                     class="px-1! py-0!"
+                                     aria-label="More for {{ label }}"
+                                     title="More for {{ label }}"
+                                     aria-haspopup="menu"
+                                     ::aria-expanded="dropdownMenu">
+                            <span class="n26-icon-only">
+                                <c-n26.icon name="chevron-down"
+                                            class="size-3 transition-transform"
+                                            stroke_width="2.5"
+                                            ::class="{ 'rotate-180': dropdownMenu }" />
+                            </span>
+                        </c-ui.button>
+                    {% else %}
+                        <c-ui.button size="sm"
+                                     class="px-1.5!"
+                                     aria-label="More for {{ label }}"
+                                     title="More for {{ label }}"
+                                     aria-haspopup="menu"
+                                     ::aria-expanded="dropdownMenu">
+                            <span class="n26-icon-only">
+                                <c-n26.icon name="chevron-down"
+                                            class="size-3 transition-transform"
+                                            stroke_width="2.5"
+                                            ::class="{ 'rotate-180': dropdownMenu }" />
+                            </span>
+                        </c-ui.button>
+                    {% endif %}
+                </c-slot>
+                {% comment %}
+                Each of these opens a confirmation the server renders; on
+                a screen opted into partial updates (:htmx) the click
+                fetches the panel alone. Still a link underneath — see
+                n26/includes/row_action.html, including for why the
+                element is drawn twice rather than switching attributes.
+                {% endcomment %}
+                {% for action in more %}
+                    {% if htmx %}
+                        <c-ui.dropdown.item href="{{ action.target }}"
+                                            hx-get="{{ action.target }}"
+                                            hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                    {% else %}
+                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                    {% endif %}
+                {% endfor %}
+            </c-ui.dropdown>
+        {% endif %}
+    </span>
+{% endif %}

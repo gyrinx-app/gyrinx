@@ -508,6 +508,53 @@ def link_stash_actions(sheet, at, *, refunds=True):
         line.menu = tuple(menu)
 
 
+def link_possession_actions(model_card, host, *, refunds=True):
+    """Point each kit line at the same acts the equip listing offers.
+
+    Costs no queries: the host's card is already built, and this only
+    turns stored assignment ids into addresses on ``host.at``. A line
+    with no assignment — granted gear, a hire preview — stays a name
+    with nothing to click.
+
+    ``refunds`` is whether Refund is offered at all, the same flag the
+    listing takes: a gang founded without a budget never paid credits.
+    """
+    from dataclasses import replace
+
+    from n26.core.listing import copy_row
+    from n26.core.owned import possessions
+
+    copies, parts = {}, {}
+    for held in possessions(host).values():
+        for copy in held:
+            row = copy_row(copy, refunds=refunds)
+            copies[row.id] = row
+            for part in row.parts:
+                parts[part.id] = part
+
+    model_card.equipment = [
+        replace(line, sell=row.sell, more=row.more)
+        if (row := copies.get(line.id))
+        else line
+        for line in model_card.equipment
+    ]
+    for weapon in model_card.weapons:
+        if row := copies.get(weapon.id):
+            weapon.sell = row.sell
+            weapon.more = row.more
+            weapon.accessorise = row.accessorise
+        weapon.accessories = [
+            replace(line, sell=part.sell, more=part.more)
+            if (part := parts.get(line.id))
+            else line
+            for line in weapon.accessories
+        ]
+        for profile in weapon.profiles:
+            if part := parts.get(profile.id):
+                profile.sell = part.sell
+                profile.more = part.more
+
+
 def _back_to(request, assignment, gang):
     """Infer the source screen before an operation moves the assignment."""
     if assignment.stash_root_id or assignment.stash_id:

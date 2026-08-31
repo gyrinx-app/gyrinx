@@ -272,6 +272,11 @@ is named by the page's own heading directly below.
             {% endif %}
         </c-slot>
     </c-n26.view.model-edit>
+    {% if dialog %}
+        <c-n26.owned-dialog :dialog="dialog">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endif %}
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"
                       action="{% url 'n26-rename-fighter' renaming.pk %}?back=edit"

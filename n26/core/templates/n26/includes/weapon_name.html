@@ -1,0 +1,28 @@
+{% comment %}
+A weapon's name on the card, with the way to add an accessory and the
+acts that can happen to it. Expects `weapon` — an n26.render.WeaponLine.
+
+Add accessory sits next to the name rather than in the more-menu: it is
+the one act here that adds something, and a chevron full of ways to lose
+a thing is no place for it. Sell and the rest match the listing, at xs
+so they sit with Equip and Choose on this card.
+{% endcomment %}
+<span class="flex flex-wrap items-center gap-1">
+    <span>{{ weapon.name }}</span>
+    {% if weapon.accessorise %}
+        <c-ui.button variant="ghost"
+                     size="xs"
+                     class="py-0! px-1! text-ink-500 dark:text-ink-400"
+                     href="{{ weapon.accessorise.target }}"
+                     aria-label="{{ weapon.accessorise.label }} to {{ weapon.name }}">
+            <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                <c-n26.icon name="plus" class="size-3" stroke_width="2.5" />
+                {{ weapon.accessorise.label }}
+            </span>
+        </c-ui.button>
+    {% endif %}
+    <c-n26.owned-actions :sell="weapon.sell"
+                         :more="weapon.more"
+                         size="xs"
+                         label="{{ weapon.name }}" />
+</span>

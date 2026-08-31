@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core.models import Gang, LedgerEntry, LedgerEvent
+from n26.core.operations import operation
 
 pytestmark = pytest.mark.django_db
 
@@ -419,6 +420,93 @@ class TestRenamingFromHere:
             reverse("n26-rename-fighter", args=[vex.pk]), {"name": "Karn"}
         )
         assert response.url == reverse("n26-gang", args=[gang.pk])
+
+
+class TestKitActionsOnTheCard:
+    """Sell, refund, delete and Add accessory sit on the Edit card, so
+    taking something off does not mean finding it on the Equip tab."""
+
+    @pytest.fixture
+    def sword(self, gang, vex, tester):
+        from n26.library.authoring import create_wargear
+
+        thing = create_wargear("Sword", price=20)
+        with operation(gang, actor=tester) as op:
+            return op.buy(vex, thing=thing, paid=20)
+
+    @pytest.fixture
+    def gun(self, gang, vex, tester):
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            return op.buy(vex, thing=weapon, paid=15)
+
+    def test_gear_offers_sell_and_the_rest_at_xs(self, client, tester, vex, sword):
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        at = edit_url(vex)
+        assert f"{at}?sell={sword.pk}" in body
+        assert f"{at}?refund={sword.pk}" in body
+        assert f"{at}?remove={sword.pk}" in body
+        assert f"{at}?reassign={sword.pk}" in body
+        assert "More for Sword" in body
+        # xs, matching Choose and Equip on this card — the listing's Sell
+        # is sm and does not carry these classes.
+        assert "py-0! px-1.5!" in body
+
+    def test_a_weapon_offers_add_accessory(self, client, tester, vex, gun):
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        at = edit_url(vex)
+        assert f"{at}?sell={gun.pk}" in body
+        assert f"{at}?accessorise={gun.pk}" in body
+        assert "Add accessory" in body
+
+    def test_the_url_opens_the_sell_dialog_on_this_page(
+        self, client, tester, vex, sword
+    ):
+        client.force_login(tester)
+        body = client.get(f"{edit_url(vex)}?sell={sword.pk}").content.decode()
+        assert "Sell Sword?" in body
+        assert "<dialog" in body
+        assert reverse("n26-sell", args=[sword.pk]) in body
+
+    def test_the_url_opens_the_accessory_dialog_on_this_page(
+        self, client, tester, vex, gun
+    ):
+        from n26.library.authoring import create_weapon_accessory
+
+        create_weapon_accessory("Telescopic sight", price=25)
+        client.force_login(tester)
+        body = client.get(f"{edit_url(vex)}?accessorise={gun.pk}").content.decode()
+        assert "Add an accessory to Lasgun" in body
+        assert "Telescopic sight" in body
+
+    def test_selling_lands_back_on_the_edit_page(
+        self, client, tester, gang, vex, sword
+    ):
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-sell", args=[sword.pk]),
+            {"return": edit_url(vex)},
+        )
+        assert response.status_code == 302
+        assert response.url == edit_url(vex)
+        sword.refresh_from_db()
+        assert sword.archived is True
+        from n26.core.reconcile import assert_reconciled
+
+        assert_reconciled(gang)
+
+    def test_the_sheet_does_not_offer_them(self, client, tester, gang, vex, sword):
+        """The gang sheet is mid-game reading. Taking kit off is the
+        model's own page, and a card on the sheet that offered Sell
+        would be offering it next to every other fighter too."""
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert f"sell={sword.pk}" not in body
+        assert "More for Sword" not in body
 
 
 class TestTheQueryBudget:

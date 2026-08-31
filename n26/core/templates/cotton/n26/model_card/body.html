@@ -150,7 +150,26 @@ draw the same thing.
 
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-            <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
+            {% comment %}
+            Actions need one line per assignment so each menu stays beside
+            the thing it changes. Without them the compact comma-separated
+            run stands, which is what the gang sheet and a print card draw.
+            {% endcomment %}
+            {% if card.equipment_has_actions %}
+                <ul class="flex flex-col gap-1">
+                    {% for line in card.equipment %}
+                        <li class="flex flex-wrap items-center gap-1">
+                            <span class="min-w-0 flex-1">{% include "n26/includes/assignable_name.html" %}</span>
+                            <c-n26.owned-actions :sell="line.sell"
+                                                 :more="line.more"
+                                                 size="xs"
+                                                 label="{{ line.name }}" />
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
+            {% endif %}
             <c-n26.model-card.mode when="edit">
                 {% if equip_href %}
                     <span class="ms-1 inline-flex items-center align-middle">
@@ -225,13 +244,13 @@ draw the same thing.
                                 <c-n26.statline.cells :cells="stats">
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
-                                            {{ weapon.name }}
+                                            {% include "n26/includes/weapon_name.html" %}
                                         </td>
                                     </c-slot>
                                 </c-n26.statline.cells>
                             {% else %}
                                 <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
-                                    {{ weapon.name }}
+                                    {% include "n26/includes/weapon_name.html" %}
                                 </td>
                             {% endif %}
                         </tr>
@@ -260,7 +279,16 @@ draw the same thing.
                                             onto a line of its own; aria-hidden, so the name is read
                                             out alone.
                                             {% endcomment %}
-                                            <span class="flex gap-1 pl-2"><span aria-hidden="true">-</span><span>{{ profile.name }}</span></span>
+                                            <span class="flex flex-wrap items-center gap-1 pl-2">
+                                                <span class="flex min-w-0 flex-1 gap-1">
+                                                    <span aria-hidden="true">-</span>
+                                                    <span>{{ profile.name }}</span>
+                                                </span>
+                                                <c-n26.owned-actions :sell="profile.sell"
+                                                                     :more="profile.more"
+                                                                     size="xs"
+                                                                     label="{{ profile.name }}" />
+                                            </span>
                                         </td>
                                     </c-slot>
                                 </c-n26.statline.cells>
@@ -295,12 +323,31 @@ draw the same thing.
                                     The "+" is the mark n26.render_text opens an
                                     accessory with; without it the line sits at
                                     the profiles' indent and reads as a profile
-                                    missing its stats.
+                                    missing its stats. Actions need one line
+                                    per assignment, the same reason the Gear
+                                    row stacks when a menu is present.
                                     {% endcomment %}
-                                    <span class="pl-2">
-                                        <span aria-hidden="true">+</span>
-                                        <c-n26.assignable-lines :lines="weapon.accessories" :ratings="False" />
-                                    </span>
+                                    {% if weapon.accessories_have_actions %}
+                                        <ul class="flex flex-col gap-1 pl-2">
+                                            {% for line in weapon.accessories %}
+                                                <li class="flex flex-wrap items-center gap-1">
+                                                    <span class="min-w-0 flex-1">
+                                                        <span aria-hidden="true">+</span>
+                                                        {% include "n26/includes/assignable_name.html" %}
+                                                    </span>
+                                                    <c-n26.owned-actions :sell="line.sell"
+                                                                         :more="line.more"
+                                                                         size="xs"
+                                                                         label="{{ line.name }}" />
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <span class="pl-2">
+                                            <span aria-hidden="true">+</span>
+                                            <c-n26.assignable-lines :lines="weapon.accessories" :ratings="False" />
+                                        </span>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endif %}
