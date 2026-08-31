@@ -286,8 +286,8 @@ def main():
 
     if findings:
         out = sys.stderr if hook_mode else sys.stdout
-        print("Microcopy warnings (advisory — judge each in context;", file=out)
-        print("rules: .agents/skills/microcopy/SKILL.md):", file=out)
+        print("Microcopy warnings — advisory; judge each in context.", file=out)
+        print("Rules: .agents/skills/microcopy/SKILL.md", file=out)
         for f in findings:
             print("  " + f, file=out)
         if hook_mode:
