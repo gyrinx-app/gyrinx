@@ -10,21 +10,27 @@ without any call site changing. Messages are not among them: they ride the
 HX-Trigger response header and are shown as toasts, because a page that is
 not re-rendered draws no alert block.
 
-The row is the ordinary one — the same include the catalogue draws — so a
+A row is the ordinary one — the same include the catalogue draws — so a
 row delivered by an update and a row drawn with the page cannot come to look
 different. It replaces the row of its own key, which is why buying a first
 copy or selling a last one can deliver a row of a different shape entirely:
 what is held is a state of its row.
 
-Where the screen no longer has a row for the key, the row is removed
+Usually one row, sometimes two: fitting an accessory to a gun empties the
+accessory's row and fills the gun's, and a screen that redrew one of them
+would still be showing the click as half done.
+
+Where the screen no longer has a row for a key, the row is removed
 instead. A listing always keeps a row; a screen showing only what is held
 loses the row along with the last copy.
 {% endcomment %}
-{% if row %}
-    {% include "n26/includes/equip_row.html" with redrawn=True %}
-{% else %}
-    <div id="{{ row_key|row_dom_id }}" hx-swap-oob="delete"></div>
-{% endif %}
+{% for row_key, row in rows %}
+    {% if row %}
+        {% include "n26/includes/equip_row.html" with redrawn=True %}
+    {% else %}
+        <div id="{{ row_key|row_dom_id }}" hx-swap-oob="delete"></div>
+    {% endif %}
+{% endfor %}
 {% comment %}
 The money, and not the model count beside it. An act on kit never changes
 how many models the gang fields, and the count opens onto a tally whose own

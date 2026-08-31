@@ -455,6 +455,7 @@ def render_update(
     expanded_key="",
     at="",
     closed=False,
+    also="",
 ):
     """The partial update for one act on an equip screen.
 
@@ -471,6 +472,12 @@ def render_update(
     ``closed`` marks an act submitted from a confirmation panel; the
     update then also empties the dialog host, closing the panel.
 
+    ``also`` is a second key the same act changed — fitting an accessory
+    to a gun empties one row and fills another — drawn exactly as the
+    first is. It must name a row of this screen: a key belonging to some
+    other screen would be delivered as an instruction to remove a row
+    that is not there.
+
     The screen is derived again rather than reused from the request,
     because the act changed the state this update reports on. That costs
     the same fixed handful of queries as a plain visit.
@@ -486,39 +493,52 @@ def render_update(
 
     screen = _screen(gang, miniature=miniature, list_param=list_param)
     host = screen.host(at)
-    copies = possessions(host).get(key)
+    held = possessions(host)
     refunds = not gang.credits_unlimited
-    expanded = key == expanded_key
 
-    if screen.view is None:
-        # A screen showing only what is held draws a row for each thing
-        # held and for nothing else, so parting with the last copy takes
-        # the row away rather than turning it back into an offer.
-        row = (
-            owned_row_manage_only(key, copies, refunds=refunds, expanded=expanded)
-            if copies
-            else None
-        )
-    else:
+    def row_for(row_key):
+        copies = held.get(row_key)
+        expanded = row_key == expanded_key
+        if screen.view is None:
+            # A screen showing only what is held draws a row for each
+            # thing held and for nothing else, so parting with the last
+            # copy takes the row away rather than turning it back into an
+            # offer.
+            return (
+                owned_row_manage_only(
+                    row_key, copies, refunds=refunds, expanded=expanded
+                )
+                if copies
+                else None
+            )
         line = next(
-            (line for line in screen.view.all_lines() if _thing_key(line.thing) == key),
+            (
+                line
+                for line in screen.view.all_lines()
+                if _thing_key(line.thing) == row_key
+            ),
             None,
         )
         if line is None:
             # The listing does not sell it, so the screen never had a row
             # for it and there is nothing to redraw.
-            row = None
-        else:
-            row = listing_row(line)
-            if copies:
-                row = owned_row(row, copies, refunds=refunds, expanded=expanded)
+            return None
+        row = listing_row(line)
+        return (
+            owned_row(row, copies, refunds=refunds, expanded=expanded)
+            if copies
+            else row
+        )
+
+    rows = [(key, row_for(key))]
+    if also and also != key:
+        rows.append((also, row_for(also)))
 
     response = render(
         request,
         "n26/includes/equip_update.html",
         {
-            "row": row,
-            "row_key": key,
+            "rows": rows,
             "gang": gang,
             # The strip this delivers replaces the one on the page, so it
             # is drawn with what that one had: without this the Trade

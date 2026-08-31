@@ -48,7 +48,7 @@ class EquipHost:
 
 #: URL parameters that can open one assignment dialog. Their order is the
 #: precedence when an address names more than one.
-DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise", "rechoose")
+DIALOGS = ("sell", "reassign", "fit", "refund", "remove", "accessorise", "rechoose")
 
 
 def with_query(url, **params):
@@ -144,6 +144,10 @@ class OwnedThing:
     #: an accessory hangs off the gun it changes, so nothing else on a
     #: card is somewhere to fit one.
     accessorise_href: str = ""
+    #: Where to go to bolt this onto one of the guns the fighter is
+    #: carrying — the other end of the same act. Only a loose accessory
+    #: has one, and only where there is a gun to put it on.
+    fit_href: str = ""
     #: Where to go to take this with different options. Only something
     #: whose content offers a choice has one: everything else would be a
     #: click onto a panel with nothing to pick.
@@ -232,6 +236,29 @@ def _parts_of(node, at):
     return tuple(parts)
 
 
+def weapons_on(host: EquipHost):
+    """The guns this host is carrying — everywhere an accessory could go.
+
+    A root the host holds in its own right, rather than anything nested
+    under one: a weapon's own firing line is the weapon, and a gun bolted
+    to a mount belongs to whatever is holding it. The accessory question
+    is asked of exactly this set, so the two directions agree about what
+    counts as a gun on this card.
+
+    No queries — the card is already built.
+    """
+    from n26.library.models import Weapon
+
+    return tuple(
+        node
+        for node in host.roots
+        if node.assignment is not None
+        and not node.suppressed
+        and not node.broadcast
+        and isinstance(node.assignable, Weapon)
+    )
+
+
 def possessions(host: EquipHost):
     """Everything this host carries, keyed the way a catalogue keys its rows.
 
@@ -242,7 +269,14 @@ def possessions(host: EquipHost):
     confirmations open over it and Cancel returns to it, so the list they
     were reading is still the list underneath.
     """
-    from n26.library.models import Weapon
+    from n26.library.models import Weapon, WeaponAccessory
+
+    # Whether this card has anywhere to fit an accessory, asked once for
+    # the whole of it. A fighter carrying no gun is offered no fitting:
+    # a screen must not ask a question its answer refuses. The stash is
+    # never asked — its accessories are fitted from the gang sheet,
+    # where the guns of the whole roster are in reach.
+    fittable = not host.is_stash and bool(weapons_on(host))
 
     index = {}
     for node in host.roots:
@@ -271,6 +305,11 @@ def possessions(host: EquipHost):
                 accessorise_href=(
                     with_query(at, accessorise=pk)
                     if isinstance(node.assignable, Weapon)
+                    else ""
+                ),
+                fit_href=(
+                    with_query(at, fit=pk)
+                    if fittable and isinstance(node.assignable, WeaponAccessory)
                     else ""
                 ),
                 rechoose_href=(

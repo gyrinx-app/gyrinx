@@ -436,12 +436,19 @@ def copy_row(copy, refunds=True):
             else None
         ),
         more=(
-            # First, and only where the content asks anything: the one act
-            # here that leaves the fighter holding what they held, so it
-            # reads before the ways of parting with it.
+            # First, and only where the content asks anything: the acts
+            # that leave the fighter holding what they held, so they read
+            # before the ways of parting with it. Fitting is named for
+            # what it does rather than called a move, because Reassign is
+            # about which fighter holds a thing and this one is not.
             *(
                 (Action("Change options", LINK, copy.rechoose_href, SECONDARY),)
                 if copy.rechoose_href
+                else ()
+            ),
+            *(
+                (Action("Fit to a weapon", LINK, copy.fit_href, SECONDARY),)
+                if copy.fit_href
                 else ()
             ),
             Action("Reassign", LINK, copy.reassign_href, SECONDARY),

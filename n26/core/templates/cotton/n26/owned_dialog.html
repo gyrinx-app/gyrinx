@@ -3,16 +3,20 @@
 
     <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
 
-Five questions in one panel — sell, move, refund, remove, accessorise — since
-the difference between them is a sentence and, for three of them, one control.
-Which is being asked, along with the figures, the roster and the accessories
-that fit, arrives in `dialog` from n26.core.views.owned. The panel itself is
-<c-n26.dialog>, where the open-state rules are written down.
+Six questions in one panel — sell, move, fit, refund, remove, accessorise —
+since the difference between them is a sentence and, for four of them, one
+control. Which is being asked, along with the figures, the roster, the guns
+and the accessories that fit, arrives in `dialog` from n26.core.views.owned.
+The panel itself is <c-n26.dialog>, where the open-state rules are written
+down.
 
 Only the clicked submit is sent, so a move is told apart by `to=stash`
-arriving. Two of the five can end up with nothing to submit: a move with nobody
-else on the roster posts a hidden to=stash and draws no select, and
-accessorise draws no submit when nothing in the library fits the weapon.
+arriving. Move and fit are one act with one address, asked as two questions:
+which model holds a thing is not the same question as which gun it is bolted
+to. Three of the six can end up with nothing to submit: a move with nobody
+else on the roster posts a hidden to=stash and draws no select, a fit draws
+no submit where the card carries no gun, and accessorise draws none when
+nothing in the library fits the weapon.
 
 Accessorise is also the one an equip page draws for every weapon on it rather
 than only for the one the URL names, so those panels are passed open="" and an
@@ -68,6 +72,13 @@ itself.
             You will be charged or refunded the difference.
         {% elif dialog.kind == "reassign" %}
             Moving it does not change its rating.
+        {% elif dialog.kind == "fit" %}
+            {% if dialog.weapons %}
+                Fitting it does not change its rating. Its effects land on that
+                gun and no other the fighter is carrying.
+            {% else %}
+                There is no weapon here to fit it to.
+            {% endif %}
         {% elif dialog.kind == "refund" %}
             {{ dialog.sum }} It and anything attached to it are removed from the
             gang, undoing the purchase.
@@ -138,7 +149,7 @@ itself.
         </c-n26.radio-cards>
     {% endif %}
 
-    {% if dialog.kind == "reassign" %}
+    {% if dialog.kind == "reassign" or dialog.kind == "fit" %}
         {% if dialog.weapons %}
             <input type="hidden" name="to" value="weapon">
             <c-ui.field label="Weapon" for="reassign-weapon">
@@ -150,6 +161,13 @@ itself.
                     {% endfor %}
                 </c-ui.select.native>
             </c-ui.field>
+        {% elif dialog.kind == "fit" %}
+            {% comment %}
+            Nothing to fit it to, so nothing to submit: the panel says so in
+            its lead and the way out is the only control it needs. The
+            destinations below belong to the move and would send this
+            somewhere it was never asked to go.
+            {% endcomment %}
         {% elif dialog.models %}
             {% comment %}
             No placeholder option: the first name on the roster is selected
