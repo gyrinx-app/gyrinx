@@ -384,7 +384,8 @@ def edit_battle(request, id):
     # Check permissions
     if not battle.can_edit(request.user):
         messages.error(
-            request, "Only the battle's owner or a campaign admin can edit it."
+            request,
+            "You cannot edit this battle. Only the battle's owner or a campaign admin can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
@@ -475,7 +476,7 @@ def start_battle(request, id):
     if not battle.can_manage(request.user):
         messages.error(
             request,
-            "Only the battle's owner, a campaign admin, or an owner of a participating gang can manage it.",
+            "You cannot manage this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
@@ -541,7 +542,7 @@ def end_battle(request, id):
     if not battle.can_manage(request.user):
         messages.error(
             request,
-            "Only the battle's owner, a campaign admin, or an owner of a participating gang can manage it.",
+            "You cannot manage this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
@@ -611,7 +612,7 @@ def edit_battle_roles(request, id):
     if not battle.can_manage(request.user):
         messages.error(
             request,
-            "Only the battle's owner, a campaign admin, or an owner of a participating gang can manage it.",
+            "You cannot manage this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
@@ -661,7 +662,8 @@ def archive_battle(request, id):
 
     if not (battle.can_edit(request.user) or battle.can_unarchive(request.user)):
         messages.error(
-            request, "Only the battle's owner or a campaign admin can archive it."
+            request,
+            "You cannot archive this battle. Only the battle's owner or a campaign admin can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
@@ -710,7 +712,7 @@ def add_battle_note(request, battle_id):
     if not battle.can_add_notes(request.user):
         messages.error(
             request,
-            "Only the battle's owner, a campaign admin, or an owner of a participating gang can add notes.",
+            "You cannot add notes to this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 

@@ -447,7 +447,7 @@ def kill_list_fighter(request, id, fighter_id):
 
     # Don't allow killing stash fighters
     if fighter.is_stash:
-        messages.error(request, "The stash cannot be killed.")
+        messages.error(request, "The stash cannot be killed. It is not a fighter.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
