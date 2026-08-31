@@ -31,6 +31,8 @@ they did — proved per gang, as every repair here proves it.
 
 from dataclasses import dataclass, field
 
+from django.db.models import Q
+
 from n26.core.models import Assignment, LedgerEvent, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
 
@@ -85,26 +87,42 @@ def _kind_of(assignment):
 
 
 def _goes_with(assignment):
-    """Everything the database takes with the copy: what it caused, and
-    what names it as the carrier it materialised for. Both cascade."""
-    return set(
-        Assignment.objects.filter(caused_by=assignment).values_list("pk", flat=True)
-    ) | set(
-        Assignment.objects.filter(materialised_for=assignment).values_list(
-            "pk", flat=True
+    """Everything the database takes with the copy, to the bottom.
+
+    Both ``caused_by`` and ``materialised_for`` cascade, and either can
+    nest: a granted subtype brings its own built-ins, and one of those
+    may bring more. The whole subtree goes, so the whole subtree is what
+    a reading of the consequences must walk.
+    """
+    found = set()
+    frontier = {assignment.pk}
+    while frontier:
+        below = set(
+            Assignment.objects.filter(
+                Q(caused_by_id__in=frontier) | Q(materialised_for_id__in=frontier)
+            ).values_list("pk", flat=True)
         )
+        frontier = below - found - {assignment.pk}
+        found |= frontier
+    return found
+
+
+def _tally_under(assignment, goes_with=None):
+    """The highest counter value on the copy or anywhere beneath it, or
+    None where nothing under it counts anything.
+
+    The whole subtree is read, not just the copy's own children: a tally
+    two levels down would be destroyed by the same delete.
+    """
+    from n26.core.models import CounterValue
+
+    under = {assignment.pk} | (
+        _goes_with(assignment) if goes_with is None else goes_with
     )
-
-
-def _tally_under(assignment):
-    """The highest counter value on the copy or anything it caused, or
-    None where nothing under it counts anything."""
-    values = [
-        row.counter_value.value
-        for row in [assignment, *assignment.caused.all()]
-        if getattr(row, "counter_value", None) is not None
-    ]
-    return max(values) if values else None
+    values = CounterValue.objects.filter(assignment_id__in=under).values_list(
+        "value", flat=True
+    )
+    return max(values, default=None)
 
 
 def duplicates_in(gang, only_miniature_id=None):
@@ -179,14 +197,15 @@ def de_duplicate(gang_id, only_miniature_id=None):
     outcome = GangOutcome(gang_id=str(gang_id))
     with transaction.atomic():
         for grant, owner in duplicates_in(gang, only_miniature_id):
-            tally = _tally_under(grant)
+            goes_with = _goes_with(grant)
+            tally = _tally_under(grant, goes_with)
             if tally:
                 outcome.kept_a_tally.append(
                     f"{grant.assignable} on {grant.miniature_root or gang} "
                     f"counts {tally}, so its duplicate stands."
                 )
                 continue
-            swept = len(_goes_with(grant))
+            swept = len(goes_with)
             member_id = grant.materialised_from_id
             carrier_id = grant.materialised_for_id
             grant.delete()
@@ -240,8 +259,9 @@ def what_one_model_carries(miniature):
     if miniature.membership_id is None:
         return lines
     for grant, _owner in duplicates_in(miniature.membership.gang_root, miniature.pk):
-        tally = _tally_under(grant)
-        swept = len(_goes_with(grant))
+        goes_with = _goes_with(grant)
+        tally = _tally_under(grant, goes_with)
+        swept = len(goes_with)
         if tally:
             lines.append(
                 f"{grant.assignable}: the duplicate counts {tally}, so it stands."

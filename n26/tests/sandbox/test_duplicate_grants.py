@@ -307,6 +307,37 @@ class TestTryingItOnOneModel:
         )
 
 
+class TestATallyFurtherDown:
+    """A tally two levels down is destroyed by the same delete, so the
+    reading goes to the bottom of the cascade before dropping anything."""
+
+    def test_a_counter_under_a_granted_subtype_keeps_the_duplicate(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        spyrer = create_subtype("Spyrer")
+        add_built_in(spyrer, create_counter("Kill Count"))
+        profile = create_profile("Hunter", person_type, gang_type, price=100)
+        add_built_in(profile, spyrer)
+        fighter = hire(gang, profile, "Ana", paid=100)
+        strip_provenance(gang)
+        member = profile.built_ins.members.get(subtype__isnull=False)
+        duplicate = caught_up_copy(gang, fighter, member, fighter.membership, spyrer)
+        with operation(gang, actor=gang.owner) as op:
+            op.reconcile_defaults(duplicate, strict=False)
+        beneath = Assignment.objects.filter(
+            counter__isnull=False, caused_by=duplicate
+        ).first()
+        CounterValue.objects.update_or_create(assignment=beneath, defaults={"value": 4})
+
+        outcome = de_duplicate(gang.pk)
+
+        assert outcome.dropped == 0
+        assert len(outcome.kept_a_tally) == 1
+        assert "counts 4" in outcome.kept_a_tally[0]
+        assert Assignment.objects.filter(pk=duplicate.pk).exists()
+        assert Assignment.objects.filter(pk=beneath.pk).exists()
+
+
 class TestRunningTwice:
     def test_a_second_run_finds_nothing(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
@@ -352,6 +383,25 @@ class TestTheConsoleDoor:
         assert not Backfill.objects.exists()
         assert duplicate_grants_by_kind() == {"rule": 1}
         settled(gang)
+
+    def test_a_real_id_reads_back_that_models_duplicates(
+        self, client, superuser, gang, ganger
+    ):
+        fighter = hire(gang, ganger, "Ana", paid=50)
+        strip_provenance(gang)
+        member = ganger.built_ins.members.get(rule__isnull=False)
+        caught_up_copy(gang, fighter, member, fighter.membership, member.assignable)
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_drop_duplicate_grants"),
+            {"model": str(fighter.pk)},
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "takes its provenance" in page
+        assert "Drop them for this model only" in page
 
     def test_a_word_that_is_not_an_id_is_refused_in_words(self, client, superuser):
         client.force_login(superuser)

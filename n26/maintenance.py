@@ -38,9 +38,9 @@ import logging
 import traceback
 from contextlib import contextmanager
 from datetime import date, timedelta
-from uuid import UUID
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import connection, models, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
@@ -1061,8 +1061,10 @@ def drop_duplicate_grants_view(request):
     one = None
     if asked:
         try:
-            one = Miniature.objects.filter(pk=UUID(asked)).first()
-        except ValueError:
+            one = Miniature.objects.filter(pk=asked).first()
+        except ValidationError, ValueError, TypeError:
+            # Anything that is not an id at all: the field refuses it
+            # while the query is being built, before any row is read.
             one = None
         if one is not None and one.membership_id is None:
             # Nothing to walk: a model with no membership sits in no gang.
