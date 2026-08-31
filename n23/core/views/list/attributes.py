@@ -83,7 +83,7 @@ def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.
                 attribute_name=attribute.name,
             )
 
-            messages.success(request, f"{attribute.name} updated successfully.")
+            messages.success(request, f"{attribute.name} updated.")
             default_url = reverse("core:list", args=(lst.id,))
             return safe_redirect(
                 request, get_return_url(request, default_url), fallback_url=default_url

@@ -109,7 +109,7 @@ def edit_list_fighter_xp(request, id, fighter_id):
                             outcome=outcome,
                         )
 
-                messages.success(request, f"XP updated for {fighter.name}")
+                messages.success(request, f"XP updated for {fighter.name}.")
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
     else:
         form = EditFighterXPForm(fighter=fighter)

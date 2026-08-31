@@ -268,7 +268,7 @@ class TestPreviewing:
 
     def test_previewing_nothing_says_to_upload_first(self, author, client, foundation):
         body = client.get(PREVIEW_URL, follow=True).content.decode()
-        assert "No sheets are held" in body
+        assert "No sheets uploaded yet" in body
 
 
 class TestImporting:

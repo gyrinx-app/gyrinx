@@ -30,7 +30,7 @@ reaches, proven, apply_url, recent.
         <h2>Nothing to convert</h2>
         <p>This system is not here. It has been converted already, or was never present.</p>
     {% elif not plan.ok %}
-        <h2 class="mt-problems">The conversion refuses</h2>
+        <h2 class="mt-problems">The conversion cannot run</h2>
         <ul class="mt-problems">
             {% for problem in plan.problems %}<li>{{ problem }}</li>{% endfor %}
         </ul>

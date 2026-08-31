@@ -32,10 +32,10 @@
                     <div class="alert alert-warning alert-icon mb-0" role="alert">
                         <i class="bi-exclamation-triangle"></i>
                         <div class="flex-grow-1">
-                            <strong>Update your username!</strong> Your current username contains an '@' symbol, which is no longer allowed.
-                            Please update it to continue using all features.
+                            <strong>Update your username.</strong> Your current username contains an '@' symbol, which is no longer allowed.
+                            Change it to continue using all features.
                             <a href="{% url 'core:change-username' %}"
-                               class="btn btn-warning btn-sm ms-3">Change Username</a>
+                               class="btn btn-warning btn-sm ms-3">Change username</a>
                         </div>
                     </div>
                 {% endif %}
@@ -108,7 +108,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Campaigns</h2>
                             <span class="ms-auto fs-7">
-                                <a href="{% url 'core:campaigns-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New Campaign</a>
+                                <a href="{% url 'core:campaigns-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New campaign</a>
                                 {% if campaigns %}
                                     ·
                                     <a href="{% url 'core:campaigns' %}?my=1" class="linked-secondary">Show all</a>
@@ -152,10 +152,10 @@
                                 {% include "core/includes/home/campaign_row.html" with campaign=campaign %}
                             {% empty %}
                                 {% if search_campaigns_query %}
-                                    <p class="text-secondary">No Campaigns matched your search.</p>
+                                    <p class="text-secondary">No campaigns matched your search.</p>
                                 {% elif not pinned_campaigns %}
                                     <p class="text-secondary">
-                                        You are not part of any Campaigns. <a href="{% url 'core:campaigns' %}">Create a new Campaign</a>.
+                                        You are not part of any campaigns. <a href="{% url 'core:campaigns' %}">Create a new campaign</a>.
                                     </p>
                                 {% endif %}
                             {% endfor %}
@@ -172,7 +172,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Lists</h2>
                             <span class="ms-auto fs-7">
-                                <a href="{% url 'core:lists-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New List</a>
+                                <a href="{% url 'core:lists-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New list</a>
                                 {% if lists %}
                                     ·
                                     <a href="{% url 'core:lists' %}?my=1&type=list" class="linked-secondary">Show all</a>
@@ -217,7 +217,7 @@
                                                    class="form-control"
                                                    id="id_name">
                                         </div>
-                                        <button type="submit" class="btn btn-primary">Get started</button>
+                                        <button type="submit" class="btn btn-primary">Create list</button>
                                     </form>
                                 </div>
                             {% endfor %}
@@ -269,13 +269,11 @@
                 <div class="row">
                     <div class="col-md-4">
                         <h2>Build and manage your gangs</h2>
-                        <p>
-                            Gyrinx is a powerful set of tools for building and running your Necromunda gangs — making the game simpler whatever your level of experience.
-                        </p>
+                        <p>Gyrinx is a set of tools for building and running your Necromunda gangs.</p>
                     </div>
                     <div class="col-md-4">
                         <h2>All the latest content</h2>
-                        <p>Gyrinx is kept up to date with the latest Necromunda rules as they drop.</p>
+                        <p>Gyrinx is kept up to date with the latest Necromunda rules as they are released.</p>
                     </div>
                     <div class="col-md-4">
                         <h2>Take the hassle out of arbitration</h2>

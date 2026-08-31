@@ -484,7 +484,7 @@ class Slot(Content, Assignable):
     )
     min_picks = models.PositiveIntegerField(
         default=1,
-        help_text="How many picks expected. Nought asks for nothing.",
+        help_text="How many picks to ask for. 0 means none.",
     )
     max_picks = models.PositiveIntegerField(
         default=1,

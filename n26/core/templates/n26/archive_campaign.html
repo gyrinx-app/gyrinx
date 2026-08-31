@@ -42,17 +42,16 @@ already went wrong, and nothing has yet.
         {% csrf_token %}
         {% comment %}
         What is true, and only what is true. The campaign stops being anywhere
-        the arbitrator can reach it and there is no way back from this screen —
-        so the wording says both of those and stops. It says plainly that the
-        gangs are untouched, because a reader archiving a campaign has every
-        reason to fear otherwise, and a campaign has never owned them.
+        the arbitrator can reach it and archiving cannot be undone — so the
+        wording says both of those and stops. It says plainly that the gangs
+        are untouched, because a reader archiving a campaign has every reason
+        to fear otherwise, and a campaign has never owned them.
         {% endcomment %}
-        <c-ui.alert variant="warning" title="There is no way back from here">
+        <c-ui.alert variant="warning" title="You cannot undo this">
             Archiving takes {{ campaign.name }} out of your campaigns. It stops
-            appearing in your list and its pages stop opening. Nothing is destroyed
-            — what the campaign recorded stays true — but there is no way to bring
-            it back from here. No gang is changed: a campaign never owned them, and
-            every one stays with the player it belongs to.
+            appearing in your list and its pages stop opening. Its records are
+            not deleted, but you cannot bring the campaign back. No gang is
+            changed: every gang stays with its owner.
         </c-ui.alert>
     </c-n26.form-page>
 {% endblock content %}

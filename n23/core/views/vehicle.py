@@ -45,7 +45,7 @@ def new_vehicle(request, id):
 
     # Check if list is archived
     if lst.archived:
-        messages.error(request, "Cannot add vehicles to an archived list.")
+        messages.error(request, "You cannot add vehicles to an archived list.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     return redirect("core:list-vehicle-select", id=lst.id)
@@ -60,7 +60,7 @@ def vehicle_select(request, id):
 
     # Check if list is archived
     if lst.archived:
-        messages.error(request, "Cannot add vehicles to an archived list.")
+        messages.error(request, "You cannot add vehicles to an archived list.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     if request.method == "POST":
@@ -114,14 +114,17 @@ def vehicle_crew(request, id):
 
     # Check if list is archived
     if lst.archived:
-        messages.error(request, "Cannot add vehicles to an archived list.")
+        messages.error(request, "You cannot add vehicles to an archived list.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     # Parse flow parameters
     try:
         params = VehicleFlowParams.model_validate(request.GET.dict())
     except ValidationError:
-        messages.error(request, "Invalid flow parameters.")
+        messages.error(
+            request,
+            "That step was missing its vehicle details. Select the vehicle again.",
+        )
         return redirect("core:list-vehicle-select", id=lst.id)
 
     if not params.vehicle_equipment_id:
@@ -179,14 +182,17 @@ def vehicle_confirm(request, id):
 
     # Check if list is archived
     if lst.archived:
-        messages.error(request, "Cannot add vehicles to an archived list.")
+        messages.error(request, "You cannot add vehicles to an archived list.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
     # Parse flow parameters
     try:
         params = VehicleFlowParams.model_validate(request.GET.dict())
     except ValidationError:
-        messages.error(request, "Invalid flow parameters.")
+        messages.error(
+            request,
+            "That step was missing its vehicle details. Select the vehicle again.",
+        )
         return redirect("core:list-vehicle-select", id=lst.id)
 
     if (params.action == "add_to_stash" and not params.vehicle_equipment_id) or (
@@ -197,7 +203,9 @@ def vehicle_confirm(request, id):
             or not params.crew_name
         )
     ):
-        messages.error(request, "Missing required information.")
+        messages.error(
+            request, "That step was missing some details. Select the vehicle again."
+        )
         return redirect("core:list-vehicle-select", id=lst.id)
 
     # Pack-aware lookup so a vehicle defined in a pack the list is

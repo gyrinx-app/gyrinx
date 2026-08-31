@@ -38,7 +38,7 @@ class ProfileType(Content):
     name = models.CharField(
         max_length=200,
         choices=[(name, name) for name in TYPE_NAMES],
-        help_text="Fighter or Vehicle — the rules know no other Type.",
+        help_text="Fighter or Vehicle.",
     )
     statline_type = models.ForeignKey(
         StatlineType, on_delete=models.PROTECT, related_name="profile_types"
