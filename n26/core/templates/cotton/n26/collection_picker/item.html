@@ -46,6 +46,14 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     properties. The row's slots render inside it, so this is how price_control
     and the rows slot share anything; an x-data inside a slot would put them in
     sibling scopes that cannot see each other.
+
+Every slot is declared below as well as described here, and must stay that way.
+A slot a component draws but never declares is not empty when nobody fills it:
+the name falls through to whatever the rendering page holds under that
+spelling. This row is drawn by the partial update as well as by the page, and
+that update walks a context variable called `rows` while an owned row fills no
+`rows` slot — so the undeclared name printed the update's own list of rows
+inside the row it had just delivered.
 {% endcomment %}
 <c-vars
     name=""
@@ -62,6 +70,11 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     row_key=""
     :redrawn="False"
     class=""
+    icon=""
+    meta=""
+    actions=""
+    details=""
+    rows=""
 />
 
 <div x-data="{ facets: {

@@ -1962,6 +1962,26 @@ class TestBuyingWithoutRebuildingThePage:
         # An owned row offers another of the same underneath the copies.
         assert "Buy another" in body
 
+    def test_the_row_draws_nothing_of_the_answer_it_travelled_in(
+        self, client, tester, fighter, house_list
+    ):
+        """A row is built by the same component whether the page or an
+        update drew it, and a component may only draw what it was given.
+        The update hands the template its list of rows to walk; a row
+        that reaches past its own arguments for a name of that spelling
+        prints the list itself into the reader's screen."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        body = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        ).content.decode()
+
+        # The row itself arrived, and none of the list it arrived in.
+        assert 'data-row="library.wargear:' in body
+        assert "OwnedRow(" not in body
+        assert "OwnedCopyRow(" not in body
+
     def test_every_part_of_the_answer_says_what_it_stands_in_for(
         self, client, tester, fighter, house_list
     ):
