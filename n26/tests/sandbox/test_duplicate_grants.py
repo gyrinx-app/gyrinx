@@ -16,7 +16,11 @@ from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import operations, resolve_operation
-from n26.core.duplicate_grants import de_duplicate, duplicate_grants_by_kind
+from n26.core.duplicate_grants import (
+    de_duplicate,
+    duplicate_grants_by_kind,
+    what_one_model_carries,
+)
 from n26.core.models import Assignment, CounterValue, LedgerEvent, Reason
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
@@ -231,6 +235,76 @@ class TestWhatIsNotADuplicate:
 
         assert outcome.dropped == 0
         settled(gang)
+
+
+class TestTryingItOnOneModel:
+    """The repair can be confined to a single model, so it is read back
+    on one fighter before the estate is walked."""
+
+    def two_fighters_each_with_a_duplicate(self, gang, ganger):
+        member = ganger.built_ins.members.get(rule__isnull=False)
+        made = []
+        for name in ("Ana", "Bea"):
+            fighter = hire(gang, ganger, name, paid=50)
+            made.append(fighter)
+        strip_provenance(gang)
+        for fighter in made:
+            caught_up_copy(gang, fighter, member, fighter.membership, member.assignable)
+        return made
+
+    def test_only_the_named_model_is_repaired(self, gang, ganger):
+        ana, bea = self.two_fighters_each_with_a_duplicate(gang, ganger)
+
+        outcome = de_duplicate(gang.pk, only_miniature_id=ana.pk)
+
+        assert outcome.dropped == 1
+        assert (
+            Assignment.objects.filter(
+                rule__isnull=False, miniature_root=ana, archived=False
+            ).count()
+            == 1
+        )
+        assert (
+            Assignment.objects.filter(
+                rule__isnull=False, miniature_root=bea, archived=False
+            ).count()
+            == 2
+        )
+        settled(gang)
+
+    def test_the_page_reads_back_what_one_model_would_lose(self, gang, ganger):
+        ana, _ = self.two_fighters_each_with_a_duplicate(gang, ganger)
+
+        lines = what_one_model_carries(ana)
+
+        assert len(lines) == 1
+        assert "takes its provenance" in lines[0]
+
+    def test_a_run_named_for_one_model_leaves_the_rest_alone(self, gang, ganger):
+        ana, bea = self.two_fighters_each_with_a_duplicate(gang, ganger)
+        record = Backfill.objects.create(
+            operation=Operation.DROP_DUPLICATE_GRANTS,
+            status=Backfill.Status.RUNNING,
+            summary={
+                "attempts": 0,
+                "only_model": str(ana.pk),
+                "only_gang": str(gang.pk),
+                "only_model_name": ana.name,
+            },
+        )
+
+        drop_duplicate_grants.func(backfill_id=str(record.pk))
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["totals"]["dropped"] == 1
+        assert record.summary["total"] == 1
+        assert (
+            Assignment.objects.filter(
+                rule__isnull=False, miniature_root=bea, archived=False
+            ).count()
+            == 2
+        )
 
 
 class TestRunningTwice:

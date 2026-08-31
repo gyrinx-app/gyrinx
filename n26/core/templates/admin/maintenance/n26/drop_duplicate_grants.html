@@ -34,6 +34,35 @@ gangs, duplicates, duplicate_total, apply_url, recent.
     <p>
         {{ gangs }} gang{{ gangs|pluralize }} would be walked, holding {{ duplicate_total }} duplicate grant{{ duplicate_total|pluralize }}.
     </p>
+    <h2>Try it on one model first</h2>
+    <p class="mt-hint">
+        Paste a model's id to read what the repair would do to that one, then
+        run it for that model alone. The rest of the estate is left untouched.
+    </p>
+    <form method="get" class="mt-form">
+        <input type="text"
+               name="model"
+               value="{{ asked }}"
+               size="40"
+               placeholder="model id">
+        <button type="submit" class="button">Read what it would do</button>
+    </form>
+    {% if one %}
+        <h3>{{ one.name }}</h3>
+        {% if one_carries %}
+            <ul>
+                {% for line in one_carries %}<li>{{ line }}</li>{% endfor %}
+            </ul>
+            <form method="post" class="mt-form">
+                {% csrf_token %}
+                <input type="hidden" name="model" value="{{ one.pk }}">
+                <button type="submit" class="button default">Drop them for this model only</button>
+            </form>
+        {% else %}
+            <p>Nothing standing beside a copy this model already had.</p>
+        {% endif %}
+    {% endif %}
+    <h2>The whole estate</h2>
     <table class="mt-table">
         <thead>
             <tr>

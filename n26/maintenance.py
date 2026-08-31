@@ -1017,9 +1017,14 @@ def drop_duplicate_grants(backfill_id, **said_by_whoever_enqueued_it):
     record = Backfill.objects.get(pk=backfill_id)
     totals = dict(record.summary.get("totals", {}))
     kept_a_tally = list(record.summary.get("kept_a_tally", []))
+    # A run may be confined to one model, which is how the repair is
+    # tried and read back before the whole estate is walked. Its gang is
+    # recorded beside it so the walk is one row long.
+    only_model = record.summary.get("only_model")
+    only_gang = record.summary.get("only_gang")
 
     def do_one(pk):
-        outcome = de_duplicate(pk)
+        outcome = de_duplicate(pk, only_miniature_id=only_model)
         for key, count in outcome.counts().items():
             totals[key] = int(totals.get(key, 0)) + count
         kept_a_tally.extend(outcome.kept_a_tally)
@@ -1032,7 +1037,7 @@ def drop_duplicate_grants(backfill_id, **said_by_whoever_enqueued_it):
         backfill_id,
         operation=Operation.DROP_DUPLICATE_GRANTS,
         what="Duplicate grants",
-        items=Gang.objects.all(),
+        items=Gang.objects.filter(pk=only_gang) if only_gang else Gang.objects.all(),
         do_one=do_one,
         again=lambda: drop_duplicate_grants.enqueue(backfill_id=backfill_id),
     )
@@ -1040,11 +1045,21 @@ def drop_duplicate_grants(backfill_id, **said_by_whoever_enqueued_it):
 
 def drop_duplicate_grants_view(request):
     """Say what would be dropped (GET), or record a run and enqueue it."""
-    from n26.core.duplicate_grants import duplicate_grants_by_kind
-    from n26.core.models import Gang
+    from n26.core.duplicate_grants import (
+        duplicate_grants_by_kind,
+        what_one_model_carries,
+    )
+    from n26.core.models import Gang, Miniature
 
     operation = Operation.DROP_DUPLICATE_GRANTS
     address = reverse(f"admin:maintenance_{operation.value}")
+    # One model may be named, by id, to try the repair on before the
+    # estate is walked. A GET reads what would happen to it; the POST
+    # from the same page runs that model alone.
+    asked = (request.POST.get("model") or request.GET.get("model") or "").strip()
+    one = Miniature.objects.filter(pk=asked).first() if asked else None
+    if asked and one is None:
+        messages.warning(request, "No model has that id.")
     if request.method == "POST":
         running = running_guard(operation)
         if running is not None:
@@ -1052,11 +1067,18 @@ def drop_duplicate_grants_view(request):
             return HttpResponseRedirect(
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
+        if asked and one is None:
+            return HttpResponseRedirect(address)
+        summary = {"attempts": 0}
+        if one is not None:
+            summary["only_model"] = str(one.pk)
+            summary["only_gang"] = str(one.membership.gang_root_id)
+            summary["only_model_name"] = one.name
         backfill = Backfill.objects.create(
             operation=operation,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"attempts": 0},
+            summary=summary,
         )
         drop_duplicate_grants.enqueue(backfill_id=str(backfill.id))
         messages.success(
@@ -1069,6 +1091,9 @@ def drop_duplicate_grants_view(request):
     context = page_context(
         request,
         operation.label,
+        asked=asked,
+        one=one,
+        one_carries=what_one_model_carries(one) if one is not None else [],
         gangs=Gang.objects.count(),
         duplicates=[
             {"kind": kind.replace("_", " "), "count": count}

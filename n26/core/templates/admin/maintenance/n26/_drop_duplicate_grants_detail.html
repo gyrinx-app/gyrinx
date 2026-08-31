@@ -5,6 +5,12 @@
     gang commits on its own, so a run still working reports what it
     has already done.
 {% endcomment %}
+{% if backfill.summary.only_model_name %}
+    <p>
+        Run for one model only: <strong>{{ backfill.summary.only_model_name }}</strong>.
+        Nothing else was touched.
+    </p>
+{% endif %}
 <h2>Progress</h2>
 <p>
     {{ backfill.summary.done|default:0 }} of {{ backfill.summary.total|default:"?" }} gang{{ backfill.summary.total|pluralize }} settled.

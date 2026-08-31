@@ -95,9 +95,14 @@ def _tally_under(assignment):
     return max(values) if values else None
 
 
-def duplicates_in(gang):
+def duplicates_in(gang, only_miniature_id=None):
     """The pairs this gang carries: a caught-up grant beside an owner's
-    untagged copy of the same thing on the same host."""
+    untagged copy of the same thing on the same host.
+
+    ``only_miniature_id`` narrows the whole reading to one model, so a
+    repair can be tried on a single fighter and read back before the
+    estate is walked.
+    """
     caught_up = set(
         LedgerEvent.objects.filter(
             kind=LedgerEvent.Kind.CAUGHT_UP, gang=gang
@@ -106,11 +111,10 @@ def duplicates_in(gang):
     if not caught_up:
         return []
 
-    live = list(
-        Assignment.objects.filter(
-            gang_root=gang, archived=False, removes=False
-        ).select_related("ledger_entry")
-    )
+    live = Assignment.objects.filter(gang_root=gang, archived=False, removes=False)
+    if only_miniature_id is not None:
+        live = live.filter(miniature_root_id=only_miniature_id)
+    live = list(live.select_related("ledger_entry"))
     by_place = {}
     for copy in live:
         kind = _kind_of(copy)
@@ -144,9 +148,13 @@ def duplicates_in(gang):
     return pairs
 
 
-def de_duplicate(gang_id):
+def de_duplicate(gang_id, only_miniature_id=None):
     """Settle one gang: drop each duplicated grant and hand its
-    provenance to the copy the owner already had."""
+    provenance to the copy the owner already had.
+
+    ``only_miniature_id`` confines the repair to one model, leaving the
+    rest of the gang exactly as it stands.
+    """
     from django.db import transaction
 
     from n26.core.models import Gang
@@ -155,7 +163,7 @@ def de_duplicate(gang_id):
     gang = Gang.objects.get(pk=gang_id)
     outcome = GangOutcome(gang_id=str(gang_id))
     with transaction.atomic():
-        for grant, owner in duplicates_in(gang):
+        for grant, owner in duplicates_in(gang, only_miniature_id):
             tally = _tally_under(grant)
             if tally:
                 outcome.kept_a_tally.append(
@@ -208,3 +216,27 @@ def duplicate_grants_by_kind():
             waiting.pop()
             counted[kind[0]] += 1
     return dict(counted)
+
+
+def what_one_model_carries(miniature):
+    """The duplicates standing on one model, as sentences — what a
+    single-model run would drop, read before running it."""
+    lines = []
+    for grant, _owner in duplicates_in(miniature.membership.gang_root, miniature.pk):
+        tally = _tally_under(grant)
+        swept = grant.caused.count()
+        if tally:
+            lines.append(
+                f"{grant.assignable}: the duplicate counts {tally}, so it stands."
+            )
+            continue
+        brought = (
+            f", and the {swept} thing{'' if swept == 1 else 's'} it brought"
+            if swept
+            else ""
+        )
+        lines.append(
+            f"{grant.assignable}: the caught-up copy goes{brought}, and the "
+            f"copy already held takes its provenance."
+        )
+    return lines
