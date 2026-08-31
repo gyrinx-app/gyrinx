@@ -45,10 +45,10 @@ class CreateGangForm(forms.Form):
         queryset=GangType.objects.filter(foundable=True).exclude(name__regex=r"^\s*$"),
         label="Gang type",
         help_text=(
-            "What the gang is, which fixes who you can hire and what they may carry."
+            "What the gang is. It decides who you can hire and what they can carry."
         ),
         error_messages={
-            "invalid_choice": "That is not a gang type you can found. Pick one of those shown."
+            "invalid_choice": "That is not a gang type you can found. Pick one of the types shown."
         },
     )
     starting_credits = forms.IntegerField(
@@ -61,7 +61,7 @@ class CreateGangForm(forms.Form):
         required=False,
         max_length=50,
         label="Colour",
-        help_text="Shown against the gang wherever it is listed.",
+        help_text="Shown next to the gang's name wherever it is listed.",
     )
 
     def gang_type_choices(self):
@@ -134,7 +134,7 @@ class EditGangForm(forms.Form):
     colour = forms.CharField(
         required=False,
         label="Colour",
-        help_text="Shown against the gang wherever it is listed.",
+        help_text="Shown next to the gang's name wherever it is listed.",
     )
 
     def clean_starting_credits(self):
@@ -351,14 +351,14 @@ class CampaignForm(forms.Form):
         initial=1000,
         label="Gang budget",
         help_text=(
-            "How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Blank sets none."
+            "How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Leave blank to set no budget."
         ),
     )
     summary = forms.CharField(
         required=False,
         label="Summary",
         widget=RichText(),
-        help_text="What this campaign is, and whatever the table has agreed.",
+        help_text="What this campaign is, and anything the players have agreed.",
     )
 
 
@@ -406,7 +406,7 @@ class JoinCampaignForm(forms.Form):
 
     gang = forms.CharField(
         label="Gang",
-        help_text="Paste the link a player sent you, or the gang’s id.",
+        help_text="Paste the link a player sent you, or the gang's id.",
     )
 
     def clean_gang(self):

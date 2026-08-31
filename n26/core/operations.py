@@ -167,8 +167,8 @@ class NotEnoughCredits(Refusal):
         self.gang = gang
         self.shortfall = shortfall
         super().__init__(
-            f"Not enough credits: this spend leaves {gang.name} {shortfall}cr "
-            f"short of their {gang.starting_credits}cr budget."
+            f"Not enough credits: this spend leaves {gang.name} {shortfall}¢ "
+            f"short of their {gang.starting_credits}¢ budget."
         )
 
 
@@ -988,9 +988,8 @@ class Operation:
             founding.caused.exists() or founding.chosen_options.exists()
         ):
             raise Refusal(
-                f"{self.gang} was founded on a type that gave it things, and "
-                "those would have to be given back before it can be said to "
-                "be a different type."
+                f"You cannot change {self.gang}'s type. Its founding type gave "
+                "it things, and those would have to be given back first."
             )
         # The gang says what it is as well as its founding, and the two
         # disagreeing is a gang whose pages and whose history describe

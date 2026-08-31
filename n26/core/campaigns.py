@@ -142,8 +142,8 @@ class CampaignOperation:
         campaign = self.campaign
         if user.pk == campaign.owner_id:
             raise Refusal(
-                f"{user.username} runs {campaign.name}. "
-                "An arbitrator is not a participant of their own campaign."
+                f"You cannot invite {user.username}. They run {campaign.name}, "
+                "and an arbitrator cannot also be a participant."
             )
         participant, made = CampaignParticipant.objects.get_or_create(
             campaign=campaign,

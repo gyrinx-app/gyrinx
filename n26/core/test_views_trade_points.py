@@ -312,7 +312,7 @@ class TestStartingTheAction:
         gang.refresh_from_db()
         assert gang.visiting_trading_post is False
         told = [str(m) for m in answer.context["messages"]]
-        assert any("at least one fighter" in line for line in told)
+        assert any("at least one model" in line for line in told)
 
     def test_sending_nobody_is_refused(self, client, roster, gang):
         """Neither ticks nor a typed amount: there is nothing to start."""
@@ -321,7 +321,7 @@ class TestStartingTheAction:
         gang.refresh_from_db()
         assert gang.visiting_trading_post is False
         told = [str(m) for m in answer.context["messages"]]
-        assert any("at least one fighter" in line for line in told)
+        assert any("at least one model" in line for line in told)
 
     def test_it_records_who_went(self, client, roster, gang):
         start(client, gang, roster["Vex"])

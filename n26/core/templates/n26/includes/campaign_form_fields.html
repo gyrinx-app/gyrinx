@@ -27,7 +27,7 @@ empty expecting a default gets a campaign that says nothing about size.
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
     <c-ui.field label="Gang budget"
-                description="How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Blank sets none."
+                description="How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Leave blank to set no budget."
                 error="x"
                 :form="form"
                 name="budget"

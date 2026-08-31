@@ -76,6 +76,7 @@ WORD_RULES = [
 # enforces models — this catches copy).
 N26_WORD_RULES = [
     (r"\bcosts?\b", "banned in n26 — price (asked now) or rating (added to worth)"),
+    (r"\blearn(s|ed|ing|t)?\b", 'skills are selected, never learned — say "select"'),
 ]
 
 # An exclamation mark ending a sentence in copy. Must not match `!=`,

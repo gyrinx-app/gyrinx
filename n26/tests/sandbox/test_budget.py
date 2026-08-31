@@ -37,8 +37,8 @@ class TestTheBudgetCeiling:
         with pytest.raises(NotEnoughCredits) as caught:
             hire_with_option(gang, expensive, "Yolanda")
 
-        assert "50cr short" in str(caught.value)
-        assert "100cr budget" in str(caught.value)
+        assert "50¢ short" in str(caught.value)
+        assert "100¢ budget" in str(caught.value)
 
     def test_nothing_is_half_bought(self, gang, make_profile):
         """The refusal unwinds the whole operation."""
@@ -62,7 +62,7 @@ class TestTheBudgetCeiling:
         with pytest.raises(NotEnoughCredits) as caught:
             buy(fighter, thing=pricey)
 
-        assert "15cr short" in str(caught.value)
+        assert "15¢ short" in str(caught.value)
         gang.refresh_from_db()
         assert gang.credits == 10
         assert_reconciled(gang)

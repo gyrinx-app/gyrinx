@@ -203,7 +203,7 @@ that said it twice would be spending the width the name needs.
                                         {% endcomment %}
                                         <span class="shrink-0 text-xs tabular-nums"
                                               :class="slots > {{ slot_budget }} ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted'"
-                                              title="Weapon slots used of the {{ slot_budget }} on a card"
+                                              title="Weapon slots used ({{ slot_budget }} per card)"
                                               x-text="slots + '/{{ slot_budget }} slots'"></span>
                                     {% endif %}
                                     <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>

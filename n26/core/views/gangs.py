@@ -900,7 +900,7 @@ def gang_trade_points(request, pk):
         if not performing and not typed:
             messages.error(
                 request,
-                "Pick at least one fighter to visit the trading post, or "
+                "Select at least one model to visit the Trading Post, or "
                 "enter a Trade Point amount.",
             )
             return redirect(at)
@@ -917,7 +917,7 @@ def gang_trade_points(request, pk):
         record(request, N26Noun.GANG, EventVerb.UPDATE, gang, trade_points=brought)
         if performing:
             who = (
-                f"{len(performing)} fighter{'' if len(performing) == 1 else 's'} "
+                f"{len(performing)} model{'' if len(performing) == 1 else 's'} "
                 f"visited the Trading Post, adding "
             )
         else:
