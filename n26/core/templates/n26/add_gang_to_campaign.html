@@ -84,12 +84,13 @@ a reader who cannot find one is told where it went.
                  x-effect="shown = rows.filter(f =&gt; matches(f)).length"
                  @filter-apply.window="if ($event.detail.name === 'player') people = $event.detail.values"
                  class="flex flex-col gap-3">
-                <div class="flex flex-wrap items-center gap-2">
-                    <c-n26.search-bar :live="True"
-                                      :nested="True"
-                                      model="query"
-                                      placeholder="Search gangs"
-                                      class="min-w-0 flex-1" />
+                {% comment %}
+                The search on its own line and the filters in a bar below it,
+                as the equipment catalogue lays out the same pair. A row of
+                filters is a row of actions, which is what action-bar is.
+                {% endcomment %}
+                <c-n26.search-bar :live="True" :nested="True" model="query" placeholder="Search gangs" />
+                <c-n26.action-bar>
                     {% if people %}
                         <c-n26.filter-menu label="Player" name="player" :options="people" />
                     {% endif %}
@@ -103,13 +104,25 @@ a reader who cannot find one is told where it went.
                                           suffix="¢"
                                           at_max_label="Any" />
                     {% endif %}
-                </div>
-                <label class="flex items-center gap-2 text-sm text-muted">
-                    <input type="checkbox"
-                           x-model="hidePlaying"
-                           class="rounded-sm accent-[var(--color-accent)]" />
-                    Hide gangs already in a campaign
-                </label>
+                    {% comment %}
+                    checkedChange, not change: the switch holds its state in
+                    its own scope and writes its hidden checkbox through
+                    x-model, and a checkbox set from script fires no change
+                    event, so a @change here would never run. The name is
+                    written with a dash and camel-cased back, the only
+                    spelling that reaches the dispatched name — an attribute
+                    is lowercased by the parser, and the modifier joins
+                    dash-separated words rather than restoring case.
+
+                    The event says the switch turned over and carries no
+                    state, and the box it writes is still on its old value
+                    when this runs, so the flag is turned over to match
+                    rather than read back.
+                    {% endcomment %}
+                    <c-n26.toggle label="Hide gangs already in a campaign"
+                                  :checked="True"
+                                  @checked-change.camel="hidePlaying = !hidePlaying" />
+                </c-n26.action-bar>
                 <p class="text-sm text-muted">
                     <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
                           x-text="shown">{{ free_gangs }}</span>
