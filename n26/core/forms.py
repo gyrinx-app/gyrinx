@@ -216,7 +216,7 @@ class GangNotesForm(forms.Form):
         required=False,
         widget=RichText(),
         label="Notes",
-        help_text="Printed with the gang sheet. Anyone reading the gang can see them.",
+        help_text="Shown on the notes page and printed with the gang sheet. Anyone reading the gang can see them.",
     )
 
 

@@ -1,10 +1,11 @@
 """Uploaded pictures, brought to the shape their surfaces draw.
 
 A model's picture is portrait, a gang's is landscape, and every surface
-that draws one — the card's dropdown, the printed card, the lore page —
-assumes the ratio rather than measuring the file. So the shape is
-settled here, once, on the way in: whatever arrives is centre-cropped
-to the ratio and capped in size, and what is stored is always drawable.
+that draws one — the card's dropdown, the printed card, the notes page,
+the lore page — assumes the ratio rather than measuring the file. So
+the shape is settled here, once, on the way in: whatever arrives is
+centre-cropped to the ratio and capped in size, and what is stored is
+always drawable.
 
 The browser offers a nicer version of the same act — panning and
 zooming the crop before upload — but what it sends is still just a
@@ -45,7 +46,7 @@ PORTRAIT = Ratio(4, 5)
 LANDSCAPE = Ratio(16, 9)
 
 #: The long side of a stored picture. Phone photographs arrive at many
-#: times this; a card, a print sheet and a lore page never draw one
+#: times this; a card, a print sheet and a notes or lore page never draw one
 #: bigger.
 MAX_PX = 1600
 

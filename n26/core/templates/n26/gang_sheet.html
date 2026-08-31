@@ -155,6 +155,9 @@ that said it twice would be spending the width the name needs.
                         <c-ui.dropdown.item href="{% url 'n26-gang-history' gang.pk %}">
                             History
                         </c-ui.dropdown.item>
+                        <c-ui.dropdown.item href="{% url 'n26-gang-notes' gang.pk %}">
+                            Notes
+                        </c-ui.dropdown.item>
                         <c-ui.dropdown.item href="{% url 'n26-gang-lore' gang.pk %}">
                             Lore
                         </c-ui.dropdown.item>
@@ -176,17 +179,23 @@ that said it twice would be spending the width the name needs.
                              href="{% url 'n26-print-setup' gang.pk %}">
                     Print
                 </c-ui.button>
+                <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-notes' gang.pk %}">
+                    Notes
+                </c-ui.button>
                 <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-lore' gang.pk %}">
                     Lore
                 </c-ui.button>
             </c-slot>
         {% else %}
             {% comment %}
-            Signed out there is no Print — but the lore page reads like
-            the sheet does, for whoever holds the address, so the way in
-            cannot hide behind signing in.
+            Signed out there is no Print — but the notes and lore pages
+            read like the sheet does, for whoever holds the address, so
+            the way in cannot hide behind signing in.
             {% endcomment %}
             <c-slot name="secondary_actions">
+                <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-notes' gang.pk %}">
+                    Notes
+                </c-ui.button>
                 <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-lore' gang.pk %}">
                     Lore
                 </c-ui.button>
