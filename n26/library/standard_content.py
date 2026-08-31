@@ -520,7 +520,7 @@ def _check_subtypes():
 #: The two lasting-effect tables (core rules: the Lasting Injury and
 #: Lasting Damage tables), as ``(band low, band high, result)``. Names
 #: and bands only — what a result *does* is a modifier, which seeds
-#: never write, so the six characteristic results are finished by hand.
+#: never write, so the ten characteristic results are finished by hand.
 LASTING_INJURY_TABLE = [
     (11, 11, "Lesson Learnt"),
     (12, 12, "Eternal Enmity"),
@@ -660,7 +660,7 @@ STANDARD_CONTENT = {
             help=(
                 "The Lasting Injury and Lasting Damage tables as D66 roll "
                 "tables — a slot type, results at their bands, and a "
-                "standing choice each. Names and bands only: the six "
+                "standing choice each. Names and bands only: the ten "
                 "results that worsen a characteristic still need their "
                 "modifiers attached, and the choices built into entries."
             ),

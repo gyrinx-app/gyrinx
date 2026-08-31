@@ -4,7 +4,7 @@ The executable spec for the rulebook's two lasting-effect tables (core
 rules: resolving hits and injuries). The tables themselves — two slot
 types, a D66 roll table of results at their bands, a standing choice
 each — are a Foundations seed, created here exactly as the button
-creates them. Seeds write names and numbers only, so what the six
+creates them. Seeds write names and numbers only, so what the ten
 characteristic results *do* is attached afterwards as ordinary
 modifiers, the way an author finishes the tables by hand.
 
@@ -40,7 +40,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: What the six characteristic results worsen, by one. The seed cannot
+#: What the ten characteristic results worsen, by one. The seed cannot
 #: write these — a modifier is behaviour, not a name — so they are the
 #: hand-authored half of the tables.
 WORSENS = {

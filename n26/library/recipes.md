@@ -252,7 +252,7 @@ result they rolled.
    roll covered. (Five results sit on both tables at the same rolls; a
    pack holds one pickable per name, so the damage twins arrive with a
    qualifier, which players never see.)
-2. Standard content carries names and numbers only, so finish the six
+2. Standard content carries names and numbers only, so finish the ten
    results that worsen a characteristic by hand: on each, attach a
    **modifier** — targets the model, worsens that characteristic by
    one. A result that changes no number needs nothing — the card says
