@@ -309,6 +309,7 @@ def add_gang(request, pk):
     from django.http import Http404
 
     from n26.core.forms import BringGangForm, JoinCampaignForm
+    from n26.core.models import Gang
     from n26.core.operations import Refusal, operation
 
     found = _any_campaign_or_404(pk)
@@ -356,8 +357,15 @@ def add_gang(request, pk):
             "arbitrating": arbitrating,
             "gang_options": options,
             # A player with nothing to bring is told so, rather than shown a
-            # picker with nothing in it.
+            # picker with nothing in it — and told which of the two reasons
+            # it is, because owning no gangs and owning only busy ones lead
+            # somewhere different. Asked only when there is nothing to offer.
             "nothing_to_bring": not arbitrating and not options,
+            "owns_a_gang": (
+                not arbitrating
+                and not options
+                and Gang.objects.filter(owner=request.user, archived=False).exists()
+            ),
         },
     )
 

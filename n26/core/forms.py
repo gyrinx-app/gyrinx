@@ -370,12 +370,9 @@ class BringGangForm(forms.Form):
     than not offering it.
     """
 
-    gang = forms.ModelChoiceField(
-        queryset=None,
-        label="Gang",
-        empty_label="Choose a gang",
-        help_text="Only gangs of yours that are not already in a campaign.",
-    )
+    #: The screen draws the picker itself, so what the reader is told about
+    #: it is written there. A help_text here would say nothing to anybody.
+    gang = forms.ModelChoiceField(queryset=None, label="Gang")
 
     def __init__(self, *args, owner=None, **kwargs):
         from n26.core.models import CampaignMembership, Gang

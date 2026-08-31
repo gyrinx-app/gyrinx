@@ -20,7 +20,7 @@ across other people's gangs.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-gang' campaign.pk %}"
                      title="Add a gang to {{ campaign.name }}"
-                     lead="{% if arbitrating %}A gang plays one campaign at a time.{% else %}A gang plays one campaign at a time, and this one takes gangs up to its budget.{% endif %}"
+                     lead="A gang plays one campaign at a time."
                      :form="form"
                      submit_label="{% if nothing_to_bring %}{% else %}Add gang{% endif %}"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
@@ -53,20 +53,33 @@ across other people's gangs.
                                 value="{{ form.gang.value|default:'' }}" />
                 </c-ui.field>
             {% elif nothing_to_bring %}
-                <c-ui.alert variant="info" title="No gang to bring">
-                    Every gang of yours is already playing a campaign, or you
-                    have none yet. A gang plays one campaign at a time.
-                </c-ui.alert>
+                {% comment %}
+                Which of the two reasons decides what the reader does next, so
+                the page says which rather than covering both and leaving them
+                to work it out.
+                {% endcomment %}
+                {% if owns_a_gang %}
+                    <c-ui.alert variant="info" title="Every gang of yours is in a campaign">
+                        A gang plays one campaign at a time, so none of yours
+                        can join this one.
+                    </c-ui.alert>
+                {% else %}
+                    <c-ui.alert variant="info" title="No gangs yet">
+                        You have no gangs to add.
+                        <c-n26.link href="{% url 'n26-create-gang' %}">Create one</c-n26.link>
+                        first.
+                    </c-ui.alert>
+                {% endif %}
             {% else %}
                 <c-ui.field label="Gang *"
-                            description="One of yours, worth no more than the campaign's budget."
+                            description="{% if campaign.budget is None %}One of yours.{% else %}One of yours, worth {{ campaign.budget }}¢ or less. That counts models, their gear and the stash.{% endif %}"
                             error="x"
                             :form="form"
                             name="gang"
                             for="join-gang">
                     <c-ui.select.native name="gang" id="join-gang" placeholder="">
                         <c-ui.select.option value="">
-                            Choose a gang
+                            Select a gang
                         </c-ui.select.option>
                         {% for option in gang_options %}
                             <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
