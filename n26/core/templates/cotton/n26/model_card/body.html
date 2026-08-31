@@ -54,7 +54,7 @@ draw the same thing.
             An open skill question is drawn in the Skills row, on a line of its
             own under the skills the model already has — not among the choice
             rows below, and not in the flow of the list, where wrapping would
-            fold it into the names. The gang sheet says it as a quiet link and
+            fold it into the names. The gang sheet draws it as a quiet link and
             only the model's own page grows a button; the way to the skills
             screen is edit mode's alone.
             {% endcomment %}
@@ -117,7 +117,8 @@ draw the same thing.
 
         {% comment %}
         Powers are a kind of their own and keep a row of their own, drawn as
-        the Skills row is: one list, and open questions beside it.
+        the Skills row is: one list, and open questions on a line of their
+        own beneath it.
         {% endcomment %}
         {% if card.powers or card.power_choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
