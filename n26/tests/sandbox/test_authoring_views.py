@@ -1690,6 +1690,26 @@ class TestARollTablesOwnPage:
         body = client.get(self.url(whole)).content.decode()
         assert "6 of 6 rolls covered" in body
 
+    def test_a_bandless_result_keeps_a_covered_table_out_of_the_clear(
+        self, author, client, legacy
+    ):
+        """Every roll may be claimed and a result still unreachable: a
+        row with no band is on the list and never rolled, which is as
+        much a fault as a gap."""
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+        )
+
+        table = create_picklist("Whole", legacy, dice="d6", roll_selects="band")
+        add_picklist_member(
+            table, create_pickable("All of it", legacy), roll_low=1, roll_high=6
+        )
+        add_picklist_member(table, create_pickable("Unrollable", legacy))
+        body = client.get(self.url(table)).content.decode()
+        assert "Unrollable has no band, so no roll lands on it" in body
+
     def test_a_row_is_added_from_the_page_with_its_band(
         self, author, client, table, legacy
     ):

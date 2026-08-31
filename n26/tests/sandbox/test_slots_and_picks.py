@@ -1882,7 +1882,7 @@ class TestARollTableInThePicker:
         slot = next(s for s in computed.choices if s.kind_label == "Lasting Injuries")
         return build_choice_offer(slot, computed)
 
-    def test_each_option_carries_its_band_in_roll_order(self, yolanda):
+    def test_each_option_carries_its_band_in_roll_order(self, gang, yolanda):
         offer = self.offer_for(yolanda)
         rows = [(o.band, o.name) for g in offer.groups for o in g.options]
         assert rows == [
@@ -1890,12 +1890,14 @@ class TestARollTableInThePicker:
             ("21-26", "Out Cold"),
             ("51", "Eye Injury"),
         ]
+        assert_reconciled(gang)
 
     def test_an_ordinary_list_carries_no_bands(self, gang, hunter, houses):
         sev = hire(gang, hunter, "Sev", paid=100)
         _, computed = card_of(sev)
         offer = build_choice_offer(next(iter(choices_of(sev))), computed)
         assert all(o.band == "" for g in offer.groups for o in g.options)
+        assert_reconciled(gang)
 
     def test_the_page_leads_each_row_with_the_band(self, client, owner, gang, yolanda):
 
@@ -1914,6 +1916,7 @@ class TestARollTableInThePicker:
         assert "21-26" in body
         # The band sits just ahead of its result's name on the row.
         assert ">11<" in body[: body.index("Lesson Learnt")][-300:]
+        assert_reconciled(gang)
 
 
 class TestThePickerStaysFlatHoweverLongTheList:

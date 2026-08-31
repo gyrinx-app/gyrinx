@@ -183,6 +183,9 @@ def _roll_table_summary(picklist):
     if said.doubled:
         rolls = ", ".join(str(roll) for roll, _ in said.doubled)
         words.append(f"Claimed by more than one result: {rolls}.")
+    if said.bandless:
+        names = ", ".join(member.label for member in said.bandless)
+        words.append(f"No band, so never rolled: {names}.")
     return " ".join(words)
 
 
@@ -4056,21 +4059,24 @@ class Coverage:
     bandless: list
 
 
-def coverage(picklist):
+def coverage(picklist, members=None):
     """The table's bands checked against its die, as :class:`Coverage`.
 
     Pure over the rows it is handed, so a page can say "34 of 36 rolls
     covered; 23 and 24 unclaimed" and a test can assert it without
     rendering anything. A band may span rolls the die cannot produce —
     "31-46" on a D66 — and such rolls count for nothing: the check walks
-    the die's own rolls, never the band's arithmetic.
+    the die's own rolls, never the band's arithmetic. A caller that has
+    already fetched the members hands them over rather than paying for
+    the same rows twice.
     """
     from n26.library.models import Dice
 
     rolls = Dice.rolls(picklist.dice)
-    # One query however long the table: a member's label falls back to
-    # its pickable's name, and the page prints every label it is handed.
-    members = list(picklist.members.select_related("pickable"))
+    if members is None:
+        # One query however long the table: a member's label falls back
+        # to its pickable's name, and every label it holds is printed.
+        members = list(picklist.members.select_related("pickable"))
     claimed = {}
     for member in members:
         if member.roll_low is None:
@@ -4082,7 +4088,8 @@ def coverage(picklist):
         total=len(rolls),
         covered=len(claimed),
         unclaimed=[roll for roll in rolls if roll not in claimed],
-        doubled=[(roll, who) for roll, who in claimed.items() if len(who) > 1],
+        # In roll order, as everything about a table is read.
+        doubled=sorted((roll, who) for roll, who in claimed.items() if len(who) > 1),
         bandless=[member for member in members if member.roll_low is None],
     )
 
@@ -4096,8 +4103,8 @@ def picklist_table(request, pk):
     page exists for the fact no single row carries — a gap or an overlap
     in the table. The add-a-row form is the detail page's own, handed
     the picklist so its picker offers this slot type's pickables and
-    nothing else. An ordinary list opens here too, drawn without the
-    coverage it has no die to check against.
+    nothing else. An ordinary list has no table to show, so its address
+    here leads back to its own page.
     """
     from django.db.models import F
 
@@ -4123,10 +4130,12 @@ def picklist_table(request, pk):
     else:
         form = form_class(carrier=picklist)
 
-    members = picklist.members.select_related("pickable").order_by(
-        F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+    members = list(
+        picklist.members.select_related("pickable").order_by(
+            F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+        )
     )
-    said = coverage(picklist) if picklist.dice else None
+    said = coverage(picklist, members)
     doubled_said = (
         [
             (roll, ", ".join(member.label for member in who))

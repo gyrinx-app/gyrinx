@@ -28,7 +28,7 @@
                 {% endif %}
             </p>
         </c-n26.prose>
-        {% if coverage.covered == coverage.total and not doubled_said %}
+        {% if coverage.covered == coverage.total and not doubled_said and not coverage.bandless %}
             <c-ui.alert variant="success" class="mt-4">
                 {{ coverage.covered }} of {{ coverage.total }} rolls covered.
             </c-ui.alert>

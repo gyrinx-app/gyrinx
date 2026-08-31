@@ -764,7 +764,9 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
             # that holds it. Bandless rows gather at the end.
             from django.db.models import F
 
-            members = members.order_by(F("roll_low").asc(nulls_last=True), "position")
+            members = members.order_by(
+                F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+            )
         return [
             Listed(thing=member.pickable, name=member.label, band=member.band)
             # One query for the whole list: the wording is the member's
