@@ -219,13 +219,14 @@ def reach_of_new_built_ins(holder):
     )
 
 
-def standing_copies_of(member):
-    """The live copies of one set member, and the gangs holding them.
+def assignments_naming(member):
+    """The live assignments materialised from one set member, and the
+    gangs holding them.
 
     What taking the member off the set leaves behind: nothing retracts
     an assignment, so every one of these stays exactly where it is.
-    Counted by provenance — a copy naming this member — so an owner's
-    own copy of the same thing is not counted among them.
+    Counted by provenance, so an owner's own copy of the same thing is
+    not counted among them.
     """
     return _reach(
         Assignment.objects.filter(

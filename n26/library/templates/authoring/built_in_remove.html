@@ -55,15 +55,13 @@ name runs the button off the end of the page.
             {{ label }} stays in the library and on everything else that names it.
             What goes is this one line of {{ set_name }}.
         </c-ui.alert>
-        {% if kept %}
+        {% if kept_sentence %}
             <c-ui.alert variant="warning"
                         title="This does not take it off anything that already has it">
-                {{ kept }} standing cop{{ kept|pluralize:"y,ies" }} of {{ label }}
-                {% if kept_gangs > 1 %}across {{ kept_gangs }} gangs{% else %}in one gang{% endif %}
-                keep{{ kept|pluralize:"s," }} it. A built-in <em>added</em> here reaches
+                {{ kept_sentence }} A built-in <em>added</em> here reaches
                 everything already holding the set; one taken off does not,
-                because nothing retracts an assignment. To take these away,
-                remove them one at a time where they stand.
+                because nothing retracts an assignment. To take them away,
+                remove them one at a time where they are.
             </c-ui.alert>
         {% endif %}
         {% if shared %}

@@ -406,8 +406,8 @@ class TestRemovalSaysWhatKeepsIt:
         response = client.get(reverse("authoring-built-in-remove", args=[member.pk]))
 
         page = response.content.decode()
-        assert "2 standing copies" in page
-        assert "in one gang" in page
+        assert "Gang Fighter is already assigned 2 times, in one gang." in page
+        assert "Those assignments stay." in page
         assert "does not take it off anything that already has it" in page
 
     def test_a_member_nothing_holds_says_nothing_about_keeping(
@@ -417,4 +417,4 @@ class TestRemovalSaysWhatKeepsIt:
 
         response = client.get(reverse("authoring-built-in-remove", args=[member.pk]))
 
-        assert "standing cop" not in response.content.decode()
+        assert "is already assigned" not in response.content.decode()

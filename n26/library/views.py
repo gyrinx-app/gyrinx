@@ -715,6 +715,20 @@ def _reach_said(reach, adding):
     )
 
 
+def _kept_sentence(reach, label):
+    """What taking a built-in off a set leaves behind, in a sentence.
+
+    Counts the assignments naming the member: every one of them stays
+    exactly where it is, whatever the set says from here on.
+    """
+    if reach.uses == 0:
+        return ""
+    times = "once" if reach.uses == 1 else f"{reach.uses} times"
+    where = "in one gang" if reach.gangs == 1 else f"across {reach.gangs} gangs"
+    stays = "That assignment stays" if reach.uses == 1 else "Those assignments stay"
+    return f"{label} is already assigned {times}, {where}. {stays}."
+
+
 def _built_in_reach_said(thing):
     """The reach sentence for a thing's own built-ins: the set it has,
     or — before a first built-in founds one — the set it would get,
@@ -2015,7 +2029,7 @@ def built_in_remove(request, pk):
     ammo lines with it. GET asks and changes nothing; the POST from
     this page is the act.
     """
-    from n26.core.propagation import standing_copies_of
+    from n26.core.propagation import assignments_naming
     from n26.library import authoring
     from n26.library.models import DefaultAssignment
 
@@ -2043,15 +2057,15 @@ def built_in_remove(request, pk):
         return redirect(back)
 
     riders = member.dependent_members.select_related("weapon_profile__weapon")
-    standing = standing_copies_of(member)
+    label = _label_for(member.assignable)
+    kept = assignments_naming(member)
     return render(
         request,
         "authoring/built_in_remove.html",
         {
             "thing": member,
-            "label": _label_for(member.assignable),
-            "kept": standing.uses,
-            "kept_gangs": standing.gangs,
+            "label": label,
+            "kept_sentence": _kept_sentence(kept, label),
             "kind_name": str(member.assignable._meta.verbose_name),
             "set_name": member.default_set.name,
             "holders": holders,
