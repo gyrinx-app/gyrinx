@@ -6,7 +6,11 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from gyrinx.account_forms import BadgeSelectionForm, UsernameChangeForm
+from gyrinx.account_forms import (
+    BadgeSelectionForm,
+    TimezoneForm,
+    UsernameChangeForm,
+)
 from gyrinx.accounts.models import UserProfile
 from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.analytics.nouns import PlatformNoun
@@ -254,5 +258,54 @@ def badge_settings(request):
             "form": form,
             "available_badges": profile.available_badges,
             "hide_badge_value": HIDE_BADGE,
+        },
+    )
+
+
+@login_required
+def timezone_settings(request):
+    """
+    Let the user choose which timezone timestamps are shown in.
+
+    **Context**
+
+    ``form``
+        The timezone selection form.
+
+    **Template**
+
+    :template:`core/timezone_settings.html`
+    """
+    UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = TimezoneForm(request.POST, user=request.user, request=request)
+        if form.is_valid():
+            form.save()
+            log_event(
+                user=request.user,
+                noun=PlatformNoun.USER,
+                verb=EventVerb.UPDATE,
+                request=request,
+                field="timezone",
+                timezone=form.cleaned_data["timezone"],
+            )
+            messages.success(request, "Your timezone has been updated.")
+            return redirect("core:account_home")
+    else:
+        log_event(
+            user=request.user,
+            noun=PlatformNoun.USER,
+            verb=EventVerb.VIEW,
+            request=request,
+            page="timezone_settings",
+        )
+        form = TimezoneForm(user=request.user, request=request)
+
+    return render(
+        request,
+        "core/timezone_settings.html",
+        {
+            "form": form,
         },
     )

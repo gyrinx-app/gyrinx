@@ -218,6 +218,10 @@ MIDDLEWARE = [
     # signed-in readers) and after impersonation (the reader is whoever the
     # request is being made as).
     "gyrinx.middleware.EditionMiddleware",
+    # Activate the reader's timezone so |date / localtime follow their zone
+    # rather than UTC. After impersonation (the reader is whoever the request
+    # is being made as).
+    "gyrinx.middleware.TimezoneMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # Serves admin-managed 301s. Must stay LAST: process_response runs in

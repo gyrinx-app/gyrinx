@@ -15,6 +15,13 @@ from django.utils.safestring import mark_safe
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
 from gyrinx.badges import HIDE_BADGE, badge_choices
+from gyrinx.timezones import (
+    detect_timezone,
+    is_valid_timezone,
+    remember_timezone,
+    stored_timezone,
+    timezone_choices,
+)
 from gyrinx.widgets import BsRadioSelect
 
 
@@ -173,3 +180,45 @@ class BadgeSelectionForm(forms.Form):
         self.profile.selected_badge = self.cleaned_data["selected_badge"]
         self.profile.save(update_fields=["selected_badge"])
         return self.profile
+
+
+class TimezoneForm(forms.Form):
+    """Let a user choose which timezone timestamps are shown in."""
+
+    timezone = forms.ChoiceField(
+        label="Timezone",
+        help_text=(
+            "Campaign log times and other timestamps are shown in this "
+            "timezone. Guessed from your browser or location if you have "
+            "not chosen one."
+        ),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, request=None, **kwargs):
+        self.user = kwargs.pop("user")
+        self.request = request
+        super().__init__(*args, **kwargs)
+        self.fields["timezone"].choices = timezone_choices()
+        initial = stored_timezone(self.user)
+        if not initial and request is not None:
+            initial = detect_timezone(request)
+        self.fields["timezone"].initial = initial or "UTC"
+
+    def clean_timezone(self):
+        value = self.cleaned_data.get("timezone", "")
+        if not is_valid_timezone(value):
+            raise forms.ValidationError("Choose a valid timezone.")
+        return value
+
+    def save(self):
+        """Persist the timezone to the user's profile and this session."""
+        from gyrinx.accounts.models import UserProfile
+
+        tzname = self.cleaned_data["timezone"]
+        profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        profile.timezone = tzname
+        profile.save(update_fields=["timezone"])
+        if self.request is not None:
+            remember_timezone(self.request, tzname)
+        return profile
