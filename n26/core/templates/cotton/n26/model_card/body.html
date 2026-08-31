@@ -51,18 +51,20 @@ draw the same thing.
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
             <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
             {% comment %}
-            An open skill question is drawn beside the skills the model already
-            has, not among the choice rows below. The gang sheet says it as a
-            quiet link and only the model's own page grows a button; the way to
-            the skills screen is edit mode's alone.
+            An open skill question is drawn in the Skills row, on a line of its
+            own under the skills the model already has — not among the choice
+            rows below, and not in the flow of the list, where wrapping would
+            fold it into the names. The gang sheet draws it as a quiet link and
+            only the model's own page grows a button; the way to the skills
+            screen is edit mode's alone.
             {% endcomment %}
             <c-n26.model-card.mode when="gang view">
                 {% if card.skill_choices %}
-                    <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
+                    <div class="mt-1 flex flex-wrap items-center gap-2">
                         {% for choice in card.skill_choices %}
                             <c-n26.link href="{{ choice.href }}" tone="muted" underline="always" class="text-xs">Choose {{ choice.kind_label|lower }}</c-n26.link>
                         {% endfor %}
-                    </span>
+                    </div>
                 {% endif %}
             </c-n26.model-card.mode>
             {% comment %}
@@ -72,7 +74,7 @@ draw the same thing.
             {% endcomment %}
             <c-n26.model-card.mode when="edit">
                 {% if card.skill_choices or card.learn_href %}
-                    <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
+                    <div class="mt-1 flex flex-wrap items-center gap-1">
                         {% for choice in card.skill_choices %}
                             {% if choice.href %}
                                 <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
@@ -97,7 +99,7 @@ draw the same thing.
                                 <c-slot name="content">Select a skill</c-slot>
                             </c-ui.tooltip>
                         {% endif %}
-                    </span>
+                    </div>
                 {% endif %}
             </c-n26.model-card.mode>
         </dd>
@@ -115,7 +117,8 @@ draw the same thing.
 
         {% comment %}
         Powers are a kind of their own and keep a row of their own, drawn as
-        the Skills row is: one list, and open questions beside it.
+        the Skills row is: one list, and open questions on a line of their
+        own beneath it.
         {% endcomment %}
         {% if card.powers or card.power_choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
@@ -123,16 +126,16 @@ draw the same thing.
                 <c-n26.assignable-lines :lines="card.powers" :ratings="False" />
                 <c-n26.model-card.mode when="gang view">
                     {% if card.power_choices %}
-                        <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
                             {% for choice in card.power_choices %}
                                 <c-n26.link href="{{ choice.href }}" tone="muted" underline="always" class="text-xs">Choose {{ choice.kind_label|lower }}</c-n26.link>
                             {% endfor %}
-                        </span>
+                        </div>
                     {% endif %}
                 </c-n26.model-card.mode>
                 <c-n26.model-card.mode when="edit">
                     {% if card.power_choices %}
-                        <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
+                        <div class="mt-1 flex flex-wrap items-center gap-1">
                             {% for choice in card.power_choices %}
                                 {% if choice.href %}
                                     <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
@@ -142,7 +145,7 @@ draw the same thing.
                                     <c-n26.link>Choose {{ choice.kind_label|lower }}</c-n26.link>
                                 {% endif %}
                             {% endfor %}
-                        </span>
+                        </div>
                     {% endif %}
                 </c-n26.model-card.mode>
             </dd>

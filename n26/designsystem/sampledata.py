@@ -1861,6 +1861,17 @@ STASH = [
             computed=True, source="Ash Wastes Nomads", source_kind="gang type"
         ),
     ),
+    # Granted AND rated: the one shape where a price is drawn inside the
+    # tooltip's trigger, beside the dotted-underlined name. The gallery must
+    # hold a specimen or that arm of assignable-lines is drawn nowhere.
+    StashLine(
+        name="Blindsnake pouch",
+        rating=60,
+        kind="wargear",
+        provenance=Provenance(
+            computed=True, source="Ash Wastes Nomads", source_kind="gang type"
+        ),
+    ),
     # Deliberately out of kind order. regroup starts a new group whenever the key
     # changes rather than gathering equal keys, so a stash arriving in any order
     # is the case the component's dictsort exists for.
