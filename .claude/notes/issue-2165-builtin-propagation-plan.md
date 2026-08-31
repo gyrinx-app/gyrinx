@@ -456,7 +456,28 @@ carriers in unarchived gangs only; archived gangs skipped as C4 does.
 D15 applies (2 cases in prod, both reward skills). Tagging rule for
 ammo: none needed. The operation's GET preview should reproduce these
 counts; the fork dry-run proves them before prod.
-*Status: IN PROGRESS 2026-08-29.*
+*Status: BUILT + REBASED 2026-08-31 (PR #2351, branch issue-2165-c7-backfill).*
+Fork dry-run 2026-08-30 (gyrinx_c7, 1,700 live gangs, 6.8 min): 20
+outside checks pass, rerun creates zero, grant surplus fully explained —
+2,416 grants for grown members plus 1,106 = 553×2 nested Spyrer
+counters. That surplus exposed the **nested built-ins gap**: hire only
+walked the carrier's own sets, so a built-in subtype's own built-ins
+(Spyrer → Kill Count + Glitch Count) never materialised — all 447 live
+Spyrers missing both — while C4 and C7 find carriers by holder and
+would grant them. Ruling: fix forward FIRST, then backfill. Forward fix
+= PR #2359, MERGED 2026-08-31: `reconcile_defaults` reconciles every
+copy it creates whose thing has built-ins, after ammo placement, under
+the resolved kinds narrowing; a cycle raises `LibraryError` at
+acquisition (new class — content bugs must not become the 404 that
+views make of ValueError, nor a Refusal) and is a recorded skip under
+strict=False so one circular thing cannot stall a gang's catch-up.
+`omit` (C7's D15 hook) is never forwarded into the nested call — it
+names the parent's member pks. Follow-ups not filed: authoring-time
+cycle refusal in `add_built_in`; founding view creates the Gang row
+outside the operation's transaction. Remaining: merge #2351 on the
+maintainer's word after CI, deploy, run `n26_backfill_built_ins` from
+the console (expect ~45k tagged, ~949 grants incl. 894 Spyrer
+counters, 2 D15 holds), re-run audit_reconcile to zero.
 
 **C8 — Tighten + acceptance.** Remove the legacy `_granted_rows`
 fallback; retire `_something_materialised`'s loose-evidence clause and
