@@ -1,0 +1,57 @@
+{% comment %}
+The skills and powers a model holds, as boxes to tick, and the two listings
+they can be read in: the sets somebody placed for this model, and every set
+the library holds.
+
+Drawn by the model's own page, and handed back on its own when a tab is
+clicked with script running — which is why it is a file rather than markup in
+the page: one definition, so a tab click cannot draw a different box from the
+one a reload draws. `oob` is set only on the second of those, where htmx has
+to be told which element on the standing page this replaces.
+
+Both listings offer the same things — the panel on the first searches the sets
+the second lists — so which tab a save was made from decides nothing. The form
+says which one only so the reader is put back where they were.
+
+Nothing at all where there is nothing to tick, because the square around this
+is drawn only if there is something in it: a library holding no set for a
+model to take from is not worth a heading over an empty box.
+{% endcomment %}
+{% if skills %}
+    <div id="n26-skills-box" {% if oob %}hx-swap-oob="true"{% endif %}>
+        <c-n26.tab-links label="Which sets" :tabs="skills_tabs" :htmx="True" class="mb-3" />
+        <form method="post" action="{{ edit_url }}">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="skills">
+            <input type="hidden" name="tab" value="{{ skills_tab }}">
+            {% if skills.is_empty %}
+                {% comment %}
+                No placement names a set for this model. The library is still
+                theirs to take from, so the panel below stays and the other
+                tab lists every set.
+                {% endcomment %}
+                <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">
+                    No skill set has been put in a tier for {{ miniature.name }}.
+                    Every set is on the All sets tab, and the search below reaches them too.
+                </p>
+            {% else %}
+                <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">Edit the model's skills &amp; powers</p>
+            {% endif %}
+            <c-n26.pick-list :offer="skills"
+                             :addable="skills_more"
+                             name="skills"
+                             :grouped="True"
+                             added_label="From other sets"
+                             add_label="Add a skill"
+                             placeholder="Search skills and powers">
+                <c-slot name="actions">
+                    <div class="flex justify-end">
+                        <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
+                            Save skills
+                        </c-ui.button>
+                    </div>
+                </c-slot>
+            </c-n26.pick-list>
+        </form>
+    </div>
+{% endif %}

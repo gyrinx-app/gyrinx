@@ -2147,6 +2147,21 @@ class TestTheWiringEveryActLeansOn:
         assert 'addEventListener("n26-toasts"' in js
         assert "detail.value" in js
 
+    def test_a_swapped_in_noscript_is_emptied(self):
+        """A page's own parser treats a <noscript>'s contents as text, so
+        nothing in them applies. htmx builds a response with innerHTML,
+        where the parser has scripting disabled and those same contents
+        become real elements — a <style> written for a reader with no
+        script then comes alive on a page that has one, revealing every
+        box a picker keeps hidden and drawing a second copy of a menu's
+        rows."""
+        js = _support_js()
+
+        assert 'addEventListener("htmx:afterSwap"' in js
+        assert 'addEventListener("htmx:oobAfterSwap"' in js
+        assert 'querySelectorAll("noscript")' in js
+        assert "replaceChildren()" in js
+
     @pytest.mark.parametrize("host_id", ["n26-dialog-host", "n26-accessorise-host"])
     def test_the_page_holds_every_element_an_update_replaces(
         self, client, tester, fighter, gun_list, host_id

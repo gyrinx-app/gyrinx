@@ -48,9 +48,24 @@ disabled saying why — as <c-n26.tick-list> draws them. A disabled box submits
 nothing, so whatever applies the difference must leave those out rather than
 read their silence as a clearing.
 
+  --- one list, or a list under headings ---
+
+Left alone, the offer's groups are drawn as one run of boxes: a list of
+subtypes is a list of subtypes, and a heading over each would be the same word
+down the page. Set `grouped` where the groups are the point — skill sets, each
+sitting in a tier — and each is drawn under its own name, the way
+<c-n26.tick-list> draws them. The addable boxes stay together at the foot under
+a heading of their own, since which set a thing came from is what the panel's
+search was for.
+
   :offer — a n26.render.ChoiceOffer: what the thing has, and anything the owner
     has touched. Always drawn, so a row saying "taken away by you" stays where
     it can be put back.
+  :grouped — draw each of the offer's groups under its own name and caption.
+    Off by default, for a list whose one group needs no heading.
+  added_label — the heading over the boxes that came from the panel, when
+    `grouped`. Left out, they sit under the last group as if they had always
+    been there.
   :addable — the rest of the library, as n26.render.Choosable options. Each is
     a box that appears once ticked, and a row in the panel until it is.
   name — the input name every box submits under.
@@ -64,6 +79,8 @@ read their silence as a clearing.
         name="thing"
         add_label="Add"
         placeholder="Search"
+        :grouped="False"
+        added_label=""
         actions=""
         class="" />
 
@@ -76,14 +93,19 @@ Save can say whether anything moved.
      x-data="{
          picked: [],
          opened: [],
+         added: [],
          init() {
              this.picked = Array.from(
                  this.$root.querySelectorAll('input[type=checkbox]:checked')
              ).map(box => box.value);
              this.opened = [...this.picked];
+             this.added = Array.from(
+                 this.$root.querySelectorAll('.n26-addable input[type=checkbox]')
+             ).map(box => box.value);
          },
          isPicked(key) { return this.picked.includes(key) },
          pick(key) { if (!this.isPicked(key)) this.picked.push(key) },
+         get anyAdded() { return this.picked.some(key => this.added.includes(key)) },
          get dirty() {
              return this.picked.length !== this.opened.length
                  || this.picked.some(key => !this.opened.includes(key));
@@ -92,27 +114,71 @@ Save can say whether anything moved.
      @quick-switcher-choose="pick($event.detail.value)"
      class="{{ class }}">
     <noscript>
-        <style>.n26-addable { display: flex !important; }</style>
+        <style>
+            .n26-addable { display: flex !important; }
+            .n26-addable-group { display: block !important; }
+        </style>
     </noscript>
-    <div class="flex flex-col">
+    <div class="{% if grouped %}space-y-4{% else %}flex flex-col{% endif %}">
         {% for group in offer.groups %}
-            {% for option in group.options %}
-                <c-n26.pick-list.box :option="option" name="{{ name }}" />
-            {% endfor %}
+            {% if grouped %}
+                {% comment %}
+                A fieldset per heading, as <c-n26.tick-list> draws one: the
+                heading is what the boxes under it have in common, and the
+                caption says which tier it sits in.
+                {% endcomment %}
+                <fieldset>
+                    <legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
+                        {{ group.name }}
+                        {% if group.caption %}<span class="text-sm font-normal text-muted">{{ group.caption }}</span>{% endif %}
+                    </legend>
+                    <div class="flex flex-col">
+                        {% for option in group.options %}
+                            <c-n26.pick-list.box :option="option" name="{{ name }}" />
+                        {% endfor %}
+                    </div>
+                </fieldset>
+            {% else %}
+                {% for option in group.options %}
+                    <c-n26.pick-list.box :option="option" name="{{ name }}" />
+                {% endfor %}
+            {% endif %}
         {% endfor %}
         {% comment %}
         Hidden until ticked, and hidden by a style rather than by x-show alone
         so a hundred boxes do not flash up before Alpine folds them away. The
         noscript rule above puts them back for a reader with no script, for
         whom this list is the only way to add anything.
+
+        Under a heading of their own where the list is grouped, so a box that
+        arrives from the panel is not read as belonging to the last group. The
+        heading goes with them: it is drawn while any of them is ticked, and a
+        reader with no script sees it over the rest of the library.
         {% endcomment %}
-        {% for option in addable %}
-            <c-n26.pick-list.box :option="option"
-                                 name="{{ name }}"
-                                 class="n26-addable"
-                                 style="display: none"
-                                 x-show="isPicked('{{ option.key }}')" />
-        {% endfor %}
+        {% if grouped and added_label and addable %}
+            <fieldset class="n26-addable-group" style="display: none" x-show="anyAdded">
+                <legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
+                    {{ added_label }}
+                </legend>
+                <div class="flex flex-col">
+                    {% for option in addable %}
+                        <c-n26.pick-list.box :option="option"
+                                             name="{{ name }}"
+                                             class="n26-addable"
+                                             style="display: none"
+                                             x-show="isPicked('{{ option.key }}')" />
+                    {% endfor %}
+                </div>
+            </fieldset>
+        {% else %}
+            {% for option in addable %}
+                <c-n26.pick-list.box :option="option"
+                                     name="{{ name }}"
+                                     class="n26-addable"
+                                     style="display: none"
+                                     x-show="isPicked('{{ option.key }}')" />
+            {% endfor %}
+        {% endif %}
     </div>
     {% if addable %}
         {% comment %}

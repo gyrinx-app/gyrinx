@@ -1497,7 +1497,11 @@ GROUPS: list[Group] = [
                     "option that works. Save is disabled until the ticked set "
                     "differs from the one the page opened with: the actions "
                     "slot renders inside this component's scope, which is what "
-                    'lets a caller bind ::disabled="!dirty" on its own button.'
+                    'lets a caller bind ::disabled="!dirty" on its own button. '
+                    "Left alone the groups are drawn as one run of boxes, since "
+                    "a heading over each would be the same word down the page; "
+                    "`grouped` draws each under its own name and tier where the "
+                    "groups are the point, as c-n26.tick-list does."
                 ),
                 parts=(
                     Part(

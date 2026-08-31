@@ -1,7 +1,7 @@
 /*
  * Client glue for htmx partial updates. The server side of the pattern is
- * documented in n26/core/views/htmx.py; this file holds the three pieces
- * the browser needs.
+ * documented in n26/core/views/htmx.py; this file holds the pieces the
+ * browser needs.
  */
 
 /*
@@ -68,7 +68,33 @@ document.body.addEventListener("htmx:configRequest", function (event) {
 });
 
 /*
- * 3. Toasts from the HX-Trigger header.
+ * 3. <noscript> arriving in a swapped fragment.
+ *
+ * A page's own parser has scripting enabled, so a <noscript>'s contents are
+ * text and nothing in them applies. htmx builds a response with innerHTML,
+ * where the parser has scripting disabled — and there the same contents are
+ * parsed as real elements. Everything written for a reader with no script
+ * then comes alive on a page that has one: a <style> revealing the boxes a
+ * picker keeps hidden until they are chosen, a plain list drawing a second
+ * copy of a menu's rows.
+ *
+ * Emptying them leaves the swapped copy as the page's own parser would have
+ * left it. A reader with no script runs none of this and keeps the fallback.
+ */
+function n26EmptyNoscript(event) {
+    var swapped = event.target;
+    if (!swapped || !swapped.querySelectorAll) return;
+    if (swapped.tagName === "NOSCRIPT") swapped.replaceChildren();
+    var found = swapped.querySelectorAll("noscript");
+    for (var index = 0; index < found.length; index++) {
+        found[index].replaceChildren();
+    }
+}
+document.body.addEventListener("htmx:afterSwap", n26EmptyNoscript);
+document.body.addEventListener("htmx:oobAfterSwap", n26EmptyNoscript);
+
+/*
+ * 4. Toasts from the HX-Trigger header.
  *
  * A partial response carries the server's queued messages in its
  * HX-Trigger header as one n26-toasts event holding the whole list. htmx

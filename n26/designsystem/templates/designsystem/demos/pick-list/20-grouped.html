@@ -1,0 +1,20 @@
+{# title: Under its headings #}
+{# note: Where the groups carry meaning — skill sets, each in a tier — `grouped` draws each under its own name, the way c-n26.tick-list does. What the panel adds lands under a heading of its own, since which set a thing came from is what the search was for; that heading appears with the first box ticked from it. #}
+{# layout: col #}
+<form>
+    <c-n26.pick-list :offer="pick_list_grouped"
+                     :addable="pick_list_addable"
+                     name="skills"
+                     :grouped="True"
+                     added_label="From other sets"
+                     add_label="Add a skill"
+                     placeholder="Search skills">
+        <c-slot name="actions">
+            <div class="flex items-center justify-end gap-2">
+                <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
+                    Save skills
+                </c-ui.button>
+            </div>
+        </c-slot>
+    </c-n26.pick-list>
+</form>
