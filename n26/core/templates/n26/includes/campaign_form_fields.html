@@ -2,9 +2,9 @@
 The answers a campaign is made of, shared by the set-up and edit screens so
 the two cannot drift into asking different questions.
 
-The budget is the one worth reading twice. It is what a gang founded for
-this campaign has to spend on models and gear; whatever is left goes to its
-stash, so it settles what a gang is worth on the day it starts.
+The budget is the one worth reading twice. It is how much a gang should be
+worth to join — its rating, its stash and the credits it has not spent — and
+it refuses nobody: a bigger gang joins and is marked as over it.
 
 Blank is not zero — it means the campaign sets no budget at all. The 1000
 default lives on the unbound form, so it is only for set-up; edit supplies
@@ -13,7 +13,7 @@ the stored value, including blank. The box uses default_if_none so a stored
 
 Blank is not zero and is not the usual 1000 — it means the campaign sets no
 budget at all, and the placeholder says so, because a reader who leaves it
-empty expecting a default gets a campaign that caps nobody.
+empty expecting a default gets a campaign that says nothing about size.
 {% endcomment %}
 <c-n26.form-section title="General">
     <c-ui.field label="Campaign name *"
@@ -27,7 +27,7 @@ empty expecting a default gets a campaign that caps nobody.
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
     <c-ui.field label="Gang budget"
-                description="What a gang has to spend when it is founded. Blank sets none."
+                description="How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Blank sets none."
                 error="x"
                 :form="form"
                 name="budget"
