@@ -354,6 +354,100 @@ class TestMovingACounterByHand:
         assert xp_row(yolanda).counter_value.value == 61
 
 
+class TestMovingOneWithoutReloading:
+    """Over htmx the act sends back the card and nothing else.
+
+    Without scripting the same control is an ordinary form post and the
+    whole page is served, so nothing here works only one way.
+    """
+
+    HTMX = {"HTTP_HX_REQUEST": "true"}
+
+    def address(self, miniature):
+        row = Assignment.objects.get(miniature=miniature, counter__name="XP")
+        return reverse("n26-tally", args=[row.pk])
+
+    def test_it_sends_back_the_card_addressed_to_its_host(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        drawn = page.content.decode()
+        assert page.status_code == 200
+        assert 'id="n26-model-card-host"' in drawn
+        assert 'hx-swap-oob="true"' in drawn
+
+    def test_the_card_it_sends_back_carries_the_new_value(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert "62" in page.content.decode()
+
+    def test_the_card_it_sends_back_can_be_acted_on_again(self, client, gang, queen):
+        """A redrawn card whose controls had lost their addresses would
+        move once and then go quiet."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert self.address(yolanda) in page.content.decode()
+
+    def test_a_refusal_redraws_nothing_and_says_why(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "0"}, **self.HTMX)
+
+        # A step of nothing is no address at all, htmx or not.
+        assert page.status_code == 404
+
+    def test_without_htmx_the_same_act_is_a_redirect(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        back = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1", "back": back})
+
+        assert page.status_code == 302
+        assert page["Location"] == back
+
+    def test_the_page_holds_the_host_the_update_addresses(self, client, gang, queen):
+        """htmx drops an out-of-band element whose id is missing from the
+        page, silently — so opting in and holding the host have to travel
+        together."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert 'id="n26-model-card-host"' in page.content.decode()
+
+    def test_the_controls_on_that_page_post_through_htmx(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert f'hx-post="{self.address(yolanda)}"' in page.content.decode()
+
+    def test_each_direction_carries_its_own_change(self, client, gang, queen):
+        """htmx does not read a form's submitter, so the value cannot ride
+        on the button that was clicked."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        drawn = client.get(
+            reverse("n26-edit-fighter", args=[yolanda.pk])
+        ).content.decode()
+
+        assert 'name="change" value="1"' in drawn
+        assert 'name="change" value="-1"' in drawn
+
+
 class TestTheNoteFitsTheColumn:
     """A tally's note is a fixed-width column, and a caller can hand over
     more than it holds.

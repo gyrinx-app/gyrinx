@@ -32,6 +32,7 @@ control by the actions opens it.
     :card="None"
     mode="gang"
     equip_href=""
+    :htmx="False"
     notes_href=""
     lore_href=""
     actions=""
@@ -108,7 +109,7 @@ control by the actions opens it.
         <div class="n26-card-tabs">
             <c-ui.tabs variant="segmented" size="sm" :fill="True">
                 <c-ui.tabs.tab name="Card">
-                    <c-n26.model-card.body :card="card" mode="{{ mode }}" equip_href="{{ equip_href }}" />
+                    <c-n26.model-card.body :card="card" mode="{{ mode }}" equip_href="{{ equip_href }}" :htmx="htmx" />
                 </c-ui.tabs.tab>
                 {% comment %}
                 The dot marks a tab with something behind it; without one,
@@ -129,6 +130,6 @@ control by the actions opens it.
             </c-ui.tabs>
         </div>
     {% else %}
-        <c-n26.model-card.body :card="card" mode="{{ mode }}" equip_href="{{ equip_href }}" />
+        <c-n26.model-card.body :card="card" mode="{{ mode }}" equip_href="{{ equip_href }}" :htmx="htmx" />
     {% endif %}
 </c-ui.card>

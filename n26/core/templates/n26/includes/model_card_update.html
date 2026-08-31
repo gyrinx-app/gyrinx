@@ -1,0 +1,24 @@
+{% comment %}
+The partial update for an act on a model's card — rendered by
+n26.core.views.edit.render_card_update, never included by a page.
+
+Nothing here is targeted by the click that caused it. The card carries
+hx-swap-oob and the id of the host it replaces, so what an act updates is
+decided here rather than at the control. Messages are not among them: they
+ride the HX-Trigger response header as toasts, because a page that is not
+re-rendered draws no alert block.
+
+The whole card, not the line that changed. Redrawing all of it is what keeps
+a tally honest where a value crosses a threshold: an effect conditioned on a
+counter can confer a rule, reveal a choice or shift a characteristic, and
+every one of those is drawn on this card. The boxes a player writes in sit
+beside the card rather than inside it, so replacing it leaves their editors
+alone.
+{% endcomment %}
+<div id="n26-model-card-host" hx-swap-oob="true">
+    <c-n26.model-card :card="card" mode="edit" equip_href="{{ equip_href }}" :htmx="True">
+        <c-slot name="name_action">
+            {% include "n26/includes/model_name_action.html" %}
+        </c-slot>
+    </c-n26.model-card>
+</div>

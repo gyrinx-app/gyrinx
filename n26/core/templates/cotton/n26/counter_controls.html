@@ -1,43 +1,63 @@
 {% comment %}
 <c-n26.counter-controls> — the way to move one counter up or down by one.
 
-    <c-n26.counter-controls :counter="counter" />
+    <c-n26.counter-controls :counter="counter" :htmx="True" />
 
 Drawn beside the number on a card's counter line, and only where the line
 carries an address: a card that depicts nobody, a print sheet and the gang
 sheet all draw the number alone. This is the single-model control, on the
 model's own page.
 
-One form, two buttons: each submits the same address with its own signed
-`change`, so the pair works with no script. Minus is not drawn at zero — the
-value floors there, so the control would be offering something that cannot
-happen.
+A form each way rather than one form with two buttons. The value has to reach
+the server, and htmx does not read a form's submitter — so a single form
+posting over htmx would carry no `change` at all and be refused, while working
+perfectly without scripting. Two forms carry it in a field, which both paths
+read the same way.
+
+With htmx set, the act posts through htmx and the server sends back the model
+card alone. Only a screen holding the card's host may set it — see
+n26/core/templates/cotton/n26/view/model_edit.html. It stays an ordinary form
+to an ordinary address, so without JavaScript the whole page is served.
+
+Minus is not drawn at zero — the value floors there, so the control would be
+offering something that cannot happen.
 
   :counter — a n26.render.CounterLine.
+  :htmx — post through htmx and take back only what changed.
 {% endcomment %}
-<c-vars :counter="None" />
+<c-vars :counter="None" :htmx="False" />
 
-<form method="post" action="{{ counter.href }}" class="ms-1 inline-flex items-center gap-1 align-middle">
-    {% csrf_token %}
-    <input type="hidden" name="back" value="{{ request.get_full_path }}">
+<span class="ms-1 inline-flex items-center gap-1 align-middle">
     {% if counter.value %}
+        <form method="post"
+              action="{{ counter.href }}"
+              {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none"{% endif %}
+              class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="back" value="{{ request.get_full_path }}">
+            <input type="hidden" name="change" value="-1">
+            <c-ui.button type="submit"
+                         size="xs"
+                         variant="default"
+                         class="py-0!"
+                         aria-label="Take one off {{ counter.name }}">
+                <span aria-hidden="true">&minus;</span>
+            </c-ui.button>
+        </form>
+    {% endif %}
+    <form method="post"
+          action="{{ counter.href }}"
+          {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none"{% endif %}
+          class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ request.get_full_path }}">
+        <input type="hidden" name="change" value="1">
         <c-ui.button type="submit"
-                     name="change"
-                     value="-1"
                      size="xs"
                      variant="default"
                      class="py-0!"
-                     aria-label="Take one off {{ counter.name }}">
-            <span aria-hidden="true">&minus;</span>
+                     aria-label="Add one to {{ counter.name }}">
+            <span aria-hidden="true">+</span>
         </c-ui.button>
-    {% endif %}
-    <c-ui.button type="submit"
-                 name="change"
-                 value="1"
-                 size="xs"
-                 variant="default"
-                 class="py-0!"
-                 aria-label="Add one to {{ counter.name }}">
-        <span aria-hidden="true">+</span>
-    </c-ui.button>
-</form>
+    </form>
+</span>

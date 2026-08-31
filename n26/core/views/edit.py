@@ -263,6 +263,58 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
 
 
 @login_required
+def render_card_update(request, miniature, at):
+    """The partial update for an act on one model's card.
+
+    The whole card, rather than the part that changed. An effect
+    conditioned on a counter's value can confer a rule, reveal a choice
+    or shift a characteristic the moment the value crosses, and all of
+    those are drawn on this card — redrawing it entire is what keeps the
+    screen honest without this having to work out which of them moved.
+
+    The boxes a player writes in are the card's siblings rather than its
+    children, so replacing the card leaves their editors standing and
+    whatever is typed in them with it.
+
+    ``at`` is the address the act came from, and every control on the
+    redrawn card is built from it: a card rendered without one hands back
+    a rename that leads nowhere.
+
+    The gang is derived again rather than reused, because the act changed
+    what this reports on. That costs what a plain visit costs.
+    """
+    from n26.core.render import render_gang
+    from n26.core.views.choose import link_slots
+    from n26.core.views.htmx import with_toasts
+    from n26.core.views.learn import link_skills
+    from n26.core.views.owned import link_counters
+
+    gang = miniature.membership.gang
+    sheet = render_gang(gang)
+    link_slots(gang, sheet, *sheet.models)
+    link_skills(*sheet.models)
+    card = next(
+        (member for member in sheet.models if member.id == str(miniature.pk)), None
+    )
+    if card is None:
+        raise Http404("No such model")
+    link_counters(card)
+
+    response = render(
+        request,
+        "n26/includes/model_card_update.html",
+        {
+            "card": card,
+            "miniature": miniature,
+            "equip_href": reverse("n26-equip", args=[miniature.pk]),
+            # The card is drawn on the page this act came from, so its
+            # controls are addressed from there.
+            "at": at,
+        },
+    )
+    return with_toasts(request, response)
+
+
 def edit_fighter(request, pk):
     """One model, whole: their card with its edit affordances, the
     characteristics they can set by hand, and the notes box.

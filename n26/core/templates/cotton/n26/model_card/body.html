@@ -8,8 +8,12 @@ draw the same thing.
   card — the n26.render.ModelCard.
   mode — as <c-n26.model-card> takes it; the mode-only regions read it.
   equip_href — where the Gear and Weapons rows send an owner, or empty.
+  htmx — passed to the counter controls, and set only by a screen holding the
+    card's host. Threaded rather than read from context, as equip_href is:
+    a control that posts over htmx on a page with nowhere to put the answer
+    would run the act and change nothing on screen.
 {% endcomment %}
-<c-vars :card="None" mode="gang" equip_href="" />
+<c-vars :card="None" mode="gang" equip_href="" :htmx="False" />
 
     {% comment %}
     The statline carries the type line and the XP pair in the columns its
@@ -42,7 +46,7 @@ draw the same thing.
             <dd class="min-w-0 tabular-nums text-ink-900 dark:text-ink-100">
                 {{ counter.value }}
                 {% if counter.href %}
-                    <c-n26.counter-controls :counter="counter" />
+                    <c-n26.counter-controls :counter="counter" :htmx="htmx" />
                 {% endif %}
             </dd>
         {% endfor %}

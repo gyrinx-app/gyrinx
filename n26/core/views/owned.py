@@ -1036,6 +1036,7 @@ def tally_counter(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
+    from n26.core.views.edit import render_card_update
     from n26.library.models import Counter
 
     assignment = _own_assignment_or_404(request, pk)
@@ -1064,6 +1065,10 @@ def tally_counter(request, pk):
             standing = op.tally(assignment, change)
     except Refusal as refusal:
         messages.error(request, str(refusal))
+        if is_htmx(request):
+            # Nothing moved, so nothing on the page is redrawn; the
+            # refusal reaches the reader as a toast and that is all.
+            return no_update(request)
         return _safe_redirect(request, back, here)
 
     record(
@@ -1077,5 +1082,10 @@ def tally_counter(request, pk):
         action="tally",
         change=change,
     )
+    if miniature is not None and is_htmx(request):
+        # No message: the number on the card moves where the reader is
+        # looking, and a toast for every step of a tally somebody is
+        # working through is noise. A refusal still speaks, above.
+        return render_card_update(request, miniature, back or here)
     messages.success(request, f"{name} is now {standing}.")
     return _safe_redirect(request, back, here)
