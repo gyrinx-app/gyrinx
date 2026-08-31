@@ -35,7 +35,10 @@ Every string a person reads in the product, whoever they are:
 - Admin and maintenance screens (staff are readers too)
 
 Not in scope: commit titles and PR descriptions (see
-`.github/COMMIT_STYLE.md`), code comments, log lines.
+`.github/COMMIT_STYLE.md`), code comments, log lines, and the human-written
+marketing sections (the signed-out landing pitch on the homepage). Marketing
+copy is the maintainer's voice — do not rewrite it to these rules, and do not
+imitate it in app copy.
 
 ## Base rules
 
