@@ -456,7 +456,7 @@ carriers in unarchived gangs only; archived gangs skipped as C4 does.
 D15 applies (2 cases in prod, both reward skills). Tagging rule for
 ammo: none needed. The operation's GET preview should reproduce these
 counts; the fork dry-run proves them before prod.
-*Status: BUILT + REBASED 2026-08-31 (PR #2351, branch issue-2165-c7-backfill).*
+*Status: MERGED 2026-08-31 (PR #2351, squash aa29f0dfe). Review round found one real bug before merge: `_tag_legacy_grants` could bind a legacy copy to an ARCHIVED set member when a live twin named the same thing, leaving the live member unsatisfied so catch-up granted a silent duplicate — members now claim in `("archived", "pk")` order (archived stay taggable: a sold grant's tag is what keeps it from being handed back), regression-tested. Also: cause-less legacy rows are counted into `unmatched` so the report explains every row the preview shows. Declined with reasons: twin pairing order (provenance names the pair, every later read goes through it), counting `omit` per assignable (over-omitting under-grants and self-reports), recording an operator on CAUGHT_UP grants (library propagation carries an empty actor by design; the operator is on the Backfill row). Known wrinkle: a crash between a gang's summary write and the cursor advance replays that gang — work is idempotent, only census counts can overstate. REMAINING: deploy, run `n26_backfill_built_ins` from the console, re-run audit_reconcile to zero.*
 Fork dry-run 2026-08-30 (gyrinx_c7, 1,700 live gangs, 6.8 min): 20
 outside checks pass, rerun creates zero, grant surplus fully explained —
 2,416 grants for grown members plus 1,106 = 553×2 nested Spyrer
