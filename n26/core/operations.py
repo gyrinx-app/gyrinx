@@ -1101,34 +1101,31 @@ class Operation:
         members included, because a copy an author's removal left
         standing still leaves when its set is no longer taken.
 
-        Copies with no recorded provenance are found by the shape they
-        were written in, below.
+        Ammo is the one kind provenance does not cover, and its copies
+        are found by the shape they were written in, below.
         """
         from n26.core.builtins import copies_of_set
 
         tagged = list(copies_of_set(default_set, carrier))
         rows = [copy for copy in tagged if not copy.archived]
-        rows.extend(self._granted_rows_without_provenance(carrier, default_set, tagged))
+        rows.extend(self._ammo_rows_without_provenance(carrier, default_set, tagged))
         return rows
 
-    def _granted_rows_without_provenance(self, carrier, default_set, tagged):
-        """The set's grants among assignments with no provenance recorded.
+    def _ammo_rows_without_provenance(self, carrier, default_set, tagged):
+        """The set's ammo grants among lines with no provenance recorded.
 
-        Most of a set's members landed caused by the carrier itself; an
-        ammo member landed caused by its weapon's own assignment, wherever
-        that weapon came from. Where the built-ins grant the same
-        assignable as the set, the set's copy is the newer one — the
-        built-ins materialise first — so the newest live match is taken,
-        as many as the set granted and provenance has not already
-        accounted for.
+        A granted firing line is written in the same shape as a weapon's
+        own free lines, so it is the one kind of grant never tagged with
+        provenance and the one kind still read by shape: the newest live
+        line on the host, caused by a gun, as many as the set granted and
+        provenance has not already accounted for. Every other kind
+        answers by provenance alone — an untagged copy of anything else
+        is the owner's own business and is never seized.
 
-        The accounting is deliberately cautious both ways. Every tagged
-        copy counts, archived included: a grant the owner parted with is
-        settled, not something to seize a look-alike for. And only live
-        members count: an archived member may never have materialised
-        for this carrier, and hunting for its copy would seize whatever
-        untagged assignment happens to match — worse than leaving a
-        stray copy standing.
+        Every tagged copy counts against the wanted number, archived
+        included: a grant the owner parted with is settled, not something
+        to seize a look-alike for. And only live members count: an
+        archived member may never have materialised for this carrier.
         """
         from n26.core.models import Reason
         from n26.library.models import WeaponProfile
@@ -1136,9 +1133,8 @@ class Operation:
         wanted = {}
         for member in default_set.members.filter(archived=False):
             assignable = member.assignable
-            if assignable is None:
-                continue
-            wanted[assignable] = wanted.get(assignable, 0) + 1
+            if isinstance(assignable, WeaponProfile):
+                wanted[assignable] = wanted.get(assignable, 0) + 1
         for copy in tagged:
             if copy.assignable in wanted:
                 wanted[copy.assignable] -= 1
@@ -1147,20 +1143,16 @@ class Operation:
         for assignable, count in wanted.items():
             if count <= 0:
                 continue
-            scope = {
-                Assignment.field_for(assignable): assignable,
-                "archived": False,
-                "materialised_from__isnull": True,
-                "ledger_entry__reason": Reason.DEFAULT,
-                "gang_root": carrier.gang_root,
-                "miniature_root": carrier.miniature_root,
-            }
-            matches = Assignment.objects.filter(**scope)
-            if isinstance(assignable, WeaponProfile):
+            matches = Assignment.objects.filter(
+                weapon_profile=assignable,
+                archived=False,
+                materialised_from__isnull=True,
+                ledger_entry__reason=Reason.DEFAULT,
+                gang_root=carrier.gang_root,
+                miniature_root=carrier.miniature_root,
                 # Granted ammo is caused by its gun, not by the carrier.
-                matches = matches.exclude(caused_by=None)
-            else:
-                matches = matches.filter(caused_by=carrier)
+                caused_by__isnull=False,
+            )
             rows.extend(matches.order_by("-pk")[:count])
         return rows
 
