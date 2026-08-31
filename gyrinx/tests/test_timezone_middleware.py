@@ -59,6 +59,19 @@ def test_blank_profile_is_filled_from_browser_cookie(user):
 
 
 @pytest.mark.django_db
+def test_blank_profile_is_filled_from_percent_encoded_cookie(user):
+    UserProfile.objects.create(user=user)
+    request = RequestFactory().get("/")
+    request.COOKIES[COOKIE_NAME] = "America%2FNew_York"
+    request.user = user
+    request.session = {}
+    request.is_impersonating = False
+    assert _run(request) == "America/New_York"
+    user.profile.refresh_from_db()
+    assert user.profile.timezone == "America/New_York"
+
+
+@pytest.mark.django_db
 def test_saved_timezone_is_not_overwritten_by_a_guess(user):
     UserProfile.objects.create(user=user, timezone="UTC")
     request = RequestFactory().get("/", HTTP_CF_IPCOUNTRY="GB")
@@ -89,6 +102,17 @@ def test_impersonation_does_not_persist_a_guess(user, make_user):
 def test_account_home_renders_after_timezone_is_saved(client, user):
     UserProfile.objects.create(user=user, timezone="Europe/London")
     client.force_login(user)
+    response = client.get(reverse("core:account_home"))
+    assert response.status_code == 200
+    user.profile.refresh_from_db()
+    assert user.profile.timezone == "Europe/London"
+
+
+@pytest.mark.django_db
+def test_account_home_fills_timezone_from_percent_encoded_cookie(client, user):
+    UserProfile.objects.create(user=user)
+    client.force_login(user)
+    client.cookies[COOKIE_NAME] = "Europe%2FLondon"
     response = client.get(reverse("core:account_home"))
     assert response.status_code == 200
     user.profile.refresh_from_db()

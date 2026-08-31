@@ -56,6 +56,14 @@ def test_detect_ignores_invalid_cookie():
     assert detect_timezone(request) == "Europe/Berlin"
 
 
+def test_detect_accepts_percent_encoded_cookie_slash():
+    """encodeURIComponent turns Europe/London into Europe%2FLondon; Django
+    leaves the %2F intact, so we unquote before validating."""
+    request = RequestFactory().get("/")
+    request.COOKIES[COOKIE_NAME] = "Europe%2FLondon"
+    assert detect_timezone(request) == "Europe/London"
+
+
 def test_timezone_choices_offer_common_zones_first():
     choices = timezone_choices()
     assert choices[0][0] == "Common"
