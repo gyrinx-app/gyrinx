@@ -360,6 +360,39 @@ class CampaignForm(forms.Form):
     )
 
 
+class BringGangForm(forms.Form):
+    """One of the reader's own gangs, to bring into a campaign.
+
+    A picker rather than the arbitrator's paste field: these are the
+    reader's own gangs, so there is a list to offer and no address to ask
+    for. Gangs already playing somewhere are left out — a gang plays one
+    campaign at a time, and offering one that would be refused is worse
+    than not offering it.
+    """
+
+    gang = forms.ModelChoiceField(
+        queryset=None,
+        label="Gang",
+        empty_label="Choose a gang",
+        help_text="Only gangs of yours that are not already in a campaign.",
+    )
+
+    def __init__(self, *args, owner=None, **kwargs):
+        from n26.core.models import CampaignMembership, Gang
+
+        super().__init__(*args, **kwargs)
+        # Named by key rather than excluded across the relation: an
+        # exclude() reaching through campaign_memberships would test the
+        # outer join's own NULLs and throw away every gang that has never
+        # been in a campaign — which is most of the ones worth offering.
+        playing = CampaignMembership.objects.filter(left__isnull=True).values("gang")
+        self.fields["gang"].queryset = (
+            Gang.objects.filter(owner=owner, archived=False)
+            .exclude(pk__in=playing)
+            .order_by("name")
+        )
+
+
 class JoinCampaignForm(forms.Form):
     """Putting a gang into a campaign, named by its address.
 

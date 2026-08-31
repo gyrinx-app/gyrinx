@@ -11,8 +11,8 @@ from django.db import IntegrityError, transaction
 from n26.core.campaigns import campaign_operation
 from n26.core.history import build, campaign_history, campaign_history_size
 from n26.core.models import Campaign, CampaignMembership, LedgerEvent
-from n26.core.operations import AlreadyInACampaign, operation
-from n26.tests.sandbox.actions import found_gang
+from n26.core.operations import AlreadyInACampaign, OverCampaignBudget, operation
+from n26.tests.sandbox.actions import found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
@@ -100,6 +100,84 @@ class TestJoiningACampaign:
         with pytest.raises(IntegrityError):
             with transaction.atomic():
                 CampaignMembership.objects.create(campaign=other_campaign, gang=gang)
+
+
+class TestTheBudgetAtTheDoor:
+    """What a campaign says it will take, and who may go past it."""
+
+    @pytest.fixture
+    def gang(self, gang_type, make_profile):
+        """A gang with somebody in it, so it is worth something to weigh."""
+        player = User.objects.create_user("player")
+        founded = found_gang("The Ashen Choir", gang_type, owner=player)
+        hire(founded, make_profile("Escher Ganger"), "Yolanda", paid=55)
+        founded.refresh_from_db()
+        return founded
+
+    @pytest.fixture
+    def shoestring(self, arbitrator):
+        """A campaign nobody's gang fits into."""
+        return Campaign.objects.create(name="Shoestring", owner=arbitrator, budget=1)
+
+    def test_the_gang_is_worth_what_it_holds(self, gang):
+        """The premise the rest of the class rests on."""
+        assert gang.rating_with_stash == gang.rating + gang.stash_rating
+        assert gang.rating_with_stash > 1
+
+    def test_a_gang_worth_more_is_refused(self, gang, shoestring, arbitrator):
+        with pytest.raises(OverCampaignBudget) as refused:
+            with operation(gang, actor=arbitrator) as op:
+                op.join_campaign(shoestring)
+        said = str(refused.value)
+        assert "Shoestring" in said
+        assert str(gang.rating_with_stash) in said
+        assert not CampaignMembership.objects.filter(gang=gang).exists()
+
+    def test_the_arbitrator_may_seat_it_anyway(self, gang, shoestring, arbitrator):
+        """They set the number, so they are the one who may go past it."""
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(shoestring, over_budget_allowed=True)
+        assert CampaignMembership.objects.filter(
+            gang=gang, campaign=shoestring, left__isnull=True
+        ).exists()
+
+    def test_a_gang_that_fits_walks_in(self, gang, campaign, arbitrator):
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(campaign)
+        assert CampaignMembership.objects.filter(
+            gang=gang, campaign=campaign, left__isnull=True
+        ).exists()
+
+    def test_a_campaign_with_no_budget_takes_anything(
+        self, gang, other_campaign, arbitrator
+    ):
+        assert other_campaign.budget is None
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(other_campaign)
+        assert CampaignMembership.objects.filter(
+            gang=gang, campaign=other_campaign, left__isnull=True
+        ).exists()
+
+    def test_cash_in_hand_is_not_counted(self, gang, arbitrator):
+        """The cap is on what the gang owns, so money it has not spent
+        cannot put it over one."""
+        gang.credits = 100_000
+        gang.save()
+        roomy = Campaign.objects.create(
+            name="Roomy", owner=arbitrator, budget=gang.rating_with_stash
+        )
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(roomy)
+        assert CampaignMembership.objects.filter(gang=gang, campaign=roomy).exists()
+
+    def test_worth_exactly_the_budget_fits(self, gang, arbitrator):
+        """Up to the number, not short of it."""
+        exact = Campaign.objects.create(
+            name="Exact", owner=arbitrator, budget=gang.rating_with_stash
+        )
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(exact)
+        assert CampaignMembership.objects.filter(gang=gang, campaign=exact).exists()
 
 
 class TestLeavingACampaign:

@@ -189,6 +189,25 @@ class AlreadyInACampaign(Refusal):
         )
 
 
+class OverCampaignBudget(Refusal):
+    """A gang bigger than the campaign said it would take.
+
+    The campaign's budget is what a gang may be worth to join it, and the
+    arbitrator who set the number is the one who may go past it — so this
+    stops a player bringing a gang the table has not agreed to, and never
+    stops the arbitrator.
+    """
+
+    def __init__(self, gang, campaign, worth):
+        self.gang = gang
+        self.campaign = campaign
+        self.worth = worth
+        super().__init__(
+            f"{gang.name} is worth {worth}¢, and {campaign.name} takes gangs "
+            f"up to {campaign.budget}¢. Ask the arbitrator to bring it in."
+        )
+
+
 class NotOnOffer(Refusal):
     """The thing picked cannot settle the choice that was offered.
 
@@ -409,13 +428,19 @@ class Operation:
             self._campaign = membership.campaign if membership else None
         return self._campaign
 
-    def join_campaign(self, campaign):
+    def join_campaign(self, campaign, over_budget_allowed=False):
         """Put this operation's gang into a campaign, and say so in its history.
 
         A gang plays one campaign at a time, so joining a second while still in
         the first is refused rather than quietly recorded — the database holds
         the same line, and a player owed an explanation is better served by the
         sentence than by a constraint error.
+
+        A campaign with a budget takes gangs worth up to it, counting models,
+        their gear and the stash. ``over_budget_allowed`` is the arbitrator's
+        say-so: they set the number, so they are the one who may seat a gang
+        past it. It defaults to refusing, because the caller that forgets to
+        think about it is the one letting a player in unchecked.
 
         Nothing about the gang changes but where it plays. The event is the
         gang's own, and names the campaign, so it reads in both histories from
@@ -432,6 +457,11 @@ class Operation:
             if already.campaign_id == campaign.pk:
                 return already
             raise AlreadyInACampaign(gang, already.campaign)
+
+        if campaign.budget is not None and not over_budget_allowed:
+            worth = gang.rating_with_stash
+            if worth > campaign.budget:
+                raise OverCampaignBudget(gang, campaign, worth)
 
         membership = CampaignMembership.objects.create(campaign=campaign, gang=gang)
         # Set before the event is written, so the event that records the

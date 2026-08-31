@@ -1,12 +1,13 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Putting a gang into a campaign, named by the link its player sent.
+Putting a gang into a campaign, read two ways.
 
-An address rather than a picker: a gang sheet opens for anybody holding its
-address, so a player choosing to send one is already how a roster travels
-here. That makes the paste the consent, and means no screen has to offer a
-search across other people's gangs.
+A player at the table picks from their own gangs, because those are theirs to
+list. The arbitrator pastes an address instead: a gang sheet opens for anybody
+holding its address, so a player choosing to send one is already how a roster
+travels here — the paste is the consent, and no screen has to offer a search
+across other people's gangs.
 {% endcomment %}
 {% block head_title %}Add a gang to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -19,9 +20,9 @@ search across other people's gangs.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-gang' campaign.pk %}"
                      title="Add a gang to {{ campaign.name }}"
-                     lead="A gang plays one campaign at a time."
+                     lead="{% if arbitrating %}A gang plays one campaign at a time.{% else %}A gang plays one campaign at a time, and this one takes gangs up to its budget.{% endif %}"
                      :form="form"
-                     submit_label="Add gang"
+                     submit_label="{% if nothing_to_bring %}{% else %}Add gang{% endif %}"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -39,17 +40,42 @@ search across other people's gangs.
         </c-slot>
         {% csrf_token %}
         <c-n26.form-section title="The gang">
-            <c-ui.field label="Gang *"
-                        description="Paste the link a player sent you, or the gang’s id."
-                        error="x"
-                        :form="form"
-                        name="gang"
-                        for="join-gang">
-                <c-ui.input id="join-gang"
+            {% if arbitrating %}
+                <c-ui.field label="Gang *"
+                            description="Paste the link a player sent you, or the gang’s id."
+                            error="x"
+                            :form="form"
                             name="gang"
-                            autocomplete="off"
-                            value="{{ form.gang.value|default:'' }}" />
-            </c-ui.field>
+                            for="join-gang">
+                    <c-ui.input id="join-gang"
+                                name="gang"
+                                autocomplete="off"
+                                value="{{ form.gang.value|default:'' }}" />
+                </c-ui.field>
+            {% elif nothing_to_bring %}
+                <c-ui.alert variant="info" title="No gang to bring">
+                    Every gang of yours is already playing a campaign, or you
+                    have none yet. A gang plays one campaign at a time.
+                </c-ui.alert>
+            {% else %}
+                <c-ui.field label="Gang *"
+                            description="One of yours, worth no more than the campaign's budget."
+                            error="x"
+                            :form="form"
+                            name="gang"
+                            for="join-gang">
+                    <c-ui.select.native name="gang" id="join-gang" placeholder="">
+                        <c-ui.select.option value="">
+                            Choose a gang
+                        </c-ui.select.option>
+                        {% for option in gang_options %}
+                            <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
+                                {{ option.label }}
+                            </c-ui.select.option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+            {% endif %}
         </c-n26.form-section>
     </c-n26.form-page>
 {% endblock content %}

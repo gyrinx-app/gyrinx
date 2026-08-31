@@ -157,7 +157,7 @@ reader's other campaigns — the same pattern a gang's screens use.
         <section class="flex flex-col gap-2">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="text-sm font-medium text-muted">Gangs</h2>
-                {% if yours %}
+                {% if may_add_gang %}
                     <c-ui.button size="sm"
                                  variant="primary"
                                  href="{% url 'n26-campaign-add-gang' campaign.pk %}">
@@ -173,6 +173,17 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 <c-n26.link href="{% url 'n26-gang' membership.gang.pk %}">{{ membership.gang.name }}</c-n26.link>
                                 <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
                             </div>
+                            {% comment %}
+                            A gang worth more than the campaign said it would
+                            take is marked and nothing else: the arbitrator
+                            seated it, or it has grown since, and neither is
+                            something this page undoes.
+                            {% endcomment %}
+                            {% if membership.over_budget %}
+                                <c-ui.badge color="orange" size="sm">
+                                    Over budget
+                                </c-ui.badge>
+                            {% endif %}
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
                             {% if yours %}
                                 <c-ui.button size="sm"
