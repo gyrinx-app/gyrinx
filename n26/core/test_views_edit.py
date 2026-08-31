@@ -495,6 +495,7 @@ class TestKitActionsOnTheCard:
         assert response.url == edit_url(vex)
         sword.refresh_from_db()
         assert sword.archived is True
+        gang.refresh_from_db()
         from n26.core.reconcile import assert_reconciled
 
         assert_reconciled(gang)
