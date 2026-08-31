@@ -402,6 +402,13 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "fit":
+        # An accessory is the only thing bolted onto anything, so a URL
+        # naming something else draws no dialog at all. Without this a
+        # gun's own address opens a picker holding that same gun, whose
+        # answer would be attaching it to itself — a screen must not ask
+        # a question its answer refuses.
+        if assignment.weapon_accessory_id is None:
+            return None
         # Every gun on the card, and not only the ones the accessory was
         # written for: what fits what is information rather than a gate,
         # and an owner may bolt anything to anything.
@@ -691,6 +698,12 @@ def reassign_assignment(request, pk):
                     archived=False,
                 )
                 .exclude(weapon=None)
+                # Nothing hangs off itself. The operation says so too, but
+                # it says it by raising rather than refusing, so a
+                # hand-made click naming its own weapon is answered here
+                # with the same sentence as any other impossible
+                # destination.
+                .exclude(pk=assignment.pk)
                 .first()
             )
         except ValidationError:

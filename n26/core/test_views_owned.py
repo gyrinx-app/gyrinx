@@ -846,6 +846,25 @@ class TestFittingOneBackOntoAGun:
         assert stashed.parent_id is None
         assert_reconciled(gang)
 
+    def test_the_gun_it_lands_on_is_not_a_row_of_the_screen_it_left(
+        self, client, tester, gang, fighter, gun, stashed
+    ):
+        """The stash screen holds no row for a fighter's gun, and an
+        update naming one would tell the page to remove a row that is not
+        there."""
+        from n26.core.owned import thing_key
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", stashed),
+            {"to": "weapon", "weapon": str(gun.pk)},
+            headers={"HX-Request": "true"},
+        )
+
+        assert (
+            f'data-row="{thing_key(gun.assignable)}"' not in response.content.decode()
+        )
+
     def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun, stash):
         """The listing offers no control for this, so a click that reaches
         it is hand-made — and it is answered with a sentence rather than a
@@ -936,6 +955,31 @@ class TestFittingOneTheFighterIsCarrying:
         assert dialog["weapons"] == []
         assert dialog["submit_label"] == ""
 
+    def test_only_an_accessory_is_asked_the_question(self, fighter, gun, sword, loose):
+        """A gun's own address would otherwise open a picker holding that
+        same gun, and fitting a thing to itself is not an act."""
+        assert self.dialog(fighter, fit=str(gun.pk)) is None
+        assert self.dialog(fighter, fit=str(sword.pk)) is None
+
+    def test_a_hand_made_click_naming_its_own_weapon_is_answered_in_words(
+        self, client, tester, gang, gun
+    ):
+        """Nothing draws this address for a gun, so a click that arrives
+        is hand-made — and it gets a sentence rather than a traceback."""
+        client.force_login(tester)
+
+        response = client.post(
+            url("n26-reassign", gun),
+            {"to": "weapon", "weapon": str(gun.pk)},
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        assert "There is nowhere to move" in response.content.decode()
+        gun.refresh_from_db()
+        assert gun.parent_id is None
+        assert_reconciled(gang)
+
     def test_a_click_bolts_it_onto_the_named_gun(
         self, client, tester, gang, fighter, gun, loose
     ):
@@ -980,15 +1024,23 @@ class TestFittingOneTheFighterIsCarrying:
             headers={"HX-Request": "true"},
         )
 
-        body = response.content.decode()
-        assert f'data-row="{thing_key(gun.assignable)}"' in body
-        assert "Telescopic sight" in body
-        # Nothing holds it any more, so its own row goes rather than
-        # standing there offering to fit it a second time.
         from n26.core.templatetags.listing import row_dom_id
 
-        assert row_dom_id(thing_key(loose.assignable)) in body
-        assert 'hx-swap-oob="delete"' in body
+        body = response.content.decode()
+        assert f'data-row="{thing_key(gun.assignable)}"' in body
+        # Inside the gun's row rather than anywhere in the response: the
+        # update also re-delivers every accessory panel, and the panel
+        # for this gun offers the sight by name whether or not the second
+        # row was drawn at all.
+        gun_row = body.split(f'data-row="{thing_key(gun.assignable)}"', 1)[1]
+        gun_row = gun_row.split("n26-accessorise-host", 1)[0]
+        assert "Telescopic sight" in gun_row
+        # Nothing holds it any more, so its own row goes rather than
+        # standing there offering to fit it a second time. One string,
+        # because an id and a delete asserted apart are both satisfied by
+        # a response carrying only the first row.
+        gone = row_dom_id(thing_key(loose.assignable))
+        assert f'id="{gone}" hx-swap-oob="delete"' in body
 
 
 @pytest.fixture
