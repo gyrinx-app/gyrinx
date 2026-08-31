@@ -1,12 +1,16 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Putting a gang into a campaign, named by the link its player sent.
+Putting a gang into a campaign, read two ways.
 
-An address rather than a picker: a gang sheet opens for anybody holding its
-address, so a player choosing to send one is already how a roster travels
-here. That makes the paste the consent, and means no screen has to offer a
-search across other people's gangs.
+A player at the table picks from their own gangs, because those are theirs to
+list. The arbitrator pastes an address instead: a gang sheet opens for anybody
+holding its address, so a player choosing to send one is already how a roster
+travels here — the paste is the consent, and no screen has to offer a search
+across other people's gangs.
+
+One control, so the page is the heading, the field and the buttons. Anything
+between them restates what the heading has said.
 {% endcomment %}
 {% block head_title %}Add a gang to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -19,9 +23,8 @@ search across other people's gangs.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-gang' campaign.pk %}"
                      title="Add a gang to {{ campaign.name }}"
-                     lead="A gang plays one campaign at a time."
                      :form="form"
-                     submit_label="Add gang"
+                     submit_label="{% if not nothing_to_bring %}Add gang{% endif %}"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -38,18 +41,63 @@ search across other people's gangs.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="The gang">
-            <c-ui.field label="Gang *"
-                        description="Paste the link a player sent you, or the gang’s id."
-                        error="x"
-                        :form="form"
-                        name="gang"
-                        for="join-gang">
-                <c-ui.input id="join-gang"
+        <c-n26.form-section>
+            {% if arbitrating %}
+                <c-ui.field label="Gang *"
+                            description="Paste the link a player sent you, or the gang’s id."
+                            error="x"
+                            :form="form"
                             name="gang"
-                            autocomplete="off"
-                            value="{{ form.gang.value|default:'' }}" />
-            </c-ui.field>
+                            for="join-gang">
+                    <c-ui.input id="join-gang"
+                                name="gang"
+                                autocomplete="off"
+                                :required="True"
+                                value="{{ form.gang.value|default:'' }}" />
+                </c-ui.field>
+            {% elif nothing_to_bring %}
+                {% comment %}
+                Which of the two reasons decides what the reader does next, so
+                the page says which rather than covering both and leaving them
+                to work it out.
+                {% endcomment %}
+                {% if every_gang_busy %}
+                    <c-ui.alert variant="info" title="Every gang of yours is in a campaign">
+                        A gang plays one campaign at a time, so none of yours
+                        can join this one.
+                    </c-ui.alert>
+                {% else %}
+                    <c-ui.alert variant="info" title="No gangs yet">
+                        You have no gangs to add.
+                        <c-n26.link href="{% url 'n26-create-gang' %}">Create one</c-n26.link>
+                        first.
+                    </c-ui.alert>
+                {% endif %}
+            {% else %}
+                <c-ui.field label="Gang *"
+                            description="Your gangs that are not already in a campaign.{% if campaign.budget is not None %} The campaign's budget is {{ campaign.budget }}¢, and a bigger gang can still join.{% endif %}"
+                            error="x"
+                            :form="form"
+                            name="gang"
+                            for="join-gang">
+                    {% comment %}
+                    The kit's own placeholder draws the blank option, disabled
+                    and selected. A hand-written one is neither, so a reader
+                    can pick the blank back and submit an empty form.
+                    {% endcomment %}
+                    <c-ui.select.native name="gang"
+                                        id="join-gang"
+                                        placeholder="Select one"
+                                        :required="True"
+                                        value="{{ form.gang.value|default:'' }}">
+                        {% for option in gang_options %}
+                            <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
+                                {{ option.label }}
+                            </c-ui.select.option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+            {% endif %}
         </c-n26.form-section>
     </c-n26.form-page>
 {% endblock content %}

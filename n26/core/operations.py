@@ -437,6 +437,11 @@ class Operation:
         the same line, and a player owed an explanation is better served by the
         sentence than by a constraint error.
 
+        A campaign's budget stops nobody: it is a size the table agreed on,
+        and a gang bigger than it joins and is said to be bigger. What
+        counts against the budget is the gang's wealth — see
+        :func:`over_budget` — and the screens that add a gang say so.
+
         Nothing about the gang changes but where it plays. The event is the
         gang's own, and names the campaign, so it reads in both histories from
         one record.

@@ -269,6 +269,18 @@ class CampaignOperation:
         return campaign
 
 
+def over_budget(campaign, gang):
+    """Whether this gang is bigger than the campaign's stated size.
+
+    Measured on the gang's wealth: its rating, its stash and the credits it
+    has not spent. Spending moves credits into rating or stash and changes
+    none of the total, so wealth today is what the gang's rating and stash
+    come to once it has bought everything it can — which is the number a
+    budget is about. A campaign with no budget is never over it.
+    """
+    return campaign.budget is not None and gang.wealth > campaign.budget
+
+
 @contextmanager
 def campaign_operation(campaign, actor=None):
     """One transaction, under the campaign's own line.

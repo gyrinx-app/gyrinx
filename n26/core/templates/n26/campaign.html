@@ -157,7 +157,7 @@ reader's other campaigns — the same pattern a gang's screens use.
         <section class="flex flex-col gap-2">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="text-sm font-medium text-muted">Gangs</h2>
-                {% if yours %}
+                {% if may_add_gang %}
                     <c-ui.button size="sm"
                                  variant="primary"
                                  href="{% url 'n26-campaign-add-gang' campaign.pk %}">
@@ -173,8 +173,31 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 <c-n26.link href="{% url 'n26-gang' membership.gang.pk %}">{{ membership.gang.name }}</c-n26.link>
                                 <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
                             </div>
-                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
-                            {% if yours %}
+                            {% comment %}
+                            A gang bigger than the campaign's budget is
+                            marked and nothing else. The budget stops
+                            nobody joining; it says what size the table
+                            agreed on.
+                            {% endcomment %}
+                            {% comment %}
+                            Amber rather than orange: orange is what an
+                            invitation still waiting wears further up this
+                            page, and one colour cannot mean two things on
+                            one screen.
+                            {% endcomment %}
+                            {% if membership.over_budget %}
+                                <c-ui.badge color="amber" size="sm" class="shrink-0">
+                                    Over budget
+                                </c-ui.badge>
+                            {% endif %}
+                            {% comment %}
+                            Wealth, which is what the mark beside it is
+                            measured against — rating, stash and unspent
+                            credits, the same figure the gang's own sheet
+                            gives that name.
+                            {% endcomment %}
+                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.wealth }}¢</span>
+                            {% if membership.may_remove %}
                                 <c-ui.button size="sm"
                                              variant="ghost"
                                              href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"

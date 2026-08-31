@@ -175,28 +175,51 @@ def campaign(request, pk):
     is a campaign, not its history, and a log that grew without bound would
     push everything else off the bottom.
     """
+    from n26.core.campaigns import over_budget
     from n26.core.history import campaign_history, campaign_history_size
-    from n26.core.models import CampaignMembership
+    from n26.core.models import CampaignMembership, CampaignParticipant
+
+    accepted = CampaignParticipant.State.ACCEPTED
 
     found = _any_campaign_or_404(pk)
-    yours = found.owner_id == getattr(request.user, "id", None)
+    reading = getattr(request.user, "id", None)
+    yours = found.owner_id == reading
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
     recent = campaign_history(found, viewer=request.user, limit=LOG_ON_THE_PAGE)
-    playing = (
+    playing = list(
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
-        .select_related("gang", "gang__gang_type", "gang__owner")
+        .select_related("gang", "gang__gang_type", "gang__owner", "gang__stash")
         .order_by("gang__name")
     )
+    # Read now rather than at the moment of joining: a gang that has grown
+    # past the campaign's ceiling since is as much worth saying as one that
+    # arrived over it, and neither is anything the page stops.
+    for membership in playing:
+        membership.wealth = membership.gang.wealth
+        membership.over_budget = over_budget(found, membership.gang)
+        # The arbitrator may take any gang out; a player only their own.
+        membership.may_remove = yours or membership.gang.owner_id == reading
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
+    # Read once and asked twice: the page draws the participants, and
+    # whether this reader is one of them decides what it offers them.
+    participants = list(_participants(found))
+    at_the_table = any(
+        participant.user_id == reading and participant.state == accepted
+        for participant in participants
+    )
+
     return render(
         request,
         "n26/campaign.html",
         {
             "campaign": found,
             "yours": yours,
-            "participants": _participants(found),
+            # A player at the table brings their own gangs; the arbitrator
+            # brings anybody's. Both reach the same screen.
+            "may_add_gang": yours or at_the_table,
+            "participants": participants,
             "playing": playing,
             "battles": battles,
             "acts": list(reversed(recent)),
@@ -272,20 +295,37 @@ def archive_campaign(request, pk):
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_gang(request, pk):
-    """Put a gang into this campaign.
+    """Put a gang into this campaign — the same address, read two ways.
 
-    The arbitrator's act, not the gang owner's: a campaign is run by somebody,
-    and it is that somebody who says who is in it. Nothing about the gang
-    changes but where it plays, and the gang's own history says it happened
-    and who did it. Taking a gang back out is the arbitrator's act too.
+    A player at the table brings one of their own, chosen from a list, and
+    the campaign's budget is the entry condition they have to meet. The
+    arbitrator brings anybody's, named by the address they were sent, and
+    may seat a gang worth more than the budget: they set that number, so
+    they are the one who may go past it.
+
+    Nothing about the gang changes but where it plays, and the gang's own
+    history says it happened and who did it. Taking a gang back out is the
+    arbitrator's act.
     """
-    from n26.core.forms import JoinCampaignForm
+    from django.http import Http404
+
+    from n26.core.campaigns import over_budget
+    from n26.core.forms import BringGangForm, JoinCampaignForm
+    from n26.core.models import Gang
     from n26.core.operations import Refusal, operation
 
-    found = _own_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(pk)
+    arbitrating = found.owner_id == getattr(request.user, "id", None)
+    if not arbitrating and not _plays_in(found, request.user):
+        raise Http404("No such campaign")
+
+    def build(data=None):
+        if arbitrating:
+            return JoinCampaignForm(data)
+        return BringGangForm(data, owner=request.user)
 
     if request.method == "POST":
-        form = JoinCampaignForm(request.POST)
+        form = build(request.POST)
         if form.is_valid():
             gang = form.cleaned_data["gang"]
             try:
@@ -295,14 +335,51 @@ def add_gang(request, pk):
                 messages.error(request, str(refused))
             else:
                 messages.success(request, f"{gang.name} joined {found.name}.")
+                # Said after the fact, because the budget stops nobody. The
+                # sum is spelled out: a reader comparing this against their
+                # gang sheet should not have to work out which figures it
+                # added together.
+                gang.refresh_from_db()
+                if over_budget(found, gang):
+                    messages.warning(
+                        request,
+                        f"{gang.name} is over the budget. Its rating "
+                        f"{gang.rating:,}¢, stash {gang.stash_rating:,}¢ and "
+                        f"credits {gang.credits:,}¢ add up to "
+                        f"{gang.wealth:,}¢. The budget is {found.budget:,}¢.",
+                    )
                 return redirect("n26-campaign", pk=found.pk)
     else:
-        form = JoinCampaignForm()
+        form = build()
 
+    # The options are built here because a component attribute takes a
+    # variable and not an expression: a comparison written at the call site
+    # would evaluate to nothing and every option would draw unselected.
+    options = []
+    if not arbitrating:
+        chosen = str(form["gang"].value() or "")
+        options = [
+            {"value": str(row.pk), "label": row.name, "selected": str(row.pk) == chosen}
+            for row in form.fields["gang"].queryset
+        ]
+
+    # A player with nothing to bring is told so, rather than shown a picker
+    # with nothing in it.
+    nothing_to_bring = not arbitrating and not options
     return render(
         request,
         "n26/add_gang_to_campaign.html",
-        {"form": form, "campaign": found},
+        {
+            "form": form,
+            "campaign": found,
+            "arbitrating": arbitrating,
+            "gang_options": options,
+            "nothing_to_bring": nothing_to_bring,
+            # Which of the two reasons the picker is empty: owning no gangs
+            # and owning only gangs already playing lead somewhere different.
+            "every_gang_busy": nothing_to_bring
+            and Gang.objects.filter(owner=request.user, archived=False).exists(),
+        },
     )
 
 
@@ -314,17 +391,27 @@ def remove_gang(request, pk, gang_pk):
     GET asks and changes nothing; the POST from that page takes the gang out.
     What the gang did while it was in the campaign stays in both histories —
     leaving closes its membership rather than unwriting anything.
+
+    The arbitrator may take any gang out, and a player may take out their
+    own. A player who can put a gang in has to be able to take it back:
+    a gang plays one campaign at a time, so one left in the wrong campaign
+    is a gang that can join no other until somebody else acts.
     """
+    from django.http import Http404
+
     from n26.core.models import CampaignMembership
     from n26.core.operations import operation
 
-    found = _own_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(pk)
     membership = get_object_or_404(
         CampaignMembership.objects.select_related("gang"),
         campaign=found,
         gang__pk=gang_pk,
         left__isnull=True,
     )
+    reading = getattr(request.user, "id", None)
+    if found.owner_id != reading and membership.gang.owner_id != reading:
+        raise Http404("No such gang in this campaign")
 
     if request.method == "POST":
         name = membership.gang.name
@@ -435,6 +522,25 @@ def _person(value):
         return User.objects.filter(pk=int(value), is_active=True).first()
     except TypeError, ValueError:
         return None
+
+
+def _plays_in(campaign, user):
+    """Whether this reader has a place at this campaign's table.
+
+    Accepted and nothing else: an invitation still waiting has not been
+    answered, and a declined one is over. Somebody who arbitrates the
+    campaign is not a participant of it, so callers asking "may this reader
+    act here" have to ask both questions.
+    """
+    from n26.core.models import CampaignParticipant
+
+    if not user.is_authenticated:
+        return False
+    return CampaignParticipant.objects.filter(
+        campaign=campaign,
+        user=user,
+        state=CampaignParticipant.State.ACCEPTED,
+    ).exists()
 
 
 def _participants(campaign):

@@ -332,9 +332,9 @@ class RenameFighterForm(forms.Form):
 class CampaignForm(forms.Form):
     """Setting a campaign up, and editing one afterwards.
 
-    ``budget`` is what a gang founded for this campaign has to spend on
-    models and gear; whatever is left goes to its stash, so it settles what
-    the gang is worth on the day it starts. The field's ``initial`` is 1000,
+    ``budget`` is how much a gang should be worth to join — its rating, its
+    stash and the credits it has not spent. It refuses nobody: a bigger gang
+    joins and is marked as over it. The field's ``initial`` is 1000,
     the usual figure, so set-up opens there. Edit supplies the stored value,
     so a campaign that sets none stays blank. Blank is not zero — it means
     no budget at all — and lands as ``budget=None``.
@@ -350,7 +350,9 @@ class CampaignForm(forms.Form):
         min_value=0,
         initial=1000,
         label="Gang budget",
-        help_text="What a gang has to spend when it is founded. Blank sets none.",
+        help_text=(
+            "How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Blank sets none."
+        ),
     )
     summary = forms.CharField(
         required=False,
@@ -358,6 +360,38 @@ class CampaignForm(forms.Form):
         widget=RichText(),
         help_text="What this campaign is, and whatever the table has agreed.",
     )
+
+
+class BringGangForm(forms.Form):
+    """One of the reader's own gangs, to bring into a campaign.
+
+    A picker rather than the arbitrator's paste field: these are the
+    reader's own gangs, so there is a list to offer and no address to ask
+    for. Gangs already playing somewhere are left out — a gang plays one
+    campaign at a time, and offering one that would be refused is worse
+    than not offering it.
+    """
+
+    #: The screen draws the picker itself, so what the reader is told about
+    #: it is written there. A help_text here would say nothing to anybody.
+    #: ``owner`` has no default: a queryset built without one would filter
+    #: on a null owner and offer gangs belonging to nobody.
+    gang = forms.ModelChoiceField(queryset=None, label="Gang")
+
+    def __init__(self, *args, owner, **kwargs):
+        from n26.core.models import CampaignMembership, Gang
+
+        super().__init__(*args, **kwargs)
+        # Named by key rather than excluded across the relation: an
+        # exclude() reaching through campaign_memberships would test the
+        # outer join's own NULLs and throw away every gang that has never
+        # been in a campaign — which is most of the ones worth offering.
+        playing = CampaignMembership.objects.filter(left__isnull=True).values("gang")
+        self.fields["gang"].queryset = (
+            Gang.objects.filter(owner=owner, archived=False)
+            .exclude(pk__in=playing)
+            .order_by("name")
+        )
 
 
 class JoinCampaignForm(forms.Form):
