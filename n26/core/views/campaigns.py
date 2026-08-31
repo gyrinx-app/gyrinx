@@ -176,7 +176,9 @@ def campaign(request, pk):
     push everything else off the bottom.
     """
     from n26.core.history import campaign_history, campaign_history_size
-    from n26.core.models import CampaignMembership
+    from n26.core.models import CampaignMembership, CampaignParticipant
+
+    accepted = CampaignParticipant.State.ACCEPTED
 
     found = _any_campaign_or_404(pk)
     yours = found.owner_id == getattr(request.user, "id", None)
@@ -198,6 +200,15 @@ def campaign(request, pk):
             and membership.gang.rating_with_stash > found.budget
         )
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
+    # Read once and asked twice: the page draws the participants, and
+    # whether this reader is one of them decides what it offers them.
+    participants = list(_participants(found))
+    reading = getattr(request.user, "id", None)
+    at_the_table = any(
+        participant.user_id == reading and participant.state == accepted
+        for participant in participants
+    )
+
     return render(
         request,
         "n26/campaign.html",
@@ -206,8 +217,8 @@ def campaign(request, pk):
             "yours": yours,
             # A player at the table brings their own gangs; the arbitrator
             # brings anybody's. Both reach the same screen.
-            "may_add_gang": yours or _plays_in(found, request.user),
-            "participants": _participants(found),
+            "may_add_gang": yours or at_the_table,
+            "participants": participants,
             "playing": playing,
             "battles": battles,
             "acts": list(reversed(recent)),

@@ -10,9 +10,10 @@ from django.db import IntegrityError, transaction
 
 from n26.core.campaigns import campaign_operation
 from n26.core.history import build, campaign_history, campaign_history_size
-from n26.core.models import Campaign, CampaignMembership, LedgerEvent
+from n26.core.models import Campaign, CampaignMembership, Gang, LedgerEvent
 from n26.core.operations import AlreadyInACampaign, OverCampaignBudget, operation
-from n26.tests.sandbox.actions import found_gang, hire
+from n26.library.authoring import create_wargear
+from n26.tests.sandbox.actions import assign, found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
@@ -157,6 +158,20 @@ class TestTheBudgetAtTheDoor:
         assert CampaignMembership.objects.filter(
             gang=gang, campaign=other_campaign, left__isnull=True
         ).exists()
+
+    def test_the_stash_is_counted(self, gang, arbitrator):
+        """Gear put aside still belongs to the gang, so it still weighs."""
+        before = gang.rating_with_stash
+        assign(create_wargear("Ammo crate", price=25), stash=gang.stash, paid=25)
+        # Fetched again rather than refreshed: the stash is a cached reverse
+        # relation, and its pinned rating is what changed.
+        gang = Gang.objects.get(pk=gang.pk)
+        assert gang.rating_with_stash == before + 25
+
+        snug = Campaign.objects.create(name="Snug", owner=arbitrator, budget=before)
+        with pytest.raises(OverCampaignBudget):
+            with operation(gang, actor=arbitrator) as op:
+                op.join_campaign(snug)
 
     def test_cash_in_hand_is_not_counted(self, gang, arbitrator):
         """The cap is on what the gang owns, so money it has not spent

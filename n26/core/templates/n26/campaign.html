@@ -184,7 +184,16 @@ reader's other campaigns — the same pattern a gang's screens use.
                                     Over budget
                                 </c-ui.badge>
                             {% endif %}
-                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
+                            {% comment %}
+                            What the campaign weighs, which counts the stash —
+                            not the gang's own rating, which does not. A roll
+                            showing one number and marking against the other
+                            reads as a mistake in whichever the reader trusts.
+                            {% endcomment %}
+                            <span class="shrink-0 text-sm tabular-nums text-muted"
+                                  title="Models, their gear and the stash">
+                                {{ membership.gang.rating_with_stash }}¢
+                            </span>
                             {% if yours %}
                                 <c-ui.button size="sm"
                                              variant="ghost"
