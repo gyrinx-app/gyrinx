@@ -108,10 +108,11 @@ class TestRemovingABuiltIn:
         ]
         assert_reconciled(gang)
 
-    def test_a_copy_with_no_link_still_keeps_the_membership(self, gang, ganger):
-        """A copy carrying no provenance link cannot name its membership,
-        so a free-granted copy of the same thing keeps it archived rather
-        than deleted — the row is what a link repair anchors to."""
+    def test_a_copy_with_no_link_no_longer_keeps_the_membership(self, gang, ganger):
+        """Provenance answers for every kind the estate tags, so a copy
+        stripped of its link reads as the owner's own and the membership
+        goes completely — only ammo, which is never tagged, still keeps
+        its member archived on the strength of an unlinked line."""
         hire(gang, ganger, "Ana", paid=50)
         member = member_named(ganger, "Stub gun")
         for row in Assignment.objects.filter(materialised_from=member):
@@ -121,8 +122,7 @@ class TestRemovingABuiltIn:
 
         remove_default_member(member)
 
-        member.refresh_from_db()
-        assert member.archived is True
+        assert not DefaultAssignment.objects.filter(pk=member.pk).exists()
         assert_reconciled(gang)
 
     def test_a_member_nothing_materialised_from_goes_completely(self, ganger):
@@ -348,10 +348,11 @@ class TestRechooseFindsGrantsByProvenance:
         assert sword.materialised_for_id == fighter.membership.pk
         assert_reconciled(gang)
 
-    def test_copies_without_provenance_leave_too(self, gang, chooser):
+    def test_copies_without_provenance_are_the_owners_and_stay(self, gang, chooser):
+        """An unlinked copy of anything but ammo is never seized: the
+        unwind takes only what provenance names, so a copy stripped of
+        its link stays with the owner when the set is chosen away."""
         fighter = hire_with_option(gang, chooser, "Ana")
-        # Wiped to stand in for copies that carry no provenance link,
-        # which the unwind must still find by their written shape.
         for row in Assignment.objects.filter(
             miniature_root=fighter, materialised_from__isnull=False
         ):
@@ -361,7 +362,7 @@ class TestRechooseFindsGrantsByProvenance:
 
         self.rechoose(gang, fighter, self.sets_of(chooser)["Fancy kit"])
 
-        assert weapon_names(fighter) == ["Sword"]
+        assert weapon_names(fighter) == ["Knife", "Sword"]
         assert_reconciled(gang)
 
     def test_an_archived_members_copy_still_leaves_with_its_set(self, gang, chooser):

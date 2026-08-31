@@ -1122,24 +1122,25 @@ def remove_default_member(member):
 def _something_materialised(member):
     """Whether any copy in any gang came from this membership.
 
-    A copy carrying provenance names it outright. A copy with no
-    recorded link cannot say which membership it satisfies, so any
-    free-granted copy of the same thing counts instead — deliberately
-    loose evidence: archiving too readily leaves one hidden row, while
-    deleting too readily destroys the only row a link repair could
-    anchor those copies to.
+    Provenance answers outright for every kind the estate tags. Ammo is
+    the one kind outside that regime — a granted firing line is written
+    in the same shape as a weapon's own free lines and never carries
+    provenance — so for a weapon-profile member any free-granted line of
+    the same profile still counts, and the member is archived rather
+    than deleted so those lines keep their anchor.
     """
     from n26.core.models import Assignment, Reason
+    from n26.library.models import WeaponProfile
 
     if Assignment.objects.filter(materialised_from=member).exists():
         return True
     assignable = member.assignable
-    if assignable is None:
+    if not isinstance(assignable, WeaponProfile):
         return False
     return Assignment.objects.filter(
         materialised_from__isnull=True,
         ledger_entry__reason=Reason.DEFAULT,
-        **{Assignment.field_for(assignable): assignable},
+        weapon_profile=assignable,
     ).exists()
 
 
