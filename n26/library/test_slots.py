@@ -419,6 +419,77 @@ class TestARollTable:
         assert legacies.roll_selects == ""
 
 
+class TestCoverage:
+    """Whether a table's bands claim its die: gaps and overlaps make a
+    table unrollable, and neither can be seen one row at a time — which
+    is what the table page exists to show."""
+
+    @pytest.fixture
+    def injury(self, default_pack):
+        return create_slot_type("Lasting Injury", allows_repeats=True)
+
+    @pytest.fixture
+    def table(self, injury):
+        return create_picklist(
+            "Lasting Injury Table", injury, dice="d66", roll_selects="band"
+        )
+
+    def add(self, table, injury, name, low, high=None):
+        return add_picklist_member(
+            table, create_pickable(name, injury), roll_low=low, roll_high=high
+        )
+
+    def test_a_band_counts_only_rolls_the_die_can_produce(self, table, injury):
+        """ "31-46" on a D66 is twelve rolls, not sixteen: 37 through 40
+        can never come up."""
+        from n26.library.views import coverage
+
+        self.add(table, injury, "Grievous Wound", 31, 46)
+        said = coverage(table)
+        assert said.total == 36
+        assert said.covered == 12
+
+    def test_unclaimed_rolls_are_named(self, table, injury):
+        from n26.library.views import coverage
+
+        self.add(table, injury, "Out Cold", 21, 26)
+        said = coverage(table)
+        assert 11 in said.unclaimed and 66 in said.unclaimed
+        assert 22 not in said.unclaimed
+        assert 37 not in said.unclaimed
+
+    def test_a_roll_claimed_twice_names_both_results(self, table, injury):
+        from n26.library.views import coverage
+
+        self.add(table, injury, "Eye Injury", 51)
+        self.add(table, injury, "Hand Injury", 51, 52)
+        said = coverage(table)
+        assert [m.label for m in dict(said.doubled)[51]] == [
+            "Eye Injury",
+            "Hand Injury",
+        ]
+        assert 52 not in dict(said.doubled)
+
+    def test_a_complete_table_reports_itself_whole(self, injury):
+        from n26.library.views import coverage
+
+        table = create_picklist("Whole", injury, dice="d6", roll_selects="band")
+        self.add(table, injury, "Low", 1, 3)
+        self.add(table, injury, "High", 4, 6)
+        said = coverage(table)
+        assert said.covered == said.total == 6
+        assert said.unclaimed == []
+        assert said.doubled == []
+
+    def test_a_bandless_result_claims_nothing_and_is_named(self, table, injury):
+        from n26.library.views import coverage
+
+        add_picklist_member(table, create_pickable("Lesson Learnt", injury))
+        said = coverage(table)
+        assert [m.label for m in said.bandless] == ["Lesson Learnt"]
+        assert said.covered == 0
+
+
 class TestWhatEachDieCanRoll:
     """The rolls a table has to cover, per die. D66 is the one worth
     stating: it is two D6 read as tens and units, so 37 through 40 can

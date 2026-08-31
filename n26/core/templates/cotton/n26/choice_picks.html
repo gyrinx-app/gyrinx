@@ -48,6 +48,12 @@ that holds one.
                 <ul class="divide-y divide-box-border border-y border-box-border">
                     {% for option in group.options %}
                         <li class="flex items-center gap-3 py-2">
+                            {% comment %}
+                            On a roll table the band leads the row, in a fixed
+                            column, so a player who rolled on the physical
+                            table finds their result by scanning the numbers.
+                            {% endcomment %}
+                            {% if option.band %}<span class="w-12 shrink-0 text-right tabular-nums text-muted">{{ option.band }}</span>{% endif %}
                             <span class="min-w-0 flex-1">
                                 <span class="block text-ink-900 dark:text-ink-100">{{ option.name }}</span>
                                 {% comment %}

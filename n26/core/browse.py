@@ -114,6 +114,10 @@ class Listed:
 
     thing: object
     name: str
+    #: The band of rolls that lands on this row, as a roll table prints
+    #: it — "51", "21-26" — or nothing on an ordinary list. A player who
+    #: rolled on the physical table finds their result by this.
+    band: str = ""
 
 
 @dataclass(frozen=True)
@@ -753,12 +757,22 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     and an owner may still hand over something off it.
     """
     if slot.slot is not None:
+        members = slot.slot.picklist.members.select_related("pickable")
+        if slot.slot.picklist.dice:
+            # A roll table is read by the roll, so its picker comes in
+            # roll order — a player who rolled 24 scans for the band
+            # that holds it. Bandless rows gather at the end.
+            from django.db.models import F
+
+            members = members.order_by(
+                F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+            )
         return [
-            Listed(thing=member.pickable, name=member.label)
+            Listed(thing=member.pickable, name=member.label, band=member.band)
             # One query for the whole list: the wording is the member's
             # and the identity is the pickable's, so a list of thirty
             # pickables must not be thirty fetches.
-            for member in slot.slot.picklist.members.select_related("pickable")
+            for member in members
         ]
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None

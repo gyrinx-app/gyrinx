@@ -1838,6 +1838,87 @@ class TestAChoiceThatHoldsNone:
         assert ">Add</" not in row
 
 
+class TestARollTableInThePicker:
+    """A player who rolled on the physical table finds their result by
+    the roll: the picker leads each option with its band and lists them
+    in roll order. An ordinary list draws exactly as it always has."""
+
+    @pytest.fixture
+    def injury(self, default_pack):
+        return create_slot_type("Lasting Injury", allows_repeats=True)
+
+    @pytest.fixture
+    def results(self, injury):
+        # Added out of roll order, so order on screen is the table's.
+        return [
+            create_pickable("Eye Injury", injury),
+            create_pickable("Lesson Learnt", injury),
+            create_pickable("Out Cold", injury),
+        ]
+
+    @pytest.fixture
+    def yolanda(self, gang, person_type, gang_type, injury, results):
+        table = create_picklist(
+            "Lasting Injury Table", injury, dice="d66", roll_selects="band"
+        )
+        for pickable, (low, high) in zip(
+            results, [(51, 51), (11, 11), (21, 26)], strict=True
+        ):
+            add_picklist_member(table, pickable, roll_low=low, roll_high=high)
+        slot = create_slot(
+            "Lasting Injury",
+            injury,
+            table,
+            label="Lasting Injuries",
+            min_picks=0,
+            max_picks=3,
+        )
+        profile = create_profile("Ganger", person_type, gang_type, price=50)
+        add_built_in(profile, slot)
+        return hire(gang, profile, "Yolanda", paid=50)
+
+    def offer_for(self, miniature):
+        _, computed = card_of(miniature)
+        slot = next(s for s in computed.choices if s.kind_label == "Lasting Injuries")
+        return build_choice_offer(slot, computed)
+
+    def test_each_option_carries_its_band_in_roll_order(self, gang, yolanda):
+        offer = self.offer_for(yolanda)
+        rows = [(o.band, o.name) for g in offer.groups for o in g.options]
+        assert rows == [
+            ("11", "Lesson Learnt"),
+            ("21-26", "Out Cold"),
+            ("51", "Eye Injury"),
+        ]
+        assert_reconciled(gang)
+
+    def test_an_ordinary_list_carries_no_bands(self, gang, hunter, houses):
+        sev = hire(gang, hunter, "Sev", paid=100)
+        _, computed = card_of(sev)
+        offer = build_choice_offer(next(iter(choices_of(sev))), computed)
+        assert all(o.band == "" for g in offer.groups for o in g.options)
+        assert_reconciled(gang)
+
+    def test_the_page_leads_each_row_with_the_band(self, client, owner, gang, yolanda):
+
+        from n26.core.views.choose import link_slots
+
+        client.force_login(owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        href = next(
+            line.href
+            for card in sheet.models
+            for line in card.questions
+            if line.kind_label == "Lasting Injuries"
+        )
+        body = client.get(href).content.decode()
+        assert "21-26" in body
+        # The band sits just ahead of its result's name on the row.
+        assert ">11<" in body[: body.index("Lesson Learnt")][-300:]
+        assert_reconciled(gang)
+
+
 class TestThePickerStaysFlatHoweverLongTheList:
     def test_the_page_reads_flat_as_the_list_grows(
         self, gang, hunter, legacy, legacies, client, owner, django_assert_num_queries

@@ -1426,32 +1426,26 @@ class TestAPicklistsOwnPage:
 
         assert [member.label for member in houses.members.all()] == ["Cawdor", "Escher"]
 
-    def test_the_add_form_offers_a_band_and_stores_what_it_is_given(
+    def test_a_roll_tables_results_are_worked_on_the_table_page(
         self, author, client, legacy
     ):
-        """A roll table's rows carry bands, so the form that adds a row
-        asks for one. A picklist that is not a table shows the fields
-        blank rather than hiding them."""
-        from n26.library.authoring import create_pickable, create_picklist
-        from n26.library.models import PicklistMember
+        """A result only means anything with its band and the coverage
+        check, so a roll table's detail page offers no member form — the
+        section says what the table is and sends an author to its page.
+        An ordinary picklist keeps its form, band fields included."""
+        from n26.library.authoring import create_picklist
 
         table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
-        hobbled = create_pickable("Hobbled", legacy)
-
         body = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
-        assert 'name="roll_low"' in body and 'name="roll_high"' in body
+        assert "Roll table" in body
+        assert "0 of 36 rolls covered" in body
+        assert 'name="pickable"' not in body
+        assert f'href="/n26/authoring/picklists/{table.pk}/table/"' in body
 
-        client.post(
-            f"/n26/authoring/picklist/{table.pk}/",
-            {
-                "pickable": str(hobbled.pk),
-                "label_override": "",
-                "position": "0",
-                "roll_low": "53",
-                "roll_high": "53",
-            },
-        )
-        assert PicklistMember.objects.get(pickable=hobbled).band == "53"
+        plain = create_picklist("Plain", legacy)
+        body = client.get(f"/n26/authoring/picklist/{plain.pk}/").content.decode()
+        assert 'name="pickable"' in body
+        assert 'name="roll_low"' in body and 'name="roll_high"' in body
 
     def test_a_roll_tables_page_leads_each_row_with_its_band(
         self, author, client, legacy
@@ -1564,6 +1558,17 @@ class TestAPicklistsOwnPage:
         assert response.status_code == 302
         assert Picklist.objects.get(pk=table.pk).name == "Lasting Injuries"
 
+    def test_a_roll_table_links_to_its_table_page(self, author, client, legacy):
+        from n26.library.authoring import create_picklist
+
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        body = client.get(f"/n26/authoring/picklist/{table.pk}/").content.decode()
+        assert f'href="/n26/authoring/picklists/{table.pk}/table/"' in body
+
+        plain = create_picklist("Plain", legacy)
+        body = client.get(f"/n26/authoring/picklist/{plain.pk}/").content.decode()
+        assert "/table/" not in body
+
     def test_a_band_on_a_list_with_no_dice_is_refused_on_the_page(
         self, author, client, legacy
     ):
@@ -1612,6 +1617,171 @@ class TestAPicklistsOwnPage:
         assert not PicklistMember.objects.exists()
         # The pickable itself is untouched — only what the list offers changed.
         assert Pickable.objects.filter(name="Cawdor").exists()
+
+
+class TestARollTablesOwnPage:
+    """The table as the book prints it, and whether it can be rolled at
+    all: gaps and overlaps are facts about the whole table, invisible one
+    row at a time, so they get a page that sees all the rows at once."""
+
+    @pytest.fixture
+    def table(self, legacy):
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+        )
+
+        from_bands = [
+            ("Out Cold", 21, 26),
+            ("Lesson Learnt", 11, 11),
+            ("Grievous Wound", 31, 46),
+        ]
+        table = create_picklist("Injuries", legacy, dice="d66", roll_selects="band")
+        for name, low, high in from_bands:
+            add_picklist_member(
+                table, create_pickable(name, legacy), roll_low=low, roll_high=high
+            )
+        return table
+
+    def url(self, table):
+        from django.urls import reverse
+
+        return reverse("authoring-picklist-table", args=[table.pk])
+
+    def test_the_address_resolves_ahead_of_the_kind_catch_all(
+        self, author, client, table
+    ):
+        assert self.url(table) == f"/n26/authoring/picklists/{table.pk}/table/"
+        assert client.get(self.url(table)).status_code == 200
+
+    def test_the_rows_come_in_roll_order_with_their_bands(self, author, client, table):
+        body = client.get(self.url(table)).content.decode()
+        assert body.index("Lesson Learnt") < body.index("Out Cold")
+        assert body.index("Out Cold") < body.index("Grievous Wound")
+        assert "21-26" in body
+
+    def test_it_says_what_is_unclaimed(self, author, client, table):
+        body = client.get(self.url(table)).content.decode()
+        assert "19 of 36 rolls covered" in body
+        assert "12" in body and "61" in body
+
+    def test_it_says_when_a_roll_is_claimed_twice(self, author, client, table, legacy):
+        from n26.library.authoring import add_picklist_member, create_pickable
+
+        add_picklist_member(
+            table, create_pickable("Also Out Cold", legacy), roll_low=26
+        )
+        body = client.get(self.url(table)).content.decode()
+        assert "claimed by more than one result" in body
+        assert "Also Out Cold" in body
+
+    def test_a_whole_table_says_so(self, author, client, legacy):
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+        )
+
+        whole = create_picklist("Whole", legacy, dice="d6", roll_selects="band")
+        add_picklist_member(
+            whole, create_pickable("All of it", legacy), roll_low=1, roll_high=6
+        )
+        body = client.get(self.url(whole)).content.decode()
+        assert "6 of 6 rolls covered" in body
+
+    def test_a_bandless_result_keeps_a_covered_table_out_of_the_clear(
+        self, author, client, legacy
+    ):
+        """Every roll may be claimed and a result still unreachable: a
+        row with no band is on the list and never rolled, which is as
+        much a fault as a gap."""
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+        )
+
+        table = create_picklist("Whole", legacy, dice="d6", roll_selects="band")
+        add_picklist_member(
+            table, create_pickable("All of it", legacy), roll_low=1, roll_high=6
+        )
+        add_picklist_member(table, create_pickable("Unrollable", legacy))
+        body = client.get(self.url(table)).content.decode()
+        assert "Unrollable has no band, so no roll lands on it" in body
+
+    def test_a_row_is_added_from_the_page_with_its_band(
+        self, author, client, table, legacy
+    ):
+        from n26.library.authoring import create_pickable
+        from n26.library.models import PicklistMember
+
+        eye = create_pickable("Eye Injury", legacy)
+        client.post(
+            self.url(table),
+            {
+                "pickable": str(eye.pk),
+                "label_override": "",
+                "position": "9",
+                "roll_low": "51",
+                "roll_high": "51",
+            },
+        )
+        assert PicklistMember.objects.get(pickable=eye).band == "51"
+
+    def test_the_picker_offers_only_this_slot_types_pickables(
+        self, author, client, table, affiliation
+    ):
+        """The add-a-row form is handed the picklist, so its picker is
+        narrowed the way the detail page's is — not the whole library."""
+        from n26.library.models import Pickable
+
+        elsewhere = Pickable.objects.get(name="Clanless")
+        body = client.get(self.url(table)).content.decode()
+        assert f'value="{elsewhere.pk}"' not in body
+        assert f'value="{Pickable.objects.get(name="Cawdor").pk}"' in body
+
+    def test_an_ordinary_lists_table_address_leads_back_to_its_page(
+        self, author, client, legacy
+    ):
+        """An ordinary picklist is worked on its detail page; it has no
+        table to show, so the address does not pretend otherwise."""
+        from n26.library.authoring import create_picklist
+
+        plain = create_picklist("Plain", legacy)
+        response = client.get(self.url(plain))
+        assert response.status_code == 302
+        assert response["Location"] == f"/n26/authoring/picklist/{plain.pk}/"
+
+    def test_the_page_is_the_staff_s(self, client, db, legacy, table):
+        from django.contrib.auth.models import User
+
+        client.force_login(User.objects.create_user("player"))
+        response = client.get(self.url(table))
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+
+    def test_the_page_reads_flat_as_the_table_grows(
+        self, author, client, legacy, table
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import add_picklist_member, create_pickable
+
+        def grow(indices):
+            for index in indices:
+                add_picklist_member(
+                    table, create_pickable(f"Result {index}", legacy), roll_low=51
+                )
+
+        grow(range(2))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(self.url(table)).status_code == 200
+        grow(range(2, 12))
+        with CaptureQueriesContext(connection) as more:
+            assert client.get(self.url(table)).status_code == 200
+        assert len(more) <= len(few)
 
 
 class TestKindHelp:

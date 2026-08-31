@@ -16,7 +16,7 @@ The composer and the preview pane hang off this same skeleton later
 import inspect
 import re
 from collections import Counter
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from django import forms
 from django.contrib import messages
@@ -159,6 +159,34 @@ def _describe_picklist_member(member):
     # The band leads on a roll table, as the book prints it.
     label = f"{member.band} — {member.label}" if member.band else member.label
     return label, notes
+
+
+def _roll_table_summary(picklist):
+    """What the members section says under its heading, for a roll table.
+
+    The one fact worth a glance before opening the table page: how much
+    of the die the bands claim. An ordinary picklist says nothing here.
+    """
+    if not picklist.dice:
+        return ""
+    said = coverage(picklist)
+    words = [
+        f"Rolled on a {picklist.get_dice_display()}.",
+        f"{said.covered} of {said.total} rolls covered"
+        + (
+            f"; {', '.join(str(roll) for roll in said.unclaimed)} unclaimed"
+            if said.unclaimed
+            else ""
+        )
+        + ".",
+    ]
+    if said.doubled:
+        rolls = ", ".join(str(roll) for roll, _ in said.doubled)
+        words.append(f"Claimed by more than one result: {rolls}.")
+    if said.bandless:
+        names = ", ".join(member.label for member in said.bandless)
+        words.append(f"No band, so never rolled: {names}.")
+    return " ".join(words)
 
 
 def _weapon_parts(parts):
@@ -306,20 +334,33 @@ DETAIL_KINDS = {
         "statline": False,
         "describe": _describe_picklist_member,
         "parts_hint": lambda parts: parts.select_related("pickable"),
+        # A roll table's results only mean anything with their bands and
+        # the coverage check, so they are worked on the table page — this
+        # section names the shape, says how covered it is, and sends an
+        # author there. An ordinary picklist keeps its form here.
+        "adds": lambda picklist: (
+            reverse("authoring-picklist-table", args=[picklist.pk])
+            if picklist.dice
+            else ""
+        ),
+        "parts_label": lambda picklist: "roll table" if picklist.dice else "pickables",
         # The row is the listing, but the name on it is the pickable's,
         # and the pickable's page is where what it does is written.
         "opens": lambda member: reverse(
             "authoring-detail", args=["pickable", member.pickable_id]
         ),
-        "parts_label": "pickables",
         # The part model's own name is accurate and nothing an author
-        # says; what they are adding is one more pickable to choose from.
-        "part_name": "pickable",
-        "parts_description": (
-            "A list of pickables for a particular slot type, in the order "
-            "a player reads them. Taking one off changes only what is "
-            "offered next: the pickable itself stays in the library, and "
-            "anyone who already made a pick keeps it."
+        # says; what they are adding is one more pickable to choose from —
+        # or, on a roll table, one more result at its band.
+        "part_name": lambda picklist: "result" if picklist.dice else "pickable",
+        "parts_description": lambda picklist: (
+            _roll_table_summary(picklist)
+            or (
+                "A list of pickables for a particular slot type, in the order "
+                "a player reads them. Taking one off changes only what is "
+                "offered next: the pickable itself stays in the library, and "
+                "anyone who already made a pick keeps it."
+            )
         ),
         "nothing_yet": (
             "No pickables yet — a choice drawing on this list has nothing to offer."
@@ -1571,10 +1612,23 @@ def detail(request, kind, pk):
 
     composer = None
     act = request.POST.get("act", "")
+
+    def adds_elsewhere(one):
+        """Where this section's parts are added, or nothing — a route
+        name for every row of the kind, a callable deciding row by row."""
+        where = one.get("adds")
+        if callable(where):
+            return where(thing)
+        return reverse(where, args=[thing.pk]) if where else ""
+
     # A section whose add form lives elsewhere has no form here to post
     # to, so it is not a candidate however the act reads.
     posted_to = next(
-        (one for one in sections if one.get("act", "") == act and not one.get("adds")),
+        (
+            one
+            for one in sections
+            if one.get("act", "") == act and not adds_elsewhere(one)
+        ),
         None,
     )
     if (
@@ -1629,7 +1683,7 @@ def detail(request, kind, pk):
         part_model = _model_for(part_spec)
         # A section that adds its parts elsewhere draws a way there
         # instead of a form, so neither form is built at all.
-        elsewhere = section.get("adds")
+        elsewhere = adds_elsewhere(section)
         form_class = None if elsewhere else generate_form(part_spec)
         statline_class = (
             statline_form_for(thing.statline_type)
@@ -1688,7 +1742,11 @@ def detail(request, kind, pk):
             )
         arrange = section.get("arrange")
         parts = arrange(pairs) if arrange else [drawn for _part, drawn in pairs]
-        part_name = str(section.get("part_name", part_model._meta.verbose_name))
+
+        def worded(value):
+            return value(thing) if callable(value) else value
+
+        part_name = str(worded(section.get("part_name", part_model._meta.verbose_name)))
         drawn.append(
             {
                 "act": section.get("act", ""),
@@ -1697,10 +1755,10 @@ def detail(request, kind, pk):
                 # than written beside each name, so a kind renamed on its
                 # model never leaves the heading ungrammatical.
                 "part_article": _article_for(part_name),
-                "part_verbose_name_plural": section.get(
-                    "parts_label", part_model._meta.verbose_name_plural
+                "part_verbose_name_plural": worded(
+                    section.get("parts_label", part_model._meta.verbose_name_plural)
                 ),
-                "parts_description": section.get("parts_description", ""),
+                "parts_description": worded(section.get("parts_description", "")),
                 "nothing_yet": section.get("nothing_yet", ""),
                 # Said beside the add form, so an author knows how far
                 # the addition travels before committing it. Only the
@@ -1718,7 +1776,7 @@ def detail(request, kind, pk):
                 "statline_form": statline_form,
                 # Blank for a section adding its parts in a form here;
                 # the page then draws that form rather than a way out.
-                "add_url": reverse(elsewhere, args=[thing.pk]) if elsewhere else "",
+                "add_url": elsewhere or "",
                 # A further way in for parts the form cannot offer —
                 # blank for every section that has none.
                 "door_url": section.get("door", lambda thing: "")(thing),
@@ -3995,3 +4053,125 @@ def _rows(model, kind=None):
         )
     hint = LEAF_LISTING_HINTS.get(kind)
     return hint(rows) if hint else rows
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """Whether a roll table's bands claim its die.
+
+    Gaps and overlaps make a table unrollable, and neither is a fact
+    about any one row — only the whole table can say. ``covered`` counts
+    rolls claimed by at least one result; a roll claimed twice is
+    covered and doubled both.
+    """
+
+    #: Every roll the die can produce.
+    total: int
+    #: How many of them at least one band claims.
+    covered: int
+    #: The rolls no band claims, in roll order.
+    unclaimed: list
+    #: ``(roll, members)`` for every roll more than one band claims.
+    doubled: list
+    #: Results with no band at all: on the list, never rolled.
+    bandless: list
+
+
+def coverage(picklist, members=None):
+    """The table's bands checked against its die, as :class:`Coverage`.
+
+    Pure over the rows it is handed, so a page can say "34 of 36 rolls
+    covered; 23 and 24 unclaimed" and a test can assert it without
+    rendering anything. A band may span rolls the die cannot produce —
+    "31-46" on a D66 — and such rolls count for nothing: the check walks
+    the die's own rolls, never the band's arithmetic. A caller that has
+    already fetched the members hands them over rather than paying for
+    the same rows twice.
+    """
+    from n26.library.models import Dice
+
+    rolls = Dice.rolls(picklist.dice)
+    if members is None:
+        # One query however long the table: a member's label falls back
+        # to its pickable's name, and every label it holds is printed.
+        members = list(picklist.members.select_related("pickable"))
+    claimed = {}
+    for member in members:
+        if member.roll_low is None:
+            continue
+        for roll in rolls:
+            if member.roll_low <= roll <= member.roll_high:
+                claimed.setdefault(roll, []).append(member)
+    return Coverage(
+        total=len(rolls),
+        covered=len(claimed),
+        unclaimed=[roll for roll in rolls if roll not in claimed],
+        # In roll order, as everything about a table is read.
+        doubled=sorted((roll, who) for roll, who in claimed.items() if len(who) > 1),
+        bandless=[member for member in members if member.roll_low is None],
+    )
+
+
+@staff_member_required
+def picklist_table(request, pk):
+    """One roll table, whole: its rows in roll order, and whether its
+    bands cover the die.
+
+    The picklist's own page adds and removes members one at a time; this
+    page exists for the fact no single row carries — a gap or an overlap
+    in the table. The add-a-row form is the detail page's own, handed
+    the picklist so its picker offers this slot type's pickables and
+    nothing else. An ordinary list has no table to show, so its address
+    here leads back to its own page.
+    """
+    from django.db.models import F
+
+    from n26.library.models import Picklist
+
+    picklist = get_object_or_404(Picklist, pk=pk)
+    if not picklist.dice:
+        return redirect("authoring-detail", kind="picklist", pk=pk)
+    spec = specs()["add_picklist_member"]
+    form_class = generate_form(spec)
+
+    if request.method == "POST":
+        form = form_class(request.POST, carrier=picklist)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    member = spec.verb(picklist, **form.verb_data())
+            except ValidationError as refused:
+                form.add_error(None, refused)
+            else:
+                messages.success(request, f"Added {member.label}.")
+                return redirect("authoring-picklist-table", pk=pk)
+    else:
+        form = form_class(carrier=picklist)
+
+    members = list(
+        picklist.members.select_related("pickable").order_by(
+            F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+        )
+    )
+    said = coverage(picklist, members)
+    doubled_said = (
+        [
+            (roll, ", ".join(member.label for member in who))
+            for roll, who in said.doubled
+        ]
+        if said
+        else []
+    )
+    unclaimed_said = ", ".join(str(roll) for roll in said.unclaimed) if said else ""
+    return render(
+        request,
+        "authoring/picklist_table.html",
+        {
+            "picklist": picklist,
+            "members": members,
+            "coverage": said,
+            "unclaimed_said": unclaimed_said,
+            "doubled_said": doubled_said,
+            "form": form,
+        },
+    )
