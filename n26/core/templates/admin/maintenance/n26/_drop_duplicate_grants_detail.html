@@ -1,0 +1,51 @@
+{% comment %}
+    The summary of one duplicate-grants repair on the Backfill detail
+    page: how far the walk has got, what it dropped, and the copies it
+    left standing because somebody had been counting on them. Every
+    gang commits on its own, so a run still working reports what it
+    has already done.
+{% endcomment %}
+<h2>Progress</h2>
+<p>
+    {{ backfill.summary.done|default:0 }} of {{ backfill.summary.total|default:"?" }} gang{{ backfill.summary.total|pluralize }} settled.
+    {% if backfill.summary.attempts %}
+        Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }} since the last batch landed.
+    {% endif %}
+</p>
+{% if backfill.summary.totals %}
+    <h2>Totals</h2>
+    <table class="table">
+        <tr>
+            <th>Duplicate grants dropped</th>
+            <td>{{ backfill.summary.totals.dropped|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Owner's copies given the dropped copy's provenance</th>
+            <td>{{ backfill.summary.totals.retagged|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Assignments swept with what caused them</th>
+            <td>{{ backfill.summary.totals.swept|default:0 }}</td>
+        </tr>
+        <tr>
+            <th>Left standing: somebody was counting on them</th>
+            <td>{{ backfill.summary.totals.kept_a_tally|default:0 }}</td>
+        </tr>
+    </table>
+{% endif %}
+{% if backfill.summary.kept_a_tally %}
+    <h2>Left standing</h2>
+    <ul>
+        {% for line in backfill.summary.kept_a_tally %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.failures %}
+    <h2>Gangs that could not be settled</h2>
+    <ul>
+        {% for gang_id, why in backfill.summary.failures.items %}
+            <li>
+                <code>{{ gang_id }}</code>: {{ why }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}
