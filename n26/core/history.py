@@ -443,6 +443,22 @@ def _one_act(e, row, viewer, alive):
     )
 
 
+def _movement(note):
+    """What a tally moved, as words: "— +1, now 4".
+
+    ``Operation.tally`` writes the movement and where it landed in front
+    of whatever reason the caller gave. A note carrying only a reason,
+    or none at all, has no movement to state and gives its reason alone.
+    """
+    movement, _, reason = note.partition(":")
+    change, arrow, standing = movement.partition(" → ")
+    if not arrow:
+        return (Span(f" — {note}"),) if note else ()
+    moved = f" — {change}, now {standing}"
+    reason = reason.strip()
+    return (Span(f"{moved} ({reason})"),) if reason else (Span(moved),)
+
+
 def _tell(e, row, alive):
     """The sentence for one event, and which filter bucket it sits in.
 
@@ -515,7 +531,12 @@ def _tell(e, row, alive):
         case Kind.MOVED:
             return (Span("moved "), thing), "kit"
         case Kind.TALLIED:
-            return (Span("changed "), thing, *_for(model, at, "on")), "model"
+            return (
+                Span("changed "),
+                thing,
+                *_for(model, at, "on"),
+                *_movement(e.note),
+            ), "model"
         case Kind.RENAMED:
             was, _, now = e.note.rpartition(" → ")
             # About no model, so about the gang: the same act one level up.
@@ -607,9 +628,14 @@ def _for(model, at, word="for"):
 
 #: Kinds whose note is a record for the code rather than words for a
 #: reader — the figure a visit brought, the word that says one closed,
-#: the rank a fighter went as. The sentence has already said all three,
-#: and printing the note under it puts bookkeeping on the page.
-_NOTE_IS_MACHINERY = {Kind.TRADE_POINTS_SET, Kind.VISITED_TRADING_POST}
+#: the rank a fighter went as, what a tally moved and why. The sentence
+#: has already said all of them, and printing the note under it puts
+#: bookkeeping on the page.
+_NOTE_IS_MACHINERY = {
+    Kind.TRADE_POINTS_SET,
+    Kind.VISITED_TRADING_POST,
+    Kind.TALLIED,
+}
 
 
 def _shown_note(e):

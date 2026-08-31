@@ -218,6 +218,26 @@ class NotOnOffer(Refusal):
 _UNASKED = object()
 
 
+def _movement_note(moved, reason):
+    """A tally's note: what moved, then why, inside the column's width.
+
+    The movement is the half that has to survive — an audit reads the
+    number, and the reason is the reader's own words about it — so a
+    reason too long to fit is what gives way. A caller can hand over a
+    great deal more than the column holds: an assignable's name and its
+    annotation are 200 characters each, and a rule that tallies passes
+    the pair of them as its reason.
+    """
+    from n26.core.models import LedgerEvent
+
+    if not reason:
+        return moved
+    room = LedgerEvent._meta.get_field("note").max_length - len(moved) - len(": ")
+    if len(reason) > room:
+        reason = reason[: max(0, room - 1)] + "…"
+    return f"{moved}: {reason}"
+
+
 class Operation:
     """Collects what it touched, so the boundary knows what to repin."""
 
@@ -1719,14 +1739,26 @@ class Operation:
 
         ``change`` is signed; the value floors at zero. Every change is a
         ledger event, so the history of a Kill Count reads like the
-        history of anything else the gang owns.
+        history of anything else the gang owns — and carries what moved
+        and where it landed, which is what a reader auditing a number is
+        looking for. ``note`` is why, where the caller knows.
         """
         from n26.core.models import CounterValue, LedgerEvent
 
         held, _ = CounterValue.objects.get_or_create(assignment=assignment)
+        before = held.value
         held.value = max(0, held.value + change)
         held.save(update_fields=["value", "modified"])
-        self.event(assignment, LedgerEvent.Kind.TALLIED, note=note)
+        # What moved and where it landed, so the history can be read
+        # against the number on the card. The movement recorded is the
+        # one that happened rather than the one asked for: a subtraction
+        # that would go below zero stops at zero.
+        moved = f"{held.value - before:+d} → {held.value}"
+        self.event(
+            assignment,
+            LedgerEvent.Kind.TALLIED,
+            note=_movement_note(moved, note),
+        )
         return held.value
 
     def move(self, assignment, to, note=""):

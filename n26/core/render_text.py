@@ -36,6 +36,13 @@ def render_model_card(card, indent=""):
         *render_statline(card.statline, indent=indent + "  "),
         f"{indent}  XP: {card.xp_display}",
     ]
+    # XP has its own line above, with the target on it. Skipped by name
+    # rather than left to counter_lines, which keeps XP for a card whose
+    # lines can be moved — nothing here can be, whatever the card was
+    # built for.
+    for counter in card.counter_lines:
+        if not counter.is_xp:
+            lines.append(f"{indent}  {counter.name}: {counter.value}")
     if card.weapons:
         lines.append(f"{indent}  Weapons:")
         for weapon in card.weapons:

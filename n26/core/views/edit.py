@@ -311,6 +311,7 @@ def edit_fighter(request, pk):
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
     from n26.core.views.learn import apply_ticks, link_skills, skills_offer
+    from n26.core.views.owned import link_counters
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -553,6 +554,10 @@ def edit_fighter(request, pk):
     )
     if card is None:
         raise Http404("No such model")
+    # Only here. A counter is drawn wherever a card is; the model's own
+    # page is the one place it is moved, so this is the one place the
+    # lines are given addresses.
+    link_counters(card)
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes"

@@ -95,6 +95,7 @@ def component(request, slug):
             "rich_text_form": rich_text_form,
             "unsafe_html": UNSAFE_HTML,
             "model_card": sampledata.model_card(),
+            "model_card_editable": sampledata.model_card_editable(),
             "model_card_written": sampledata.model_card_written(),
             "needs_rich_text": needs_rich_text,
             # The icon gallery renders the registry rather than a written-out
@@ -191,6 +192,7 @@ def view_preview(request, slug):
             "component": found,
             "demo_template": found.demos[0].template_name,
             "model_card": sampledata.model_card(),
+            "model_card_editable": sampledata.model_card_editable(),
             "model_card_written": sampledata.model_card_written(),
             # The same test the component page makes: a view whose demo
             # draws an editor brings TinyMCE with it, and only then.

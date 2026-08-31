@@ -34,6 +34,7 @@ from n26.core.render import (
     ChoiceOffer,
     Choosable,
     ChoosableGroup,
+    CounterLine,
     EffectLine,
     GangSheet,
     ModelCard,
@@ -1513,6 +1514,19 @@ def model_card():
             ),
         ],
         owned_by="tom",
+        # The running numbers, as every card but one draws them: settled
+        # values with nothing to click. XP keeps no line here — it has a
+        # cell in the statline with its target beside it, and the line
+        # exists only to be the control. model_card_editable() is the
+        # card that carries the addresses.
+        counters=[
+            CounterLine(name="XP", value=61, assignment_id="xp", is_xp=True),
+            CounterLine(name="Kill Count", value=3, assignment_id="kills"),
+            # At zero, so the editable card shows that the minus is not
+            # drawn: the value floors there and the control would offer
+            # nothing.
+            CounterLine(name="Glitch Count", value=0, assignment_id="glitch"),
+        ],
         xp=61,
         xp_target=79,
     )
@@ -1940,6 +1954,21 @@ CARD_IMAGE = (
 def model_card_written():
     """The sample card with its picture and its Lore and Notes tabs filled."""
     return replace(model_card(), notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE)
+
+
+def model_card_editable():
+    """The sample card as the model's own page draws it: its counters
+    carry addresses, so the lines grow their controls and XP joins them.
+
+    A card of its own rather than a flag on the base one, because the
+    base card is what the gang sheet, the hire previews and the print
+    specimens are all built from, and none of those may offer to change
+    a number. The addresses go nowhere, as every href in this gallery
+    does.
+    """
+    card = replace(model_card())
+    card.counters = [replace(line, href="#") for line in card.counters]
+    return card
 
 
 def gang_sheet_context():

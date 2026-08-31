@@ -153,6 +153,13 @@ urlpatterns = [
         views.rechoose_assignment,
         name="n26-rechoose",
     ),
+    # A counter moved by hand. Addressed by the assignment like the acts
+    # above, so one route serves a model's tallies and the gang's.
+    path(
+        "assignments/<str:pk>/tally/",
+        views.tally_counter,
+        name="n26-tally",
+    ),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
     path("design/", include("n26.designsystem.urls")),

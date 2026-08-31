@@ -25,6 +25,28 @@ draw the same thing.
     the same line as the value.
     {% endcomment %}
     <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
+        {% comment %}
+        The running numbers, above the rows that say what the model is and
+        carries: they sit under the statline strip, next to the XP cell in
+        it, so every tally reads as one block.
+
+        A line changes where it has an address and is a settled number
+        everywhere else, so the gang sheet, a print sheet and a hire
+        preview all draw the same block with nothing to click. Which
+        lines those are is ModelCard.counter_lines' decision, not this
+        template's — an XP nobody can move is the cell above and nothing
+        here.
+        {% endcomment %}
+        {% for counter in card.counter_lines %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ counter.name }}</dt>
+            <dd class="min-w-0 tabular-nums text-ink-900 dark:text-ink-100">
+                {{ counter.value }}
+                {% if counter.href %}
+                    <c-n26.counter-controls :counter="counter" />
+                {% endif %}
+            </dd>
+        {% endfor %}
+
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
             <c-n26.assignable-lines :lines="card.skills" :ratings="False" />

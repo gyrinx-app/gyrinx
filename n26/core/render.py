@@ -109,6 +109,33 @@ class AssignableLine:
 
 
 @dataclass
+class CounterLine:
+    """One counter a model keeps, drawn on its card.
+
+    A counter is a running number rather than a possession, so it draws
+    its own line and never appears among the kit — but it *is* an
+    assignment underneath, and ``assignment_id`` is what a control that
+    changes it posts to. Empty where the card depicts nobody (a hire
+    preview, a gallery sample).
+
+    ``href`` is where a change is posted, filled in by whoever knows the
+    URL space — like a choice's own href, and empty by default. A line
+    with none draws as a fact with nothing to click, which is what a
+    gang sheet, a print sheet and a hire preview all want.
+    """
+
+    name: str
+    value: int
+    assignment_id: str = ""
+    href: str = ""
+    #: Whether this is the XP counter, decided where the counter itself is
+    #: to hand rather than re-derived from ``name`` — which is what a
+    #: reader sees, and carries the counter's annotation with it, so an
+    #: annotated XP would stop being recognised as XP.
+    is_xp: bool = False
+
+
+@dataclass
 class StatCell:
     """One characteristic on a card."""
 
@@ -475,6 +502,9 @@ class ModelCard:
     #: Collections this model can browse — equipment lists, trading posts.
     #: Access to buy from, not things owned; drawn apart from equipment.
     collections: list[AssignableLine] = field(default_factory=list)
+    #: The running numbers this model keeps — XP, a Spyrer's Kill Count.
+    #: Every one of them, XP included; ``counter_lines`` is what to draw.
+    counters: list[CounterLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
     #: Open questions filed into the card's own rows, kept apart from
     #: the general run. They are drawn in the Skills and Powers rows,
@@ -576,6 +606,19 @@ class ModelCard:
     def xp_display(self):
         """``13/19``, or ``13/–`` until ranks tell us the target."""
         return f"{self.xp}/{self.xp_target if self.xp_target is not None else '–'}"
+
+    @property
+    def counter_lines(self):
+        """The counters to draw — every one, bar an XP nobody can move.
+
+        XP has a cell in the statline already, and the cell is the better
+        reading: it carries the target beside the value. The line earns
+        its place only by being where the number is changed, so on a
+        screen that offers no control — a gang sheet, a print sheet, a
+        hire preview — it would say the same number twice and is left
+        out. Every other counter has no cell and draws either way.
+        """
+        return [line for line in self.counters if line.href or not line.is_xp]
 
 
 @dataclass
@@ -1168,6 +1211,7 @@ def card_to_model_card(
         "collections": [],
     }
     counted_xp = None
+    counters = []
 
     # A node chosen for a choice is drawn as that choice's row, not as a
     # loose piece of equipment as well. Questions filed to a row are the
@@ -1309,11 +1353,25 @@ def card_to_model_card(
             weapons.append(weapon_line(node, [node]))
         elif isinstance(thing, Counter):
             # A counter is a running number, not a possession, so it is
-            # never drawn as a piece of kit. XP has a cell of its own on
-            # the card and fills it from the counter's value — the value a
-            # hire opens at its printed Starting XP and every tally moves.
-            if thing.name.casefold() == XP_COUNTER.casefold():
-                counted_xp = _counter_value(node)
+            # never drawn as a piece of kit: it draws a line of its own.
+            # XP has a cell as well, and fills it from the same value —
+            # the value a hire opens at its printed Starting XP and every
+            # tally moves — because the cell carries the target beside it
+            # and a line has no room for one.
+            standing = _counter_value(node)
+            is_xp = thing.name.casefold() == XP_COUNTER.casefold()
+            counters.append(
+                CounterLine(
+                    name=node.name,
+                    value=standing,
+                    assignment_id=(
+                        str(node.assignment.pk) if node.assignment is not None else ""
+                    ),
+                    is_xp=is_xp,
+                )
+            )
+            if is_xp:
+                counted_xp = standing
         elif node.is_profile:
             # A Legacy profile rides the card but is not drawn from: it is
             # not equipment either, so it falls off here until Legacy gets
@@ -1415,6 +1473,9 @@ def card_to_model_card(
             [*limit_notes(card, computed), *choice_notes(computed)] if computed else []
         ),
         owned_by=owned_by,
+        # XP first, then the rest in the order the card holds them: it is
+        # the one every model keeps and the one a reader looks for.
+        counters=sorted(counters, key=lambda line: not line.is_xp),
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
     )
