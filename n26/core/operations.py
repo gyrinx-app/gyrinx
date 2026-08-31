@@ -146,9 +146,10 @@ class LibraryError(Exception):
     """The library asks for something no operation can do.
 
     A content bug, not a player's act: nobody clicked their way to it
-    and no sentence would help them. It is neither a ``Refusal`` a view
-    shows nor the ``ValueError`` a view reads as a tampered link, so it
-    surfaces as the error it is, and the operation unwinds whole.
+    and no sentence would help them. It is not a ``Refusal``, which a
+    view shows to the player, and not a ``ValueError``, which a view
+    reads as a tampered link — so it surfaces as the error it is, and
+    the operation unwinds whole.
     """
 
 
@@ -1217,22 +1218,29 @@ class Operation:
 
         A copy created here is itself an arrival, and a thing with
         built-ins of its own brings them wherever it arrives — a subtype
-        granted by a profile brings its own counters exactly as the
-        subtype would if bought. Each copy created here is reconciled
-        as a carrier in turn, its grants caused by the copy — so the
+        granted by a profile brings the counters built into the subtype.
+        Each copy created here is reconciled as a carrier in turn, under
+        the same narrowing, its grants caused by the copy — so the
         outcome returned covers every level, and a grant's ``caused_by``
-        is its own carrier, not always the one passed in. A grant's
-        cause is the copy that brought it whichever pass writes it, so
-        a hire and a later catch-up can never disagree about what a
-        model holds. The nesting is the library's own, and a library
-        that nests a thing inside itself is a content bug: the chain is
-        refused in words rather than followed off the end of the stack.
+        is its own carrier, not always the one passed in. That is the
+        provenance the propagation pass writes when it visits the copy
+        later, so the two agree. The nesting is the library's own, and a
+        library that nests a thing inside itself is a content bug: at
+        acquisition (``strict``) the chain is refused in words rather
+        than followed off the end of the stack, and on a later reconcile
+        it is a recorded skip.
         """
-        from n26.core.builtins import ReconcileOutcome, copies_of, plan_defaults
+        from n26.core.builtins import (
+            ReconcileOutcome,
+            copies_of,
+            kinds_for,
+            plan_defaults,
+        )
         from n26.core.models import CounterValue, Reason
         from n26.library.models import Weapon, WeaponProfile
 
-        plan = plan_defaults(carrier, kinds=kinds, built_ins=built_ins, fresh=fresh)
+        narrowed = kinds if kinds is not None else kinds_for(carrier)
+        plan = plan_defaults(carrier, kinds=narrowed, built_ins=built_ins, fresh=fresh)
 
         miniature = None if gang is not None else carrier.miniature_root
         if gang is not None:
@@ -1282,26 +1290,6 @@ class Operation:
                 # A counter opens at its member's amount — Starting XP.
                 CounterValue.objects.create(assignment=assignment, value=member.amount)
 
-        chain = (*_chain, carrier.assignable)
-        for assignment in list(created):
-            if assignment.assignable.built_ins_id is None:
-                continue
-            if assignment.assignable in chain:
-                raise LibraryError(
-                    "Built-ins nest in a circle: "
-                    + " → ".join(str(link) for link in (*chain, assignment.assignable))
-                    + "."
-                )
-            nested = self.reconcile_defaults(
-                assignment,
-                gang=gang,
-                strict=strict,
-                event_kind=event_kind,
-                _chain=chain,
-            )
-            created.extend(nested.created)
-            skipped.extend(nested.skipped)
-
         for entry in ammo:
             if entry.satisfied:
                 continue
@@ -1334,7 +1322,7 @@ class Operation:
                 if strict:
                     # A content bug, not a player mistake: the set names
                     # ammo for a weapon nothing here brings.
-                    raise ValueError(
+                    raise LibraryError(
                         f"{carrier.assignable} grants {weapon_profile}, but "
                         f"nothing it brings is its weapon "
                         f"({weapon_profile.weapon})."
@@ -1366,6 +1354,35 @@ class Operation:
                     kind=event_kind,
                 )
             )
+        # After ammo, so a copy of any kind created in this pass is an
+        # arrival in its own right, ammo included.
+        chain = (*_chain, carrier.assignable)
+        entry_for = {entry.member.pk: entry for entry in plan.entries}
+        for assignment in list(created):
+            thing = assignment.assignable
+            if thing.built_ins_id is None:
+                continue
+            if thing in chain:
+                why = (
+                    "Built-ins nest in a circle: "
+                    + " → ".join(str(link) for link in (*chain, thing))
+                    + "."
+                )
+                if strict:
+                    raise LibraryError(why)
+                skipped.append((entry_for[assignment.materialised_from_id], why))
+                continue
+            nested = self.reconcile_defaults(
+                assignment,
+                kinds=narrowed,
+                gang=gang,
+                strict=strict,
+                event_kind=event_kind,
+                _chain=chain,
+            )
+            created.extend(nested.created)
+            skipped.extend(nested.skipped)
+
         return ReconcileOutcome(
             carrier=carrier, plan=plan, created=created, skipped=skipped
         )

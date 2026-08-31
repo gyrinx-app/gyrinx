@@ -425,7 +425,7 @@ class TestAmmoFindsItsGun:
         assert "Launcher" in why
         assert not Assignment.objects.filter(weapon_profile=smoke).exists()
 
-        with pytest.raises(ValueError):
+        with pytest.raises(LibraryError):
             hire(gang, ganger, "Bea", paid=50)
         gang.refresh_from_db()
         assert_reconciled(gang)
@@ -693,6 +693,8 @@ class TestBuiltInsOfBuiltIns:
         assert reconcile(gang, subtype_copy).created == []
 
         assert Assignment.objects.filter(miniature_root=fighter).count() == before
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_a_founding_brings_nested_built_ins_onto_the_gang(
         self, gang_type, player, spyrer, default_pack
