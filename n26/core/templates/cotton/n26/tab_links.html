@@ -40,10 +40,11 @@ wider than the page.
     opt in: it needs the ids the answer replaces, and the answer must set
     HX-Replace-Url so the address still says which tab is open. See
     n26/core/views/htmx.py. Off by default, and without script or on a page
-    that has not opted in the same links navigate as usual. Below the sm
-    breakpoint the other tabs sit in the switcher's menu, whose rows are plain
-    links: that width changes tab by loading the page, which is the same
-    address and the same result.
+    that has not opted in the same links navigate as usual. A click holding a
+    modifier is left to the browser, so a tab still opens in a new window.
+    Below the sm breakpoint the other tabs sit in the switcher's menu, whose
+    rows are plain links: that width changes tab by loading the page, which
+    is the same address and the same result.
   busy — a CSS selector. While the chosen tab's page loads, that element's
     contents give way to a small centred spinner, so a click on a strip whose
     pages take seconds to build is seen to have landed. Modified clicks are
@@ -93,7 +94,13 @@ wider than the page.
         <c-slot name="full">
             {% for tab in tabs %}
                 <a href="{{ tab.href }}"
-                   {% if htmx and not tab.current %}hx-get="{{ tab.href }}" hx-swap="none"{% endif %}
+                   {% comment %}
+                   A modified click is left to the browser, so a tab still
+                   opens in a new window or tab. htmx cancels an anchor's
+                   own navigation whatever key is held, and only spares a
+                   boosted one, so the keys are named on the trigger.
+                   {% endcomment %}
+                   {% if htmx and not tab.current %}hx-get="{{ tab.href }}" hx-swap="none" hx-trigger="click[!ctrlKey&amp;&amp;!metaKey&amp;&amp;!shiftKey&amp;&amp;!altKey]"{% endif %}
                    {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
                    {% if tab.current %}aria-current="page"{% endif %}
                    class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring

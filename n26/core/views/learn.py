@@ -140,12 +140,17 @@ def _sets_on_offer(card, computed):
     """Every set a model could hold something from, one group each, said
     with whether their placements name the tier it sits in.
 
-    The browse and the resectioning are the skills screen's own, minus
-    the one call that screen makes and this one does not: it narrows to
-    the tiers the placements name, and so drops the fallback the rest of
-    the library gathers under. Keeping the fallback is the whole of what
-    widens this surface, and it costs nothing — ``regrouped_by_placement``
-    has already put those categories there.
+    Every collection holding what a model is, resectioned by their
+    placements and kept whole: the fallback tier the unplaced gather
+    under stays on the listing, because a set nobody placed for them is
+    still a set they may take from.
+
+    That is not free. A screen keeping to the placements browses only
+    the collections those reach; this one browses all of them, and each
+    is a fixed handful of queries — so a model placed into one of two
+    collections pays for the second as well. The price buys the panel
+    that searches what the first tab does not draw, which has to know
+    the whole library to offer it.
 
     Built a section at a time so each group knows which tier it came
     from. A one-section view is not tiered and ``offer_from_view`` writes
@@ -158,12 +163,14 @@ def _sets_on_offer(card, computed):
     from n26.core.browse import (
         EQUIPMENT_LIST,
         browse,
+        narrow,
         placements_for,
         regrouped_by_placement,
         usability_for,
         with_use_notes,
     )
     from n26.core.render import offer_from_view
+    from n26.library.models import Power, Skill
 
     held = _rows_on(card)
     granted = _grants_on(computed)
@@ -173,7 +180,13 @@ def _sets_on_offer(card, computed):
         placed = {placement.section.name for placement in placements.values()}
         listed = with_use_notes(
             regrouped_by_placement(
-                browse(collection, EQUIPMENT_LIST),
+                # Skills and powers, and nothing else a model can be.
+                # Subtypes are of the same family and a collection may
+                # perfectly well hold them, but they are the edits box's
+                # to settle: were one on this list, a save that did not
+                # tick it would take it away — by the wrong write, and
+                # from a box the owner was not looking at.
+                narrow(browse(collection, EQUIPMENT_LIST), kinds=(Skill, Power)),
                 placements,
                 fallback=collection.default_section(),
                 name=str(collection),

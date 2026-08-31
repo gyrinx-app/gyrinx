@@ -508,6 +508,32 @@ class TestTheRestOfTheLibrary:
         assert response.status_code == 302
         assert response["Location"] == at_tab(yolanda, ALL_SETS)
 
+    def test_a_subtype_in_a_collection_is_not_on_the_listing(
+        self, client, player, gang, yolanda, sets, tiers, catalogue, library
+    ):
+        """A subtype is the same family as a skill, so a collection may
+        hold one and this box would otherwise offer it — and a save that
+        left it unticked would take it away, by the write that archives
+        a selection rather than the one that records an owner's edit,
+        and from a box whose heading says skills.
+
+        What a model is belongs to the edits box beside this one, so
+        only skills and powers are on the list here.
+        """
+        from n26.library.authoring import add_entry
+
+        badge = create_subtype("Hardened")
+        add_entry(catalogue, badge)
+        assign(badge, miniature=yolanda)
+        client.force_login(player)
+
+        assert "Hardened" not in named(offer_on(client, yolanda, ALL_SETS))
+
+        post_skills(client, yolanda, tab=ALL_SETS)
+
+        assert "Hardened" in [line.name for line in card_for(yolanda).subtypes]
+        assert_reconciled(gang)
+
     def test_a_stranger_cannot_reach_the_wider_listing_either(
         self, client, yolanda, library
     ):
@@ -982,13 +1008,15 @@ class TestTheQueryBudget:
     """The square is read with the model's own card, so a fighter who
     knows everything costs what one who knows nothing costs."""
 
-    def test_the_wider_listing_costs_what_their_own_costs(
+    def test_which_tab_is_open_costs_nothing(
         self, client, player, yolanda, sets, library
     ):
-        """Both are the same browse of the same collections. The
-        narrower one is that browse with its unplaced tier dropped,
-        which is a filter over rows already in hand rather than another
-        question to the database."""
+        """One derivation serves both listings, so the tab only picks
+        which of its shapes reaches the template.
+
+        This says nothing about what the widening itself costs — the
+        listing below is what pins that.
+        """
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1003,6 +1031,31 @@ class TestTheQueryBudget:
         measure(OWN_SETS)
         theirs = measure(OWN_SETS)
         assert measure(ALL_SETS) == theirs
+
+    def test_the_listing_costs_the_same_however_big_the_library(
+        self, client, player, yolanda, sets, library
+    ):
+        """What a collection holds is asked in a fixed number of
+        queries, so widening the offer to every set is paid per
+        collection and never per skill. A library that doubles asks
+        the database exactly as much.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(player)
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get(at_tab(yolanda, ALL_SETS)).status_code == 200
+            return len(captured.captured_queries)
+
+        measure()
+        small = measure()
+        for index in range(2, 30):
+            create_skill(f"Trick {index}", category=sets["brawn"], position=index)
+
+        assert measure() == small
 
     def test_the_page_costs_the_same_however_much_she_knows(
         self, client, player, gang, yolanda, sets, library
