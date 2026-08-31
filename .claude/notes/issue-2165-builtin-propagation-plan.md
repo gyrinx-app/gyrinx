@@ -491,6 +491,64 @@ maintainer's word after CI, deploy, run `n26_backfill_built_ins` from
 the console (expect ~45k tagged, ~949 grants incl. 894 Spyrer
 counters, 2 D15 holds), re-run audit_reconcile to zero.
 
+**C8 — Tighten + acceptance. PLANNED 2026-08-31, sized against prod
+(read-only) after the backfill ran.** What the original sketch assumed
+is no longer what the data says, so the chunk is re-cut below.
+
+*Measurements (prod, post-backfill):* 10,669 live legacy-shaped grants
+still carry no provenance — but nearly all are the `already` bucket:
+extra copies of a member whose own copy IS tagged, so
+`_granted_rows_without_provenance` computes `wanted <= 0` for them and
+returns nothing. The fallback can only return rows where a *chosen*
+set has a member with no copy naming it for that carrier. Across all
+1,183 chosen-option rows on 1,072 carriers, those unsatisfied members
+are: 177 in archived gangs (the backfill skips archived gangs by
+design), 6 on archived/removing carriers (dead), and **3 live** — all
+three WeaponProfile (ammo) members on two fighters, and all three are
+the D15 holds the run reported ("already carries stun/choke gas
+grenades under its Grenade launcher array"). Archived
+`DefaultAssignment` members: 3, all referenced by a copy — so the
+"sweep unreferenced archived members" item is a **no-op** and should
+be dropped. Duplicate `(materialised_from, materialised_for)` pairs
+estate-wide: **0**.
+
+*The chunk, re-cut:*
+
+1. **Provenance uniqueness at the database.** A unique constraint on
+   `(materialised_from, materialised_for)` where `materialised_from`
+   is not null. The estate already satisfies it, and it is the
+   constraint that would have made the archived-twin tagging bug
+   (caught in #2351's review) impossible rather than silent. Cheapest
+   and highest value — do this first, on its own.
+2. **Decide the archived gangs.** 177 unsatisfied members sit in
+   archived gangs. Either run the backfill over them (a flag on the
+   operation; they are skipped, not unreachable) so the estate is
+   uniformly tagged, or record the decision that archived gangs stay
+   as they are and the fallback must survive for them. This is the
+   decision that gates step 3.
+3. **Remove `_granted_rows_without_provenance`.** Only reachable from
+   `rechoose` via `_granted_rows`. After step 2 the live exposure is
+   the 3 ammo holds: if those two fighters re-option away from the
+   set, their grenade lines would stop being refunded and would stand
+   as stale kit. Options: (a) delete it and accept 3 pairs; (b) keep a
+   narrow weapon-profile-only fallback, since ammo is the one kind the
+   backfill never tags; (c) tag those 3 copies first. Recommend (b) —
+   it is the honest shape: ammo is out of the tagging scope by design,
+   so the fallback should be scoped to exactly that and documented as
+   such rather than deleted wholesale or left general.
+4. **Tighten `_something_materialised`** (`n26/library/authoring.py`)
+   to provenance only, dropping the loose "any free-granted copy of
+   the same thing" clause. Safe once step 2 lands: the members that
+   matter all have tagged copies, so removal still archives rather
+   than deletes them. Drop the "sweep unreferenced archived members"
+   item — there are none.
+5. **Acceptance pass.** Add-a-rule reaches an existing model in
+   seconds; redelivery adds nothing; the backfill run twice is empty
+   (proven); `pytest n26`, fmt, migration checks, query budgets
+   unchanged.
+
+*Superseded sketch:*
+
 **C8 — Tighten + acceptance.** Remove the legacy `_granted_rows`
 fallback; retire `_something_materialised`'s loose-evidence clause and
 sweep archived members no copy references (the interim evidence
