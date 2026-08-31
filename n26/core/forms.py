@@ -372,7 +372,7 @@ class JoinCampaignForm(forms.Form):
 
     gang = forms.CharField(
         label="Gang",
-        help_text="Paste the link a player sent you, or the gang's id.",
+        help_text="Paste the link a player sent you, or the gang’s id.",
     )
 
     def clean_gang(self):

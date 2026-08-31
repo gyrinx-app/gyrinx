@@ -1,0 +1,11 @@
+{# title: A list holding two sorts of campaign #}
+{# note: The campaign row's twin cases, which a list mixes freely: the ones a reader arbitrates carry the way in to change them, and the ones they only play in name whoever runs it and carry no button at all — the whole row already opens the campaign, and there is nothing on the far side for them to change. The empty cell is still drawn, so both sorts stand the same height and the names keep one left edge. #}
+{# layout: full #}
+<c-n26.record-table noun="campaigns" singular="campaign">
+    <c-slot name="empty">
+        No campaigns match that. Try a shorter search.
+    </c-slot>
+    <c-n26.record-table.campaign-row name="Dust Falls" href="#" action_label="Edit" />
+    <c-n26.record-table.campaign-row name="Sump Wars" href="#" owner="kesh" action_label="" />
+    <c-n26.record-table.campaign-row name="The Ash Wastes" href="#" action_label="Edit" />
+</c-n26.record-table>

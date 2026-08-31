@@ -87,7 +87,10 @@ places — the same pattern a gang's screens use for their siblings.
                         No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
                     </c-slot>
                     {% for row in campaigns %}
-                        <c-n26.record-table.campaign-row name="{{ row.name }}" href="{% url 'n26-campaign' row.pk %}" />
+                        <c-n26.record-table.campaign-row name="{{ row.name }}"
+                                                         href="{% url 'n26-campaign' row.pk %}"
+                                                         owner="{{ row.owner_name }}"
+                                                         action_label="{{ row.action_label }}" />
                     {% endfor %}
                 </c-n26.record-table>
             </c-slot>

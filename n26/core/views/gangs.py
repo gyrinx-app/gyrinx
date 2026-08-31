@@ -48,7 +48,7 @@ def dashboard(request):
     edition.
     """
     from n26.core.models import Campaign
-    from n26.core.views.campaigns import invitations_for
+    from n26.core.views.campaigns import campaign_rows, invitations_for
     from n26.flags import CAMPAIGNS, enabled
 
     # The tab is a place this reader can go only where the feature is open to
@@ -57,7 +57,13 @@ def dashboard(request):
     # fetched — a tab with rows nobody may reach would be the worse bug.
     campaigns_open = enabled(CAMPAIGNS, request.user)
     campaigns = (
-        Campaign.objects.filter(owner=request.user, archived=False).order_by("name")
+        campaign_rows(
+            Campaign.objects.involving(request.user)
+            .filter(archived=False)
+            .select_related("owner")
+            .order_by("name", "pk"),
+            request.user,
+        )
         if campaigns_open
         else []
     )

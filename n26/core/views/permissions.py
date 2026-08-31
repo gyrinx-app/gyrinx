@@ -2,11 +2,12 @@
 
 Most scope to the owner and answer a stranger with 404 rather than 403:
 which gangs and fighters exist is not something to be probed for. The
-exception is ``_any_gang_or_404``, which scopes to nobody, because a
-roster is a thing players send each other — owner-scoping is the rule
-for acting on a gang, not for reading one. All of them catch the
-ULIDField refusal, because a pk that is not a ULID is only ever a bad
-link and a 500 is the wrong answer to one.
+exceptions are the two read guards, ``_any_gang_or_404`` and
+``_any_campaign_or_404``: a roster and a campaign are things players
+send each other, so owner-scoping is the rule for acting on one and not
+for reading it. All of them catch the ULIDField refusal, because a pk
+that is not a ULID is only ever a bad link and a 500 is the wrong answer
+to one.
 """
 
 from django.core.exceptions import ValidationError
@@ -86,14 +87,43 @@ def _any_gang_or_404(pk):
         raise Http404("No such gang") from None
 
 
+def _any_campaign_or_404(pk):
+    """The campaign, whoever arbitrates it — a table its players may read.
+
+    Not owner-scoped: the address an arbitrator sends round shows the same
+    campaign to everybody it reaches, and what differs is what the page
+    lets them *do*. Every control on it is the arbitrator's, and the page
+    decides that by asking who is reading, never by hiding the campaign.
+
+    How far the address reaches is decided above this, not here: the view
+    is gated on the campaigns feature and on being signed in, so a reader
+    outside either gets a 404 whatever this returns. A roster reaches
+    further — anybody at all may read one — and the difference is the
+    gate, not the guard.
+
+    Archived campaigns stay out, as archived rosters do: one its arbitrator
+    has put away is not something a link should keep alive. A pk that is
+    not a ULID is a bad URL rather than a server error.
+    """
+    from n26.core.models import Campaign
+
+    try:
+        return get_object_or_404(
+            Campaign.objects.select_related("owner"),
+            pk=pk,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such campaign") from None
+
+
 def _own_campaign_or_404(request, pk):
     """The campaign, if the viewer is its arbitrator.
 
-    Owner-scoped where a gang sheet is not: a roster is a thing players
-    send each other, while a campaign's own pages are where its arbitrator
-    sets it up. What a player in a campaign gets to see is a different
-    question, answered by a different view when there are players to ask
-    about.
+    Owner-scoped where the page itself is not: reading a campaign is one
+    question and changing it is another, so the screens that set a campaign
+    up ask for its arbitrator by name rather than gating a control on a
+    page anybody may open.
     """
     from n26.core.models import Campaign
 
