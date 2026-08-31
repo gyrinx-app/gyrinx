@@ -181,7 +181,8 @@ def campaign(request, pk):
     accepted = CampaignParticipant.State.ACCEPTED
 
     found = _any_campaign_or_404(pk)
-    yours = found.owner_id == getattr(request.user, "id", None)
+    reading = getattr(request.user, "id", None)
+    yours = found.owner_id == reading
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
@@ -199,11 +200,12 @@ def campaign(request, pk):
         membership.over_budget = (
             found.budget is not None and membership.worth > found.budget
         )
+        # The arbitrator may take any gang out; a player only their own.
+        membership.may_remove = yours or membership.gang.owner_id == reading
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the participants, and
     # whether this reader is one of them decides what it offers them.
     participants = list(_participants(found))
-    reading = getattr(request.user, "id", None)
     at_the_table = any(
         participant.user_id == reading and participant.state == accepted
         for participant in participants
@@ -376,17 +378,27 @@ def remove_gang(request, pk, gang_pk):
     GET asks and changes nothing; the POST from that page takes the gang out.
     What the gang did while it was in the campaign stays in both histories —
     leaving closes its membership rather than unwriting anything.
+
+    The arbitrator may take any gang out, and a player may take out their
+    own. A player who can put a gang in has to be able to take it back:
+    a gang plays one campaign at a time, so one left in the wrong campaign
+    is a gang that can join no other until somebody else acts.
     """
+    from django.http import Http404
+
     from n26.core.models import CampaignMembership
     from n26.core.operations import operation
 
-    found = _own_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(pk)
     membership = get_object_or_404(
         CampaignMembership.objects.select_related("gang"),
         campaign=found,
         gang__pk=gang_pk,
         left__isnull=True,
     )
+    reading = getattr(request.user, "id", None)
+    if found.owner_id != reading and membership.gang.owner_id != reading:
+        raise Http404("No such gang in this campaign")
 
     if request.method == "POST":
         name = membership.gang.name

@@ -1162,7 +1162,6 @@ class TestAPlayerBringingTheirOwnGang:
             f"/n26/campaigns/{theirs.pk}/archive/",
             f"/n26/campaigns/{theirs.pk}/participants/add/",
             f"/n26/campaigns/{theirs.pk}/battles/new/",
-            f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/",
         ):
             assert address not in drawn, address
 
@@ -1176,9 +1175,51 @@ class TestAPlayerBringingTheirOwnGang:
             f"/n26/campaigns/{theirs.pk}/archive/",
             f"/n26/campaigns/{theirs.pk}/participants/add/",
             f"/n26/campaigns/{theirs.pk}/battles/new/",
-            f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/",
         ):
             assert client.get(address).status_code == 404, address
+
+    def test_they_can_take_their_own_gang_back_out(
+        self, client, theirs, mine, open_to_everyone
+    ):
+        """A player who can put a gang in has to be able to take it out: a
+        gang plays one campaign at a time, so one left in the wrong place
+        can join nothing else."""
+        self.accept_and_bring(client, theirs, mine)
+        drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
+        remove = f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/"
+        assert remove in drawn
+
+        assert client.get(remove).status_code == 200
+        client.post(remove)
+        assert not CampaignMembership.objects.filter(
+            campaign=theirs, gang=mine, left__isnull=True
+        ).exists()
+
+    def test_it_can_then_join_somewhere_else(
+        self, client, theirs, mine, open_to_everyone
+    ):
+        """Which is the whole point of being able to take it out."""
+        self.accept_and_bring(client, theirs, mine)
+        client.post(f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/")
+        response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
+        assert [row["label"] for row in response.context["gang_options"]] == ["My Own"]
+
+    def test_they_cannot_take_out_somebody_elses(
+        self, client, theirs, mine, gang_type, arbitrator, open_to_everyone
+    ):
+        from n26.core.operations import operation
+
+        stranger = User.objects.create_user("stranger")
+        not_theirs = found_gang("Not Mine", gang_type, owner=stranger)
+        with operation(not_theirs, actor=stranger) as op:
+            op.join_campaign(theirs)
+
+        remove = f"/n26/campaigns/{theirs.pk}/gangs/{not_theirs.pk}/remove/"
+        assert client.get(remove).status_code == 404
+        client.post(remove)
+        assert CampaignMembership.objects.filter(
+            campaign=theirs, gang=not_theirs, left__isnull=True
+        ).exists()
 
     def accept_and_bring(self, client, campaign, gang):
         """A participant with a gang of theirs already in the campaign."""

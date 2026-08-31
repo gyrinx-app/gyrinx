@@ -196,7 +196,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                             not the rating its own sheet shows.
                             {% endcomment %}
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.worth }}¢</span>
-                            {% if yours %}
+                            {% if membership.may_remove %}
                                 <c-ui.button size="sm"
                                              variant="ghost"
                                              href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"
