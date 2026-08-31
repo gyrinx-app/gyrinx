@@ -512,6 +512,50 @@ grenades under its Grenade launcher array"). Archived
 be dropped. Duplicate `(materialised_from, materialised_for)` pairs
 estate-wide: **0**.
 
+*RUN 2026-08-31. The chunk turned out to be mostly a repair, not a
+tighten.* Measuring the estate after the backfill found that the
+propagation pass had been **creating duplicates** for the five days
+between the flag opening (26 Aug) and the backfill running (31 Aug): a
+pass judges "already held" by provenance alone, pre-provenance grants
+carried none, so it granted a second copy beside what a model plainly
+already had. ~10,500 extra live copies, every one dated from the flag
+opening or later. The backfill could not have caught this — it fills
+gaps, it does not know a duplicate. Ordering lesson: **the backfill
+should have run before the flag opened, not after.**
+
+Shipped as PR #2374 (merged, `d7b530fd1`): `n26_drop_duplicate_grants`
+(`n26/core/duplicate_grants.py`) recognises a duplicate by shape — a
+caught-up grant carrying provenance beside an untagged default-reason
+copy of the same thing on the same host — drops the pass's copy, and
+writes its provenance onto the copy the owner already had. Guards, each
+one earned: a set naming its thing twice is left alone (twins both
+belong, and which answers which cannot be told); anything paid for in
+the dropped subtree stands; a counter's tally moves to its twin, and one
+deeper in the subtree with nowhere to go stands; a duplicate beneath a
+duplicate is settled once (dropping the one above cascades the one
+below, and retagging against a deleted carrier failed the whole gang
+with an integrity error at commit — found by inline review, not by the
+bots). The console takes a single model's id, reads back what it would
+do in sentences, and runs that model alone. The backfill also now walks
+archived gangs.
+
+*Prod run (record 4e0fe15e):* 2,489 gangs, 0 failures, ~13 min. 10,660
+dropped, 10,660 retagged, 2,788 tallies moved, 669 swept, 6 stood.
+Verified from outside: duplicated subtypes, rules and counters all zero;
+what remains is 6 twin-named weapons (the guard, correctly), 101 hidden
+items granted by two distinct members (legitimate), and 2 equipment
+lists that predate the rollout. A named fighter checked in detail: 32
+live assignments to 17, 15 things-held-twice to 0, 5 models in the gang
+to 4 (its duplicated spawned servitor gone), XP [61,61] to [61],
+credits and rating unmoved.
+
+*What C8 had proposed, and what became of it:* the unique constraint
+already exists (`assignment_one_live_materialisation`, live-only by
+design so a deliberate re-take works); the archived-member sweep is a
+no-op (3 archived members, all referenced); removing
+`_granted_rows_without_provenance` and tightening
+`_something_materialised` remain, and are now the whole of what is left.
+
 *The chunk, re-cut:*
 
 1. **Provenance uniqueness at the database.** A unique constraint on
