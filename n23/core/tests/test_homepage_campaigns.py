@@ -165,7 +165,7 @@ def test_homepage_no_campaigns():
     # Check empty state messages
     assert "You have no Campaign Gangs." in content
     assert (
-        'You are not part of any Campaigns. <a href="/n23/campaigns/">Create a new Campaign</a>.'
+        'You are not part of any campaigns. <a href="/n23/campaigns/">Create a new campaign</a>.'
         in content
     )
 
@@ -323,7 +323,7 @@ def test_homepage_search_campaigns():
     # Non-matching search
     response = client.get(reverse("core:index"), {"q_campaigns": "Nonexistent"})
     assert response.status_code == 200
-    assert b"No Campaigns matched your search" in response.content
+    assert b"No campaigns matched your search" in response.content
 
 
 @pytest.mark.django_db

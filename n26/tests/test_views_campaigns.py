@@ -780,13 +780,13 @@ class TestInvitingSomebody:
         """A page that listed every account by default would be a directory."""
         drawn = client.get(self.add_page(campaign)).content.decode()
         assert "vex_ordo" not in drawn
-        assert "Type a username to find somebody" in drawn
+        assert "Type a username to search" in drawn
 
     def test_the_arbitrator_is_not_offered_themselves(
         self, client, campaign, arbitrator, open_to_everyone
     ):
         drawn = client.get(self.add_page(campaign, "arbitrator")).content.decode()
-        assert "Nobody by that name" in drawn
+        assert "No users match that name" in drawn
 
     def test_the_message_box_opens_from_the_address(
         self, client, campaign, player, open_to_everyone

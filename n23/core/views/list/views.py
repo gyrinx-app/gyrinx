@@ -248,7 +248,7 @@ class ListDetailView(generic.DetailView):
         if self.object.is_cloning:
             messages.info(
                 request,
-                f"{self.object.name} is still joining the campaign — it'll be ready in a moment.",
+                f"{self.object.name} is still joining the campaign and will appear shortly.",
             )
             target = (
                 reverse("core:campaign", args=(self.object.campaign_id,))

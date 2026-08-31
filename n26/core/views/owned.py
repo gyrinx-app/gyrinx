@@ -630,7 +630,7 @@ def sell_assignment(request, pk):
         messages.error(request, str(refusal))
         return _unchanged(request, back)
     if proceeds is None:
-        messages.info(request, f"{name} had already gone.")
+        messages.info(request, f"{name} was already removed.")
         return _unchanged(request, back)
 
     record(
@@ -930,7 +930,7 @@ def remove_assignment(request, pk):
         messages.error(request, str(refusal))
         return _unchanged(request, back)
     if removed is None:
-        messages.info(request, f"{name} had already gone.")
+        messages.info(request, f"{name} was already removed.")
         return _unchanged(request, back)
 
     record(
@@ -979,7 +979,7 @@ def refund_assignment(request, pk):
         messages.error(request, str(refusal))
         return _unchanged(request, back)
     if refunded is None:
-        messages.info(request, f"{name} had already gone.")
+        messages.info(request, f"{name} was already removed.")
         return _unchanged(request, back)
 
     record(

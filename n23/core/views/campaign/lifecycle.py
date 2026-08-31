@@ -70,8 +70,8 @@ def start_campaign(request, id):
 
                 messages.success(
                     request,
-                    f"Campaign has been started! {len(result.stub_lists)} "
-                    "gang(s) are joining — they'll be ready in a moment.",
+                    f"Campaign started. {len(result.stub_lists)} "
+                    "gang(s) are joining and will appear shortly.",
                 )
         except ValidationError as e:
             messages.validation(request, e)
@@ -151,7 +151,7 @@ def retry_campaign_list_clone(request, id, list_id):
 
     transaction.on_commit(_enqueue)
     track("campaign_list_clone_retry", campaign_id=campaign_id, list_id=stub_id)
-    messages.success(request, f"Retrying {stub.name} — it'll be ready in a moment.")
+    messages.success(request, f"Retrying {stub.name}.")
     return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
 
@@ -198,7 +198,7 @@ def end_campaign(request, id):
 
                 track("campaign_ended", campaign_id=str(campaign.id))
 
-                messages.success(request, "Campaign has been ended!")
+                messages.success(request, "Campaign ended.")
             else:
                 messages.error(request, "Campaign cannot be ended.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
@@ -258,7 +258,7 @@ def reopen_campaign(request, id):
 
                 track("campaign_reopened", campaign_id=str(campaign.id))
 
-                messages.success(request, "Campaign has been reopened!")
+                messages.success(request, "Campaign reopened.")
             else:
                 messages.error(request, "Campaign cannot be reopened.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))

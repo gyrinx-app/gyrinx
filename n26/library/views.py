@@ -3916,7 +3916,7 @@ def ingest_preview(request):
 
     held = held_sheets(request.user)
     if not held:
-        messages.error(request, "No sheets are held. Upload one first.")
+        messages.error(request, "No sheets uploaded yet. Upload one first.")
         return redirect("authoring-ingest")
 
     plan = plan_ingest(**rows_of(held))

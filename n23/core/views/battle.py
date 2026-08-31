@@ -363,7 +363,7 @@ def new_battle(request, campaign_id):
                 added_lists=form.cleaned_data["participants"],
             )
 
-            messages.success(request, f"Battle '{battle.name}' created successfully!")
+            messages.success(request, f"Battle '{battle.name}' recorded.")
             return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
     else:
         form = BattleForm(campaign=campaign)
@@ -383,7 +383,10 @@ def edit_battle(request, id):
 
     # Check permissions
     if not battle.can_edit(request.user):
-        messages.error(request, "You don't have permission to edit this battle.")
+        messages.error(
+            request,
+            "You cannot edit this battle. Only the battle's owner or a campaign admin can.",
+        )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
@@ -428,7 +431,7 @@ def edit_battle(request, id):
                 campaign_name=battle.campaign.name,
             )
 
-            messages.success(request, "Battle updated successfully!")
+            messages.success(request, "Battle updated.")
             return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
     else:
         form = BattleForm(
@@ -471,7 +474,10 @@ def start_battle(request, id):
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
     if not battle.can_manage(request.user):
-        messages.error(request, "You don't have permission to manage this battle.")
+        messages.error(
+            request,
+            "You cannot manage this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
+        )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
@@ -534,7 +540,10 @@ def end_battle(request, id):
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
     if not battle.can_manage(request.user):
-        messages.error(request, "You don't have permission to manage this battle.")
+        messages.error(
+            request,
+            "You cannot manage this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
+        )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     # Guarded before the POST branch so re-submitting an already-ended battle
@@ -601,7 +610,10 @@ def edit_battle_roles(request, id):
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
     if not battle.can_manage(request.user):
-        messages.error(request, "You don't have permission to manage this battle.")
+        messages.error(
+            request,
+            "You cannot manage this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
+        )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if not battle.participant_entries.exists():
@@ -649,7 +661,10 @@ def archive_battle(request, id):
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
     if not (battle.can_edit(request.user) or battle.can_unarchive(request.user)):
-        messages.error(request, "You don't have permission to archive this battle.")
+        messages.error(
+            request,
+            "You cannot archive this battle. Only the battle's owner or a campaign admin can.",
+        )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
@@ -696,7 +711,8 @@ def add_battle_note(request, battle_id):
     # Check permissions
     if not battle.can_add_notes(request.user):
         messages.error(
-            request, "You don't have permission to add notes to this battle."
+            request,
+            "You cannot add notes to this battle. Only the battle's owner, a campaign admin, or an owner of a participating gang can.",
         )
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 

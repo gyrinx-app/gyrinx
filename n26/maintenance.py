@@ -581,7 +581,7 @@ def _conversion_view(request, operation, system, task_fn):
             return HttpResponseRedirect(address)
         if not plan.ok:
             messages.error(
-                request, "The conversion refuses: " + "; ".join(plan.problems)
+                request, "The conversion cannot run: " + "; ".join(plan.problems)
             )
             return HttpResponseRedirect(address)
         backfill = Backfill.objects.create(
