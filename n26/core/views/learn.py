@@ -63,7 +63,7 @@ from django.urls import reverse
 from n26.core.views.permissions import _own_miniature_or_404
 
 
-def link_skills(*cards):
+def link_skills(*cards, among=None):
     """Point every card's Skills control at this fighter's skills screen.
 
     One query for a whole roster, and none per card: which collections
@@ -71,10 +71,17 @@ def link_skills(*cards):
     which collections its own grid reaches. A card depicting nobody — a
     hire preview, a gallery sample — keeps an empty href and draws no
     control, which is what a print sheet wants too.
+
+    ``among`` is that answer, where the caller has already asked for it —
+    a page drawing a listing of the same collections has, and asking
+    twice on one request would be the same query twice.
     """
     from n26.core.access import model_collections
 
-    learnable = {str(collection.pk) for collection in model_collections()}
+    learnable = {
+        str(collection.pk)
+        for collection in (model_collections() if among is None else among)
+    }
     for card in cards:
         if card.id and set(card.placed_in) & learnable:
             card.learn_href = reverse("n26-learn", args=[card.id])
@@ -136,7 +143,7 @@ class SkillsOffer:
     rest: list
 
 
-def _sets_on_offer(card, computed):
+def _sets_on_offer(card, computed, among=None):
     """Every set a model could hold something from, one group each, said
     with whether their placements name the tier it sits in.
 
@@ -175,7 +182,7 @@ def _sets_on_offer(card, computed):
     held = _rows_on(card)
     granted = _grants_on(computed)
     found = []
-    for collection in model_collections():
+    for collection in model_collections() if among is None else among:
         placements = placements_for(computed, collection)
         placed = {placement.section.name for placement in placements.values()}
         listed = with_use_notes(
@@ -208,7 +215,7 @@ def _sets_on_offer(card, computed):
     return found
 
 
-def skills_offer(card, computed):
+def skills_offer(card, computed, among=None):
     """What this model may hold, as a list to tick rather than to click.
 
     Every set the library holds for a model, skills and powers alike —
@@ -229,11 +236,15 @@ def skills_offer(card, computed):
     holds something in is drawn among their own so it can be cleared
     where they will look for it, and everything else is on the same
     listing one tab or one search away.
+
+    ``among`` is the collections to read, for a caller that has already
+    asked which they are — the same answer :func:`link_skills` wants,
+    and one query rather than two where a page needs both.
     """
     from n26.core.render import ChoiceOffer
 
     own, rest, every = [], [], []
-    for placed, group in _sets_on_offer(card, computed):
+    for placed, group in _sets_on_offer(card, computed, among):
         every.append(group)
         if placed or any(option.is_current for option in group.options):
             own.append(group)

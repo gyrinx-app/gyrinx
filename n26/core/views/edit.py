@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -268,9 +267,11 @@ def edit_fighter(request, pk):
     """One model, whole: their card with its edit affordances, the
     characteristics they can set by hand, and the notes box.
 
-    The card is rendered off the same gang derivation the sheet uses —
-    one call, fixed queries — and the member picked out of it, so this
-    page and the sheet cannot disagree about what the model is. The
+    One derivation of one model serves the whole page: the card, the
+    skills listing and the edits boxes are all read off it, so they
+    cannot disagree about what the model is. That reading carries the
+    gang's own assignments, which is how what the gang grants reaches
+    the card without the rest of the roster being computed for it. The
     card draws in ``edit`` mode: the choice controls the sheet hides
     are offered here, outlined, and the Gear and Weapons rows carry the
     way to the Equip tab.
@@ -296,6 +297,7 @@ def edit_fighter(request, pk):
     and the complaint under them; anything saved lands back here.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.access import model_collections
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.forms import (
@@ -306,7 +308,7 @@ def edit_fighter(request, pk):
     )
     from n26.core.images import MAX_PX, PORTRAIT
     from n26.core.operations import Refusal, operation
-    from n26.core.render import render_gang, roster, summarise_roster
+    from n26.core.render import build_model_card, roster, summarise_roster
     from n26.core.views.choose import link_slots
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
@@ -502,13 +504,16 @@ def edit_fighter(request, pk):
     if statline_edit is None and statline_class is not None:
         statline_edit = statline_class.opened_on(miniature)
 
-    # The model's own card, computed: the boxes need the assignments and
-    # the grants behind what the card shows, which the sheet does not
-    # carry. A fixed reading, however much this model knows.
-    own = build_card(miniature)
+    # This model, read once: the card drawn below, the skills listing and
+    # the edits boxes all come off it. A fixed number of queries, however
+    # much this model holds and however large the gang around it.
+    own = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
     computed = compute(own, index)
-    skills = skills_offer(own, computed)
+    # Asked once and used twice: the listing reads these collections, and
+    # so does the card's Skills control.
+    sets = model_collections()
+    skills = skills_offer(own, computed, sets)
     asked = request.GET.get("skills")
     # A model no placement names has nothing under the first heading, so
     # the box opens on the listing holding every set. An address naming a
@@ -536,9 +541,9 @@ def edit_fighter(request, pk):
     }
 
     # A tab clicked with script running is answered with the box alone,
-    # before the gang sheet is built: changing which sets are listed
-    # changes nothing else on the page, and the address still says which
-    # tab is open so a reload draws the same screen.
+    # before the card is drawn: changing which sets are listed changes
+    # nothing else on the page, and the address still says which tab is
+    # open so a reload draws the same screen.
     if request.method == "GET" and asked and is_htmx(request):
         answer = render(
             request, "n26/includes/skills_box.html", {**skills_box, "oob": True}
@@ -546,14 +551,14 @@ def edit_fighter(request, pk):
         answer["HX-Replace-Url"] = request.get_full_path()
         return answer
 
-    sheet = render_gang(gang)
-    link_slots(gang, sheet, *sheet.models)
-    link_skills(*sheet.models)
-    card = next(
-        (member for member in sheet.models if member.id == str(miniature.pk)), None
-    )
-    if card is None:
-        raise Http404("No such model")
+    # Drawn from the reading already in hand. A card is a fact about one
+    # model — what it holds, what modifiers make of that — so the gang is
+    # asked for only what the gang alone can answer, which on this page is
+    # the roster tally below. The card's own build carries the gang's
+    # assignments already, so what the gang grants still reaches it.
+    card = build_model_card(miniature, card=own, computed=computed)
+    link_slots(gang, card)
+    link_skills(card, among=sets)
     # Only here. A counter is drawn wherever a card is; the model's own
     # page is the one place it is moved, so this is the one place the
     # lines are given addresses.

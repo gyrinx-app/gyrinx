@@ -419,3 +419,49 @@ class TestRenamingFromHere:
             reverse("n26-rename-fighter", args=[vex.pk]), {"name": "Karn"}
         )
         assert response.url == reverse("n26-gang", args=[gang.pk])
+
+
+class TestTheQueryBudget:
+    """One model's page asks about one model.
+
+    The count is pinned so it changes deliberately, and measured against
+    a roster to hold the shape of it: what this page draws is a fact
+    about the model in the address, so the rest of the gang costs
+    nothing. A page that walks the roster to find one card reads the
+    same and passes every other test here.
+
+    Measured after one warm request. The first request of a session
+    writes its own row and reads the site, which would pin the session
+    machinery alongside the page.
+    """
+
+    def measure(self, client, url):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        assert client.get(url).status_code == 200
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(url).status_code == 200
+        return len(captured.captured_queries)
+
+    def crowd(self, gang, tester, make_profile, make_statline, how_many):
+        """Fill the gang out, so a count that follows the roster shows."""
+        from n26.core.operations import operation
+
+        profile = make_profile("Juve", price=0)
+        make_statline(profile)
+        for n in range(how_many):
+            with operation(gang, actor=tester) as op:
+                op.hire(profile, f"Extra {n}")
+
+    def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
+        client.force_login(tester)
+        assert self.measure(client, edit_url(vex)) == 39
+
+    def test_the_rest_of_the_gang_costs_nothing(
+        self, client, tester, gang, vex, make_profile, make_statline
+    ):
+        client.force_login(tester)
+        alone = self.measure(client, edit_url(vex))
+        self.crowd(gang, tester, make_profile, make_statline, 12)
+        assert self.measure(client, edit_url(vex)) == alone
