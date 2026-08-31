@@ -245,26 +245,20 @@ two, not one, so a fighter can never be handed vehicle damage — and
 the app never rolls: the dice are the table's, and a player adds the
 result they rolled.
 
-1. Create a **slot type** per table: "Lasting Injury" (plural "Lasting
-   Injuries") and "Lasting Damage". Set *allows repeats* on both — a
-   second Eye Injury is a second Eye Injury.
-2. Create a **picklist** per slot type, and give it its **dice** (D66)
-   and how a roll finds its result (the one row the roll lands in).
-   That makes it a roll table, and its page grows a table view.
-3. On the **roll table page**, add each result at its band — "21-26"
-   as readily as "51" — until the page says every roll is covered. It
-   names any roll left unclaimed, any roll claimed twice, and any
-   result with no band, because none of those can be seen one row at
-   a time. Five results sit on both tables at the same rolls; a pack
-   holds one pickable per name, so give the damage twins a qualifier
-   (players never see it).
-4. On each result that worsens a characteristic, attach a **modifier**:
-   targets the model, worsens that characteristic by one. A result that
-   changes no number needs nothing — the card says the model has it,
-   and the rest is played at the table.
-5. Create a **slot** per table, labelled with the plural, expecting no
-   picks and holding plenty. Build it into each fighter or vehicle
-   entry, so every model carries its empty row from the moment it is
+1. On **Foundations**, create the **lasting effect tables**. One press
+   makes both tables whole: a slot type each with *allows repeats* set —
+   a second Eye Injury is a second Eye Injury — every result at its
+   band, and a standing choice each. Each table's own page shows every
+   roll covered. (Five results sit on both tables at the same rolls; a
+   pack holds one pickable per name, so the damage twins arrive with a
+   qualifier, which players never see.)
+2. Standard content carries names and numbers only, so finish the six
+   results that worsen a characteristic by hand: on each, attach a
+   **modifier** — targets the model, worsens that characteristic by
+   one. A result that changes no number needs nothing — the card says
+   the model has it, and the rest is played at the table.
+3. Build each table's choice into the matching fighter or vehicle
+   entries, so every model carries its empty row from the moment it is
    hired.
 
 The player's picker then lists the results in roll order with their
