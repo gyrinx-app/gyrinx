@@ -127,7 +127,9 @@ class TestTheDashboardTab:
         assert "Dust Falls" in body
         assert "/n26/campaigns/new/" in body
 
-    def test_it_shows_only_the_readers_own(self, client, arbitrator, open_to_everyone):
+    def test_it_leaves_out_a_campaign_the_reader_has_no_place_in(
+        self, client, arbitrator, open_to_everyone
+    ):
         Campaign.objects.create(
             name="Not Yours", owner=User.objects.create_user("someone-else")
         )
@@ -286,6 +288,7 @@ class TestSomebodyElsesCampaign:
         assert theirs.archived is False
 
     def test_it_is_not_listed(self, client, arbitrator, theirs, open_to_everyone):
+        """Readable at its own address, but not one of the reader's own."""
         assert "Not Yours" not in client.get("/n26/campaigns/").content.decode()
 
 
@@ -940,6 +943,22 @@ class TestWhatAParticipantSees:
     def test_declining_leaves_it_out(self, client, theirs, open_to_everyone):
         client.post(f"/n26/campaigns/{theirs.pk}/invitation/", {"answer": "decline"})
         assert list(client.get("/n26/campaigns/").context["campaigns"]) == []
+
+    def test_searching_finds_it(self, client, theirs, open_to_everyone):
+        """The list is a join across participants and is deduplicated, so a
+        search over it has to survive both."""
+        self.accept(client, theirs)
+        response = client.get("/n26/campaigns/", {"q": "Sump"})
+        assert [row.pk for row in response.context["campaigns"]] == [theirs.pk]
+
+    def test_searching_for_something_else_finds_nothing(
+        self, client, theirs, open_to_everyone
+    ):
+        self.accept(client, theirs)
+        assert (
+            list(client.get("/n26/campaigns/", {"q": "Ashfall"}).context["campaigns"])
+            == []
+        )
 
     def test_the_bar_offers_it(self, client, theirs, open_to_everyone):
         """The chevron beside a campaign's name is how somebody reaches

@@ -61,7 +61,7 @@ def dashboard(request):
             Campaign.objects.involving(request.user)
             .filter(archived=False)
             .select_related("owner")
-            .order_by("name"),
+            .order_by("name", "pk"),
             request.user,
         )
         if campaigns_open

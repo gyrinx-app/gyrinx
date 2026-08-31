@@ -11,6 +11,10 @@ class CampaignQuerySet(models.QuerySet):
         they run, and the ones they were asked into and said yes to. An
         invitation still waiting is not one of them — an unanswered question
         belongs with the questions, and a declined one is over.
+
+        Says nothing about archiving: an archived campaign is still one this
+        person is in, so a caller listing campaigns to read must ask for
+        ``archived=False`` itself.
         """
         if user is None or not user.is_authenticated:
             return self.none()

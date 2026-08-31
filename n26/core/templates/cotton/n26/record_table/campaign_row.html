@@ -20,10 +20,14 @@ options — never appears.
   href — the campaign's own page.
   owner — the arbitrator's username, drawn beside the name. Omitted, nothing
     is said: a reader running the campaign already knows who runs it.
-  action_label — the button's word. Empty, there is no button, which is what
-    a campaign somebody only plays in offers: the whole row already opens it.
+  action_label — the button's word, and there is no button without one. A
+    campaign somebody only plays in offers none: the whole row already opens
+    it, and there is nothing on the far side for them to change. Left out,
+    a row draws no button — the quiet way round, because a row that grew a
+    control nobody asked for would say the reader may do something they may
+    not.
 {% endcomment %}
-<c-vars name="" href="" owner="" action_label="Edit" class="" />
+<c-vars name="" href="" owner="" action_label="" class="" />
 
 <div x-data="{ facets: {
         type: '',
@@ -35,9 +39,9 @@ options — never appears.
      {% comment %}
      The same fixed tracks as the gang row, minus its middle column: stating
      the widths is what makes separate grids look like one table. One row,
-     because a campaign says only its name — so nothing here may span two, or
-     the grid grows a second row and the name centres in the first while the
-     button centres across both.
+     because everything a campaign says sits on a single line — so nothing
+     here may span two, or the grid grows a second row and the name centres
+     in the first while the button centres across both.
      {% endcomment %}
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-1 py-3
             hover:bg-ink-500/5 {{ class }}">
@@ -60,11 +64,12 @@ options — never appears.
     {% comment %}
     relative, so the button paints above the stretched link rather than under
     it.
-    {% endcomment %}
-    {% comment %}
-    The cell is drawn whether or not it holds a button, and stands as tall as
-    one: a list mixing rows that have a button with rows that do not would
-    otherwise draw them at two different heights.
+
+    Drawn whether or not it holds a button, and floored at the height of one
+    — a small button's line plus its padding and border — so a list mixing
+    rows that have a button with rows that do not keeps a single row height.
+    The floor is stated rather than measured, so a change to the button's
+    padding has to be repeated here.
     {% endcomment %}
     <div class="relative col-start-2 row-start-1 flex min-h-8.5 shrink-0 items-center justify-self-end">
         {% if action_label %}

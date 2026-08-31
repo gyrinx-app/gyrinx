@@ -179,7 +179,7 @@ def reader_campaigns(request):
         found = list(
             Campaign.objects.involving(user)
             .filter(archived=False)
-            .order_by("name")[:NAV_SIBLINGS]
+            .order_by("name", "pk")[:NAV_SIBLINGS]
         )
     request._n26_reader_campaigns = found
     return found

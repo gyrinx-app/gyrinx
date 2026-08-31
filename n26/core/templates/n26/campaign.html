@@ -59,9 +59,9 @@ reader's other campaigns — the same pattern a gang's screens use.
                 <c-slot name="actions">
                     <c-n26.button-group>
                         {% comment %}
-                    Default rather than primary, as on the gang sheet: blue
-                    is the page's one creative act, and editing what is
-                    already here is not it.
+                        Default rather than primary, as on the gang sheet:
+                        blue is the page's one creative act, and editing what
+                        is already here is not it.
                         {% endcomment %}
                         <c-ui.button size="sm"
                                      variant="default"
@@ -78,9 +78,9 @@ reader's other campaigns — the same pattern a gang's screens use.
                                 </c-ui.button>
                             </c-slot>
                             {% comment %}
-                        A page that asks, not the act: following this link
-                        archives nothing, and the POST it leads to is the
-                        only thing that does.
+                            A page that asks, not the act: following this
+                            link archives nothing, and the POST it leads to
+                            is the only thing that does.
                             {% endcomment %}
                             <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
                                 Archive campaign

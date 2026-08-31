@@ -57,11 +57,14 @@ def campaigns(request):
     from n26.core.views.gangs import _pages
 
     query = request.GET.get("q", "").strip()
+    # Ordered by name and then by key: two campaigns may share a name now
+    # that the list holds other people's, and tied rows under a name-only
+    # sort are free to swap places from one page to the next.
     listed = (
         Campaign.objects.involving(request.user)
         .filter(archived=False)
         .select_related("owner")
-        .order_by("name")
+        .order_by("name", "pk")
     )
     found = search_queryset(listed, query, ["name"])
 
@@ -88,7 +91,7 @@ def campaigns(request):
     )
 
 
-def campaign_rows(campaigns, user):
+def campaign_rows(listed, user):
     """The listed campaigns, each carrying what its row has to draw.
 
     A list holding both the campaigns somebody runs and the ones they play
@@ -103,7 +106,7 @@ def campaign_rows(campaigns, user):
     arbitrator and offers nothing: the whole row already opens it, and
     there is nothing on the far side for them to change.
     """
-    rows = list(campaigns)
+    rows = list(listed)
     for row in rows:
         arbitrated = row.owner_id == getattr(user, "id", None)
         row.owner_name = "" if arbitrated else row.owner.username
@@ -176,7 +179,7 @@ def campaign(request, pk):
     from n26.core.models import CampaignMembership
 
     found = _any_campaign_or_404(pk)
-    yours = found.owner_id == request.user.id
+    yours = found.owner_id == getattr(request.user, "id", None)
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
@@ -273,8 +276,8 @@ def add_gang(request, pk):
 
     The arbitrator's act, not the gang owner's: a campaign is run by somebody,
     and it is that somebody who says who is in it. Nothing about the gang
-    changes but where it plays, the gang's own history says it happened and
-    who did it, and its owner may leave at any time.
+    changes but where it plays, and the gang's own history says it happened
+    and who did it. Taking a gang back out is the arbitrator's act too.
     """
     from n26.core.forms import JoinCampaignForm
     from n26.core.operations import Refusal, operation
