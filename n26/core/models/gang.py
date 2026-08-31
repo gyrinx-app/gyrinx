@@ -51,7 +51,7 @@ class Gang(Base, Owned, Archived, Rated):
         max_length=50,
         blank=True,
         default="",
-        help_text="Shown against the gang wherever it is listed.",
+        help_text="Shown next to the gang's name wherever it is listed.",
     )
     #: The owner's own words about the gang — table agreements, standing
     #: reminders. Editor HTML, stored as written and sanitised on the way

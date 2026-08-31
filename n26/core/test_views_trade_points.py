@@ -256,7 +256,7 @@ class TestWhoIsOffered:
         assert "Nobody else" not in body
         assert "Start TP visit" in body
         assert "Start action" not in body
-        assert "Selected fighters add" in body
+        assert "Selected models add" in body
         assert 'x-text="added"' in body
         assert 'x-show="!overridden"' in body
         assert 'x-model="override"' in body
@@ -312,7 +312,7 @@ class TestStartingTheAction:
         gang.refresh_from_db()
         assert gang.visiting_trading_post is False
         told = [str(m) for m in answer.context["messages"]]
-        assert any("at least one fighter" in line for line in told)
+        assert any("at least one model" in line for line in told)
 
     def test_sending_nobody_is_refused(self, client, roster, gang):
         """Neither ticks nor a typed amount: there is nothing to start."""
@@ -321,7 +321,7 @@ class TestStartingTheAction:
         gang.refresh_from_db()
         assert gang.visiting_trading_post is False
         told = [str(m) for m in answer.context["messages"]]
-        assert any("at least one fighter" in line for line in told)
+        assert any("at least one model" in line for line in told)
 
     def test_it_records_who_went(self, client, roster, gang):
         start(client, gang, roster["Vex"])
@@ -512,7 +512,7 @@ class TestTheReceipt:
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
-        assert "Equip a fighter" in body
+        assert "Equip a model" in body
         for name in ("Vex", "Sura", "Nix"):
             assert name in body
 

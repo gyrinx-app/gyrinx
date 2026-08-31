@@ -893,7 +893,7 @@ def accessorise_assignment(request, pk):
     except WeaponAccessory.DoesNotExist, ValidationError, ValueError:
         # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.
-        messages.error(request, "That accessory is not one to fit.")
+        messages.error(request, "That accessory does not fit this weapon.")
         return _unchanged(request, back)
 
     try:

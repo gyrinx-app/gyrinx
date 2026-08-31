@@ -56,7 +56,7 @@ WORD_RULES = [
     (r"\bsells\b", "a collection contains/includes things; it is not a merchant"),
     (
         r"\banswers?\b",
-        'speech metaphor — use "pick" or "choose" (they differ; see the skill)',
+        'speech metaphor — use "pick", "choose", or "select" (they differ; see the skill)',
     ),
     (r"\bSKU\b", 'say "assignable"'),
     (r"\bseamless(ly)?\b", "marketing-speak — describe, never sell"),
@@ -76,6 +76,10 @@ WORD_RULES = [
 # enforces models — this catches copy).
 N26_WORD_RULES = [
     (r"\bcosts?\b", "banned in n26 — price (asked now) or rating (added to worth)"),
+    (
+        r"\blearn(s|ed|ing|t)?\b",
+        'if this is about skills, say "select" — skills are selected, never learned',
+    ),
 ]
 
 # An exclamation mark ending a sentence in copy. Must not match `!=`,

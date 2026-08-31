@@ -50,7 +50,7 @@ through.
         redisplay after a failed submit keeps the reader's pick made.
         {% endcomment %}
         <c-n26.radio-cards label="Gang type *"
-                           description="What the gang is, which fixes who you can hire and what they may carry."
+                           description="What the gang is. It decides who you can hire and what they can carry."
                            :form="form" name="gang_type">
             {% for type in gang_types %}
                 <c-n26.radio-cards.card name="gang_type"
@@ -83,7 +83,7 @@ through.
 
         <c-n26.colour-picker name="colour" value="{{ form.colour.value|default:'' }}"
                              label="Colour"
-                             description="Shown against the gang wherever it is listed." />
+                             description="Shown next to the gang's name wherever it is listed." />
     </c-n26.form-section>
 
 </c-n26.form-page>

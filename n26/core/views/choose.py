@@ -217,7 +217,7 @@ def choose(request, pk, slot):
                 offer=offer.label,
                 picked="None",
             )
-            messages.success(request, f"Chose None — {offer.label}.")
+            messages.success(request, f"Chose none — {offer.label}.")
             return redirect(back)
         picked = next(
             (
