@@ -2015,6 +2015,7 @@ def built_in_remove(request, pk):
     ammo lines with it. GET asks and changes nothing; the POST from
     this page is the act.
     """
+    from n26.core.propagation import standing_copies_of
     from n26.library import authoring
     from n26.library.models import DefaultAssignment
 
@@ -2042,12 +2043,15 @@ def built_in_remove(request, pk):
         return redirect(back)
 
     riders = member.dependent_members.select_related("weapon_profile__weapon")
+    standing = standing_copies_of(member)
     return render(
         request,
         "authoring/built_in_remove.html",
         {
             "thing": member,
             "label": _label_for(member.assignable),
+            "kept": standing.uses,
+            "kept_gangs": standing.gangs,
             "kind_name": str(member.assignable._meta.verbose_name),
             "set_name": member.default_set.name,
             "holders": holders,

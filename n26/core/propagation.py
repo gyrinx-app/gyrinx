@@ -219,6 +219,21 @@ def reach_of_new_built_ins(holder):
     )
 
 
+def standing_copies_of(member):
+    """The live copies of one set member, and the gangs holding them.
+
+    What taking the member off the set leaves behind: nothing retracts
+    an assignment, so every one of these stays exactly where it is.
+    Counted by provenance — a copy naming this member — so an owner's
+    own copy of the same thing is not counted among them.
+    """
+    return _reach(
+        Assignment.objects.filter(
+            materialised_from=member, archived=False, removes=False
+        )
+    )
+
+
 def _reach(carriers):
     # An archived gang is skipped by the pass, so its uses are outside
     # the reach; a carrier belonging to no gang likewise.

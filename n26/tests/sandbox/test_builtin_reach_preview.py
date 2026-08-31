@@ -388,3 +388,33 @@ class TestTheIngestPreviewSaysIt:
         page = client.get(PREVIEW_URL)
 
         assert page.context["preview"]["reach_said"] == ""
+
+
+class TestRemovalSaysWhatKeepsIt:
+    """Taking a built-in off a set does not take it off anything that
+    already has it, and the page says so with the count — an author who
+    has watched an addition travel would otherwise expect the reverse."""
+
+    def test_the_page_counts_the_copies_that_keep_it(
+        self, client, author, player, gang_type, ganger
+    ):
+        gang = found_gang("The Old Guard", gang_type, owner=player, budget=1000)
+        hire(gang, ganger, "Ana", paid=50)
+        hire(gang, ganger, "Bea", paid=50)
+        member = ganger.built_ins.members.get(rule__isnull=False)
+
+        response = client.get(reverse("authoring-built-in-remove", args=[member.pk]))
+
+        page = response.content.decode()
+        assert "2 standing copies" in page
+        assert "in one gang" in page
+        assert "does not take it off anything that already has it" in page
+
+    def test_a_member_nothing_holds_says_nothing_about_keeping(
+        self, client, author, ganger
+    ):
+        member = ganger.built_ins.members.get(rule__isnull=False)
+
+        response = client.get(reverse("authoring-built-in-remove", args=[member.pk]))
+
+        assert "standing cop" not in response.content.decode()

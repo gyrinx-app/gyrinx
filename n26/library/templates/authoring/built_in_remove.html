@@ -46,12 +46,26 @@ name runs the button off the end of the page.
         What is true, and only what is true. The membership goes and
         nothing puts it back; the thing named is untouched, and so is
         anything already carrying it — built-ins are given at the moment
-        of acquiring, and nothing retracts an assignment.
+        of acquiring, and nothing retracts an assignment. The count of
+        what keeps it is said plainly rather than left as small print,
+        because adding and removing are not mirror images and an author
+        who has watched an addition travel will expect a removal to.
         {% endcomment %}
         <c-ui.alert variant="info" title="The {{ kind_name }} is not deleted">
             {{ label }} stays in the library and on everything else that names it.
             What goes is this one line of {{ set_name }}.
         </c-ui.alert>
+        {% if kept %}
+            <c-ui.alert variant="warning"
+                        title="This does not take it off anything that already has it">
+                {{ kept }} standing cop{{ kept|pluralize:"y,ies" }} of {{ label }}
+                {% if kept_gangs > 1 %}across {{ kept_gangs }} gangs{% else %}in one gang{% endif %}
+                keep{{ kept|pluralize:"s," }} it. A built-in <em>added</em> here reaches
+                everything already holding the set; one taken off does not,
+                because nothing retracts an assignment. To take these away,
+                remove them one at a time where they stand.
+            </c-ui.alert>
+        {% endif %}
         {% if shared %}
             <c-ui.alert variant="warning" title="More than one thing comes with this set">
                 Everything below shares {{ set_name }}, so all of them stop
@@ -91,8 +105,7 @@ name runs the button off the end of the page.
                 which is bought, and the sentence has to be true of both.
                 {% endcomment %}
                 <c-ui.description>
-                    Only what is acquired from here on. Anything already holding
-                    {{ label }} was given it at the moment it was acquired and keeps it.
+                    Only what is acquired from here on.
                 </c-ui.description>
             </c-n26.form-section>
         {% else %}
