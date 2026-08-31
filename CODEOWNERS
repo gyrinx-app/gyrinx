@@ -1,1 +1,18 @@
 *   @tgvashworth
+
+# Dependency manifests and lockfiles have no code owner.
+#
+# A path listed without an owner clears ownership for it, and the code-owner
+# rule only asks for review from owners of the files a PR actually changes.
+# Dependabot PRs touch nothing but these files, so there is no owner to ask and
+# the rule is satisfied. The automerge app's approval supplies the required
+# review, CI still has to pass, and the PR merges itself.
+#
+# Anything Dependabot cannot reach stays owned above, so ordinary PRs are
+# unaffected. See .github/workflows/dependabot-auto-merge.yml.
+/package.json
+/package-lock.json
+/pyproject.toml
+/uv.lock
+/.pre-commit-config.yaml
+/Dockerfile

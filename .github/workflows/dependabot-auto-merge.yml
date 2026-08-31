@@ -32,10 +32,14 @@ jobs:
 
       # Enabling auto-merge is not sufficient on its own: the default branch
       # requires an approving review, so every Dependabot PR parks at
-      # REVIEW_REQUIRED until a human approves it. That is what let eight PRs
-      # pile up — auto-merge was armed on all of them and fired the moment they
-      # were approved. Approving here (as the App, never GITHUB_TOKEN) closes
-      # the loop. Gated to minor/patch, same as the merge below, so majors still
+      # REVIEW_REQUIRED until one lands. This supplies it, as the App and never
+      # GITHUB_TOKEN.
+      #
+      # It only clears the requirement because the files Dependabot touches have
+      # no code owner (see CODEOWNERS). An App cannot be named as a code owner,
+      # and a ruleset bypass does not reach auto-merge, so on an owned path this
+      # approval would count towards the review total and still leave the PR
+      # parked. Gated to minor/patch, same as the merge below, so majors still
       # get a human.
       - name: Approve
         if: >-
