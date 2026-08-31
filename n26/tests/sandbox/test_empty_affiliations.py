@@ -279,6 +279,54 @@ class TestWhatItRefuses:
         )
         with pytest.raises(Refused):
             apply(fossils)
+        assert_reconciled(gang)
+
+    def test_a_held_affiliation_offer_is_a_refusal(
+        self, default_pack, person_type, owner
+    ):
+        """The old question still on a card is not a fossil. Deleting
+        emptied rows would take its answers with it."""
+        create_affiliation("Clanless")
+        specialist = create_subtype("Specialist")
+        modifier(
+            "offers an affiliation",
+            targets_model(),
+            offers_choice(Affiliation),
+            carried_by=specialist,
+        )
+        gang_type = create_gang_type("Enforcers", starting_credits=2000)
+        profile = create_profile("Patrol Officer", person_type, gang_type, price=50)
+        profile.built_ins = create_default_set("Officer kit", members=[specialist])
+        profile.save()
+        gang = found_gang("The Watch", gang_type, owner=owner, budget=2000)
+        hire(gang, profile, "Vex", paid=50)
+
+        fossils = find()
+
+        assert not fossils.ok
+        assert any(
+            "Affiliation offer" in problem and "still live" in problem
+            for problem in fossils.problems
+        )
+        with pytest.raises(Refused):
+            apply(fossils)
+        assert Affiliation.objects.filter(name="Clanless").exists()
+        assert_reconciled(gang)
+
+    def test_an_entry_added_after_the_plan_is_a_refusal(self, leftover_world):
+        """A menu's entries cascade with it. An entry that arrived
+        after the plan was read must not ride that delete down."""
+        gang, _, menus, _, _ = leftover_world
+        menu = menus["Affiliations"]
+        fossils = find()
+        added = add_entry(menu, create_skill("Nerves"))
+
+        with pytest.raises(Refused, match="changed since the plan"):
+            apply(fossils)
+
+        assert CollectionEntry.objects.filter(pk=added.pk).exists()
+        assert Collection.objects.filter(pk=menu.pk).exists()
+        assert_reconciled(gang)
 
     def test_an_archived_assignment_still_naming_an_affiliation_is_a_refusal(
         self, leftover_world

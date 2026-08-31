@@ -29,6 +29,10 @@ Four rules keep the reading honest:
 * A kind row anything still names cannot be deleted at all. Those
   answers belong to a conversion that has not run, so this refuses and
   says which, rather than running before its turn.
+* An Affiliation offer somebody still holds is the old question still
+  live on a card. Deleting emptied rows would take the answers out from
+  under it, so this refuses rather than leaving the offer and emptying
+  the menu.
 * A menu is deleted only when everything in it is going and nothing
   outside what is going asks for it. A menu holding one live entry
   keeps its shape and loses only the entries.
@@ -286,23 +290,20 @@ def find():
         model__in=[model._meta.model_name for _, model in _kinds()],
     )
     offers = []
-    standing = []
     for offer in OffersChoice.objects.filter(of_kind__in=kinds).select_related(
         "from_section"
     ):
         carried_by = _held_carriers(offer)
         if carried_by:
-            standing.append(offer)
-            left_alone.append(
-                f"the offer on “{carried_by}”: somebody holds it, so it is a "
-                "question on a card rather than a fossil"
+            problems.append(
+                f"somebody still holds the Affiliation offer on “{carried_by}”, "
+                "so the old question is still live"
             )
             continue
         offers.append(offer)
+    if problems:
+        return Fossils(problems=tuple(problems))
 
-    kept_sections = {
-        offer.from_section_id for offer in standing if offer.from_section_id
-    }
     collections = []
     for collection in Collection.objects.filter(
         pk__in={entry.collection_id for entry in entries}
@@ -316,17 +317,6 @@ def find():
             left_alone.append(
                 f"the menu “{collection}”: not everything in it is going, "
                 "so it loses those entries and keeps its shape"
-            )
-            continue
-        asked_of = set(
-            CollectionSection.objects.filter(collection=collection).values_list(
-                "pk", flat=True
-            )
-        )
-        if asked_of & kept_sections:
-            left_alone.append(
-                f"the menu “{collection}”: an offer somebody holds still asks "
-                "from it, so it keeps its shape"
             )
             continue
         collections.append(collection)
@@ -530,6 +520,18 @@ def _delete_parts_of(modifiers):
                 held.delete()
 
 
+def _same_deletion_set(left, right):
+    """Whether two readings name the same rows to delete."""
+    return (
+        set(left.kind_rows) == set(right.kind_rows)
+        and set(left.entries) == set(right.entries)
+        and set(left.collections) == set(right.collections)
+        and set(left.sections) == set(right.sections)
+        and set(left.modifiers) == set(right.modifiers)
+        and set(left.hiddens) == set(right.hiddens)
+    )
+
+
 def apply(fossils):
     """Delete exactly what was read, and prove every page unmoved."""
     from django.db.models import ProtectedError
@@ -554,6 +556,32 @@ def apply(fossils):
     report = list(fossils.preview())
     try:
         with _one_snapshot(), transaction.atomic():
+            # The plan was read before this transaction opened, and a
+            # menu's entries cascade rather than protect — so an entry
+            # added in between would ride a delete down instead of
+            # refusing. The menus are locked first: inserting an entry
+            # takes a key-share lock on its collection, which this
+            # conflicts with. Then the plan is read again, and anything
+            # that moved before the lock refuses.
+            list(
+                Collection.objects.select_for_update()
+                .filter(pk__in=fossils.collections)
+                .order_by("pk")
+            )
+            list(
+                CollectionEntry.objects.select_for_update()
+                .filter(pk__in=fossils.entries)
+                .order_by("pk")
+            )
+            now = find()
+            if now.problems:
+                raise Refused("not deleted: " + "; ".join(now.problems))
+            if now.nothing_here or not _same_deletion_set(fossils, now):
+                raise Refused(
+                    "not deleted: what stands has changed since the plan "
+                    "was read — read it again"
+                )
+
             gangs = list(Gang.objects.filter(pk__in=fossils.gang_ids))
             before = {str(gang.pk): gang_state(gang) for gang in gangs}
 

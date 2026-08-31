@@ -942,8 +942,9 @@ EMPTY_AFFILIATION_WORDS = {
         "slots — stay; those are the new system. Because none of what "
         "goes is in use, no page should move at all — and that is what "
         "it proves before committing. It refuses while any assignment "
-        "still names an Affiliation, which belongs to a conversion that "
-        "has not run."
+        "still names an Affiliation, or while anybody still holds an "
+        "Affiliation offer — both belong to a conversion that has not "
+        "run."
     ),
     "nothing_heading": "Nothing to delete",
     "nothing_flash": "There was nothing to delete — the emptied Affiliation rows have gone already.",
