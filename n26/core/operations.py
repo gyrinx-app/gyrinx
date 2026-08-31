@@ -1852,7 +1852,7 @@ class Operation:
 
 def _budget_word(credits):
     """A budget as the history says it: a figure, or no ceiling at all."""
-    return "unlimited" if credits is None else f"{credits}cr"
+    return "unlimited" if credits is None else f"{credits}¢"
 
 
 def _reason_for(paid, caused_by):

@@ -256,7 +256,7 @@ class TestWhoIsOffered:
         assert "Nobody else" not in body
         assert "Start TP visit" in body
         assert "Start action" not in body
-        assert "Selected fighters add" in body
+        assert "Selected models add" in body
         assert 'x-text="added"' in body
         assert 'x-show="!overridden"' in body
         assert 'x-model="override"' in body
@@ -512,7 +512,7 @@ class TestTheReceipt:
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
-        assert "Equip a fighter" in body
+        assert "Equip a model" in body
         for name in ("Vex", "Sura", "Nix"):
             assert name in body
 

@@ -44,8 +44,9 @@ admin screens), flag:
 - Banned words in product copy: "cost" in n26 (price vs rating), "row" for an
   assignment, "shelf"/"shop"/"till", a collection that "sells" its contents
   (it contains them), "pressed" (say clicked), "obligation"/"debt", "answer"
-  (pick, choose and select are distinct domain verbs — select is for skills,
-  which are never "learned"), "please", emoji.
+  (pick = option groups and choose = offers-a-choice are reserved verbs;
+  select is the skills verb and also fine generally — skills are never
+  "learned"), "please", emoji.
 
 **The fighter list is the hot query path.** Adding a FK or M2M to `ListFighter`
 means updating `ListFighterQuerySet.with_related_data()` and the query-count

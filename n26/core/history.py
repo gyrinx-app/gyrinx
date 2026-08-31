@@ -570,12 +570,12 @@ def _tell(e, row, alive):
         case Kind.TRADE_POINTS_SET:
             brought = e.note
             if brought == "1":
-                return (Span("visited the trading post with 1 Trade Point"),), "money"
+                return (Span("visited the Trading Post with 1 Trade Point"),), "money"
             if brought:
                 return (
-                    Span(f"visited the trading post with {brought} Trade Points"),
+                    Span(f"visited the Trading Post with {brought} Trade Points"),
                 ), "money"
-            return (Span("visited the trading post"),), "money"
+            return (Span("visited the Trading Post"),), "money"
         case Kind.VISITED_TRADING_POST:
             # The rank they went as rides the note, so the line says what
             # they added rather than what they happen to be now.

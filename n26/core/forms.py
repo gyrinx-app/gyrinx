@@ -48,7 +48,7 @@ class CreateGangForm(forms.Form):
             "What the gang is. It decides who you can hire and what they can carry."
         ),
         error_messages={
-            "invalid_choice": "That is not a gang type you can found. Pick one of the types shown."
+            "invalid_choice": "That is not a gang type you can found. Select one of the types shown."
         },
     )
     starting_credits = forms.IntegerField(
