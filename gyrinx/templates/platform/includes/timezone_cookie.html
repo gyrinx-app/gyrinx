@@ -3,15 +3,17 @@
     guess a default before the user has opened the timezone settings page.
     Harmless if the zone is already saved on the profile — the middleware
     prefers the stored value. Keep COOKIE_NAME in gyrinx/timezones.py in step.
+    Write the IANA name raw: encodeURIComponent turns / into %2F, and Django
+    does not decode that, so Europe/London would never match a real zone.
 {% endcomment %}
 <script>
     (function() {
         try {
             var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            if (!tz) return;
+            if (!tz || !/^[A-Za-z0-9_+\-\/]+$/.test(tz)) return;
             var match = document.cookie.match(/(?:^|; )gyrinx_tz=([^;]*)/);
-            if (match && decodeURIComponent(match[1]) === tz) return;
-            document.cookie = "gyrinx_tz=" + encodeURIComponent(tz) +
+            if (match && match[1] === tz) return;
+            document.cookie = "gyrinx_tz=" + tz +
                 ";path=/;max-age=31536000;samesite=lax" +
                 (location.protocol === "https:" ? ";secure" : "");
         } catch (e) {}

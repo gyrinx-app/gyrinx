@@ -14,6 +14,7 @@ from __future__ import annotations
 import zoneinfo
 from datetime import datetime
 from functools import cache
+from urllib.parse import unquote
 
 COOKIE_NAME = "gyrinx_tz"
 SESSION_TZ_KEY = "timezone"
@@ -360,7 +361,9 @@ def detect_timezone(request) -> str:
     if request is None:
         return ""
     cookies = getattr(request, "COOKIES", None) or {}
-    from_cookie = cookies.get(COOKIE_NAME, "")
+    # encodeURIComponent encodes / as %2F; Django's cookie parser leaves that
+    # encoded, so unquote before validating. Harmless for a raw IANA name.
+    from_cookie = unquote(cookies.get(COOKIE_NAME, "") or "")
     if is_valid_timezone(from_cookie):
         return from_cookie
 
