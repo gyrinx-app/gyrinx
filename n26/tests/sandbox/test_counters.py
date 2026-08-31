@@ -354,6 +354,49 @@ class TestMovingACounterByHand:
         assert xp_row(yolanda).counter_value.value == 61
 
 
+class TestTheNoteFitsTheColumn:
+    """A tally's note is a fixed-width column, and a caller can hand over
+    more than it holds.
+
+    A rule that tallies passes the thing carrying it as the reason, and
+    an assignable's name and annotation are 200 characters each — so a
+    reason can arrive at over 400 into a column of 255. The movement is
+    the half an audit reads, so it is the reason that gives way.
+    """
+
+    def note_of(self, miniature):
+        return (
+            xp_row(miniature)
+            .ledger_events.filter(kind="tallied")
+            .latest("created")
+            .note
+        )
+
+    def test_a_long_reason_is_cut_to_fit(self, gang, queen):
+        from n26.core.models import LedgerEvent
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +1, note="x" * 400)
+
+        held = self.note_of(yolanda)
+        assert len(held) <= LedgerEvent._meta.get_field("note").max_length
+        assert held.startswith("+1 → 62: xxx")
+        assert held.endswith("…")
+
+    def test_the_movement_survives_it(self, gang, queen):
+        """What the number did is what the log is for."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), -1, note="y" * 400)
+
+        assert self.note_of(yolanda).startswith("-1 → 60: ")
+
+    def test_a_reason_that_fits_is_left_alone(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +1, note="won a battle")
+
+        assert self.note_of(yolanda) == "+1 → 62: won a battle"
+
+
 class TestTheOtherSurfaces:
     """Print and text draw the same counters the screen card draws.
 

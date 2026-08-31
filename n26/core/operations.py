@@ -218,6 +218,26 @@ class NotOnOffer(Refusal):
 _UNASKED = object()
 
 
+def _movement_note(moved, reason):
+    """A tally's note: what moved, then why, inside the column's width.
+
+    The movement is the half that has to survive — an audit reads the
+    number, and the reason is the reader's own words about it — so a
+    reason too long to fit is what gives way. A caller can hand over a
+    great deal more than the column holds: an assignable's name and its
+    annotation are 200 characters each, and a rule that tallies passes
+    the pair of them as its reason.
+    """
+    from n26.core.models import LedgerEvent
+
+    if not reason:
+        return moved
+    room = LedgerEvent._meta.get_field("note").max_length - len(moved) - len(": ")
+    if len(reason) > room:
+        reason = reason[: max(0, room - 1)] + "…"
+    return f"{moved}: {reason}"
+
+
 class Operation:
     """Collects what it touched, so the boundary knows what to repin."""
 
@@ -1737,7 +1757,7 @@ class Operation:
         self.event(
             assignment,
             LedgerEvent.Kind.TALLIED,
-            note=f"{moved}: {note}" if note else moved,
+            note=_movement_note(moved, note),
         )
         return held.value
 
