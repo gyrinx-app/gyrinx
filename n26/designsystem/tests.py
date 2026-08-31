@@ -348,7 +348,7 @@ class TestTheShellStillDraws:
         assert "Choose one, or none" in page
 
 
-class TestTheGallerysCounterLines:
+class TestCounterLinesInTheGallery:
     """Only one sample card offers to move a number.
 
     The base sample is what the gang sheet's sample, the hire previews
