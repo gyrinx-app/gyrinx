@@ -354,6 +354,165 @@ class TestMovingACounterByHand:
         assert xp_row(yolanda).counter_value.value == 61
 
 
+class TestMovingOneWithoutReloading:
+    """Over htmx the act sends back the card and nothing else.
+
+    Without scripting the same control is an ordinary form post and the
+    whole page is served, so nothing here works only one way.
+    """
+
+    HTMX = {"HTTP_HX_REQUEST": "true"}
+
+    def address(self, miniature):
+        row = Assignment.objects.get(miniature=miniature, counter__name="XP")
+        return reverse("n26-tally", args=[row.pk])
+
+    def test_it_sends_back_the_card_addressed_to_its_host(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        drawn = page.content.decode()
+        assert page.status_code == 200
+        assert 'id="n26-model-card-host"' in drawn
+        assert 'hx-swap-oob="true"' in drawn
+
+    def test_the_card_it_sends_back_carries_the_new_value(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert "62" in page.content.decode()
+
+    def test_the_card_it_sends_back_still_carries_the_rename(self, client, gang, queen):
+        """It is drawn from the page rather than the card, so a redrawn
+        card is exactly where it could go missing."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert f"?rename={yolanda.pk}" in page.content.decode()
+
+    def test_the_card_it_sends_back_can_be_acted_on_again(self, client, gang, queen):
+        """A redrawn card whose controls had lost their addresses would
+        move once and then go quiet."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert self.address(yolanda) in page.content.decode()
+
+    def test_the_card_it_sends_back_returns_to_the_page_not_the_act(
+        self, client, gang, queen
+    ):
+        """The redrawn card is rendered under the act's own address. A
+        control built from that would send a reader with no scripting to
+        a POST-only endpoint, so the screen to return to rides on the
+        line instead."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        drawn = client.post(
+            self.address(yolanda), {"change": "1", "back": page}, **self.HTMX
+        ).content.decode()
+
+        assert f'name="back" value="{page}"' in drawn
+        assert f'name="back" value="{self.address(yolanda)}"' not in drawn
+
+    def test_the_page_itself_returns_to_itself(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        drawn = client.get(page).content.decode()
+
+        assert f'name="back" value="{page}"' in drawn
+
+    def test_a_refusal_redraws_nothing_and_says_why(self, client, gang, queen):
+        """The card is not redrawn for an act that did not happen; the
+        reason reaches the reader as a toast, which is the only channel
+        into a page that is not re-rendered."""
+        from unittest.mock import patch
+
+        from n26.core.operations import Operation, Refusal
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        with patch.object(Operation, "tally", side_effect=Refusal("No.")):
+            page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        assert page.status_code == 204
+        assert "No." in page["HX-Trigger"]
+        assert xp_row(yolanda).counter_value.value == 61
+
+    def test_a_zero_step_is_turned_away_over_htmx_too(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "0"}, **self.HTMX)
+
+        assert page.status_code == 404
+
+    def test_without_htmx_the_same_act_is_a_redirect(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        back = reverse("n26-edit-fighter", args=[yolanda.pk])
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1", "back": back})
+
+        assert page.status_code == 302
+        assert page["Location"] == back
+
+    def test_the_page_is_not_open_to_a_signed_out_reader(self, client, gang, queen):
+        """The view is guarded, and the guard is a decorator with a
+        helper directly above it — a place where anything inserted
+        carries the guard off with it."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert page.status_code == 302
+        assert "/accounts/login/" in page["Location"]
+
+    def test_the_page_holds_the_host_the_update_addresses(self, client, gang, queen):
+        """htmx drops an out-of-band element whose id is missing from the
+        page, silently — so opting in and holding the host have to travel
+        together."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert 'id="n26-model-card-host"' in page.content.decode()
+
+    def test_the_controls_on_that_page_post_through_htmx(self, client, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+
+        assert f'hx-post="{self.address(yolanda)}"' in page.content.decode()
+
+    def test_each_direction_carries_its_own_change(self, client, gang, queen):
+        """htmx does not read a form's submitter, so the value cannot ride
+        on the button that was clicked."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+
+        drawn = client.get(
+            reverse("n26-edit-fighter", args=[yolanda.pk])
+        ).content.decode()
+
+        assert 'name="change" value="1"' in drawn
+        assert 'name="change" value="-1"' in drawn
+
+
 class TestTheNoteFitsTheColumn:
     """A tally's note is a fixed-width column, and a caller can hand over
     more than it holds.

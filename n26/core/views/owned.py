@@ -78,7 +78,7 @@ from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 MOST_A_TALLY_MOVES = 1000
 
 
-def link_counters(card):
+def link_counters(card, back=""):
     """Point every counter line on this card at what changes it.
 
     Costs no queries: the line already carries the assignment behind it,
@@ -86,10 +86,17 @@ def link_counters(card):
     href and draws as a number with nothing to click — which is right
     for a card depicting nobody, and for every screen that shows a
     counter without offering to move it.
+
+    ``back`` is the screen the card is drawn on, which the controls carry
+    so a reader with no scripting lands there. It is passed rather than
+    read off the request because a card redrawn after an act is rendered
+    under that act's own address, and a control sent back carrying it
+    would return the next reader to a POST-only endpoint.
     """
     for line in card.counters:
         if line.assignment_id:
             line.href = reverse("n26-tally", args=[line.assignment_id])
+            line.back = back
 
 
 def _possession_or_404(request, pk):
@@ -1036,6 +1043,7 @@ def tally_counter(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
+    from n26.core.views.edit import render_card_update
     from n26.library.models import Counter
 
     assignment = _own_assignment_or_404(request, pk)
@@ -1064,6 +1072,10 @@ def tally_counter(request, pk):
             standing = op.tally(assignment, change)
     except Refusal as refusal:
         messages.error(request, str(refusal))
+        if is_htmx(request):
+            # Nothing moved, so nothing on the page is redrawn; the
+            # refusal reaches the reader as a toast and that is all.
+            return no_update(request)
         return _safe_redirect(request, back, here)
 
     record(
@@ -1077,5 +1089,15 @@ def tally_counter(request, pk):
         action="tally",
         change=change,
     )
+    if miniature is not None and is_htmx(request):
+        # No message queued: the number on the card moves where the
+        # reader is looking, and a toast for every step of a tally
+        # somebody is working through is noise. A refusal is the one
+        # thing they cannot see, and it is queued where it is raised.
+        return render_card_update(
+            request,
+            miniature,
+            back or reverse("n26-edit-fighter", args=[miniature.pk]),
+        )
     messages.success(request, f"{name} is now {standing}.")
     return _safe_redirect(request, back, here)
