@@ -89,17 +89,25 @@ def campaigns(request):
 
 
 def campaign_rows(campaigns, user):
-    """The listed campaigns, each told whether this reader arbitrates it.
+    """The listed campaigns, each carrying what its row has to draw.
 
     A list holding both the campaigns somebody runs and the ones they play
-    in has to say which is which, and the row draws its controls from the
-    answer: what an arbitrator may do to a campaign is not what somebody
-    playing in it may. The home page's campaigns tab draws the same rows,
-    off the same helper, so the two cannot come to disagree.
+    in has to say which is which: what an arbitrator may do to a campaign
+    is not what somebody playing in it may. The answer is settled here, as
+    the words the row draws rather than a flag it has to interpret, so the
+    campaigns list and the home page's tab cannot come to disagree about
+    what either sort of row looks like.
+
+    A campaign the reader runs names nobody — they know who runs it — and
+    offers the way in to change it. One they only play in names its
+    arbitrator and offers nothing: the whole row already opens it, and
+    there is nothing on the far side for them to change.
     """
     rows = list(campaigns)
     for row in rows:
-        row.arbitrated = row.owner_id == getattr(user, "id", None)
+        arbitrated = row.owner_id == getattr(user, "id", None)
+        row.owner_name = "" if arbitrated else row.owner.username
+        row.action_label = "Edit" if arbitrated else ""
     return rows
 
 
@@ -149,12 +157,16 @@ def create_campaign(request):
 def campaign(request, pk):
     """One campaign, whoever is reading it.
 
-    Shareable like a gang sheet: an arbitrator can send the address to the
-    table, and everybody who opens it reads the same campaign — the same
-    facts, the same gangs, the same battles, the same log. What the page
-    withholds from a reader who does not arbitrate it is every control,
-    and not a disabled one either: the acts belong to the arbitrator, so
-    for anybody else they are simply not there.
+    An arbitrator can send the address round the table, and everybody who
+    opens it reads the same campaign — the same facts, the same gangs, the
+    same battles, the same log. What the page withholds from a reader who
+    does not arbitrate it is every control, and not a disabled one either:
+    the acts belong to the arbitrator, so for anybody else they are simply
+    not there.
+
+    Who the address reaches is the decorators' answer rather than this
+    one's: signed in, and inside the campaigns feature. A reader outside
+    either is told there is nothing here.
 
     The log reads newest first and is cut to the most recent acts: the page
     is a campaign, not its history, and a log that grew without bound would

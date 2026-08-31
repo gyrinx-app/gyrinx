@@ -2,11 +2,12 @@
 
 Most scope to the owner and answer a stranger with 404 rather than 403:
 which gangs and fighters exist is not something to be probed for. The
-exception is ``_any_gang_or_404``, which scopes to nobody, because a
-roster is a thing players send each other — owner-scoping is the rule
-for acting on a gang, not for reading one. All of them catch the
-ULIDField refusal, because a pk that is not a ULID is only ever a bad
-link and a 500 is the wrong answer to one.
+exceptions are the two read guards, ``_any_gang_or_404`` and
+``_any_campaign_or_404``: a roster and a campaign are things players
+send each other, so owner-scoping is the rule for acting on one and not
+for reading it. All of them catch the ULIDField refusal, because a pk
+that is not a ULID is only ever a bad link and a 500 is the wrong answer
+to one.
 """
 
 from django.core.exceptions import ValidationError
@@ -87,13 +88,18 @@ def _any_gang_or_404(pk):
 
 
 def _any_campaign_or_404(pk):
-    """The campaign, whoever arbitrates it — a table anybody may read.
+    """The campaign, whoever arbitrates it — a table its players may read.
 
-    A campaign's page is shareable the way a gang sheet is: the address an
-    arbitrator sends round shows the same campaign to whoever opens it.
-    What differs is what the page lets them *do* — every control on it is
-    the arbitrator's, and the page decides that by asking who is reading,
-    never by hiding the campaign.
+    Not owner-scoped: the address an arbitrator sends round shows the same
+    campaign to everybody it reaches, and what differs is what the page
+    lets them *do*. Every control on it is the arbitrator's, and the page
+    decides that by asking who is reading, never by hiding the campaign.
+
+    How far the address reaches is decided above this, not here: the view
+    is gated on the campaigns feature and on being signed in, so a reader
+    outside either gets a 404 whatever this returns. A roster reaches
+    further — anybody at all may read one — and the difference is the
+    gate, not the guard.
 
     Archived campaigns stay out, as archived rosters do: one its arbitrator
     has put away is not something a link should keep alive. A pk that is

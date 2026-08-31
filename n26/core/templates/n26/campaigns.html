@@ -52,8 +52,8 @@ campaigns is where someone goes when they want one more.
             {% for row in campaigns %}
                 <c-n26.record-table.campaign-row name="{{ row.name }}"
                                                  href="{% url 'n26-campaign' row.pk %}"
-                                                 by="{% if not row.arbitrated %}{{ row.owner.username }}{% endif %}"
-                                                 action_label="{% if row.arbitrated %}Edit{% endif %}" />
+                                                 owner="{{ row.owner_name }}"
+                                                 action_label="{{ row.action_label }}" />
             {% endfor %}
         </c-n26.record-table>
         {% comment %}
