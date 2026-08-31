@@ -2,16 +2,17 @@
 {% load navigation %}
 {% load richtext %}
 {% comment %}
-The gang's lore — its story and picture, then every model's. The written
-half of a roster, readable by anyone holding the address: lore is what a
-player shows people. Owning the gang adds Edit links and nothing else.
+The gang's notes — its working words and picture, then every model's.
+The working half of a roster, readable by anyone holding the address:
+notes are written for the table. Owning the gang adds Edit links and
+nothing else.
 
 The header is the sheet's, so the two pages read as one place: the
 colour swatch in the name, the owner's flair in the trail, the type as
 the lead, the gang's figures in the corner. Pictures float beside their
 prose; a section with no picture is just its words.
 {% endcomment %}
-{% block head_title %}Lore of {{ gang.name }}{% endblock head_title %}
+{% block head_title %}Notes of {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -34,7 +35,7 @@ prose; a section with no picture is just its words.
                     </c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item :current="True">
-                        Lore
+                        Notes
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
@@ -69,7 +70,7 @@ prose; a section with no picture is just its words.
                 </c-n26.prose>
             {% elif yours %}
                 <p class="text-muted">
-                    No gang-wide Lore yet. Add it via
+                    No gang-wide notes yet. Add them via
                     <c-n26.link href="{% url 'n26-edit-gang' gang.pk %}?tab=notes">the edit page</c-n26.link>.
                 </p>
             {% endif %}
@@ -81,7 +82,7 @@ prose; a section with no picture is just its words.
         </div>
         {% for entry in entries %}
             <section class="flow-root border-t border-box-border pt-6"
-                     data-lore-entry="{{ entry.name }}">
+                     data-notes-entry="{{ entry.name }}">
                 {% if entry.image_url %}
                     <img src="{{ entry.image_url }}"
                          alt="A picture of {{ entry.name }}"

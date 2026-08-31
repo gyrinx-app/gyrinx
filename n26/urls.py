@@ -87,6 +87,7 @@ urlpatterns = [
     path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
     path("gangs/<str:pk>/history/", views.gang_history, name="n26-gang-history"),
     path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
+    path("gangs/<str:pk>/notes/", views.gang_notes, name="n26-gang-notes"),
     # What the gang takes to a trading post. Its own page rather than a
     # field on the edit form: the allowance is minted for a trip and
     # spent within it, which is a different act from settling the gang's

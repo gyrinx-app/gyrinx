@@ -573,13 +573,12 @@ def create_gang(request):
     )
 
 
-def gang_lore(request, pk):
-    """The gang's story, then every model's — the written half of a roster.
+def _written_page(request, pk, *, field, template):
+    """The gang's writing in ``field``, then every model's.
 
-    Anyone may read it, as anyone may read the sheet: lore is what a
-    player shows people. Owning the gang adds the Edit links and nothing
-    else. Models with nothing written and no picture are left off rather
-    than listed as empty headings.
+    Anyone may read it, as anyone may read the sheet. Owning the gang
+    adds the Edit links and nothing else. Models with nothing written
+    and no picture are left off rather than listed as empty headings.
     """
     from n26.core.render import roster, summarise_roster
 
@@ -599,18 +598,19 @@ def gang_lore(request, pk):
                 and str(model.membership.profile) != model.name
                 else ""
             ),
-            "lore": model.lore,
+            "prose": getattr(model, field),
             "image_url": model.image.url if model.image else "",
             "edit_url": reverse("n26-edit-fighter", args=[model.pk]) if yours else "",
         }
         for model in members
-        if model.lore or model.image
+        if getattr(model, field) or model.image
     ]
     return render(
         request,
-        "n26/gang_lore.html",
+        template,
         {
             "gang": gang,
+            "gang_prose": getattr(gang, field),
             "gang_image_url": gang.image.url if gang.image else "",
             "entries": entries,
             "yours": yours,
@@ -618,6 +618,29 @@ def gang_lore(request, pk):
             "trade_points_href": trade_points_href(gang, request.user),
         },
     )
+
+
+def gang_lore(request, pk):
+    """The gang's story, then every model's — the written half of a roster.
+
+    Anyone may read it, as anyone may read the sheet: lore is what a
+    player shows people. Owning the gang adds the Edit links and nothing
+    else. Models with nothing written and no picture are left off rather
+    than listed as empty headings.
+    """
+    return _written_page(request, pk, field="lore", template="n26/gang_lore.html")
+
+
+def gang_notes(request, pk):
+    """The gang's notes, then every model's — the working half of a roster.
+
+    Anyone may read it, as anyone may read the sheet: notes are written
+    for the table and shown to whoever holds the address. Owning the
+    gang adds the Edit links and nothing else. Models with nothing
+    written and no picture are left off rather than listed as empty
+    headings.
+    """
+    return _written_page(request, pk, field="notes", template="n26/gang_notes.html")
 
 
 @login_required
