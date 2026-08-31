@@ -477,3 +477,4 @@ class TestTheConsoleDoor:
         assert "a weapon's own firing lines — left alone" in page
         assert not Backfill.objects.exists()
         assert legacy_grants(gang).count() == 2
+        settled(gang)

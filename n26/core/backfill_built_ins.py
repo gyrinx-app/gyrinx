@@ -111,6 +111,17 @@ def catch_up(gang_id):
     outcome = GangOutcome(gang_id=str(gang_id))
     with operation(gang, actor=None) as op:
         _tag_legacy_grants(gang, outcome)
+        # A grant with no cause recorded has no carrier whose sets could
+        # claim it. Counted with the unmatched, so the report explains
+        # every row the preview shows and a rerun's residue reads as
+        # settled rather than silently lingering.
+        outcome.unmatched += (
+            Assignment.objects.filter(
+                gang_root=gang, caused_by__isnull=True, **LEGACY_SHAPE
+            )
+            .filter(_of_kinds(TAGGABLE_KINDS))
+            .count()
+        )
         _catch_up_carriers(op, gang, outcome)
     return outcome
 
