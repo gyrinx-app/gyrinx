@@ -1,0 +1,61 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+One modifier onto several things of a kind, at an address of its own.
+The listing's ticked rows arrive in the query string and are listed
+back so the author can see what they picked; the post carries them as
+hidden fields. Nothing changes until the form posts.
+{% endcomment %}
+{% block head_title %}
+    Attach a modifier
+{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-attach-modifier' kind %}"
+                     title="Attach a modifier to {{ count }} {{ noun }}"
+                     lead="This attaches the modifier to each {{ verbose_name }} below. One that already carries it is left as it is."
+                     submit_label="Attach to {{ count }} {{ noun }}"
+                     cancel_url="{% url 'authoring-leaf' kind %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
+                    {{ verbose_name_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Attach a modifier
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% for row in rows %}
+            <input type="hidden" name="pk" value="{{ row.pk }}">
+        {% endfor %}
+        <c-n26.form-section title="What to attach">
+            <c-ui.field data-field label="Modifier" for="attach-modifier">
+                <c-n26.filter-select placeholder="Type to filter modifiers">
+                    <c-ui.select.native name="modifier"
+                                        id="attach-modifier"
+                                        placeholder="Pick a modifier"
+                                        required>
+                        {% for mod in attachable_modifiers %}
+                            <c-ui.select.option value="{{ mod.pk }}">
+                                {{ mod.label }}
+                            </c-ui.select.option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </c-n26.filter-select>
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-section title="{{ verbose_name_plural|capfirst }} it goes on">
+            <c-ui.table>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            {% include "authoring/_name_cell.html" with row=row %}
+                            <td class="w-full text-muted">{{ row.help }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

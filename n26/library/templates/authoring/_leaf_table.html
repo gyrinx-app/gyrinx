@@ -1,0 +1,30 @@
+{% comment %}
+The rows of one kind's listing. Takes `rows` and `bulk`; with `bulk` each
+row leads with a box to tick, and the table sits inside the form the
+boxes submit through.
+{% endcomment %}
+<c-ui.table>
+    <tbody>
+        {% for row in rows %}
+            {# :hidden rather than x-show: a table row's own display value is not `block`. #}
+            <tr x-data="{ haystack: '{{ row.search|escapejs }}' }"
+                x-init="register(haystack)"
+                :hidden="!matches(haystack)">
+                {% if bulk %}
+                    <td class="w-0 pr-0">
+                        <input type="checkbox"
+                               name="pk"
+                               value="{{ row.pk }}"
+                               aria-label="Select {{ row.label }}"
+                               class="size-4 accent-[var(--color-accent)] focus-ring">
+                    </td>
+                {% endif %}
+                {% include "authoring/_name_cell.html" with row=row %}
+                {# The author's own note reads as one more thing the row says about itself. #}
+                <td class="w-full text-muted">
+                    {{ row.notes|join:" · " }}{% if row.notes and row.help %} · {% endif %}{{ row.help }}
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</c-ui.table>
