@@ -684,7 +684,8 @@ STANDARD_CONTENT = {
                 "tables — a slot type, results at their bands, and a "
                 "standing choice each. Names and bands only: the ten "
                 "results that worsen a characteristic still need their "
-                "modifiers attached, and the choices built into entries."
+                "modifiers attached, and each gang type a modifier that "
+                "gives every fighter or vehicle its choice."
             ),
             check=_check_lasting_effect_tables,
             create=_create_lasting_effect_tables,

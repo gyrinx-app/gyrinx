@@ -14,6 +14,14 @@ appear on both tables at the same rolls; they are separate pickables,
 because a pickable belongs to one slot type — and the damage twins
 carry the qualifier "vehicle", because a pack holds one pickable per
 name and the qualifier is the author-facing way to tell twins apart.
+
+No profile carries either choice as a built-in. Each gang type carries
+a standing grant instead — a modifier reaching every model whose Type
+is Fighter and giving it the injury choice, and the vehicle twin — so
+every fighter in every gang of the type has its row the moment the
+modifier is attached, gangs founded long before included, and nothing
+is written per model. Detaching the grant takes the row off every
+card and leaves what was already picked where it is.
 """
 
 import pytest
@@ -21,20 +29,23 @@ import pytest
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.reconcile import assert_reconciled
+from n26.library.authoring import detach_modifier
 from n26.library.standard_content import (
     LASTING_EFFECT_TABLES,
     STANDARD_CONTENT,
 )
 from n26.library.views import coverage
 from n26.tests.sandbox.actions import (
-    add_built_in,
+    attach_modifiers_to,
     changes_stat,
     choose,
     create_profile,
+    ef_adds,
     found_gang,
     hire,
+    is_profile_type,
     modifier,
-    remove,
+    targets_every_model,
     targets_model,
 )
 
@@ -88,16 +99,32 @@ def gang(gang_type, db):
 
 
 @pytest.fixture
-def yolanda(gang, gang_type, fighter_type, tables):
+def standing(gang_type, fighter_type, vehicle_type, tables):
+    """The two grants on the gang type: every fighter carries the
+    injury choice, every vehicle the damage choice."""
+    return {
+        name: modifier(
+            f"{kind.name}s carry {name}",
+            targets_every_model(is_profile_type(kind)),
+            ef_adds(tables[name]["slot"]),
+            carried_by=gang_type,
+        )
+        for name, kind in (
+            ("Lasting Injury", fighter_type),
+            ("Lasting Damage", vehicle_type),
+        )
+    }
+
+
+@pytest.fixture
+def yolanda(gang, gang_type, fighter_type, standing):
     profile = create_profile("Ganger", fighter_type, gang_type, price=50)
-    add_built_in(profile, tables["Lasting Injury"]["slot"])
     return hire(gang, profile, "Yolanda", paid=50)
 
 
 @pytest.fixture
-def rig(gang, gang_type, vehicle_type, tables):
+def rig(gang, gang_type, vehicle_type, standing):
     profile = create_profile("Cargo Rig", vehicle_type, gang_type, price=100)
-    add_built_in(profile, tables["Lasting Damage"]["slot"])
     return hire(gang, profile, "The Rig", paid=100)
 
 
@@ -109,8 +136,17 @@ def computed_for(miniature):
 
 def choice_of(miniature, label):
     return next(
-        slot for slot in computed_for(miniature).choices if slot.kind_label == label
+        (s for s in computed_for(miniature).choices if s.kind_label == label), None
     )
+
+
+def pick(miniature, label, pickable):
+    """A pick on a granted slot, as the choose page makes it: the slot
+    is named, because the anchor is the gang's founding line rather
+    than a slot of its own, and the pick is hosted on the model whose
+    card it was made from rather than on the gang."""
+    slot = choice_of(miniature, label)
+    return choose(slot.anchor.assignment, pickable, slot=slot.slot, miniature=miniature)
 
 
 def result_named(table, name):
@@ -175,8 +211,7 @@ class TestAFighterIsHurt:
 
     def test_an_eye_injury_worsens_the_ballistic_skill(self, gang, yolanda, tables):
         table = tables["Lasting Injury"]["table"]
-        slot = choice_of(yolanda, "Lasting Injuries")
-        choose(slot.anchor.assignment, result_named(table, "Eye Injury"))
+        pick(yolanda, "Lasting Injuries", result_named(table, "Eye Injury"))
 
         changes = [
             c for c in computed_for(yolanda).stat_changes if c.source == "Eye Injury"
@@ -188,8 +223,7 @@ class TestAFighterIsHurt:
         self, gang, yolanda, tables
     ):
         table = tables["Lasting Injury"]["table"]
-        slot = choice_of(yolanda, "Lasting Injuries")
-        choose(slot.anchor.assignment, result_named(table, "Out Cold"))
+        pick(yolanda, "Lasting Injuries", result_named(table, "Out Cold"))
 
         slot = choice_of(yolanda, "Lasting Injuries")
         assert [p.assignable.name for p in slot.picks] == ["Out Cold"]
@@ -198,8 +232,7 @@ class TestAFighterIsHurt:
     def test_the_same_injury_twice_stands_and_stacks(self, gang, yolanda, tables):
         eye = result_named(tables["Lasting Injury"]["table"], "Eye Injury")
         for _ in range(2):
-            slot = choice_of(yolanda, "Lasting Injuries")
-            choose(slot.anchor.assignment, eye)
+            pick(yolanda, "Lasting Injuries", eye)
 
         changes = [
             c for c in computed_for(yolanda).stat_changes if c.source == "Eye Injury"
@@ -207,26 +240,68 @@ class TestAFighterIsHurt:
         assert len(changes) == 2
         assert_reconciled(gang)
 
-    def test_removing_the_slot_takes_the_injuries_and_their_effects(
-        self, gang, yolanda, tables
+    def test_the_row_is_there_before_anyone_wrote_it(
+        self, gang, gang_type, yolanda, standing
     ):
-        table = tables["Lasting Injury"]["table"]
-        slot = choice_of(yolanda, "Lasting Injuries")
-        choose(slot.anchor.assignment, result_named(table, "Eye Injury"))
+        """A gang founded before the grant existed has the row the
+        moment the modifier is attached: nothing is written per model,
+        so there is nothing to propagate to gangs that already exist."""
+        from n26.core.models import Assignment
 
-        remove(choice_of(yolanda, "Lasting Injuries").anchor.assignment)
+        for grant in standing.values():
+            detach_modifier(gang_type, grant)
+        assert choice_of(yolanda, "Lasting Injuries") is None
+
+        before = Assignment.objects.count()
+        attach_modifiers_to(gang_type, [standing["Lasting Injury"]])
+        assert Assignment.objects.count() == before
+        assert choice_of(yolanda, "Lasting Injuries") is not None
+        assert_reconciled(gang)
+
+    def test_detaching_the_grant_takes_the_row_off_but_keeps_the_injuries(
+        self, gang, gang_type, yolanda, tables, standing
+    ):
+        """The row goes from every fighter's card at once; an injury
+        already picked stays, its effect with it, as a plain line the
+        player can remove — a grant detached by mistake must not eat
+        a gang's history."""
+        table = tables["Lasting Injury"]["table"]
+        pick(yolanda, "Lasting Injuries", result_named(table, "Eye Injury"))
+
+        detach_modifier(gang_type, standing["Lasting Injury"])
 
         computed = computed_for(yolanda)
         assert not any(s.kind_label == "Lasting Injuries" for s in computed.choices)
-        assert not any(c.source == "Eye Injury" for c in computed.stat_changes)
+        assert any(c.source == "Eye Injury" for c in computed.stat_changes)
+        assert_reconciled(gang)
+
+    def test_an_injury_is_the_hurt_fighters_alone(
+        self, gang, gang_type, fighter_type, yolanda, tables
+    ):
+        """The choice is the gang type's to give, but a pick is hosted
+        on the model whose card it was made from — never on the gang,
+        where it would ride every fighter's card."""
+        profile = create_profile("Juve", fighter_type, gang_type, price=25)
+        other = hire(gang, profile, "Wren", paid=25)
+        pick(
+            yolanda,
+            "Lasting Injuries",
+            result_named(tables["Lasting Injury"]["table"], "Eye Injury"),
+        )
+
+        assert [
+            p.assignable.name for p in choice_of(other, "Lasting Injuries").picks
+        ] == []
+        assert not any(
+            c.source == "Eye Injury" for c in computed_for(other).stat_changes
+        )
         assert_reconciled(gang)
 
 
 class TestAVehicleIsHit:
     def test_busted_sights_worsen_the_ballistic_skill(self, gang, rig, tables):
         table = tables["Lasting Damage"]["table"]
-        slot = choice_of(rig, "Lasting Damage")
-        choose(slot.anchor.assignment, result_named(table, "Busted Sights"))
+        pick(rig, "Lasting Damage", result_named(table, "Busted Sights"))
 
         changes = [
             c for c in computed_for(rig).stat_changes if c.source == "Busted Sights"
@@ -243,7 +318,6 @@ class TestAVehicleIsHit:
         from n26.core.operations import Refusal
 
         table = tables["Lasting Damage"]["table"]
-        slot = choice_of(yolanda, "Lasting Injuries")
         with pytest.raises(Refusal):
-            choose(slot.anchor.assignment, result_named(table, "Busted Sights"))
+            pick(yolanda, "Lasting Injuries", result_named(table, "Busted Sights"))
         assert_reconciled(gang)

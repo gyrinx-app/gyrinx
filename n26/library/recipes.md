@@ -257,9 +257,19 @@ result they rolled.
    **modifier** — targets the model, worsens that characteristic by
    one. A result that changes no number needs nothing — the card says
    the model has it, and the rest is played at the table.
-3. Build each table's choice into the matching fighter or vehicle
-   entries, so every model carries its empty row from the moment it is
-   hired.
+3. Put each table's choice on the gang types rather than on the
+   entries. Create a **modifier**: reaches *all models in the gang*,
+   narrowed to those that *are a Fighter*, and *gives* the Lasting
+   Injury choice. Create its twin for vehicles and Lasting Damage. Then
+   on the gang types page tick every gang type and attach each one.
+   Every fighter in every gang of those types has its empty row from
+   that moment — gangs founded long ago included, because nothing is
+   written on any model. A gang type created later needs the same two
+   attachments.
+
+Taking one of those modifiers off a gang type takes the row off every
+card at once, and leaves what players had already picked where it is,
+as plain lines they can remove.
 
 The player's picker then lists the results in roll order with their
 bands leading, so someone who rolled 24 scans to "21-26" and adds Out
