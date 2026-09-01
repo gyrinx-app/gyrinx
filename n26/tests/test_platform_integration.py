@@ -1251,7 +1251,7 @@ class TestTheSiteBanner:
         fighter = hire_with_option(gang, profile, "Yolanda")
 
         live_banner()
-        skills_url = reverse("n26-learn", args=[fighter.pk])
+        skills_url = reverse("n26-select", args=[fighter.pk])
         body = client.get(skills_url).content.decode()
 
         # The page is the one that holds an `action`, and its form still

@@ -573,7 +573,7 @@ class ModelCard:
     #: like a choice's own href — this module knows what a grid *is* and
     #: not where a browsing screen lives. Empty draws no control, which
     #: is what a print sheet and a hire preview want.
-    learn_href: str = ""
+    select_href: str = ""
     #: The collections this model's grid places a category into, by id.
     #: Standing access, computed rather than assigned: it is what a
     #: screen for selecting is built on, and asking which of these hold

@@ -23,7 +23,7 @@ than the gap: it is theirs whether or not anybody has graded them, so
 the switcher on the next fighter's screen can offer it without knowing
 which of them have a grid.
 
-What clicking writes is usually ``Operation.learn``: free, recorded, and
+What clicking writes is usually ``Operation.select``: free, recorded, and
 caused by nothing, so what a fighter earned survives the assignment that
 opened the set up to them.
 
@@ -78,13 +78,13 @@ def link_skills(*cards, among=None):
     """
     from n26.core.access import model_collections
 
-    learnable = {
+    selectable = {
         str(collection.pk)
         for collection in (model_collections() if among is None else among)
     }
     for card in cards:
-        if card.id and set(card.placed_in) & learnable:
-            card.learn_href = reverse("n26-learn", args=[card.id])
+        if card.id and set(card.placed_in) & selectable:
+            card.select_href = reverse("n26-select", args=[card.id])
 
 
 def _key(thing):
@@ -325,10 +325,10 @@ def _answer_with(op, miniature, thing, questions, lists):
     """
     slot = _question_for(thing, questions, lists)
     if slot is None:
-        return op.learn(miniature, thing)
+        return op.select(miniature, thing)
     anchor = getattr(slot.anchor, "assignment", None)
     if anchor is None:
-        return op.learn(miniature, thing)
+        return op.select(miniature, thing)
     questions.remove(slot)
     host = {}
     if getattr(slot.anchor, "broadcast", False):
@@ -379,7 +379,7 @@ def apply_ticks(op, miniature, card, computed, ticked):
     # Removals first: clearing the skill that answered a question opens
     # it again, so a replacement ticked in the same save can answer it
     # rather than land as a second starting skill beside a fresh Choose.
-    learned, cleared = [], []
+    selected, cleared = [], []
     for key, option in options.items():
         if key in granted or key in ticked or key not in rows:
             continue
@@ -395,8 +395,8 @@ def apply_ticks(op, miniature, card, computed, ticked):
             continue
         if key in ticked and key not in rows:
             _answer_with(op, miniature, option.thing, questions, lists)
-            learned.append(option.name)
-    return learned, cleared
+            selected.append(option.name)
+    return selected, cleared
 
 
 def _known_on(card):
@@ -431,7 +431,7 @@ def _marked(offer, known):
 
 
 @login_required
-def learn(request, pk):
+def select(request, pk):
     """What this fighter may select, and the click that selects it.
 
     GET asks and writes nothing. POST names one thing from the list the
@@ -448,7 +448,7 @@ def learn(request, pk):
     Marksman" is a bug however honestly it got there.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.access import learnable_for
+    from n26.core.access import selectable_for
     from n26.core.browse import (
         EQUIPMENT_LIST,
         browse,
@@ -481,7 +481,7 @@ def learn(request, pk):
     # it. The gang is still the breadcrumb's parent, one step further up.
     their_page = reverse("n26-edit-fighter", args=[miniature.pk])
 
-    collections = learnable_for(computed)
+    collections = selectable_for(computed)
     if not collections:
         # Nobody has graded this fighter in a category, so there is
         # nothing they could select — a gap in the content, and a page
@@ -489,11 +489,11 @@ def learn(request, pk):
         # switcher every other fighter's skills screen draws.
         return render(
             request,
-            "n26/learn.html",
+            "n26/select.html",
             {
                 "gang": gang,
                 "miniature": miniature,
-                "nothing_to_learn": True,
+                "nothing_to_select": True,
                 "action": request.path,
                 "back": back,
                 "their_page": their_page,
@@ -559,7 +559,7 @@ def learn(request, pk):
             with operation(gang, actor=request.user) as op:
                 questions = _open_questions(computed)
                 lists = {id(slot): _offered_keys(slot, computed) for slot in questions}
-                learned = _answer_with(op, miniature, picked.thing, questions, lists)
+                selected = _answer_with(op, miniature, picked.thing, questions, lists)
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(here)
@@ -567,7 +567,7 @@ def learn(request, pk):
             request,
             N26Noun.ASSIGNMENT,
             EventVerb.CREATE,
-            learned,
+            selected,
             gang_id=str(gang.pk),
             miniature_id=str(miniature.pk),
             thing=picked.name,
@@ -578,11 +578,11 @@ def learn(request, pk):
 
     return render(
         request,
-        "n26/learn.html",
+        "n26/select.html",
         {
             "gang": gang,
             "miniature": miniature,
-            "nothing_to_learn": False,
+            "nothing_to_select": False,
             "chosen": chosen,
             "offer": offer,
             "action": here,

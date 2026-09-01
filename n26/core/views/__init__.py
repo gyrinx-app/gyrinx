@@ -47,7 +47,6 @@ from n26.core.views.gangs import (
 )
 from n26.core.views.hire import hire_card, hire_fighter
 from n26.core.views.history import gang_history
-from n26.core.views.learn import learn
 from n26.core.views.options import fighter_options
 from n26.core.views.owned import (
     accessorise_assignment,
@@ -59,6 +58,7 @@ from n26.core.views.owned import (
     tally_counter,
 )
 from n26.core.views.printing import print_gang, print_setup
+from n26.core.views.select import select
 
 __all__ = [
     "accessorise_assignment",
@@ -94,7 +94,7 @@ __all__ = [
     "gangs",
     "hire_card",
     "hire_fighter",
-    "learn",
+    "select",
     "preview_view",
     "print_gang",
     "print_setup",

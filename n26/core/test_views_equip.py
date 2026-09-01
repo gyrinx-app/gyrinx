@@ -1288,7 +1288,7 @@ def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house
     from n26.library.authoring import create_skill
 
     with operation(gang, actor=tester) as op:
-        op.learn(fighter, create_skill("Marksman"))
+        op.select(fighter, create_skill("Marksman"))
 
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()

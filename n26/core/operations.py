@@ -1704,7 +1704,7 @@ class Operation:
             self.reconcile_defaults(bought)
         return bought
 
-    def learn(self, miniature, thing, note=""):
+    def select(self, miniature, thing, note=""):
         """Take on something a model *is* — a skill, a power.
 
         Free, and recorded as a reward. No credits move: what a fighter

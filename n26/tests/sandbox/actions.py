@@ -312,13 +312,13 @@ def leave_trading_post(gang, actor=None):
         return op.leave_trading_post()
 
 
-def learn(miniature, thing, actor=None, note=""):
+def select(miniature, thing, actor=None, note=""):
     """Take on a skill or a power — free, and nothing causes it."""
     from n26.core.operations import operation
 
     gang = miniature.gang
     with operation(gang, actor=actor or gang.owner) as op:
-        return op.learn(miniature, thing, note=note)
+        return op.select(miniature, thing, note=note)
 
 
 def tally(assignment, change, actor=None, note=""):

@@ -21,7 +21,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.access import learnable_for, model_collections
+from n26.core.access import model_collections, selectable_for
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Reason
@@ -40,12 +40,12 @@ from n26.tests.sandbox.actions import (
     create_wargear,
     found_gang,
     hire_with_option,
-    learn,
     modifier,
     offers_choice,
     places,
     remove,
     section_of,
+    select,
     targets_model,
 )
 
@@ -144,7 +144,7 @@ def computed_for(miniature):
 
 
 def skills_url(miniature):
-    return reverse("n26-learn", args=[miniature.pk])
+    return reverse("n26-select", args=[miniature.pk])
 
 
 def edit_url(miniature):
@@ -165,11 +165,11 @@ class TestTheGridIsTheAccess:
     collection where their placements name one of its sections."""
 
     def test_a_graded_fighter_reaches_the_collection(self, yolanda, catalogue):
-        assert learnable_for(computed_for(yolanda)) == [catalogue]
+        assert selectable_for(computed_for(yolanda)) == [catalogue]
 
     def test_a_fighter_with_no_grid_reaches_nothing(self, gang, gridless, catalogue):
         nobody = hire_with_option(gang, gridless, "Nobody")
-        assert learnable_for(computed_for(nobody)) == []
+        assert selectable_for(computed_for(nobody)) == []
 
     def test_a_wargear_that_places_a_set_opens_the_collection(
         self, gang, gridless, sets, tiers, catalogue
@@ -185,16 +185,16 @@ class TestTheGridIsTheAccess:
         )
         nobody = hire_with_option(gang, gridless, "Nobody")
         carried = assign(manual, miniature=nobody)
-        assert learnable_for(computed_for(nobody)) == [catalogue]
+        assert selectable_for(computed_for(nobody)) == [catalogue]
 
         remove(carried)
-        assert learnable_for(computed_for(nobody)) == []
+        assert selectable_for(computed_for(nobody)) == []
 
     def test_a_gear_collection_is_never_selectable(
         self, gang, gang_sister, sets, catalogue
     ):
         """A placement may aim at any collection's schema, including an
-        equipment list's. Learning is about what a model *is*, so a list
+        equipment list's. Selecting is about what a model *is*, so a list
         of gear never becomes a skills screen however it is placed."""
         gear_list = create_collection("House List", contains=[Wargear])
         gear_primary = section_of(gear_list, "Primary", 0)
@@ -209,7 +209,7 @@ class TestTheGridIsTheAccess:
         fighter = hire_with_option(gang, gang_sister, "Yolanda")
         assign(badge, miniature=fighter)
 
-        assert gear_list not in learnable_for(computed_for(fighter))
+        assert gear_list not in selectable_for(computed_for(fighter))
         assert gear_list not in model_collections()
 
     def test_asking_the_roster_costs_one_query(
@@ -228,7 +228,7 @@ class TestTheGridIsTheAccess:
         with CaptureQueriesContext(connection) as captured:
             among = model_collections()
             for one in computed:
-                assert learnable_for(one, among=among) == [catalogue]
+                assert selectable_for(one, among=among) == [catalogue]
         assert len(captured.captured_queries) == 1
 
 
@@ -274,7 +274,7 @@ class TestTheWordForIt:
 
         assert 'aria-label="Select a skill"' in body
 
-    def test_no_surface_still_says_learn(self, client, player, yolanda, library):
+    def test_no_surface_says_learn(self, client, player, yolanda, library):
         """A discovering check rather than a list: every rendered word of
         this feature is swept, so a surface added later cannot quietly
         reintroduce the old verb."""
@@ -285,8 +285,8 @@ class TestTheWordForIt:
         ]
 
         for body in pages:
-            # The href and the URL name keep "learn" — those are code, not
-            # words anybody reads. Only drawn text is swept.
+            # Only drawn text is swept: a class name or an id is code, not
+            # words anybody reads.
             drawn = re.sub(r"<[^>]*>", " ", body)
             assert not re.search(r"\blearn(s|ed|ing)?\b", drawn, re.IGNORECASE)
 
@@ -351,7 +351,7 @@ class TestWhatTheScreenShows:
     def test_what_she_already_knows_is_said_rather_than_withheld(
         self, client, player, yolanda, library
     ):
-        learn(yolanda, library["skills"]["Catfall"])
+        select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
         offer = client.get(skills_url(yolanda)).context["offer"]
 
@@ -550,7 +550,7 @@ class TestSelecting:
         "Marksman, Marksman" is a bug however honestly each row was
         written."""
         catfall = library["skills"]["Catfall"]
-        learn(yolanda, catfall)
+        select(yolanda, catfall)
         client.force_login(player)
         response = client.post(
             skills_url(yolanda),
@@ -579,10 +579,10 @@ class TestSelecting:
 
     def test_it_costs_nothing_and_is_recorded_as_a_reward(self, gang, yolanda, library):
         before = gang.credits
-        learned = learn(yolanda, library["skills"]["Catfall"])
+        selected = select(yolanda, library["skills"]["Catfall"])
 
-        assert learned.ledger_entry.paid == 0
-        assert learned.ledger_entry.reason == Reason.REWARD
+        assert selected.ledger_entry.paid == 0
+        assert selected.ledger_entry.reason == Reason.REWARD
         gang.refresh_from_db()
         assert gang.credits == before
         assert_reconciled(gang)
@@ -593,8 +593,8 @@ class TestSelecting:
         plain = create_skill("Spring Up", category=sets["agility"], position=9)
         dear = create_power("Ember Storm", "Double", category=sets["powers"], price=30)
 
-        assert learn(yolanda, plain).ledger_entry.rating_contribution == 0
-        assert learn(yolanda, dear).ledger_entry.rating_contribution == 30
+        assert select(yolanda, plain).ledger_entry.rating_contribution == 0
+        assert select(yolanda, dear).ledger_entry.rating_contribution == 30
         gang.refresh_from_db()
         assert gang.rating == 55 + 30
         assert_reconciled(gang)
@@ -613,17 +613,17 @@ class TestSelecting:
             carried_by=legacy,
         )
         carried = add_legacy_profile(yolanda, legacy)
-        learned = learn(yolanda, library["skills"]["Bull Charge"])
+        selected = select(yolanda, library["skills"]["Bull Charge"])
 
         remove(carried)
         yolanda.refresh_from_db()
-        learned.refresh_from_db()
-        assert learned.archived is False
+        selected.refresh_from_db()
+        assert selected.archived is False
         assert "Bull Charge" in [line.name for line in card_for(yolanda).skills]
         assert_reconciled(gang)
 
     def test_a_selected_power_draws_on_the_powers_row(self, yolanda, library):
-        learn(yolanda, library["powers"]["Terrify"])
+        select(yolanda, library["powers"]["Terrify"])
         card = card_for(yolanda)
         assert [line.name for line in card.powers] == ["Terrify (Double)"]
         assert card.skills == []
@@ -737,7 +737,7 @@ class TestTheSkillsRow:
     ):
         from n26.core.render import render_gang
         from n26.core.views.choose import link_slots
-        from n26.core.views.learn import link_skills
+        from n26.core.views.select import link_skills
 
         gang = leader_yolanda.gang
         sheet = render_gang(gang)
@@ -745,19 +745,19 @@ class TestTheSkillsRow:
         link_skills(*sheet.models)
 
         (card,) = sheet.models
-        assert card.learn_href == skills_url(leader_yolanda)
+        assert card.select_href == skills_url(leader_yolanda)
         assert card.skill_choices[0].href.startswith(
             reverse("n26-gang", args=[gang.pk])
         )
 
     def test_a_gridless_fighter_gets_no_way_in(self, gang, gridless, catalogue):
         from n26.core.render import render_gang
-        from n26.core.views.learn import link_skills
+        from n26.core.views.select import link_skills
 
         hire_with_option(gang, gridless, "Nobody")
         sheet = render_gang(gang)
         link_skills(*sheet.models)
 
         (card,) = sheet.models
-        assert card.learn_href == ""
+        assert card.select_href == ""
         assert card.skill_choices == []

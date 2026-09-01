@@ -269,7 +269,7 @@ FIGHTER_SCREENS = {
     "n26-edit-fighter": "Edit another model",
     "n26-equip": "Equip another fighter",
     "n26-fighter-options": "Options for another fighter",
-    "n26-learn": "Select skills for another fighter",
+    "n26-select": "Select skills for another fighter",
 }
 
 #: Where a screen with no per-fighter address sends the switcher.
