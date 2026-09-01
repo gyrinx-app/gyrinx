@@ -7,7 +7,6 @@ gang types are the library's own.
 """
 
 from django import forms
-from django.core.exceptions import ValidationError
 
 from n26.core.widgets import RichText
 from n26.library.models import GangType
@@ -363,71 +362,30 @@ class CampaignForm(forms.Form):
 
 
 class BringGangForm(forms.Form):
-    """One of the reader's own gangs, to bring into a campaign.
+    """A gang from a campaign's table, to put into it.
 
-    A picker rather than the arbitrator's paste field: these are the
-    reader's own gangs, so there is a list to offer and no address to ask
-    for. Gangs already playing somewhere are left out — a gang plays one
-    campaign at a time, and offering one that would be refused is worse
-    than not offering it.
+    The screen draws the list itself, so what the reader is told about it
+    is written there. What this holds is the check: whichever gang comes
+    back must be one the screen was entitled to offer, which is why
+    ``gangs`` has no default — a queryset built without one would accept
+    anything.
     """
 
-    #: The screen draws the picker itself, so what the reader is told about
-    #: it is written there. A help_text here would say nothing to anybody.
-    #: ``owner`` has no default: a queryset built without one would filter
-    #: on a null owner and offer gangs belonging to nobody.
-    gang = forms.ModelChoiceField(queryset=None, label="Gang")
-
-    def __init__(self, *args, owner, **kwargs):
-        from n26.core.models import CampaignMembership, Gang
-
-        super().__init__(*args, **kwargs)
-        # Named by key rather than excluded across the relation: an
-        # exclude() reaching through campaign_memberships would test the
-        # outer join's own NULLs and throw away every gang that has never
-        # been in a campaign — which is most of the ones worth offering.
-        playing = CampaignMembership.objects.filter(left__isnull=True).values("gang")
-        self.fields["gang"].queryset = (
-            Gang.objects.filter(owner=owner, archived=False)
-            .exclude(pk__in=playing)
-            .order_by("name")
-        )
-
-
-class JoinCampaignForm(forms.Form):
-    """Putting a gang into a campaign, named by its address.
-
-    An arbitrator takes the link a player sent them and pastes it in. That is
-    how a roster already travels between people here — a gang sheet opens for
-    anybody holding its address — so it asks for nothing a player has not
-    already chosen to hand over, and needs no way to search other people's
-    gangs.
-    """
-
-    gang = forms.CharField(
+    gang = forms.ModelChoiceField(
+        queryset=None,
         label="Gang",
-        help_text="Paste the link a player sent you, or the gang's id.",
+        # Reachable only by naming a gang the list did not offer, and drawn
+        # on a page holding no picker — where Django's own wording would
+        # tell the reader to select a valid choice from nothing.
+        error_messages={
+            "invalid_choice": "That gang is not on this list.",
+            "required": "Select a gang to add.",
+        },
     )
 
-    def clean_gang(self):
-        """The gang itself, read out of whatever was pasted.
-
-        A full address, a path, or a bare id all name the same gang, and a
-        reader who pasted their address bar should not have to tidy it.
-        """
-        from n26.core.models import Gang
-
-        given = self.cleaned_data["gang"].strip().rstrip("/")
-        named = given.rpartition("/")[2]
-        try:
-            found = Gang.objects.filter(pk=named, archived=False).first()
-        except ValidationError, ValueError:
-            found = None
-        if found is None:
-            raise forms.ValidationError(
-                "No gang with that address. Check the link and try again."
-            )
-        return found
+    def __init__(self, *args, gangs, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["gang"].queryset = gangs
 
 
 class BattleForm(forms.Form):

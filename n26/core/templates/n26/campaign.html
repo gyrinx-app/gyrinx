@@ -185,10 +185,18 @@ reader's other campaigns — the same pattern a gang's screens use.
                             page, and one colour cannot mean two things on
                             one screen.
                             {% endcomment %}
+                            {% comment %}
+                            Wrapped rather than given a class: the badge
+                            declares none, so one passed in is written before
+                            its own and the browser keeps the first, dropping
+                            every style it came with.
+                            {% endcomment %}
                             {% if membership.over_budget %}
-                                <c-ui.badge color="amber" size="sm" class="shrink-0">
-                                    Over budget
-                                </c-ui.badge>
+                                <span class="shrink-0">
+                                    <c-ui.badge color="amber" size="sm">
+                                        Over budget
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                             {% comment %}
                             Wealth, which is what the mark beside it is

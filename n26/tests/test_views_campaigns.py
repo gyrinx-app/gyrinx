@@ -53,6 +53,20 @@ def campaign(arbitrator):
     return Campaign.objects.create(name="Dust Falls", owner=arbitrator, budget=1000)
 
 
+def seat(campaign, user):
+    """Put somebody at the campaign's table.
+
+    The add-a-gang screen offers the gangs of people who have accepted a
+    place, so a test wanting a gang addable has to seat its owner first.
+    """
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        act.invite(user)
+    with campaign_operation(campaign, actor=user) as act:
+        act.answer_invitation(user, accepted=True)
+
+
 #: Every address this feature adds that opens on an empty campaign, so a new
 #: one cannot skip the gate below. The screens for taking something out need
 #: a row to name, and are gated in their own tests.
@@ -480,11 +494,12 @@ class TestTheLogOnTheCampaignsPage:
 
 
 class TestTheRollOfGangs:
-    """Who is playing, added by the link a player sent."""
+    """Who is playing, added from the gangs at the campaign's table."""
 
     @pytest.fixture
-    def gang(self, gang_type):
+    def gang(self, gang_type, campaign):
         player = User.objects.create_user("player")
+        seat(campaign, player)
         return found_gang("The Ashen Choir", gang_type, owner=player)
 
     def page(self, client, campaign):
@@ -497,7 +512,7 @@ class TestTheRollOfGangs:
         assert "Gangs" in drawn
         assert "No gangs yet." in drawn
 
-    def test_a_gang_is_added_by_its_id(self, client, campaign, gang, open_to_everyone):
+    def test_a_gang_is_added_by_its_key(self, client, campaign, gang, open_to_everyone):
         response = client.post(
             f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)}
         )
@@ -505,17 +520,6 @@ class TestTheRollOfGangs:
         assert CampaignMembership.objects.filter(
             campaign=campaign, gang=gang, left__isnull=True
         ).exists()
-
-    def test_a_gang_is_added_by_the_link_a_player_sent(
-        self, client, campaign, gang, open_to_everyone
-    ):
-        """A pasted address names the same gang as a bare id — a reader who
-        pasted their address bar should not have to tidy it."""
-        client.post(
-            f"/n26/campaigns/{campaign.pk}/gangs/add/",
-            {"gang": f"http://example.test/n26/gangs/{gang.pk}/"},
-        )
-        assert CampaignMembership.objects.filter(campaign=campaign, gang=gang).exists()
 
     def test_the_roll_draws_the_gang(self, client, campaign, gang, open_to_everyone):
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
@@ -527,20 +531,34 @@ class TestTheRollOfGangs:
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         assert "added the gang to Dust Falls" in self.page(client, campaign)
 
-    def test_an_address_naming_nothing_is_refused_in_words(
-        self, client, campaign, open_to_everyone
-    ):
+    def test_a_key_naming_nothing_is_refused(self, client, campaign, open_to_everyone):
         response = client.post(
             f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": "not-a-gang"}
         )
         assert response.status_code == 200
-        assert "No gang with that address" in response.content.decode()
         assert not CampaignMembership.objects.exists()
+
+    def test_a_gang_belonging_to_nobody_at_the_table_is_refused(
+        self, client, campaign, gang_type, open_to_everyone
+    ):
+        """The screen offers the gangs of people who have accepted a place,
+        and the POST takes only what the screen would offer."""
+        outsider = found_gang(
+            "Not Invited", gang_type, owner=User.objects.create_user("outsider")
+        )
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(outsider.pk)}
+        )
+        assert response.status_code == 200
+        assert not CampaignMembership.objects.filter(gang=outsider).exists()
 
     def test_a_gang_already_playing_elsewhere_is_refused_in_words(
         self, client, campaign, gang, arbitrator, open_to_everyone
     ):
         elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        # Seated there too: what is under test is the second join being
+        # refused, not who the other campaign would have offered.
+        seat(elsewhere, gang.owner)
         client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
 
         response = client.post(
@@ -607,8 +625,9 @@ class TestTheRollOfGangs:
 
 class TestBattlesOnTheCampaignsPage:
     @pytest.fixture
-    def gang(self, gang_type):
+    def gang(self, gang_type, campaign):
         player = User.objects.create_user("player")
+        seat(campaign, player)
         return found_gang("The Ashen Choir", gang_type, owner=player)
 
     def page(self, client, campaign):
@@ -650,6 +669,10 @@ class TestBattlesOnTheCampaignsPage:
         """A picker over every gang there is would let an arbitrator record a
         battle between gangs that were never in the campaign."""
         elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        # Seating the owner is only how the gang gets into the other
+        # campaign; what is under test is which gangs the battle picker
+        # offers afterwards.
+        seat(elsewhere, gang.owner)
         client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
 
         drawn = client.get(
@@ -718,8 +741,9 @@ class TestTheCampaignInTheBar:
     answers 200."""
 
     @pytest.fixture
-    def gang(self, gang_type):
+    def gang(self, gang_type, campaign):
         player = User.objects.create_user("player")
+        seat(campaign, player)
         return found_gang("The Ashen Choir", gang_type, owner=player)
 
     def screens(self, campaign, gang, battle):
@@ -1038,7 +1062,16 @@ class TestAPlayerBringingTheirOwnGang:
         response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
         assert response.status_code == 200
         assert response.context["arbitrating"] is False
-        assert [row["label"] for row in response.context["gang_options"]] == ["My Own"]
+        assert [row["name"] for row in response.context["gangs"]] == ["My Own"]
+
+    def test_they_are_offered_nobody_elses(
+        self, client, theirs, mine, gang_type, open_to_everyone
+    ):
+        """The arbitrator draws on the whole table; a player draws on their
+        own and is not shown what anybody else has."""
+        found_gang("Not Mine", gang_type, owner=theirs.owner)
+        response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
+        assert [row["name"] for row in response.context["gangs"]] == ["My Own"]
 
     def test_they_can_bring_it(self, client, theirs, mine, open_to_everyone):
         client.post(f"/n26/campaigns/{theirs.pk}/gangs/add/", {"gang": str(mine.pk)})
@@ -1066,28 +1099,16 @@ class TestAPlayerBringingTheirOwnGang:
         offering something that gets refused."""
         client.post(f"/n26/campaigns/{theirs.pk}/gangs/add/", {"gang": str(mine.pk)})
         response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
-        assert response.context["gang_options"] == []
-        assert response.context["nothing_to_bring"] is True
-
-    def test_a_reader_whose_gangs_are_all_busy_is_told_which(
-        self, client, theirs, mine, open_to_everyone
-    ):
-        client.post(f"/n26/campaigns/{theirs.pk}/gangs/add/", {"gang": str(mine.pk)})
-        response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
-        assert response.context["every_gang_busy"] is True
-        drawn = response.content.decode()
-        assert "Every gang of yours is in a campaign" in drawn
-        # Nothing to submit, so nothing offering to.
-        assert "Add gang</" not in drawn
+        # Still listed, because a reader who cannot find a gang is better
+        # told where it went — and hidden to start with by the filter.
+        assert [row["playing"] for row in response.context["gangs"]] == [True]
+        assert not any(row["playing"] is False for row in response.context["gangs"])
 
     def test_a_reader_with_no_gangs_is_sent_to_make_one(
         self, client, theirs, open_to_everyone
     ):
-        """No gang and a busy gang are different problems with different
-        next steps, so the page says which one this is."""
         response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
-        assert response.context["nothing_to_bring"] is True
-        assert response.context["every_gang_busy"] is False
+        assert response.context["nothing_to_offer"] is True
         drawn = response.content.decode()
         assert "No gangs yet" in drawn
         assert "/n26/gangs/new/" in drawn
@@ -1208,7 +1229,7 @@ class TestAPlayerBringingTheirOwnGang:
         self.accept_and_bring(client, theirs, mine)
         client.post(f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/")
         response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
-        assert [row["label"] for row in response.context["gang_options"]] == ["My Own"]
+        assert [row["playing"] for row in response.context["gangs"]] == [False]
 
     def test_they_cannot_take_out_somebody_elses(
         self, client, theirs, mine, gang_type, arbitrator, open_to_everyone
@@ -1272,38 +1293,100 @@ class TestTheRollsQueryCount:
         assert len(three_gangs) == len(one_gang)
 
 
-class TestTheArbitratorsOwnAddGangScreen:
-    def test_they_still_paste_an_address(self, client, campaign, open_to_everyone):
-        response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/")
-        assert response.context["arbitrating"] is True
-        assert response.context["gang_options"] == []
+class TestTheAddGangScreensQueryCount:
+    """Every row reads its owner and its stash, so two select_related terms
+    are all that keep the list flat. Nothing else would notice them going."""
 
-    def test_they_may_seat_a_gang_over_the_budget(
+    def test_it_does_not_grow_with_the_gangs(
         self, client, arbitrator, campaign, gang_type, make_profile, open_to_everyone
     ):
-        """They set the number, so they are the one who may go past it."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def seat_a_gang_owner(name):
+            player = User.objects.create_user(name)
+            seat(campaign, player)
+            gang = found_gang(f"Gang of {name}", gang_type, owner=player)
+            hire(gang, make_profile(f"Fighter {name}"), "Yolanda", paid=55)
+            assign(
+                create_wargear(f"Crate {name}", price=25),
+                stash=gang.stash,
+                paid=25,
+            )
+
+        address = f"/n26/campaigns/{campaign.pk}/gangs/add/"
+        seat_a_gang_owner("one")
+        client.get(address)
+        with CaptureQueriesContext(connection) as few:
+            client.get(address)
+
+        seat_a_gang_owner("two")
+        seat_a_gang_owner("three")
+        with CaptureQueriesContext(connection) as many:
+            client.get(address)
+
+        assert len(many) == len(few)
+
+
+class TestTheArbitratorsOwnAddGangScreen:
+    """The same list a player sees, over everybody at the table."""
+
+    @pytest.fixture
+    def rich(self, campaign, gang_type, make_profile):
+        player = User.objects.create_user("player")
+        seat(campaign, player)
+        gang = found_gang("Too Rich", gang_type, owner=player)
+        hire(gang, make_profile("Escher Ganger"), "Yolanda", paid=55)
+        return gang
+
+    def test_it_offers_the_gangs_of_everybody_seated(
+        self, client, campaign, rich, gang_type, arbitrator, open_to_everyone
+    ):
+        mine = found_gang("The Arbitrator's Own", gang_type, owner=arbitrator)
+        outsider = found_gang(
+            "Not Invited", gang_type, owner=User.objects.create_user("outsider")
+        )
+
+        response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/")
+        assert response.context["arbitrating"] is True
+        offered = {row["name"] for row in response.context["gangs"]}
+        assert offered == {"Too Rich", mine.name}
+        assert outsider.name not in offered
+
+    def test_the_newest_touched_gang_comes_first(
+        self, client, campaign, rich, gang_type, make_profile, open_to_everyone
+    ):
+        """Ordered by the ledger, because the gang somebody is looking for
+        is nearly always the one they were last working on."""
+        older = found_gang("Long Untouched", gang_type, owner=rich.owner)
+        hire(older, make_profile("Escher Juve"), "Nadia", paid=25)
+        hire(rich, make_profile("Escher Champ"), "Vala", paid=80)
+
+        response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/")
+        assert [row["name"] for row in response.context["gangs"]][:2] == [
+            "Too Rich",
+            "Long Untouched",
+        ]
+
+    def test_it_says_which_gangs_are_already_playing(
+        self, client, campaign, rich, arbitrator, open_to_everyone
+    ):
+        """Hidden by the filter to start with, but listed — a reader who
+        cannot find a gang should be told where it went."""
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(rich.pk)})
+        response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/")
+        assert [row["playing"] for row in response.context["gangs"]] == [True]
+        assert not any(row["playing"] is False for row in response.context["gangs"])
+
+    def test_a_gang_over_the_budget_joins_and_is_marked(
+        self, client, campaign, rich, arbitrator, open_to_everyone
+    ):
         campaign.budget = 0
         campaign.save()
-        rich = found_gang(
-            "Too Rich", gang_type, owner=User.objects.create_user("player")
-        )
-        hire(rich, make_profile("Escher Ganger"), "Yolanda", paid=55)
-
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(rich.pk)})
         assert CampaignMembership.objects.filter(
             campaign=campaign, gang=rich, left__isnull=True
         ).exists()
-
-    def test_the_roll_marks_a_gang_over_the_budget(
-        self, client, arbitrator, campaign, gang_type, make_profile, open_to_everyone
-    ):
-        campaign.budget = 0
-        campaign.save()
-        rich = found_gang(
-            "Too Rich", gang_type, owner=User.objects.create_user("player")
-        )
-        hire(rich, make_profile("Escher Ganger"), "Yolanda", paid=55)
-        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(rich.pk)})
 
         response = client.get(f"/n26/campaigns/{campaign.pk}/")
         assert [row.over_budget for row in response.context["playing"]] == [True]

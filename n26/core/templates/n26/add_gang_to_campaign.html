@@ -1,16 +1,18 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Putting a gang into a campaign, read two ways.
+Putting a gang into a campaign, picked from the ones at its table.
 
-A player at the table picks from their own gangs, because those are theirs to
-list. The arbitrator pastes an address instead: a gang sheet opens for anybody
-holding its address, so a player choosing to send one is already how a roster
-travels here — the paste is the consent, and no screen has to offer a search
-across other people's gangs.
+The arbitrator draws on every gang belonging to somebody who has accepted a
+place, and their own; a player draws on their own. One list serves both, and a
+control disappears where it has nothing to narrow — one player's gangs need no
+question about which player.
 
-One control, so the page is the heading, the field and the buttons. Anything
-between them restates what the heading has said.
+Newest first, by the last thing the ledger recorded against each gang: the one
+somebody is looking for is nearly always the one they were last working on.
+
+Gangs already in a campaign are hidden to start with rather than left out, so
+a reader who cannot find one is told where it went.
 {% endcomment %}
 {% block head_title %}Add a gang to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -24,7 +26,6 @@ between them restates what the heading has said.
     <c-n26.form-page action="{% url 'n26-campaign-add-gang' campaign.pk %}"
                      title="Add a gang to {{ campaign.name }}"
                      :form="form"
-                     submit_label="{% if not nothing_to_bring %}Add gang{% endif %}"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -41,63 +42,186 @@ between them restates what the heading has said.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section>
-            {% if arbitrating %}
-                <c-ui.field label="Gang *"
-                            description="Paste the link a player sent you, or the gang's id."
-                            error="x"
-                            :form="form"
-                            name="gang"
-                            for="join-gang">
-                    <c-ui.input id="join-gang"
-                                name="gang"
-                                autocomplete="off"
-                                :required="True"
-                                value="{{ form.gang.value|default:'' }}" />
-                </c-ui.field>
-            {% elif nothing_to_bring %}
-                {% comment %}
-                Which of the two reasons decides what the reader does next, so
-                the page says which rather than covering both and leaving them
-                to work it out.
-                {% endcomment %}
-                {% if every_gang_busy %}
-                    <c-ui.alert variant="info" title="Every gang of yours is in a campaign">
-                        A gang plays one campaign at a time, so none of yours
-                        can join this one.
-                    </c-ui.alert>
+        {% comment %}
+        The list submits by its own buttons and draws no widget for the field,
+        so the field's own error has nowhere else to appear. It is reachable
+        only by sending a key the list did not offer, and a page that answered
+        that by redrawing itself and saying nothing would look broken.
+        {% endcomment %}
+        <c-ui.error name="gang" :form="form" />
+        {% if nothing_to_offer %}
+            <c-ui.alert variant="info" title="No gangs yet">
+                {% if arbitrating %}
+                    No one at this campaign's table has a gang yet.
                 {% else %}
-                    <c-ui.alert variant="info" title="No gangs yet">
-                        You have no gangs to add.
-                        <c-n26.link href="{% url 'n26-create-gang' %}">Create one</c-n26.link>
-                        first.
-                    </c-ui.alert>
+                    You have no gangs to add.
+                    <c-n26.link href="{% url 'n26-create-gang' %}">Create one</c-n26.link>
+                    first.
                 {% endif %}
-            {% else %}
-                <c-ui.field label="Gang *"
-                            description="Your gangs that are not already in a campaign.{% if campaign.budget is not None %} The campaign's budget is {{ campaign.budget }}¢, and a bigger gang can still join.{% endif %}"
-                            error="x"
-                            :form="form"
-                            name="gang"
-                            for="join-gang">
+            </c-ui.alert>
+        {% else %}
+            {% comment %}
+            One scope over the whole list: rows register what can be asked of
+            them and redraw themselves, and the count is written once per
+            change by an effect rather than read from a getter — Alpine caches
+            no getter, so one walked per row goes quadratic as the list grows.
+            {% endcomment %}
+            {% comment %}
+            The filter menu keeps its own selection and cannot reach in here,
+            so it reports by name and this listens under the same one.
+            {% endcomment %}
+            <div x-data="{
+                     rows: [],
+                     query: '',
+                     people: null,
+                     minWealth: 0,
+                     maxWealth: {{ wealth_ceiling }},
+                     hidePlaying: true,
+                     shown: 0,
+                     register(facets) { this.rows.push(facets) },
+                     matches(facets) {
+                         if (this.hidePlaying &amp;&amp; facets.playing) return false;
+                         if (this.people !== null &amp;&amp; !this.people.includes(facets.owner)) return false;
+                         if (facets.wealth &lt; this.minWealth) return false;
+                         if (facets.wealth &gt; this.maxWealth) return false;
+                         const q = this.query.trim().toLowerCase();
+                         return !q || facets.search.includes(q);
+                     },
+                 }"
+                 x-effect="shown = rows.filter(f =&gt; matches(f)).length"
+                 @filter-apply.window="if ($event.detail.name === 'player') people = $event.detail.values"
+                 class="flex flex-col gap-3">
+                {% comment %}
+                The search on its own line and the filters in a bar below it,
+                as the equipment catalogue lays out the same pair. A row of
+                filters is a row of actions, which is what action-bar is.
+                {% endcomment %}
+                {% comment %}
+                Enter in the search box would otherwise add a gang. The list
+                sits inside the page's form, every control above it is a
+                plain button, and the footer draws no submit — so the form's
+                default button is the first row's Add, hidden or not.
+                {% endcomment %}
+                <c-n26.search-bar :live="True"
+                                  :nested="True"
+                                  model="query"
+                                  placeholder="Search gangs"
+                                  @keydown.enter.prevent=""
+                                  class="n26-gang-filters" />
+                <c-n26.action-bar class="n26-gang-filters">
+                    {% if player_options %}
+                        <c-n26.filter-menu label="Player" name="player" :options="player_options" />
+                    {% endif %}
+                    {% if wealth_ceiling %}
+                        <c-n26.range-menu label="Wealth"
+                                          model_min="minWealth"
+                                          model_max="maxWealth"
+                                          min="0"
+                                          max="{{ wealth_ceiling }}"
+                                          step="50"
+                                          suffix="¢"
+                                          at_max_label="Any" />
+                    {% endif %}
                     {% comment %}
-                    The kit's own placeholder draws the blank option, disabled
-                    and selected. A hand-written one is neither, so a reader
-                    can pick the blank back and submit an empty form.
+                    The switch can be worked two ways and each says so
+                    differently. Its button calls the factory, which moves
+                    the switch and dispatches checkedChange without writing
+                    the hidden box until afterwards — so that path is a turn
+                    over, not a value to read. Clicking the label is the
+                    browser working the box directly: it fires an ordinary
+                    change and never reaches the factory, so nothing is
+                    dispatched and the box already holds the answer.
+
+                    Listening for one alone leaves the switch and the list
+                    disagreeing. The dashed spelling with the camel modifier
+                    is what matches a dispatched checkedChange, an attribute
+                    being lowercased by the parser.
                     {% endcomment %}
-                    <c-ui.select.native name="gang"
-                                        id="join-gang"
-                                        placeholder="Select one"
-                                        :required="True"
-                                        value="{{ form.gang.value|default:'' }}">
-                        {% for option in gang_options %}
-                            <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
-                                {{ option.label }}
-                            </c-ui.select.option>
-                        {% endfor %}
-                    </c-ui.select.native>
-                </c-ui.field>
-            {% endif %}
-        </c-n26.form-section>
+                    <c-n26.toggle label="Hide gangs already in a campaign"
+                                  :checked="True"
+                                  @change="hidePlaying = $event.target.checked"
+                                  @checked-change.camel="hidePlaying = !hidePlaying" />
+                </c-n26.action-bar>
+                {% comment %}
+                The written figure is every gang, which is what a reader with
+                no script is looking at; Alpine writes the narrowed count over
+                it as soon as it runs.
+                {% endcomment %}
+                <p class="text-sm text-muted">
+                    <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
+                          x-text="shown">{{ gangs|length }}</span>
+                    of {{ gangs|length }} gang{{ gangs|length|pluralize }}
+                </p>
+                {% comment %}
+                Every row is cloaked so the list does not flash unfiltered
+                before Alpine narrows it, and [x-cloak] hides for good where
+                no script arrives to take it off. Without script there is no
+                narrowing to wait for, so the rows are shown and the controls
+                above them — which do nothing on their own — are not.
+                {% endcomment %}
+                <noscript>
+                    <style>
+                        .n26-gang-picker > li[x-cloak] {
+                            display: flex !important;
+                        }
+                        .n26-gang-filters {
+                            display: none !important;
+                        }
+                    </style>
+                </noscript>
+                <ul class="n26-gang-picker flex flex-col">
+                    {% for gang in gangs %}
+                        <li x-data="{ facets: {
+                                    owner: {{ gang.owner|json_dumps }},
+                                    wealth: {{ gang.wealth }},
+                                    playing: {{ gang.playing|yesno:'true,false' }},
+                                    search: {{ gang.search|json_dumps }},
+                                } }"
+                            x-init="register(facets)"
+                            x-show="matches(facets)"
+                            x-cloak
+                            class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <div class="min-w-0 flex-1">
+                                <span class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ gang.name }}</span>
+                                {% if arbitrating %}<span class="text-sm text-muted">{{ gang.owner }}</span>{% endif %}
+                            </div>
+                            {% comment %}
+                            The badge is wrapped rather than given a class:
+                            it declares none, so one passed in is written
+                            before its own and the browser keeps the first,
+                            dropping every style it came with.
+                            {% endcomment %}
+                            {% if gang.playing %}
+                                <span class="shrink-0">
+                                    <c-ui.badge color="ink" size="sm">
+                                        In a campaign
+                                    </c-ui.badge>
+                                </span>
+                            {% endif %}
+                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ gang.wealth }}¢</span>
+                            {% comment %}
+                            One button per row rather than a picker and a
+                            submit below it: the act is adding this gang, and
+                            splitting it into choosing and confirming asks
+                            twice for one answer.
+                            {% endcomment %}
+                            {% if not gang.playing %}
+                                <c-ui.button type="submit"
+                                             name="gang"
+                                             value="{{ gang.pk }}"
+                                             size="sm"
+                                             variant="success"
+                                             class="shrink-0">
+                                    Add
+                                </c-ui.button>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+                <p x-show="shown === 0"
+                   x-cloak
+                   class="py-6 text-center text-sm text-muted">No gangs match that.</p>
+            </div>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}
