@@ -1,0 +1,93 @@
+{% comment %}
+<c-ui.dropdown> — a trigger and the menu it opens.
+
+Overrides the kit's dropdown to add `strategy`. Everything else is the
+kit's own markup and behaviour, and the default keeps them exactly.
+
+The kit places the menu with `position: absolute`, which any scrolling
+ancestor clips — and `overflow-x: auto` clips top and bottom too, because
+an element gets one scroll box rather than one per axis. A menu beside a
+name inside a sideways-scrolling stat table therefore loses whatever
+hangs below the last row. `strategy="fixed"` measures the menu against
+the window instead, where no scroll box reaches it; the placement itself
+is n26/core/static/n26/menu-position.js, installed over the component's
+own positionDropdown so that opening, scrolling and resizing all come
+back through it.
+
+Only `bottom` and `top` are placed that way. A menu that opens to the
+side has no call to escape a scroll box, and the strategy does not claim
+to serve one.
+
+Every other prop is the kit's, unchanged.
+
+  strategy    absolute (default) or fixed. Use fixed where the menu sits
+              inside something that scrolls.
+{% endcomment %}
+<c-vars
+  position="bottom"
+  align="start"
+  offset="4"
+  trigger_text=""
+  min_width="12rem"
+  :auto_position="True"
+  :collapsible="False"
+  strategy="absolute"
+/>
+
+<div
+  x-data="dropdownMenu()"
+  x-init="position = '{{ position }}'; align = '{{ align }}'; offset = {{ offset }}; responsive = {{ auto_position|lower }}; collapsible = {{ collapsible|lower }} || !!$root.closest('[data-dropdown-collapse]');{% if strategy == 'fixed' %} positionDropdown = () => window.n26PositionMenu($refs.trigger, $refs.content, { position, align, offset, flip: responsive, collapsible });{% endif %} $watch('dropdownMenu', value => { if (value) positionDropdown() })"
+  x-bind="root"
+  @dropdown-close="close()"
+  {{ attrs }}
+  class="relative inline-block">
+
+  {% if trigger %}
+    <div x-ref="trigger" x-bind="trigger">
+      {{ trigger }}
+    </div>
+  {% elif trigger_text %}
+    <button
+      type="button"
+      x-ref="trigger"
+      x-bind="trigger"
+      class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium
+             rounded-control border transition-colors
+             border-ink-300 dark:border-ink-700
+             bg-ink-50 dark:bg-ink-800
+             text-ink-700 dark:text-ink-300
+             hover:bg-ink-100 dark:hover:bg-ink-700
+             focus-ring"
+      :class="{ 'ring-[length:var(--focus-ring-width)] ring-[var(--focus-ring-color)]': dropdownMenu }"
+      aria-haspopup="true"
+      :aria-expanded="dropdownMenu">
+      {{ trigger_text }}
+      <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': dropdownMenu }"
+           fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+  {% else %}
+    <div class="text-red-500 text-sm">Error: Dropdown requires either 'trigger' slot or 'trigger_text' prop</div>
+  {% endif %}
+
+  <div
+    x-ref="content"
+    x-bind="content"
+    x-cloak
+    class="z-50 rounded-control border shadow-lg
+           border-[color:var(--color-box-border)]
+           bg-white dark:bg-ink-900
+           max-h-[calc(100vh-4rem)] sm:max-h-[80vh]
+           overflow-y-auto overflow-x-hidden
+           scrollbar-thin scrollbar-thumb-ink-400 scrollbar-track-ink-100
+           dark:scrollbar-thumb-ink-600 dark:scrollbar-track-ink-800"
+    :class="collapsible
+              ? 'static md:absolute w-full min-w-0 md:w-auto md:min-w-[var(--dd-min)] mt-1 md:mt-0'
+              : 'absolute min-w-[var(--dd-min)]'"
+    style="--dd-min: {{ min_width }}"
+    role="menu"
+    aria-orientation="vertical">
+    {{ slot }}
+  </div>
+</div>

@@ -1,0 +1,40 @@
+{# title: Inside something that scrolls #}
+{# note: Both boxes below scroll sideways. The left menu is placed the ordinary way and the box cuts it off — at the bottom as well as the sides, because an element gets one scroll box and not one per axis. The right menu is strategy="fixed", measured against the window instead, so the box does not reach it. Open both. #}
+<div class="flex flex-wrap gap-8">
+    <div class="w-64 overflow-x-auto border border-box-border p-3">
+        <div class="w-96">
+            <c-ui.dropdown trigger_text="Cut off" align="end">
+                <c-ui.dropdown.item>
+                    Add accessory
+                </c-ui.dropdown.item>
+                <c-ui.dropdown.item>
+                    Sell
+                </c-ui.dropdown.item>
+                <c-ui.dropdown.item>
+                    Reassign
+                </c-ui.dropdown.item>
+                <c-ui.dropdown.item>
+                    Delete
+                </c-ui.dropdown.item>
+            </c-ui.dropdown>
+        </div>
+    </div>
+    <div class="w-64 overflow-x-auto border border-box-border p-3">
+        <div class="w-96">
+            <c-ui.dropdown trigger_text="Whole" align="end" strategy="fixed">
+                <c-ui.dropdown.item>
+                    Add accessory
+                </c-ui.dropdown.item>
+                <c-ui.dropdown.item>
+                    Sell
+                </c-ui.dropdown.item>
+                <c-ui.dropdown.item>
+                    Reassign
+                </c-ui.dropdown.item>
+                <c-ui.dropdown.item>
+                    Delete
+                </c-ui.dropdown.item>
+            </c-ui.dropdown>
+        </div>
+    </div>
+</div>

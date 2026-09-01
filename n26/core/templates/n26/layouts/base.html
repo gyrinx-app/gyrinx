@@ -605,6 +605,12 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         what it does to a control is drawn by [data-busy] in app.css.
         {% endcomment %}
         <script defer src="{% static 'n26/busy.js' %}"></script>
+        {% comment %}
+        Read by <c-ui.dropdown strategy="fixed">, which hands it the trigger
+        and the menu when it opens. Deferred like everything else here: the
+        component only calls it once Alpine has walked the page.
+        {% endcomment %}
+        <script defer src="{% static 'n26/menu-position.js' %}"></script>
         <script defer src="{% static 'designsystem/vendor/htmx.min.js' %}"></script>
         {% comment %}
         Order matters: the kit's factories must be defined before Alpine walks

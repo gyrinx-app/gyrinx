@@ -300,7 +300,13 @@ class TestWhatACopyOffers:
             "Refund",
             "Delete",
         ]
-        assert {action.tone for action in copy.more} == {SECONDARY}
+        # The tone is what sorts the menu into groups and colours the last
+        # of them, so it is the structure that decides Delete is the one
+        # that ends with nothing to show for it.
+        assert {action.tone for action in copy.more} == {SECONDARY, DANGER}
+        assert [action.label for action in copy.more if action.tone == DANGER] == [
+            "Delete"
+        ]
 
     def test_every_act_on_a_copy_is_a_link_to_a_confirmation(
         self, fighter, house_list, armed

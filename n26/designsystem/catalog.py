@@ -126,7 +126,9 @@ GROUPS: list[Group] = [
                     "Needs either a trigger slot or trigger_text — with neither it "
                     "renders a visible red error rather than failing silently. Set "
                     ":collapsible to have it render inline below the md breakpoint "
-                    "instead of as a popover."
+                    'instead of as a popover. Set strategy="fixed" where the menu '
+                    "sits inside something that scrolls, which otherwise cuts it off "
+                    "at the box's edges."
                 ),
                 parts=(
                     Part(
