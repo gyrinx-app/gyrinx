@@ -41,7 +41,7 @@ Read `demos.py` (a hundred lines) first, then `introspect.py`.
 
 ```
 {# title: Solid and pill #}
-{# note: Both are spellings of variant, so you can't have a solid pill. #}
+{# note: solid and pill are both values of variant, so a badge cannot be both. #}
 {# layout: col #}
 <c-ui.badge variant="solid" color="green">solid</c-ui.badge>
 ```
@@ -57,7 +57,7 @@ Read `demos.py` (a hundred lines) first, then `introspect.py`.
   icon demo loops the icon registry, so new icons appear without the
   demo going stale.
 
-## The `notes` register
+## The `notes` field
 
 A catalog entry's `notes` hold call-site facts the prop table cannot
 show: silent failure modes, required companions, cross-file couplings
@@ -75,9 +75,9 @@ notes.
 - Print styling is its own world: read the header comment in
   `assets/print.css` before touching anything print-shaped, and use
   `printlab` (every control is a query parameter) to test it.
-  `sampledata`, `printlab`, and the token pages deliberately hold no
-  values that live elsewhere — tokens are read from the browser,
-  geometry mirrors the stylesheet.
+  None of `sampledata`, `printlab`, or the token pages duplicate values
+  defined elsewhere: tokens are read from the browser at render time,
+  and printlab's geometry is read from the stylesheet.
 - The gallery depends on `n26.core`; core must never import the
   gallery.
 

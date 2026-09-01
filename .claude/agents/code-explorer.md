@@ -48,7 +48,7 @@ Provide a comprehensive analysis that helps developers understand the feature de
 - Observations about strengths, issues, or opportunities
 - List of files that you think are absolutely essential to get an understanding of the topic in question
 
-Structure your response for maximum clarity and usefulness. Always include specific file paths and line numbers.
+Always include specific file paths and line numbers.
 
 ## If you're blocked at the start
 

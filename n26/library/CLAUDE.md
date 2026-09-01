@@ -11,7 +11,7 @@ forms.py         Django forms generated from the specs
 views.py         the staff authoring pages, driven by small registries
 sheets.py        the five pre-ingest sheets, named once
 ingest.py        spreadsheets in → a previewable plan → rows out
-standard_content.py  the seed rows nobody authors, planted idempotently
+standard_content.py  the seed rows nobody authors, created idempotently
 offers.py        what a kind declares about itself; forms derive the rest
 artwork.py       uploaded drawings: binds this edition's folder onto gyrinx.artwork
 ```
@@ -32,7 +32,7 @@ philosophy. Then `models/assignable.py` and `authoring.py`.
   ordering, the standard constraints (unique per pack on lowercased
   name + qualifier; exclusive items carry no trade-point price) — and a
   column on `n26.core`'s `Assignment` plus an entry in
-  `ASSIGNABLE_FIELDS`, or the app refuses to boot.
+  `ASSIGNABLE_FIELDS`, or the app fails at startup.
 - **Help text lives on the model field, nowhere else.** Specs reference
   it (`source=(Model, "field")`); forms read it through the spec. Model
   docstrings are shown to authors on the authoring pages — write them as
@@ -147,7 +147,7 @@ exactly the plan, through the authoring verbs, in one transaction).
 **The preview is the contract** — what `plan.preview()` shows is what
 `perform()` does, changes included. Standing rules: resolve, never
 create, across sheets; built-ins are free; a missing seed row is a loud
-error, never quietly re-planted.
+error, never quietly re-created.
 
 An upload is **held** between the stages — an `UploadedSheet` row per
 sheet per author, the bytes in the site's storage. A file input cannot

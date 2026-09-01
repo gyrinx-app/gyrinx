@@ -80,16 +80,16 @@ or the admin really does.
 - For query counts, prefer asserting the count stays the same after
   adding more fighters; a pinned literal count is acceptable for one
   structure's fixed budget.
-- **Discovering guards, not lists.** A rule that must hold for every X
-  enumerates the codebase by reflection, pairs with a
-  `test_there_is_something_to_check`, and fails with prose saying what
-  to do. `test_money_words.py` is the template. Never narrow a guard's
+- **Discovering guards, not lists.** A guard test for a rule that must
+  hold for every X discovers the Xs by reflection, pairs with a
+  `test_there_is_something_to_check`, and fails with a message saying
+  what to do. `test_money_words.py` is the template. Never narrow a guard's
   discovery to make a failure go away.
 - Discovery used in `parametrize` runs at collection time — keep it
   import-safe, no database access.
 - Tests run with `--nomigrations`, so data migrations never ran: any row
-  one plants exists only if a test makes it.
-- Rule names only, never the book's wording.
+  a data migration would have created exists only if a test creates it.
+- Tests name rules by their titles only — never the book's wording.
 
 ## Exemplars
 

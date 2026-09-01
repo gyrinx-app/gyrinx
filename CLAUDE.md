@@ -83,7 +83,7 @@ form-field anatomy — issue #2002.
 ## Infrastructure
 
 - All our infra is in GCP europe-west2 (London)
-- In prod, the user uploads bucket name is gyrinx-app-bootstrap-uploads
+- In prod, the bucket for user uploads is gyrinx-app-bootstrap-uploads
 
 ## Local Development (Per-Worktree Isolation)
 
@@ -449,7 +449,7 @@ echo 'print(User.objects.count())' | manage prodshell
 echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
 ```
 
-- Piped code runs through IPython, which prints multi-line `for` loops unreliably — use a
+- Piped code runs through IPython, which echoes the output of multi-line `for` loops unreliably — use a
   single expression per query (e.g. `print([...comprehension...])`) and read results off
   the `In [N]:` lines.
 
@@ -481,8 +481,8 @@ anything else that connects as that role too.
   and gives whoever triggered it a spinning tab instead of a page they can leave and come back to.
   "It only takes a few seconds on my machine" is measured against a copy, not against production
   under load. Follow `convert_specialisation` in `n26/maintenance.py`: a `@task` that takes the
-  record's id, an advisory lock so a redelivered message stands down rather than running twice, an
-  attempt count so a run too large to finish is noticed instead of repeating for ever, and every
+  record's id, an advisory lock so a redelivered message exits without running rather than running twice, an
+  attempt count so a run too large to finish is noticed instead of repeating forever, and every
   ending — done, refused, broken — written onto the record rather than raised. Long repairs that
   cannot finish in one go re-enqueue themselves in chunks (`n23/core/tasks.py`), reporting progress
   into the same record.
@@ -676,10 +676,11 @@ and override the `owner` kwarg on the factory fixtures.
 
 ### Git Workflow
 
-- Before `git pull`, check the index
-- Consider running `git stash`
-- After a `stash` then `pull`, run `git stash pop` if necessary
-- This is useful for keeping the claude local file up-to-date
+- Before `git pull`, check the index; if the tree is dirty, set the changes
+  aside first and restore them after. Prefer a temporary WIP commit — the
+  stash stack is shared across worktrees (see the worktree stash rules) —
+  and reach for `git stash` only in a plain single checkout.
+- This keeps `CLAUDE.local.md` up to date across pulls.
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
 - At the end of work, ship with the `commit-push-pr` skill — open the PR ready for
   review (not a draft) so bot reviews and the review-agent watcher kick off
