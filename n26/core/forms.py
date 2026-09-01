@@ -378,8 +378,8 @@ class BringGangForm(forms.Form):
         # on a page holding no picker — where Django's own wording would
         # tell the reader to select a valid choice from nothing.
         error_messages={
-            "invalid_choice": "That gang is not one this campaign can take.",
-            "required": "Choose a gang to add.",
+            "invalid_choice": "That gang is not on this list.",
+            "required": "Select a gang to add.",
         },
     )
 
