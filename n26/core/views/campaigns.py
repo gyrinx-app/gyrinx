@@ -305,12 +305,13 @@ def _addable_gangs(campaign, reader, arbitrating):
     were last working on. A gang nothing has happened to yet sorts last
     rather than first, where a null would put it.
     """
-    from django.db.models import Exists, F, Max, OuterRef
+    from django.db.models import Exists, F, OuterRef, Subquery
 
     from n26.core.models import (
         CampaignMembership,
         CampaignParticipant,
         Gang,
+        LedgerEvent,
     )
 
     if arbitrating:
@@ -327,7 +328,15 @@ def _addable_gangs(campaign, reader, arbitrating):
         Gang.objects.filter(owner_id__in=owners, archived=False)
         .select_related("owner", "stash")
         .annotate(
-            last_touched=Max("ledger_events__created"),
+            # The newest event of this gang's own, read one at a time rather
+            # than aggregated: a Max over the join groups every event
+            # belonging to every gang on the page to produce one sort key
+            # each, where this seeks the gang's own newest and stops.
+            last_touched=Subquery(
+                LedgerEvent.objects.filter(gang=OuterRef("pk"))
+                .order_by("-created")
+                .values("created")[:1]
+            ),
             playing_now=Exists(
                 CampaignMembership.objects.filter(
                     gang=OuterRef("pk"), left__isnull=True
@@ -398,15 +407,18 @@ def add_gang(request, pk):
         {
             "pk": str(row.pk),
             "name": row.name,
-            "owner": row.owner.username if row.owner else "",
+            "owner": row.owner.username,
             "wealth": row.wealth,
+            # The arbitrator's rows draw the owner, so a search that did not
+            # reach it would find nothing for a name the reader can see.
+            "search": f"{row.name} {row.owner.username}".lower(),
             "playing": row.playing_now,
         }
         for row in offering
     ]
     # Only where there is somebody to tell apart: a list of one person's
     # gangs is not narrowed by asking which person.
-    people = sorted({row["owner"] for row in gangs if row["owner"]})
+    players = sorted({row["owner"] for row in gangs})
     return render(
         request,
         "n26/add_gang_to_campaign.html",
@@ -415,8 +427,8 @@ def add_gang(request, pk):
             "campaign": found,
             "arbitrating": arbitrating,
             "gangs": gangs,
-            "people": [{"value": name, "label": name} for name in people]
-            if len(people) > 1
+            "player_options": [{"value": name, "label": name} for name in players]
+            if len(players) > 1
             else [],
             # The ends of the wealth filter, which are also its off positions.
             "wealth_ceiling": max([row["wealth"] for row in gangs], default=0),

@@ -371,7 +371,17 @@ class BringGangForm(forms.Form):
     anything.
     """
 
-    gang = forms.ModelChoiceField(queryset=None, label="Gang")
+    gang = forms.ModelChoiceField(
+        queryset=None,
+        label="Gang",
+        # Reachable only by naming a gang the list did not offer, and drawn
+        # on a page holding no picker — where Django's own wording would
+        # tell the reader to select a valid choice from nothing.
+        error_messages={
+            "invalid_choice": "That gang is not one this campaign can take.",
+            "required": "Choose a gang to add.",
+        },
+    )
 
     def __init__(self, *args, gangs, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1293,6 +1293,41 @@ class TestTheRollsQueryCount:
         assert len(three_gangs) == len(one_gang)
 
 
+class TestTheAddGangScreensQueryCount:
+    """Every row reads its owner and its stash, so two select_related terms
+    are all that keep the list flat. Nothing else would notice them going."""
+
+    def test_it_does_not_grow_with_the_gangs(
+        self, client, arbitrator, campaign, gang_type, make_profile, open_to_everyone
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def seat_a_gang_owner(name):
+            player = User.objects.create_user(name)
+            seat(campaign, player)
+            gang = found_gang(f"Gang of {name}", gang_type, owner=player)
+            hire(gang, make_profile(f"Fighter {name}"), "Yolanda", paid=55)
+            assign(
+                create_wargear(f"Crate {name}", price=25),
+                stash=gang.stash,
+                paid=25,
+            )
+
+        address = f"/n26/campaigns/{campaign.pk}/gangs/add/"
+        seat_a_gang_owner("one")
+        client.get(address)
+        with CaptureQueriesContext(connection) as few:
+            client.get(address)
+
+        seat_a_gang_owner("two")
+        seat_a_gang_owner("three")
+        with CaptureQueriesContext(connection) as many:
+            client.get(address)
+
+        assert len(many) == len(few)
+
+
 class TestTheArbitratorsOwnAddGangScreen:
     """The same list a player sees, over everybody at the table."""
 

@@ -96,14 +96,21 @@ a reader who cannot find one is told where it went.
                 as the equipment catalogue lays out the same pair. A row of
                 filters is a row of actions, which is what action-bar is.
                 {% endcomment %}
+                {% comment %}
+                Enter in the search box would otherwise add a gang. The list
+                sits inside the page's form, every control above it is a
+                plain button, and the footer draws no submit — so the form's
+                default button is the first row's Add, hidden or not.
+                {% endcomment %}
                 <c-n26.search-bar :live="True"
                                   :nested="True"
                                   model="query"
                                   placeholder="Search gangs"
+                                  @keydown.enter.prevent=""
                                   class="n26-gang-filters" />
                 <c-n26.action-bar class="n26-gang-filters">
-                    {% if people %}
-                        <c-n26.filter-menu label="Player" name="player" :options="people" />
+                    {% if player_options %}
+                        <c-n26.filter-menu label="Player" name="player" :options="player_options" />
                     {% endif %}
                     {% if wealth_ceiling %}
                         <c-n26.range-menu label="Wealth"
@@ -116,22 +123,23 @@ a reader who cannot find one is told where it went.
                                           at_max_label="Any" />
                     {% endif %}
                     {% comment %}
-                    checkedChange, not change: the switch holds its state in
-                    its own scope and writes its hidden checkbox through
-                    x-model, and a checkbox set from script fires no change
-                    event, so a @change here would never run. The name is
-                    written with a dash and camel-cased back, the only
-                    spelling that reaches the dispatched name — an attribute
-                    is lowercased by the parser, and the modifier joins
-                    dash-separated words rather than restoring case.
+                    The switch can be worked two ways and each says so
+                    differently. Its button calls the factory, which moves
+                    the switch and dispatches checkedChange without writing
+                    the hidden box until afterwards — so that path is a turn
+                    over, not a value to read. Clicking the label is the
+                    browser working the box directly: it fires an ordinary
+                    change and never reaches the factory, so nothing is
+                    dispatched and the box already holds the answer.
 
-                    The event says the switch turned over and carries no
-                    state, and the box it writes is still on its old value
-                    when this runs, so the flag is turned over to match
-                    rather than read back.
+                    Listening for one alone leaves the switch and the list
+                    disagreeing. The dashed spelling with the camel modifier
+                    is what matches a dispatched checkedChange, an attribute
+                    being lowercased by the parser.
                     {% endcomment %}
                     <c-n26.toggle label="Hide gangs already in a campaign"
                                   :checked="True"
+                                  @change="hidePlaying = $event.target.checked"
                                   @checked-change.camel="hidePlaying = !hidePlaying" />
                 </c-n26.action-bar>
                 {% comment %}
@@ -167,7 +175,7 @@ a reader who cannot find one is told where it went.
                                     owner: {{ gang.owner|json_dumps }},
                                     wealth: {{ gang.wealth }},
                                     playing: {{ gang.playing|yesno:'true,false' }},
-                                    search: {{ gang.name|lower|json_dumps }},
+                                    search: {{ gang.search|json_dumps }},
                                 } }"
                             x-init="register(facets)"
                             x-show="matches(facets)"
@@ -177,10 +185,18 @@ a reader who cannot find one is told where it went.
                                 <span class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ gang.name }}</span>
                                 {% if arbitrating %}<span class="text-sm text-muted">{{ gang.owner }}</span>{% endif %}
                             </div>
+                            {% comment %}
+                            The badge is wrapped rather than given a class:
+                            it declares none, so one passed in is written
+                            before its own and the browser keeps the first,
+                            dropping every style it came with.
+                            {% endcomment %}
                             {% if gang.playing %}
-                                <c-ui.badge color="ink" size="sm" class="shrink-0">
-                                    In a campaign
-                                </c-ui.badge>
+                                <span class="shrink-0">
+                                    <c-ui.badge color="ink" size="sm">
+                                        In a campaign
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ gang.wealth }}¢</span>
                             {% comment %}
