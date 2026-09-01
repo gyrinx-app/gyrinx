@@ -55,10 +55,16 @@ _UNDER_PYTEST = "pytest" in sys.modules
 # costs the template-heavy suites about a quarter of their CPU time.
 CACHE_TEMPLATES = _UNDER_PYTEST
 
+# Start the debug toolbar hidden. The toolbar remembers open/closed in the
+# browser's localStorage, so a fresh browser profile (every agent-driven session
+# and every new worktree port) otherwise opens with the panel expanded over the
+# page. The "DjDT" tab still sits in the corner to open it.
+DEBUG_TOOLBAR_CONFIG = {"SHOW_COLLAPSED": True}
+
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
 # use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.
 if _UNDER_PYTEST:
-    DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": lambda request: False}
+    DEBUG_TOOLBAR_CONFIG["SHOW_TOOLBAR_CALLBACK"] = lambda request: False
 
 # Background tasks: run genuinely asynchronously (in-process durable queue +
 # worker threads) when the dev server is up, so enqueued work leaves the request
