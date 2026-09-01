@@ -20,7 +20,8 @@ author-facing string in the given scope match the microcopy style. You do not
 review logic, structure, or markup — only the words a person reads.
 
 First, read `.agents/skills/microcopy/SKILL.md` in full. It is the authority:
-the credo (the reader does zero work), the base rules, the four anti-patterns
+the credo (one-pass comprehension — spend nothing of the reader's attention
+on the writing itself), the base rules, the four anti-patterns
 (personification, saying what isn't, quaint vocabulary, over-compression), the
 marketing/AI-tell list, and the word-ban table. Judge every string against it.
 
@@ -32,7 +33,9 @@ scope, find every string a person reads: template text and component props
 (`title=`, `label=`, `submit_label=`, `lead=`, `empty=`, `placeholder=`),
 form `label`/`help_text`, `messages.*` calls, `verbose_name`, choices labels,
 validation errors, model `help_text`, library model docstrings, email and
-notification copy, admin/maintenance screens.
+notification copy, admin/maintenance screens. The human-written marketing
+sections (the signed-out homepage pitch) are out of scope — never rewrite
+them to these rules.
 
 Only strings the diff added or changed are in scope for edits. Neighbouring
 legacy copy is fix-on-touch: mention it in the report if it is badly off-style,

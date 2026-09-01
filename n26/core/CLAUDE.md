@@ -6,7 +6,7 @@ stage has one job:
 ```
 models/        rows: Gang, Miniature, Assignment, LedgerEntry, Stash
 operations.py  the only writer — every change to player data goes through it
-card.py        loads a gang's rows into an in-memory tree: a pinned two
+card.py        loads a gang's rows into an in-memory tree: two pinned
                row queries, one shared hydration pass
 effects.py     computes what the rules do to a card — pure, no queries
 render.py      plain dataclasses a template can draw (ModelCard, GangSheet)
@@ -104,7 +104,7 @@ underlying spec.
 - **A new assignable kind is three edits**: an entry in
   `ASSIGNABLE_FIELDS` (`models/assignment.py`), a matching nullable FK
   on `Assignment`, and a migration. Startup checks (`n26.E001`/`E002`)
-  refuse to boot if they disagree.
+  stop the app booting if they disagree.
 - A new condition model must be named in its scope's `CONDITIONS` tuple
   (`n26.E003`/`E004`) or its rows are stored but never read.
 - `Has.as_q` needs a `register_lookup()` entry per (model, kind) pair,

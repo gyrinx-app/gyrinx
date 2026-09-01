@@ -14,7 +14,7 @@ This file provides guidance specific to the analytics app.
 
 Two editions write to one events table, so every `Event` carries an `edition`.
 
-- The words belong to the editions, not here. `EventNoun` lives in
+- Noun values are defined by the editions, not by this app. `EventNoun` lives in
   `n23/core/events.py`; n26's live in `n26/analytics.py`. Only `PlatformNoun`
   (`user`, `banner`) is the platform's, because an account and a site-wide
   banner are the same thing whichever edition you are reading.
@@ -22,9 +22,9 @@ Two editions write to one events table, so every `Event` carries an `edition`.
   (`gyrinx/analytics/nouns.py`). That is what lets `edition` be derived from
   the noun instead of passed in — there is no argument to thread through the
   call sites, and so none to forget. A noun nobody registered is recorded as
-  `unknown` with an error logged, never guessed into a real edition.
-- `Event.noun`'s `choices` is the registry callable, so adding a noun writes
-  no migration.
+  `unknown` with an error logged, never inferred into a real edition.
+- `Event.noun`'s `choices` is the registry callable, so adding a noun does
+  not require a migration.
 - Anything grouping events must group by edition too, or it adds two products
   together. The growth chart's lines each declare an edition for this reason.
 

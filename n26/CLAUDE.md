@@ -34,7 +34,7 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Ten deliberate
+  parallel edition, not a layer on the old one. The deliberate
   exceptions: `n26/core/views/changelog.py` reads
   `gyrinx.site.models.ChangelogEntry`, deferred inside its shared
   queryset helper; the gangs view searches with
@@ -50,7 +50,7 @@ Concretely:
   (`n26/core/models/built_in_propagation.py` and the code driving it);
   and `n26/tests/` may import platform
   pieces to test the seam. Do not add others.
-- **`n26/flags.py` is the other single-file seam, and it works the way
+- **`n26/flags.py` is a single-file seam, and it works the way
   `n26/analytics.py` does.** Gating half-built work is a property of
   shipping software, not of either game: one table means one admin page,
   one answer to "what is gated right now", and no second implementation
@@ -66,7 +66,7 @@ Concretely:
   is one call — the words are ours, because an edition knows what happened
   and how to say it, and the delivery is the platform's. It is the only file
   here that writes a notification.
-- **`n26/analytics.py` is the third platform module n26 may call, and
+- **`n26/analytics.py` is one of the four platform modules n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
   events table, one log stream, one dashboard, and every question asked
   of them ("how many people did X this week") is asked of the site.
@@ -78,16 +78,16 @@ Concretely:
   belongs to exactly one edition, so a gang here is never filed under
   n23's "list", and the edition of a row follows from its noun with no
   argument for a call site to forget.
-- **`gyrinx.querysets` is the first of the four platform modules n26 code
+- **`gyrinx.querysets` is one of the four platform modules n26 code
   may call.** It is model-agnostic — full text plus a substring fallback over
   whatever fields it is handed, knowing nothing about either edition,
-  in the way the ORM does not. What crosses is a queryset of n26's own
+  just as the ORM does not. What crosses is a queryset of n26's own
   rows, filtered; nothing platform-shaped comes back. The alternative
   is a second search here, and two editions that quietly come to
   disagree about what "scav" matches. This does not extend to the rest
   of `gyrinx.*`: a helper qualifies only if it would read the same
   written against any model in any edition.
-- **`gyrinx.svg` is the second, and the other security one.** Sanitising
+- **`gyrinx.svg` is another of the four, and the other security one.** Sanitising
   stored SVG before drawing it inline is a property of SVG and of the
   browser, not of a content model — it would read the same written
   against any edition's rows, which is the test. It is also the one kind
@@ -98,7 +98,7 @@ Concretely:
   same directory: `richtext.py` is a *copy* of the platform's rich-text
   sanitiser, so there are already two allowlists to keep in step. Do not
   make a third.
-- **`gyrinx.artwork` is the fourth, and travels with `gyrinx.svg` for
+- **`gyrinx.artwork` is also one of the four, and travels with `gyrinx.svg` for
   the same reason.** Which addresses resolve to this site's own storage is a
   property of the site, not of a content model — it would read the same
   written against any edition's rows. It is also security code: two
@@ -107,7 +107,7 @@ Concretely:
   This edition keeps only the folder its uploads land in
   (`n26/library/artwork.py` binds the prefix); every rule about what may
   be stored and what an address may name lives in the platform module.
-- **`n26/maintenance.py` is the other single-file seam, and it works the
+- **`n26/maintenance.py` is a single-file seam, and it works the
   way `n26/analytics.py` does.** The maintenance console is site
   furniture — a superuser-gated index, one audit record per run, a detail
   page, a cancel button — and it deliberately knows nothing about either
@@ -124,7 +124,7 @@ Concretely:
   run after the platform's own — an edition importing it during
   autodiscovery would install it too early and every maintenance route
   would be silently dropped.
-- **Templates may `{% load %}` a platform tag library** where the thing
+- **Templates may `{% load %}` a platform tag library** where the question
   it answers is genuinely the platform's and not an edition's — today
   that is `badge_tags`, because which badge a person shows follows from
   their supporter standing and staff flag, which belong to the account
