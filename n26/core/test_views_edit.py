@@ -545,7 +545,7 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        assert self.measure(client, edit_url(vex)) == 39
+        assert self.measure(client, edit_url(vex)) == 40
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline
@@ -554,3 +554,22 @@ class TestTheQueryBudget:
         alone = self.measure(client, edit_url(vex))
         self.crowd(gang, tester, make_profile, make_statline, 12)
         assert self.measure(client, edit_url(vex)) == alone
+
+    def test_the_kit_costs_nothing_per_copy(self, client, tester, gang, vex):
+        """Each piece of kit now carries Sell and the rest, and saying
+        what a copy was bought with must come off the card already built,
+        never from a query per copy."""
+        from n26.library.authoring import create_wargear, create_weapon
+
+        sword = create_wargear("Sword", price=20)
+        gun = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            op.buy(vex, thing=sword, paid=20)
+            op.buy(vex, thing=gun, paid=15)
+        client.force_login(tester)
+        one_each = self.measure(client, edit_url(vex))
+        with operation(gang, actor=tester) as op:
+            for _ in range(4):
+                op.buy(vex, thing=sword, paid=20)
+                op.buy(vex, thing=gun, paid=15)
+        assert self.measure(client, edit_url(vex)) == one_each

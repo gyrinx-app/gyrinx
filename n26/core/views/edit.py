@@ -560,8 +560,10 @@ def edit_fighter(request, pk):
 
     # This model, read once: the card drawn below, the skills listing and
     # the edits boxes all come off it. A fixed number of queries, however
-    # much this model holds and however large the gang around it.
-    own = build_card(miniature, with_statlines=True)
+    # much this model holds and however large the gang around it. The
+    # options each copy was bought with ride along because the kit acts
+    # below describe every copy, and would otherwise ask per copy.
+    own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
     computed = compute(own, index)
     # Asked once and used twice: the listing reads these collections, and
