@@ -5,9 +5,9 @@ discord.gg invite. django.contrib.redirects already serves 301s from the
 Redirect table — same mechanism as the /help/ moves in 0007 — so this is
 a row, not a view.
 
-old_path is /discord/ (trailing slash). /discord without one is handled
-by CommonMiddleware APPEND_SLASH: the flatpage catch-all makes /discord/
-a valid path, so Django 301s there first, then this row fires.
+old_path is /discord/ (trailing slash). /discord without one is the same
+hop: RedirectFallbackMiddleware sits last, sees the 404, and looks up
+the slashed path itself before CommonMiddleware's APPEND_SLASH can fire.
 """
 
 from django.db import migrations

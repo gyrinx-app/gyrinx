@@ -104,17 +104,15 @@ def test_discord_path_redirects_to_the_invite(client: Client, discord_redirect):
 
 
 @pytest.mark.django_db
-def test_discord_path_without_slash_lands_on_the_redirect(
+def test_discord_path_without_slash_goes_straight_to_the_invite(
     client: Client, discord_redirect
 ):
     """gyrinx.app/discord is the URL people will type.
 
-    APPEND_SLASH 301s it to /discord/ (the flatpage catch-all makes that a
-    valid path), then the redirect row sends them to Discord.
+    RedirectFallbackMiddleware sits last and acts on the 404 before
+    CommonMiddleware's APPEND_SLASH can hop to /discord/. It then looks up
+    the slashed old_path itself, so this is one 301, not two.
     """
     response = client.get("/discord")
     assert response.status_code == 301
-    assert response.headers["Location"] == "/discord/"
-    follow = client.get(response.headers["Location"])
-    assert follow.status_code == 301
-    assert follow.headers["Location"] == DISCORD_INVITE
+    assert response.headers["Location"] == DISCORD_INVITE
