@@ -13,10 +13,13 @@ Two drawings of the same acts:
 
   buttons — the listing's pair: Sell as a red button, the rest behind a
     chevron.
-  menu — one quiet chevron holding everything, the additive act first
-    and Sell in red. The model card's, drawn right beside the name.
+  menu — one quiet chevron holding everything, drawn right beside the
+    name on the model card.
 
-A line with nothing to click draws nothing.
+Either menu is grouped: the additive act on its own at the top, then
+the acts that keep or move the thing, then — after a rule, in red —
+the ones that take it away for nothing. An act's tone says which group
+it lands in. A line with nothing to click draws nothing.
 
   :sell — n26.core.listing.Action, or empty when this line cannot be sold.
   :more — the rest of the acts, each a link to a confirmation.
@@ -28,6 +31,7 @@ A line with nothing to click draws nothing.
     alone. Off by default; only a screen holding the update's hosts may
     set it. Only buttons reads it.
 {% endcomment %}
+{% load listing %}
 <c-vars :sell="None" :more="None" :add="None" layout="buttons" label="" :htmx="False" class="" />
 
 {% if layout == "menu" %}
@@ -51,12 +55,21 @@ A line with nothing to click draws nothing.
                 </c-slot>
                 {% if add %}
                     <c-ui.dropdown.item href="{{ add.target }}">{{ add.label }}</c-ui.dropdown.item>
+                    {% if sell or more %}<c-ui.dropdown.separator />{% endif %}
                 {% endif %}
                 {% if sell %}
-                    <c-ui.dropdown.item href="{{ sell.target }}" variant="danger">{{ sell.label }}</c-ui.dropdown.item>
+                    <c-ui.dropdown.item href="{{ sell.target }}">{{ sell.label }}</c-ui.dropdown.item>
                 {% endif %}
                 {% for action in more %}
-                    <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                    {% if action.tone|tone_variant != "danger" %}
+                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                    {% endif %}
+                {% endfor %}
+                {% for action in more %}
+                    {% if action.tone|tone_variant == "danger" %}
+                        {% if add or sell or more|length > 1 %}<c-ui.dropdown.separator />{% endif %}
+                        <c-ui.dropdown.item href="{{ action.target }}" variant="danger">{{ action.label }}</c-ui.dropdown.item>
+                    {% endif %}
                 {% endfor %}
             </c-ui.dropdown>
         </span>
@@ -91,12 +104,27 @@ A line with nothing to click draws nothing.
                 element is drawn twice rather than switching attributes.
                 {% endcomment %}
                 {% for action in more %}
-                    {% if htmx %}
-                        <c-ui.dropdown.item href="{{ action.target }}"
-                                            hx-get="{{ action.target }}"
-                                            hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
-                    {% else %}
-                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                    {% if action.tone|tone_variant != "danger" %}
+                        {% if htmx %}
+                            <c-ui.dropdown.item href="{{ action.target }}"
+                                                hx-get="{{ action.target }}"
+                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                        {% else %}
+                            <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                {% for action in more %}
+                    {% if action.tone|tone_variant == "danger" %}
+                        {% if more|length > 1 %}<c-ui.dropdown.separator />{% endif %}
+                        {% if htmx %}
+                            <c-ui.dropdown.item href="{{ action.target }}"
+                                                variant="danger"
+                                                hx-get="{{ action.target }}"
+                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                        {% else %}
+                            <c-ui.dropdown.item href="{{ action.target }}" variant="danger">{{ action.label }}</c-ui.dropdown.item>
+                        {% endif %}
                     {% endif %}
                 {% endfor %}
             </c-ui.dropdown>

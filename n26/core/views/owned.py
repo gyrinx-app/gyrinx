@@ -511,7 +511,7 @@ def link_stash_actions(sheet, at, *, refunds=True):
             menu.append(
                 Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
             )
-        menu.append(Action("Delete", LINK, with_query(at, remove=line.id), SECONDARY))
+        menu.append(Action("Delete", LINK, with_query(at, remove=line.id), DANGER))
         line.menu = tuple(menu)
 
 

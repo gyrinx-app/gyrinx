@@ -72,7 +72,6 @@ sits and what its heading says.
     to the card's, which is almost always the taller of the two.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
-        {% url 'n26-equip' miniature.pk as equip_href_ %}
         {% comment %}
         The card sits in a host of its own so an act on it can send back the
         card alone. Drawn whether or not anything posts over htmx, so the
@@ -84,7 +83,6 @@ sits and what its heading says.
         <div id="n26-model-card-host">
             <c-n26.model-card :card="card"
                               mode="edit"
-                              equip_href="{{ equip_href_ }}"
                               :htmx="htmx">
                 {% if name_action.strip %}
                     <c-slot name="name_action">{{ name_action }}</c-slot>

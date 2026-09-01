@@ -7,16 +7,15 @@ draw the same thing.
 
   card — the n26.render.ModelCard.
   mode — as <c-n26.model-card> takes it; the mode-only regions read it.
-  equip_href — where the Gear and Weapons rows send an owner, or empty.
   htmx — passed to the counter controls, and set only by a screen holding the
-    card's host. Threaded rather than read from context, as equip_href is:
-    a control that posts over htmx on a page with nowhere to put the answer
-    would run the act and change nothing on screen.
+    card's host. Threaded rather than read from context: a control that
+    posts over htmx on a page with nowhere to put the answer would run the
+    act and change nothing on screen.
 
 A piece of kit with acts on it — the model's own page fills them in —
 carries one menu right beside its name, drawn by <c-n26.owned-actions>.
 {% endcomment %}
-<c-vars :card="None" mode="gang" equip_href="" :htmx="False" />
+<c-vars :card="None" mode="gang" :htmx="False" />
 
     {% comment %}
     The statline carries the type line and the XP pair in the columns its
@@ -168,7 +167,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             {% if card.equipment_has_actions %}
                 <ul class="flex flex-col gap-1">
                     {% for line in card.equipment %}
-                        <li class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <li class="flex items-center gap-2">
                             <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
                             <c-n26.owned-actions :sell="line.sell"
                                                  :more="line.more"
@@ -180,15 +179,6 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             {% else %}
                 <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
             {% endif %}
-            <c-n26.model-card.mode when="edit">
-                {% if equip_href %}
-                    <span class="ms-1 inline-flex items-center align-middle">
-                        <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">
-                            Equip
-                        </c-ui.button>
-                    </span>
-                {% endif %}
-            </c-n26.model-card.mode>
         </dd>
 
         {% comment %}
@@ -229,7 +219,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                         <c-n26.statline.header :cells="card.weapon_columns">
                             <c-slot name="leading">
                                 <th scope="col" class="px-4 py-1.5 text-left text-sm font-semibold text-ink-900 dark:text-ink-100">
-                                    Weapons<c-n26.model-card.mode when="edit">{% if equip_href %}<span class="ms-1 inline-flex items-center align-middle font-normal"><c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">Equip</c-ui.button></span>{% endif %}</c-n26.model-card.mode>
+                                    Weapons
                                 </th>
                             </c-slot>
                         </c-n26.statline.header>
@@ -289,7 +279,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                             onto a line of its own; aria-hidden, so the name is read
                                             out alone.
                                             {% endcomment %}
-                                            <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-2">
+                                            <span class="flex items-center gap-2 pl-2">
                                                 <span class="flex min-w-0 gap-1">
                                                     <span aria-hidden="true">-</span>
                                                     <span>{{ profile.name }}</span>
@@ -340,7 +330,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                     {% if weapon.accessories_have_actions %}
                                         <ul class="flex flex-col gap-1 pl-2">
                                             {% for line in weapon.accessories %}
-                                                <li class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                <li class="flex items-center gap-2">
                                                     <span class="min-w-0">
                                                         <span aria-hidden="true">+</span>
                                                         {% include "n26/includes/assignable_name.html" %}

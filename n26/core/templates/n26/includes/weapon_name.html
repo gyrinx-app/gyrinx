@@ -7,7 +7,7 @@ A name with nothing to click is the bare name, so a gang sheet and a
 print card keep the cell's own text baseline.
 {% endcomment %}
 {% if weapon.sell or weapon.more or weapon.accessorise %}
-    <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+    <span class="flex items-center gap-2">
         <span class="min-w-0">{{ weapon.name }}</span>
         <c-n26.owned-actions :sell="weapon.sell"
                              :more="weapon.more"

@@ -309,7 +309,6 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
-            "equip_href": reverse("n26-equip", args=[miniature.pk]),
         },
     )
     return with_toasts(request, response)
