@@ -402,6 +402,7 @@ class TestMovingOneWithoutReloading:
         them off would leave the reader with a card missing its acts
         until they reloaded."""
         from n26.core.operations import operation
+        from n26.core.reconcile import assert_reconciled
         from n26.library.authoring import create_wargear
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -414,6 +415,8 @@ class TestMovingOneWithoutReloading:
 
         edit = reverse("n26-edit-fighter", args=[yolanda.pk])
         assert f"{edit}?sell={held.pk}" in page.content.decode()
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_the_card_it_sends_back_can_be_acted_on_again(self, client, gang, queen):
         """A redrawn card whose controls had lost their addresses would
