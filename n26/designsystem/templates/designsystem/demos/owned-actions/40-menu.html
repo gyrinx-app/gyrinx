@@ -1,0 +1,10 @@
+{# title: As one menu #}
+{# note: layout="menu": one quiet chevron holding everything — the additive act first, Sell in red, then the rest. Nothing to read on the line but the name. #}
+<div class="flex flex-wrap items-center gap-2 max-w-sm">
+    <span>Meltagun</span>
+    <c-n26.owned-actions :sell="owned_copies.0.sell"
+                         :more="owned_copies.0.more"
+                         :add="owned_copies.0.accessorise"
+                         layout="menu"
+                         label="Meltagun" />
+</div>

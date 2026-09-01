@@ -8,12 +8,17 @@ draw the same thing.
   card — the n26.render.ModelCard.
   mode — as <c-n26.model-card> takes it; the mode-only regions read it.
   equip_href — where the Gear and Weapons rows send an owner, or empty.
+  kit_actions — how the acts on a piece of kit are drawn, as
+    <c-n26.owned-actions> takes its layout: buttons (default), links or
+    menu. links keeps the acts in the name cell, where they wrap under the
+    name on a phone; menu gives the weapons table a last column of its own,
+    a chevron wide, so every row's menu shares one right edge.
   htmx — passed to the counter controls, and set only by a screen holding the
     card's host. Threaded rather than read from context, as equip_href is:
     a control that posts over htmx on a page with nowhere to put the answer
     would run the act and change nothing on screen.
 {% endcomment %}
-<c-vars :card="None" mode="gang" equip_href="" :htmx="False" />
+<c-vars :card="None" mode="gang" equip_href="" kit_actions="buttons" :htmx="False" />
 
     {% comment %}
     The statline carries the type line and the XP pair in the columns its
@@ -170,6 +175,7 @@ draw the same thing.
                             <c-n26.owned-actions :sell="line.sell"
                                                  :more="line.more"
                                                  size="xs"
+                                                 layout="{{ kit_actions }}"
                                                  label="{{ line.name }}" />
                         </li>
                     {% endfor %}
@@ -229,6 +235,9 @@ draw the same thing.
                                     Weapons<c-n26.model-card.mode when="edit">{% if equip_href %}<span class="ms-1 inline-flex items-center align-middle font-normal"><c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">Equip</c-ui.button></span>{% endif %}</c-n26.model-card.mode>
                                 </th>
                             </c-slot>
+                            {% if kit_actions == "menu" %}
+                                <c-slot name="trailing"><th scope="col" class="w-px"><span class="sr-only">Actions</span></th></c-slot>
+                            {% endif %}
                         </c-n26.statline.header>
                     </tr>
                 </thead>
@@ -251,13 +260,28 @@ draw the same thing.
                                 <c-n26.statline.cells :cells="stats">
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
-                                            {% include "n26/includes/weapon_name.html" %}
+                                            {% if kit_actions == "menu" %}
+                                                {% include "n26/includes/weapon_name.html" with acts_beside=True %}
+                                            {% else %}
+                                                {% include "n26/includes/weapon_name.html" %}
+                                            {% endif %}
                                         </td>
                                     </c-slot>
+                                    {% if kit_actions == "menu" %}
+                                        <c-slot name="trailing">
+                                            <td class="py-1.5 pr-2 text-right">
+                                                <c-n26.owned-actions :sell="weapon.sell"
+                                                                     :more="weapon.more"
+                                                                     :add="weapon.accessorise"
+                                                                     layout="{{ kit_actions }}"
+                                                                     label="{{ weapon.name }}" />
+                                            </td>
+                                        </c-slot>
+                                    {% endif %}
                                 </c-n26.statline.cells>
                             {% else %}
                                 <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
-                                    {% include "n26/includes/weapon_name.html" %}
+                                    {% include "n26/includes/weapon_name.html" with spans_the_row=True %}
                                 </td>
                             {% endif %}
                         </tr>
@@ -291,13 +315,26 @@ draw the same thing.
                                                     <span aria-hidden="true">-</span>
                                                     <span>{{ profile.name }}</span>
                                                 </span>
-                                                <c-n26.owned-actions :sell="profile.sell"
-                                                                     :more="profile.more"
-                                                                     size="xs"
-                                                                     label="{{ profile.name }}" />
+                                                {% if kit_actions != "menu" %}
+                                                    <c-n26.owned-actions :sell="profile.sell"
+                                                                         :more="profile.more"
+                                                                         size="xs"
+                                                                         layout="{{ kit_actions }}"
+                                                                         label="{{ profile.name }}" />
+                                                {% endif %}
                                             </span>
                                         </td>
                                     </c-slot>
+                                    {% if kit_actions == "menu" %}
+                                        <c-slot name="trailing">
+                                            <td class="py-1.5 pr-2 text-right">
+                                                <c-n26.owned-actions :sell="profile.sell"
+                                                                     :more="profile.more"
+                                                                     layout="{{ kit_actions }}"
+                                                                     label="{{ profile.name }}" />
+                                            </td>
+                                        </c-slot>
+                                    {% endif %}
                                 </c-n26.statline.cells>
                             </tr>
 
@@ -345,6 +382,7 @@ draw the same thing.
                                                     <c-n26.owned-actions :sell="line.sell"
                                                                          :more="line.more"
                                                                          size="xs"
+                                                                         layout="{{ kit_actions }}"
                                                                          label="{{ line.name }}" />
                                                 </li>
                                             {% endfor %}

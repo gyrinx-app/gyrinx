@@ -1,0 +1,9 @@
+{# title: Edit mode, kit acts in one menu #}
+{# note: kit_actions="menu": one quiet chevron per piece of kit holds everything — Add accessory first, then Sell in red, then Refund, Reassign and Delete. On the weapons table the chevron sits in a column of its own at the far right of the row, so every menu lines up whatever the name beside it does. #}
+{# layout: full #}
+<div class="max-w-2xl">
+    <c-n26.model-card :card="model_card_editable"
+                      mode="edit"
+                      equip_href="#equip"
+                      kit_actions="menu" />
+</div>

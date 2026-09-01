@@ -1,0 +1,9 @@
+{# title: Edit mode, kit acts as links #}
+{# note: kit_actions="links": Sell and Add accessory are small underlined links beside a quiet chevron, grouped so they always sit at the right of the line and wrap under the name as one piece when the card narrows. Nothing red on the card. #}
+{# layout: full #}
+<div class="max-w-2xl">
+    <c-n26.model-card :card="model_card_editable"
+                      mode="edit"
+                      equip_href="#equip"
+                      kit_actions="links" />
+</div>
