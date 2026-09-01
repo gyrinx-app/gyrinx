@@ -345,7 +345,10 @@ class TestWhatTheSquareShows:
         """A granted skill's name sits inside a tooltip component that
         carries line breaks of its own; the run joining it to the next
         skill must swallow those, not let one land beside the comma as a
-        visible gap before the mark."""
+        visible gap before the mark. The two separators differ on
+        purpose: a granted skill's comma rides inside its tooltip
+        trigger with a non-breaking space, and a plain skill's comma is
+        followed by a breaking one so the run can wrap between names."""
         keen = create_subtype("Keen-eyed")
         modifier(
             "Keen-eyed knows how to fall",
@@ -355,14 +358,18 @@ class TestWhatTheSquareShows:
         )
         assign(keen, miniature=yolanda)
         learn(yolanda, library["skills"]["Connected"])
+        learn(yolanda, library["skills"]["Dodge"])
         client.force_login(player)
         page = client.get(edit_url(yolanda)).content.decode()
 
         start = page.index(">Skills<")
         row = page[start : page.index(">Gear<", start)]
         assert " ," not in row
+        # Catfall (granted) sorts first: its comma is the trigger's own.
         assert ",&nbsp;" in row
-        assert "Catfall" in row and "Connected" in row
+        # Connected (plain) is next: its comma allows a wrap after it.
+        assert "<span>, </span>" in row
+        assert "Catfall" in row and "Connected" in row and "Dodge" in row
 
     def test_a_restricted_skill_keeps_its_place_with_a_note(
         self, client, player, yolanda, library

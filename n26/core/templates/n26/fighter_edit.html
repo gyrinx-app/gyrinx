@@ -34,7 +34,7 @@ is named by the page's own heading directly below.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    <c-n26.view.model-edit :miniature="miniature" :card="card" lead="{{ role }}">
+    <c-n26.view.model-edit :miniature="miniature" :card="card" lead="{{ role }}" :htmx="True">
         {% comment %}
         The heading offers the gang's other models — every row this same
         screen for them. Not what the bar offers, which is the reader's
@@ -72,16 +72,7 @@ is named by the page's own heading directly below.
         for Edit.
         {% endcomment %}
         <c-slot name="name_action">
-            <c-ui.button variant="ghost"
-                         size="xs"
-                         class="ms-1 -mt-0.5 px-1! align-middle"
-                         href="?rename={{ miniature.pk }}"
-                         aria-label="Rename {{ miniature.name }}"
-                         title="Rename">
-                <span class="n26-icon-only">
-                    <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
-                </span>
-            </c-ui.button>
+            {% include "n26/includes/model_name_action.html" %}
         </c-slot>
         {% comment %}
         Save is a success button because it ends the form; the outlined

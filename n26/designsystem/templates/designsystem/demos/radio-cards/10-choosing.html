@@ -2,7 +2,7 @@
 {# note: The gang types the create form offers, checked and all. Click any card — the whole surface is the label. Tab into the group and arrow between them: that is the browser's own radio behaviour, not ours. One card carries a badge and the rest do not, which is the case a grid of authored content has to survive. #}
 {# layout: col #}
 <c-n26.radio-cards label="Gang type *"
-                   description="What the gang is, which fixes who you can hire and what they may carry.">
+                   description="What the gang is. It decides who you can hire and what they can carry.">
     {% for type in gang_types %}
         <c-n26.radio-cards.card name="demo-gang-type"
                                 value="{{ type.value }}"

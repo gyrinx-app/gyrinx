@@ -33,6 +33,8 @@ sits and what its heading says.
     grid reaches no set is not asked rather than shown an empty list.
   statline — the characteristics form. Without it, nothing is drawn. Full width
     under the grid, so its boxes line up with the card's own strip.
+  htmx — set by a screen that draws this view for a real model, so the card's
+    own controls post through htmx and take back the card alone.
 {% endcomment %}
 <c-vars
     :miniature="None"
@@ -48,6 +50,7 @@ sits and what its heading says.
     edits=""
     skills=""
     statline=""
+    :htmx="False"
     class=""
 />
 
@@ -70,11 +73,24 @@ sits and what its heading says.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
         {% url 'n26-equip' miniature.pk as equip_href_ %}
-        <c-n26.model-card :card="card" mode="edit" equip_href="{{ equip_href_ }}">
-            {% if name_action.strip %}
-                <c-slot name="name_action">{{ name_action }}</c-slot>
-            {% endif %}
-        </c-n26.model-card>
+        {% comment %}
+        The card sits in a host of its own so an act on it can send back the
+        card alone. Drawn whether or not anything posts over htmx, so the
+        gallery's card and this page's are the same element — and so an
+        update addressed to this id always lands somewhere. The editors
+        beside it are the card's siblings, not its children, which is what
+        lets the whole card be replaced without rebuilding them.
+        {% endcomment %}
+        <div id="n26-model-card-host">
+            <c-n26.model-card :card="card"
+                              mode="edit"
+                              equip_href="{{ equip_href_ }}"
+                              :htmx="htmx">
+                {% if name_action.strip %}
+                    <c-slot name="name_action">{{ name_action }}</c-slot>
+                {% endif %}
+            </c-n26.model-card>
+        </div>
 
         <c-ui.card>
             <c-slot name="header">

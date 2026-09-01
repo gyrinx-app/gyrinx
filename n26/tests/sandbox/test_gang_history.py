@@ -293,15 +293,15 @@ class TestTheGangsOwnFacts:
     def test_the_budget_change_is_in_the_history(self, gang, vex):
         with edit(gang) as op:
             op.set_budget(1500)
-        act = act_saying(gang, "set the budget to 1500cr")
-        assert act.note == "1000cr → 1500cr"
+        act = act_saying(gang, "set the budget to 1500¢")
+        assert act.note == "1000¢ → 1500¢"
         assert act.category == "money"
 
     def test_lifting_the_budget_says_the_gang_spends_freely(self, gang):
         with edit(gang) as op:
             op.set_budget(None)
         act = act_saying(gang, "lifted the budget")
-        assert act.note == "1000cr → unlimited"
+        assert act.note == "1000¢ → unlimited"
 
     def test_renaming_the_gang_keeps_both_names(self, gang):
         with edit(gang) as op:
@@ -341,7 +341,7 @@ class TestTheGangsOwnFacts:
         assert response.status_code == 302
         told = " ".join(sentences(gang))
         assert "renamed the gang The Ashen Choir to The Ashen Few" in told
-        assert "set the budget to 1500cr" in told
+        assert "set the budget to 1500¢" in told
 
 
 class TestTheCostDoesNotFollowTheLength:

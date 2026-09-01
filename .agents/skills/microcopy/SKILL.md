@@ -160,15 +160,17 @@ record — other files that mention "noun bans recorded elsewhere" mean this one
 | sow | create | |
 | pressed | clicked | |
 | obligation, debt | name the mechanism that tracks what is owed | Banned in the built-ins programme wording. |
-| answer | pick or choose (see below) | Speech metaphor. |
+| answer | pick, choose, or select (see below) | Speech metaphor. |
+| learn (for skills) | select | Skills are selected, never learned. |
 | spoken, said (in identifiers) | name the mechanism | Speech metaphors hide what the code does. |
 | SKU | assignable | |
 | Get started, successfully, "!" | state the fact | See anti-patterns. |
 
-**pick vs choose are precise domain verbs, never interchanged:** *pick* is the
-option-groups verb (picking from a picklist's options); *choose* is the
-offers-a-choice verb (resolving a choice an offer puts on a card). Player
-copy keeps the distinction.
+**pick and choose are precise domain verbs, never interchanged:** *pick* is
+the option-groups verb (picking from a picklist's options); *choose* is the
+offers-a-choice verb (resolving a choice an offer puts on a card). *select*
+is the skills verb (a model selects a skill) and also a plain, reusable verb —
+fine anywhere neither pick nor choose applies ("Select at least one model…").
 
 Beyond this table, use the words in `n26/design/glossary.md` and
 `n26/library/concepts.md` (maintainer's checkout only — if absent, follow this

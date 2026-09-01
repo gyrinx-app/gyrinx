@@ -73,7 +73,7 @@ takes a typed figure over the ticks.
                     {% endcomment %}
                     {% if roster %}
                         <div class="border-t border-box-border pt-3">
-                            <p class="mb-1 text-xs text-muted">Equip a fighter</p>
+                            <p class="mb-1 text-xs text-muted">Equip a model</p>
                             <ul class="flex flex-col gap-1">
                                 {% for member in roster %}
                                     <li class="flex items-center justify-between gap-3">
@@ -191,10 +191,10 @@ takes a typed figure over the ticks.
                         {% comment %}
                         The running total is the ticks' figure. A number in
                         the box is already the amount, so repeating it as
-                        "Selected fighters add N" would be a lie.
+                        "Selected models add N" would be a lie.
                         {% endcomment %}
                         <p class="text-sm text-muted" x-show="!overridden">
-                            Selected fighters add
+                            Selected models add
                             <span class="font-medium tabular-nums text-ink-900 dark:text-ink-100"
                                   x-text="added">0</span>
                             TP

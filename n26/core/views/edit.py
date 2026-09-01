@@ -262,6 +262,52 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
     return added, taken, restored
 
 
+def render_card_update(request, miniature, at):
+    """The partial update for an act on one model's card.
+
+    Why the whole card is sent back rather than the part that moved is
+    the template's own comment.
+
+    ``at`` is the screen the act came from, and reaches the counter
+    controls as the address they return to. Nothing else needs it: the
+    rename is relative and the browser resolves it against whatever page
+    it lands on.
+
+    The model is read again rather than trusted from the request, because
+    the act changed what this reports on — and read the way the page
+    itself reads it, from this one model rather than from the gang
+    around it, so an act costs what the page costs and not more.
+    """
+    from n26.core.access import model_collections
+    from n26.core.card import build_card, build_modifier_index
+    from n26.core.effects import compute
+    from n26.core.render import build_model_card
+    from n26.core.views.choose import link_slots
+    from n26.core.views.htmx import with_toasts
+    from n26.core.views.learn import link_skills
+    from n26.core.views.owned import link_counters
+
+    gang = miniature.membership.gang
+    own = build_card(miniature, with_statlines=True)
+    index = build_modifier_index([node.assignable for node in own.all_nodes()])
+    computed = compute(own, index)
+    card = build_model_card(miniature, card=own, computed=computed)
+    link_slots(gang, card)
+    link_skills(card, among=model_collections())
+    link_counters(card, back=at)
+
+    response = render(
+        request,
+        "n26/includes/model_card_update.html",
+        {
+            "card": card,
+            "miniature": miniature,
+            "equip_href": reverse("n26-equip", args=[miniature.pk]),
+        },
+    )
+    return with_toasts(request, response)
+
+
 @login_required
 def edit_fighter(request, pk):
     """One model, whole: their card with its edit affordances, the
@@ -570,7 +616,7 @@ def edit_fighter(request, pk):
     # Only here. A counter is drawn wherever a card is; the model's own
     # page is the one place it is moved, so this is the one place the
     # lines are given addresses.
-    link_counters(card)
+    link_counters(card, back=request.get_full_path())
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.

@@ -80,7 +80,7 @@ class CreateGangForm(forms.Form):
         choices=GANG_TYPES,
         label="Gang type",
         help_text=(
-            "What the gang is, which fixes who you can hire and what they may carry."
+            "What the gang is. It decides who you can hire and what they can carry."
         ),
     )
     starting_credits = forms.IntegerField(
@@ -92,7 +92,7 @@ class CreateGangForm(forms.Form):
     colour = forms.CharField(
         required=False,
         label="Colour",
-        help_text="Shown against the gang wherever it is listed.",
+        help_text="Shown next to the gang's name wherever it is listed.",
     )
 
 

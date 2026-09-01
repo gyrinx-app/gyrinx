@@ -227,7 +227,7 @@ class TestSettingOneUp:
         assert 'value="1000"' in body
         # The field still says what clearing it does, which is the one thing
         # a reader cannot see from a box that already holds a figure.
-        assert "Blank sets none." in body
+        assert "Leave blank to set no budget." in body
 
     def test_a_blank_budget_means_no_limit_rather_than_zero(
         self, client, arbitrator, open_to_everyone
@@ -1365,7 +1365,7 @@ class TestTheArbitratorIsNotAParticipant:
             {"user": str(arbitrator.pk)},
             follow=True,
         )
-        assert "not a participant of their own campaign" in response.content.decode()
+        assert "an arbitrator cannot also be a participant" in response.content.decode()
         assert not CampaignParticipant.objects.exists()
 
     def test_an_account_switched_off_is_not_invited(

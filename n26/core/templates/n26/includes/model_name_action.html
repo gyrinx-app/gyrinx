@@ -1,0 +1,18 @@
+{% comment %}
+The way to rename a model, drawn beside their name on the card. Shared
+between the page and the partial update an act on the card sends back, so a
+redrawn card cannot come back without it.
+
+The address is the page's own with ?rename= on it: opening the question is
+server state, so it survives a reload and can be sent to somebody.
+{% endcomment %}
+<c-ui.button variant="ghost"
+             size="xs"
+             class="ms-1 -mt-0.5 px-1! align-middle"
+             href="?rename={{ miniature.pk }}"
+             aria-label="Rename {{ miniature.name }}"
+             title="Rename">
+    <span class="n26-icon-only">
+        <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+    </span>
+</c-ui.button>
