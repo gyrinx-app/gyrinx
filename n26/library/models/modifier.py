@@ -157,7 +157,13 @@ class TargetsMiniature(models.Model):
     #: check (n26.E003/E004) verifies this names exactly the condition
     #: models that FK this scope — a condition nothing folds would be
     #: silently dead.
-    CONDITIONS = ("has_subtypes", "is_profile", "has_pickable", "counter_at_least")
+    CONDITIONS = (
+        "has_subtypes",
+        "is_profile",
+        "is_profile_type",
+        "has_pickable",
+        "counter_at_least",
+    )
 
     class Reach(models.TextChoices):
         #: Only the model the carrier is directly assigned to — an
@@ -399,6 +405,48 @@ class IsProfile(models.Model):
             # An empty row narrows nothing — never "matches nobody".
             return None
         matched = select.Any(*(select.Exactly(profile) for profile in wanted))
+        return select.Not(matched) if self.negate else matched
+
+
+class IsProfileType(models.Model):
+    """Condition: the model's Type is one of these — Fighter or Vehicle.
+
+    For a row that reaches every fighter and no vehicle, whatever their
+    entry or subtypes: the lasting injury choice every fighter carries,
+    the lasting damage choice every vehicle carries. A Type is something
+    a model has, so this folds to ``Has`` like ``HasSubtypes``.
+    """
+
+    scope = models.ForeignKey(
+        TargetsMiniature,
+        on_delete=models.CASCADE,
+        related_name="is_profile_type",
+    )
+    profile_types = models.ManyToManyField(
+        "library.ProfileType",
+        related_name="+",
+        help_text="The model's Type must be one of these: Fighter or Vehicle.",
+    )
+    negate = _negatable()
+
+    class Meta:
+        verbose_name = "is a Fighter or Vehicle"
+        verbose_name_plural = "is a Fighter or Vehicle"
+
+    def __str__(self):
+        wanted = list(self.profile_types.all()) if self.pk else []
+        if self.negate:
+            return _EXCEPT + _some_of(wanted)
+        return _some_of(wanted) + _THESE
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.profile_types.all())
+        if not wanted:
+            # An empty row narrows nothing — never "matches nobody".
+            return None
+        matched = select.Any(*(select.Has(kind) for kind in wanted))
         return select.Not(matched) if self.negate else matched
 
 

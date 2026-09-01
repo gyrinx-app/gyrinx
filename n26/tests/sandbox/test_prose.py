@@ -1063,9 +1063,10 @@ class TestTheQueryCountStaysFlat:
         each one query per kind, and there are twenty-odd kinds. One
         query is the reference scan finding the propagation tasks filed
         against a set — a real edge into the model graph, seen by
-        discovery like any other.
+        discovery like any other. And one query per condition kind a
+        model scope can carry, read whether or not the row has any.
         """
-        with django_assert_num_queries(61):
+        with django_assert_num_queries(62):
             prose_for(much_used)
 
 
