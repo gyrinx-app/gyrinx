@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core.models import Gang, LedgerEntry, LedgerEvent
+from n26.core.operations import operation
 
 pytestmark = pytest.mark.django_db
 
@@ -421,6 +422,96 @@ class TestRenamingFromHere:
         assert response.url == reverse("n26-gang", args=[gang.pk])
 
 
+class TestKitActionsOnTheCard:
+    """Sell, refund, delete and Add accessory sit on the Edit card, so
+    taking something off does not mean finding it on the Equip tab."""
+
+    @pytest.fixture
+    def sword(self, gang, vex, tester):
+        from n26.library.authoring import create_wargear
+
+        thing = create_wargear("Sword", price=20)
+        with operation(gang, actor=tester) as op:
+            return op.buy(vex, thing=thing, paid=20)
+
+    @pytest.fixture
+    def gun(self, gang, vex, tester):
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            return op.buy(vex, thing=weapon, paid=15)
+
+    def test_gear_offers_sell_and_the_rest_behind_one_menu(
+        self, client, tester, vex, sword
+    ):
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        at = edit_url(vex)
+        assert f"{at}?sell={sword.pk}" in body
+        assert f"{at}?refund={sword.pk}" in body
+        assert f"{at}?remove={sword.pk}" in body
+        assert f"{at}?reassign={sword.pk}" in body
+        assert "More for Sword" in body
+        # One quiet chevron holds every act; the listing's red Sell button
+        # is not drawn on this card.
+        assert "bg-red-500" not in body
+
+    def test_a_weapon_offers_add_accessory(self, client, tester, vex, gun):
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        at = edit_url(vex)
+        assert f"{at}?sell={gun.pk}" in body
+        assert f"{at}?accessorise={gun.pk}" in body
+        assert "Add accessory" in body
+
+    def test_the_url_opens_the_sell_dialog_on_this_page(
+        self, client, tester, vex, sword
+    ):
+        client.force_login(tester)
+        body = client.get(f"{edit_url(vex)}?sell={sword.pk}").content.decode()
+        assert "Sell Sword?" in body
+        assert "<dialog" in body
+        assert reverse("n26-sell", args=[sword.pk]) in body
+
+    def test_the_url_opens_the_accessory_dialog_on_this_page(
+        self, client, tester, vex, gun
+    ):
+        from n26.library.authoring import create_weapon_accessory
+
+        create_weapon_accessory("Telescopic sight", price=25)
+        client.force_login(tester)
+        body = client.get(f"{edit_url(vex)}?accessorise={gun.pk}").content.decode()
+        assert "Add an accessory to Lasgun" in body
+        assert "Telescopic sight" in body
+
+    def test_selling_lands_back_on_the_edit_page(
+        self, client, tester, gang, vex, sword
+    ):
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-sell", args=[sword.pk]),
+            {"return": edit_url(vex)},
+        )
+        assert response.status_code == 302
+        assert response.url == edit_url(vex)
+        sword.refresh_from_db()
+        assert sword.archived is True
+        gang.refresh_from_db()
+        from n26.core.reconcile import assert_reconciled
+
+        assert_reconciled(gang)
+
+    def test_the_sheet_does_not_offer_them(self, client, tester, gang, vex, sword):
+        """The gang sheet is mid-game reading. Taking kit off is the
+        model's own page, and a card on the sheet that offered Sell
+        would be offering it next to every other fighter too."""
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert f"sell={sword.pk}" not in body
+        assert "More for Sword" not in body
+
+
 class TestTheQueryBudget:
     """One model's page asks about one model.
 
@@ -456,7 +547,7 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        assert self.measure(client, edit_url(vex)) == 39
+        assert self.measure(client, edit_url(vex)) == 40
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline
@@ -465,3 +556,22 @@ class TestTheQueryBudget:
         alone = self.measure(client, edit_url(vex))
         self.crowd(gang, tester, make_profile, make_statline, 12)
         assert self.measure(client, edit_url(vex)) == alone
+
+    def test_the_kit_costs_nothing_per_copy(self, client, tester, gang, vex):
+        """Each piece of kit now carries Sell and the rest, and saying
+        what a copy was bought with must come off the card already built,
+        never from a query per copy."""
+        from n26.library.authoring import create_wargear, create_weapon
+
+        sword = create_wargear("Sword", price=20)
+        gun = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            op.buy(vex, thing=sword, paid=20)
+            op.buy(vex, thing=gun, paid=15)
+        client.force_login(tester)
+        one_each = self.measure(client, edit_url(vex))
+        with operation(gang, actor=tester) as op:
+            for _ in range(4):
+                op.buy(vex, thing=sword, paid=20)
+                op.buy(vex, thing=gun, paid=15)
+        assert self.measure(client, edit_url(vex)) == one_each

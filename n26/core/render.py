@@ -101,11 +101,22 @@ class AssignableLine:
     zero is drawn as nothing — right for skills, traits and everything
     granted, where there is no figure to state, and for gear it means
     only lines that moved the rating carry a number.
+
+    ``id`` is the assignment's pk when this line draws a stored
+    possession — what a control acting on it names. Empty on a granted
+    line, a hire preview, and everything that is not kit. ``sell`` and
+    ``more`` are filled in by whoever knows the URL space; see
+    ``n26.core.views.owned.link_possession_actions``. Empty is a name
+    with nothing to click, which is what a gang sheet, a print sheet
+    and a hire preview all want.
     """
 
     name: str
     provenance: Provenance = field(default_factory=Provenance)
     rating: int = 0
+    id: str = ""
+    sell: object = None
+    more: tuple = ()
 
 
 @dataclass
@@ -230,6 +241,12 @@ class WeaponProfileLine:
     statline: Statline = field(default_factory=lambda: Statline())
     traits: list[AssignableLine] = field(default_factory=list)
     provenance: Provenance = field(default_factory=Provenance)
+    #: The assignment's pk when this line draws a stored profile —
+    #: named ammo a control can sell apart from its gun. Empty on the
+    #: weapon's own unnamed line and on a hire preview.
+    id: str = ""
+    sell: object = None
+    more: tuple = ()
 
 
 @dataclass
@@ -248,6 +265,16 @@ class WeaponLine:
     #: Accessories hung off this weapon — a sight, suspensors.
     accessories: list[AssignableLine] = field(default_factory=list)
     provenance: Provenance = field(default_factory=Provenance)
+    #: Sell and the rest of what can happen to this weapon, filled in
+    #: by whoever knows the URL space — see
+    #: ``n26.core.views.owned.link_possession_actions``. Empty is a
+    #: name with nothing to click.
+    sell: object = None
+    more: tuple = ()
+    #: The way to bolt something onto this weapon. Only a stored
+    #: weapon has one; it stays off ``more`` because it adds something
+    #: rather than taking it away.
+    accessorise: object = None
 
     @property
     def extras_rating(self):
@@ -312,6 +339,15 @@ class WeaponLine:
         rather than each deciding it. They had drifted once already.
         """
         return [p for p in self.profiles if p.name]
+
+    @property
+    def accessories_have_actions(self):
+        """Whether any accessory has something to click.
+
+        A stacked list keeps each menu beside the assignment it changes;
+        the compact comma-separated run has nowhere to put one.
+        """
+        return any(line.sell for line in self.accessories)
 
 
 #: What a gang's own choice slots are addressed under, where a model's are
@@ -626,6 +662,17 @@ class ModelCard:
         out. Every other counter has no cell and draws either way.
         """
         return [line for line in self.counters if line.href or not line.is_xp]
+
+    @property
+    def equipment_has_actions(self):
+        """Whether any gear line has something to click.
+
+        A stacked list keeps each menu beside the assignment it changes;
+        a comma-separated run has nowhere to put one. Asked of the lines
+        themselves, so a gang sheet, a print sheet and a hire preview —
+        none of which fill the acts in — keep the compact drawing.
+        """
+        return any(line.sell for line in self.equipment)
 
 
 @dataclass
@@ -1291,6 +1338,9 @@ def card_to_model_card(
                     ),
                     traits=trait_lines(child, weapon_state),
                     provenance=provenance_of(child),
+                    id=(
+                        str(child.assignment.pk) if child.assignment is not None else ""
+                    ),
                 )
             )
         return WeaponLine(
@@ -1306,6 +1356,9 @@ def card_to_model_card(
                     name=child.name,
                     provenance=provenance_of(child),
                     rating=child.rating_with_extras,
+                    id=(
+                        str(child.assignment.pk) if child.assignment is not None else ""
+                    ),
                 )
                 for child in node.children
                 if not child.is_weapon_profile
@@ -1391,6 +1444,7 @@ def card_to_model_card(
                     name=node.name,
                     provenance=provenance_of(node),
                     rating=node.rating,
+                    id=(str(node.assignment.pk) if node.assignment is not None else ""),
                 )
             )
 

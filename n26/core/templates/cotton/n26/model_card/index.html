@@ -2,15 +2,15 @@
 <c-n26.model-card> — one model's card: who they are, what they can do, what
 they carry.
 
-    <c-n26.model-card :card="card" mode="edit" equip_href="{{ equip_url }}" />
+    <c-n26.model-card :card="card" mode="edit" />
 
 Draws a n26.render.ModelCard (n26/core/render.py) and computes nothing; the
 figure beside the name is the model's pinned rating. card.collections and
 card.effects are on the structure and deliberately not drawn.
 
 mode decides how much of the card is clickable: gang keeps the controls to the
-actions slot, edit brings out the choice buttons and the ways to Equip, view
-has nothing to click at all. A region belonging to one mode is wrapped in
+actions slot, edit brings out the choice buttons and a menu on each piece of
+kit, view has nothing to click at all. A region belonging to one mode is wrapped in
 <c-n26.model-card.mode>, which reads mode from context.
 
 Every control is drawn from an href, and an empty href draws nothing — a print
@@ -31,7 +31,6 @@ control by the actions opens it.
 <c-vars
     :card="None"
     mode="gang"
-    equip_href=""
     :htmx="False"
     notes_href=""
     lore_href=""
@@ -109,7 +108,7 @@ control by the actions opens it.
         <div class="n26-card-tabs">
             <c-ui.tabs variant="segmented" size="sm" :fill="True">
                 <c-ui.tabs.tab name="Card">
-                    <c-n26.model-card.body :card="card" mode="{{ mode }}" equip_href="{{ equip_href }}" :htmx="htmx" />
+                    <c-n26.model-card.body :card="card" mode="{{ mode }}" :htmx="htmx" />
                 </c-ui.tabs.tab>
                 {% comment %}
                 The dot marks a tab with something behind it; without one,
@@ -130,6 +129,6 @@ control by the actions opens it.
             </c-ui.tabs>
         </div>
     {% else %}
-        <c-n26.model-card.body :card="card" mode="{{ mode }}" equip_href="{{ equip_href }}" :htmx="htmx" />
+        <c-n26.model-card.body :card="card" mode="{{ mode }}" :htmx="htmx" />
     {% endif %}
 </c-ui.card>

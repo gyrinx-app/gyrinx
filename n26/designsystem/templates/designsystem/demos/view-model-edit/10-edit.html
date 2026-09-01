@@ -1,7 +1,9 @@
 {# title: One model, whole #}
-{# note: The Edit face of a model's own page. The header names the model and offers Equip as the second tab; the grid is the card in edit mode — choice buttons out, outlined, Equip beside Gear and Weapons — and the notes box with the editor. One column on a phone. The Save is the only filled commit on the page, which is why the card's controls are outlined. #}
+{# note: The Edit face of a model's own page. The header names the model and offers Equip as the second tab; the grid is the card in edit mode — choice buttons out, outlined, and one menu beside each piece of kit holding Add accessory, Sell and the rest of the listing's acts — and the notes box with the editor. One column on a phone. The Save is the only filled commit on the page, which is why the card's controls are outlined. #}
 {# layout: full #}
-<c-n26.view.model-edit :miniature="sample_miniature" :card="model_card" lead="Leader">
+<c-n26.view.model-edit :miniature="sample_miniature"
+                       :card="model_card_editable"
+                       lead="Leader">
     <c-slot name="switcher">
         <c-n26.quick-switcher.of :switcher="sample_fighter_switcher" />
     </c-slot>

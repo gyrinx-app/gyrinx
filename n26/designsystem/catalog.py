@@ -1120,6 +1120,25 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="owned-actions",
+                tag="c-n26.owned-actions",
+                template="n26/owned_actions.html",
+                summary=(
+                    "Sell and the rest of what can happen to one copy the model holds."
+                ),
+                needs=(ALPINE,),
+                notes=(
+                    "The pair the listing draws next to something owned: Sell "
+                    "out in the open, everything else behind a chevron. Which "
+                    "acts those are is the structure's word, so an act added "
+                    "there appears here with nothing edited. size is sm on a "
+                    "listing row and xs on a model card. A line with nothing "
+                    "to click draws nothing. Only a screen holding the "
+                    "update's hosts may set :htmx — see "
+                    "n26/includes/equip_hosts.html."
+                ),
+            ),
+            Component(
                 slug="owned-lines",
                 tag="c-n26.owned-lines",
                 template="n26/owned_lines.html",
@@ -1876,8 +1895,10 @@ GROUPS: list[Group] = [
                     "no id (a preview, a picker option) draws the body plain. "
                     "Two modes: gang, the sheet's — dense, with the open "
                     "questions shown but their buttons held back — and edit, the "
-                    "model's own page, where those buttons come out outlined and "
-                    "the Gear and Weapons rows carry the way to the Equip tab. A "
+                    "model's own page, where those buttons come out outlined, "
+                    "the Gear and Weapons rows carry the way to the Equip tab, "
+                    "and kit the model holds offers the same Sell and more-menu "
+                    "the listing does, at xs so they sit with Choose and Equip. A "
                     "mode-only region is a wrap in c-n26.model-card.mode, not a "
                     "flag threaded through every region between it and the call "
                     "site."

@@ -281,20 +281,27 @@ def render_card_update(request, miniature, at):
     from n26.core.access import model_collections
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
+    from n26.core.owned import EquipHost
     from n26.core.render import build_model_card
     from n26.core.views.choose import link_slots
     from n26.core.views.htmx import with_toasts
     from n26.core.views.learn import link_skills
-    from n26.core.views.owned import link_counters
+    from n26.core.views.owned import link_counters, link_possession_actions
 
     gang = miniature.membership.gang
-    own = build_card(miniature, with_statlines=True)
+    own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
     computed = compute(own, index)
     card = build_model_card(miniature, card=own, computed=computed)
     link_slots(gang, card)
     link_skills(card, among=model_collections())
     link_counters(card, back=at)
+    # The card is drawn in edit mode, and edit mode's card carries the
+    # kit acts. They open over the model's own page, whatever screen
+    # the act came from: ``at`` is untrusted and never becomes an href.
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
+    host = EquipHost.fighter(gang, own, miniature, edit)
+    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
 
     response = render(
         request,
@@ -302,7 +309,6 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
-            "equip_href": reverse("n26-equip", args=[miniature.pk]),
         },
     )
     return with_toasts(request, response)
@@ -319,8 +325,10 @@ def edit_fighter(request, pk):
     gang's own assignments, which is how what the gang grants reaches
     the card without the rest of the roster being computed for it. The
     card draws in ``edit`` mode: the choice controls the sheet hides
-    are offered here, outlined, and the Gear and Weapons rows carry the
-    way to the Equip tab.
+    are offered here, outlined, the Gear and Weapons rows carry the way
+    to the Equip tab, and each piece of kit the model holds offers the
+    same Sell and more-menu the equip listing does, so taking something
+    off does not mean finding it on another page first.
 
     Several forms post here, and ``act`` says which was clicked. Every
     one goes through an operation: notes and characteristics price
@@ -354,12 +362,18 @@ def edit_fighter(request, pk):
     )
     from n26.core.images import MAX_PX, PORTRAIT
     from n26.core.operations import Refusal, operation
+    from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import build_model_card, roster, summarise_roster
     from n26.core.views.choose import link_slots
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
     from n26.core.views.learn import apply_ticks, link_skills, skills_offer
-    from n26.core.views.owned import link_counters
+    from n26.core.views.owned import (
+        accessorise_dialogs,
+        link_counters,
+        link_possession_actions,
+        owned_dialog,
+    )
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -552,8 +566,10 @@ def edit_fighter(request, pk):
 
     # This model, read once: the card drawn below, the skills listing and
     # the edits boxes all come off it. A fixed number of queries, however
-    # much this model holds and however large the gang around it.
-    own = build_card(miniature, with_statlines=True)
+    # much this model holds and however large the gang around it. The
+    # options each copy was bought with ride along because the kit acts
+    # below describe every copy, and would otherwise ask per copy.
+    own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
     computed = compute(own, index)
     # Asked once and used twice: the listing reads these collections, and
@@ -609,6 +625,30 @@ def edit_fighter(request, pk):
     # page is the one place it is moved, so this is the one place the
     # lines are given addresses.
     link_counters(card, back=request.get_full_path())
+    # The same acts the equip listing offers, pointed at this page so
+    # the confirmations open over it. A gang sheet and a print sheet
+    # never call this, and their cards stay names with nothing to click.
+    at = reverse("n26-edit-fighter", args=[miniature.pk])
+    host = EquipHost.fighter(gang, own, miniature, at)
+    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+
+    renaming = _fighter_named(request, gang, "rename")
+    # One question at a time: a URL naming a rename and a sale draws
+    # the rename, because two open modals is not a state the page can
+    # mean. Accessorise is drawn per-weapon on the equip page; here
+    # there is one panel, the one the address names.
+    dialog = None
+    if not renaming and any(request.GET.get(kind) for kind in DIALOGS):
+        dialog = owned_dialog(request, host)
+        if dialog is None:
+            dialog = next(
+                (
+                    panel
+                    for panel in accessorise_dialogs(request, host)
+                    if panel["open"]
+                ),
+                None,
+            )
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes"
@@ -654,7 +694,8 @@ def edit_fighter(request, pk):
             "rule_edits": rule_edits,
             "rule_more": rule_more,
             "rule_edits_dirty": rule_edits_dirty,
-            "renaming": _fighter_named(request, gang, "rename"),
+            "renaming": renaming,
+            "dialog": dialog,
             # The crop spec the picture box stamps onto the browser's
             # dialog — handed from the same constants the server crops
             # with, so the two cannot disagree.

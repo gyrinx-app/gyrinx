@@ -10,7 +10,8 @@ to it. The weapon's own firing line is not among them; it *is* the weapon.
 Which acts a copy offers, and which of them is red, is the structure's word and
 not this template's (see n26/includes/row_action.html), so an act added there
 appears here with nothing edited. A part offers no move, because
-Operation.move refuses a firing line.
+Operation.move refuses a firing line. The Sell and more-menu pair is
+<c-n26.owned-actions>, which the model's own card folds into one menu.
 
 Every control is a link to a real address: the dialogs behind them are server
 states a reader can send and reload, and links keep this out of the
@@ -75,42 +76,10 @@ lines.
             <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
                 {% if copy.rating %}{{ copy.rating }}¢{% endif %}
             </span>
-            <span class="flex shrink-0 items-center gap-1">
-                {% include "n26/includes/row_action.html" with action=copy.sell %}
-                <c-ui.dropdown align="end" min_width="10rem">
-                    <c-slot name="trigger">
-                        <c-ui.button size="sm"
-                                     class="px-1.5!"
-                                     aria-label="More for {{ copy.name }}"
-                                     title="More for {{ copy.name }}"
-                                     aria-haspopup="menu"
-                                     ::aria-expanded="dropdownMenu">
-                            <span class="n26-icon-only">
-                                <c-n26.icon name="chevron-down"
-                                            class="size-3 transition-transform"
-                                            stroke_width="2.5"
-                                            ::class="{ 'rotate-180': dropdownMenu }" />
-                            </span>
-                        </c-ui.button>
-                    </c-slot>
-                    {% comment %}
-                    Each of these opens a confirmation the server renders; on
-                    a screen opted into partial updates (:htmx) the click
-                    fetches the panel alone. Still a link underneath — see
-                    n26/includes/row_action.html, including for why the
-                    element is drawn twice rather than switching attributes.
-                    {% endcomment %}
-                    {% for action in copy.more %}
-                        {% if htmx %}
-                            <c-ui.dropdown.item href="{{ action.target }}"
-                                                hx-get="{{ action.target }}"
-                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
-                        {% else %}
-                            <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
-                        {% endif %}
-                    {% endfor %}
-                </c-ui.dropdown>
-            </span>
+            <c-n26.owned-actions :sell="copy.sell"
+                                 :more="copy.more"
+                                 :htmx="htmx"
+                                 label="{{ copy.name }}" />
         </div>
 
         {% for part in copy.parts %}
@@ -119,35 +88,10 @@ lines.
                 <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
                     {% if part.rating %}+{{ part.rating }}¢{% endif %}
                 </span>
-                <span class="flex shrink-0 items-center gap-1">
-                    {% include "n26/includes/row_action.html" with action=part.sell %}
-                    <c-ui.dropdown align="end" min_width="10rem">
-                        <c-slot name="trigger">
-                            <c-ui.button size="sm"
-                                         class="px-1.5!"
-                                         aria-label="More for {{ part.name }}"
-                                         title="More for {{ part.name }}"
-                                         aria-haspopup="menu"
-                                         ::aria-expanded="dropdownMenu">
-                                <span class="n26-icon-only">
-                                    <c-n26.icon name="chevron-down"
-                                                class="size-3 transition-transform"
-                                                stroke_width="2.5"
-                                                ::class="{ 'rotate-180': dropdownMenu }" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        {% for action in part.more %}
-                            {% if htmx %}
-                                <c-ui.dropdown.item href="{{ action.target }}"
-                                                    hx-get="{{ action.target }}"
-                                                    hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
-                            {% else %}
-                                <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
-                            {% endif %}
-                        {% endfor %}
-                    </c-ui.dropdown>
-                </span>
+                <c-n26.owned-actions :sell="part.sell"
+                                     :more="part.more"
+                                     :htmx="htmx"
+                                     label="{{ part.name }}" />
             </div>
         {% endfor %}
     {% endfor %}

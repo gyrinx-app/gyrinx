@@ -384,6 +384,20 @@ class TestCounterLinesInTheGallery:
         assert [line.name for line in lines] == ["XP", "Kill Count", "Glitch Count"]
         assert all(line.href for line in lines)
 
+    def test_the_editable_sample_offers_the_listing_acts_on_its_kit(self):
+        """The model's own page is where kit is taken off, so the
+        sample that documents that page carries Sell and Add accessory.
+        The base sample is the gang sheet's card and must not."""
+        from n26.designsystem import sampledata
+
+        base = sampledata.model_card()
+        assert all(not line.sell for line in base.equipment)
+        assert all(not weapon.sell for weapon in base.weapons)
+
+        card = sampledata.model_card_editable()
+        assert all(line.sell for line in card.equipment)
+        assert all(weapon.sell and weapon.accessorise for weapon in card.weapons)
+
 
 class TestTheModelCardsTooltips:
     """The card's tooltips are real components, never a native title —

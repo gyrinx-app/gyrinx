@@ -1,0 +1,20 @@
+{% comment %}
+A weapon's name on the card, with the menu of what can happen to it —
+Add accessory, Sell and the rest. Expects `weapon` — an
+n26.render.WeaponLine.
+
+A name with nothing to click is the bare name, so a gang sheet and a
+print card keep the cell's own text baseline.
+{% endcomment %}
+{% if weapon.sell or weapon.more or weapon.accessorise %}
+    <span class="flex items-center gap-2">
+        <span class="min-w-0">{{ weapon.name }}</span>
+        <c-n26.owned-actions :sell="weapon.sell"
+                             :more="weapon.more"
+                             :add="weapon.accessorise"
+                             layout="menu"
+                             label="{{ weapon.name }}" />
+    </span>
+{% else %}
+    {{ weapon.name }}
+{% endif %}

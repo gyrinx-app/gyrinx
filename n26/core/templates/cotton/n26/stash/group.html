@@ -11,6 +11,7 @@ sheets therefore remain compact.
     verbose_name, written lower case to appear mid-sentence.
   :lines — n26.render.StashLine objects of this one kind.
 {% endcomment %}
+{% load listing %}
 <c-vars label="" :lines="None" class="" />
 
 <div class="flex items-baseline gap-1.5 {{ class }}">
@@ -40,7 +41,15 @@ sheets therefore remain compact.
                                 </c-ui.button>
                             </c-slot>
                             {% for action in line.menu %}
-                                <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                                {% if action.tone|tone_variant != "danger" %}
+                                    <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                                {% endif %}
+                            {% endfor %}
+                            {% for action in line.menu %}
+                                {% if action.tone|tone_variant == "danger" %}
+                                    {% if line.menu|length > 1 %}<c-ui.dropdown.separator />{% endif %}
+                                    <c-ui.dropdown.item href="{{ action.target }}" variant="danger">{{ action.label }}</c-ui.dropdown.item>
+                                {% endif %}
                             {% endfor %}
                         </c-ui.dropdown>
                     </li>

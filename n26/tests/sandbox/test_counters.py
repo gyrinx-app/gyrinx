@@ -396,6 +396,28 @@ class TestMovingOneWithoutReloading:
 
         assert f"?rename={yolanda.pk}" in page.content.decode()
 
+    def test_the_card_it_sends_back_still_offers_sell(self, client, gang, queen):
+        """The redrawn card is edit mode's, and edit mode's card carries
+        Sell beside each piece of kit. A tick of a counter that took
+        them off would leave the reader with a card missing its acts
+        until they reloaded."""
+        from n26.core.operations import operation
+        from n26.core.reconcile import assert_reconciled
+        from n26.library.authoring import create_wargear
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        sword = create_wargear("Sword", price=20)
+        with operation(gang, actor=gang.owner) as op:
+            held = op.buy(yolanda, thing=sword, paid=20)
+        client.force_login(gang.owner)
+
+        page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
+
+        edit = reverse("n26-edit-fighter", args=[yolanda.pk])
+        assert f"{edit}?sell={held.pk}" in page.content.decode()
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
     def test_the_card_it_sends_back_can_be_acted_on_again(self, client, gang, queen):
         """A redrawn card whose controls had lost their addresses would
         move once and then go quiet."""

@@ -1969,16 +1969,42 @@ def model_card_written():
 
 def model_card_editable():
     """The sample card as the model's own page draws it: its counters
-    carry addresses, so the lines grow their controls and XP joins them.
+    carry addresses, so the lines grow their controls and XP joins them,
+    and kit it holds offers the same Sell and more-menu the listing does.
 
     A card of its own rather than a flag on the base one, because the
     base card is what the gang sheet, the hire previews and the print
     specimens are all built from, and none of those may offer to change
-    a number. The addresses go nowhere, as every href in this gallery
-    does.
+    a number or part with a weapon. The addresses go nowhere, as every
+    href in this gallery does.
     """
+    from n26.core.listing import DANGER, LINK, SECONDARY, Action
+
+    sell = Action("Sell", LINK, "#", DANGER)
+    more = (
+        Action("Reassign", LINK, "#", SECONDARY),
+        Action("Refund", LINK, "#", SECONDARY),
+        Action("Delete", LINK, "#", SECONDARY),
+    )
+    part_more = (
+        Action("Refund", LINK, "#", SECONDARY),
+        Action("Remove", LINK, "#", SECONDARY),
+    )
+    accessorise = Action("Add accessory", LINK, "#", SECONDARY)
+
     card = replace(model_card())
     card.counters = [replace(line, href="#") for line in card.counters]
+    card.equipment = [replace(line, sell=sell, more=more) for line in card.equipment]
+    for weapon in card.weapons:
+        weapon.sell = sell
+        weapon.more = more
+        weapon.accessorise = accessorise
+        weapon.accessories = [
+            replace(line, sell=sell, more=part_more) for line in weapon.accessories
+        ]
+        for profile in weapon.named_profiles:
+            profile.sell = sell
+            profile.more = part_more
     return card
 
 

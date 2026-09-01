@@ -1230,6 +1230,30 @@ def test_a_miniature_that_is_not_this_gangs_is_no_destination(gang, fighter):
     assert Assignment.objects.filter(gang_root=gang, archived=False).exists()
 
 
+def test_link_possession_actions_fills_the_card_from_what_it_holds(
+    gang, fighter, tester, sword
+):
+    """The model's own page draws the same acts the listing does, pointed
+    at itself. Granted lines and a hire preview never call this, and stay
+    names with nothing to click."""
+    from n26.core.card import build_card
+    from n26.core.owned import EquipHost
+    from n26.core.render import build_model_card
+    from n26.core.views.owned import link_possession_actions
+
+    own = build_card(fighter)
+    card = build_model_card(fighter, card=own)
+    assert all(not line.sell for line in card.equipment)
+
+    host = EquipHost.fighter(gang, own, fighter, AT)
+    link_possession_actions(card, host)
+
+    (line,) = [item for item in card.equipment if item.name == "Sword"]
+    assert line.sell.target == f"{AT}&sell={sword.pk}"
+    assert line.sell.label == "Sell"
+    assert [act.label for act in line.more] == ["Reassign", "Refund", "Delete"]
+
+
 class TestThePanelsAPageCarries:
     """The accessory question is built for every gun on a card rather than
     for the one an address names, so the click that opens one has nothing

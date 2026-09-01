@@ -423,7 +423,7 @@ def copy_row(copy, refunds=True):
                         if refunds
                         else ()
                     ),
-                    Action("Remove", LINK, part.remove_href, SECONDARY),
+                    Action("Remove", LINK, part.remove_href, DANGER),
                 ),
             )
             for part in copy.parts
@@ -459,7 +459,7 @@ def copy_row(copy, refunds=True):
                 if refunds
                 else ()
             ),
-            Action("Delete", LINK, copy.remove_href, SECONDARY),
+            Action("Delete", LINK, copy.remove_href, DANGER),
         ),
     )
 

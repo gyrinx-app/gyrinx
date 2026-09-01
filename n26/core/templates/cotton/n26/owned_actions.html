@@ -1,0 +1,133 @@
+{% comment %}
+<c-n26.owned-actions> — Sell and the rest of what can happen to one copy.
+
+    <c-n26.owned-actions :sell="copy.sell" :more="copy.more" label="{{ copy.name }}" />
+    <c-n26.owned-actions :sell="weapon.sell" :more="weapon.more" :add="weapon.accessorise" layout="menu" label="{{ weapon.name }}" />
+
+The same acts the equip listing draws next to something owned. Which
+acts those are, and which of them is red, is the structure's word (see
+n26/includes/row_action.html), so an act added there appears here with
+nothing edited.
+
+Two drawings of the same acts:
+
+  buttons — the listing's pair: Sell as a red button, the rest behind a
+    chevron.
+  menu — one quiet chevron holding everything, drawn right beside the
+    name on the model card.
+
+Either menu is grouped: the additive act on its own at the top, then
+the acts that keep or move the thing, then — after a rule, in red —
+the ones that take it away for nothing. An act's tone says which group
+it lands in. A line with nothing to click draws nothing.
+
+  :sell — n26.core.listing.Action, or empty when this line cannot be sold.
+  :more — the rest of the acts, each a link to a confirmation.
+  :add — the one act that adds something (Add accessory on a gun), or
+    empty. Only menu draws it.
+  layout — buttons (default) or menu.
+  label — the thing's name, for the chevron's accessible name.
+  :htmx — as n26/includes/row_action.html: the click fetches the panel
+    alone. Off by default; only a screen holding the update's hosts may
+    set it. Only buttons reads it.
+{% endcomment %}
+{% load listing %}
+<c-vars :sell="None" :more="None" :add="None" layout="buttons" label="" :htmx="False" class="" />
+
+{% if layout == "menu" %}
+    {% if sell or more or add %}
+        <span class="flex shrink-0 items-center {{ class }}">
+            <c-ui.dropdown align="end" min_width="10rem">
+                <c-slot name="trigger">
+                    <c-ui.button size="xs"
+                                 variant="ghost"
+                                 class="flex items-center px-1! py-0! text-ink-500 dark:text-ink-400"
+                                 aria-label="More for {{ label }}"
+                                 aria-haspopup="menu"
+                                 ::aria-expanded="dropdownMenu">
+                        <span class="n26-icon-only">
+                            <c-n26.icon name="chevron-down"
+                                        class="size-3 transition-transform"
+                                        stroke_width="2.5"
+                                        ::class="{ 'rotate-180': dropdownMenu }" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                {% if add %}
+                    <c-ui.dropdown.item href="{{ add.target }}">{{ add.label }}</c-ui.dropdown.item>
+                    {% if sell or more %}<c-ui.dropdown.separator />{% endif %}
+                {% endif %}
+                {% if sell %}
+                    <c-ui.dropdown.item href="{{ sell.target }}">{{ sell.label }}</c-ui.dropdown.item>
+                {% endif %}
+                {% for action in more %}
+                    {% if action.tone|tone_variant != "danger" %}
+                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                    {% endif %}
+                {% endfor %}
+                {% for action in more %}
+                    {% if action.tone|tone_variant == "danger" %}
+                        {% if add or sell or more|length > 1 %}<c-ui.dropdown.separator />{% endif %}
+                        <c-ui.dropdown.item href="{{ action.target }}" variant="danger">{{ action.label }}</c-ui.dropdown.item>
+                    {% endif %}
+                {% endfor %}
+            </c-ui.dropdown>
+        </span>
+    {% endif %}
+{% elif sell or more %}
+    <span class="flex shrink-0 items-center gap-1 {{ class }}">
+        {% if sell %}
+            {% include "n26/includes/row_action.html" with action=sell %}
+        {% endif %}
+        {% if more %}
+            <c-ui.dropdown align="end" min_width="10rem">
+                <c-slot name="trigger">
+                    <c-ui.button size="sm"
+                                 class="px-1.5!"
+                                 aria-label="More for {{ label }}"
+                                 title="More for {{ label }}"
+                                 aria-haspopup="menu"
+                                 ::aria-expanded="dropdownMenu">
+                        <span class="n26-icon-only">
+                            <c-n26.icon name="chevron-down"
+                                        class="size-3 transition-transform"
+                                        stroke_width="2.5"
+                                        ::class="{ 'rotate-180': dropdownMenu }" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                {% comment %}
+                Each of these opens a confirmation the server renders; on
+                a screen opted into partial updates (:htmx) the click
+                fetches the panel alone. Still a link underneath — see
+                n26/includes/row_action.html, including for why the
+                element is drawn twice rather than switching attributes.
+                {% endcomment %}
+                {% for action in more %}
+                    {% if action.tone|tone_variant != "danger" %}
+                        {% if htmx %}
+                            <c-ui.dropdown.item href="{{ action.target }}"
+                                                hx-get="{{ action.target }}"
+                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                        {% else %}
+                            <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                {% for action in more %}
+                    {% if action.tone|tone_variant == "danger" %}
+                        {% if more|length > 1 %}<c-ui.dropdown.separator />{% endif %}
+                        {% if htmx %}
+                            <c-ui.dropdown.item href="{{ action.target }}"
+                                                variant="danger"
+                                                hx-get="{{ action.target }}"
+                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                        {% else %}
+                            <c-ui.dropdown.item href="{{ action.target }}" variant="danger">{{ action.label }}</c-ui.dropdown.item>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+            </c-ui.dropdown>
+        {% endif %}
+    </span>
+{% endif %}
