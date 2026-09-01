@@ -81,3 +81,40 @@ def test_redirect_does_not_match_when_a_query_string_is_present(
     ever needs fixing it wants a custom middleware subclass, not a config change.
     """
     assert client.get("/help/vehicles/?from=nav").status_code == 404
+
+
+DISCORD_INVITE = "https://discord.gg/WnJFKfyEuj"
+
+
+@pytest.fixture
+def discord_redirect(db):
+    """The /discord/ vanity URL. Tests rebuild the DB with --nomigrations,
+    so the 0008 data migration never runs here — seed the same row."""
+    site = Site.objects.get_current()
+    return Redirect.objects.create(
+        site=site, old_path="/discord/", new_path=DISCORD_INVITE
+    )
+
+
+@pytest.mark.django_db
+def test_discord_path_redirects_to_the_invite(client: Client, discord_redirect):
+    response = client.get("/discord/")
+    assert response.status_code == 301
+    assert response.headers["Location"] == DISCORD_INVITE
+
+
+@pytest.mark.django_db
+def test_discord_path_without_slash_lands_on_the_redirect(
+    client: Client, discord_redirect
+):
+    """gyrinx.app/discord is the URL people will type.
+
+    APPEND_SLASH 301s it to /discord/ (the flatpage catch-all makes that a
+    valid path), then the redirect row sends them to Discord.
+    """
+    response = client.get("/discord")
+    assert response.status_code == 301
+    assert response.headers["Location"] == "/discord/"
+    follow = client.get(response.headers["Location"])
+    assert follow.status_code == 301
+    assert follow.headers["Location"] == DISCORD_INVITE
