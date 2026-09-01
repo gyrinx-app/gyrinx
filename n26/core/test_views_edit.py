@@ -442,7 +442,9 @@ class TestKitActionsOnTheCard:
         with operation(gang, actor=tester) as op:
             return op.buy(vex, thing=weapon, paid=15)
 
-    def test_gear_offers_sell_and_the_rest_at_xs(self, client, tester, vex, sword):
+    def test_gear_offers_sell_and_the_rest_behind_one_menu(
+        self, client, tester, vex, sword
+    ):
         client.force_login(tester)
         body = client.get(edit_url(vex)).content.decode()
         at = edit_url(vex)
@@ -451,9 +453,9 @@ class TestKitActionsOnTheCard:
         assert f"{at}?remove={sword.pk}" in body
         assert f"{at}?reassign={sword.pk}" in body
         assert "More for Sword" in body
-        # xs, matching Choose and Equip on this card — the listing's Sell
-        # is sm and does not carry these classes.
-        assert "py-0! px-1.5!" in body
+        # One quiet chevron holds every act; the listing's red Sell button
+        # is not drawn on this card.
+        assert "bg-red-500" not in body
 
     def test_a_weapon_offers_add_accessory(self, client, tester, vex, gun):
         client.force_login(tester)

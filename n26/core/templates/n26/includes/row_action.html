@@ -13,21 +13,16 @@ structure and to nothing on this page.
 
 Colour comes from the tone through one map — see n26/core/templatetags/listing.py
 for why the affirmative tone is green rather than the kit's `primary`.
-
-`size` is sm on a listing row and xs on a model card, so the control
-matches the buttons around it. `extra_class` lands on the button, which
-is how the card's Sell gets the same `py-0!` the Equip next to it has.
 {% endcomment %}
-{% with variant=action.tone|tone_variant btn_size=size|default:"sm" %}
+{% with variant=action.tone|tone_variant %}
     {% if action.kind == "submit" %}
         {% comment %}
         The type="submit"-through-attrs trick profile-picker.row documents: the
         kit button renders {{ attrs }} before its own type="button", and HTML
         keeps the first of a duplicate pair.
         {% endcomment %}
-        <c-ui.button size="{{ btn_size }}"
+        <c-ui.button size="sm"
                      variant="{{ variant }}"
-                     class="{{ extra_class }}"
                      type="submit"
                      name="{{ name|default:'thing' }}"
                      value="{{ action.target }}">
@@ -47,19 +42,15 @@ is how the card's Sell gets the same `py-0!` the Equip next to it has.
         lands in the page as text.
         {% endcomment %}
         {% if htmx %}
-            <c-ui.button size="{{ btn_size }}"
+            <c-ui.button size="sm"
                          variant="{{ variant }}"
-                         class="{{ extra_class }}"
                          href="{{ action.target }}"
                          hx-get="{{ action.target }}"
                          hx-swap="none">
                 {{ action.label }}
             </c-ui.button>
         {% else %}
-            <c-ui.button size="{{ btn_size }}"
-                         variant="{{ variant }}"
-                         class="{{ extra_class }}"
-                         href="{{ action.target }}">
+            <c-ui.button size="sm" variant="{{ variant }}" href="{{ action.target }}">
                 {{ action.label }}
             </c-ui.button>
         {% endif %}

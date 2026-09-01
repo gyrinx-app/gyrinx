@@ -2,74 +2,37 @@
 <c-n26.owned-actions> — Sell and the rest of what can happen to one copy.
 
     <c-n26.owned-actions :sell="copy.sell" :more="copy.more" label="{{ copy.name }}" />
-    <c-n26.owned-actions :sell="weapon.sell" :more="weapon.more" :add="weapon.accessorise" size="xs" layout="links" label="{{ weapon.name }}" />
+    <c-n26.owned-actions :sell="weapon.sell" :more="weapon.more" :add="weapon.accessorise" layout="menu" label="{{ weapon.name }}" />
 
 The same acts the equip listing draws next to something owned. Which
 acts those are, and which of them is red, is the structure's word (see
 n26/includes/row_action.html), so an act added there appears here with
 nothing edited.
 
-Three drawings of the same acts:
+Two drawings of the same acts:
 
   buttons — the listing's pair: Sell as a red button, the rest behind a
-    chevron. size is sm on a listing row and xs on a model card.
-  links — Sell and the additive act as small underlined links beside a
-    chevron, grouped so they wrap as one and sit at the right of the
-    line they land on.
-  menu — one chevron holding everything, the additive act first and
-    Sell in red. Sits at the right of the line.
+    chevron.
+  menu — one quiet chevron holding everything, the additive act first
+    and Sell in red. The model card's, drawn right beside the name.
 
 A line with nothing to click draws nothing.
 
   :sell — n26.core.listing.Action, or empty when this line cannot be sold.
   :more — the rest of the acts, each a link to a confirmation.
   :add — the one act that adds something (Add accessory on a gun), or
-    empty. Drawn by links and menu; buttons leaves it to the caller.
-  size — sm (the listing) or xs (the card). Only buttons reads it.
-  layout — buttons (default), links or menu.
+    empty. Only menu draws it.
+  layout — buttons (default) or menu.
   label — the thing's name, for the chevron's accessible name.
   :htmx — as n26/includes/row_action.html: the click fetches the panel
     alone. Off by default; only a screen holding the update's hosts may
     set it. Only buttons reads it.
 {% endcomment %}
-<c-vars :sell="None" :more="None" :add="None" size="sm" label="" layout="buttons" :htmx="False" class="" />
+<c-vars :sell="None" :more="None" :add="None" layout="buttons" label="" :htmx="False" class="" />
 
-{% if layout == "links" %}
+{% if layout == "menu" %}
     {% if sell or more or add %}
-        <span class="ml-auto flex shrink-0 items-center justify-end gap-2 {{ class }}">
-            {% if add %}
-                <c-n26.link href="{{ add.target }}" tone="muted" underline="always" class="whitespace-nowrap text-xs">{{ add.label }}</c-n26.link>
-            {% endif %}
-            {% if sell %}
-                <c-n26.link href="{{ sell.target }}" tone="muted" underline="always" class="text-xs">{{ sell.label }}</c-n26.link>
-            {% endif %}
-            {% if more %}
-                <c-ui.dropdown align="end" min_width="10rem">
-                    <c-slot name="trigger">
-                        <c-ui.button size="xs"
-                                     variant="ghost"
-                                     class="flex items-center px-1! py-0! text-ink-500 dark:text-ink-400"
-                                     aria-label="More for {{ label }}"
-                                     aria-haspopup="menu"
-                                     ::aria-expanded="dropdownMenu">
-                            <span class="n26-icon-only">
-                                <c-n26.icon name="chevron-down"
-                                            class="size-3 transition-transform"
-                                            stroke_width="2.5"
-                                            ::class="{ 'rotate-180': dropdownMenu }" />
-                            </span>
-                        </c-ui.button>
-                    </c-slot>
-                    {% for action in more %}
-                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
-                    {% endfor %}
-                </c-ui.dropdown>
-            {% endif %}
-        </span>
-    {% endif %}
-{% elif layout == "menu" %}
-    {% if sell or more or add %}
-        <span class="ml-auto flex shrink-0 items-center justify-end {{ class }}">
+        <span class="flex shrink-0 items-center {{ class }}">
             <c-ui.dropdown align="end" min_width="10rem">
                 <c-slot name="trigger">
                     <c-ui.button size="xs"
@@ -101,44 +64,24 @@ A line with nothing to click draws nothing.
 {% elif sell or more %}
     <span class="flex shrink-0 items-center gap-1 {{ class }}">
         {% if sell %}
-            {% if size == "xs" %}
-                {% include "n26/includes/row_action.html" with action=sell size="xs" extra_class="py-0! px-1.5!" %}
-            {% else %}
-                {% include "n26/includes/row_action.html" with action=sell %}
-            {% endif %}
+            {% include "n26/includes/row_action.html" with action=sell %}
         {% endif %}
         {% if more %}
             <c-ui.dropdown align="end" min_width="10rem">
                 <c-slot name="trigger">
-                    {% if size == "xs" %}
-                        <c-ui.button size="xs"
-                                     class="px-1! py-0! flex items-center"
-                                     aria-label="More for {{ label }}"
-                                     title="More for {{ label }}"
-                                     aria-haspopup="menu"
-                                     ::aria-expanded="dropdownMenu">
-                            <span class="n26-icon-only">
-                                <c-n26.icon name="chevron-down"
-                                            class="size-3 transition-transform"
-                                            stroke_width="2.5"
-                                            ::class="{ 'rotate-180': dropdownMenu }" />
-                            </span>
-                        </c-ui.button>
-                    {% else %}
-                        <c-ui.button size="sm"
-                                     class="px-1.5!"
-                                     aria-label="More for {{ label }}"
-                                     title="More for {{ label }}"
-                                     aria-haspopup="menu"
-                                     ::aria-expanded="dropdownMenu">
-                            <span class="n26-icon-only">
-                                <c-n26.icon name="chevron-down"
-                                            class="size-3 transition-transform"
-                                            stroke_width="2.5"
-                                            ::class="{ 'rotate-180': dropdownMenu }" />
-                            </span>
-                        </c-ui.button>
-                    {% endif %}
+                    <c-ui.button size="sm"
+                                 class="px-1.5!"
+                                 aria-label="More for {{ label }}"
+                                 title="More for {{ label }}"
+                                 aria-haspopup="menu"
+                                 ::aria-expanded="dropdownMenu">
+                        <span class="n26-icon-only">
+                            <c-n26.icon name="chevron-down"
+                                        class="size-3 transition-transform"
+                                        stroke_width="2.5"
+                                        ::class="{ 'rotate-180': dropdownMenu }" />
+                        </span>
+                    </c-ui.button>
                 </c-slot>
                 {% comment %}
                 Each of these opens a confirmation the server renders; on
