@@ -37,7 +37,13 @@ it lands in. A line with nothing to click draws nothing.
 {% if layout == "menu" %}
     {% if sell or more or add %}
         <span class="flex shrink-0 items-center {{ class }}">
-            <c-ui.dropdown align="end" min_width="10rem">
+            {% comment %}
+            strategy="fixed": this menu is drawn beside a name inside the
+            card's weapon table, which scrolls sideways on a narrow
+            screen. A menu placed in that box is cut off at its edges —
+            see <c-ui.dropdown>.
+            {% endcomment %}
+            <c-ui.dropdown align="end" min_width="10rem" strategy="fixed">
                 <c-slot name="trigger">
                     <c-ui.button size="xs"
                                  variant="ghost"
