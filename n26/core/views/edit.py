@@ -281,20 +281,27 @@ def render_card_update(request, miniature, at):
     from n26.core.access import model_collections
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
+    from n26.core.owned import EquipHost
     from n26.core.render import build_model_card
     from n26.core.views.choose import link_slots
     from n26.core.views.htmx import with_toasts
     from n26.core.views.learn import link_skills
-    from n26.core.views.owned import link_counters
+    from n26.core.views.owned import link_counters, link_possession_actions
 
     gang = miniature.membership.gang
-    own = build_card(miniature, with_statlines=True)
+    own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
     computed = compute(own, index)
     card = build_model_card(miniature, card=own, computed=computed)
     link_slots(gang, card)
     link_skills(card, among=model_collections())
     link_counters(card, back=at)
+    # The card is drawn in edit mode, and edit mode's card carries the
+    # kit acts. They open over the model's own page, whatever screen
+    # the act came from: ``at`` is untrusted and never becomes an href.
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
+    host = EquipHost.fighter(gang, own, miniature, edit)
+    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
 
     response = render(
         request,
