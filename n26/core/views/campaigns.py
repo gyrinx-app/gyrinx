@@ -431,7 +431,7 @@ def add_gang(request, pk):
             if len(players) > 1
             else [],
             # The ends of the wealth filter, which are also its off positions.
-            "wealth_ceiling": max([row["wealth"] for row in gangs], default=0),
+            "wealth_ceiling": max((row["wealth"] for row in gangs), default=0),
             "nothing_to_offer": not gangs,
         },
     )

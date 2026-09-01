@@ -52,7 +52,7 @@ a reader who cannot find one is told where it went.
         {% if nothing_to_offer %}
             <c-ui.alert variant="info" title="No gangs yet">
                 {% if arbitrating %}
-                    Nobody at this campaign's table has a gang.
+                    No one at this campaign's table has a gang yet.
                 {% else %}
                     You have no gangs to add.
                     <c-n26.link href="{% url 'n26-create-gang' %}">Create one</c-n26.link>
