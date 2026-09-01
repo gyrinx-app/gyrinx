@@ -556,7 +556,32 @@ no-op (3 archived members, all referenced); removing
 `_granted_rows_without_provenance` and tightening
 `_something_materialised` remain, and are now the whole of what is left.
 
-*The chunk, re-cut:*
+*C8 COMPLETE 2026-08-31.* The code cut merged as PR #2378
+(`003464ba0`): `_granted_rows_without_provenance` narrowed to
+`_ammo_rows_without_provenance` (ammo is the one kind tagging never
+covers, so it alone keeps the reading by shape; an untagged copy of
+anything else is the owner's and a rechoose never seizes it), and
+`_something_materialised` answers by provenance for every kind but
+ammo. Two archival tests restated to pin the new contract. The backfill
+re-run over every gang, archived included (record 1f92a69f): 2,498
+gangs, 0 failures, 9,853 tagged (3,148 + 7,198 were sitting in archived
+gangs the first run never visited; 27 in live gangs), 1,336 granted,
+76 already, 116 unmatched, 7 held. Verified afterwards: no duplication
+created — subtypes, rules and counters doubled nowhere, live or
+archived; the repair's own test still finds only the 6 twin pistols;
+192 untagged rows remain estate-wide (144 live, 48 archived) and are
+the floor: unmatched rows no member names, the ammo holds, the twins.
+
+**#2165 is done.** Every chunk shipped or deliberately dropped: C0–C5,
+C7, C8 shipped; C6 replaced by the removal warning (#2364); C3 the
+runner; the audit; the doubled-refund repair; the nested-built-ins
+forward fix (#2359); the duplicate-grant repair (#2374). Open threads
+outside the programme: authoring-time cycle refusal in `add_built_in`;
+the founding view creating the Gang row before the operation's
+transaction; D11/D12 author-side refusals (were C6 scope); #2321
+Backfill→state_machine.
+
+*The chunk, re-cut (historical):*
 
 1. **Provenance uniqueness at the database.** A unique constraint on
    `(materialised_from, materialised_for)` where `materialised_from`
