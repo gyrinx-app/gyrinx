@@ -42,6 +42,13 @@ a reader who cannot find one is told where it went.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% comment %}
+        The list submits by its own buttons and draws no widget for the field,
+        so the field's own error has nowhere else to appear. It is reachable
+        only by sending a key the list did not offer, and a page that answered
+        that by redrawing itself and saying nothing would look broken.
+        {% endcomment %}
+        <c-ui.error name="gang" :form="form" />
         {% if nothing_to_offer %}
             <c-ui.alert variant="info" title="No gangs yet">
                 {% if arbitrating %}
@@ -89,8 +96,12 @@ a reader who cannot find one is told where it went.
                 as the equipment catalogue lays out the same pair. A row of
                 filters is a row of actions, which is what action-bar is.
                 {% endcomment %}
-                <c-n26.search-bar :live="True" :nested="True" model="query" placeholder="Search gangs" />
-                <c-n26.action-bar>
+                <c-n26.search-bar :live="True"
+                                  :nested="True"
+                                  model="query"
+                                  placeholder="Search gangs"
+                                  class="n26-gang-filters" />
+                <c-n26.action-bar class="n26-gang-filters">
                     {% if people %}
                         <c-n26.filter-menu label="Player" name="player" :options="people" />
                     {% endif %}
@@ -123,12 +134,34 @@ a reader who cannot find one is told where it went.
                                   :checked="True"
                                   @checked-change.camel="hidePlaying = !hidePlaying" />
                 </c-n26.action-bar>
+                {% comment %}
+                The written figure is every gang, which is what a reader with
+                no script is looking at; Alpine writes the narrowed count over
+                it as soon as it runs.
+                {% endcomment %}
                 <p class="text-sm text-muted">
                     <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
-                          x-text="shown">{{ free_gangs }}</span>
+                          x-text="shown">{{ gangs|length }}</span>
                     of {{ gangs|length }} gang{{ gangs|length|pluralize }}
                 </p>
-                <ul class="flex flex-col">
+                {% comment %}
+                Every row is cloaked so the list does not flash unfiltered
+                before Alpine narrows it, and [x-cloak] hides for good where
+                no script arrives to take it off. Without script there is no
+                narrowing to wait for, so the rows are shown and the controls
+                above them — which do nothing on their own — are not.
+                {% endcomment %}
+                <noscript>
+                    <style>
+                        .n26-gang-picker > li[x-cloak] {
+                            display: flex !important;
+                        }
+                        .n26-gang-filters {
+                            display: none !important;
+                        }
+                    </style>
+                </noscript>
+                <ul class="n26-gang-picker flex flex-col">
                     {% for gang in gangs %}
                         <li x-data="{ facets: {
                                     owner: {{ gang.owner|json_dumps }},

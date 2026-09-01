@@ -415,14 +415,12 @@ def add_gang(request, pk):
             "campaign": found,
             "arbitrating": arbitrating,
             "gangs": gangs,
-            "free_gangs": sum(1 for row in gangs if not row["playing"]),
             "people": [{"value": name, "label": name} for name in people]
             if len(people) > 1
             else [],
             # The ends of the wealth filter, which are also its off positions.
             "wealth_ceiling": max([row["wealth"] for row in gangs], default=0),
             "nothing_to_offer": not gangs,
-            "owns_a_gang": bool(gangs),
         },
     )
 

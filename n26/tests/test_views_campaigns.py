@@ -669,8 +669,9 @@ class TestBattlesOnTheCampaignsPage:
         """A picker over every gang there is would let an arbitrator record a
         battle between gangs that were never in the campaign."""
         elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
-        # Seated there too: what is under test is the second join being
-        # refused, not who the other campaign would have offered.
+        # Seating the owner is only how the gang gets into the other
+        # campaign; what is under test is which gangs the battle picker
+        # offers afterwards.
         seat(elsewhere, gang.owner)
         client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
 
@@ -1101,7 +1102,7 @@ class TestAPlayerBringingTheirOwnGang:
         # Still listed, because a reader who cannot find a gang is better
         # told where it went — and hidden to start with by the filter.
         assert [row["playing"] for row in response.context["gangs"]] == [True]
-        assert response.context["free_gangs"] == 0
+        assert not any(row["playing"] is False for row in response.context["gangs"])
 
     def test_a_reader_with_no_gangs_is_sent_to_make_one(
         self, client, theirs, open_to_everyone
@@ -1340,7 +1341,7 @@ class TestTheArbitratorsOwnAddGangScreen:
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(rich.pk)})
         response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/")
         assert [row["playing"] for row in response.context["gangs"]] == [True]
-        assert response.context["free_gangs"] == 0
+        assert not any(row["playing"] is False for row in response.context["gangs"])
 
     def test_a_gang_over_the_budget_joins_and_is_marked(
         self, client, campaign, rich, arbitrator, open_to_everyone
