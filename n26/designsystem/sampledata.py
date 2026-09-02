@@ -2306,6 +2306,14 @@ def owned_context():
             "submit_label": "Fit",
             "submit_variant": "primary",
         },
+        "owned_detach_dialog": {
+            **named,
+            "kind": "detach",
+            "name": "Telescopic sight",
+            "title": "Take Telescopic sight off Meltagun?",
+            "submit_label": "Detach",
+            "submit_variant": "primary",
+        },
         "owned_fit_nothing_dialog": {
             **named,
             "kind": "fit",

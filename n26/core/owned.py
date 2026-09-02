@@ -48,7 +48,16 @@ class EquipHost:
 
 #: URL parameters that can open one assignment dialog. Their order is the
 #: precedence when an address names more than one.
-DIALOGS = ("sell", "reassign", "fit", "refund", "remove", "accessorise", "rechoose")
+DIALOGS = (
+    "sell",
+    "reassign",
+    "fit",
+    "detach",
+    "refund",
+    "remove",
+    "accessorise",
+    "rechoose",
+)
 
 
 def with_query(url, **params):
@@ -95,6 +104,24 @@ def is_detachable(thing):
     return is_possession(thing) and not isinstance(thing, WeaponProfile)
 
 
+def can_unbolt(assignment):
+    """Can this copy come off what it hangs from and stay with the gang?
+
+    :func:`is_detachable` is about the *kind* of thing: a sight can, a
+    firing line cannot. This is about *this copy*. A sight the gun came
+    with belongs to the package — what caused it goes, so it goes — and
+    offering to take one off would be offering something the sale of the
+    gun takes straight back. ``Operation.move`` refuses only the kind;
+    the copy's rule is held by whoever asks it, so a view refuses a
+    built-in itself before reaching the operation.
+    """
+    return (
+        assignment.parent_id is not None
+        and assignment.caused_by_id is None
+        and is_detachable(assignment.assignable)
+    )
+
+
 def thing_key(thing):
     """One string naming a piece of content — what a form submits to name it.
 
@@ -108,7 +135,10 @@ def thing_key(thing):
 class OwnedPart:
     """Something hanging off a thing the model owns: ammo, an accessory.
 
-    No re-homing: a part belongs to its parent and moves only with it.
+    A firing line stays put: it *is* the weapon's line. An accessory the
+    gang bought can come off — kept held, or fitted to another gun —
+    which is why those two addresses are here and empty for everything
+    that cannot.
     """
 
     id: str
@@ -121,6 +151,12 @@ class OwnedPart:
     sell_href: str
     refund_href: str
     remove_href: str
+    #: Where to go to take this off and leave the fighter holding it.
+    #: Empty for a firing line, and for a sight the gun came with.
+    detach_href: str = ""
+    #: Where to go to bolt this onto a different gun this fighter is
+    #: carrying. Empty unless there is another gun to name.
+    fit_href: str = ""
 
 
 @dataclass(frozen=True)
@@ -208,7 +244,7 @@ def _part_name(node):
     return node.name
 
 
-def _parts_of(node, at):
+def _parts_of(node, at, *, can_refit=False):
     """The children drawn beneath a thing, each with an address of its own.
 
     A weapon's *unnamed* profile is the weapon — the book prints an
@@ -216,12 +252,19 @@ def _parts_of(node, at):
     the same rule ``n26.render.WeaponLine.own_line`` keeps for the card.
     It also cannot be sold apart from its gun, which is the same fact
     said about money.
+
+    ``can_refit`` is whether this host carries another gun this part
+    could move onto. A screen must not ask a question its answer
+    refuses, so an accessory on the only gun is offered Detach and not
+    Fit. The stash is never asked — its accessories are fitted from
+    the gang sheet, where the guns of the whole roster are in reach.
     """
     parts = []
     for child in node.children:
         if child.is_weapon_profile and not child.assignable.name:
             continue
         pk = str(child.assignment.pk)
+        unbolt = can_unbolt(child.assignment)
         parts.append(
             OwnedPart(
                 id=pk,
@@ -231,6 +274,8 @@ def _parts_of(node, at):
                 sell_href=with_query(at, sell=pk),
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
+                detach_href=with_query(at, detach=pk) if unbolt else "",
+                fit_href=(with_query(at, fit=pk) if unbolt and can_refit else ""),
             )
         )
     return tuple(parts)
@@ -276,7 +321,8 @@ def possessions(host: EquipHost):
     # a screen must not ask a question its answer refuses. The stash is
     # never asked — its accessories are fitted from the gang sheet,
     # where the guns of the whole roster are in reach.
-    fittable = not host.is_stash and bool(weapons_on(host))
+    guns = weapons_on(host)
+    fittable = not host.is_stash and bool(guns)
 
     index = {}
     for node in host.roots:
@@ -297,7 +343,14 @@ def possessions(host: EquipHost):
                 key=key,
                 name=node.name,
                 rating=node.rating,
-                parts=_parts_of(node, at),
+                parts=_parts_of(
+                    node,
+                    at,
+                    can_refit=(
+                        not host.is_stash
+                        and any(gun.assignment.pk != node.assignment.pk for gun in guns)
+                    ),
+                ),
                 sell_href=with_query(at, sell=pk),
                 reassign_href=with_query(at, reassign=pk),
                 refund_href=with_query(at, refund=pk),

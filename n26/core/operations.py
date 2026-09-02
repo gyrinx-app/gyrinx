@@ -92,14 +92,12 @@ def detachable_children(assignment):
     *brought* — a sight that came with it as standard — belongs to the
     package rather than to the gang: what caused it goes, so it goes.
     """
-    from n26.core.owned import is_detachable
+    from n26.core.owned import can_unbolt
 
     return [
         child
         for child in assignment.children.all()
-        if not child.archived
-        and child.caused_by_id is None
-        and is_detachable(child.assignable)
+        if not child.archived and can_unbolt(child)
     ]
 
 

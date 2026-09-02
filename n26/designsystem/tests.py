@@ -154,6 +154,13 @@ class TestTheOwnedDialogsPage:
         assert "Telescopic sight — 25¢" in page
         assert "Gun stabiliser — 30¢" in page
 
+    def test_detaching_an_accessory_draws_the_held_destination(self, reader):
+        page = reader.get("/n26/design/c/owned-dialog/").content.decode()
+        assert "Taking an accessory off a gun" in page
+        assert "Take Telescopic sight off Meltagun?" in page
+        assert "The fighter will still hold it." in page
+        assert 'value="held"' in page
+
     def test_selling_a_kitted_gun_draws_a_figure_against_each_answer(self, reader):
         page = reader.get("/n26/design/c/owned-dialog/").content.decode()
         assert "Selling a gun with something bolted to it" in page

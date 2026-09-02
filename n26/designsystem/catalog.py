@@ -1102,26 +1102,28 @@ GROUPS: list[Group] = [
                 tag="c-n26.owned-dialog",
                 template="n26/owned_dialog.html",
                 summary=(
-                    "Confirm a sale, a move, a refund or a removal of "
-                    "something the gang owns — or ask which accessory to "
-                    "fit to a weapon, or which alternatives it is taken "
-                    "with."
+                    "Confirm a sale, a move, a refund, a removal or "
+                    "detaching something the gang owns — or ask which "
+                    "accessory to fit to a weapon, or which alternatives "
+                    "it is taken with."
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "One panel for six questions: sell, move, refund, remove, "
-                    "fit an accessory, and change what a thing was bought with. "
-                    "Each states what a reader cannot work out from the page — "
-                    "a sale states its arithmetic, a move that it charges "
-                    "nothing, a removal that the money stays spent, a refund "
-                    "what was paid. The stash is a button and the roster a "
-                    "select, and only the clicked submit is sent, which is the "
-                    "whole of how the view tells those two apart. Selling "
-                    "something with a part bolted to it is two sales at two "
-                    "prices, so each option carries its own figure rather than "
-                    "the lead carrying one. Changing what a thing was bought "
-                    "with draws the buying row's own controls rather than a "
-                    "second set, with the loader deciding which starts picked."
+                    "One panel for every question: sell, move, refund, remove, "
+                    "fit an accessory, take one off a gun, and change what a "
+                    "thing was bought with. Each states what a reader cannot "
+                    "work out from the page — a sale states its arithmetic, a "
+                    "move that it charges nothing, a removal that the money "
+                    "stays spent, a refund what was paid, a detach that "
+                    "leaves the fighter holding it. The stash is a button and the "
+                    "roster a select, and only the clicked submit is sent, "
+                    "which is the whole of how the view tells those two apart. "
+                    "Selling something with a part bolted to it is two sales "
+                    "at two prices, so each option carries its own figure "
+                    "rather than the lead carrying one. Changing what a thing "
+                    "was bought with draws the buying row's own controls "
+                    "rather than a second set, with the loader deciding which "
+                    "starts picked."
                 ),
             ),
             Component(
