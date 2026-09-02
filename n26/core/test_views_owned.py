@@ -1107,6 +1107,11 @@ class TestDetachingAnAccessory:
         part = self.part_of(fighter, gun, bolted)
         assert part.fit_href == ""
 
+    def test_the_only_gun_draws_no_fit_panel(self, fighter, gun, bolted):
+        """The row draws no Fit, so its address opens nothing rather
+        than a panel with no weapon in it."""
+        assert self.dialog(fighter, fit=str(bolted.pk)) is None
+
     def test_another_gun_is_somewhere_to_fit_it(self, fighter, gun, bolted, second_gun):
         part = self.part_of(fighter, gun, bolted)
         assert part.fit_href == f"{AT}&fit={bolted.pk}"
@@ -1303,7 +1308,7 @@ class TestDetachingAnAccessory:
             url("n26-reassign", builtin), {"to": "held"}, follow=True
         )
 
-        assert "There is nowhere to move" in response.content.decode()
+        assert "Only a bought accessory can come off." in response.content.decode()
         builtin.refresh_from_db()
         assert builtin.parent_id == gun.pk
         assert_reconciled(gang)
@@ -1316,7 +1321,7 @@ class TestDetachingAnAccessory:
 
         line.refresh_from_db()
         assert line.parent_id == gun.pk
-        assert "There is nowhere to move" in response.content.decode()
+        assert "Only a bought accessory can come off." in response.content.decode()
         assert_reconciled(gang)
 
     def test_a_stashed_gun_is_offered_detach_and_not_fit(

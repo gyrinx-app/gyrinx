@@ -474,6 +474,61 @@ class TestKitActionsOnTheCard:
         assert "<dialog" in body
         assert reverse("n26-sell", args=[sword.pk]) in body
 
+    def test_a_bolted_accessory_offers_detach_and_not_fit_alone(
+        self, client, tester, gang, vex, gun
+    ):
+        from n26.library.authoring import create_weapon_accessory
+
+        sight = create_weapon_accessory("Telescopic sight", price=25)
+        with operation(gang, actor=tester) as op:
+            bolted = op.buy(gun, thing=sight)
+
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        at = edit_url(vex)
+
+        assert "Detach" in body
+        assert f"{at}?detach={bolted.pk}" in body
+        assert f"{at}?remove={bolted.pk}" in body
+        assert f"{at}?fit={bolted.pk}" not in body
+        assert "More for Telescopic sight" in body
+
+    def test_a_second_gun_lets_the_accessory_be_fitted_to_it(
+        self, client, tester, gang, vex, gun
+    ):
+        from n26.library.authoring import create_weapon, create_weapon_accessory
+
+        sight = create_weapon_accessory("Telescopic sight", price=25)
+        stub = create_weapon("Stub gun", price=5, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            bolted = op.buy(gun, thing=sight)
+            op.buy(vex, thing=stub, paid=5)
+
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        at = edit_url(vex)
+
+        assert f"{at}?detach={bolted.pk}" in body
+        assert f"{at}?fit={bolted.pk}" in body
+        assert "Fit to a weapon" in body
+
+    def test_the_url_opens_the_detach_dialog_on_this_page(
+        self, client, tester, gang, vex, gun
+    ):
+        from n26.library.authoring import create_weapon_accessory
+
+        sight = create_weapon_accessory("Telescopic sight", price=25)
+        with operation(gang, actor=tester) as op:
+            bolted = op.buy(gun, thing=sight)
+
+        client.force_login(tester)
+        body = client.get(f"{edit_url(vex)}?detach={bolted.pk}").content.decode()
+
+        assert "Take Telescopic sight off Lasgun?" in body
+        assert "The fighter will still hold it." in body
+        assert reverse("n26-reassign", args=[bolted.pk]) in body
+        assert 'name="to" value="held"' in body
+
     def test_the_url_opens_the_accessory_dialog_on_this_page(
         self, client, tester, vex, gun
     ):

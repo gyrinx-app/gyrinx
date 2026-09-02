@@ -450,6 +450,11 @@ def owned_dialog(request, host: EquipHost):
             for node in weapons_on(host)
             if node.assignment.pk != assignment.parent_id
         ]
+        # A bolted accessory with no other gun on the card has nowhere
+        # to go, and the row does not draw Fit for it. A loose one still
+        # gets the panel, which says there is no weapon here.
+        if not weapons and assignment.parent_id is not None:
+            return None
         return dialog | {
             "title": f"Fit {name} to a weapon",
             "weapons": [
@@ -785,6 +790,13 @@ def reassign_assignment(request, pk):
     touched = _row_behind(assignment)
     name = str(assignment.assignable)
 
+    # Why a firing line or a sight the gun came with cannot leave the
+    # weapon. Said to a Detach and to a Fit click alike: the rule is the
+    # same whichever destination they named.
+    stays_on = (
+        f"You cannot take {name} off the weapon. Only a bought accessory can come off."
+    )
+
     wanted = request.POST.get("to")
     if wanted == "stash":
         destination = getattr(gang, "stash", None)
@@ -792,10 +804,11 @@ def reassign_assignment(request, pk):
         # Same host, unfitted. A sight on a fighter's gun stays with
         # that fighter; one on a stashed gun stays in the stash. A copy
         # that cannot come off — a firing line, a sight the gun came
-        # with, something already loose — is nowhere to send.
+        # with, something already loose — is refused in words.
         if not can_unbolt(assignment):
-            destination = None
-        elif assignment.miniature_root_id:
+            messages.error(request, stays_on)
+            return _unchanged(request, back)
+        if assignment.miniature_root_id:
             destination = assignment.miniature_root
         else:
             destination = getattr(gang, "stash", None)
@@ -824,7 +837,8 @@ def reassign_assignment(request, pk):
         # onto another gun would leave the gang holding something the
         # sale of this gun is meant to take with it.
         if destination is not None and assignment.caused_by_id is not None:
-            destination = None
+            messages.error(request, stays_on)
+            return _unchanged(request, back)
     else:
         try:
             destination = Miniature.objects.filter(
