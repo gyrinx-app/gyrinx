@@ -390,8 +390,9 @@ def _screen(gang, miniature=None, list_param=""):
     """What an equip screen shows: card, collections, chosen list, view.
 
     ``miniature`` names whose screen this is; without one it is the
-    gang's, where ``list_param`` may also be one of the two tabs that are
-    not collections (:data:`STASH_SCOPE`, :data:`ALL_SCOPE`).
+    gang's. On either, ``list_param`` may be :data:`ALL_SCOPE`, the
+    library tab that is not a collection; on the gang's it may also be
+    :data:`STASH_SCOPE`.
 
     One derivation for the pages and for every partial update — an update
     re-derives here because the act it follows changed the state it
@@ -418,12 +419,16 @@ def _screen(gang, miniature=None, list_param=""):
             access.collection
             for access in collections_for(miniature, card=card, computed=computed)
         )
-        chosen = chosen_from(collections)
-        view = (
-            with_use_notes(browse(chosen), usability_for(computed))
-            if chosen is not None
-            else None
-        )
+        if list_param == ALL_SCOPE:
+            # The library, noted for this fighter the way any list is:
+            # the tab is there for the thing no held list offers, which
+            # is where a use restriction is likeliest to bite.
+            chosen, view = None, all_gear(ALL_LABEL, for_use_notes=True)
+        else:
+            chosen = chosen_from(collections)
+            view = browse(chosen) if chosen is not None else None
+        if view is not None:
+            view = with_use_notes(view, usability_for(computed))
         return Screen(gang, miniature, card, computed, collections, chosen, view)
 
     card = build_gang_card(gang, with_statlines=False)
@@ -774,6 +779,7 @@ def equip(request, pk):
     gang = miniature.gang
 
     wanted = request.GET.get("list", "")
+    everything = wanted == ALL_SCOPE
     screen = _screen(gang, miniature=miniature, list_param=wanted)
     collections, chosen, view = screen.collections, screen.chosen, screen.view
 
@@ -787,7 +793,13 @@ def equip(request, pk):
 
     def here(collection):
         params = [
-            *([("list", collection.pk)] if collection is not None else []),
+            *(
+                [("list", ALL_SCOPE)]
+                if everything
+                else [("list", collection.pk)]
+                if collection is not None
+                else []
+            ),
             *([("section", section)] if section else []),
             *([("owned", expanded_key)] if expanded_key else []),
         ]
@@ -801,7 +813,7 @@ def equip(request, pk):
             miniature,
             view,
             into=miniature.name,
-            collection=chosen.name,
+            collection=ALL_LABEL if everything else chosen.name,
             at=here(chosen),
             event={"miniature_id": str(miniature.pk)},
         )
@@ -866,8 +878,17 @@ def equip(request, pk):
     # Which list is being browsed is a tab when there are several. With
     # one there is nothing to choose, so no strip is drawn — the search
     # box names the list it is searching, which is where a reader looks
-    # to find out what they are buying from.
-    tabs = collection_tabs(collections, chosen)
+    # to find out what they are buying from. The library tab is drawn
+    # alone, though: a fighter holding no list at all is exactly who it
+    # is for, and a reader on it should see where they are.
+    tabs = fighter_tabs(collections, chosen, everything)
+    rail = len(tabs) > 1 or everything
+    # The whole catalogue posts back to the list it was drawn from — only
+    # that: the picker's own state travels in the form, not in the address
+    # it posts to.
+    scope = ALL_SCOPE if everything else chosen.pk if chosen is not None else ""
+    action = f"{request.path}?list={scope}" if scope else request.path
+    browsing = ALL_BROWSING if everything else str(chosen or "")
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
 
@@ -895,6 +916,10 @@ def equip(request, pk):
             "trade_points_href": trade_points_href(gang, request.user),
             "collections": collections,
             "collection_tabs": tabs,
+            "rail": rail,
+            "everything": everything,
+            "action": action,
+            "browsing": browsing,
             "chosen": chosen,
             "catalogue": catalogue,
             # This page holds every element a partial update replaces, so
@@ -993,13 +1018,19 @@ def picker_context(catalogue, view, gang=None):
     }
 
 
-#: The gang screen's library tab: not a collection, so it names itself in
-#: the URL where a collection would name its id. A ULID is never this
-#: word, so the two cannot collide.
+#: The library tab, on a model's screen and the gang's: not a collection,
+#: so it names itself in the URL where a collection would name its id. A
+#: ULID is never this word, so the two cannot collide.
 ALL_SCOPE = "all"
 
-#: What that tab is called, on the tab and as the list being browsed.
-ALL_LABEL = "All equipment"
+#: What that tab is called. Not "All": beside a fighter's own lists that
+#: reads as "all of this fighter's", and the tab is the opposite — what
+#: no held list restricts it to.
+ALL_LABEL = "Unrestricted"
+
+#: What the tab is browsing, where a sentence names it — the search
+#: box's placeholder.
+ALL_BROWSING = "all equipment"
 
 #: The stash-holdings tab — not a collection. Gear the current list does
 #: not sell is reached from here, rather than drawn beside the catalogue.
@@ -1008,17 +1039,26 @@ STASH_SCOPE = "stash"
 STASH_LABEL = "In stash"
 
 
+def library_tab(everything):
+    """The library tab, last on either screen."""
+    return {
+        "label": ALL_LABEL,
+        "title": "",
+        "href": f"?list={ALL_SCOPE}",
+        "current": everything,
+    }
+
+
+def fighter_tabs(collections, chosen, everything):
+    """The buyable collections and the library tab."""
+    tabs = collection_tabs(collections, chosen)
+    tabs.append(library_tab(everything))
+    return tabs
+
+
 def gang_tabs(collections, chosen, everything, *, stash=False):
     """The stash, buyable collections, and library tabs."""
-    tabs = collection_tabs(collections, chosen)
-    tabs.append(
-        {
-            "label": ALL_LABEL,
-            "title": "",
-            "href": f"?list={ALL_SCOPE}",
-            "current": everything,
-        }
-    )
+    tabs = fighter_tabs(collections, chosen, everything)
     tabs.insert(
         0,
         {
@@ -1128,7 +1168,7 @@ def equip_gang(request, pk):
             refunds=refunds,
             expanded_key=expanded_key,
         )
-        browsing = ALL_LABEL if everything else str(chosen or "")
+        browsing = ALL_BROWSING if everything else str(chosen or "")
     else:
         catalogue = None
         browsing = ""
@@ -1148,6 +1188,7 @@ def equip_gang(request, pk):
             "browsing": browsing,
             "catalogue": catalogue,
             "stash_tab": stash_tab,
+            "everything": everything,
             # Opted in the same way as a model's own screen.
             "htmx": True,
             "held_label": host.held_label,

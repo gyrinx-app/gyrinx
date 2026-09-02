@@ -204,12 +204,17 @@ def test_each_list_is_a_tab_of_its_own(client, tester, fighter, house_list):
 
     client.force_login(tester)
     tabs = client.get(equip_url(fighter, house_list)).context["collection_tabs"]
-    assert [tab["label"] for tab in tabs] == ["House List", "Trading Post"]
+    assert [tab["label"] for tab in tabs] == [
+        "House List",
+        "Trading Post",
+        "Unrestricted",
+    ]
     assert [tab["href"] for tab in tabs] == [
         f"?list={house_list.pk}",
         f"?list={Collection.objects.get(name='Trading Post').pk}",
+        "?list=all",
     ]
-    assert [tab["current"] for tab in tabs] == [True, False]
+    assert [tab["current"] for tab in tabs] == [True, False, False]
 
 
 def test_the_strip_holds_this_fighters_list_and_no_other_houses(
@@ -252,7 +257,11 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
 
     client.force_login(tester)
     tabs = client.get(equip_url(fighter)).context["collection_tabs"]
-    assert [tab["label"] for tab in tabs] == ["Ironhead Squats", "Trading Post"]
+    assert [tab["label"] for tab in tabs] == [
+        "Ironhead Squats",
+        "Trading Post",
+        "Unrestricted",
+    ]
 
 
 def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
@@ -290,23 +299,28 @@ def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
     client.force_login(tester)
     response = client.get(equip_url(fighter))
     assert [tab["label"] for tab in response.context["collection_tabs"]] == [
-        "Ironhead Squats"
+        "Ironhead Squats",
+        "Unrestricted",
     ]
     assert "Catfall" not in response.content.decode()
 
 
-def test_a_lone_list_draws_no_strip_and_the_search_box_says_where_you_are(
+def test_a_lone_list_is_still_a_choice_beside_the_library(
     client, tester, fighter, house_list
 ):
-    """One list is not a choice. A strip of one tab would be a control that
-    does nothing, so the only thing naming the list is the box you search
-    it with — which means that name has to be there."""
+    """One list would be no choice on its own, and the strip would be a
+    control that does nothing. But the library tab stands beside every
+    list, so a fighter with one list has two places to be — and the
+    search box still names the one they are on."""
     client.force_login(tester)
     response = client.get(equip_url(fighter))
     html = response.content.decode()
-    assert len(response.context["collection_tabs"]) == 1
+    assert [tab["label"] for tab in response.context["collection_tabs"]] == [
+        "House List",
+        "Unrestricted",
+    ]
     assert "Search House List" in html
-    assert 'aria-label="Which list"' not in html
+    assert 'aria-label="Which list"' in html
 
 
 def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
@@ -2323,3 +2337,159 @@ class TestOpeningTheCopiesOfAnOwnedRow:
 
         assert opened.status_code == 200
         assert 'aria-expanded="true"' in opened.content.decode()
+
+
+class TestTheLibraryTab:
+    """Every item in the library, for the thing no held list offers —
+    the same tab the gang's screen has, noted for this fighter."""
+
+    @pytest.fixture
+    def library(self, default_pack):
+        """Gear no list the fighter holds offers, one piece of it
+        restricted to a subtype the fighter is not."""
+        from n26.library.authoring import create_subtype, create_weapon
+
+        walker = create_subtype("Walker")
+        create_wargear("Mesh Armour", price=15)
+        create_weapon(
+            "Autogun", price=20, profiles=[("", 0)], usable_by_subtypes=[walker]
+        )
+        return walker
+
+    def test_it_is_not_built_until_the_address_asks_for_it(
+        self, client, tester, fighter, house_list, library
+    ):
+        client.force_login(tester)
+        body = client.get(equip_url(fighter)).content.decode()
+
+        assert "Knife" in body
+        assert "Mesh Armour" not in body
+
+    def test_it_draws_the_library_noted_for_this_fighter(
+        self, client, tester, fighter, house_list, library
+    ):
+        """A list restricts what it offers; the library restricts nothing,
+        so a use restriction is likeliest to bite here — and it is drawn
+        the way it is on any list: a note, never a missing row."""
+        client.force_login(tester)
+        response = client.get(f"{equip_url(fighter)}?list=all")
+        rows = {row.name: row for row in response.context["catalogue"].all_rows()}
+
+        assert "Knife" in rows
+        assert "Mesh Armour" in rows
+        assert rows["Mesh Armour"].notes == ()
+        assert [note.text for note in rows["Autogun"].notes] == [
+            "usable by Walker only"
+        ]
+
+    def test_the_page_says_where_it_is(
+        self, client, tester, fighter, house_list, library
+    ):
+        client.force_login(tester)
+        response = client.get(f"{equip_url(fighter)}?list=all")
+        html = response.content.decode()
+        tabs = response.context["collection_tabs"]
+
+        assert [tab["current"] for tab in tabs] == [False, True]
+        assert "Search all equipment" in html
+        assert "Every item in the library" in html
+        assert f"{equip_url(fighter)}?list=all" in html
+
+    def test_buying_from_it_lands_on_the_fighter(
+        self, client, tester, gang, fighter, house_list, library
+    ):
+        from n26.core.reconcile import assert_reconciled
+        from n26.library.models import Wargear
+
+        armour = Wargear.objects.get(name="Mesh Armour")
+        client.force_login(tester)
+        response = client.post(
+            f"{equip_url(fighter)}?list=all", {"thing": key_of(armour)}
+        )
+
+        assert response.status_code == 302
+        assert response.url == f"{equip_url(fighter)}?list=all"
+        assert Assignment.objects.get(wargear=armour).miniature == fighter
+        gang.refresh_from_db()
+        assert gang.credits == 85
+        assert_reconciled(gang)
+
+    def test_a_fighter_with_no_list_is_pointed_at_it(
+        self, client, tester, fighter, library
+    ):
+        """No list is nothing to browse, which is exactly who the library
+        is for: the empty page names the tab, and the tab draws alone —
+        a rail of one, so a reader on it can see where they are."""
+        client.force_login(tester)
+        empty = client.get(equip_url(fighter))
+        assert empty.context["catalogue"] is None
+        assert 'href="?list=all"' in empty.content.decode()
+
+        response = client.get(f"{equip_url(fighter)}?list=all")
+        assert [tab["label"] for tab in response.context["collection_tabs"]] == [
+            "Unrestricted"
+        ]
+        assert 'aria-label="Which list"' in response.content.decode()
+        assert "Mesh Armour" in response.content.decode()
+
+
+class TestTheLibraryTabsQueryBudget:
+    """The library is hundreds of rows, and a query per row is how a page
+    stops loading. Pinned so it changes deliberately, and measured after
+    one warm request — the first request of a session writes its own row.
+    """
+
+    def measure(self, client, url):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        assert client.get(url).status_code == 200
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(url).status_code == 200
+        return len(captured.captured_queries)
+
+    @pytest.fixture
+    def stocked(self, default_pack):
+        from n26.library.authoring import create_subtype, create_weapon
+
+        walker = create_subtype("Walker")
+        create_wargear("Mesh Armour", price=15)
+        create_weapon(
+            "Autogun", price=20, profiles=[("", 0)], usable_by_subtypes=[walker]
+        )
+        return walker
+
+    def test_it_costs_a_fixed_number(
+        self, client, tester, fighter, house_list, stocked
+    ):
+        client.force_login(tester)
+
+        # The reader and their session, the gang, the fighter's card with
+        # its options, the roster behind the header's count, which held
+        # lists hold gear, the drawer's one question about campaigns —
+        # and the library: one query per gear kind, plus the guns' paid
+        # rounds, each kind's offers and each restricted kind's use
+        # lists. Never one per item.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 41
+
+    def test_it_costs_the_same_however_much_it_holds(
+        self, client, tester, fighter, house_list, stocked
+    ):
+        """Restricted weapons in particular: each carries three use
+        lists, and noting the library without them loaded would be three
+        queries a gun."""
+        from n26.library.authoring import create_weapon
+
+        client.force_login(tester)
+        url = f"{equip_url(fighter)}?list=all"
+
+        few = self.measure(client, url)
+        for index in range(5):
+            create_wargear(f"Filler {index}", price=5)
+            create_weapon(
+                f"Filler gun {index}",
+                price=5,
+                profiles=[("", 0)],
+                usable_by_subtypes=[stocked],
+            )
+        assert self.measure(client, url) == few

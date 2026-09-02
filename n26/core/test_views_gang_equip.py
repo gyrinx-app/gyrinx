@@ -123,7 +123,7 @@ class TestWhichListsAreOffered:
             "In stash",
             "House List",
             "Trading Post",
-            "All equipment",
+            "Unrestricted",
         ]
         assert tabs[1]["current"]
         assert tabs[-1]["href"] == "?list=all"
@@ -149,7 +149,7 @@ class TestWhichListsAreOffered:
         assert [tab["label"] for tab in tabs] == [
             "In stash",
             "House List",
-            "All equipment",
+            "Unrestricted",
         ]
 
     def test_a_shortened_tab_keeps_its_full_name_on_the_link(
@@ -185,7 +185,7 @@ class TestWhichListsAreOffered:
         assert response.context["catalogue"] is None
         assert [tab["label"] for tab in response.context["collection_tabs"]] == [
             "In stash",
-            "All equipment",
+            "Unrestricted",
         ]
         assert "No equipment lists yet" in response.content.decode()
 

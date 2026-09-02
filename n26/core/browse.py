@@ -357,7 +357,7 @@ def browse(collection, terms=None):
     return _sectioned(str(collection), lines.values())
 
 
-def all_gear(name, terms=EQUIPMENT_LIST):
+def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
     """Everything in the library a list could sell, browsed as one surface.
 
     Not a collection: nobody authored it and no gang holds it. The kinds
@@ -371,9 +371,11 @@ def all_gear(name, terms=EQUIPMENT_LIST):
     no gun above it would be a purchase with nowhere to land.
 
     What a discovery surface offers: the standard pack's content,
-    unarchived, the same question a picker asks. Nothing is loaded for
-    use notes — there is no fighter here to test a restriction against,
-    and noting this view afterwards would cost a query per line.
+    unarchived, the same question a picker asks. ``for_use_notes`` loads
+    the use lists of every kind that carries them, so a fighter's screen
+    can note this view (``with_use_notes``) for no query per line — the
+    same prefetch a sweep makes. Off, the lists are not loaded: the stash
+    is not a fighter, and noting nothing is not worth a query a kind.
 
     A fixed number of queries, one per kind plus its prefetches, however
     much the library holds.
@@ -382,8 +384,10 @@ def all_gear(name, terms=EQUIPMENT_LIST):
 
     from n26.library.models.assignable import (
         OPTION_OFFER_PATHS,
+        USABLE_BY_LISTS,
         Family,
         Optioned,
+        UsableBy,
         WeaponProfile,
     )
     from n26.library.models.collection import (
@@ -401,6 +405,8 @@ def all_gear(name, terms=EQUIPMENT_LIST):
         found = model.objects.selectable().select_related(
             "category__section", "built_ins"
         )
+        if for_use_notes and issubclass(model, UsableBy):
+            found = found.prefetch_related(*USABLE_BY_LISTS)
         if issubclass(model, Optioned):
             found = found.prefetch_related(*OPTION_OFFER_PATHS)
         if hasattr(model, "profiles"):

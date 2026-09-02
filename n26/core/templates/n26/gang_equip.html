@@ -81,6 +81,9 @@ sell is managed from the In stash tab.
                     </c-ui.navlist.item>
                 {% endfor %}
             </c-ui.navlist>
+            {% if everything %}
+                {% include "n26/includes/unrestricted_note.html" %}
+            {% endif %}
             {% if post_is_shut %}
                 {% include "n26/includes/not_tracking_tp.html" %}
             {% endif %}
@@ -103,10 +106,9 @@ sell is managed from the In stash tab.
             </form>
         {% else %}
             <p class="text-muted">
-                No equipment lists yet — this gang has none of its own to browse.
-                Lists arrive with the gang's own content; everything the library
-                holds is on the All equipment tab, and everything held is on
-                the In stash tab.
+                No equipment lists yet. Lists arrive with the gang's own content.
+                Every item in the library is on the Unrestricted tab, and
+                everything the gang holds is on the In stash tab.
             </p>
         {% endif %}
     </div>
