@@ -195,9 +195,11 @@ class Listing:
 class OwnedPartRow:
     """Something hanging off a copy the fighter holds: ammo, an accessory.
 
-    No move among its actions. A part belongs to the thing it hangs off
-    and ``Operation.move`` refuses an assignment with a parent, so
-    offering one would be offering a click that cannot work.
+    A bought accessory can come off and stay held, or move onto another
+    gun this fighter already carries — those acts land in ``more`` when
+    the copy carries an address for them. A firing line cannot leave its
+    gun, and a sight the gun came with cannot either: both stay Sell,
+    Refund and Remove.
     """
 
     id: str
@@ -418,6 +420,22 @@ def copy_row(copy, refunds=True):
                 # the wrong gun. Removed rather than deleted, because what
                 # is left afterwards is still the fighter's gun.
                 more=(
+                    # First the acts that leave the fighter holding it,
+                    # then the ways of parting with it — the same order
+                    # a loose copy uses. Each is drawn only where the
+                    # copy has an address: detach where a bought
+                    # accessory can stay held, fitting where another gun
+                    # on this card can take it.
+                    *(
+                        (Action("Detach", LINK, part.detach_href, SECONDARY),)
+                        if part.detach_href
+                        else ()
+                    ),
+                    *(
+                        (Action("Fit to a weapon", LINK, part.fit_href, SECONDARY),)
+                        if part.fit_href
+                        else ()
+                    ),
                     *(
                         (Action("Refund", LINK, part.refund_href, SECONDARY),)
                         if refunds

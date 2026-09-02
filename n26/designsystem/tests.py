@@ -146,6 +146,12 @@ class TestTheOwnedDialogsPage:
     """The two questions the panel grew reach the gallery drawn, not as a
     polite fallback."""
 
+    def test_taking_an_accessory_off_draws_its_own_question(self, reader):
+        page = reader.get("/n26/design/c/owned-dialog/").content.decode()
+        assert "Taking an accessory off a gun" in page
+        assert "Detach Infra-sight?" in page
+        assert 'name="to" value="detach"' in page
+
     def test_the_accessory_picker_draws_its_list(self, reader):
         page = reader.get("/n26/design/c/owned-dialog/").content.decode()
         assert "Fitting an accessory" in page

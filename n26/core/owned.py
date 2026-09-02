@@ -48,7 +48,16 @@ class EquipHost:
 
 #: URL parameters that can open one assignment dialog. Their order is the
 #: precedence when an address names more than one.
-DIALOGS = ("sell", "reassign", "fit", "refund", "remove", "accessorise", "rechoose")
+DIALOGS = (
+    "sell",
+    "reassign",
+    "fit",
+    "detach",
+    "refund",
+    "remove",
+    "accessorise",
+    "rechoose",
+)
 
 
 def with_query(url, **params):
@@ -95,6 +104,22 @@ def is_detachable(thing):
     return is_possession(thing) and not isinstance(thing, WeaponProfile)
 
 
+def can_unbolt(assignment):
+    """Can this be taken off what it hangs from and still held?
+
+    The same rule a sale uses when it asks which accessories to keep
+    (:func:`n26.core.operations.detachable_children`), asked of one
+    assignment rather than of a parent's children. A firing line cannot
+    — it *is* the weapon. A sight the gun came with cannot — it belongs
+    to the package, and selling that package takes it back.
+    """
+    return (
+        assignment.parent_id is not None
+        and assignment.caused_by_id is None
+        and is_detachable(assignment.assignable)
+    )
+
+
 def thing_key(thing):
     """One string naming a piece of content — what a form submits to name it.
 
@@ -108,7 +133,9 @@ def thing_key(thing):
 class OwnedPart:
     """Something hanging off a thing the model owns: ammo, an accessory.
 
-    No re-homing: a part belongs to its parent and moves only with it.
+    A bought accessory can come off and stay held; a firing line and a
+    sight the gun came with cannot, and those two carry no detach or fit
+    address.
     """
 
     id: str
@@ -121,6 +148,14 @@ class OwnedPart:
     sell_href: str
     refund_href: str
     remove_href: str
+    #: Where to go to take this off and keep it on this fighter. Only a
+    #: bought accessory has one — the same rule a sale uses when it asks
+    #: which extras to keep.
+    detach_href: str = ""
+    #: Where to go to bolt this onto a different gun this fighter is
+    #: carrying. Empty where there is no other gun, or where the part
+    #: cannot be unbolted.
+    fit_href: str = ""
 
 
 @dataclass(frozen=True)
@@ -208,7 +243,7 @@ def _part_name(node):
     return node.name
 
 
-def _parts_of(node, at):
+def _parts_of(node, host):
     """The children drawn beneath a thing, each with an address of its own.
 
     A weapon's *unnamed* profile is the weapon — the book prints an
@@ -216,12 +251,25 @@ def _parts_of(node, at):
     the same rule ``n26.render.WeaponLine.own_line`` keeps for the card.
     It also cannot be sold apart from its gun, which is the same fact
     said about money.
+
+    A bought accessory can leave the gun and stay on this fighter, or
+    move onto another gun they already hold. Those addresses are only
+    written where the act has somewhere to go: the stash is never asked
+    to unbolt onto a fighter, and a card with one gun has nowhere else
+    to fit the sight.
     """
+    at = host.at
+    other_guns = tuple(
+        weapon
+        for weapon in weapons_on(host)
+        if weapon.assignment.pk != node.assignment.pk
+    )
     parts = []
     for child in node.children:
         if child.is_weapon_profile and not child.assignable.name:
             continue
         pk = str(child.assignment.pk)
+        keepable = can_unbolt(child.assignment)
         parts.append(
             OwnedPart(
                 id=pk,
@@ -231,6 +279,10 @@ def _parts_of(node, at):
                 sell_href=with_query(at, sell=pk),
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
+                detach_href=(
+                    with_query(at, detach=pk) if keepable and not host.is_stash else ""
+                ),
+                fit_href=(with_query(at, fit=pk) if keepable and other_guns else ""),
             )
         )
     return tuple(parts)
@@ -297,7 +349,7 @@ def possessions(host: EquipHost):
                 key=key,
                 name=node.name,
                 rating=node.rating,
-                parts=_parts_of(node, at),
+                parts=_parts_of(node, host),
                 sell_href=with_query(at, sell=pk),
                 reassign_href=with_query(at, reassign=pk),
                 refund_href=with_query(at, refund=pk),

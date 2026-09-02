@@ -34,11 +34,12 @@ The acts are deliberately distinct, and the ledger says which happened:
     sales at two prices.
 ``reassign``
     A move to another model, to the stash, or onto a weapon. No money,
-    and no re-pricing. The last of the three is how an accessory is
-    fitted to a gun: the same act, one level down the chain. It is asked
-    as a question of its own — ``?fit=`` rather than ``?reassign=`` —
-    because which model holds a thing and which gun it is bolted to are
-    not one question, however much they are one act.
+    and no re-pricing. Fitting an accessory to a gun, and taking one off
+    so the fighter still holds it, are the same act one level down the
+    chain. Each is asked as a question of its own — ``?fit=`` and
+    ``?detach=`` rather than ``?reassign=`` — because which model holds
+    a thing, which gun it is bolted to, and whether it stays held
+    unfitted are not one question, however much they are one act.
 ``refund``
     Undoing the purchase: every credit that was paid comes back. The amount
     paid and the rating part company at the first discount, which is why
@@ -65,6 +66,7 @@ from django.views.decorators.http import require_POST
 from n26.core.owned import (
     DIALOGS,
     EquipHost,
+    can_unbolt,
     is_possession,
     thing_key,
     weapons_on,
@@ -236,10 +238,11 @@ def _asked(request):
 
 
 #: The act a question submits to, where that is not the question's own
-#: name. Fitting an accessory to a gun is asked on its own, because
-#: Reassign is about which model holds a thing and this is not, and it is
+#: name. Fitting an accessory to a gun, and taking one off so the
+#: fighter still holds it, are asked on their own, because Reassign is
+#: about which model holds a thing and these are not, and both are
 #: answered by the move that does it.
-ROUTES = {"fit": "reassign"}
+ROUTES = {"fit": "reassign", "detach": "reassign"}
 
 
 def _panel(request, assignment, kind, at):
@@ -431,19 +434,41 @@ def owned_dialog(request, host: EquipHost):
         # naming something else draws no dialog at all. Without this a
         # gun's own address opens a picker holding that same gun, whose
         # answer would be attaching it to itself — a screen must not ask
-        # a question its answer refuses.
+        # a question its answer refuses. A sight the gun came with is
+        # the same: it belongs to the package, and a picker would offer
+        # a click that cannot keep it.
         if assignment.weapon_accessory_id is None:
             return None
-        # Every gun on the card, and not only the ones the accessory was
-        # written for: what fits what is information rather than a gate,
-        # and an owner may bolt anything to anything.
-        weapons = weapons_on(host)
+        if assignment.parent_id is not None and not can_unbolt(assignment):
+            return None
+        # Every gun on the card except the one it already hangs off, and
+        # not only the ones the accessory was written for: what fits
+        # what is information rather than a gate, and an owner may bolt
+        # anything to anything.
+        weapons = tuple(
+            node
+            for node in weapons_on(host)
+            if node.assignment.pk != assignment.parent_id
+        )
         return dialog | {
             "title": f"Fit {name} to a weapon",
             "weapons": [
                 {"pk": str(node.assignment.pk), "label": node.name} for node in weapons
             ],
             "submit_label": "Fit" if weapons else "",
+            "submit_variant": "primary",
+        }
+
+    if kind == "detach":
+        # Taking it off so this fighter still holds it. A URL naming
+        # anything that cannot be unbolted draws no dialog: the control
+        # is not drawn for those, and a hand-made address is a page
+        # without a panel rather than a question whose answer refuses.
+        if host.is_stash or not can_unbolt(assignment):
+            return None
+        return dialog | {
+            "title": f"Detach {name}?",
+            "submit_label": "Detach",
             "submit_variant": "primary",
         }
 
@@ -735,10 +760,12 @@ def reassign_assignment(request, pk):
     Nothing is charged and nothing is re-priced: the thing keeps the
     rating it was pinned at, and only where it lives changes.
 
-    Three destinations, told apart by ``to``. ``stash`` and a named
+    Four destinations, told apart by ``to``. ``stash`` and a named
     ``miniature`` are the two a fighter's own listing row offers. ``weapon``
-    names another assignment, which is how a stashed accessory is
-    bolted back onto a gun — the same act, one level down the chain.
+    names another assignment, which is how an accessory is bolted onto
+    a gun — the same act, one level down the chain. ``detach`` is the
+    other way on that chain: the accessory comes off the gun and this
+    fighter still holds it, unfitted.
 
     What may not be moved at all is ``Operation.move``'s answer rather
     than this view's: a weapon's firing line is part of its weapon, and
@@ -760,25 +787,38 @@ def reassign_assignment(request, pk):
     wanted = request.POST.get("to")
     if wanted == "stash":
         destination = getattr(gang, "stash", None)
+    elif wanted == "detach":
+        # This fighter, as a root of their own. The destination is the
+        # model that already holds it — read off the assignment, not the
+        # form, so a hand-made click cannot name somebody else.
+        destination = assignment.miniature_root if can_unbolt(assignment) else None
     elif wanted == "weapon":
-        try:
-            destination = (
-                Assignment.objects.filter(
-                    pk=request.POST.get("weapon", ""),
-                    gang_root=gang,
-                    archived=False,
-                )
-                .exclude(weapon=None)
-                # Nothing hangs off itself. The operation says so too, but
-                # it says it by raising rather than refusing, so a
-                # hand-made click naming its own weapon is answered here
-                # with the same sentence as any other impossible
-                # destination.
-                .exclude(pk=assignment.pk)
-                .first()
-            )
-        except ValidationError:
+        # A sight the gun came with belongs to the package. Moving it
+        # onto another gun would offer a keep the sale of that package
+        # takes back.
+        if assignment.parent_id is not None and not can_unbolt(assignment):
             destination = None
+        else:
+            try:
+                destination = (
+                    Assignment.objects.filter(
+                        pk=request.POST.get("weapon", ""),
+                        gang_root=gang,
+                        archived=False,
+                    )
+                    .exclude(weapon=None)
+                    # Nothing hangs off itself, and nothing moves onto
+                    # the gun it already hangs off. The operation says
+                    # the first by raising rather than refusing, so a
+                    # hand-made click naming either is answered here
+                    # with the same sentence as any other impossible
+                    # destination.
+                    .exclude(pk=assignment.pk)
+                    .exclude(pk=assignment.parent_id)
+                    .first()
+                )
+            except ValidationError:
+                destination = None
     else:
         try:
             destination = Miniature.objects.filter(
@@ -793,11 +833,17 @@ def reassign_assignment(request, pk):
         return _unchanged(request, back)
 
     # Fitting takes the thing out of a row of its own and draws it under
-    # the gun instead, so two rows on the screen change. The gun's row
-    # counts only where the reader is looking at it: a stash fit reaches
-    # a gun on somebody's card, and that is not the screen this answers.
-    landed = _row_behind(destination) if isinstance(destination, Assignment) else None
-    also = landed.key if landed and landed.miniature == touched.miniature else ""
+    # the gun instead; detaching does the reverse. Either way two rows
+    # on the screen change. The other row counts only where the reader
+    # is looking at it: a stash fit reaches a gun on somebody's card,
+    # and that is not the screen this answers.
+    if wanted == "detach":
+        also = thing_key(assignment.assignable)
+    else:
+        landed = (
+            _row_behind(destination) if isinstance(destination, Assignment) else None
+        )
+        also = landed.key if landed and landed.miniature == touched.miniature else ""
 
     try:
         with operation(gang, actor=request.user) as op:
@@ -815,12 +861,14 @@ def reassign_assignment(request, pk):
         miniature_id=str(came_from.pk) if came_from else None,
         thing=name,
         action="reassign",
-        to=wanted if wanted in ("stash", "weapon") else "model",
+        to=wanted if wanted in ("stash", "weapon", "detach") else "model",
     )
     if wanted == "stash":
         messages.success(request, f"Moved {name} to the stash.")
     elif wanted == "weapon":
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
+    elif wanted == "detach":
+        messages.success(request, f"Detached {name}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
     return _acted(request, touched, gang, back, also=also)

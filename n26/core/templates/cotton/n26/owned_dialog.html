@@ -3,20 +3,20 @@
 
     <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
 
-Six questions in one panel — sell, move, fit, refund, remove, accessorise —
-since the difference between them is a sentence and, for four of them, one
-control. Which is being asked, along with the figures, the roster, the guns
-and the accessories that fit, arrives in `dialog` from n26.core.views.owned.
-The panel itself is <c-n26.dialog>, where the open-state rules are written
-down.
+Sell, move, fit, detach, refund, remove, accessorise and rechoose share
+one panel, since the difference between them is a sentence and, for most
+of them, one control. Which is being asked, along with the figures, the
+roster, the guns and the accessories that fit, arrives in `dialog` from
+n26.core.views.owned. The panel itself is <c-n26.dialog>, where the
+open-state rules are written down.
 
 Only the clicked submit is sent, so a move is told apart by `to=stash`
-arriving. Move and fit are one act with one address, asked as two questions:
-which model holds a thing is not the same question as which gun it is bolted
-to. Three of the six can end up with nothing to submit: a move with nobody
-else on the roster posts a hidden to=stash and draws no select, a fit draws
-no submit where the card carries no gun, and accessorise draws none when
-nothing in the library fits the weapon.
+arriving. Move, fit and detach are one act with one address, asked as
+three questions: which model holds a thing is not the same question as
+which gun it is bolted to, or whether it stays held unfitted. A move
+with nobody else on the roster posts a hidden to=stash and draws no
+select, a fit draws no submit where the card carries no gun, and
+accessorise draws none when nothing in the library fits the weapon.
 
 Accessorise is also the one an equip page draws for every weapon on it rather
 than only for the one the URL names, so those panels are passed open="" and an
@@ -79,6 +79,9 @@ itself.
             {% else %}
                 There is no weapon here to fit it to.
             {% endif %}
+        {% elif dialog.kind == "detach" %}
+            {{ dialog.name }} is taken off the weapon. This fighter still holds
+            it.
         {% elif dialog.kind == "refund" %}
             {{ dialog.sum }} It and anything attached to it are removed from the
             gang, undoing the purchase.
@@ -149,7 +152,9 @@ itself.
         </c-n26.radio-cards>
     {% endif %}
 
-    {% if dialog.kind == "reassign" or dialog.kind == "fit" %}
+    {% if dialog.kind == "detach" %}
+        <input type="hidden" name="to" value="detach">
+    {% elif dialog.kind == "reassign" or dialog.kind == "fit" %}
         {% if dialog.weapons %}
             <input type="hidden" name="to" value="weapon">
             <c-ui.field label="Weapon" for="reassign-weapon">
