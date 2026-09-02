@@ -825,23 +825,25 @@ def reassign_assignment(request, pk):
             destination = None
         else:
             try:
-                destination = (
-                    Assignment.objects.filter(
-                        pk=request.POST.get("weapon", ""),
-                        gang_root=gang,
-                        archived=False,
-                    )
-                    .exclude(weapon=None)
-                    # Nothing hangs off itself, and nothing moves onto
-                    # the gun it already hangs off. The operation says
-                    # the first by raising rather than refusing, so a
-                    # hand-made click naming either is answered here
-                    # with the same sentence as any other impossible
-                    # destination.
-                    .exclude(pk=assignment.pk)
-                    .exclude(pk=assignment.parent_id)
-                    .first()
-                )
+                named = Assignment.objects.filter(
+                    pk=request.POST.get("weapon", ""),
+                    gang_root=gang,
+                    archived=False,
+                ).exclude(weapon=None)
+                # Nothing hangs off itself, and nothing moves onto
+                # the gun it already hangs off. The operation says
+                # the first by raising rather than refusing, so a
+                # hand-made click naming either is answered here
+                # with the same sentence as any other impossible
+                # destination.
+                named = named.exclude(pk=assignment.pk).exclude(pk=assignment.parent_id)
+                # A fighter's Fit picker only names that fighter's
+                # guns. The stash picker names the roster, so this
+                # filter stays off when the accessory is not on a
+                # model.
+                if assignment.miniature_root_id:
+                    named = named.filter(miniature_root=assignment.miniature_root)
+                destination = named.first()
             except ValidationError:
                 destination = None
     else:

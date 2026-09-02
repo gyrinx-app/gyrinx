@@ -1359,6 +1359,33 @@ class TestDetachingAnAccessory:
         assert "There is nowhere to move" in response.content.decode()
         assert_reconciled(gang)
 
+    def test_another_fighters_gun_is_nowhere_to_fit_it(
+        self, client, tester, gang, fighter, other, gun, bolted
+    ):
+        """The picker only names this fighter's guns, so a click that
+        names somebody else's is hand-made — and it fits nothing."""
+        from n26.library.authoring import create_weapon
+
+        with operation(gang, actor=tester) as op:
+            theirs = op.buy(
+                other,
+                thing=create_weapon("Autogun", price=20, profiles=[("", 0)]),
+                paid=20,
+            )
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", bolted),
+            {"to": "weapon", "weapon": str(theirs.pk)},
+            follow=True,
+        )
+
+        bolted.refresh_from_db()
+        assert bolted.parent_id == gun.pk
+        assert bolted.miniature_root_id == fighter.pk
+        assert "There is nowhere to move" in response.content.decode()
+        assert_reconciled(gang)
+
 
 @pytest.fixture
 def house_list(gang, tester):

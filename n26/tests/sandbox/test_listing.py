@@ -30,6 +30,7 @@ from n26.core.listing import (
     price_field,
 )
 from n26.core.owned import owned_things, thing_key
+from n26.core.reconcile import assert_reconciled
 from n26.library.authoring import add_weapon_profile
 from n26.tests.sandbox.actions import (
     assign,
@@ -343,7 +344,7 @@ class TestWhatACopyOffers:
         assert [action.label for action in part.more] == ["Refund", "Remove"]
         assert part.sell.target == f"{AT}&sell={ammo.pk}"
 
-    def test_a_bought_accessory_offers_detach(self, fighter, house_list, armed):
+    def test_a_bought_accessory_offers_detach(self, gang, fighter, house_list, armed):
         """A sight is gear in its own right. Taking it off leaves the
         fighter holding it, so the row asks that before the ways of
         parting with it."""
@@ -370,6 +371,7 @@ class TestWhatACopyOffers:
         ]
         assert part.more[0].target == f"{AT}&detach={bolted.pk}"
         assert part.more[1].target == f"{AT}&fit={bolted.pk}"
+        assert_reconciled(gang)
 
 
 class TestWhatARowPrints:
