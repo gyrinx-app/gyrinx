@@ -1070,6 +1070,11 @@ class TestDetachingAnAccessory:
             return op.buy(gun, thing=sight)
 
     @pytest.fixture
+    def loose(self, gang, tester, fighter, sight):
+        with operation(gang, actor=tester) as op:
+            return op.buy(fighter, thing=sight)
+
+    @pytest.fixture
     def second_gun(self, gang, fighter, tester):
         from n26.library.authoring import create_weapon
 
@@ -1311,6 +1316,41 @@ class TestDetachingAnAccessory:
         assert "Only a bought accessory can come off." in response.content.decode()
         builtin.refresh_from_db()
         assert builtin.parent_id == gun.pk
+        assert_reconciled(gang)
+
+    def test_a_hand_made_move_of_a_built_in_to_the_stash_is_refused(
+        self, client, tester, gang, gun, sight
+    ):
+        """The rule is about the part, so it holds whichever destination
+        a hand-made click names."""
+        from n26.core.models import Reason
+
+        with operation(gang, actor=tester) as op:
+            builtin = op.assign(
+                sight, parent=gun, caused_by=gun, paid=0, reason=Reason.DEFAULT
+            )
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", builtin), {"to": "stash"}, follow=True
+        )
+
+        assert "Only a bought accessory can come off." in response.content.decode()
+        builtin.refresh_from_db()
+        assert builtin.parent_id == gun.pk
+        assert builtin.stash_id is None
+        assert_reconciled(gang)
+
+    def test_a_loose_accessory_has_nothing_to_come_off(
+        self, client, tester, gang, fighter, loose
+    ):
+        client.force_login(tester)
+
+        response = client.post(url("n26-reassign", loose), {"to": "held"}, follow=True)
+
+        assert "There is nowhere to move" in response.content.decode()
+        loose.refresh_from_db()
+        assert loose.miniature_root_id == fighter.pk
         assert_reconciled(gang)
 
     def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun):

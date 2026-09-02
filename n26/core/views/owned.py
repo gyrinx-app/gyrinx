@@ -66,6 +66,7 @@ from n26.core.owned import (
     DIALOGS,
     EquipHost,
     can_unbolt,
+    is_detachable,
     is_possession,
     thing_key,
     weapons_on,
@@ -791,24 +792,38 @@ def reassign_assignment(request, pk):
     name = str(assignment.assignable)
 
     # Why a firing line or a sight the gun came with cannot leave the
-    # weapon. Said to a Detach and to a Fit click alike: the rule is the
-    # same whichever destination they named.
+    # weapon. Said whichever destination the click named: the rule is
+    # about the part, not about where it was going.
     stays_on = (
-        f"You cannot take {name} off the weapon. Only a bought accessory can come off."
+        f"You cannot take {name} off {off}. Only a bought accessory can come off."
     )
+    # A sight the gun came with belongs to the package. Moving it
+    # anywhere — the stash, another model, another gun — would leave the
+    # gang holding something the sale of this gun is meant to take with
+    # it. The operation does not refuse this itself, so it is refused
+    # here before any destination is read. A firing line is left to the
+    # operation, which refuses it in its own words.
+    if (
+        assignment.parent_id is not None
+        and assignment.caused_by_id is not None
+        and is_detachable(assignment.assignable)
+    ):
+        messages.error(request, stays_on)
+        return _unchanged(request, back)
 
     wanted = request.POST.get("to")
     if wanted == "stash":
         destination = getattr(gang, "stash", None)
     elif wanted == "held":
         # Same host, unfitted. A sight on a fighter's gun stays with
-        # that fighter; one on a stashed gun stays in the stash. A copy
-        # that cannot come off — a firing line, a sight the gun came
-        # with, something already loose — is refused in words.
-        if not can_unbolt(assignment):
+        # that fighter; one on a stashed gun stays in the stash. Something
+        # already loose has nothing to come off; a firing line cannot.
+        if assignment.parent_id is None:
+            destination = None
+        elif not can_unbolt(assignment):
             messages.error(request, stays_on)
             return _unchanged(request, back)
-        if assignment.miniature_root_id:
+        elif assignment.miniature_root_id:
             destination = assignment.miniature_root
         else:
             destination = getattr(gang, "stash", None)
@@ -833,12 +848,6 @@ def reassign_assignment(request, pk):
             )
         except ValidationError:
             destination = None
-        # A sight the gun came with belongs to the package. Moving it
-        # onto another gun would leave the gang holding something the
-        # sale of this gun is meant to take with it.
-        if destination is not None and assignment.caused_by_id is not None:
-            messages.error(request, stays_on)
-            return _unchanged(request, back)
     else:
         try:
             destination = Miniature.objects.filter(
