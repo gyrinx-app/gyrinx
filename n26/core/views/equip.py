@@ -881,9 +881,15 @@ def equip(request, pk):
     # The whole catalogue posts back to the list it was drawn from — only
     # that: the picker's own state travels in the form, not in the address
     # it posts to.
-    scope = ALL_SCOPE if everything else chosen.pk if chosen is not None else ""
-    action = f"{request.path}?list={scope}" if scope else request.path
-    browsing = ALL_BROWSING if everything else str(chosen or "")
+    if everything:
+        action = f"{request.path}?list={ALL_SCOPE}"
+        browsing = ALL_BROWSING
+    elif chosen is not None:
+        action = f"{request.path}?list={chosen.pk}"
+        browsing = str(chosen)
+    else:
+        action = request.path
+        browsing = ""
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
 
