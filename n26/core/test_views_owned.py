@@ -1160,6 +1160,11 @@ class TestDetachingAnAccessory:
         assert dialog["title"] == "Fit Telescopic sight to a weapon"
         assert dialog["weapons"] == [{"pk": str(other_gun.pk), "label": "Stub gun"}]
 
+    def test_one_gun_is_nowhere_to_fit_a_bolted_accessory(self, fighter, gun, bolted):
+        """The control is not drawn, so a hand-made address opens no
+        panel — not an empty picker that says there is no weapon."""
+        assert self.dialog(fighter, fit=str(bolted.pk)) is None
+
     def test_a_built_in_sight_is_asked_neither_question(
         self, gang, tester, fighter, gun, sight
     ):
@@ -1315,6 +1320,29 @@ class TestDetachingAnAccessory:
         request = RequestFactory().get(AT, {"fit": str(bolted.pk)})
         host = EquipHost.stash(gang, build_gang_card(gang), AT)
         assert owned_dialog(request, host) is None
+
+    def test_a_stash_click_is_told_detach_is_for_a_fighter(
+        self, client, tester, gang, sight, stash
+    ):
+        from n26.library.authoring import create_weapon
+
+        with operation(gang, actor=tester) as op:
+            stash_gun = op.buy(
+                stash,
+                thing=create_weapon("Stub gun", price=5, profiles=[("", 0)]),
+                paid=5,
+            )
+            bolted = op.buy(stash_gun, thing=sight)
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", bolted), {"to": "detach"}, follow=True
+        )
+
+        bolted.refresh_from_db()
+        assert bolted.parent_id == stash_gun.pk
+        assert "You cannot take Telescopic sight off here." in response.content.decode()
+        assert_reconciled(gang)
 
     def test_the_gun_it_already_hangs_off_is_nowhere_to_fit_it(
         self, client, tester, gang, gun, bolted

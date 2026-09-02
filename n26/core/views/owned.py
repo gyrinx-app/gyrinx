@@ -455,6 +455,12 @@ def owned_dialog(request, host: EquipHost):
             for node in weapons_on(host)
             if node.assignment.pk != assignment.parent_id
         )
+        # Already on a gun, and no other gun on this card: the control
+        # is not drawn, so a hand-made address is a page without a
+        # panel. A loose accessory with no gun still gets the empty
+        # panel — that is the question with nothing to name.
+        if assignment.parent_id is not None and not weapons:
+            return None
         return dialog | {
             "title": f"Fit {name} to a weapon",
             "weapons": [
@@ -804,6 +810,13 @@ def reassign_assignment(request, pk):
             )
             return _unchanged(request, back)
         destination = assignment.miniature_root
+        if destination is None:
+            messages.error(
+                request,
+                f"You cannot take {name} off here. "
+                "Detach leaves it on the fighter who holds it.",
+            )
+            return _unchanged(request, back)
     elif wanted == "weapon":
         # A sight the gun came with belongs to the package. Moving it
         # onto another gun would offer a keep the sale of that package
