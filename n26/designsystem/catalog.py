@@ -1112,7 +1112,7 @@ GROUPS: list[Group] = [
                     "cannot work out from the page — a sale states its "
                     "arithmetic, a move that it charges nothing, a removal "
                     "that the money stays spent, a refund what was paid, a "
-                    "detach that the fighter still holds it. The stash is a "
+                    "detach that they still hold it. The stash is a "
                     "button and the roster a select, and only the clicked "
                     "submit is sent, which is the whole of how the view tells "
                     "those two apart. Selling something with a part bolted to "
