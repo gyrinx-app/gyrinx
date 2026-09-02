@@ -800,8 +800,8 @@ def reassign_assignment(request, pk):
     # A sight the gun came with belongs to the package. Moving it
     # anywhere — the stash, another model, another gun — would leave the
     # gang holding something the sale of this gun is meant to take with
-    # it. The operation does not refuse this itself, so it is refused
-    # here before any destination is read. A firing line is left to the
+    # it. The operation does not refuse this itself, so the view does,
+    # whichever destination was named. A firing line is left to the
     # operation, which refuses it in its own words.
     if (
         assignment.parent_id is not None

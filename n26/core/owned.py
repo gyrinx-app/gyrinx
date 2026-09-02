@@ -111,7 +111,9 @@ def can_unbolt(assignment):
     firing line cannot. This is about *this copy*. A sight the gun came
     with belongs to the package — what caused it goes, so it goes — and
     offering to take one off would be offering something the sale of the
-    gun takes straight back.
+    gun takes straight back. ``Operation.move`` refuses only the kind;
+    the copy's rule is held by whoever asks it, so a view refuses a
+    built-in itself before reaching the operation.
     """
     return (
         assignment.parent_id is not None

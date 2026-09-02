@@ -1109,7 +1109,7 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "One panel for seven questions: sell, move, refund, remove, "
+                    "One panel for every question: sell, move, refund, remove, "
                     "fit an accessory, take one off a gun, and change what a "
                     "thing was bought with. Each states what a reader cannot "
                     "work out from the page — a sale states its arithmetic, a "
