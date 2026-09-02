@@ -441,6 +441,11 @@ def owned_dialog(request, host: EquipHost):
             return None
         if assignment.parent_id is not None and not can_unbolt(assignment):
             return None
+        # Stash fitting is Reassign: that picker lists every gun on the
+        # roster. This question only sees the host's own guns, so a
+        # stash address would offer the wrong set.
+        if host.is_stash:
+            return None
         # Every gun on the card except the one it already hangs off, and
         # not only the ones the accessory was written for: what fits
         # what is information rather than a gate, and an owner may bolt
@@ -791,7 +796,14 @@ def reassign_assignment(request, pk):
         # This fighter, as a root of their own. The destination is the
         # model that already holds it — read off the assignment, not the
         # form, so a hand-made click cannot name somebody else.
-        destination = assignment.miniature_root if can_unbolt(assignment) else None
+        if not can_unbolt(assignment):
+            messages.error(
+                request,
+                f"You cannot take {name} off the weapon. "
+                "Only a bought accessory can come off and stay held.",
+            )
+            return _unchanged(request, back)
+        destination = assignment.miniature_root
     elif wanted == "weapon":
         # A sight the gun came with belongs to the package. Moving it
         # onto another gun would offer a keep the sale of that package

@@ -255,8 +255,9 @@ def _parts_of(node, host):
     A bought accessory can leave the gun and stay on this fighter, or
     move onto another gun they already hold. Those addresses are only
     written where the act has somewhere to go: the stash is never asked
-    to unbolt onto a fighter, and a card with one gun has nowhere else
-    to fit the sight.
+    to unbolt onto a fighter, and a stash fit goes through Reassign so
+    it can name every gun on the roster. A card with one gun has
+    nowhere else to fit the sight.
     """
     at = host.at
     other_guns = tuple(
@@ -264,6 +265,10 @@ def _parts_of(node, host):
         for weapon in weapons_on(host)
         if weapon.assignment.pk != node.assignment.pk
     )
+    # Same gate a loose accessory uses: the stash never draws ?fit= or
+    # ?detach=. Fitting from the stash is Reassign, which lists the
+    # roster's guns; a fighter-scoped picker would only see stash guns.
+    on_fighter = not host.is_stash
     parts = []
     for child in node.children:
         if child.is_weapon_profile and not child.assignable.name:
@@ -280,9 +285,13 @@ def _parts_of(node, host):
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
                 detach_href=(
-                    with_query(at, detach=pk) if keepable and not host.is_stash else ""
+                    with_query(at, detach=pk) if keepable and on_fighter else ""
                 ),
-                fit_href=(with_query(at, fit=pk) if keepable and other_guns else ""),
+                fit_href=(
+                    with_query(at, fit=pk)
+                    if keepable and on_fighter and other_guns
+                    else ""
+                ),
             )
         )
     return tuple(parts)

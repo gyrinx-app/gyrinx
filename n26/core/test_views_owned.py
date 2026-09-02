@@ -1253,8 +1253,68 @@ class TestDetachingAnAccessory:
 
         builtin.refresh_from_db()
         assert builtin.parent_id == gun.pk
-        assert "There is nowhere to move" in response.content.decode()
+        assert "You cannot take Telescopic sight off the weapon." in (
+            response.content.decode()
+        )
         assert_reconciled(gang)
+
+    def test_a_stash_gun_offers_the_part_no_fit_or_detach(
+        self, gang, tester, sight, stash
+    ):
+        """Stash accessories are fitted through Reassign, which lists
+        every gun on the roster. A ?fit= address would only see stash
+        guns, and Detach would ask to unbolt onto a fighter who is not
+        holding it."""
+        from n26.core.card import build_gang_card
+        from n26.core.owned import EquipHost, possessions
+        from n26.library.authoring import create_weapon
+
+        with operation(gang, actor=tester) as op:
+            stash_gun = op.buy(
+                stash,
+                thing=create_weapon("Stub gun", price=5, profiles=[("", 0)]),
+                paid=5,
+            )
+            bolted = op.buy(stash_gun, thing=sight)
+            op.buy(
+                stash,
+                thing=create_weapon("Autogun", price=20, profiles=[("", 0)]),
+                paid=20,
+            )
+
+        host = EquipHost.stash(gang, build_gang_card(gang), AT)
+        part = None
+        for copies in possessions(host).values():
+            for copy in copies:
+                for child in copy.parts:
+                    if child.id == str(bolted.pk):
+                        part = child
+        assert part is not None
+        assert part.detach_href == ""
+        assert part.fit_href == ""
+
+    def test_a_stash_address_does_not_open_the_fighter_fit_question(
+        self, gang, tester, sight, stash
+    ):
+        """Hand-made ?fit= on the stash must not draw the fighter picker."""
+        from django.test import RequestFactory
+
+        from n26.core.card import build_gang_card
+        from n26.core.owned import EquipHost
+        from n26.core.views.owned import owned_dialog
+        from n26.library.authoring import create_weapon
+
+        with operation(gang, actor=tester) as op:
+            stash_gun = op.buy(
+                stash,
+                thing=create_weapon("Stub gun", price=5, profiles=[("", 0)]),
+                paid=5,
+            )
+            bolted = op.buy(stash_gun, thing=sight)
+
+        request = RequestFactory().get(AT, {"fit": str(bolted.pk)})
+        host = EquipHost.stash(gang, build_gang_card(gang), AT)
+        assert owned_dialog(request, host) is None
 
     def test_the_gun_it_already_hangs_off_is_nowhere_to_fit_it(
         self, client, tester, gang, gun, bolted
