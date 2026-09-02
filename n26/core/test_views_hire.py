@@ -90,6 +90,16 @@ def test_the_list_draws_with_prices(client, tester, gang, ganger):
     assert "55" in body
 
 
+def test_enter_in_the_search_box_does_not_hire(client, tester, gang, ganger):
+    """The search bar sits inside the hire form. Enter in a field with no
+    submit of its own is the browser's implicit submission of the first
+    Hire in the list, whether or not the filter is showing that row."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert "@keydown.enter.prevent" in body
+    assert 'name="hire"' in body
+
+
 def card_url(gang, profile):
     return reverse("n26-hire-card", args=[gang.pk, profile.pk])
 

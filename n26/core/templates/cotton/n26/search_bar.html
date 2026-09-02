@@ -18,6 +18,11 @@ The submit is drawn only where clicking it does something — any bar that is no
 live, and a live one given an `action`. A live bar with no action has its
 submit prevented; there is nothing to ask for that is not already on screen.
 
+A live bar that draws no submit also swallows Enter on the field. Enter in a
+single-field form is the browser's implicit submission of the first submit it
+can find — on a hire or equip page, the first Hire or Buy in the list, whether
+or not the filter is showing that row. The filter already ran per keystroke.
+
 The field is a plain <input> with its own border stripped, since the kit has no
 input group and c-ui.input would draw a second border inside this one. It
 carries the same token classes, so it themes identically.
@@ -66,6 +71,7 @@ carries the same token classes, so it themes identically.
             placeholder="{{ placeholder }}"
             autocomplete="off"
             {% if live %}x-model="{{ model }}"{% endif %}
+            {% if live %}{% if nested or not action %}@keydown.enter.prevent{% endif %}{% endif %}
             class="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none
                    placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500">
 

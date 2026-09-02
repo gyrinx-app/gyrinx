@@ -166,3 +166,23 @@ class TestTheSearchBarsButton:
     def test_a_live_bar_with_nowhere_to_submit_has_no_button(self):
         html = render('<c-n26.search-bar :live="True" model="query" />')
         assert 'type="submit"' not in html
+
+    def test_a_nested_live_bar_swallows_enter(self):
+        """Enter would otherwise fire the surrounding form's first submit —
+        Hire or Buy on the first row, hidden by the filter or not."""
+        html = render('<c-n26.search-bar :live="True" :nested="True" model="query" />')
+        assert "@keydown.enter.prevent" in html
+
+    def test_a_live_bar_with_nowhere_to_submit_swallows_enter(self):
+        html = render('<c-n26.search-bar :live="True" model="query" />')
+        assert "@keydown.enter.prevent" in html
+
+    def test_a_bar_that_goes_somewhere_still_submits_on_enter(self):
+        html = render('<c-n26.search-bar action="/n26/gangs/" name="q" />')
+        assert "@keydown.enter.prevent" not in html
+
+    def test_a_nested_bar_whose_form_filters_still_submits_on_enter(self):
+        """History nests the bar in a GET form whose submit is Filter.
+        Enter there is committing the search, not buying a row."""
+        html = render('<c-n26.search-bar :nested="True" name="q" />')
+        assert "@keydown.enter.prevent" not in html
