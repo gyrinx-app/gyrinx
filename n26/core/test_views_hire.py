@@ -90,6 +90,16 @@ def test_the_list_draws_with_prices(client, tester, gang, ganger):
     assert "55" in body
 
 
+def test_the_search_box_does_not_hire_on_enter(client, tester, gang, ganger):
+    """The bar narrows rows already on the page, as you type. Enter
+    would otherwise submit the hire form and start a hire of whichever
+    fighter is first in the unfiltered list."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert 'role="search"' in body
+    assert "@keydown.enter.prevent" in body
+
+
 def card_url(gang, profile):
     return reverse("n26-hire-card", args=[gang.pk, profile.pk])
 

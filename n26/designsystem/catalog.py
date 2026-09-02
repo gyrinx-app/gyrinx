@@ -868,7 +868,10 @@ GROUPS: list[Group] = [
                     "<input> carrying the kit's own token classes — c-ui.input would "
                     "draw a second border inside this one. The submit button sits "
                     "outside that group. It is a real form, so it submits without "
-                    "JavaScript."
+                    "JavaScript. A live bar with no Search button swallows Enter so "
+                    "it cannot submit a surrounding form's first Buy or Hire. A "
+                    "nested bar that is the filter of a GET form is not live, so "
+                    "Enter still submits that search."
                 ),
             ),
             Component(

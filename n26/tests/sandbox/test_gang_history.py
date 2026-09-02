@@ -426,3 +426,8 @@ class TestThePageIsTheOwners:
         searched = client.get(at, {"q": "renamed"}).content.decode()
         assert "renamed" in searched
         assert "hired" not in searched
+        # Enter in this box commits the GET search. A live filter would
+        # swallow it; this bar is the form's own field.
+        page = client.get(at).content.decode()
+        assert 'role="search"' in page
+        assert "@keydown.enter.prevent" not in page

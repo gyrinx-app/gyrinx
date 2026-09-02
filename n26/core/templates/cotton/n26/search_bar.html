@@ -18,6 +18,12 @@ The submit is drawn only where clicking it does something — any bar that is no
 live, and a live one given an `action`. A live bar with no action has its
 submit prevented; there is nothing to ask for that is not already on screen.
 
+Enter in a live box that has no Search button of its own does nothing. The
+filter already runs as you type. Enter would otherwise submit the surrounding
+form, and the first Buy or Hire in that form is what the browser activates —
+even a row the filter has hidden. A nested bar that is the filter of a GET
+form is not live, so Enter still submits that search.
+
 The field is a plain <input> with its own border stripped, since the kit has no
 input group and c-ui.input would draw a second border inside this one. It
 carries the same token classes, so it themes identically.
@@ -66,6 +72,7 @@ carries the same token classes, so it themes identically.
             placeholder="{{ placeholder }}"
             autocomplete="off"
             {% if live %}x-model="{{ model }}"{% endif %}
+            {% if live %}{% if nested or not action %}@keydown.enter.prevent{% endif %}{% endif %}
             class="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none
                    placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500">
 
