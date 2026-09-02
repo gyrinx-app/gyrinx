@@ -254,7 +254,8 @@ def _parts_of(node, at, *, can_refit=False):
     ``can_refit`` is whether this host carries another gun this part
     could move onto. A screen must not ask a question its answer
     refuses, so an accessory on the only gun is offered Detach and not
-    Fit.
+    Fit. The stash is never asked — its accessories are fitted from
+    the gang sheet, where the guns of the whole roster are in reach.
     """
     parts = []
     for child in node.children:
@@ -343,8 +344,9 @@ def possessions(host: EquipHost):
                 parts=_parts_of(
                     node,
                     at,
-                    can_refit=any(
-                        gun.assignment.pk != node.assignment.pk for gun in guns
+                    can_refit=(
+                        not host.is_stash
+                        and any(gun.assignment.pk != node.assignment.pk for gun in guns)
                     ),
                 ),
                 sell_href=with_query(at, sell=pk),

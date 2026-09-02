@@ -1102,8 +1102,8 @@ GROUPS: list[Group] = [
                 tag="c-n26.owned-dialog",
                 template="n26/owned_dialog.html",
                 summary=(
-                    "Confirm a sale, a move, a refund, a removal or a "
-                    "detach of something the gang owns — or ask which "
+                    "Confirm a sale, a move, a refund, a removal or "
+                    "detaching something the gang owns — or ask which "
                     "accessory to fit to a weapon, or which alternatives "
                     "it is taken with."
                 ),
@@ -1114,8 +1114,8 @@ GROUPS: list[Group] = [
                     "thing was bought with. Each states what a reader cannot "
                     "work out from the page — a sale states its arithmetic, a "
                     "move that it charges nothing, a removal that the money "
-                    "stays spent, a refund what was paid, a detach that the "
-                    "fighter still holds it. The stash is a button and the "
+                    "stays spent, a refund what was paid, a detach that "
+                    "leaves the fighter holding it. The stash is a button and the "
                     "roster a select, and only the clicked submit is sent, "
                     "which is the whole of how the view tells those two apart. "
                     "Selling something with a part bolted to it is two sales "

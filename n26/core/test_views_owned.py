@@ -1319,6 +1319,25 @@ class TestDetachingAnAccessory:
         assert "There is nowhere to move" in response.content.decode()
         assert_reconciled(gang)
 
+    def test_a_stashed_gun_is_offered_detach_and_not_fit(
+        self, gang, tester, gun, bolted, stash
+    ):
+        """The stash fits from the gang sheet, where every gun is in
+        reach. Fit on this card would only list stash guns."""
+        from n26.core.card import build_gang_card
+        from n26.core.owned import EquipHost, possessions, thing_key
+        from n26.library.authoring import create_weapon
+
+        with operation(gang, actor=tester) as op:
+            op.move(gun, stash)
+            op.buy(stash, thing=create_weapon("Stub gun", price=5, profiles=[("", 0)]))
+
+        host = EquipHost.stash(gang, build_gang_card(gang), AT)
+        (copy,) = possessions(host)[thing_key(gun.assignable)]
+        part = next(p for p in copy.parts if p.id == str(bolted.pk))
+        assert part.detach_href == f"{AT}&detach={bolted.pk}"
+        assert part.fit_href == ""
+
     def test_a_sight_on_a_stashed_gun_stays_in_the_stash(
         self, client, tester, gang, gun, bolted, stash
     ):
@@ -1326,9 +1345,11 @@ class TestDetachingAnAccessory:
             op.move(gun, stash)
 
         client.force_login(tester)
-        response = client.post(url("n26-reassign", bolted), {"to": "held"})
+        response = client.post(url("n26-reassign", bolted), {"to": "held"}, follow=True)
 
-        assert response.status_code == 302
+        assert "Took Telescopic sight off Lasgun. It is in the stash." in (
+            response.content.decode()
+        )
         bolted.refresh_from_db()
         assert bolted.parent_id is None
         assert bolted.stash_id == stash.pk

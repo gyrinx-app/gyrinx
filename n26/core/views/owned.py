@@ -875,7 +875,10 @@ def reassign_assignment(request, pk):
     elif wanted == "weapon":
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
     elif wanted == "held":
-        messages.success(request, f"Took {name} off {off}.")
+        if came_from is None:
+            messages.success(request, f"Took {name} off {off}. It is in the stash.")
+        else:
+            messages.success(request, f"Took {name} off {off}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
     return _acted(request, touched, gang, back, also=also)
