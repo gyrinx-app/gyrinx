@@ -60,6 +60,16 @@ class TestTheComponentAndTheScriptAgree:
         assert 'strategy="absolute"' in source
         assert "{% if strategy == 'fixed' %}" in source
 
+    def test_a_long_menu_does_not_hand_its_scroll_to_the_page(self):
+        """overscroll-contain stops a gesture that reached the end of the
+        menu from moving the page underneath. overflow=hidden is opt-in
+        for a caller that already scrolls something inside the panel."""
+        source = source_of("cotton/ui/dropdown/index.html")
+        assert "overscroll-contain" in source
+        assert 'overflow="auto"' in source
+        assert "overflow == 'hidden'" in source
+        assert "overflow-y-auto overflow-x-hidden" in source
+
 
 class TestTheCardMenuAsksForIt:
     def test_the_menu_beside_a_name_escapes_the_weapon_tables_scroll_box(self):

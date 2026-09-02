@@ -202,6 +202,36 @@ class TestStayingOnTheScreen:
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
         assert "this.fit()" in html
         assert "window.addEventListener('resize', this.refit)" in html
+        assert "window.addEventListener('scroll', this.refit, true)" in html
+
+    def test_a_scroll_inside_the_panel_does_not_refit_it(self):
+        """fit() writes position:fixed. Doing that mid-gesture cancels the
+        list's own scroll on a phone, and the page underneath moves
+        instead. The same filter is why the kit's listeners are dropped
+        rather than raced: theirs write first and would stay if ours
+        skipped."""
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert "this.inside(event.target)" in html
+        assert "event.type === 'scroll'" in html
+        assert "window.removeEventListener('scroll', kit, true)" in html
+        assert "window.removeEventListener('resize', kit)" in html
+
+    def test_the_panel_is_not_a_second_scroll_box(self):
+        """The list of rows is the scroller. A second overflow-y-auto on
+        the dropdown around it hands a touch gesture to the page."""
+        # The noscript strip also hides overflow as a box; the kit panel
+        # is the half that must not be a second scroll container.
+        panel = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>").split(
+            "<noscript>"
+        )[0]
+        assert "max-h-[calc(100vh-4rem)]" in panel
+        assert "overflow-hidden" in panel
+        assert "overflow-y-auto overflow-x-hidden" not in panel
+        assert "overscroll-contain" in panel
+
+    def test_reaching_the_end_of_the_list_does_not_scroll_the_page(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert "max-h-72 overflow-y-auto overscroll-contain" in html
 
     def test_the_scriptless_strip_gives_up_its_width_rather_than_overflow(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")

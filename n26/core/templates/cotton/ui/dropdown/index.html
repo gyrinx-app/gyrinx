@@ -22,6 +22,10 @@ Every other prop is the kit's, unchanged.
 
   strategy    absolute (default) or fixed. Use fixed where the menu sits
               inside something that scrolls.
+  overflow    auto (default) or hidden. Hidden stops this panel being a
+              scroll box, for a caller that scrolls something inside it.
+              Two nested overflow-y-auto boxes hand a touch gesture to
+              the page on a phone.
 {% endcomment %}
 <c-vars
   position="bottom"
@@ -32,6 +36,7 @@ Every other prop is the kit's, unchanged.
   :auto_position="True"
   :collapsible="False"
   strategy="absolute"
+  overflow="auto"
 />
 
 <div
@@ -79,7 +84,8 @@ Every other prop is the kit's, unchanged.
            border-[color:var(--color-box-border)]
            bg-white dark:bg-ink-900
            max-h-[calc(100vh-4rem)] sm:max-h-[80vh]
-           overflow-y-auto overflow-x-hidden
+           {% if overflow == 'hidden' %}overflow-hidden{% else %}overflow-y-auto overflow-x-hidden{% endif %}
+           overscroll-contain
            scrollbar-thin scrollbar-thumb-ink-400 scrollbar-track-ink-100
            dark:scrollbar-thumb-ink-600 dark:scrollbar-track-ink-800"
     :class="collapsible

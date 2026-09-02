@@ -19,9 +19,11 @@ either way: the filter narrows what is already on the page and fetches nothing.
 fit() places the panel itself, fixed and clamped inside the window, against the
 rectangle of the [data-quick-switcher] root — so anything wrapped around this
 component must leave that root reachable. The kit writes offsets of its own on
-open, scroll and resize and they are wrong for a fixed box; these listeners are
-registered after the kit's and both run on a frame, so the fit lands after each
-of its writes and before the frame is drawn.
+open, scroll and resize and they are wrong for a fixed box; those listeners are
+dropped and replaced, so a scroll that started inside the panel is not treated
+as the switcher leaving the window. Rewriting position:fixed mid-gesture
+cancels the list's own scroll on a phone. The panel itself is not a scroll
+box — overflow=hidden on the dropdown — so only the list of rows scrolls.
 
 Focus lands in the filter box and never leaves it: Down and Up move a
 highlight, Enter clicks the highlighted row, Escape clears the filter before it
@@ -82,6 +84,7 @@ aria-activedescendant so the tinted row and the spoken one agree.
             </c-ui.button>
         {% endif %}
         <c-ui.dropdown align="{{ align }}"
+                       overflow="hidden"
                        min_width="min({{ min_width }}, calc(100vw - 1rem))">
             <c-slot name="trigger">
                 {% comment %}
@@ -188,6 +191,13 @@ aria-activedescendant so the tinted row and the spoken one agree.
                              if (this.query) { this.query = ''; this.active = '' } else { this.close() }
                          }
                      },
+                     // The panel is the dropdown's content box, the parent of
+                     // this scope. A scroll whose target lives inside it is
+                     // the list moving, not the page.
+                     inside(node) {
+                         const panel = this.$el.parentElement;
+                         return !!(panel && node instanceof Node && panel.contains(node));
+                     },
                      fit() {
                          const panel = this.$el.parentElement;
                          // A panel still opening has no width to measure, and
@@ -255,10 +265,23 @@ aria-activedescendant so the tinted row and the spoken one agree.
                              if (!this.visible.some(row => row.id === this.active)) this.active = '';
                          });
                          // Scroll as well as resize: a fixed box stays put
-                         // while the switcher scrolls away from under it, and
-                         // both are events the kit writes its own offsets on —
-                         // each write needs a fit landing after it.
-                         this.refit = () => { if (this.dropdownMenu) requestAnimationFrame(() => this.fit()) };
+                         // while the switcher scrolls away from under it.
+                         // An inner scroll is the list moving — refitting
+                         // would rewrite position:fixed and cancel it.
+                         this.refit = (event) => {
+                             if (!this.dropdownMenu) return;
+                             if (event && event.type === 'scroll' && this.inside(event.target)) return;
+                             requestAnimationFrame(() => this.fit());
+                         };
+                         // The kit's own listeners write absolute offsets
+                         // that are wrong for a fixed box. They are removed
+                         // so an inner scroll that skips our write does not
+                         // leave theirs standing, which would jump the panel.
+                         const kit = this._reposition;
+                         if (typeof kit === 'function') {
+                             window.removeEventListener('scroll', kit, true);
+                             window.removeEventListener('resize', kit);
+                         }
                          window.addEventListener('resize', this.refit);
                          window.addEventListener('scroll', this.refit, true);
                          {% if hotkey %}
@@ -318,7 +341,11 @@ aria-activedescendant so the tinted row and the spoken one agree.
                 the overflow it leaves in the panel, so a list that fits gains
                 a scrollbar and one pixel of scroll.
                 {% endcomment %}
-                <div :id="$id('n26-switcher') + '-list'" class="max-h-72 overflow-y-auto">{{ slot }}</div>
+                {% comment %}
+                overscroll-contain: reaching either end of this list must
+                not hand the gesture to the page underneath.
+                {% endcomment %}
+                <div :id="$id('n26-switcher') + '-list'" class="max-h-72 overflow-y-auto overscroll-contain">{{ slot }}</div>
                 {% comment %}
                 x-cloak, so a reader with no script never sees a line about a
                 filter they do not have.
