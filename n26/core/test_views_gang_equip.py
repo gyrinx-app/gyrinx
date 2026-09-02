@@ -636,6 +636,17 @@ class TestStashManagement:
         assert ">Equip</h1>" in body
         assert "Buy Equipment" not in body
 
+    def test_the_search_box_does_not_buy_on_enter(
+        self, client, tester, gang, house_list
+    ):
+        """The bar narrows rows already on the page, as you type. Enter
+        would otherwise submit the Buy form and buy the first listed
+        item into the stash."""
+        client.force_login(tester)
+        body = client.get(equip_url(gang, house_list)).content.decode()
+        assert 'role="search"' in body
+        assert "@keydown.enter.prevent" in body
+
     def test_a_held_item_on_the_browsed_list_draws_in_stash(
         self, client, tester, gang, house_list
     ):

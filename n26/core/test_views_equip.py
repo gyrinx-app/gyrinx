@@ -366,6 +366,8 @@ def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_
     assert 'role="search"' in body
     # Every submit on this page buys something.
     assert body.count('type="submit"') == body.count('name="thing"')
+    # Enter in the box would otherwise buy the first listed item.
+    assert "@keydown.enter.prevent" in body
 
 
 def test_the_strip_names_each_section_once(client, tester, gang, fighter):

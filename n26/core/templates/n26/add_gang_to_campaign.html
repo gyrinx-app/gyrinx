@@ -96,17 +96,10 @@ a reader who cannot find one is told where it went.
                 as the equipment catalogue lays out the same pair. A row of
                 filters is a row of actions, which is what action-bar is.
                 {% endcomment %}
-                {% comment %}
-                Enter in the search box would otherwise add a gang. The list
-                sits inside the page's form, every control above it is a
-                plain button, and the footer draws no submit — so the form's
-                default button is the first row's Add, hidden or not.
-                {% endcomment %}
                 <c-n26.search-bar :live="True"
                                   :nested="True"
                                   model="query"
                                   placeholder="Search gangs"
-                                  @keydown.enter.prevent=""
                                   class="n26-gang-filters" />
                 <c-n26.action-bar class="n26-gang-filters">
                     {% if player_options %}
