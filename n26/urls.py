@@ -118,8 +118,8 @@ urlpatterns = [
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
     # Addressed by fighter, not by slot: what they may select is their
-    # grid rather than a question anybody asked — see n26.core.views.select.
-    path("fighters/<str:pk>/skills/", views.select, name="n26-select"),
+    # grid rather than a question anybody asked — see n26.core.views.skills.
+    path("fighters/<str:pk>/skills/", views.skills, name="n26-skills"),
     # What a gang already owns, addressed by the assignment rather than by
     # whoever is carrying it: the same acts serve a fighter's card, a
     # weapon's ammo and the stash, and every screen that grows them later

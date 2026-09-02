@@ -57,7 +57,7 @@ the access to an equipment list.
 Expressed against what exists:
 
 ```
-learnable_for(miniature, computed) =
+selectable_for(miniature, computed) =
     for each collection in Collection.objects.containing(Family.MODEL):
         if placements_for(computed, collection):  ->  it is theirs
 ```
@@ -164,7 +164,7 @@ refusal in the shape of `NotEnoughCredits`, a story for how a counter
 reconciles (credits are recomputed from the ledger; counter values are not),
 and the advancement content itself.
 
-Recommendation: ship **free and recorded** first — `op.learn(miniature,
+Recommendation: ship **free and recorded** first — `op.select(miniature,
 skill)`, a zero-paid `Reason.REWARD` assignment with a ledger entry, rating
 contribution equal to the skill's reference price (zero for every core skill,
 so the default is no rating change and content can decide otherwise). Treat
@@ -219,7 +219,7 @@ it, differing in how they are addressed and what pressing does.
 1. **Content first.** Give the standard "Skills & Powers" collection its
    contents: a selector sweeping every skill, and one sweeping every power.
    Nothing below is testable end to end until it lists something.
-2. **Access.** `learnable_for(miniature, computed)` in `n26/core/access.py`,
+2. **Access.** `selectable_for(miniature, computed)` in `n26/core/access.py`,
    built on `Collection.objects.containing(Family.MODEL)` and
    `placements_for`. Pure read, no new rows.
 3. **Browse.** The learn view: resection by placements, drop the unplaced
@@ -228,7 +228,7 @@ it, differing in how they are addressed and what pressing does.
 4. **The page.** The second address onto the picker shape, GET only at first.
    A reader can see their sets and what is in them before anything can be
    written.
-5. **The write.** `Operation.learn`, free, `Reason.REWARD`, ledger entry,
+5. **The write.** `Operation.select`, free, `Reason.REWARD`, ledger entry,
    rating from reference price.
 6. **The card.** The href, computed in the view, and the button in `actions`.
 
@@ -240,7 +240,7 @@ tests and never reached the UI" complaint.
 - **Access.** A fighter whose profile has a grid has the collection; one
   without has nothing. A Venator has nothing before their trees are picked and
   the placed sets after. A gear collection with placements into it is never
-  learnable.
+  selectable.
 - **Sectioning.** Two entries with different grids see the same sets under
   different tiers, from one collection and one rule — the assertion the Escher
   sandbox already makes about the founding offer, now made about the whole

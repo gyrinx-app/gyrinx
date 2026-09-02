@@ -144,7 +144,7 @@ def computed_for(miniature):
 
 
 def skills_url(miniature):
-    return reverse("n26-select", args=[miniature.pk])
+    return reverse("n26-skills", args=[miniature.pk])
 
 
 def edit_url(miniature):
@@ -285,8 +285,8 @@ class TestTheWordForIt:
         ]
 
         for body in pages:
-            # Only drawn text is swept: a class name or an id is code, not
-            # words anybody reads.
+            # Only text between tags is swept. Attribute values — a class,
+            # an id, an aria-label — are stripped with the tag around them.
             drawn = re.sub(r"<[^>]*>", " ", body)
             assert not re.search(r"\blearn(s|ed|ing)?\b", drawn, re.IGNORECASE)
 
@@ -737,7 +737,7 @@ class TestTheSkillsRow:
     ):
         from n26.core.render import render_gang
         from n26.core.views.choose import link_slots
-        from n26.core.views.select import link_skills
+        from n26.core.views.skills import link_skills
 
         gang = leader_yolanda.gang
         sheet = render_gang(gang)
@@ -745,19 +745,19 @@ class TestTheSkillsRow:
         link_skills(*sheet.models)
 
         (card,) = sheet.models
-        assert card.select_href == skills_url(leader_yolanda)
+        assert card.skills_href == skills_url(leader_yolanda)
         assert card.skill_choices[0].href.startswith(
             reverse("n26-gang", args=[gang.pk])
         )
 
     def test_a_gridless_fighter_gets_no_way_in(self, gang, gridless, catalogue):
         from n26.core.render import render_gang
-        from n26.core.views.select import link_skills
+        from n26.core.views.skills import link_skills
 
         hire_with_option(gang, gridless, "Nobody")
         sheet = render_gang(gang)
         link_skills(*sheet.models)
 
         (card,) = sheet.models
-        assert card.select_href == ""
+        assert card.skills_href == ""
         assert card.skill_choices == []

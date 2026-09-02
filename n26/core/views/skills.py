@@ -84,7 +84,7 @@ def link_skills(*cards, among=None):
     }
     for card in cards:
         if card.id and set(card.placed_in) & selectable:
-            card.select_href = reverse("n26-select", args=[card.id])
+            card.skills_href = reverse("n26-skills", args=[card.id])
 
 
 def _key(thing):
@@ -431,7 +431,7 @@ def _marked(offer, known):
 
 
 @login_required
-def select(request, pk):
+def skills(request, pk):
     """What this fighter may select, and the click that selects it.
 
     GET asks and writes nothing. POST names one thing from the list the
@@ -489,7 +489,7 @@ def select(request, pk):
         # switcher every other fighter's skills screen draws.
         return render(
             request,
-            "n26/select.html",
+            "n26/skills.html",
             {
                 "gang": gang,
                 "miniature": miniature,
@@ -578,7 +578,7 @@ def select(request, pk):
 
     return render(
         request,
-        "n26/select.html",
+        "n26/skills.html",
         {
             "gang": gang,
             "miniature": miniature,

@@ -58,7 +58,7 @@ from n26.core.views.owned import (
     tally_counter,
 )
 from n26.core.views.printing import print_gang, print_setup
-from n26.core.views.select import select
+from n26.core.views.skills import skills
 
 __all__ = [
     "accessorise_assignment",
@@ -94,7 +94,7 @@ __all__ = [
     "gangs",
     "hire_card",
     "hire_fighter",
-    "select",
+    "skills",
     "preview_view",
     "print_gang",
     "print_setup",

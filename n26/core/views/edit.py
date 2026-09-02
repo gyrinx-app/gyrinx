@@ -56,7 +56,7 @@ def _edit_state(own, computed, field):
     """
     from n26.core.effects import stands_whatever_happens
     from n26.core.models import Assignment, Reason
-    from n26.core.views.select import _key
+    from n26.core.views.skills import _key
 
     kind_class = Assignment._meta.get_field(field).related_model
     # The live library, as every player-facing offer reads it — an
@@ -124,7 +124,7 @@ def _edits_offer(own, computed, field, heading):
     appears in the list above once it is ticked.
     """
     from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
-    from n26.core.views.select import _key
+    from n26.core.views.skills import _key
 
     state = _edit_state(own, computed, field)
     current, rest = [], []
@@ -228,7 +228,7 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
     ticked absence is added in the owner's name.
     """
     from n26.core.models import Reason
-    from n26.core.views.select import _key
+    from n26.core.views.skills import _key
 
     state = _edit_state(own, computed, field)
     added, taken, restored = [], [], []
@@ -286,7 +286,7 @@ def render_card_update(request, miniature, at):
     from n26.core.views.choose import link_slots
     from n26.core.views.htmx import with_toasts
     from n26.core.views.owned import link_counters, link_possession_actions
-    from n26.core.views.select import link_skills
+    from n26.core.views.skills import link_skills
 
     gang = miniature.membership.gang
     own = build_card(miniature, with_statlines=True, with_options=True)
@@ -373,7 +373,7 @@ def edit_fighter(request, pk):
         link_possession_actions,
         owned_dialog,
     )
-    from n26.core.views.select import apply_ticks, link_skills, skills_offer
+    from n26.core.views.skills import apply_ticks, link_skills, skills_offer
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
