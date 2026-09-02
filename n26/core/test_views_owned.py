@@ -1258,9 +1258,9 @@ class TestDetachingAnAccessory:
 
         builtin.refresh_from_db()
         assert builtin.parent_id == gun.pk
-        assert "You cannot take Telescopic sight off the weapon." in (
-            response.content.decode()
-        )
+        body = response.content.decode()
+        assert "You cannot take Telescopic sight off the weapon." in body
+        assert "Only a bought accessory can come off." in body
         assert_reconciled(gang)
 
     def test_a_built_in_sight_cannot_be_fitted_to_another_gun(
@@ -1286,6 +1286,8 @@ class TestDetachingAnAccessory:
         assert builtin.parent_id == gun.pk
         body = response.content.decode()
         assert "You cannot take Telescopic sight off the weapon." in body
+        assert "Only a bought accessory can come off." in body
+        assert "stay held" not in body
         assert "There is nowhere to move" not in body
         assert_reconciled(gang)
 

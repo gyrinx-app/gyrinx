@@ -120,6 +120,17 @@ def can_unbolt(assignment):
     )
 
 
+def cannot_unbolt_reason(name):
+    """Why a built-in or a firing line cannot leave the weapon.
+
+    Said to both a Detach and a Fit click — the rule is the same
+    whichever destination they named.
+    """
+    return (
+        f"You cannot take {name} off the weapon. Only a bought accessory can come off."
+    )
+
+
 def thing_key(thing):
     """One string naming a piece of content — what a form submits to name it.
 
@@ -243,7 +254,7 @@ def _part_name(node):
     return node.name
 
 
-def _parts_of(node, host):
+def _parts_of(node, host, guns):
     """The children drawn beneath a thing, each with an address of its own.
 
     A weapon's *unnamed* profile is the weapon — the book prints an
@@ -261,9 +272,7 @@ def _parts_of(node, host):
     """
     at = host.at
     other_guns = tuple(
-        weapon
-        for weapon in weapons_on(host)
-        if weapon.assignment.pk != node.assignment.pk
+        weapon for weapon in guns if weapon.assignment.pk != node.assignment.pk
     )
     # Same gate a loose accessory uses: the stash never draws ?fit= or
     # ?detach=. Fitting from the stash is Reassign, which lists the
@@ -332,12 +341,13 @@ def possessions(host: EquipHost):
     """
     from n26.library.models import Weapon, WeaponAccessory
 
-    # Whether this card has anywhere to fit an accessory, asked once for
-    # the whole of it. A fighter carrying no gun is offered no fitting:
-    # a screen must not ask a question its answer refuses. The stash is
-    # never asked — its accessories are fitted from the gang sheet,
-    # where the guns of the whole roster are in reach.
-    fittable = not host.is_stash and bool(weapons_on(host))
+    # The guns on this card, asked once and handed to each part list.
+    # A fighter carrying no gun is offered no fitting: a screen must
+    # not ask a question its answer refuses. The stash is never asked
+    # — its accessories are fitted from the gang sheet, where the guns
+    # of the whole roster are in reach.
+    guns = weapons_on(host)
+    fittable = not host.is_stash and bool(guns)
 
     index = {}
     for node in host.roots:
@@ -358,7 +368,7 @@ def possessions(host: EquipHost):
                 key=key,
                 name=node.name,
                 rating=node.rating,
-                parts=_parts_of(node, host),
+                parts=_parts_of(node, host, guns),
                 sell_href=with_query(at, sell=pk),
                 reassign_href=with_query(at, reassign=pk),
                 refund_href=with_query(at, refund=pk),

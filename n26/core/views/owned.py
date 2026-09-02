@@ -67,6 +67,7 @@ from n26.core.owned import (
     DIALOGS,
     EquipHost,
     can_unbolt,
+    cannot_unbolt_reason,
     is_possession,
     thing_key,
     weapons_on,
@@ -803,11 +804,7 @@ def reassign_assignment(request, pk):
         # model that already holds it — read off the assignment, not the
         # form, so a hand-made click cannot name somebody else.
         if not can_unbolt(assignment):
-            messages.error(
-                request,
-                f"You cannot take {name} off the weapon. "
-                "Only a bought accessory can come off and stay held.",
-            )
+            messages.error(request, cannot_unbolt_reason(name))
             return _unchanged(request, back)
         destination = assignment.miniature_root
         if destination is None:
@@ -822,11 +819,7 @@ def reassign_assignment(request, pk):
         # onto another gun would offer a keep the sale of that package
         # takes back.
         if assignment.parent_id is not None and not can_unbolt(assignment):
-            messages.error(
-                request,
-                f"You cannot take {name} off the weapon. "
-                "Only a bought accessory can come off and stay held.",
-            )
+            messages.error(request, cannot_unbolt_reason(name))
             return _unchanged(request, back)
         try:
             named = Assignment.objects.filter(
