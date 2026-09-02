@@ -792,17 +792,15 @@ def equip(request, pk):
     expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
 
     def here(collection):
-        params = [
-            *(
-                [("list", ALL_SCOPE)]
-                if everything
-                else [("list", collection.pk)]
-                if collection is not None
-                else []
-            ),
-            *([("section", section)] if section else []),
-            *([("owned", expanded_key)] if expanded_key else []),
-        ]
+        params = []
+        if everything:
+            params.append(("list", ALL_SCOPE))
+        elif collection is not None:
+            params.append(("list", collection.pk))
+        if section:
+            params.append(("section", section))
+        if expanded_key:
+            params.append(("owned", expanded_key))
         return f"{request.path}?{urlencode(params)}" if params else request.path
 
     if request.method == "POST" and view is not None:
@@ -875,14 +873,11 @@ def equip(request, pk):
         if view is not None
         else None
     )
-    # Which list is being browsed is a tab when there are several. With
-    # one there is nothing to choose, so no strip is drawn — the search
-    # box names the list it is searching, which is where a reader looks
-    # to find out what they are buying from. The library tab is drawn
-    # alone, though: a fighter holding no list at all is exactly who it
-    # is for, and a reader on it should see where they are.
-    tabs = fighter_tabs(collections, chosen, everything)
-    rail = len(tabs) > 1 or everything
+    # Which list is being browsed is a rail of tabs: the lists held, and
+    # the library beside them. A fighter holding no list has the library
+    # alone, and the rail is drawn all the same, so a reader on it can see
+    # where they are. The search box names the list it is searching.
+    tabs = list_tabs(collections, chosen, everything)
     # The whole catalogue posts back to the list it was drawn from — only
     # that: the picker's own state travels in the form, not in the address
     # it posts to.
@@ -916,7 +911,6 @@ def equip(request, pk):
             "trade_points_href": trade_points_href(gang, request.user),
             "collections": collections,
             "collection_tabs": tabs,
-            "rail": rail,
             "everything": everything,
             "action": action,
             "browsing": browsing,
@@ -1049,8 +1043,8 @@ def library_tab(everything):
     }
 
 
-def fighter_tabs(collections, chosen, everything):
-    """The buyable collections and the library tab."""
+def list_tabs(collections, chosen, everything):
+    """The buyable collections and, after them, the library tab."""
     tabs = collection_tabs(collections, chosen)
     tabs.append(library_tab(everything))
     return tabs
@@ -1058,7 +1052,7 @@ def fighter_tabs(collections, chosen, everything):
 
 def gang_tabs(collections, chosen, everything, *, stash=False):
     """The stash, buyable collections, and library tabs."""
-    tabs = fighter_tabs(collections, chosen, everything)
+    tabs = list_tabs(collections, chosen, everything)
     tabs.insert(
         0,
         {

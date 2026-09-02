@@ -113,43 +113,37 @@ breadcrumb above it has the gang as well, so nothing is lost.
 
     Links, not client state: a list is a place you can be, so it goes in the URL
     — linkable, back-button-friendly, and the server renders the one you are on.
-    One list draws no rail; there is nothing to choose, and the search box
-    names the list it searches. Whether one is drawn is the view's decision
-    (`rail`), because the Unrestricted tab is drawn even alone.
+    The rail is always drawn: the Unrestricted tab stands beside every list,
+    and stands alone for a fighter holding none. The search box names the
+    list it searches.
     {% endcomment %}
     {% if catalogue %}
-        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 {% if rail or post_is_shut %}md:grid-cols-[11rem_minmax(0,1fr)]{% endif %}">
+        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
             {% comment %}
-            The rail and what sits under it are one grid cell, so the block
-            below the lists needs no placement of its own. It draws even where
-            there is no rail: one list is nothing to choose between, but the
-            gang can still be told it is tracking nothing.
+            The rail and what sits under it are one grid cell, so the blocks
+            below the lists need no placement of their own.
             {% endcomment %}
-            {% if rail or post_is_shut %}
-                <div class="flex flex-col gap-4 self-start">
-                    {% if rail %}
-                        <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
-                            {% for tab in collection_tabs %}
-                                {% comment %}
-                                The full name where the tab shortened it, empty
-                                where nothing was lost — decided in the view,
-                                because a template tag written inside a
-                                component's attributes is not read as one.
-                                {% endcomment %}
-                                <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
-                                    {{ tab.label }}
-                                </c-ui.navlist.item>
-                            {% endfor %}
-                        </c-ui.navlist>
-                    {% endif %}
-                    {% if everything %}
-                        {% include "n26/includes/unrestricted_note.html" %}
-                    {% endif %}
-                    {% if post_is_shut %}
-                        {% include "n26/includes/not_tracking_tp.html" %}
-                    {% endif %}
-                </div>
-            {% endif %}
+            <div class="flex flex-col gap-4 self-start">
+                <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
+                    {% for tab in collection_tabs %}
+                        {% comment %}
+                        The full name where the tab shortened it, empty where
+                        nothing was lost — decided in the view, because a
+                        template tag written inside a component's attributes
+                        is not read as one.
+                        {% endcomment %}
+                        <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
+                            {{ tab.label }}
+                        </c-ui.navlist.item>
+                    {% endfor %}
+                </c-ui.navlist>
+                {% if everything %}
+                    {% include "n26/includes/unrestricted_note.html" %}
+                {% endif %}
+                {% if post_is_shut %}
+                    {% include "n26/includes/not_tracking_tp.html" %}
+                {% endif %}
+            </div>
             {% comment %}
             The whole catalogue posts here. A purchase submitted by htmx gets
             back only the elements it changed — so the filters, the section on
