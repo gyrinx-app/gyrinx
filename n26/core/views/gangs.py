@@ -246,8 +246,8 @@ def gang_sheet(request, pk):
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
-    from n26.core.views.learn import link_skills
     from n26.core.views.owned import link_stash_actions, owned_dialog
+    from n26.core.views.skills import link_skills
 
     gang = _any_gang_or_404(pk)
     yours = gang.owner_id == getattr(request.user, "id", None)

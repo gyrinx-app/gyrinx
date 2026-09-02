@@ -1487,7 +1487,7 @@ def model_card():
         # This fighter has a grid, so there is a screen of what she may select
         # and the Skills row carries the way to it. A card with no grid — and
         # every card on a print sheet — leaves this empty and draws nothing.
-        learn_href="#",
+        skills_href="#",
         # A Wyrd's powers, which are not skills. Drawn apart on the card
         # because the rules treat them apart, even though they are chosen the
         # same way — see ModelCard.powers.

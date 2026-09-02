@@ -40,8 +40,8 @@ from n26.tests.sandbox.actions import (
     found_gang,
     hire,
     hire_with_option,
-    learn,
     offer_option,
+    select,
     sell,
 )
 
@@ -389,7 +389,7 @@ class TestWhatTheOwnerAlreadySettled:
         fighter = hire(gang, ganger, "Ana", paid=50)
         strip_provenance(gang)
         nerves = create_skill("Nerves of Steel")
-        learn(fighter, nerves)
+        select(fighter, nerves)
         member = add_built_in(ganger, nerves)
         rating = settled(gang).rating
 

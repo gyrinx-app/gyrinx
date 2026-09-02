@@ -455,13 +455,13 @@ class TestWhatMayBeClickedOn:
         from n26.library.authoring import create_skill
 
         with operation(gang, actor=tester) as op:
-            learned = op.learn(fighter, create_skill("Marksman"))
+            selected = op.select(fighter, create_skill("Marksman"))
 
         client.force_login(tester)
-        assert client.post(url(route, learned)).status_code == 404
+        assert client.post(url(route, selected)).status_code == 404
 
-        learned.refresh_from_db()
-        assert learned.archived is False
+        selected.refresh_from_db()
+        assert selected.archived is False
         assert_reconciled(gang)
 
     def test_the_equip_page_offers_none_of_them_either(
@@ -475,7 +475,7 @@ class TestWhatMayBeClickedOn:
         from n26.library.authoring import create_skill
 
         with operation(gang, actor=tester) as op:
-            op.learn(fighter, create_skill("Marksman"))
+            op.select(fighter, create_skill("Marksman"))
 
         held = owned_things(build_card(fighter), AT)
         assert thing_key(sword.assignable) in held

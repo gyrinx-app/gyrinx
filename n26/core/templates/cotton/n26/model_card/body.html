@@ -79,7 +79,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             nowhere.
             {% endcomment %}
             <c-n26.model-card.mode when="edit">
-                {% if card.skill_choices or card.learn_href %}
+                {% if card.skill_choices or card.skills_href %}
                     <div class="mt-1 flex flex-wrap items-center gap-1">
                         {% for choice in card.skill_choices %}
                             {% if choice.href %}
@@ -90,13 +90,13 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                 <c-n26.link>Choose {{ choice.kind_label|lower }}</c-n26.link>
                             {% endif %}
                         {% endfor %}
-                        {% if card.learn_href %}
+                        {% if card.skills_href %}
                             <c-ui.tooltip size="sm">
                                 <c-ui.button size="xs"
                                              variant="default"
                                              :outlined="True"
                                              class="py-0!"
-                                             href="{{ card.learn_href }}"
+                                             href="{{ card.skills_href }}"
                                              aria-label="Select a skill">
                                     <span class="n26-icon-only">
                                         <c-n26.icon name="pencil" class="size-3" />

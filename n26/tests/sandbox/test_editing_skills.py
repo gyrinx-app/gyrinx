@@ -54,11 +54,11 @@ from n26.tests.sandbox.actions import (
     create_subtype,
     found_gang,
     hire_with_option,
-    learn,
     modifier,
     offers_choice,
     places,
     section_of,
+    select,
     targets_model,
 )
 
@@ -284,7 +284,7 @@ class TestWhatTheSquareShows:
     def test_what_she_already_knows_arrives_ticked(
         self, client, player, yolanda, library
     ):
-        learn(yolanda, library["skills"]["Catfall"])
+        select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
         page = client.get(edit_url(yolanda)).content.decode()
 
@@ -357,8 +357,8 @@ class TestWhatTheSquareShows:
             carried_by=keen,
         )
         assign(keen, miniature=yolanda)
-        learn(yolanda, library["skills"]["Connected"])
-        learn(yolanda, library["skills"]["Dodge"])
+        select(yolanda, library["skills"]["Connected"])
+        select(yolanda, library["skills"]["Dodge"])
         client.force_login(player)
         page = client.get(edit_url(yolanda)).content.decode()
 
@@ -473,7 +473,7 @@ class TestTheRestOfTheLibrary:
     ):
         """And the other half of it, which the narrower listing could
         not do at all: what was selected can be taken away."""
-        learn(yolanda, library["skills"]["Bull Charge"])
+        select(yolanda, library["skills"]["Bull Charge"])
         client.force_login(player)
         post_skills(client, yolanda, tab=ALL_SETS)
 
@@ -486,7 +486,7 @@ class TestTheRestOfTheLibrary:
         """Held, so it is theirs whatever the placements say — and it is
         drawn where they will look for it rather than a tab away, since
         the reader wanting to clear it is looking at what she has."""
-        learn(yolanda, library["skills"]["Bull Charge"])
+        select(yolanda, library["skills"]["Bull Charge"])
         client.force_login(player)
         offer = offer_on(client, yolanda, OWN_SETS)
 
@@ -497,7 +497,7 @@ class TestTheRestOfTheLibrary:
         """Drawn among their own, it is off the panel: a box and a
         search row for the same skill would be two controls settling one
         thing."""
-        learn(yolanda, library["skills"]["Bull Charge"])
+        select(yolanda, library["skills"]["Bull Charge"])
         client.force_login(player)
         offered = {option.name for option in more_on(client, yolanda, OWN_SETS)}
 
@@ -595,7 +595,7 @@ class TestSavingTheSquare:
     ):
         """The row is archived rather than deleted — the ledger goes on
         saying she once had it — so what the card shows is what changed."""
-        learn(yolanda, library["skills"]["Catfall"])
+        select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
         post_skills(client, yolanda)
 
@@ -607,8 +607,8 @@ class TestSavingTheSquare:
     ):
         """Two she knows and one box cleared: settling the whole list must
         not take away the one nobody touched."""
-        learn(yolanda, library["skills"]["Catfall"])
-        learn(yolanda, library["skills"]["Connected"])
+        select(yolanda, library["skills"]["Catfall"])
+        select(yolanda, library["skills"]["Connected"])
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Connected"])
 
@@ -621,7 +621,7 @@ class TestSavingTheSquare:
         """A duplicate skill means nothing in the game, and a card reading
         "Catfall, Catfall" is a bug however honestly each row was
         written."""
-        learn(yolanda, library["skills"]["Catfall"])
+        select(yolanda, library["skills"]["Catfall"])
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Catfall"])
 
@@ -676,7 +676,7 @@ class TestSavingTheSquare:
 
         thalia = hire_with_option(gang, gang_sister, "Thalia")
         badge = assign(wyrd, miniature=thalia)
-        learn(thalia, library["powers"]["Terrify"])
+        select(thalia, library["powers"]["Terrify"])
         remove(badge)
 
         client.force_login(player)
@@ -854,7 +854,7 @@ class TestAnOpenStartingSkill:
         assert held_by(leader_yolanda) == []
         assert_reconciled(gang)
 
-    def test_keeping_the_starting_skill_and_ticking_another_learns_the_extra(
+    def test_keeping_the_starting_skill_and_ticking_another_selects_the_extra(
         self, client, player, gang, leader_yolanda, library
     ):
         catfall = library["skills"]["Catfall"]
@@ -1084,13 +1084,13 @@ class TestTheQueryBudget:
             return len(captured.captured_queries)
 
         for skill in stock[:2]:
-            learn(yolanda, skill)
+            select(yolanda, skill)
         # The first reading pays one-time caches that no later one does.
         measure()
         few = measure()
 
         for skill in stock[2:]:
-            learn(yolanda, skill)
+            select(yolanda, skill)
         many = measure()
 
         assert few == many, f"{few} queries knowing 2, {many} knowing 8"
@@ -1102,15 +1102,15 @@ def _gang_url(gang):
 
 
 def _skills_url(miniature):
-    return reverse("n26-learn", args=[miniature.pk])
+    return reverse("n26-skills", args=[miniature.pk])
 
 
-def _learn_views():
-    """The learn *module* — ``n26.core.views.learn`` is the view function
+def _skills_views():
+    """The skills *module* — ``n26.core.views.skills`` is the view function
     on the package, which shadows the submodule for a normal import."""
     import importlib
 
-    return importlib.import_module("n26.core.views.learn")
+    return importlib.import_module("n26.core.views.skills")
 
 
 class TestAnsweringDoesNotTouchTheReadPath:
@@ -1137,11 +1137,11 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_reading_the_edit_page_does_not_build_the_choose_list(
         self, client, player, leader_yolanda, monkeypatch
     ):
-        learn_views = _learn_views()
+        skills_views = _skills_views()
 
         calls = []
         monkeypatch.setattr(
-            learn_views,
+            skills_views,
             "_offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
@@ -1152,11 +1152,11 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_reading_the_gang_sheet_does_not_build_the_choose_list(
         self, client, player, leader_yolanda, monkeypatch
     ):
-        learn_views = _learn_views()
+        skills_views = _skills_views()
 
         calls = []
         monkeypatch.setattr(
-            learn_views,
+            skills_views,
             "_offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
@@ -1167,11 +1167,11 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_reading_the_skills_screen_does_not_build_the_choose_list(
         self, client, player, leader_yolanda, monkeypatch
     ):
-        learn_views = _learn_views()
+        skills_views = _skills_views()
 
         calls = []
         monkeypatch.setattr(
-            learn_views,
+            skills_views,
             "_offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )
@@ -1182,9 +1182,9 @@ class TestAnsweringDoesNotTouchTheReadPath:
     def test_saving_a_tick_builds_the_choose_list_once(
         self, client, player, leader_yolanda, library, monkeypatch
     ):
-        learn_views = _learn_views()
+        skills_views = _skills_views()
 
-        real = learn_views._offered_keys
+        real = skills_views._offered_keys
         calls = []
 
         def counted(*args, **kwargs):
@@ -1192,7 +1192,7 @@ class TestAnsweringDoesNotTouchTheReadPath:
             calls.append(result)
             return result
 
-        monkeypatch.setattr(learn_views, "_offered_keys", counted)
+        monkeypatch.setattr(skills_views, "_offered_keys", counted)
         client.force_login(player)
         post_skills(client, leader_yolanda, library["skills"]["Catfall"])
         assert len(calls) == 1
@@ -1204,9 +1204,9 @@ class TestAnsweringDoesNotTouchTheReadPath:
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        learn_views = _learn_views()
+        skills_views = _skills_views()
 
-        real = learn_views._offered_keys
+        real = skills_views._offered_keys
         counts = []
 
         def wrapped(*args, **kwargs):
@@ -1215,7 +1215,7 @@ class TestAnsweringDoesNotTouchTheReadPath:
             counts.append(len(captured.captured_queries))
             return result
 
-        monkeypatch.setattr(learn_views, "_offered_keys", wrapped)
+        monkeypatch.setattr(skills_views, "_offered_keys", wrapped)
         extras = [
             create_skill(f"Trick {index}", category=sets["agility"], position=index)
             for index in range(10, 18)
@@ -1243,11 +1243,11 @@ class TestAnsweringDoesNotTouchTheReadPath:
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        learn_views = _learn_views()
+        skills_views = _skills_views()
 
         calls = []
         monkeypatch.setattr(
-            learn_views,
+            skills_views,
             "_offered_keys",
             lambda *args, **kwargs: calls.append(1) or frozenset(),
         )

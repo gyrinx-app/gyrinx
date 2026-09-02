@@ -167,7 +167,7 @@ def placed_collections(computed):
     return {str(placement.section.collection_id) for placement in computed.placements}
 
 
-def learnable_for(computed, among=None):
+def selectable_for(computed, among=None):
     """The collections this fighter may select from: the ones their grid
     places a category into, kept to those holding what a model is.
 

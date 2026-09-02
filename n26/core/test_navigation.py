@@ -243,10 +243,10 @@ class TestWhichFightersAreListed:
         gang = make_gang("The Ashen Choir")
         here = hire(gang, "Vex")
         other = hire(gang, "Karn")
-        switcher = fighter_switcher(gang, here, route="n26-learn")
+        switcher = fighter_switcher(gang, here, route="n26-skills")
         assert {item.href for item in switcher.items} == {
-            reverse("n26-learn", args=[here.pk]),
-            reverse("n26-learn", args=[other.pk]),
+            reverse("n26-skills", args=[here.pk]),
+            reverse("n26-skills", args=[other.pk]),
         }
         assert switcher.menu_label == "Select skills for another fighter"
 
