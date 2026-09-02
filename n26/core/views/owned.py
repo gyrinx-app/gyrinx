@@ -58,7 +58,7 @@ from dataclasses import dataclass
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -904,6 +904,15 @@ def reassign_assignment(request, pk):
             messages.success(request, f"Took {name} off {off}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
+    if wanted == "held" and came_from is None and is_htmx(request):
+        # The stash's own tab draws only what is held, so the row the
+        # sight now has is new to the page: delivered as an out-of-band
+        # swap it would name a row that is not there, and htmx drops
+        # such an element without a word. A reload draws the screen as
+        # it now stands, and the message with it.
+        response = HttpResponse(status=200)
+        response["HX-Redirect"] = back
+        return response
     return _acted(request, touched, gang, back, also=also)
 
 

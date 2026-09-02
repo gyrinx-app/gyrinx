@@ -1401,6 +1401,32 @@ class TestDetachingAnAccessory:
         assert bolted.miniature_id is None
         assert_reconciled(gang)
 
+    def test_a_stash_detach_over_htmx_reloads_the_screen(
+        self, client, tester, gang, gun, bolted, stash
+    ):
+        """The stash tab draws only what is held, so the sight's own row
+        is new to the page. A partial update would deliver it as a swap
+        for a row that is not there, and htmx would drop it — the sight
+        would be in the stash and nowhere on the screen."""
+        with operation(gang, actor=tester) as op:
+            op.move(gun, stash)
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", bolted),
+            {"to": "held", "list": "stash"},
+            headers={"HX-Request": "true"},
+        )
+
+        assert response.status_code == 200
+        assert response["HX-Redirect"].startswith(
+            reverse("n26-equip-gang", args=[gang.pk])
+        )
+        assert "list=stash" in response["HX-Redirect"]
+        bolted.refresh_from_db()
+        assert bolted.stash_id == stash.pk
+        assert_reconciled(gang)
+
 
 @pytest.fixture
 def house_list(gang, tester):
