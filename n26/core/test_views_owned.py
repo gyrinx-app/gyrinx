@@ -1059,6 +1059,288 @@ class TestFittingOneTheFighterIsCarrying:
         assert f'id="{gone}" hx-swap-oob="delete"' in body
 
 
+class TestDetachingAnAccessory:
+    """A sight bolted to a gun can come off and stay with the fighter.
+    Remove archives it; this does not. Fit to another gun they already
+    carry is the same move, asked as its own question."""
+
+    @pytest.fixture
+    def bolted(self, gang, tester, gun, sight):
+        with operation(gang, actor=tester) as op:
+            return op.buy(gun, thing=sight)
+
+    @pytest.fixture
+    def second_gun(self, gang, fighter, tester):
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Autogun", price=20, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            return op.buy(fighter, thing=weapon, paid=20)
+
+    @staticmethod
+    def dialog(fighter, **query):
+        from django.test import RequestFactory
+
+        from n26.core.card import build_card
+        from n26.core.owned import EquipHost
+        from n26.core.views.owned import owned_dialog
+
+        request = RequestFactory().get(AT, query)
+        host = EquipHost.fighter(fighter.gang, build_card(fighter), fighter, AT)
+        return owned_dialog(request, host)
+
+    @staticmethod
+    def part_of(fighter, parent, assignment):
+        from n26.core.card import build_card
+        from n26.core.owned import owned_things, thing_key
+
+        held = owned_things(build_card(fighter), AT)
+        (copy,) = held[thing_key(parent.assignable)]
+        return next(part for part in copy.parts if part.id == str(assignment.pk))
+
+    def test_a_bought_accessory_offers_detach(self, fighter, gun, bolted):
+        part = self.part_of(fighter, gun, bolted)
+        assert part.detach_href == f"{AT}&detach={bolted.pk}"
+
+    def test_the_only_gun_is_nowhere_to_fit_it(self, fighter, gun, bolted):
+        """A screen must not ask a question its answer refuses."""
+        part = self.part_of(fighter, gun, bolted)
+        assert part.fit_href == ""
+
+    def test_another_gun_is_somewhere_to_fit_it(self, fighter, gun, bolted, second_gun):
+        part = self.part_of(fighter, gun, bolted)
+        assert part.fit_href == f"{AT}&fit={bolted.pk}"
+
+    def test_a_sight_the_gun_came_with_is_offered_neither(
+        self, gang, tester, fighter, gun, sight
+    ):
+        from n26.core.models import Reason
+
+        with operation(gang, actor=tester) as op:
+            builtin = op.assign(
+                sight, parent=gun, caused_by=gun, paid=0, reason=Reason.DEFAULT
+            )
+
+        part = self.part_of(fighter, gun, builtin)
+        assert part.detach_href == ""
+        assert part.fit_href == ""
+
+    def test_the_fighter_card_kebab_offers_detach(self, gang, fighter, gun, bolted):
+        """The accessory line on the card is the same kebab the listing
+        draws: Sell in the open, Detach among the rest. One gun, so Fit
+        is not offered."""
+        from n26.core.card import build_card
+        from n26.core.owned import EquipHost
+        from n26.core.render import build_model_card
+        from n26.core.views.owned import link_possession_actions
+
+        own = build_card(fighter)
+        card = build_model_card(fighter, card=own)
+        host = EquipHost.fighter(gang, own, fighter, AT)
+        link_possession_actions(card, host)
+
+        (weapon,) = [item for item in card.weapons if item.id == str(gun.pk)]
+        (line,) = weapon.accessories
+        assert [act.label for act in line.more] == ["Detach", "Refund", "Remove"]
+        assert line.more[0].target == f"{AT}&detach={bolted.pk}"
+
+    def test_the_kebab_names_detach_and_fit(self, fighter, gun, bolted, second_gun):
+        from n26.core.card import build_card
+        from n26.core.listing import copy_row
+        from n26.core.owned import owned_things, thing_key
+
+        held = owned_things(build_card(fighter), AT)
+        (copy,) = held[thing_key(gun.assignable)]
+        (part,) = copy_row(copy).parts
+
+        assert [action.label for action in part.more] == [
+            "Detach",
+            "Fit to a weapon",
+            "Refund",
+            "Remove",
+        ]
+
+    def test_the_question_names_the_gun_it_comes_off(self, fighter, gun, bolted):
+        dialog = self.dialog(fighter, detach=str(bolted.pk))
+
+        assert dialog["title"] == "Take Telescopic sight off Lasgun?"
+        assert dialog["action"] == reverse("n26-reassign", args=[bolted.pk])
+        assert dialog["submit_label"] == "Detach"
+
+    def test_the_panel_posts_the_held_destination(
+        self, client, tester, fighter, bolted
+    ):
+        """Rendered rather than read off the dialog: a detach that fell
+        through to the move's destinations would offer the roster, or
+        post a hidden stash field."""
+        client.force_login(tester)
+
+        response = client.get(
+            reverse("n26-equip", args=[fighter.pk]), {"detach": str(bolted.pk)}
+        )
+
+        body = response.content.decode()
+        assert "Take Telescopic sight off Lasgun?" in body
+        assert "The fighter will still hold it." in body
+        assert 'name="to" value="held"' in body or (
+            'name="to"' in body and 'value="held"' in body
+        )
+        assert 'id="reassign-to"' not in body
+        assert 'id="reassign-weapon"' not in body
+
+    def test_a_click_leaves_it_held_and_unfitted(
+        self, client, tester, gang, fighter, gun, bolted
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(url("n26-reassign", bolted), {"to": "held"})
+
+        assert response.status_code == 302
+        bolted.refresh_from_db()
+        assert bolted.parent_id is None
+        assert bolted.miniature_id == fighter.pk
+        assert bolted.archived is False
+        gang.refresh_from_db()
+        assert gang.credits == before
+        assert_reconciled(gang)
+
+    def test_the_click_lands_back_on_the_fighters_equip_page(
+        self, client, tester, fighter, bolted
+    ):
+        client.force_login(tester)
+        response = client.post(url("n26-reassign", bolted), {"to": "held"})
+        assert response.url.startswith(reverse("n26-equip", args=[fighter.pk]))
+
+    def test_the_screen_is_told_about_both_rows_it_changed(
+        self, client, tester, fighter, gun, bolted
+    ):
+        """The gun loses the sight and the sight becomes a row of its
+        own, so both keys are delivered."""
+        from n26.core.owned import thing_key
+        from n26.core.templatetags.listing import row_dom_id
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", bolted),
+            {"to": "held"},
+            headers={"HX-Request": "true"},
+        )
+
+        body = response.content.decode()
+        assert f'data-row="{thing_key(gun.assignable)}"' in body
+        # This listing does not sell the sight, so the new root has no
+        # row on the page and the update says to take one away that was
+        # never there. The gun's row is the one that changed on screen.
+        gone = row_dom_id(thing_key(bolted.assignable))
+        assert f'id="{gone}" hx-swap-oob="delete"' in body
+
+    def test_the_fit_question_omits_the_gun_it_already_hangs_off(
+        self, fighter, gun, bolted, second_gun
+    ):
+        dialog = self.dialog(fighter, fit=str(bolted.pk))
+
+        assert dialog["title"] == "Fit Telescopic sight to a weapon"
+        assert dialog["weapons"] == [{"pk": str(second_gun.pk), "label": "Autogun"}]
+
+    def test_a_click_bolts_it_onto_the_other_gun(
+        self, client, tester, gang, fighter, gun, bolted, second_gun
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(
+            url("n26-reassign", bolted),
+            {"to": "weapon", "weapon": str(second_gun.pk)},
+        )
+
+        assert response.status_code == 302
+        bolted.refresh_from_db()
+        assert bolted.parent_id == second_gun.pk
+        assert bolted.miniature_root_id == fighter.pk
+        gang.refresh_from_db()
+        assert gang.credits == before
+        assert_reconciled(gang)
+
+    def test_a_hand_made_click_naming_the_gun_it_is_on_is_answered_in_words(
+        self, client, tester, gang, gun, bolted
+    ):
+        client.force_login(tester)
+
+        response = client.post(
+            url("n26-reassign", bolted),
+            {"to": "weapon", "weapon": str(gun.pk)},
+            follow=True,
+        )
+
+        assert "There is nowhere to move" in response.content.decode()
+        bolted.refresh_from_db()
+        assert bolted.parent_id == gun.pk
+        assert_reconciled(gang)
+
+    def test_a_built_in_sight_is_asked_neither_question(
+        self, gang, tester, fighter, gun, sight
+    ):
+        from n26.core.models import Reason
+
+        with operation(gang, actor=tester) as op:
+            builtin = op.assign(
+                sight, parent=gun, caused_by=gun, paid=0, reason=Reason.DEFAULT
+            )
+
+        assert self.dialog(fighter, detach=str(builtin.pk)) is None
+        assert self.dialog(fighter, fit=str(builtin.pk)) is None
+
+    def test_a_hand_made_detach_of_a_built_in_is_answered_in_words(
+        self, client, tester, gang, gun, sight
+    ):
+        from n26.core.models import Reason
+
+        with operation(gang, actor=tester) as op:
+            builtin = op.assign(
+                sight, parent=gun, caused_by=gun, paid=0, reason=Reason.DEFAULT
+            )
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", builtin), {"to": "held"}, follow=True
+        )
+
+        assert "There is nowhere to move" in response.content.decode()
+        builtin.refresh_from_db()
+        assert builtin.parent_id == gun.pk
+        assert_reconciled(gang)
+
+    def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun):
+        client.force_login(tester)
+        line = gun.children.exclude(weapon_profile=None).get()
+
+        response = client.post(url("n26-reassign", line), {"to": "held"}, follow=True)
+
+        line.refresh_from_db()
+        assert line.parent_id == gun.pk
+        assert "There is nowhere to move" in response.content.decode()
+        assert_reconciled(gang)
+
+    def test_a_sight_on_a_stashed_gun_stays_in_the_stash(
+        self, client, tester, gang, gun, bolted, stash
+    ):
+        with operation(gang, actor=tester) as op:
+            op.move(gun, stash)
+
+        client.force_login(tester)
+        response = client.post(url("n26-reassign", bolted), {"to": "held"})
+
+        assert response.status_code == 302
+        bolted.refresh_from_db()
+        assert bolted.parent_id is None
+        assert bolted.stash_id == stash.pk
+        assert bolted.miniature_id is None
+        assert_reconciled(gang)
+
+
 @pytest.fixture
 def house_list(gang, tester):
     thing = create_wargear("Knife", price=10)
@@ -1093,8 +1375,8 @@ def test_the_things_a_fighter_holds_are_counted_off_the_card(
 
 
 def test_a_part_is_offered_no_move(gang, fighter, tester):
-    """A part hangs off its parent and cannot be re-homed alone, so the
-    structure a row draws from has no move for it to offer."""
+    """A firing line hangs off its parent and cannot be re-homed alone,
+    so the structure a row draws from has no move for it to offer."""
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key
     from n26.library.authoring import add_weapon_profile, create_weapon
@@ -1161,6 +1443,8 @@ def test_every_copy_arrives_with_its_controls_already_pointed_somewhere(
     assert held.remove_href == f"{AT}&remove={gun.pk}"
     assert part.sell_href == f"{AT}&sell={ammo.pk}"
     assert part.remove_href == f"{AT}&remove={ammo.pk}"
+    assert part.detach_href == ""
+    assert part.fit_href == ""
 
 
 def test_a_copy_cannot_be_edited_after_it_is_built(gang, fighter, tester, sword):
