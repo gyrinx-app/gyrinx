@@ -1219,7 +1219,6 @@ class TestDetachingAnAccessory:
         """The gun loses the sight and the sight becomes a row of its
         own, so both keys are delivered."""
         from n26.core.owned import thing_key
-        from n26.core.templatetags.listing import row_dom_id
 
         client.force_login(tester)
         response = client.post(
@@ -1230,11 +1229,7 @@ class TestDetachingAnAccessory:
 
         body = response.content.decode()
         assert f'data-row="{thing_key(gun.assignable)}"' in body
-        # This listing does not sell the sight, so the new root has no
-        # row on the page and the update says to take one away that was
-        # never there. The gun's row is the one that changed on screen.
-        gone = row_dom_id(thing_key(bolted.assignable))
-        assert f'id="{gone}" hx-swap-oob="delete"' in body
+        assert f'data-row="{thing_key(bolted.assignable)}"' in body
 
     def test_the_fit_question_omits_the_gun_it_already_hangs_off(
         self, fighter, gun, bolted, second_gun
