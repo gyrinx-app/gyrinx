@@ -1263,6 +1263,32 @@ class TestDetachingAnAccessory:
         )
         assert_reconciled(gang)
 
+    def test_a_built_in_sight_cannot_be_fitted_to_another_gun(
+        self, client, tester, gang, fighter, gun, sight, other_gun
+    ):
+        """There may be another gun, but the sight belongs to the
+        package — that is a rule, not an empty destination list."""
+        from n26.core.models import Reason
+
+        with operation(gang, actor=tester) as op:
+            builtin = op.assign(
+                sight, parent=gun, caused_by=gun, paid=0, reason=Reason.DEFAULT
+            )
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", builtin),
+            {"to": "weapon", "weapon": str(other_gun.pk)},
+            follow=True,
+        )
+
+        builtin.refresh_from_db()
+        assert builtin.parent_id == gun.pk
+        body = response.content.decode()
+        assert "You cannot take Telescopic sight off the weapon." in body
+        assert "There is nowhere to move" not in body
+        assert_reconciled(gang)
+
     def test_a_stash_gun_offers_the_part_no_fit_or_detach(
         self, gang, tester, sight, stash
     ):

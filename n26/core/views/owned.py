@@ -822,30 +822,34 @@ def reassign_assignment(request, pk):
         # onto another gun would offer a keep the sale of that package
         # takes back.
         if assignment.parent_id is not None and not can_unbolt(assignment):
+            messages.error(
+                request,
+                f"You cannot take {name} off the weapon. "
+                "Only a bought accessory can come off and stay held.",
+            )
+            return _unchanged(request, back)
+        try:
+            named = Assignment.objects.filter(
+                pk=request.POST.get("weapon", ""),
+                gang_root=gang,
+                archived=False,
+            ).exclude(weapon=None)
+            # Nothing hangs off itself, and nothing moves onto
+            # the gun it already hangs off. The operation says
+            # the first by raising rather than refusing, so a
+            # hand-made click naming either is answered here
+            # with the same sentence as any other impossible
+            # destination.
+            named = named.exclude(pk=assignment.pk).exclude(pk=assignment.parent_id)
+            # A fighter's Fit picker only names that fighter's
+            # guns. The stash picker names the roster, so this
+            # filter stays off when the accessory is not on a
+            # model.
+            if assignment.miniature_root_id:
+                named = named.filter(miniature_root=assignment.miniature_root)
+            destination = named.first()
+        except ValidationError:
             destination = None
-        else:
-            try:
-                named = Assignment.objects.filter(
-                    pk=request.POST.get("weapon", ""),
-                    gang_root=gang,
-                    archived=False,
-                ).exclude(weapon=None)
-                # Nothing hangs off itself, and nothing moves onto
-                # the gun it already hangs off. The operation says
-                # the first by raising rather than refusing, so a
-                # hand-made click naming either is answered here
-                # with the same sentence as any other impossible
-                # destination.
-                named = named.exclude(pk=assignment.pk).exclude(pk=assignment.parent_id)
-                # A fighter's Fit picker only names that fighter's
-                # guns. The stash picker names the roster, so this
-                # filter stays off when the accessory is not on a
-                # model.
-                if assignment.miniature_root_id:
-                    named = named.filter(miniature_root=assignment.miniature_root)
-                destination = named.first()
-            except ValidationError:
-                destination = None
     else:
         try:
             destination = Miniature.objects.filter(
