@@ -400,7 +400,13 @@ def _screen(gang, miniature=None, list_param=""):
     on" would let the two quietly disagree.
     """
     from n26.core.access import collections_for, gang_collections
-    from n26.core.browse import all_gear, browse, usability_for, with_use_notes
+    from n26.core.browse import (
+        all_gear,
+        browse,
+        priced_from,
+        usability_for,
+        with_use_notes,
+    )
     from n26.core.card import build_card, build_gang_card, build_modifier_index
     from n26.core.effects import compute, compute_gang
 
@@ -420,10 +426,15 @@ def _screen(gang, miniature=None, list_param=""):
             for access in collections_for(miniature, card=card, computed=computed)
         )
         if list_param == ALL_SCOPE:
-            # The library, noted for this fighter the way any list is:
-            # the tab is there for the thing no held list offers, which
-            # is where a use restriction is likeliest to bite.
-            chosen, view = None, all_gear(ALL_LABEL, for_use_notes=True)
+            # The library, priced from the lists this fighter holds and
+            # noted for them the way any list is: the tab is there for
+            # the thing no held list offers, which is where a use
+            # restriction is likeliest to bite.
+            chosen = None
+            view = priced_from(
+                all_gear(ALL_LABEL, for_use_notes=True),
+                [browse(collection) for collection in collections],
+            )
         else:
             chosen = chosen_from(collections)
             view = browse(chosen) if chosen is not None else None
@@ -441,7 +452,11 @@ def _screen(gang, miniature=None, list_param=""):
     if list_param == STASH_SCOPE:
         chosen, view = None, None
     elif list_param == ALL_SCOPE:
-        chosen, view = None, all_gear(ALL_LABEL)
+        chosen = None
+        view = priced_from(
+            all_gear(ALL_LABEL),
+            [browse(collection) for collection in collections],
+        )
     else:
         chosen = chosen_from(collections)
         # No usability notes: those are about a fighter, and the stash is

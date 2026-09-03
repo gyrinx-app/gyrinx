@@ -132,7 +132,10 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         template tag written inside a component's attributes
                         is not read as one.
                         {% endcomment %}
-                        <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
+                        <c-ui.navlist.item href="{{ tab.href }}"
+                                           :current="tab.current"
+                                           title="{{ tab.title }}"
+                                           data-busy="link">
                             {{ tab.label }}
                         </c-ui.navlist.item>
                     {% endfor %}

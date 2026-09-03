@@ -9,9 +9,13 @@ fighter's; the gang's screen has none.
     <p class="mt-0.5 text-xs text-muted">
         {% if miniature %}
             Includes items outside {{ miniature.name }}'s equipment lists.
-            Items {{ miniature.name }} cannot use are marked.
+            Items on those lists are priced as the lists price them, and
+            other items as the Trading Post does. Items
+            {{ miniature.name }} cannot use are marked.
         {% else %}
-            Includes items outside the gang's equipment lists.
+            Includes items outside the gang's equipment lists. Items on
+            those lists are priced as the lists price them, and other items
+            as the Trading Post does.
         {% endif %}
     </p>
 </div>

@@ -377,6 +377,10 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
     same prefetch a sweep makes. Off, the lists are not loaded: the stash
     is not a fighter, and noting nothing is not worth a query a kind.
 
+    Every line is priced at reference. A buying screen prices it again
+    from the lists its buyer holds (:func:`priced_from`), so the library
+    itself never asks who is looking.
+
     A fixed number of queries, one per kind plus its prefetches, however
     much the library holds.
     """
@@ -436,6 +440,45 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
                 )
             )
     return _sectioned(name, lines)
+
+
+def priced_from(view, listings):
+    """The same view, each line priced as the first listing offering the
+    item prices it.
+
+    A library line is a reference price and nothing more. A buyer buys
+    from the lists they hold, and those are what the price should come
+    from: their own list's line where it offers the item, at that list's
+    price and on its terms; the Trading Post's line where only the post
+    does, so its Trade Point figure is shown and charged; and the
+    library's own line where nothing held offers it. ``listings`` are
+    browsed views in order of precedence, the buyer's own lists before
+    the post — the same order their tabs stand in.
+
+    The listing's line is taken whole — entry, terms, parts and all —
+    because that is the purchase the listing would make, and a line
+    bought here must be the line bought there. Sectioning stays the
+    library's: the same thing sits in the same category whichever list
+    priced it.
+    """
+    offered = {}
+    for listing in reversed(listings):
+        for line in listing.all_lines():
+            offered[_key(line.thing)] = line
+    priced = CollectionView(name=view.name)
+    for section in view.sections:
+        regrouped = SectionGroup(name=section.name)
+        for category in section.categories:
+            regrouped.categories.append(
+                CategoryGroup(
+                    name=category.name,
+                    lines=[
+                        offered.get(_key(line.thing), line) for line in category.lines
+                    ],
+                )
+            )
+        priced.sections.append(regrouped)
+    return priced
 
 
 def offered_choices(thing):

@@ -76,7 +76,10 @@ sell is managed from the In stash tab.
         <div class="flex flex-col gap-4 self-start">
             <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
                 {% for tab in collection_tabs %}
-                    <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
+                    <c-ui.navlist.item href="{{ tab.href }}"
+                                       :current="tab.current"
+                                       title="{{ tab.title }}"
+                                       data-busy="link">
                         {{ tab.label }}
                     </c-ui.navlist.item>
                 {% endfor %}

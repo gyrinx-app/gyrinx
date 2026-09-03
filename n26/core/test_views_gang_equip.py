@@ -604,12 +604,13 @@ class TestTheQueryBudget:
 
         client.force_login(tester)
 
-        # The same page with the library in place of that browse: one
-        # query per gear kind, plus the guns' paid rounds and the wargear's
+        # The same page with the library beside that browse: one query
+        # per gear kind, plus the guns' paid rounds and the wargear's
         # offers — never one per item, and no use lists, because a gang has
-        # nothing to test a restriction against. Plus the drawer's one
-        # question about whether campaigns are open.
-        assert self.measure(client, equip_url(gang, scope="all")) == 31
+        # nothing to test a restriction against — and the browse of each
+        # list held, which prices the library's lines. Plus the drawer's
+        # one question about whether campaigns are open.
+        assert self.measure(client, equip_url(gang, scope="all")) == 41
 
     def test_the_library_costs_the_same_however_much_it_holds(
         self, client, tester, gang, house_list

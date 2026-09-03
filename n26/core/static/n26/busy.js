@@ -16,7 +16,8 @@
  * design library's stylesheet (n26/designsystem/assets/app.css) — this file
  * holds no styling and reads none. A control that must never go busy carries
  * `data-busy="off"` from its call site; so does a form, which opts out
- * everything inside it.
+ * everything inside it. A plain link to a page the server has to build
+ * carries `data-busy="link"` to be treated as a button is.
  *
  * What is deliberately left alone: a button that only moves something on
  * screen — a tab, a filter, a disclosure — starts no work and never goes
@@ -66,12 +67,16 @@
         if (!el.matches("button, a")) return;
         if (el.getAttribute("data-busy") === "on") return;
 
-        el.setAttribute("data-busy", "on");
-        el.setAttribute("aria-busy", "true");
         /* What the script put on is what the script takes off: markup may
          * carry the state itself, and a sweep that could not tell the two
-         * apart would quietly undo it. */
-        el.setAttribute("data-busy-applied", "");
+         * apart would quietly undo it. A link's own opt-in is kept here so
+         * it is put back when the link is released. */
+        el.setAttribute(
+            "data-busy-applied",
+            el.getAttribute("data-busy") || "",
+        );
+        el.setAttribute("data-busy", "on");
+        el.setAttribute("aria-busy", "true");
     }
 
     function disable(element) {
@@ -94,8 +99,10 @@
 
     function release(element) {
         if (element.hasAttribute("data-busy-applied")) {
+            var before = element.getAttribute("data-busy-applied");
             element.removeAttribute("data-busy-applied");
-            element.removeAttribute("data-busy");
+            if (before) element.setAttribute("data-busy", before);
+            else element.removeAttribute("data-busy");
             element.removeAttribute("aria-busy");
         }
         if (element.dataset.busyDisabled) {
@@ -189,7 +196,9 @@
      *
      * Only link *buttons*: `rounded-button` is what the library puts on both
      * shapes of <c-ui.button>, and app.css already reads it as "this is a
-     * button". A plain link in a sentence stays a plain link.
+     * button". A plain link in a sentence stays a plain link — unless its
+     * call site says the page behind it takes building, with
+     * `data-busy="link"`; a rail of equipment lists is one.
      *
      * Everything that is not a plain navigation of this tab is passed over —
      * a modified click opens elsewhere, a fragment goes nowhere the server is
@@ -201,7 +210,9 @@
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
             return;
 
-        var link = event.target.closest("a[href].rounded-button");
+        var link = event.target.closest(
+            'a[href].rounded-button, a[href][data-busy="link"]',
+        );
         if (!link || link.hasAttribute("download")) return;
         if (link.target && link.target !== "_self") return;
 

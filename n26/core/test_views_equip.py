@@ -2414,6 +2414,60 @@ class TestTheLibraryTab:
         assert gang.credits == 85
         assert_reconciled(gang)
 
+    def test_a_listed_item_is_priced_as_the_fighters_list_prices_it(
+        self, client, tester, fighter, house_list, library
+    ):
+        """The library's own figure is a reference price. A fighter buys
+        from the lists they hold, so an item one of them offers is priced
+        as that list prices it, on that list's terms."""
+        from n26.core.views.equip import _screen
+
+        screen = _screen(fighter.gang, miniature=fighter, list_param="all")
+        lines = {str(line.thing): line for line in screen.view.all_lines()}
+
+        # The list's override, not the wargear's 20.
+        assert lines["Sword"].credits == 35
+        assert lines["Sword"].entry is not None
+        assert lines["Sword"].charges_trade_points is False
+        # Nothing held offers it: reference.
+        assert lines["Mesh Armour"].credits == 15
+        assert lines["Mesh Armour"].entry is None
+
+    def test_an_unlisted_item_is_priced_as_the_trading_post_prices_it(
+        self, client, tester, fighter, house_list, library
+    ):
+        """Where no held list offers it and the post does, the post's line
+        stands — Trade Points shown and charged, as on the post's own
+        tab — and the fighter's own list still wins over the post."""
+        from n26.library.authoring import create_trading_post
+        from n26.library.models import Wargear
+
+        create_wargear("Lho Sticks", price=5, trade_point_price=1)
+        sword = Wargear.objects.get(name="Sword")
+        sword.trade_point_price = 4
+        sword.save(update_fields=["trade_point_price"])
+        create_trading_post()
+
+        from n26.core.views.equip import _screen
+
+        screen = _screen(fighter.gang, miniature=fighter, list_param="all")
+        lines = {str(line.thing): line for line in screen.view.all_lines()}
+        client.force_login(tester)
+        response = client.get(f"{equip_url(fighter)}?list=all")
+        rows = {row.name: row for row in response.context["catalogue"].all_rows()}
+
+        assert lines["Lho Sticks"].trade_points == 1
+        assert lines["Lho Sticks"].shows_trade_points is True
+        assert lines["Lho Sticks"].charges_trade_points is True
+        assert lines["Sword"].credits == 35
+        assert lines["Sword"].charges_trade_points is False
+        assert lines["Mesh Armour"].shows_trade_points is False
+        # And what the page draws says the same: a figure on the post's
+        # line, none on the list's, and the slider to steer by it.
+        assert rows["Lho Sticks"].trade_points == 1
+        assert rows["Sword"].trade_points is None
+        assert response.context["has_trade_points"] is True
+
     def test_a_fighter_with_no_list_is_pointed_at_it(
         self, client, tester, fighter, library
     ):
@@ -2467,10 +2521,12 @@ class TestTheLibraryTabsQueryBudget:
         # The reader and their session, the gang, the fighter's card with
         # its options, the roster behind the header's count, which held
         # lists hold gear, the drawer's one question about campaigns —
-        # and the library: one query per gear kind, plus the guns' paid
+        # the library: one query per gear kind, plus the guns' paid
         # rounds, each kind's offers and each restricted kind's use
-        # lists. Never one per item.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 41
+        # lists — and a browse of each list held, which is what prices
+        # the library's lines. A fixed number per list, never one per
+        # item.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 51
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked
