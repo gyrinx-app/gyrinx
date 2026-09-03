@@ -128,7 +128,9 @@ GROUPS: list[Group] = [
                     ":collapsible to have it render inline below the md breakpoint "
                     'instead of as a popover. Set strategy="fixed" where the menu '
                     "sits inside something that scrolls, which otherwise cuts it off "
-                    "at the box's edges."
+                    'at the box\'s edges. Set overflow="hidden" when the caller '
+                    "scrolls something inside the panel — two overflow-y-auto boxes "
+                    "hand a touch gesture to the page on a phone."
                 ),
                 parts=(
                     Part(
