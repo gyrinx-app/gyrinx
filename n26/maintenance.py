@@ -60,6 +60,7 @@ __all__ = [
     "Operation",
     "backfill_built_ins",
     "delete_nameless_gang_type",
+    "rehost_gang_picks",
     "repair_doubled_refunds",
     "run_batched",
     "task_routes",
@@ -156,6 +157,10 @@ class Operation(models.TextChoices):
         "n26_drop_duplicate_grants",
         "n26: the second copy a catch-up granted is dropped",
     )
+    REHOST_GANG_PICKS = (
+        "n26_rehost_gang_picks",
+        "n26: the picks a gang holds move off its models onto the gang",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -168,6 +173,7 @@ LOCK_KEYS = {
     Operation.CONVERT_VARIANT: 826_020_611,
     Operation.BACKFILL_BUILT_INS: 826_020_612,
     Operation.DROP_DUPLICATE_GRANTS: 826_020_613,
+    Operation.REHOST_GANG_PICKS: 826_020_614,
 }
 
 
@@ -828,6 +834,71 @@ def repair_doubled_refunds_view(request):
 
 
 @task
+def rehost_gang_picks(backfill_id, **said_by_whoever_enqueued_it):
+    """Move every live pick a gang holds off the model it was written
+    on and onto the gang, and prove every affected gang's books whole,
+    once.
+
+    A gang's worth of picks in one transaction: small enough to hold,
+    and a gang that fails to reconcile unwinds its own move.
+    """
+    from n26.core.rehost_picks import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.REHOST_GANG_PICKS,
+        "Gang pick rehosting",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+REHOST_WORDS = {
+    "noun": "move",
+    "intro": (
+        "This moves picks between hosts in players' gangs. A slot says "
+        "where its pick lands: on the model that carries it, or on the "
+        "gang, where the model is asked and the gang holds the pick. "
+        "While the Outcast Archetype slot said the model instead, the "
+        "picks made in that window were written onto the Leader, and "
+        "setting the slot back steers only the picks made after. Every "
+        "live pick whose slot says the gang and which sits on a model is "
+        "moved onto that model's gang. It still names the assignment "
+        "that asked and the slot it settles, so the card that asked still "
+        "reads it as chosen, and it still goes when that model does. "
+        "Anything it caused stays where it is. An archived pick is "
+        "counted and left alone. No money moves; every gang is proved to "
+        "reconcile."
+    ),
+    "nothing_heading": "Nothing to move",
+    "nothing_flash": (
+        "There was nothing to move — every live pick of a slot the gang "
+        "holds sits on the gang."
+    ),
+    "nothing_words": "Every live pick of a slot the gang holds sits on the gang.",
+    "refuses_heading": "The move cannot run",
+    "button": "Move the picks onto their gangs",
+    "confirm": (
+        "Move every live pick of a slot the gang holds off its model and "
+        "onto the gang? This cannot be undone."
+    ),
+}
+
+
+def rehost_gang_picks_view(request):
+    """Preview the move (GET), or record a run and enqueue it."""
+    from n26.core.rehost_picks import find
+
+    return _deletion_view(
+        request,
+        Operation.REHOST_GANG_PICKS,
+        find,
+        rehost_gang_picks,
+        REHOST_WORDS,
+    )
+
+
+@task
 def audit_reconcile(backfill_id, **said_by_whoever_enqueued_it):
     """Check every unarchived gang's books against its ledger.
 
@@ -1119,6 +1190,27 @@ def drop_duplicate_grants_view(request):
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.REHOST_GANG_PICKS.value,
+        name=Operation.REHOST_GANG_PICKS.label,
+        added=date(2026, 9, 3),
+        description=(
+            "A slot says where its pick lands: on the model that carries "
+            "it, or on the gang. While the Outcast Archetype slot said the "
+            "model, the Leader's picks were written onto the Leader; the "
+            "slot says the gang again, and this moves those picks onto "
+            "their gangs. Each still names what asked it and the slot it "
+            "settles, so the Leader's card still reads it as chosen, and "
+            "it still goes when the Leader does. No money moves; every "
+            "gang is proved to reconcile."
+        ),
+        view=rehost_gang_picks_view,
+        detail_template="admin/maintenance/n26/_rehost_detail.html",
+    )
+)
+
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DROP_DUPLICATE_GRANTS.value,
         name=Operation.DROP_DUPLICATE_GRANTS.label,
         added=date(2026, 8, 31),
@@ -1280,6 +1372,7 @@ task_routes = [
     TaskRoute(repair_doubled_refunds, ack_deadline=600, min_retry_delay=60),
     TaskRoute(backfill_built_ins, ack_deadline=600),
     TaskRoute(drop_duplicate_grants, ack_deadline=600),
+    TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
 ]
 
 
