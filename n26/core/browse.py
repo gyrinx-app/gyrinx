@@ -375,7 +375,7 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
     the use lists of every kind that carries them, so a fighter's screen
     can note this view (``with_use_notes``) for no query per line — the
     same prefetch a sweep makes. Off, the lists are not loaded: the stash
-    is not a fighter, and noting nothing is not worth a query a kind.
+    is not a fighter, and noting nothing is not worth a query per kind.
 
     Every line is priced at reference. A buying screen prices it again
     from the lists its buyer holds (:func:`priced_from`), so the library

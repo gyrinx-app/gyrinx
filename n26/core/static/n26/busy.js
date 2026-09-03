@@ -17,7 +17,7 @@
  * holds no styling and reads none. A control that must never go busy carries
  * `data-busy="off"` from its call site; so does a form, which opts out
  * everything inside it. A plain link to a page the server has to build
- * carries `data-busy="link"` to be treated as a button is.
+ * carries `data-busy="link"` to be treated the way a button is.
  *
  * What is deliberately left alone: a button that only moves something on
  * screen — a tab, a filter, a disclosure — starts no work and never goes
