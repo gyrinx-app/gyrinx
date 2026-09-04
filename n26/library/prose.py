@@ -600,13 +600,17 @@ def _narrowed(who, scope):
     """
     if not getattr(scope, "CONDITIONS", ()) or scope.pk is None:
         return who, ""
-    named, clauses, of_weapons = [], [], []
+    named, typed, clauses, of_weapons = [], [], [], []
     for related in scope.CONDITIONS:
         for row in getattr(scope, related).all():
             if related == "has_subtypes":
                 named.extend(str(one) for one in row.subtypes.all())
             elif related == "is_profile":
                 named.extend(str(one) for one in row.profiles.all())
+            elif related == "is_profile_type":
+                types = [str(one).lower() for one in row.profile_types.all()]
+                if types:
+                    typed.append((row.negate, types))
             elif related == "counter_at_least":
                 clauses.append(f"while their {row.counter} is {row.at_least} or more")
             else:
@@ -619,6 +623,19 @@ def _narrowed(who, scope):
         possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
         weapons = " ".join([f"{possessive} weapons", *of_weapons])
         plural = True
+    elif typed:
+        # A Type is a possession every model has exactly one of, so the
+        # narrowing reads as the model's own word — "every vehicle" —
+        # in place of the gang-wide "every fighter". Ranks named
+        # alongside are the more specific narrowing and win above.
+        negate, types = typed[0]
+        if negate:
+            subject = "every model except " + _and_then(f"{kind}s" for kind in types)
+        else:
+            subject = f"every {_and_then(types)}"
+        possessive = f"{subject}'s"
+        weapons = " ".join([f"{possessive} weapons", *of_weapons])
+        plural = False
     return (
         _Who(
             subject=subject,

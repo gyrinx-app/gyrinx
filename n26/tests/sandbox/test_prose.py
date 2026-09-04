@@ -23,11 +23,14 @@ from n26.library.authoring import (
     create_default_set,
     create_gang_type,
     create_hidden,
+    create_picklist,
     create_power,
     create_profile,
     create_rule,
     create_section,
     create_skill,
+    create_slot,
+    create_slot_type,
     create_subtype,
     create_trait,
     create_wargear,
@@ -42,11 +45,13 @@ from n26.library.authoring import (
     ef_requires_companions,
     has_subtypes,
     has_traits,
+    is_profile_type,
     modifier,
     offer_option,
     op_adds_model,
     op_changes_counter,
     section_of,
+    targets_every_model,
     targets_gang,
     targets_model,
     targets_weapons,
@@ -165,6 +170,50 @@ class TestTheArticleFollowsTheName:
         assert texts(prose_for(rune).does) == [
             "When this arrives, an Aberrant joins the gang, free — and leaves "
             "again if this goes."
+        ]
+
+
+class TestATypeNarrowsTheSubject:
+    """A model's Type is the one narrowing a gang-wide reach can say in
+    the model's own word: a grant to every vehicle in the gang says
+    "every vehicle", not the gang-wide "every fighter"."""
+
+    @pytest.fixture
+    def damage(self, default_pack):
+        slot_type = create_slot_type("Lasting Damage", plural_name="Lasting Damage")
+        table = create_picklist("Lasting Damage Table", slot_type)
+        return create_slot("Lasting Damage", slot_type, table)
+
+    def test_a_grant_to_every_vehicle_says_so(self, escher, vehicle_type, damage):
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "Vehicles carry Lasting Damage",
+                    targets_every_model(is_profile_type(vehicle_type)),
+                    ef_adds(damage),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every vehicle gains Lasting Damage, while the gang holds this."
+        ]
+
+    def test_negated_it_names_the_type_left_out(self, escher, vehicle_type, damage):
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "All but vehicles carry Lasting Damage",
+                    targets_every_model(is_profile_type(vehicle_type, negate=True)),
+                    ef_adds(damage),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every model except vehicles gains Lasting Damage, while the gang holds this."
         ]
 
 
@@ -1063,9 +1112,10 @@ class TestTheQueryCountStaysFlat:
         each one query per kind, and there are twenty-odd kinds. One
         query is the reference scan finding the propagation tasks filed
         against a set — a real edge into the model graph, seen by
-        discovery like any other.
+        discovery like any other. And one query per condition kind a
+        model scope can carry, read whether or not the row has any.
         """
-        with django_assert_num_queries(61):
+        with django_assert_num_queries(62):
             prose_for(much_used)
 
 

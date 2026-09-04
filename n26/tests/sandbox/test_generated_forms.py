@@ -183,6 +183,23 @@ class TestGeneratedForms:
             "A has_subtypes condition needs subtypes."
         ]
 
+    def test_the_type_condition_is_offered_and_compiles(
+        self, default_pack, fighter_type
+    ):
+        formset = condition_formset_for(
+            specs()["targets_model"], one_condition("is_profile_type")
+        )
+        assert not formset.is_valid()
+        assert formset.errors[0]["profile_types"] == [
+            "A is_profile_type condition needs profile_types."
+        ]
+
+        formset = condition_formset_for(
+            specs()["targets_model"],
+            one_condition("is_profile_type", profile_types=[str(fighter_type.pk)]),
+        )
+        assert formset.is_valid(), formset.errors
+
 
 class TestTheUnionPicker:
     def test_picking_an_existing_thing(self, default_pack):

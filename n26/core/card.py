@@ -893,6 +893,7 @@ def build_modifier_index(assignables, max_depth=3):
     also_prefetch = (
         "targets_miniature__has_subtypes__subtypes",
         "targets_miniature__is_profile__profiles",
+        "targets_miniature__is_profile_type__profile_types",
         Prefetch(
             "targets_miniature__counter_at_least",
             queryset=CounterAtLeast.objects.select_related("counter"),

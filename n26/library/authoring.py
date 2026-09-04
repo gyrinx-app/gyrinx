@@ -1480,6 +1480,18 @@ def is_profile(*profiles, negate=False):
     return condition
 
 
+def is_profile_type(*profile_types, negate=False):
+    """Condition: the model's Type — Fighter or Vehicle — is one of these.
+    ``targets_every_model(is_profile_type(fighter))`` reaches every
+    fighter in the gang and no vehicle. ``negate=True`` reads the row
+    the other way."""
+    from n26.library.models import IsProfileType
+
+    condition = IsProfileType(negate=negate)
+    condition._pending_m2m = {"profile_types": profile_types}
+    return condition
+
+
 def has_pickable(*pickables, negate=False):
     """Condition: the model has one of these picked —
     ``targets_model(has_pickable(cawdor))`` for "models with the Cawdor

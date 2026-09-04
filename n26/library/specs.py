@@ -341,6 +341,7 @@ def _build_registry():
         InCategories,
         IsOneOf,
         IsProfile,
+        IsProfileType,
         OffersChoice,
         OpAddsMiniature,
         OpChangesCounter,
@@ -400,6 +401,7 @@ def _build_registry():
                     kinds=(
                         "has_subtypes",
                         "is_profile",
+                        "is_profile_type",
                         "has_pickable",
                         "counter_at_least",
                     )
@@ -424,6 +426,7 @@ def _build_registry():
                     kinds=(
                         "has_subtypes",
                         "is_profile",
+                        "is_profile_type",
                         "has_pickable",
                         "counter_at_least",
                     )
@@ -453,6 +456,15 @@ def _build_registry():
             {
                 "profiles": Many(model=Profile, source=(IsProfile, "profiles")),
                 "negate": Bool(source=(IsProfile, "negate")),
+            },
+        ),
+        Spec(
+            authoring.is_profile_type,
+            {
+                "profile_types": Many(
+                    model=ProfileType, source=(IsProfileType, "profile_types")
+                ),
+                "negate": Bool(source=(IsProfileType, "negate")),
             },
         ),
         Spec(

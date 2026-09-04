@@ -25,11 +25,12 @@ from n26.library.authoring import (
     ef_adds,
     has_subtypes,
     has_traits,
+    is_profile_type,
     modifier,
     targets_model,
     targets_weapons,
 )
-from n26.library.models import CounterAtLeast, HasSubtypes
+from n26.library.models import CounterAtLeast, HasSubtypes, IsProfileType
 
 pytestmark = pytest.mark.django_db
 
@@ -56,6 +57,24 @@ class TestConditionsNest:
 
     def test_an_unconditioned_scope_reads_as_the_model(self, default_pack):
         assert str(targets_model()) == "the model"
+
+    def test_the_type_condition_names_fighters_or_vehicles(
+        self, default_pack, fighter_type, vehicle_type
+    ):
+        scope = targets_model(is_profile_type(fighter_type))
+        (row,) = IsProfileType.objects.filter(scope=scope)
+        assert list(row.profile_types.all()) == [fighter_type]
+        assert str(scope) == "Fighter models"
+        assert (
+            str(targets_model(is_profile_type(vehicle_type, negate=True)))
+            == "every model except Vehicle"
+        )
+
+    def test_an_empty_type_condition_narrows_nothing(self, default_pack):
+        assert (
+            targets_model(is_profile_type()).as_selector()
+            == targets_model().as_selector()
+        )
 
     def test_the_weapon_condition(self, default_pack):
         melee = create_trait("Melee")

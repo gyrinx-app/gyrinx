@@ -61,6 +61,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     has_subtypes,
     has_traits,
     is_profile,
+    is_profile_type,
     offer_option,
     op_adds_model,
     op_changes_counter,
