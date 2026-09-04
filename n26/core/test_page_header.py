@@ -122,5 +122,6 @@ class TestTheTypeKeepsItsMark:
         )
 
         assert "whitespace-nowrap" not in html
-        assert "inline-flex" not in html
+        assert "n26-icon-inline" not in html
+        assert "inline-block align-middle" in html
         assert html.index("The gang") < html.index("Deprecated")

@@ -27,9 +27,10 @@ surrounding sentence.
 
   text — the label. Underlined when this is a link.
   href, underline, tone — passed straight to <c-n26.link>.
-  wrap — let a sentence-long label break; the badge follows the last word.
-    Off by default: a 1em mark after a short name must not take the next line
-    by itself.
+  wrap — let a sentence-long label break; the badge follows the last word
+    and is not sized as a 1em mark (a taller pill would ride up into the
+    line above). Off by default: a 1em mark after a short name must not
+    take the next line by itself.
   label — an accessible name for the badge, also its title tooltip. Left empty the
     badge is aria-hidden, which is right when the text already says the same thing.
 {% endcomment %}<c-vars
@@ -46,6 +47,7 @@ and friends — never left the extractor: nested brackets in one class are
 silently dropped, and an unsized svg is 300x150, which wraps under a short
 word. whitespace-nowrap holds the text and the badge as one unit so a 1em
 mark cannot take the next line by itself. wrap drops that hold so a sentence
-can break and the badge stays after the last word. slot.strip because an
-artwork file's own leading and trailing newlines would otherwise pad the badge.
-{% endcomment %}<c-n26.link href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" class="{% if wrap %}inline{% else %}inline-flex items-center whitespace-nowrap{% endif %} {{ class }}">{{ text }}<c-slot name="trailing">{% if slot.strip %}<span class="ml-[0.25em] n26-icon-inline shrink-0 [--n26-icon-size:1em]" {% if label %}role="img" aria-label="{{ label }}" title="{{ label }}"{% else %}aria-hidden="true"{% endif %}>{{ slot.strip|safe }}</span>{% endif %}</c-slot></c-n26.link>
+can break, and skips .n26-icon-inline: that class's vertical-align is for a
+1em mark, and a taller pill rides up into the line above. slot.strip because
+an artwork file's own leading and trailing newlines would otherwise pad the badge.
+{% endcomment %}<c-n26.link href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" class="{% if wrap %}inline{% else %}inline-flex items-center whitespace-nowrap{% endif %} {{ class }}">{{ text }}<c-slot name="trailing">{% if slot.strip %}<span class="{% if wrap %}ml-1.5 inline-block align-middle{% else %}ml-[0.25em] n26-icon-inline shrink-0 [--n26-icon-size:1em]{% endif %}" {% if wrap %}{% elif label %}role="img" aria-label="{{ label }}" title="{{ label }}"{% else %}aria-hidden="true"{% endif %}>{{ slot.strip|safe }}</span>{% endif %}</c-slot></c-n26.link>

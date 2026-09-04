@@ -35,6 +35,7 @@ class TestAWrappedCardLetsTheNameBreak:
         title = html[html.index("The gang") : html.index("Affects the gang")]
         assert "whitespace-nowrap" not in title
         assert "truncate" not in title
+        assert "n26-icon-inline" not in title
         assert "Deprecated" in title
 
     def test_a_short_name_still_holds_its_badge_on_one_line(self):
