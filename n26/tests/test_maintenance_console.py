@@ -29,8 +29,8 @@ from n26.maintenance import (
     convert_outcast_affiliation_view,
     convert_variant_view,
     delete_empty_affiliations_view,
-    open_founding_actions_view,
     delete_nameless_gang_type_view,
+    open_founding_actions_view,
 )
 
 pytestmark = pytest.mark.django_db
@@ -684,10 +684,34 @@ class TestTheFoundingActionBackfill:
         assert response.status_code == 302
         run = Backfill.objects.get(operation=Operation.OPEN_FOUNDING_ACTIONS)
         assert run.status == Backfill.Status.DONE
-        assert run.summary["preview"] == {"eligible": 1}
+        assert run.summary["preview"] == [
+            "1 of 1 unarchived gang has never had a Found and equip gang action.",
+            "Every unarchived gang is walked, so this run's total counts "
+            "gangs walked, not gangs changed.",
+        ]
         assert run.summary["totals"]["opened"] == 1
         assert old_gang.open_action(Action.Kind.FOUNDING) is not None
+        old_gang.refresh_from_db()
         assert_reconciled(old_gang)
+
+    def test_the_record_page_labels_what_the_run_walked_and_opened(
+        self, client, superuser, old_gang
+    ):
+        """The walk and the totals differ, so the page says which is
+        which rather than dumping the summary as it was stored."""
+        client.force_login(superuser)
+        client.post(reverse("admin:maintenance_n26_open_founding_actions"))
+        run = Backfill.objects.get(operation=Operation.OPEN_FOUNDING_ACTIONS)
+
+        page = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[run.id])
+        ).content.decode()
+
+        assert "gang walked" in page or "gangs walked" in page
+        assert "Gangs given a Found and equip gang action" in page
+        assert "Gangs skipped: they already had one, open or completed" in page
+        assert "never had a Found and equip gang action." in page
+        assert "{'opened'" not in page
 
     def test_applying_with_nothing_to_open_records_no_run(
         self, client, superuser, owner, default_pack, gang_type

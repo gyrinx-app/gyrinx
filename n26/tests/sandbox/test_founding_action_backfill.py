@@ -126,11 +126,10 @@ class TestOpeningTheAction:
             gang.refresh_from_db()
             assert_reconciled(gang)
 
-    def test_the_event_is_filed_against_whoever_asked_for_the_run(
-        self, old_gang, record
-    ):
-        """A repair that hands a gang something says who asked for it;
-        an act filed against nobody reads as the gang's own."""
+    def test_nobody_is_named_as_having_started_it(self, old_gang, record):
+        """The estate catching up is not a person, and the owner of a
+        gang has never met whoever clicked in the admin — so their name
+        does not go in a stranger's history."""
         boss = User.objects.create_superuser("chief", "chief@example.com", "password")
         record.triggered_by = boss
         record.save()
@@ -138,7 +137,7 @@ class TestOpeningTheAction:
 
         run(record)
 
-        assert gang.open_action(FOUNDING).opened.actor_id == boss.pk
+        assert gang.open_action(FOUNDING).opened.actor_id is None
 
     def test_the_gang_history_says_the_action_was_started(self, old_gang, record):
         from n26.core.history import build
@@ -149,6 +148,24 @@ class TestOpeningTheAction:
 
         told = " ".join(line.search for line in build(gang))
         assert "started the found and equip gang action" in told
+
+    def test_the_history_line_carries_no_subject(self, old_gang, record):
+        """With no actor the page draws the sentence alone, as it does
+        for everything else the estate did to itself."""
+        from n26.core.history import build
+
+        gang = old_gang()
+
+        run(record)
+
+        started = [
+            line
+            for line in build(gang)
+            if "started the Found and equip gang action"
+            in "".join(span.text for span in line.spans)
+        ]
+        assert len(started) == 1
+        assert started[0].actor == ""
 
     def test_a_gang_that_already_has_one_keeps_the_one_it_has(
         self, old_gang, player, record
@@ -176,6 +193,39 @@ class TestOpeningTheAction:
 
         assert gang.open_action(FOUNDING) is None
         assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 1
+
+    def test_a_gang_that_gained_one_at_the_last_moment_is_counted(
+        self, old_gang, record, monkeypatch
+    ):
+        """The check for one already there runs before the gang's line
+        is held, so an owner can start the act in between and hold it by
+        the time the run gets the line. The refusal that follows is the
+        guard working: the gang has what the run came to give it, so it
+        is counted rather than filed as a failure."""
+        from n26.core.operations import Operation as GangOperation
+        from n26.core.operations import Refusal
+
+        slipped_in = old_gang("Slipped In")
+        plain = old_gang("Straightforward")
+        really_open = GangOperation.open_action
+
+        def open_action(self, kind, trade_points=None):
+            if self.gang.pk == slipped_in.pk:
+                raise Refusal(
+                    "Complete the open Found and equip gang action before "
+                    "starting another."
+                )
+            return really_open(self, kind, trade_points)
+
+        monkeypatch.setattr(GangOperation, "open_action", open_action)
+
+        run(record)
+
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["failures"] == {}
+        assert record.summary["totals"]["already_had_one"] == 1
+        assert record.summary["totals"]["opened"] == 1
+        assert plain.open_action(FOUNDING) is not None
 
     def test_an_archived_gang_is_left_alone(self, old_gang, record):
         gang = old_gang()

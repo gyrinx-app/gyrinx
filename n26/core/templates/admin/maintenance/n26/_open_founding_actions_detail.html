@@ -1,0 +1,41 @@
+{% comment %}
+    The summary of one founding-action backfill run, on the Backfill
+    detail page: what it set out to do, how far the walk has got, and
+    what it came to. Every unarchived gang is walked and only some get
+    anything, so the walk and the totals are shown apart — a run that
+    says 1,979 walked and 1,929 opened has skipped 50, not lost them.
+{% endcomment %}
+{% if backfill.summary.preview %}
+    <h2>What this run set out to do</h2>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+<h2>Progress</h2>
+<p>
+    {{ backfill.summary.done|default:0 }} of {{ backfill.summary.total|default:"?" }} gang{{ backfill.summary.total|pluralize }} walked.
+    {% if backfill.summary.attempts %}
+        Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }} since the last batch landed.
+    {% endif %}
+</p>
+<h2>Totals</h2>
+<table class="table">
+    <tr>
+        <th>Gangs given a Found and equip gang action</th>
+        <td>{{ backfill.summary.totals.opened|default:0 }}</td>
+    </tr>
+    <tr>
+        <th>Gangs skipped: they already had one, open or completed</th>
+        <td>{{ backfill.summary.totals.already_had_one|default:0 }}</td>
+    </tr>
+</table>
+{% if backfill.summary.failures %}
+    <h2>Gangs that could not be settled</h2>
+    <ul>
+        {% for gang_id, why in backfill.summary.failures.items %}
+            <li>
+                <code>{{ gang_id }}</code>: {{ why }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}
