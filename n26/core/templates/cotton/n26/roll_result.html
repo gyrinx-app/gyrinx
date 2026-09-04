@@ -36,7 +36,7 @@ and no form of its own: the page owns the form.
                 Rolled {{ roll.total }} <span class="font-normal text-muted">on a {{ roll.dice_label }}</span>
             </span>
             <span class="block text-muted">
-                {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another result.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}{{ name }}{% endfor %}.{% else %}This table has no result for {{ roll.total }}.{% endif %}
+                {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another result.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}<strong class="font-semibold text-ink-900 dark:text-ink-100">{{ name }}</strong>{% endfor %}.{% else %}This table has no result for {{ roll.total }}.{% endif %}
                 {% if roll.entered %}Rolled at the table and entered here.{% endif %}
             </span>
         </span>
