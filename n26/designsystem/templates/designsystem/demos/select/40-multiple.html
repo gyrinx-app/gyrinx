@@ -1,0 +1,14 @@
+{# title: The chosen row is marked #}
+{# note: A multiple select is a list. Chosen rows take the accent fill; without that mark, Fighter and Vehicle read as the same. #}
+{# layout: col #}
+<c-ui.select.native name="demo-profile-types"
+                    id="demo-profile-types"
+                    placeholder=""
+                    multiple>
+    <c-ui.select.option value="fighter" :selected="True">
+        Fighter
+    </c-ui.select.option>
+    <c-ui.select.option value="vehicle">
+        Vehicle
+    </c-ui.select.option>
+</c-ui.select.native>

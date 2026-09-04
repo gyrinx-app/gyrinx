@@ -85,10 +85,12 @@ class TestTheRadioCardsPage:
         page = reader.get("/n26/design/c/radio-cards/").content.decode()
         assert "One of these" in page
         assert "No badges, no detail, and a wider card" in page
+        assert "A sentence-long name wraps" in page
         # From the markup the demos rendered, not from their titles: a demo
         # directory the catalog cannot find yields "No examples yet" instead.
         assert 'name="demo-gang-type"' in page
         assert 'name="demo-purpose"' in page
+        assert 'name="demo-scope"' in page
 
 
 class TestTheTickListPage:
@@ -169,6 +171,18 @@ class TestTheOwnedDialogsPage:
         # The two sales, priced apart — the whole reason there are two cards.
         assert "78¢ for the gun alone" in page
         assert "Everything goes together. 91¢." in page
+
+
+class TestTheSelectPage:
+    """Its demos reach the gallery drawn, not as a polite fallback."""
+
+    def test_the_multiple_demo_draws_a_list_not_a_dropdown(self, reader):
+        page = reader.get("/n26/design/c/select/").content.decode()
+        assert "The chosen row is marked" in page
+        assert 'name="demo-profile-types"' in page
+        assert "n26-select-multiple" in page
+        assert "Fighter" in page
+        assert "Vehicle" in page
 
 
 class TestTheFilterSelectsPage:

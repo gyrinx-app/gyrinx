@@ -1,0 +1,68 @@
+{% comment %}
+<c-ui.select.native> — the real <select>, usable on its own.
+
+Overrides the kit: a multiple select is a list, not a dropdown. The kit
+paints every option the input's own fill, which hides the browser's
+selected highlight — Fighter and Vehicle then read as the same, and the
+chevron drawn for a one-of-many select sits on a list it does not open.
+Multiple drops that chrome and marks option:checked instead
+(.n26-select-multiple in app.css).
+
+  name — posted with the form.
+  placeholder — an empty disabled option, for a one-of-many select only.
+  multiple — more than one option may be chosen; the control is a list.
+  size — padding and type, not the HTML size attribute.
+{% endcomment %}
+<c-vars
+    name=""
+    placeholder="Select an option"
+    value=""
+    :required="False"
+    :disabled="False"
+    :multiple="False"
+    size="md"
+    :size_classes="{
+        'xs': 'text-xs px-2 py-1 pr-8',
+        'sm': 'text-sm px-3 py-1.5 pr-10',
+        'md': 'text-sm px-3 py-2 pr-10',
+        'lg': 'text-base px-4 py-2.5 pr-12',
+        'xl': 'text-lg px-5 py-3 pr-12',
+        '2xl': 'text-xl px-6 py-3.5 pr-14'
+    }"
+    :multiple_size_classes="{
+        'xs': 'text-xs px-2 py-1',
+        'sm': 'text-sm px-3 py-1.5',
+        'md': 'text-sm px-3 py-2',
+        'lg': 'text-base px-4 py-2.5',
+        'xl': 'text-lg px-5 py-3',
+        '2xl': 'text-xl px-6 py-3.5'
+    }"
+/>
+
+<select
+    name="{{ name }}"
+    {% if required %}required{% endif %}
+    {% if disabled %}disabled{% endif %}
+    {% if multiple %}multiple{% endif %}
+    {{ attrs }}
+    class="w-full rounded-control border transition-colors
+           {% if multiple %}
+             n26-select-multiple
+             {{ multiple_size_classes|get_item:size }}
+           {% else %}
+             appearance-none bg-[right_0.5rem_center] bg-no-repeat
+             {{ size_classes|get_item:size }}
+             [&>option]:text-ink-900 [&>option]:dark:text-ink-100 [&>option]:bg-white [&>option]:dark:bg-ink-900
+           {% endif %}
+           bg-[var(--color-input-bg)] shadow-[var(--shadow-input)]
+           border-ink-300 dark:border-ink-700
+           focus-ring
+           disabled:opacity-50 disabled:cursor-not-allowed"
+    {% if not multiple %}style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23999%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e'); background-size: 1rem;"{% endif %}
+>
+    {% if placeholder and not multiple %}
+    <option value="" disabled {% if not value %}selected{% endif %}>{{ placeholder }}</option>
+    {% endif %}
+
+    {{ slot }}
+</select>

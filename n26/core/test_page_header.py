@@ -112,3 +112,16 @@ class TestTheTypeKeepsItsMark:
         assert "n26-icon-inline" in html
         assert "[--n26-icon-size:1em]" in html
         assert html.index("Outcast") < html.index("<svg")
+
+    def test_a_sentence_is_allowed_to_break(self):
+        """nowrap after a short name is right; a sentence must be able to
+        break or the badge sits outside the box that holds it."""
+        html = render(
+            '<c-n26.flair-link text="The gang carrying it and all models"'
+            ' :wrap="True"><span>Deprecated</span></c-n26.flair-link>'
+        )
+
+        assert "whitespace-nowrap" not in html
+        assert "n26-icon-inline" not in html
+        assert "inline-block align-middle" in html
+        assert html.index("The gang") < html.index("Deprecated")

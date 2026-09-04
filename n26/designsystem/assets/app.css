@@ -1378,3 +1378,26 @@ a[data-busy="on"] {
 [data-busy-replaces] a[data-busy="on"]::after {
     content: none;
 }
+
+/* A native <select multiple> is a list, not a dropdown. The kit paints
+ * every option the input's fill, which hides the browser's selected
+ * highlight in both modes — and its chevron is for a one-of-many
+ * select. Unlayered so the mark beats leftover option-fill utilities.
+ * The linear-gradient form is what Chrome will honour on option:checked;
+ * a plain background-color is ignored in favour of the system highlight,
+ * which on a dark page is the same ink as an unchosen row. */
+select.n26-select-multiple {
+    appearance: auto;
+    background-image: none;
+    min-height: 4.5rem;
+}
+
+select.n26-select-multiple option:checked {
+    background-color: var(--color-accent);
+    background-image: linear-gradient(
+        0deg,
+        var(--color-accent) 0%,
+        var(--color-accent) 100%
+    );
+    color: var(--color-accent-foreground);
+}
