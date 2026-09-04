@@ -123,7 +123,7 @@ class TestWhichListsAreOffered:
             "In stash",
             "House List",
             "Trading Post",
-            "All equipment",
+            "Unrestricted",
         ]
         assert tabs[1]["current"]
         assert tabs[-1]["href"] == "?list=all"
@@ -149,7 +149,7 @@ class TestWhichListsAreOffered:
         assert [tab["label"] for tab in tabs] == [
             "In stash",
             "House List",
-            "All equipment",
+            "Unrestricted",
         ]
 
     def test_a_shortened_tab_keeps_its_full_name_on_the_link(
@@ -185,7 +185,7 @@ class TestWhichListsAreOffered:
         assert response.context["catalogue"] is None
         assert [tab["label"] for tab in response.context["collection_tabs"]] == [
             "In stash",
-            "All equipment",
+            "Unrestricted",
         ]
         assert "No equipment lists yet" in response.content.decode()
 
@@ -604,12 +604,13 @@ class TestTheQueryBudget:
 
         client.force_login(tester)
 
-        # The same page with the library in place of that browse: one
-        # query per gear kind, plus the guns' paid rounds and the wargear's
+        # The same page with the library beside that browse: one query
+        # per gear kind, plus the guns' paid rounds and the wargear's
         # offers — never one per item, and no use lists, because a gang has
-        # nothing to test a restriction against. Plus the drawer's one
-        # question about whether campaigns are open.
-        assert self.measure(client, equip_url(gang, scope="all")) == 31
+        # nothing to test a restriction against — and the browse of each
+        # list held, which prices the library's lines. Plus the drawer's
+        # one question about whether campaigns are open.
+        assert self.measure(client, equip_url(gang, scope="all")) == 41
 
     def test_the_library_costs_the_same_however_much_it_holds(
         self, client, tester, gang, house_list

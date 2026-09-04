@@ -1,0 +1,23 @@
+{% comment %}
+What the Unrestricted tab is, for a reader who has just opened it. Under the
+rail, like the Trading Post note, because it is a fact about the list they are
+on and not about anything in it. Wants `miniature` where the screen is a
+fighter's; the gang's screen has none.
+{% endcomment %}
+<div class="self-start rounded-box border border-box-border p-3">
+    <p class="text-sm font-medium text-ink-900 dark:text-ink-100">Every item in the library</p>
+    <p class="mt-0.5 text-xs text-muted">
+        {% if miniature %}
+            Includes items outside {{ miniature.name }}'s equipment lists.
+            Items on those lists are priced as the lists price them. Other
+            items are priced as the Trading Post prices them, or at their
+            standard price where the post does not include them. Items
+            {{ miniature.name }} cannot use are marked.
+        {% else %}
+            Includes items outside the gang's equipment lists. Items on
+            those lists are priced as the lists price them. Other items are
+            priced as the Trading Post prices them, or at their standard
+            price where the post does not include them.
+        {% endif %}
+    </p>
+</div>

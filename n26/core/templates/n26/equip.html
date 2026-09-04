@@ -113,39 +113,40 @@ breadcrumb above it has the gang as well, so nothing is lost.
 
     Links, not client state: a list is a place you can be, so it goes in the URL
     — linkable, back-button-friendly, and the server renders the one you are on.
-    One list draws no rail; there is nothing to choose, and the search box
-    names the list it searches.
+    The rail is always drawn: the Unrestricted tab stands beside every list,
+    and stands alone for a fighter holding none. The search box names the
+    list it searches.
     {% endcomment %}
-    {% if chosen %}
-        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 {% if collection_tabs|length > 1 or post_is_shut %}md:grid-cols-[11rem_minmax(0,1fr)]{% endif %}">
+    {% if catalogue %}
+        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
             {% comment %}
-            The rail and what sits under it are one grid cell, so the block
-            below the lists needs no placement of its own. It draws even where
-            there is no rail: one list is nothing to choose between, but the
-            gang can still be told it is tracking nothing.
+            The rail and what sits under it are one grid cell, so the blocks
+            below the lists need no placement of their own.
             {% endcomment %}
-            {% if collection_tabs|length > 1 or post_is_shut %}
-                <div class="flex flex-col gap-4 self-start">
-                    {% if collection_tabs|length > 1 %}
-                        <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
-                            {% for tab in collection_tabs %}
-                                {% comment %}
-                                The full name where the tab shortened it, empty
-                                where nothing was lost — decided in the view,
-                                because a template tag written inside a
-                                component's attributes is not read as one.
-                                {% endcomment %}
-                                <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
-                                    {{ tab.label }}
-                                </c-ui.navlist.item>
-                            {% endfor %}
-                        </c-ui.navlist>
-                    {% endif %}
-                    {% if post_is_shut %}
-                        {% include "n26/includes/not_tracking_tp.html" %}
-                    {% endif %}
-                </div>
-            {% endif %}
+            <div class="flex flex-col gap-4 self-start">
+                <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
+                    {% for tab in collection_tabs %}
+                        {% comment %}
+                        The full name where the tab shortened it, empty where
+                        nothing was lost — decided in the view, because a
+                        template tag written inside a component's attributes
+                        is not read as one.
+                        {% endcomment %}
+                        <c-ui.navlist.item href="{{ tab.href }}"
+                                           :current="tab.current"
+                                           title="{{ tab.title }}"
+                                           data-busy="link">
+                            {{ tab.label }}
+                        </c-ui.navlist.item>
+                    {% endfor %}
+                </c-ui.navlist>
+                {% if everything %}
+                    {% include "n26/includes/unrestricted_note.html" %}
+                {% endif %}
+                {% if post_is_shut %}
+                    {% include "n26/includes/not_tracking_tp.html" %}
+                {% endif %}
+            </div>
             {% comment %}
             The whole catalogue posts here. A purchase submitted by htmx gets
             back only the elements it changed — so the filters, the section on
@@ -155,8 +156,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
             this is an ordinary form and the whole page is served.
             {% endcomment %}
             <form method="post"
-                  action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}"
-                  hx-post="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}"
+                  action="{{ action }}"
+                  hx-post="{{ action }}"
                   hx-swap="none">
                 {% csrf_token %}
                 {% comment %}
@@ -187,7 +188,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         <c-n26.search-bar :live="True"
                                           :nested="True"
                                           model="query"
-                                          placeholder="Search {{ chosen }}" />
+                                          placeholder="Search {{ browsing }}" />
                         {% if category_options or price_ceiling > price_floor or has_trade_points %}
                             {% comment %}
                             A size under the search field above them. These
@@ -271,9 +272,13 @@ breadcrumb above it has the gang as well, so nothing is lost.
         </div>
     {% else %}
         <p class="mt-6 text-muted">
-            No equipment lists yet — this fighter has nothing to browse. Lists
-            arrive with the gang's own content, or from the library's Trading
-            Post once one is created.
+            No equipment lists yet. Lists arrive with the gang's own content, or
+            from the library's Trading Post once one is created. Every item in
+            the library is on the
+            <c-n26.link href="?list=all">
+                Unrestricted
+            </c-n26.link>
+            tab.
         </p>
     {% endif %}
 {% endblock content %}
