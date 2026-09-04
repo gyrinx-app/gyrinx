@@ -1517,7 +1517,8 @@ register_operation(
             "The deletion is rolled back if it would change any checked "
             "gang page. The slot types named Affiliation, Clan House, "
             "Chaos God and Variant remain. The deletion cannot run while "
-            "any assignment still names an affiliation."
+            "any assignment still names an affiliation or any affiliation "
+            "offer remains attached to a carrier."
         ),
         view=delete_empty_affiliations_view,
         detail_template="admin/maintenance/n26/_delete_detail.html",
