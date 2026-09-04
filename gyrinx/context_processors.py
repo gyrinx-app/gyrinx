@@ -52,10 +52,26 @@ def impersonation(request):
     Set by :class:`gyrinx.middleware.ImpersonationMiddleware`. When
     ``is_impersonating`` is true, ``request.user`` is the impersonated user and
     ``impersonator`` is the real admin.
+
+    ``impersonate_target`` is the owner of whatever the page is showing, when
+    that is somebody the viewer may impersonate — the account menu turns it
+    into a way straight into that account. It is empty while an overlay is
+    already active, because starting a second one is refused.
     """
+    from gyrinx.impersonation import can_impersonate_target, page_subject
+
+    is_impersonating = getattr(request, "is_impersonating", False)
+    subject = page_subject(request)
+    target = None
+    if not is_impersonating and can_impersonate_target(
+        getattr(request, "user", None), subject
+    ):
+        target = subject
+
     return {
-        "is_impersonating": getattr(request, "is_impersonating", False),
+        "is_impersonating": is_impersonating,
         "impersonator": getattr(request, "impersonator", None),
+        "impersonate_target": target,
     }
 
 

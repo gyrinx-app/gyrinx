@@ -6,7 +6,8 @@
 The n26 page shell. Block names and order match the platform base template
 (head_title, stylesheet, body, content, extra_body, extra_script) so templates
 written against it extend this one unchanged. Context it reads, all optional:
-banner, is_impersonating / impersonator, gtm_container_id, messages, user.
+banner, is_impersonating / impersonator / impersonate_target,
+gtm_container_id, messages, user.
 {% endcomment %}<!DOCTYPE html>
 <html lang="en-gb">
     <head>
@@ -379,6 +380,35 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                             <c-ui.dropdown.item href="{% url 'authoring-index' %}">
                                 Content Library
                             </c-ui.dropdown.item>
+                            {% comment %}
+                            The way into the account whose gang or campaign is
+                            on screen, set by the read guards in
+                            n26.core.views.permissions and narrowed to a target
+                            this reader may take by
+                            gyrinx.context_processors.impersonation. Absent on
+                            a page that is already the reader's own, and while
+                            an overlay is running — a second one is refused.
+
+                            Starting is a POST, and the kit's menu row is a
+                            type="button" that cannot submit one, so the click
+                            is caught on the form around it: the row's own
+                            handler closes the menu, the click bubbles, and the
+                            form submits. Nothing is lost without JavaScript
+                            because this menu's panel is Alpine's and is not
+                            there at all.
+                            {% endcomment %}
+                            {% if impersonate_target %}
+                                <form method="post"
+                                      action="{% url 'core:impersonate-start' impersonate_target.pk %}"
+                                      role="none"
+                                      x-on:click="$el.requestSubmit()">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <c-ui.dropdown.item variant="danger">
+                                        Impersonate {{ impersonate_target.username }}
+                                    </c-ui.dropdown.item>
+                                </form>
+                            {% endif %}
                         </c-ui.dropdown.group>
                     {% endif %}
                     {% if logout_url_ %}

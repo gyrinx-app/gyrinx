@@ -42,3 +42,23 @@ def can_impersonate_target(admin, target) -> bool:
         and target.is_active
         and target.pk != admin.pk
     )
+
+
+# Attribute the view sets to say whose content the page is showing. Read by
+# :func:`gyrinx.context_processors.impersonation` to offer the admin a way
+# straight into that account.
+PAGE_SUBJECT_ATTR = "impersonation_page_subject"
+
+
+def note_page_subject(request, user) -> None:
+    """Record that this page is showing ``user``'s content.
+
+    Only pages that open for someone other than their owner have a subject
+    worth naming — a page scoped to the viewer is already about them.
+    """
+    setattr(request, PAGE_SUBJECT_ATTR, user)
+
+
+def page_subject(request):
+    """Whose content the page is showing, or ``None`` if nothing said."""
+    return getattr(request, PAGE_SUBJECT_ATTR, None)
