@@ -60,6 +60,7 @@ __all__ = [
     "Operation",
     "backfill_built_ins",
     "delete_empty_affiliations",
+    "delete_legacy_affiliation_assignments",
     "delete_nameless_gang_type",
     "open_founding_actions",
     "rehost_gang_picks",
@@ -176,6 +177,10 @@ class Operation(models.TextChoices):
         "n26_open_founding_actions",
         "n26: the Found and equip gang action is opened on gangs that never had one",
     )
+    DELETE_LEGACY_AFFILIATION_ASSIGNMENTS = (
+        "n26_delete_legacy_affiliation_assignments",
+        "n26: legacy affiliation assignments are deleted",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -192,6 +197,7 @@ LOCK_KEYS = {
     Operation.REPOINT_CHAMPION_PICKS: 826_020_615,
     Operation.DELETE_EMPTY_AFFILIATIONS: 826_020_616,
     Operation.OPEN_FOUNDING_ACTIONS: 826_020_617,
+    Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS: 826_020_618,
 }
 
 
@@ -890,6 +896,57 @@ def delete_empty_affiliations(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def delete_legacy_affiliation_assignments(backfill_id, **said_by_whoever_enqueued_it):
+    """Delete the two measured player-data leftovers of the conversions."""
+    from n26.core.legacy_affiliation_assignments import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS,
+        "Legacy affiliation assignment deletion",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+LEGACY_AFFILIATION_ASSIGNMENT_WORDS = {
+    "noun": "deletion",
+    "intro": (
+        "This deletes the player assignments left by the affiliation conversions. "
+        "Only archived None assignments replaced by an optional Variant slot and "
+        "live spare assignments whose converted affiliation pick has since changed "
+        "can be deleted. Every assignment must have a zero-value ledger entry, only "
+        "the expected zero-value history events, and no dependent data. Its ledger "
+        "entry and history events are deleted with it. Each affected gang must "
+        "reconcile. An archived assignment cannot change a page; a live spare may "
+        "remove only its own obsolete line. Otherwise the gang is left alone."
+    ),
+    "nothing_heading": "Nothing to delete",
+    "nothing_flash": "No legacy affiliation assignments remain.",
+    "nothing_words": "No legacy affiliation assignments remain.",
+    "refuses_heading": "The deletion cannot run",
+    "button": "Delete the legacy assignments",
+    "confirm": (
+        "Delete these assignments, their ledger entries and their history events? "
+        "This cannot be undone."
+    ),
+}
+
+
+def delete_legacy_affiliation_assignments_view(request):
+    """Preview the player-data deletion (GET), or record and enqueue it."""
+    from n26.core.legacy_affiliation_assignments import find
+
+    return _deletion_view(
+        request,
+        Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS,
+        find,
+        delete_legacy_affiliation_assignments,
+        LEGACY_AFFILIATION_ASSIGNMENT_WORDS,
+    )
+
+
 REHOST_WORDS = {
     "noun": "move",
     "intro": (
@@ -948,7 +1005,7 @@ EMPTY_AFFILIATION_WORDS = {
         "the new system. The deletion is rolled back if it would change "
         "any checked gang page. The deletion cannot run while any "
         "assignment still names an affiliation or anyone still holds an "
-        "affiliation offer. Run the related conversion first."
+        "affiliation offer. Run the legacy affiliation assignment deletion first."
     ),
     "nothing_heading": "Nothing to delete",
     "nothing_flash": "There was nothing selected for deletion.",
@@ -1677,6 +1734,23 @@ register_operation(
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS.value,
+        name=Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS.label,
+        added=date(2026, 9, 4),
+        description=(
+            "Delete archived None assignments and live spare affiliation assignments "
+            "left by the conversions. Each assignment must have the expected "
+            "zero-value ledger entry and history events. Those records are deleted too, "
+            "and every affected gang must reconcile. Only a live spare's own "
+            "obsolete line may disappear from its gang sheet."
+        ),
+        view=delete_legacy_affiliation_assignments_view,
+        detail_template="admin/maintenance/n26/_delete_detail.html",
+    )
+)
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DELETE_EMPTY_AFFILIATIONS.value,
         name=Operation.DELETE_EMPTY_AFFILIATIONS.label,
         added=date(2026, 8, 29),
@@ -1688,7 +1762,8 @@ register_operation(
             "gang page. The slot types named Affiliation, Clan House, "
             "Chaos God and Variant remain. The deletion cannot run while "
             "any assignment still names an affiliation or any affiliation "
-            "offer remains attached to a carrier."
+            "offer remains attached to a carrier; run the legacy affiliation "
+            "assignment deletion first."
         ),
         view=delete_empty_affiliations_view,
         detail_template="admin/maintenance/n26/_delete_detail.html",
@@ -1723,6 +1798,11 @@ task_routes = [
     TaskRoute(drop_duplicate_grants, ack_deadline=600),
     TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
     TaskRoute(repoint_champion_picks, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(
+        delete_legacy_affiliation_assignments,
+        ack_deadline=600,
+        min_retry_delay=60,
+    ),
     TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     TaskRoute(open_founding_actions, ack_deadline=600),
 ]

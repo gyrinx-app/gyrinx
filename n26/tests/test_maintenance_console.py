@@ -29,6 +29,7 @@ from n26.maintenance import (
     convert_outcast_affiliation_view,
     convert_variant_view,
     delete_empty_affiliations_view,
+    delete_legacy_affiliation_assignments_view,
     delete_nameless_gang_type_view,
     open_founding_actions_view,
 )
@@ -597,6 +598,48 @@ class TestTheEmptyAffiliationDeletion:
         assert posted.status_code == 302
         assert not Backfill.objects.exists()
         assert Affiliation.objects.filter(pk=names["Mutant"].pk).exists()
+
+
+class TestTheLegacyAffiliationAssignmentDeletion:
+    def test_its_lock_is_unique_and_its_slug_is_permanent(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert LOCK_KEYS[Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS] == 826_020_618
+        assert Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS.value == (
+            "n26_delete_legacy_affiliation_assignments"
+        )
+
+    def test_the_operation_is_registered_and_offered(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS.value in registered
+        found = resolve_operation(Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS.value)
+        assert found.name == Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS.label
+        assert found.view is delete_legacy_affiliation_assignments_view
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_delete_legacy_affiliation_assignments")
+        )
+
+        assert response.status_code in (302, 403)
+
+    def test_get_shows_the_empty_plan_without_writing(
+        self, client, superuser, default_pack
+    ):
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_delete_legacy_affiliation_assignments")
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Nothing to delete" in page
+        assert "No legacy affiliation assignments remain" in page
+        assert not Backfill.objects.exists()
 
 
 @pytest.fixture
