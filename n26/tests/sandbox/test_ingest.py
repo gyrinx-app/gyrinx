@@ -2221,9 +2221,13 @@ class TestClearing:
         clear_imported()
 
         assert Trait.objects.count() == 0
-        # Every modifier goes with them: standard content wires none of
-        # its own for a clear to spare.
-        assert Modifier.objects.count() == 0
+        # Every modifier goes with them, bar standard content's own,
+        # which name nothing an import wrote.
+        from n26.library.standard_content import VISIT_CONTRIBUTION_MODIFIERS
+
+        assert sorted(Modifier.objects.values_list("name", flat=True)) == sorted(
+            VISIT_CONTRIBUTION_MODIFIERS
+        )
 
     def test_a_gang_using_the_content_stops_the_clear(self, foundation, sheets):
         """Player data protects what it uses: the content does not go out

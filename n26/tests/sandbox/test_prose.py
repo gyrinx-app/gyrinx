@@ -41,6 +41,7 @@ from n26.library.authoring import (
     ef_allows_at_most,
     ef_changes_category,
     ef_changes_stat,
+    ef_contributes_to_counter,
     ef_draws_pick,
     ef_offers_choice,
     ef_places,
@@ -313,6 +314,23 @@ class TestNarrowingsCompose:
             ef_changes_stat(fighter_stats["BS"], mode="worsen", amount=1),
         ) == [
             "The Ballistic Skill of every fighter with Cawdor is 1 worse, while the gang holds this."
+        ]
+
+    def test_a_qualified_subject_owns_its_counter_reading_too(
+        self, escher, cawdor, default_pack
+    ):
+        """The shape a Trading Post visit contribution takes: a figure
+        added to a reading, for some of the models rather than all of
+        them. Said the short way round the sentence would drop the
+        narrowing and promise everyone the figure."""
+        counter = create_counter("Trading Post visit contribution", drawn=False)
+        assert self.carried(
+            escher,
+            targets_every_model(has_pickable(cawdor)),
+            ef_contributes_to_counter(counter, 1),
+        ) == [
+            "1 is added to the Trading Post visit contribution reading of every "
+            "fighter with Cawdor, while the gang holds this."
         ]
 
     def test_a_type_left_out_owns_the_long_way_round_too(

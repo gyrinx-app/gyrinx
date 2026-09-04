@@ -148,8 +148,10 @@ class LedgerEvent(Base):
         # are the gang's, counted once on the event above, so this
         # carries none of its own — it says who went, which is what
         # answers "has this model already used their action" and what a
-        # receipt names. The note holds the rank they went as, since
-        # that is what they added rather than what they are now.
+        # receipt names. The note holds what the card said raised their
+        # figure — the rank's name, where one rank raised it, and the
+        # figure itself where several things did — since that is what
+        # they added rather than what they are now.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
         # An action opening and closing (``n26.core.models.action``).
