@@ -4,6 +4,22 @@ Plan written 2026-09-04 from Louis's Slack ask and Tom's decisions in the same
 thread. Rules read from `rule-reference/n26` (sections 11, 17, 18, 19 and the
 Venator and Outcast gang books).
 
+## Progress (2026-09-04 evening)
+
+Merged to main, in order: #2419 (slice 3), #2423 (slice 1), #2436 (Actions
+square staff-only, stash Trading Post line restored), #2428 (slice 4), #2435
+(slice 7, backfill code only), #2438 (slice 2). In flight: slice 5 with the
+slice 6 content as a Foundations seed `founding-budgets` (branch
+`n26-founding-tp-budgets`), and slice 8 as two commits on
+`n26-drop-starting-trade-points-1` / `-2` (the drop ships after the first
+deploys).
+
+Production steps that are Tom's, not code: press Create on the Foundations
+page for the `visit-contribution` seed (now) and `founding-budgets` (after
+slice 5 deploys); run the `n26_open_founding_actions` backfill from the
+maintenance admin when the budgets are live and verify from outside (action
+counts and rating/credits pins); copy iteration on the square, deferred.
+
 ## What this delivers
 
 - A generic **Action**: a named thing a gang opens and later closes. The first
