@@ -1,21 +1,2 @@
 [shell_environment_policy]
 inherit = "core"
-
-[shell_environment_policy.set]
-CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
-
-[mcp_servers.figma-desktop]
-url = "http://127.0.0.1:3845/mcp"
-
-[mcp_servers.figma-remote]
-url = "https://mcp.figma.com/mcp"
-
-[mcp_servers.github]
-url = "https://api.githubcopilot.com/mcp"
-
-# Set GITHUB_PAT in your environment (or a local override) for GitHub MCP auth.
-[mcp_servers.github.http_headers]
-Authorization = "Bearer ${GITHUB_PAT}"
-
-[mcp_servers.pushpush]
-url = "https://a.pushpu.sh/mcp"

@@ -1,0 +1,3 @@
+# Codex-managed worktrees need the local Django configuration. Codex copies
+# this ignored file without adding it to Git.
+.env

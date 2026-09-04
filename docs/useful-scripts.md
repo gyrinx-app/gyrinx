@@ -11,6 +11,7 @@ Starts the full development environment with a single command. Handles per-workt
 ```bash
 ./scripts/dev.sh              # Normal startup
 ./scripts/dev.sh --no-watch   # Skip CSS watcher
+./scripts/dev.sh --setup-only # Prepare the worktree without starting Django or npm run watch
 ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database
 ```
 
