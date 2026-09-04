@@ -402,7 +402,12 @@ def _screen(gang, miniature=None, list_param=""):
         usability_for,
         with_use_notes,
     )
-    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.card import (
+        build_card,
+        build_gang_card,
+        build_modifier_index,
+        carriers,
+    )
     from n26.core.effects import compute, compute_gang
 
     def chosen_from(collections):
@@ -414,7 +419,7 @@ def _screen(gang, miniature=None, list_param=""):
         # The options ride along because these screens name what each copy
         # was bought with, which no other surface built from a card does.
         card = build_card(miniature, with_options=True)
-        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        index = build_modifier_index(carriers(card))
         computed = compute(card, index)
         collections = buyable_lists(
             access.collection
@@ -438,7 +443,7 @@ def _screen(gang, miniature=None, list_param=""):
         return Screen(gang, miniature, card, computed, collections, chosen, view)
 
     card = build_gang_card(gang, with_statlines=False)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    index = build_modifier_index(carriers(card))
     computed = compute_gang(card, index)
     collections = buyable_lists(
         access.collection

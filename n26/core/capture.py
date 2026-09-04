@@ -110,6 +110,10 @@ def gang_state(gang):
                     (str(counter.name), str(counter.value))
                     for counter in sheet.campaign.counters
                 ),
+                "holdings": sorted(
+                    (holding.name, holding.kind, str(holding.income))
+                    for holding in sheet.campaign.holdings
+                ),
             }
             if sheet.campaign
             else None

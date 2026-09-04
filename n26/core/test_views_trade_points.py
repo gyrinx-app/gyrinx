@@ -400,11 +400,12 @@ class TestWhatThePageCosts:
 
     #: Session and the signed-in reader, the gang and its stash, the
     #: roster read once for both the offer and the equip list, the gang's
-    #: rows and their hydration, the modifier index behind them, the open
+    #: rows and their hydration, the campaign's tokens it holds, the
+    #: modifier index behind them, the open
     #: visit's events, the open visit's Action row the receipt now reads
     #: beside them, and the standard Trading Post the receipt links to.
     #: None of it repeats per model.
-    BUDGET = 38
+    BUDGET = 39
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):

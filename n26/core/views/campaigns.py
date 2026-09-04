@@ -188,6 +188,10 @@ def campaign(request, pk):
     found = _any_campaign_or_404(pk)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
+    pool_size = found.pool.count()
+    pool_held = found.pool.filter(
+        holder__isnull=False, holder__left__isnull=True
+    ).count()
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
@@ -230,6 +234,11 @@ def campaign(request, pk):
             # name. Empty for a campaign nothing has been added to, which is
             # every campaign at founding.
             "additions": _additions_of(found),
+            # How big the pool is and how much of it is held, for the line
+            # that leads to it. Held means the holding gang is still playing.
+            "pool_size": pool_size,
+            "pool_held": pool_held,
+            "pool_unclaimed": pool_size - pool_held,
         },
     )
 
@@ -559,6 +568,270 @@ def remove_battle(request, pk, battle_pk):
         request,
         "n26/remove_battle.html",
         {"campaign": found, "battle": battle},
+    )
+
+
+def _catalogue(campaign):
+    """The assets this campaign can put in its pool: what its type and its
+    additions offer, of the pooled kinds only.
+
+    A held-one-each asset is every member gang's own, given on joining,
+    and has no pool to sit in. Archived assets are left out here, where a
+    new copy would be made — archiving hides a thing from new grants and
+    takes nothing back from a pool that already holds it.
+    """
+    from django.db.models import Q
+
+    from n26.library.models import Asset, AssetKind
+
+    return (
+        Asset.objects.unarchived()
+        .filter(kind__mode=AssetKind.Mode.POOLED)
+        .filter(Q(offered_by=campaign.campaign_type) | Q(offered_by=campaign.additions))
+        .distinct()
+        .select_related("kind")
+        .order_by("kind__position", "kind__label_singular", "name")
+    )
+
+
+def _token_or_404(campaign, token_pk):
+    """One copy in this campaign's pool, with its asset and holder along.
+
+    A key that is not a key at all is a bad link, not a server error.
+    """
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
+
+    from n26.core.models import CampaignAsset
+
+    try:
+        return get_object_or_404(
+            CampaignAsset.objects.select_related("asset__kind", "holder__gang"),
+            pk=token_pk,
+            campaign=campaign,
+        )
+    except ValidationError:
+        raise Http404("No such asset in this campaign") from None
+
+
+def _holding_owner(token, user):
+    """Whether this reader owns the gang holding the copy."""
+    return token.held and token.holder.gang.owner_id == getattr(user, "id", None)
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def campaign_pool(request, pk):
+    """Every copy in the campaign's pool, by kind, with who holds each.
+
+    Read by whoever reads the campaign: which territories are held and
+    which are unclaimed is table knowledge. The controls are the
+    arbitrator's, bar one — the owner of a holding gang may hand a copy
+    back — and a reader with none sees a list.
+
+    Archived assets are not filtered out. Archiving an asset hides it from
+    new grants and takes nothing back: a copy already in the pool stays,
+    held or not, until the arbitrator drops it.
+    """
+    found = _any_campaign_or_404(pk)
+    reading = getattr(request.user, "id", None)
+    yours = found.owner_id == reading
+    tokens = found.pool.select_related("asset__kind", "holder__gang")
+
+    groups = []
+    by_kind = {}
+    for token in tokens:
+        kind = token.asset.kind
+        group = by_kind.get(kind.pk)
+        if group is None:
+            group = {"label": kind.plural, "tokens": []}
+            by_kind[kind.pk] = group
+            groups.append(group)
+        held = token.held
+        group["tokens"].append(
+            {
+                "pk": str(token.pk),
+                "name": str(token),
+                # Said where the copy has a name of its own, so a reader
+                # knows what it is a copy of.
+                "asset": token.asset.name if token.name else "",
+                "income": token.asset.income,
+                "held": held,
+                "holder": token.holder.gang.name if held else "",
+                "holder_pk": str(token.holder.gang_id) if held else "",
+                "may_take_away": held
+                and (yours or _holding_owner(token, request.user)),
+            }
+        )
+
+    return render(
+        request,
+        "n26/campaign_pool.html",
+        {"campaign": found, "yours": yours, "groups": groups},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_to_pool(request, pk):
+    """Put one copy of an asset from the catalogue into the pool."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import AddToPoolForm
+
+    found = _own_campaign_or_404(request, pk)
+    catalogue = _catalogue(found)
+
+    if request.method == "POST":
+        form = AddToPoolForm(request.POST, catalogue=catalogue)
+        if form.is_valid():
+            with campaign_operation(found, actor=request.user) as act:
+                token = act.add_asset(
+                    form.cleaned_data["asset"], name=form.cleaned_data["name"]
+                )
+            messages.success(request, f"Added {token} to the pool.")
+            return redirect("n26-campaign-pool", pk=found.pk)
+    else:
+        form = AddToPoolForm(catalogue=catalogue)
+
+    submitted = str(form["asset"].value() or "")
+    return render(
+        request,
+        "n26/add_to_pool.html",
+        {
+            "form": form,
+            "campaign": found,
+            # Drawn as cards, one per asset, with the kind and income under
+            # the name; a redisplay after a failed submit keeps the pick.
+            "assets": [
+                {
+                    "value": str(asset.pk),
+                    "label": asset.name,
+                    "description": (
+                        f"{asset.kind}, income {asset.income}¢"
+                        if asset.income
+                        else str(asset.kind)
+                    ),
+                    "checked": str(asset.pk) == submitted,
+                }
+                for asset in catalogue
+            ],
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def grant_asset(request, pk, token_pk):
+    """Give a copy to a gang playing the campaign, picked from the roll."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import GrantAssetForm
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk)
+    token = _token_or_404(found, token_pk)
+    playing = (
+        CampaignMembership.objects.filter(campaign=found, left__isnull=True)
+        .select_related("gang", "gang__gang_type")
+        .order_by("gang__name")
+    )
+
+    if request.method == "POST":
+        form = GrantAssetForm(request.POST, playing=playing)
+        if form.is_valid():
+            membership = form.cleaned_data["membership"]
+            try:
+                with campaign_operation(found, actor=request.user) as act:
+                    granted = act.grant(token, membership)
+            except Refusal as refused:
+                messages.error(request, str(refused))
+            else:
+                if granted is None:
+                    messages.error(
+                        request, f"{token} was already dropped from the pool."
+                    )
+                else:
+                    messages.success(
+                        request, f"Granted {token} to {membership.gang.name}."
+                    )
+            return redirect("n26-campaign-pool", pk=found.pk)
+    else:
+        form = GrantAssetForm(playing=playing)
+
+    return render(
+        request,
+        "n26/grant_asset.html",
+        {"form": form, "campaign": found, "token": token, "playing": playing},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def take_away_asset(request, pk, token_pk):
+    """The question at its own address, then the act.
+
+    The arbitrator may take any copy back; the owner of the gang holding
+    it may hand it back. Anybody else is told there is nothing here.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation
+
+    found = _any_campaign_or_404(pk)
+    token = _token_or_404(found, token_pk)
+    reading = getattr(request.user, "id", None)
+    if found.owner_id != reading and not _holding_owner(token, request.user):
+        raise Http404("No such asset in this campaign")
+    # A stale link to a copy already back in the pool: nothing to ask.
+    if not token.held:
+        messages.error(request, f"{token} is not held by any gang.")
+        return redirect("n26-campaign-pool", pk=found.pk)
+
+    if request.method == "POST":
+        holder = token.holder.gang.name
+        with campaign_operation(found, actor=request.user) as act:
+            taken = act.take_away(token)
+        if taken is None:
+            messages.error(request, f"{token} is not held by any gang.")
+        else:
+            messages.success(request, f"Took {token} away from {holder}.")
+        return redirect("n26-campaign-pool", pk=found.pk)
+
+    return render(
+        request,
+        "n26/take_away_asset.html",
+        {"campaign": found, "token": token},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def drop_asset(request, pk, token_pk):
+    """The question at its own address, then the act."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk)
+    token = _token_or_404(found, token_pk)
+
+    if request.method == "POST":
+        name = str(token)
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                dropped = act.drop_asset(token)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+        else:
+            if dropped is None:
+                messages.error(request, f"{name} was already dropped from the pool.")
+            else:
+                messages.success(request, f"Dropped {name} from the pool.")
+        return redirect("n26-campaign-pool", pk=found.pk)
+
+    return render(
+        request,
+        "n26/drop_asset.html",
+        {"campaign": found, "token": token},
     )
 
 

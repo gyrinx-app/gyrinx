@@ -461,3 +461,50 @@ class BattleForm(forms.Form):
         # Handed in rather than looked up, because a form has no campaign of
         # its own and a queryset built here would offer every gang there is.
         self.fields["gangs"].queryset = playing
+
+
+class AddToPoolForm(forms.Form):
+    """One copy of a pooled asset, to put into a campaign's pool.
+
+    The assets offered are the campaign's catalogue — what its type and
+    its additions offer, of the pooled kinds — so the form cannot put a
+    Settlement in the pool or an asset the campaign does not deal in. The
+    catalogue has no default for the same reason a gang picker has none:
+    a queryset built without one would accept anything.
+    """
+
+    asset = forms.ModelChoiceField(
+        queryset=None,
+        label="Asset",
+        error_messages={
+            "invalid_choice": "That asset is not in this campaign's catalogue.",
+            "required": "Select an asset to add.",
+        },
+    )
+    name = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Name for this copy",
+        help_text="Optional. Leave blank to use the asset's name.",
+    )
+
+    def __init__(self, *args, catalogue, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["asset"].queryset = catalogue
+
+
+class GrantAssetForm(forms.Form):
+    """Which gang playing the campaign a copy goes to."""
+
+    membership = forms.ModelChoiceField(
+        queryset=None,
+        label="Gang",
+        error_messages={
+            "invalid_choice": "That gang is not in this campaign.",
+            "required": "Select a gang.",
+        },
+    )
+
+    def __init__(self, *args, playing, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["membership"].queryset = playing

@@ -125,9 +125,9 @@ def build(gang, viewer=None):
     from n26.core.models import Miniature
 
     events = list(
-        gang.ledger_events.select_related("miniature", "actor", "campaign").order_by(
-            "created", "id"
-        )
+        gang.ledger_events.select_related(
+            "miniature", "actor", "campaign", "campaign_asset__asset__kind"
+        ).order_by("created", "id")
     )
     rows = _rows_for(events)
     # The history keeps the dead, but only the living have a page to
@@ -503,6 +503,9 @@ def _tell(e, row, alive):
         else "kit"
     )
 
+    if _about_a_holding(e):
+        return _tell_holding(e), "gang"
+
     match e.kind:
         case Kind.PURCHASED:
             if row is not None and row.profile_id is not None:
@@ -649,6 +652,40 @@ def _tell(e, row, alive):
     return (Span(e.get_kind_display().casefold()),), category
 
 
+def _about_a_holding(e):
+    """Whether this record is a campaign's token changing hands.
+
+    Named by the token where it still stands. A token dropped from the
+    pool since leaves the record naming none — and a grant or a taking
+    away about no assignment can only ever have been a token's, since
+    every other grant has a record behind it.
+    """
+    return e.campaign_asset_id is not None or (
+        e.assignment_id is None and e.kind in {Kind.GRANTED, Kind.TOOK_AWAY}
+    )
+
+
+def _tell_holding(e):
+    """A campaign's token granted to the gang or taken away from it.
+
+    The token is linked to the pool it belongs to while it stands. One
+    dropped since is named from the note, which kept the name for exactly
+    this: the line still says what changed hands. Which gang goes unsaid,
+    as for joining — the gang's own history is already about it, and the
+    campaign's log says whose act it was beside the sentence.
+    """
+    token = e.campaign_asset
+    if token is not None:
+        name = Span(str(token), reverse("n26-campaign-pool", args=[token.campaign_id]))
+        kind = f"the {token.kind_label} "
+    else:
+        name = Span(e.note or "an asset")
+        kind = ""
+    if e.kind == Kind.GRANTED:
+        return (Span(f"granted {kind}"), name, Span(" to the gang"))
+    return (Span(f"took {kind}"), name, Span(" away from the gang"))
+
+
 def _action_named(note):
     """The action's own name, read from the kind its note holds.
 
@@ -693,6 +730,9 @@ def _shown_note(e):
     if e.kind in _NOTE_IS_MACHINERY:
         return ""
     if e.note == "reset":
+        return ""
+    # A token's note is its name, which the sentence has already said.
+    if _about_a_holding(e):
         return ""
     return e.note
 
@@ -819,7 +859,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     from n26.core.models import LedgerEvent, Miniature
 
     events = LedgerEvent.objects.filter(campaign=campaign).select_related(
-        "miniature", "actor", "gang", "campaign"
+        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__kind"
     )
     events = (
         events.order_by("-created", "-id")[:limit]
@@ -923,4 +963,12 @@ def _tell_campaign(e):
             if e.note:
                 return (Span(f"removed the battle of {e.note}"),), "campaign"
             return (Span("removed a battle"),), "campaign"
+        case kinds.ASSET_ADDED:
+            # The note is the copy's name at the time. A copy since dropped
+            # is still named, which is what a log is for.
+            what = e.note or "an asset"
+            return (Span(f"added {what} to the pool"),), "campaign"
+        case kinds.ASSET_DROPPED:
+            what = e.note or "an asset"
+            return (Span(f"dropped {what} from the pool"),), "campaign"
     return (Span("changed the campaign"),), "campaign"

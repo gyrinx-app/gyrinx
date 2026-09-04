@@ -1,0 +1,76 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Putting one copy of an asset into the campaign's pool, picked from what the
+campaign type and the arbitrator's additions offer. Only the pooled kinds are
+offered: a Settlement is every gang's own and has no pool to sit in.
+
+Native radios over a shared name, as the campaign type cards are, so the form
+posts with no script and a redisplay after a failed submit keeps the pick.
+{% endcomment %}
+{% block head_title %}Add to the pool of {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-pool-add' campaign.pk %}"
+                     title="Add to the pool"
+                     lead="One copy of an asset from the campaign's catalogue. Nobody holds it until you grant it."
+                     :form="form"
+                     submit_label="Add to pool"
+                     cancel_url="{% url 'n26-campaign-pool' campaign.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign-pool' campaign.pk %}">Pool</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Add
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="Asset">
+            {% if assets %}
+                <c-n26.radio-cards label="Asset *"
+                                   description="The pooled assets this campaign offers."
+                                   :form="form"
+                                   name="asset">
+                    {% for asset in assets %}
+                        <c-n26.radio-cards.card name="asset"
+                                                value="{{ asset.value }}"
+                                                label="{{ asset.label }}"
+                                                description="{{ asset.description }}"
+                                                :checked="asset.checked" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            {% else %}
+                <c-ui.alert variant="info" title="Nothing to add">
+                    {{ campaign.campaign_type }} offers no pooled assets yet.
+                </c-ui.alert>
+            {% endif %}
+        </c-n26.form-section>
+        <c-n26.form-section title="This copy">
+            <c-ui.field label="Name for this copy"
+                        description="Optional. Leave blank to use the asset's name."
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="copy-name">
+                <c-ui.input id="copy-name"
+                            name="name"
+                            autocomplete="off"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

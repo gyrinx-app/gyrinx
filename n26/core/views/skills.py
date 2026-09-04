@@ -458,7 +458,7 @@ def skills(request, pk):
         usability_for,
         with_use_notes,
     )
-    from n26.core.card import build_card, build_modifier_index
+    from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.operations import Refusal, operation
     from n26.core.render import offer_from_view
@@ -471,7 +471,7 @@ def skills(request, pk):
     # collections are theirs, and how usable each line is, are both read
     # off the same computed card.
     card = build_card(miniature)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    index = build_modifier_index(carriers(card))
     computed = compute(card, index)
 
     back = reverse("n26-gang", args=[gang.pk])

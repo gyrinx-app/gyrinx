@@ -27,7 +27,7 @@ Access informs, never polices: this is what a buying UI *offers*, and
 
 from dataclasses import dataclass
 
-from n26.core.card import build_card, build_modifier_index
+from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 
 
@@ -57,7 +57,7 @@ def collections_for(miniature, card=None, computed=None):
     if card is None:
         card = build_card(miniature)
     if computed is None:
-        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        index = build_modifier_index(carriers(card))
         computed = compute(card, index)
 
     # The gang's own lists ride the card now (as broadcast nodes), so one
@@ -83,7 +83,7 @@ def gang_collections(gang, card=None, computed=None):
     if card is None:
         card = build_gang_card(gang, with_statlines=False)
     if computed is None:
-        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        index = build_modifier_index(carriers(card))
         computed = compute_gang(card, index)
     return _collections_on(card, computed, gang, gang_hosted=True)
 

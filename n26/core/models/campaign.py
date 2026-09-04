@@ -152,6 +152,10 @@ class CampaignEvent(Base):
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
         INVITE_DECLINED = "invite_declined", "Invitation declined"
         PARTICIPANT_REMOVED = "participant_removed", "Participant removed"
+        # The pool changing with no gang touched. A grant or a taking
+        # away changes a gang, and is that gang's ledger event instead.
+        ASSET_ADDED = "asset_added", "Asset added to the pool"
+        ASSET_DROPPED = "asset_dropped", "Asset dropped from the pool"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -294,6 +298,85 @@ class CampaignMembership(Base):
     def playing(self):
         """Whether the gang is still in the campaign."""
         return self.left is None
+
+
+class CampaignAsset(Base):
+    """One copy of a pooled asset in one campaign's pool, and who holds it.
+
+    A pooled asset is a **holding**, not a possession. The campaign owns
+    the token; a gang only ever holds it, and the token says which gang
+    that is. Nothing is assigned to the gang, no ledger entry is written,
+    and the gang's rating never counts it — so granting, taking away and
+    handing over are one column changing under the campaign's own line,
+    with a journal-only event on each gang touched so both histories say
+    what happened (design/campaign-assets.md).
+
+    ``holder`` is a membership rather than a gang so a token cannot point
+    at a gang that has left the campaign. ``name`` is an optional name for
+    this copy — "the Old Ruins by the sump" — drawn in place of the
+    asset's where it is set.
+
+    A holding contributes computed effects to its holder's card while it
+    is held, credited to the token. What a stored effect does at grant is
+    decided where grants are made, not here.
+    """
+
+    #: Where the effects engine finds a token's modifiers: on the asset it
+    #: is a copy of. A token carries none of its own.
+    carries_modifiers_of = "asset"
+
+    campaign = models.ForeignKey(
+        "n26.Campaign",
+        on_delete=models.CASCADE,
+        related_name="pool",
+    )
+    asset = models.ForeignKey(
+        "library.Asset",
+        on_delete=models.PROTECT,
+        related_name="tokens",
+        help_text="The asset this is a copy of.",
+    )
+    #: Set to nothing when the membership goes, which is the only way a
+    #: token comes to point at nobody other than being taken away.
+    holder = models.ForeignKey(
+        "n26.CampaignMembership",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="held",
+        help_text="The gang holding this copy. Blank when nobody holds it.",
+    )
+    name = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="A name for this copy. Leave blank to use the asset's name.",
+    )
+
+    class Meta:
+        verbose_name = "campaign asset"
+        verbose_name_plural = "campaign assets"
+        # Grouped by kind, as the pool page lists them, then by asset and
+        # by copy. The joins are paid on every read of a pool and nowhere
+        # else: nothing hot reads tokens in bulk.
+        ordering = ["asset__kind__position", "asset__name", "name", "created"]
+        indexes = [
+            models.Index(fields=["campaign", "holder"], name="campaign_asset_pool_idx"),
+        ]
+
+    def __str__(self):
+        return self.name or self.asset.name
+
+    @property
+    def held(self):
+        """Whether a gang still playing holds this copy."""
+        return self.holder is not None and self.holder.playing
+
+    @property
+    def kind_label(self):
+        """What sort of asset this is, in the campaign type's own word,
+        lowercased for a sentence: "territory", "racket"."""
+        return self.asset.kind.label_singular.lower()
 
 
 class Battle(Base):

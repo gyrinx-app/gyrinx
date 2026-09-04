@@ -37,7 +37,7 @@ from uuid import uuid4
 from django.db import transaction
 from django.utils import timezone
 
-from n26.core.models import Campaign, CampaignEvent
+from n26.core.models import Campaign, CampaignAsset, CampaignEvent, LedgerEvent
 
 #: What the log stores for a budget that is not set. The reader matches on it
 #: to say "no ceiling" in words, so the two must be the same string.
@@ -299,6 +299,105 @@ class CampaignOperation:
         self.event(CampaignEvent.Kind.BATTLE_REMOVED, note=str(battle.date))
         battle.delete()
 
+    def add_asset(self, asset, name=""):
+        """Put one copy of a pooled asset into the pool, held by nobody.
+
+        Only an asset of a pooled kind. A held-one-each asset is every
+        member gang's own, given on joining, and has no pool to sit in —
+        so one arriving here is a caller's mistake, not a choice a screen
+        offers. Nothing changes for any gang: a copy nobody holds is the
+        campaign's own act, and only its log carries it.
+        """
+        if not asset.kind.is_pooled:
+            raise ValueError(
+                f"{asset} is of the kind {asset.kind}, which every gang holds one "
+                "of. Only a pooled kind has copies to add."
+            )
+        token = CampaignAsset.objects.create(
+            campaign=self.campaign, asset=asset, name=(name or "").strip()
+        )
+        self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(token))
+        return token
+
+    def drop_asset(self, token):
+        """Take a copy nobody holds out of the pool.
+
+        A held copy is refused in words: dropping it would take the asset
+        off the holding gang with nothing in that gang's history saying
+        so. Taking it away first writes that line. A copy already gone
+        drops nothing and says nothing: the second of two clicks on one
+        button finds the first one's work done.
+        """
+        from n26.core.operations import Refusal
+
+        token = _token_under_the_lock(token)
+        if token is None:
+            return None
+        if token.held:
+            raise Refusal(
+                f"You cannot drop {token} while {token.holder.gang.name} holds it. "
+                "Take it away first."
+            )
+        self.event(CampaignEvent.Kind.ASSET_DROPPED, note=str(token))
+        token.delete()
+        return token
+
+    def grant(self, token, membership):
+        """Give a copy in the pool to a gang playing this campaign.
+
+        The token changes hands under the campaign's line, and the gang's
+        own line is taken inside it — campaign first, then gang, for every
+        writer that takes both; a gang's own writes only reference the
+        campaign, which the campaign's lock strength leaves alone — so
+        two acts touching one token and one gang never wait on each other
+        in opposite orders. The gang's history gets a
+        journal-only event about the token: it holds the copy and never
+        owns it, so there is no entry, no price and nothing for the books
+        to fold. A copy another gang holds is refused in words, and one
+        this gang already holds is granted nothing twice.
+        """
+        from n26.core.operations import Refusal, operation
+
+        if membership.campaign_id != self.campaign.pk or not membership.playing:
+            raise ValueError(f"{membership} is not playing {self.campaign}.")
+        token = _token_under_the_lock(token)
+        if token is None:
+            return None
+        if token.campaign_id != self.campaign.pk:
+            raise ValueError(f"{token} is not in {self.campaign}'s pool.")
+        if token.held:
+            if token.holder_id == membership.pk:
+                return token
+            raise Refusal(
+                f"{token} is held by {token.holder.gang.name}. Take it away "
+                "from them first."
+            )
+        token.holder = membership
+        token.save(update_fields=["holder", "modified"])
+        with operation(membership.gang, actor=self.actor) as op:
+            op.event(token, LedgerEvent.Kind.GRANTED, note=str(token))
+        return token
+
+    def take_away(self, token):
+        """Take a copy back from the gang holding it, into the pool.
+
+        The same two lines in the same order as a grant, and the same
+        kind of record on the gang — one saying the copy went. A copy
+        nobody holds is left as it is, and the caller gets None back:
+        nothing happened, so nothing is written.
+        """
+        from n26.core.operations import operation
+
+        token = _token_under_the_lock(token)
+        if token is None or not token.held:
+            return None
+        holder = token.holder
+        token.holder = None
+        token.save(update_fields=["holder", "modified"])
+        with operation(holder.gang, actor=self.actor) as op:
+            op.event(token, LedgerEvent.Kind.TOOK_AWAY, note=str(token))
+        return token
+
     def archive(self):
         """Take the campaign off the arbitrator's list, and say so.
 
@@ -311,6 +410,23 @@ class CampaignOperation:
         campaign.archive()
         self.event(CampaignEvent.Kind.ARCHIVED)
         return campaign
+
+
+def _token_under_the_lock(token):
+    """The token as it stands now that the campaign's line is held, or
+    None where it has gone.
+
+    Whoever clicked read the pool before this transaction began, and two
+    clicks on one button arrive together often enough. Every writer to a
+    token holds its campaign's line first, so a row read under that line
+    is the row as it is; the holder rides along because every decision
+    here asks who has it.
+    """
+    return (
+        CampaignAsset.objects.select_related("holder__gang", "asset__kind")
+        .filter(pk=token.pk)
+        .first()
+    )
 
 
 def over_budget(campaign, gang):
@@ -333,11 +449,22 @@ def campaign_operation(campaign, actor=None):
     opened the form read the row before this transaction began, and deciding
     what changed against those values would let one arbitrator overwrite
     another and record a note naming a name that had already been replaced.
+
+    Taken at the strength that serialises campaign operations against each
+    other and nothing else. Every ledger event a gang writes names its
+    campaign, and inserting that reference takes the database's own share
+    lock on the campaign row after the gang's line. A full lock here would
+    sit on the other side of that — campaign then gang — and an arbitrator
+    granting a token while the gang's owner is buying something would
+    deadlock one of them. Nothing here ever changes the campaign's key, so
+    the weaker lock loses nothing.
     """
     with transaction.atomic():
         # A campaign being founded has a key already and no row yet, so
         # there is nothing to lock and nothing to read back.
         if not campaign._state.adding:
-            Campaign.objects.select_for_update().filter(pk=campaign.pk).first()
+            Campaign.objects.select_for_update(no_key=True).filter(
+                pk=campaign.pk
+            ).first()
             campaign.refresh_from_db()
         yield CampaignOperation(campaign, actor=actor)

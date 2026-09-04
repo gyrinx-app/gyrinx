@@ -2546,13 +2546,14 @@ class TestTheLibraryTabsQueryBudget:
 
         # The reader and their session, the gang, the fighter's card with
         # its options, the roster behind the header's count, which held
-        # lists hold gear, the drawer's one question about campaigns —
+        # lists hold gear, the campaign's tokens the gang holds, the
+        # drawer's one question about campaigns —
         # the library: one query per gear kind, plus the guns' paid
         # rounds, each kind's offers and each restricted kind's use
         # lists — and a browse of each list held, which is what prices
         # the library's lines. A fixed number per list, never one per
         # item.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 51
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 52
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked

@@ -231,6 +231,31 @@ reader's other campaigns — the same pattern a gang's screens use.
             {% endif %}
         </section>
         {% comment %}
+        The pool has a page of its own: a campaign played for a season holds
+        more copies than this page wants. What sits here is the way in and
+        the two figures a reader checks most — how many, and how many held.
+        {% endcomment %}
+        <section class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-medium text-muted">Pool</h2>
+                {% if yours %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-pool-add' campaign.pk %}">
+                        Add to pool
+                    </c-ui.button>
+                {% endif %}
+            </div>
+            {% if pool_size %}
+                <p class="text-base">
+                    <c-n26.link href="{% url 'n26-campaign-pool' campaign.pk %}">{{ pool_size }} asset{{ pool_size|pluralize }} in the pool</c-n26.link>
+                    <span class="text-sm text-muted">{{ pool_held }} held, {{ pool_unclaimed }} unclaimed</span>
+                </p>
+            {% else %}
+                <p class="text-sm text-muted">Nothing in the pool yet.</p>
+            {% endif %}
+        </section>
+        {% comment %}
         What has been fought, newest first. A battle carries only its date and
         who was in it — what it did to a gang is on that gang, which is why
         there is nothing here to click through to.

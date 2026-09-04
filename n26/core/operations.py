@@ -34,6 +34,7 @@ from django.db import transaction
 
 from n26.core.models import (
     Assignment,
+    CampaignAsset,
     LedgerEntry,
     LedgerEvent,
     Miniature,
@@ -384,10 +385,11 @@ class Operation:
         """Append to the log. Nothing already written is ever altered.
 
         ``about`` is the assignment or the model the record concerns —
-        or ``None``, for an act on the gang itself. Every event is
-        pinned to its gang, so a gang's whole history is one query, in
-        order: this operation's gang, or — opened without one — the
-        gang at the top of the assignment's own chain.
+        or a campaign's token the gang was granted or lost, or ``None``,
+        for an act on the gang itself. Every event is pinned to its gang,
+        so a gang's whole history is one query, in order: this
+        operation's gang, or — opened without one — the gang at the top
+        of the assignment's own chain.
 
         Where the gang is playing a campaign, the event names it too.
         That is read here rather than passed in, so no caller has to
@@ -405,6 +407,7 @@ class Operation:
         return LedgerEvent.objects.create(
             assignment=assignment,
             miniature=about if isinstance(about, Miniature) else None,
+            campaign_asset=about if isinstance(about, CampaignAsset) else None,
             gang=gang,
             campaign=self._campaign_of(gang),
             kind=kind,

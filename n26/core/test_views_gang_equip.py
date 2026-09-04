@@ -600,8 +600,9 @@ class TestTheQueryBudget:
         client.force_login(tester)
 
         # The reader and their session, the gang, its card — two
-        # assignment queries and one hydration pass per kind they name — the
-        # roster behind the header's count, which of its lists hold gear, and
+        # assignment queries, one hydration pass per kind they name and the
+        # campaign's tokens it holds — the roster behind the header's count,
+        # which of its lists hold gear, and
         # the browse of the one chosen with its entries, their use lists and
         # their offers. The drawer asks once whether campaigns are open to
         # this reader, so it draws that place as a link or as a plain word.
@@ -610,7 +611,7 @@ class TestTheQueryBudget:
         # No Visit Trading Post action is open here, which is a column read
         # and no query: what a visit has left is only asked of the ledger
         # where there is a visit to ask about.
-        assert self.measure(client, equip_url(gang, house_list)) == 36
+        assert self.measure(client, equip_url(gang, house_list)) == 37
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):
         create_wargear("Mesh Armour", price=15)
@@ -624,7 +625,7 @@ class TestTheQueryBudget:
         # nothing to test a restriction against — and the browse of each
         # list held, which prices the library's lines. Plus the drawer's
         # one question about whether campaigns are open.
-        assert self.measure(client, equip_url(gang, scope="all")) == 41
+        assert self.measure(client, equip_url(gang, scope="all")) == 42
 
     def test_the_library_costs_the_same_however_much_it_holds(
         self, client, tester, gang, house_list

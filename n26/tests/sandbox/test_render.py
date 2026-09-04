@@ -261,9 +261,9 @@ class TestTheGangSheet:
         # prefetch chain and the shapes it is drawn to, whatever their
         # owners set by hand, one per assignable kind for the modifier
         # index, the stash read that wealth includes, what a trading post
-        # allowance has left, and the campaign the gang is playing
-        # (design/gang-sheet.md).
-        assert many <= 35, f"{many} queries is more than this should ever need"
+        # allowance has left, the campaign the gang is playing and the
+        # campaign's tokens it holds (design/gang-sheet.md).
+        assert many <= 36, f"{many} queries is more than this should ever need"
 
 
 class TestTheTextRenderer:

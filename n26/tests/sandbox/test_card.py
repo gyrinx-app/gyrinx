@@ -63,10 +63,11 @@ class TestBuildingACard:
         """The model's own rows, then its gang's — the latter ride every
         member's card so gang-wide rules reach them — then one narrow
         hydration pass per relation this card actually holds; a kind no
-        row names never queries. A whole gang costs one fetch for both;
-        see ``build_cards_for_gang``. Pinned so it changes deliberately;
-        the scaling test below is what holds it flat."""
-        with django_assert_num_queries(11):
+        row names never queries; and the campaign's tokens the gang
+        holds, which are not assignments. A whole gang costs one fetch
+        for both; see ``build_cards_for_gang``. Pinned so it changes
+        deliberately; the scaling test below is what holds it flat."""
+        with django_assert_num_queries(12):
             card = build_card(yolanda)
             # Walking the whole tree and reading every line costs nothing more.
             assert sum(node.rating for node in card.all_nodes()) == 255

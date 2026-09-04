@@ -113,17 +113,26 @@ that said it twice would be spending the width the name needs.
                             {% spaceless %}
                                 {% for line in sheet.campaign.lines %}
                                     <c-ui.tooltip size="sm">
-                                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> (from {{ line.provenance.source }})</span></span>{% if not forloop.last or sheet.campaign.counters %}<span>,&nbsp;</span>{% endif %}
+                                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> (from {{ line.provenance.source }})</span></span>{% if not forloop.last or sheet.campaign.counters or sheet.campaign.holdings %}<span>,&nbsp;</span>{% endif %}
                                         <c-slot name="content">From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}</c-slot>
                                     </c-ui.tooltip>
                                 {% endfor %}
                                 {% for counter in sheet.campaign.counters %}
                                     <c-ui.tooltip size="sm">
-                                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ counter.name }} <span class="tabular-nums">{{ counter.value }}</span><span class="sr-only"> (from {{ counter.provenance.source }})</span></span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ counter.name }} <span class="tabular-nums">{{ counter.value }}</span><span class="sr-only"> (from {{ counter.provenance.source }})</span></span>{% if not forloop.last or sheet.campaign.holdings %}<span>,&nbsp;</span>{% endif %}
                                         <c-slot name="content">From {{ counter.provenance.source }}{% if counter.provenance.source_kind %} ({{ counter.provenance.source_kind }}){% endif %}</c-slot>
                                     </c-ui.tooltip>
                                 {% endfor %}
-                                {% if not sheet.campaign.lines and not sheet.campaign.counters %}—{% endif %}
+                                {% comment %}
+                                The campaign's pooled assets this gang holds,
+                                each linked to the pool it belongs to. The income
+                                figure is printed, never collected.
+                                {% endcomment %}
+                                {% for holding in sheet.campaign.holdings %}
+                                    <c-n26.link href="{% url 'n26-campaign-pool' sheet.campaign.campaign_id %}"
+                                                tone="current">{{ holding.name }}</c-n26.link><span class="text-sm text-muted"> {{ holding.kind }}{% if holding.income %}, income {{ holding.income }}¢{% endif %}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                {% endfor %}
+                                {% if not sheet.campaign.lines and not sheet.campaign.counters and not sheet.campaign.holdings %}—{% endif %}
                             {% endspaceless %}
                         </c-n26.detail-list.row>
                     {% endif %}

@@ -398,3 +398,43 @@ def create_assignment_set(miniature, name, assignments):
     selection.assignments.set(assignments)
     selection.validate_assignments()
     return selection
+
+
+def add_to_pool(campaign, asset, name="", actor=None):
+    """Put one copy of a pooled asset into a campaign's pool, unclaimed."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.add_asset(asset, name=name)
+
+
+def grant_asset(token, gang, actor=None):
+    """Grant a copy in the pool to a gang playing the campaign, as the
+    pool page's Grant does: campaign line first, then the gang's."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignMembership
+
+    campaign = token.campaign
+    membership = CampaignMembership.objects.get(
+        campaign=campaign, gang=gang, left__isnull=True
+    )
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.grant(token, membership)
+
+
+def take_away_asset(token, actor=None):
+    """Take a copy back from the gang holding it, into the pool."""
+    from n26.core.campaigns import campaign_operation
+
+    campaign = token.campaign
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.take_away(token)
+
+
+def drop_asset(token, actor=None):
+    """Drop an unclaimed copy from the pool."""
+    from n26.core.campaigns import campaign_operation
+
+    campaign = token.campaign
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.drop_asset(token)
