@@ -83,39 +83,22 @@ def create_gang_type(
 # --- Campaign types and assets ---------------------------------------------
 
 
-def create_campaign_type(
-    name, assets=(), qualifier="", library_author_help="", **kwargs
-):
-    """A kind of campaign, for a campaign to be founded on. ``assets`` is
-    the catalogue it offers; its asset kinds are added afterwards with
-    ``add_asset_kind``. Stored stripped, as a gang type's name is."""
+def create_campaign_type(name, qualifier="", library_author_help="", **kwargs):
+    """A kind of campaign, for a campaign to be founded on. Its asset
+    kinds are added afterwards with ``add_asset_kind``, and its assets
+    under those with ``create_asset``. Stored stripped, as a gang type's
+    name is."""
     from n26.library.models import CampaignType
 
     name = (name or "").strip()
     if not name:
         raise ValidationError("A campaign type needs a name.")
-    campaign_type = CampaignType.objects.create(
+    return CampaignType.objects.create(
         name=name,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **kwargs,
     )
-    if assets:
-        campaign_type.assets.set(assets)
-    return campaign_type
-
-
-def set_assets(campaign_type, assets=None):
-    """The catalogue, replaced — the write ``revise`` refuses.
-
-    The list handed over is the whole statement: an asset it does not
-    name is no longer offered by this type. Nothing a campaign already
-    holds changes; this is what a campaign of the type can hand out from
-    now on. ``None`` says nothing and leaves the catalogue as it was.
-    """
-    if assets is not None:
-        campaign_type.assets.set(assets)
-    return campaign_type
 
 
 def add_asset_kind(
@@ -158,16 +141,15 @@ def remove_asset_kind(kind):
 
     Refused in words while any asset is of this kind: each of those
     would be left of no kind at all, and the database would refuse the
-    delete with nobody's name on it. Move or delete the assets first.
+    delete with nobody's name on it. An asset's kind is settled when it
+    is made, so the way clear is to delete the assets first.
     """
     count = kind.assets.count()
     if count:
         noun = "asset is" if count == 1 else "assets are"
         them = "it" if count == 1 else "them"
-        their = "its" if count == 1 else "their"
         raise ValidationError(
-            f"{count} {noun} of the kind {kind}. Delete {them}, or change "
-            f"{their} kind, before removing {kind}."
+            f"{count} {noun} of the kind {kind}. Delete {them} before removing {kind}."
         )
     kind.delete()
 
@@ -175,9 +157,20 @@ def remove_asset_kind(kind):
 def create_asset(
     name, kind, annotation="", income=0, qualifier="", library_author_help="", **kwargs
 ):
-    """One asset of one kind — a Settlement, the Old Ruins territory."""
+    """One asset of one kind — a Settlement, the Old Ruins territory.
+
+    An asset is one entry in its kind's campaign type's list, so it lands
+    in that type's pack unless told otherwise — a type in a campaign's
+    own pack keeps its assets there. A blank name is refused here rather
+    than drawn as an empty line on a campaign page.
+    """
     from n26.library.models import Asset
 
+    if "pack" not in kwargs and "pack_id" not in kwargs:
+        kwargs["pack_id"] = kind.pack_id
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("An asset needs a name.")
     return Asset.objects.create(
         name=name,
         kind=kind,

@@ -571,24 +571,18 @@ def remove_battle(request, pk, battle_pk):
     )
 
 
-def _catalogue(campaign):
-    """The assets this campaign can put in its pool: what its type and its
-    additions offer, of the pooled kinds only.
+def _pooled_assets(campaign):
+    """The assets this campaign can put copies of in its pool: those of
+    the pooled kinds of its type and of its additions.
 
     A held-one-each asset is every member gang's own, given on joining,
     and has no pool to sit in. Archived assets are left out here, where a
     new copy would be made — archiving hides a thing from new grants and
     takes nothing back from a pool that already holds it.
     """
-    from django.db.models import Q
-
-    from n26.library.models import Asset, AssetKind
-
     return (
-        Asset.objects.unarchived()
-        .filter(kind__mode=AssetKind.Mode.POOLED)
-        .filter(Q(offered_by=campaign.campaign_type) | Q(offered_by=campaign.additions))
-        .distinct()
+        (campaign.campaign_type.pooled_assets() | campaign.additions.pooled_assets())
+        .unarchived()
         .select_related("kind")
         .order_by("kind__position", "kind__label_singular", "name")
     )
@@ -674,15 +668,15 @@ def campaign_pool(request, pk):
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_to_pool(request, pk):
-    """Put one copy of an asset from the catalogue into the pool."""
+    """Put one copy of an asset the campaign deals in into the pool."""
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import AddToPoolForm
 
     found = _own_campaign_or_404(request, pk)
-    catalogue = _catalogue(found)
+    offered = _pooled_assets(found)
 
     if request.method == "POST":
-        form = AddToPoolForm(request.POST, catalogue=catalogue)
+        form = AddToPoolForm(request.POST, offered=offered)
         if form.is_valid():
             with campaign_operation(found, actor=request.user) as act:
                 token = act.add_asset(
@@ -691,7 +685,7 @@ def add_to_pool(request, pk):
             messages.success(request, f"Added {token} to the pool.")
             return redirect("n26-campaign-pool", pk=found.pk)
     else:
-        form = AddToPoolForm(catalogue=catalogue)
+        form = AddToPoolForm(offered=offered)
 
     submitted = str(form["asset"].value() or "")
     return render(
@@ -713,7 +707,7 @@ def add_to_pool(request, pk):
                     ),
                     "checked": str(asset.pk) == submitted,
                 }
-                for asset in catalogue
+                for asset in offered
             ],
         },
     )

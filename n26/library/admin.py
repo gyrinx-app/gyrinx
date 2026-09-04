@@ -81,8 +81,6 @@ class CampaignTypeAdmin(admin.ModelAdmin):
     list_filter = ["pack", "archived"]
     search_fields = ["name"]
     inlines = [AssetKindInline]
-    # A plain multi-select here would draw every asset in the library.
-    autocomplete_fields = ["assets"]
     list_select_related = ["pack"]
 
 

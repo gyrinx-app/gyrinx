@@ -42,8 +42,16 @@ def kinds_switcher(here="", menu_label="Switch kind", named=False):
 
     from n26.core.navigation import Switcher, SwitcherItem
     from n26.library.specs import specs
-    from n26.library.views import LEAF_KINDS, RETIRED_KINDS, _model_for
+    from n26.library.views import (
+        LEAF_KINDS,
+        NESTED_KINDS,
+        RETIRED_KINDS,
+        _model_for,
+    )
 
+    # A kind listed only on its parent's page has no listing to go to,
+    # so the switcher never offers it — from one of its rows the leading
+    # link is the library index, and the breadcrumb is the way up.
     items = sorted(
         (
             SwitcherItem(
@@ -54,7 +62,7 @@ def kinds_switcher(here="", menu_label="Switch kind", named=False):
                 current=kind == here,
             )
             for kind, verb in LEAF_KINDS.items()
-            if kind not in RETIRED_KINDS or kind == here
+            if kind not in NESTED_KINDS and (kind not in RETIRED_KINDS or kind == here)
         ),
         key=lambda item: item.label,
     )

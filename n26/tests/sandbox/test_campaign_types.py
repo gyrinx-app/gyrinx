@@ -1,12 +1,13 @@
 """Campaign types and assets — the library kinds a campaign is founded on.
 
 A campaign type declares the kinds of asset a campaign of it deals in,
-offers a catalogue of assets, and — being assignable, as a gang type is
-— carries built-ins that every member gang gets. An asset is one thing
-of one kind; its income is a figure on the card and its boons ride it
-as modifiers. The N26 core type ships with Settlement held one each,
-Territory pooled, and Reputation at 0 built in. See
-design/campaign-assets.md.
+lists under each kind the assets of it, and — being assignable, as a
+gang type is — carries built-ins that every member gang gets. An asset
+is one entry in that list: it belongs to one kind, and so to one type,
+and is authored on the type's page under its kind; its income is a
+figure on the card and its boons ride it as modifiers. The N26 core type
+ships with Settlement held one each, Territory pooled, and Reputation at
+0 built in. See design/campaign-assets.md.
 
 The same note settles one rule about packs: content in a pack nobody
 owns may never point at content in a pack somebody does. The library's
@@ -29,7 +30,6 @@ from n26.library.authoring import (
     ef_adds,
     modifier,
     remove_asset_kind,
-    set_assets,
     targets_gang,
 )
 from n26.library.core_campaign import seed_core_campaign
@@ -71,9 +71,10 @@ def owned(db):
     arbitrator = User.objects.create_user("arbitrator")
     pack = create_pack("Sump Rats", owner=arbitrator)
     campaign_type = create_campaign_type("Sump Rats campaign", pack=pack)
-    # No pack named: a kind joins its type's pack on its own.
+    # No pack named: a kind joins its type's pack on its own, and an
+    # asset its kind's.
     kind = add_asset_kind(campaign_type, "Rat hole", "pooled")
-    asset = create_asset("The Big Hole", kind, pack=pack)
+    asset = create_asset("The Big Hole", kind)
     counter = create_counter("Meat", pack=pack)
     return {
         "pack": pack,
@@ -85,8 +86,8 @@ def owned(db):
 
 
 class TestAuthoringACampaignType:
-    """The verbs build a type, its kinds and its catalogue, and refuse
-    the two mistakes an author can make in words."""
+    """The verbs build a type, its kinds and the assets under them, and
+    refuse the mistakes an author can make in words."""
 
     def test_a_campaign_type_declares_its_asset_kinds_in_order(self, dominion):
         kinds = list(dominion["type"].asset_kinds.all())
@@ -101,17 +102,35 @@ class TestAuthoringACampaignType:
         assert owned["kind"].pack == owned["pack"]
         assert dominion["territory"].pack == dominion["type"].pack
 
+    def test_an_asset_joins_its_kinds_pack(self, dominion, owned):
+        assert owned["asset"].pack == owned["pack"]
+        ruins = create_asset("Old Ruins", dominion["territory"])
+        assert ruins.pack == dominion["type"].pack
+
+    def test_an_asset_needs_a_name(self, dominion):
+        with pytest.raises(ValidationError, match="An asset needs a name"):
+            create_asset("  ", dominion["territory"])
+
     def test_two_kinds_of_one_type_cannot_share_a_label(self, dominion):
         with pytest.raises(ValidationError, match="already has an asset kind"):
             add_asset_kind(dominion["type"], "territory", "pooled")
 
-    def test_an_asset_is_of_one_kind_and_the_type_offers_it(self, dominion):
+    def test_an_asset_is_of_one_kind_and_so_in_its_types_list(self, dominion):
+        """The kind is the whole of how an asset belongs to a type: the
+        type's list of assets is read through its kinds, and there is no
+        second list to add the asset to."""
         ruins = create_asset("Old Ruins", dominion["territory"], income=10)
-        set_assets(dominion["type"], [ruins])
+        settlement = create_asset("Settlement", dominion["settlement"])
 
         assert ruins.campaign_type == dominion["type"]
-        assert list(dominion["type"].assets.all()) == [ruins]
-        assert list(ruins.offered_by.all()) == [dominion["type"]]
+        assert list(dominion["type"].assets) == [ruins, settlement]
+        assert list(dominion["type"].pooled_assets()) == [ruins]
+
+    def test_another_types_assets_are_not_in_the_list(self, dominion):
+        other = create_campaign_type("Law & Misrule")
+        create_asset("Turf", add_asset_kind(other, "Turf", "pooled"))
+
+        assert not dominion["type"].assets.exists()
 
     def test_a_kind_with_assets_of_it_cannot_be_removed(self, dominion):
         ruins = create_asset("Old Ruins", dominion["territory"])
@@ -176,7 +195,7 @@ class TestTheCoreCampaignType:
         ]
         settlement = Asset.objects.get(name="Settlement")
         assert settlement.kind.label_singular == "Settlement"
-        assert list(core.assets.all()) == [settlement]
+        assert list(core.assets) == [settlement]
 
         reputation = Counter.objects.get(name="Reputation")
         members = list(core.built_in_members)
@@ -187,8 +206,8 @@ class TestTheCoreCampaignType:
         assert core.built_ins.name == "N26 core built-ins"
         assert all(row.pack == default_pack for row in (core, settlement, reputation))
         # One line per row: the counter, the type, two kinds, the asset,
-        # its listing in the catalogue, the set, and two members.
-        assert len(lines) == 9
+        # the set, and two members.
+        assert len(lines) == 8
 
     def test_running_it_again_creates_nothing(self, default_pack):
         list(seed_core_campaign(apps))
@@ -227,14 +246,21 @@ class TestTheCoreCampaignType:
 
 
 class TestTheAuthoringPages:
-    """Both kinds have pages in the existing style: a listing, a create
-    page, and a page per row. The campaign type's page lists its asset
-    kinds and edits each in place."""
+    """A campaign type has pages in the existing style: a listing, a
+    create page, and a page per row. The type's page lists its asset kinds
+    and edits each in place, and under each kind lists the assets of it
+    and adds one more. An asset has no menu entry, listing or create page
+    of its own: it is one entry in the type's list, made on the type's
+    page, and keeps a page of its own for its modifiers."""
 
-    def test_the_menu_offers_both_kinds(self, author, client, default_pack):
+    def test_the_menu_offers_campaign_types_and_not_assets(
+        self, author, client, default_pack
+    ):
         body = client.get("/n26/authoring/").content.decode()
         assert 'href="/n26/authoring/campaign-type/"' in body
-        assert 'href="/n26/authoring/asset/"' in body
+        assert 'href="/n26/authoring/asset/"' not in body
+        assert client.get("/n26/authoring/asset/").status_code == 404
+        assert client.get("/n26/authoring/asset/new/").status_code == 404
 
     def test_creating_a_campaign_type_through_its_page(
         self, author, client, default_pack
@@ -258,7 +284,11 @@ class TestTheAuthoringPages:
         territory = dominion["territory"]
         assert f'name="part-{territory.pk}-label_singular"' in body
         assert 'value="Territory"' in body
-        assert "Territories · pooled · no assets yet" in body
+        assert "Territories · pooled" in body
+        assert "No Territories yet." in body
+        assert f'name="add-asset-{territory.pk}-name"' in body
+        assert f'name="add-asset-{territory.pk}-income"' in body
+        assert "Add Territory" in body
         assert "Comes with" in body
         assert "Modifiers" in body
         assert f"/n26/authoring/asset-kinds/{territory.pk}/remove/" in body
@@ -337,38 +367,151 @@ class TestTheAuthoringPages:
         assert done.url == f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
         assert not AssetKind.objects.filter(pk=territory.pk).exists()
 
-    def test_creating_an_asset_through_its_page(self, author, client, dominion):
+    def test_the_type_page_adds_an_asset_under_a_kind(
+        self, author, client, dominion, default_pack
+    ):
+        territory = dominion["territory"]
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
         response = client.post(
-            "/n26/authoring/asset/new/",
+            page,
             {
-                "name": "Old Ruins",
-                "kind": str(dominion["territory"].pk),
-                "income": "10",
+                "act": "add-asset",
+                "part": str(territory.pk),
+                f"add-asset-{territory.pk}-name": "Old Ruins",
+                f"add-asset-{territory.pk}-income": "10",
             },
         )
 
         ruins = Asset.objects.get(name="Old Ruins")
         assert response.status_code == 302
-        assert ruins.kind == dominion["territory"]
+        assert response.url == page
+        assert ruins.kind == territory
         assert ruins.income == 10
+        assert ruins.pack == default_pack
+
+        body = client.get(page, follow=True).content.decode()
+        assert "Added Old Ruins under Territory." in body
+        assert f'href="/n26/authoring/asset/{ruins.pk}/"' in body
+        assert "income 10cr · no modifiers" in body
+
+    def test_an_asset_is_added_under_a_kind_of_this_type_only(
+        self, author, client, dominion, owned
+    ):
+        """The block an author types in settles the kind, so a post naming
+        a kind of another type is a mistyped address, not a choice."""
+        response = client.post(
+            f"/n26/authoring/campaign-type/{dominion['type'].pk}/",
+            {
+                "act": "add-asset",
+                "part": str(owned["kind"].pk),
+                f"add-asset-{owned['kind'].pk}-name": "Stray",
+            },
+        )
+
+        assert response.status_code == 404
+        assert not Asset.objects.filter(name="Stray").exists()
+
+    def test_adding_a_second_asset_of_one_name_is_refused_in_words(
+        self, author, client, dominion
+    ):
+        territory = dominion["territory"]
+        create_asset("Old Ruins", territory)
+        response = client.post(
+            f"/n26/authoring/campaign-type/{dominion['type'].pk}/",
+            {
+                "act": "add-asset",
+                "part": str(territory.pk),
+                f"add-asset-{territory.pk}-name": "old ruins",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "An asset named “old ruins” already exists" in response.content.decode()
+        assert Asset.objects.filter(name__iexact="old ruins").count() == 1
+
+    def test_the_type_page_costs_the_same_however_many_assets_it_lists(
+        self, author, client, dominion
+    ):
+        """The assets under each kind and their modifier counts are loaded
+        with the kinds, so a type with a dozen assets draws for the same
+        number of queries as one with a single asset."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+
+        def asset_with_a_boon(name):
+            asset = create_asset(name, dominion["territory"])
+            modifier(
+                f"{name} rule",
+                targets_gang(),
+                ef_adds(create_rule(f"{name} rule")),
+                attach_to=asset,
+            )
+
+        asset_with_a_boon("Old Ruins")
+        # The first visit pays for caches the process keeps warm afterwards;
+        # only the second and third are compared.
+        client.get(page)
+        with CaptureQueriesContext(connection) as one:
+            client.get(page)
+
+        for name in ("Collapsed Dome", "Sludge Sea", "Wastes", "Rogue Doc"):
+            asset_with_a_boon(name)
+        with CaptureQueriesContext(connection) as many:
+            client.get(page)
+
+        assert len(many) == len(one)
+
+    def test_an_assets_own_page_is_reached_from_the_type_and_fixes_its_kind(
+        self, author, client, dominion
+    ):
+        ruins = create_asset("Old Ruins", dominion["territory"], income=10)
 
         page = client.get(f"/n26/authoring/asset/{ruins.pk}/").content.decode()
-        # Filed under its campaign type, which the breadcrumb names.
-        assert f"/n26/authoring/campaign-type/{dominion['type'].pk}/" in page
+        # The trail runs through the type: Content library, Campaign
+        # types, Dominion, Old Ruins — there is no asset listing to name.
+        assert 'href="/n26/authoring/campaign-type/"' in page
+        assert f'href="/n26/authoring/campaign-type/{dominion["type"].pk}/"' in page
+        assert 'href="/n26/authoring/asset/"' not in page
+        # The kind was settled where the asset was made, so the edit form
+        # does not offer it; the rest of the fields are here.
+        assert 'name="edit-name"' in page
+        assert 'name="edit-income"' in page
+        assert 'name="edit-kind"' not in page
+        assert "Modifiers" in page
 
-    def test_the_asset_listing_says_kind_and_income(self, author, client, dominion):
-        create_asset("Old Ruins", dominion["territory"], income=10)
+        response = client.post(
+            f"/n26/authoring/asset/{ruins.pk}/",
+            {"act": "edit", "edit-name": "Older Ruins", "edit-income": "20"},
+        )
+        ruins.refresh_from_db()
+        assert response.status_code == 302
+        assert (ruins.name, ruins.income, ruins.kind) == (
+            "Older Ruins",
+            20,
+            dominion["territory"],
+        )
 
-        body = client.get("/n26/authoring/asset/").content.decode()
-        assert "Territory (Dominion)" in body
-        assert "income 10cr" in body
+    def test_deleting_an_asset_returns_to_its_types_page(
+        self, author, client, dominion
+    ):
+        ruins = create_asset("Old Ruins", dominion["territory"])
 
-    def test_the_type_listing_says_kinds_and_catalogue(self, author, client, dominion):
-        set_assets(dominion["type"], [create_asset("Old Ruins", dominion["territory"])])
+        response = client.post(f"/n26/authoring/asset/{ruins.pk}/delete/")
+
+        assert response.status_code == 302
+        assert response.url == f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+        assert not Asset.objects.filter(pk=ruins.pk).exists()
+
+    def test_the_type_listing_says_kinds_and_counts_assets(
+        self, author, client, dominion
+    ):
+        create_asset("Old Ruins", dominion["territory"])
 
         body = client.get("/n26/authoring/campaign-type/").content.decode()
         assert "Territories, Settlements" in body
-        assert "offers 1 asset" in body
+        assert "1 asset" in body
 
 
 class TestSystemContentNeverReferencesOwnedContent:
@@ -386,54 +529,75 @@ class TestSystemContentNeverReferencesOwnedContent:
         assert cross_pack_refusal(owned["pack"], owned["asset"]) is None
         assert "has an owner" in cross_pack_refusal(default_pack, owned["asset"])
 
-    def test_a_system_pack_form_refuses_an_owned_pack_reference(
-        self, author, client, default_pack, owned
+    def test_an_asset_added_on_a_system_type_is_system_content(
+        self, author, client, dominion, default_pack
     ):
-        response = client.post(
-            "/n26/authoring/asset/new/",
-            {"name": "Rat hole asset", "kind": str(owned["kind"].pk)},
-        )
-
-        assert response.status_code == 200
-        assert not Asset.objects.filter(name="Rat hole asset").exists()
-        body = response.content.decode()
-        assert "Rat hole (Sump Rats campaign) is in the Sump Rats pack" in body
-        assert "which has an owner" in body
-
-    def test_an_owned_pack_form_may_reference_system_content(
-        self, author, client, dominion, owned
-    ):
-        asset = owned["asset"]
-        response = client.post(
-            f"/n26/authoring/asset/{asset.pk}/",
-            {
-                "act": "edit",
-                "edit-name": asset.name,
-                "edit-kind": str(dominion["territory"].pk),
-                "edit-income": "0",
-            },
-        )
-
-        asset.refresh_from_db()
-        assert response.status_code == 302
-        assert asset.kind == dominion["territory"]
-        assert asset.pack == owned["pack"]
-
-    def test_a_system_types_catalogue_refuses_an_owned_asset(
-        self, author, client, dominion, owned
-    ):
-        response = client.post(
+        """An asset's only reference is its kind, and the type's page
+        offers only the type's own kinds — so an asset added there can
+        never point into a pack somebody owns, and lands in the type's."""
+        territory = dominion["territory"]
+        client.post(
             f"/n26/authoring/campaign-type/{dominion['type'].pk}/",
             {
-                "act": "edit",
-                "edit-name": "Dominion",
-                "edit-assets": [str(owned["asset"].pk)],
+                "act": "add-asset",
+                "part": str(territory.pk),
+                f"add-asset-{territory.pk}-name": "Old Ruins",
             },
         )
 
-        assert response.status_code == 200
+        ruins = Asset.objects.get(name="Old Ruins")
+        assert ruins.pack == default_pack
+        assert ruins.kind.pack == default_pack
+
+    def test_an_asset_added_on_an_owned_type_joins_its_pack(
+        self, author, client, owned
+    ):
+        kind = owned["kind"]
+        response = client.post(
+            f"/n26/authoring/campaign-type/{owned['type'].pk}/",
+            {
+                "act": "add-asset",
+                "part": str(kind.pk),
+                f"add-asset-{kind.pk}-name": "The Small Hole",
+                f"add-asset-{kind.pk}-income": "5",
+            },
+        )
+
+        made = Asset.objects.get(name="The Small Hole")
+        assert response.status_code == 302
+        assert made.kind == kind
+        assert made.pack == owned["pack"]
+
+    def test_attaching_an_owned_modifier_to_a_system_asset_is_refused(
+        self, author, client, dominion, owned
+    ):
+        ruins = create_asset("Old Ruins", dominion["territory"])
+        rule = create_rule("Rat pack", pack=owned["pack"])
+        owned_modifier = modifier(
+            "Rat pack rule", targets_gang(), ef_adds(rule), pack=owned["pack"]
+        )
+
+        response = client.post(
+            f"/n26/authoring/asset/{ruins.pk}/",
+            {"act": "attach", "modifier": str(owned_modifier.pk)},
+            follow=True,
+        )
+
         assert "which has an owner" in response.content.decode()
-        assert not dominion["type"].assets.exists()
+        assert not ruins.modifiers.exists()
+
+    def test_an_owned_asset_may_carry_a_system_modifier(self, author, client, owned):
+        system_modifier = modifier(
+            "Salvage rule", targets_gang(), ef_adds(create_rule("Salvage"))
+        )
+
+        response = client.post(
+            f"/n26/authoring/asset/{owned['asset'].pk}/",
+            {"act": "attach", "modifier": str(system_modifier.pk)},
+        )
+
+        assert response.status_code == 302
+        assert list(owned["asset"].modifiers.all()) == [system_modifier]
 
     def test_a_system_types_built_ins_refuse_an_owned_counter(
         self, author, client, dominion, owned

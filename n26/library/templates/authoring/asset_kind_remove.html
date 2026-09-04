@@ -6,8 +6,8 @@ reload, Back is a real way out, and it works with scripting switched
 off. Nothing here changes anything — the form's POST is the act.
 
 While any asset is of the kind the act is refused, so the page lists
-them: each is a way to the asset, where its kind is changed or the asset
-deleted.
+them: each is a way to the asset, where it can be deleted. An asset's
+kind is settled when it is made, so deleting is the only way clear.
 {% endcomment %}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
@@ -31,7 +31,7 @@ deleted.
         {% csrf_token %}
         {% if assets %}
             <c-ui.alert variant="warning" title="Assets are still of this kind">
-                You cannot remove it until you delete these assets, or change them to another kind:
+                You cannot remove it until you delete these assets:
                 <ul class="mt-2 list-disc pl-5">
                     {% for asset in assets %}
                         <li>

@@ -69,11 +69,11 @@ def core(default_pack):
 
 @pytest.fixture
 def old_ruins(core):
-    """A Territory in the core catalogue with the two boons a territory
-    can carry: Reputation while held, and a named rule for the gang."""
+    """A Territory under the core type's Territory kind, with the two boons
+    a territory can carry: Reputation while held, and a named rule for
+    the gang."""
     territory = core.asset_kinds.get(label_singular="Territory")
     asset = create_asset("Old Ruins", territory, income=30)
-    core.assets.add(asset)
     reputation = Counter.objects.get(name="Reputation")
     modifier(
         "Old Ruins: Reputation",
@@ -413,7 +413,47 @@ class TestThePoolPages:
             {"asset": str(settlement.pk), "name": ""},
         )
         body = response.content.decode()
-        assert "not in this campaign" in body and "catalogue" in body
+        assert "not one this campaign deals in" in body
+        assert campaign.pool.count() == 0
+
+    def test_the_add_form_offers_the_types_and_the_additions_pooled_assets(
+        self, client, campaign, old_ruins, arbitrator, core
+    ):
+        """What the form offers is read through the kinds: every pooled
+        asset of the campaign's type and of its additions, and nothing
+        of another type or of a held-one-each kind."""
+        from n26.library.authoring import add_asset_kind, create_campaign_type
+
+        racket = add_asset_kind(campaign.additions, "Racket", "pooled")
+        protection = create_asset("Protection", racket)
+        other = create_campaign_type("Law & Misrule")
+        elsewhere = create_asset(
+            "Somebody else's turf", add_asset_kind(other, "Turf", "pooled")
+        )
+        client.force_login(arbitrator)
+
+        body = client.get(
+            reverse("n26-campaign-pool-add", args=[campaign.pk])
+        ).content.decode()
+
+        assert "Old Ruins" in body
+        assert "Protection" in body
+        assert "Somebody else" not in body
+        settlement = Asset.objects.get(name="Settlement")
+        assert f'value="{settlement.pk}"' not in body
+        assert protection.pack == campaign.pack
+        assert elsewhere.kind.campaign_type == other
+
+    def test_an_asset_of_another_type_cannot_be_added_to_the_pool(
+        self, campaign, old_ruins
+    ):
+        from n26.library.authoring import add_asset_kind, create_campaign_type
+
+        other = create_campaign_type("Law & Misrule")
+        elsewhere = create_asset("Turf", add_asset_kind(other, "Turf", "pooled"))
+
+        with pytest.raises(ValueError, match="not to this campaign's type"):
+            add_to_pool(campaign, elsewhere)
         assert campaign.pool.count() == 0
 
     def test_the_arbitrator_grants_a_copy(
