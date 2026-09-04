@@ -856,14 +856,14 @@ def rehost_gang_picks(backfill_id, **said_by_whoever_enqueued_it):
 REHOST_WORDS = {
     "noun": "move",
     "intro": (
-        "This moves picks between hosts in players' gangs. A slot says "
+        "This moves picks between hosts in players' gangs. A slot sets "
         "where its pick lands: on the model that carries it, or on the "
-        "gang, where the model is asked and the gang holds the pick. "
-        "While the Outcast Archetype slot said the model instead, the "
-        "picks made in that window were written onto the Leader, and "
-        "setting the slot back steers only the picks made after. Every "
-        "live pick whose slot says the gang and which sits on a model is "
-        "moved onto that model's gang. It still names the assignment "
+        "gang, where the model is asked and the gang holds the pick. A "
+        "pick is hosted where the slot pointed when it was made, so a "
+        "Leader's Archetype pick made while the slot pointed at the model "
+        "sits on the Leader, and changing the slot moves nothing already "
+        "written. Every live pick whose slot points at the gang and which "
+        "sits on a model is moved onto that model's gang. It still names the assignment "
         "that asked and the slot it settles, so the card that asked still "
         "reads it as chosen, and it still goes when that model does. "
         "Anything it caused stays where it is. An archived pick is "
@@ -872,15 +872,15 @@ REHOST_WORDS = {
     ),
     "nothing_heading": "Nothing to move",
     "nothing_flash": (
-        "There was nothing to move — every live pick of a slot the gang "
-        "holds sits on the gang."
+        "There was nothing to move — every live pick of a slot that points "
+        "at the gang sits on the gang."
     ),
-    "nothing_words": "Every live pick of a slot the gang holds sits on the gang.",
+    "nothing_words": "Every live pick of a slot that points at the gang sits on the gang.",
     "refuses_heading": "The move cannot run",
     "button": "Move the picks onto their gangs",
     "confirm": (
-        "Move every live pick of a slot the gang holds off its model and "
-        "onto the gang? This cannot be undone."
+        "Move every live pick of a slot that points at the gang off its "
+        "model and onto the gang? This cannot be undone."
     ),
 }
 
@@ -1194,11 +1194,11 @@ register_operation(
         name=Operation.REHOST_GANG_PICKS.label,
         added=date(2026, 9, 3),
         description=(
-            "A slot says where its pick lands: on the model that carries "
-            "it, or on the gang. While the Outcast Archetype slot said the "
-            "model, the Leader's picks were written onto the Leader; the "
-            "slot says the gang again, and this moves those picks onto "
-            "their gangs. Each still names what asked it and the slot it "
+            "A slot sets where its pick lands: on the model that carries "
+            "it, or on the gang. A Leader's Archetype pick made while the "
+            "slot pointed at the model sits on the Leader, and changing "
+            "the slot moves nothing already written; this moves those "
+            "picks onto their gangs. Each still names what asked it and the slot it "
             "settles, so the Leader's card still reads it as chosen, and "
             "it still goes when the Leader does. No money moves; every "
             "gang is proved to reconcile."

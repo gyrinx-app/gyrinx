@@ -1,14 +1,15 @@
 """Moving a gang's picks off the model they were written on.
 
-A slot that says the gang holds its pick was, for a while, saying the
-bearer, so the picks made then sit on the Leader. Setting the slot back
-steers only new picks. The repair moves the ones already written onto
-the gang, keeping everything that says which question they answer and
-why they exist, and proves each gang's books whole before it commits.
+A pick is hosted where its slot pointed when it was made, and changing
+the slot moves nothing already written: a pick made while the slot
+pointed at the bearer sits on the Leader after the slot points at the
+gang. The repair moves such picks onto the gang, keeping everything
+that says which question they settle and why they exist, and proves
+each gang's books whole before it commits.
 
-The fault is planted the way it happened: the slot is granted to the
-Leader by a modifier on their profile, says the bearer when the pick is
-made through the page, and says the gang afterwards.
+The fault is planted in the shape it takes: the slot is granted to the
+Leader by a modifier on their profile, points at the bearer when the
+pick is made through the page, and at the gang afterwards.
 """
 
 import pytest
@@ -109,6 +110,18 @@ def reader(client, owner):
     return client
 
 
+@pytest.fixture
+def console(db):
+    """The maintenance console, as a superuser sees it. Its own client,
+    because the player's is signed in as the gang's owner."""
+    from django.test import Client
+
+    superuser = User.objects.create_superuser("root", "root@example.com", "x")
+    client = Client()
+    client.force_login(superuser)
+    return client
+
+
 def _says(slot, host):
     slot.assigned_to = host
     slot.save(update_fields=["assigned_to"])
@@ -130,13 +143,13 @@ def choose(reader, gang, name, pickable):
     (line,) = card_of(gang, name).questions
     response = reader.post(line.href, {"thing": f"library.pickable:{pickable.pk}"})
     assert response.status_code == 302, response.content.decode()
-    return Assignment.objects.get(pickable=pickable, archived=False)
+    return Assignment.objects.get(pickable=pickable, gang_root=gang, archived=False)
 
 
 @pytest.fixture
 def astray(reader, gang, leader, scum, gang_slot, archetypes):
-    """A pick written while the slot said the bearer, under a slot that
-    now says the gang."""
+    """A pick written while the slot pointed at the bearer, under a slot
+    that now points at the gang."""
     pick = choose(reader, gang, "Leader", archetypes["Brawler"])
     assert pick.miniature == leader
     assert pick.caused_by == leader.membership
@@ -261,10 +274,111 @@ class TestMovingThePick:
         report = apply(find())
 
         assert report == [
-            "nothing to move — every live pick of a slot the gang holds sits on the gang"
+            "nothing to move — every live pick of a slot that points at the gang "
+            "sits on the gang"
         ]
         gang.refresh_from_db()
         assert_reconciled(gang)
+
+
+class TestAGangThatCannotBeMadeWhole:
+    """A gang is moved in its own transaction and proved before it
+    commits. One that does not reconcile, or whose picks changed while
+    the plan stood, is left exactly as it was and named on the report."""
+
+    def test_a_gang_that_does_not_reconcile_is_rolled_back(
+        self, gang, leader, astray, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "n26.core.reconcile.check_gang", lambda g: ["the books disagree"]
+        )
+
+        report = apply(find())
+
+        astray.refresh_from_db()
+        assert astray.miniature == leader
+        assert astray.gang is None
+        assert any(
+            line.startswith(f"gang {gang.pk}: skipped — does not reconcile")
+            for line in report
+        )
+
+    def test_a_gang_whose_picks_changed_since_the_plan_is_skipped(
+        self, gang, leader, astray
+    ):
+        from n26.tests.sandbox.actions import remove
+
+        plan = find()
+        remove(leader.membership)
+
+        report = apply(plan)
+
+        assert (
+            f"gang {gang.pk}: skipped — its picks changed since the plan was read; read it again"
+            in report
+        )
+        astray.refresh_from_db()
+        assert astray.archived
+        assert astray.miniature == leader
+
+
+class TestSeveralGangsAndSeveralPicks:
+    """Each gang is its own line and its own transaction, and a gang
+    with two Leaders moves both picks."""
+
+    @pytest.fixture
+    def crowd(
+        self,
+        reader,
+        gang,
+        leader,
+        scum,
+        gang_slot,
+        archetypes,
+        owner,
+        gang_type,
+        leader_profile,
+    ):
+        first = choose(reader, gang, "Leader", archetypes["Brawler"])
+        hire(gang, leader_profile, "Second", paid=LEADER_PRICE)
+        second = choose(reader, gang, "Second", archetypes["Wyrd"])
+        other = found_gang("The Others", gang_type, owner=owner, budget=1000)
+        hire(other, leader_profile, "Leader", paid=LEADER_PRICE)
+        third = choose(reader, other, "Leader", archetypes["Brawler"])
+        _says(gang_slot, "gang")
+        return {"gang": gang, "other": other, "picks": (first, second, third)}
+
+    def test_the_plan_names_each_gang_and_counts_the_whole(self, crowd):
+        plan = find()
+
+        assert plan.gangs == tuple(
+            sorted(
+                [
+                    (crowd["gang"].pk, tuple(p.pk for p in crowd["picks"][:2])),
+                    (crowd["other"].pk, (crowd["picks"][2].pk,)),
+                ]
+            )
+        )
+        assert (
+            f"gang {crowd['gang'].pk}: move 2 picks off its models onto the gang"
+            in (plan.preview())
+        )
+        assert "3 picks across 2 gangs" in plan.preview()
+
+    def test_every_pick_lands_on_its_own_gang(self, crowd):
+        report = apply(find())
+
+        for pick, home in zip(
+            crowd["picks"], (crowd["gang"], crowd["gang"], crowd["other"]), strict=True
+        ):
+            pick.refresh_from_db()
+            assert (pick.gang, pick.miniature) == (home, None)
+        assert f"gang {crowd['gang'].pk}: moved 2 picks onto the gang" in report
+        assert f"gang {crowd['other'].pk}: moved 1 pick onto the gang" in report
+        for g in (crowd["gang"], crowd["other"]):
+            g.refresh_from_db()
+            assert_reconciled(g)
+        assert find().nothing_here
 
 
 class TestTheConsole:
@@ -279,13 +393,10 @@ class TestTheConsole:
             is rehost_gang_picks_view
         )
 
-    def test_its_page_shows_the_plan_and_writes_nothing(self, client, gang, astray):
+    def test_its_page_shows_the_plan_and_writes_nothing(self, console, gang, astray):
         from gyrinx.maintenance.models import Backfill
 
-        superuser = User.objects.create_superuser("root", "root@example.com", "x")
-        client.force_login(superuser)
-
-        page = client.get(
+        page = console.get(
             reverse("admin:maintenance_n26_rehost_gang_picks")
         ).content.decode()
 
@@ -296,14 +407,11 @@ class TestTheConsole:
         assert not check_gang(gang)
 
     def test_applying_from_the_page_records_a_run_and_moves_the_pick(
-        self, client, gang, astray
+        self, console, gang, astray
     ):
         from gyrinx.maintenance.models import Backfill
 
-        superuser = User.objects.create_superuser("root", "root@example.com", "x")
-        client.force_login(superuser)
-
-        response = client.post(reverse("admin:maintenance_n26_rehost_gang_picks"))
+        response = console.post(reverse("admin:maintenance_n26_rehost_gang_picks"))
 
         assert response.status_code == 302
         (run,) = Backfill.objects.all()

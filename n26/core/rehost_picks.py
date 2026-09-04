@@ -1,17 +1,16 @@
 """Moving a gang's picks off the models they were written on.
 
-A slot says where its pick lands: on the bearer, or on the gang where
+A slot sets where its pick lands: on the bearer, or on the gang where
 the slot is the Leader-picks-for-the-gang arrow. The Outcast Archetype
 slot is that arrow — the Leader is asked, the gang holds the pick, and
-it reaches every member through the gang. For a while the slot said
-``bearer`` instead, so the picks made in that window were written onto
-the Leader. Setting the slot back steers only the picks made after; the
-ones already written stay where they were put, and a gang whose pick
-sits on its Leader reads differently from one whose pick sits on the
-gang.
+it reaches every member through the gang. A pick is hosted where the
+slot pointed at the moment it was made, and changing the slot moves
+nothing already written: a pick made while the slot pointed at the
+bearer sits on the Leader, and a gang whose pick sits on its Leader
+reads differently from one whose pick sits on the gang.
 
-The repair finds every live pick whose slot says the gang and which sits
-on a model, and moves it onto the model's gang. Nothing else about the
+The repair finds every live pick whose slot points at the gang and which
+sits on a model, and moves it onto the model's gang. Nothing else about the
 pick changes: it still names the assignment that asked and the slot it
 settles, so the Leader's card still reads it as chosen, and it is still
 caused by the Leader's hire, so it still goes when the Leader does.
@@ -20,8 +19,8 @@ hosted in its own right and stays where it is.
 
 An archived pick on a model is counted and left alone: it draws nothing,
 and moving history is not a repair. Nothing here moves money: every
-pick's entry pins zero, so the books fold as they did — proved per
-gang, as every repair here proves it.
+pick's entry pins zero, so the books fold as they did, and each gang is
+proved to reconcile before its move commits.
 """
 
 from dataclasses import dataclass
@@ -35,8 +34,8 @@ class Refused(Exception):
 
 @dataclass(frozen=True)
 class Astray:
-    """Every live pick sitting on a model that its slot says the gang
-    holds, grouped by gang."""
+    """Every live pick sitting on a model while its slot points at the
+    gang, grouped by gang."""
 
     #: ``(gang id, pick ids)``, one per gang.
     gangs: tuple = ()
@@ -57,8 +56,8 @@ class Astray:
         lines = []
         if self.nothing_here:
             lines.append(
-                "nothing to move — every live pick of a slot the gang holds "
-                "sits on the gang"
+                "nothing to move — every live pick of a slot that points at "
+                "the gang sits on the gang"
             )
         for gang_id, ids in self.gangs:
             lines.append(
@@ -80,7 +79,7 @@ class Astray:
 
 
 def _astray(archived=False):
-    """The picks on a model whose slot says the gang holds them."""
+    """The picks on a model whose slot points at the gang."""
     from n26.core.models import Assignment
     from n26.library.models import Slot
 
@@ -91,12 +90,19 @@ def _astray(archived=False):
     )
 
 
-def find():
-    """What stands to be moved, gang by gang."""
+def find(gang_id=None):
+    """What stands to be moved, gang by gang — or for one gang alone,
+    which is how a move re-reads its plan under the lock without
+    scanning the estate again."""
+    astray = _astray()
+    archived_astray = _astray(archived=True)
+    if gang_id is not None:
+        astray = astray.filter(gang_root_id=gang_id)
+        archived_astray = archived_astray.filter(gang_root_id=gang_id)
     picks = list(
-        _astray().select_related("miniature__membership").order_by("created", "id")
+        astray.select_related("miniature__membership").order_by("created", "id")
     )
-    archived = _astray(archived=True).count()
+    archived = archived_astray.count()
     if not picks:
         return Astray(nothing_here=True, archived=archived)
 
@@ -148,7 +154,7 @@ def _rehost_one(gang_id, ids):
         # are moving; then the plan again, because it was read before
         # this transaction opened.
         gang = Gang.objects.select_for_update().get(pk=gang_id)
-        standing = dict(find().gangs)
+        standing = dict(find(gang_id).gangs)
         if standing.get(gang_id) != ids:
             return (
                 f"gang {gang_id}: skipped — its picks changed since the plan "
