@@ -842,7 +842,12 @@ def context():
         # landed on nothing, and already applied.
         "roll_table": RollTable(dice_label="D66", lowest=11, highest=66),
         "roll_landed": RollResult(
-            key="roll-1", total=24, dice_label="D66", faces=(2, 4), landed=("Out Cold",)
+            key="roll-1",
+            total=24,
+            dice_label="D66",
+            faces=(2, 4),
+            landed=("Out Cold",),
+            add=Choosable(key="library.pickable:7", name="Out Cold", control="choose"),
         ),
         "roll_entered_threshold": RollResult(
             key="roll-2",

@@ -21,7 +21,7 @@ which of its offers. Everything the page needs is in the URL, so it is a
 link, it survives a reload, and it works with scripting off.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -458,7 +458,17 @@ def choose(request, pk, slot):
     event = _roll_named(request, gang, found)
     if event is not None:
         roll, landed = _roll_result(event, found, offer)
-        if not roll.is_spent:
+        addable = [
+            option
+            for group in offer.groups
+            for option in group.options
+            if option.key in landed and option.control in {"choose", "both", ""}
+        ]
+        if not roll.is_spent and len(addable) == 1 and len(landed) == 1:
+            # One result, still open: the panel carries the Add, and the
+            # list below stays the whole table, unlifted.
+            roll = replace(roll, add=addable[0])
+        elif not roll.is_spent:
             offer = lift_landing(offer, landed, threshold=roll.threshold)
 
     bearer = found.miniature.name if found.miniature is not None else gang.name

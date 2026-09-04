@@ -385,16 +385,53 @@ class TestThePickScreen:
         assert "Rolled at the table and entered here." in page
         assert 'aria-label="A die showing 2"' in page
         assert 'aria-label="A die showing 4"' in page
-        assert page.index("Landed on") < page.index("The rest of the table")
-        assert (
-            page.index("Landed on")
-            < page.index("Out Cold")
-            < page.index("The rest of the table")
-        )
+        # One result: the panel carries its Add as the main act, and the
+        # table below stays whole rather than lifting a "Landed on" group.
+        assert 'aria-label="Add Out Cold"' in page
+        assert page.index('aria-label="Add Out Cold"') < page.index("or add a result")
+        assert "The rest of the table" not in page
         assert f'name="roll" value="{event.pk}"' in page
         assert "Roll again" in page
         # The plain Roll controls give way to the result.
         assert "Roll a D66" not in page
+
+    def test_a_threshold_roll_lifts_every_result_it_opened(
+        self, client, owner, gang, gang_type, fighter_type, default_pack
+    ):
+        kind = create_slot_type("Advancement")
+        table = create_picklist(
+            "Advancement Table", kind, dice="2d6", roll_selects="threshold"
+        )
+        for low, name in ((2, "Toughness"), (5, "Leadership"), (9, "Wounds")):
+            add_picklist_member(table, create_pickable(name, kind), roll_low=low)
+        advancement = create_slot("Advancement", kind, table, max_picks=5)
+        modifier(
+            "Fighters advance",
+            targets_every_model(is_profile_type(fighter_type)),
+            ef_adds(advancement),
+            carried_by=gang_type,
+        )
+        profile = create_profile("Juve", fighter_type, gang_type, price=20)
+        juve = hire(gang, profile, "Nix", paid=20)
+        slot = choice_of(juve, "Advancement")
+        address = reverse(
+            "n26-choose",
+            args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
+        )
+        client.force_login(owner)
+        client.post(address, {"act": "enter", "rolled": "6"})
+        event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
+
+        page = client.get(f"{address}?roll={event.pk}").content.decode()
+        assert "High enough for Toughness, Leadership." in page
+        assert "Rolled high enough for" in page
+        assert "Above the roll" in page
+        # Several results open: no single Add in the panel, so the lifted
+        # group's own Adds are the main act.
+        assert page.index("Rolled high enough for") < page.index(
+            'aria-label="Add Toughness"'
+        )
+        assert 'aria-label="Add Wounds"' in page
 
     def test_entering_a_roll_the_die_cannot_make_is_refused(
         self, client, owner, gang, address

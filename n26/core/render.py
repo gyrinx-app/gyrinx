@@ -491,6 +491,9 @@ class ChoosableGroup:
     #: already said which in its own heading, and repeating it over every
     #: group would be the same word down the page.
     caption: str = ""
+    #: True for the group a roll opened, where the roll opened several:
+    #: its controls draw as the page's main act, the rest as links.
+    lifted: bool = False
 
 
 @dataclass
@@ -561,6 +564,12 @@ class RollResult:
     #: True on a threshold table, where the roll opens every row at or
     #: below it rather than the one it lands in.
     threshold: bool = False
+    #: The one option the roll landed on, where it landed on exactly one
+    #: that may still be added — drawn as the panel's own Add, so the
+    #: next step is the biggest thing on the page. None where the roll
+    #: opened several (a threshold table), landed on nothing, or is spent;
+    #: the list below then carries the choice.
+    add: object = None
 
     @property
     def is_spent(self):
@@ -587,6 +596,7 @@ def lift_landing(offer, landed, threshold=False):
         ChoosableGroup(
             name="Rolled high enough for" if threshold else "Landed on",
             options=first,
+            lifted=True,
         )
     ]
     if rest:

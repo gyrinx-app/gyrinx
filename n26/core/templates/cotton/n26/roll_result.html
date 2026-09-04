@@ -5,10 +5,10 @@
 
 Draws a n26.render.RollResult: the dice where the total says which faces they
 showed, the figure, the die, and where it landed — or that the table has no
-result for it, or that it has already been applied. The Roll again control sits
-here rather than with the table's own Roll control because this is where a
-reader deciding to roll again is looking. Plain submit button and no form of
-its own: the page owns the form.
+result for it, or that it has already been applied. Where the roll landed on
+one result that may be added, the panel carries that Add as the page's main
+act; Roll again sits beside it as the quiet alternative. Plain submit buttons
+and no form of its own: the page owns the form.
 
   :roll — a n26.render.RollResult.
 {% endcomment %}
@@ -34,5 +34,16 @@ its own: the page owns the form.
             {% if roll.entered %}Rolled at the table and entered here.{% endif %}
         </span>
     </span>
-    <c-ui.button type="submit" name="act" value="roll" variant="primary" size="sm">Roll again</c-ui.button>
+    {% comment %}
+    The next step is the big one: Add what the roll landed on. Roll again is
+    the quiet alternative beside it — the rules allow a re-roll only where
+    something grants one, and the record keeps both rolls either way.
+    {% endcomment %}
+    <span class="flex shrink-0 flex-wrap items-center gap-2">
+        {% if roll.add %}
+            <c-ui.button type="submit" name="thing" value="{{ roll.add.key }}" variant="primary"
+                         aria-label="Add {{ roll.add.name }}">Add {{ roll.add.name }}</c-ui.button>
+        {% endif %}
+        <c-ui.button type="submit" name="act" value="roll" variant="default" size="sm">Roll again</c-ui.button>
+    </span>
 </section>

@@ -83,7 +83,7 @@ that holds one.
                                 <c-ui.button type="submit"
                                              name="{{ name }}"
                                              value="{{ option.key }}"
-                                             variant="text"
+                                             variant="{% if group.lifted %}primary{% else %}text{% endif %}"
                                              size="sm"
                                              aria-label="Add {{ option.name }}{% if option.control == "both" %} again{% endif %}">Add{% if option.control == "both" %} again{% endif %}</c-ui.button>
                             {% endif %}
