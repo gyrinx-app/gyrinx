@@ -298,14 +298,19 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
             continue
-        if e.kind == Kind.GRANTED and row is not None and row.roll_id in act_of:
+        if (
+            e.kind == Kind.GRANTED
+            and row is not None
+            and _roll_key(row.roll_id) in act_of
+        ):
             # A pick made for a roll folds under the roll: "rolled 24"
             # with "Out Cold" beneath it is one act however many
-            # requests it took. The roll's act is keyed by its event,
-            # which no record's key can be. Same day only — a pick made
-            # days after its roll is its own act on its own day, and
-            # says which roll it came from in its own sentence.
-            home = act_of[row.roll_id]
+            # requests it took. The roll's act is keyed apart from the
+            # records', so a pick whose roll is outside the window can
+            # never fold under some record's act instead. Same day only —
+            # a pick made days after its roll is its own act on its own
+            # day, and says which roll it came from in its own sentence.
+            home = act_of[_roll_key(row.roll_id)]
             if home.when.date() == e.created.date():
                 home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
                 act_of.setdefault(row.pk, home)
@@ -362,7 +367,7 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                 if e.kind in {Kind.PURCHASED, Kind.ADDED, Kind.GRANTED}:
                     act_of.setdefault(row.pk, act)
             elif e.kind == Kind.ROLLED:
-                act_of[e.pk] = act
+                act_of[_roll_key(e.pk)] = act
 
     # Ridden things come before their riders in the log, so a chain
     # settles in one pass: each rider finds its ride already mapped.
@@ -450,6 +455,12 @@ def _caught_up_acts(caught_up, sources, alive):
 #: types granted in the same act can find it the way a rider finds its
 #: ride. Never an assignment's key, which is what every other entry is.
 _THE_JOINING = object()
+
+
+def _roll_key(event_pk):
+    """How a roll's act is filed in ``act_of``, beside the records' own
+    keys and never mistakable for one."""
+    return ("roll", event_pk)
 
 
 def _rides(e, row):

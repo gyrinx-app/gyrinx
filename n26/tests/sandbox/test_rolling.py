@@ -376,6 +376,30 @@ class TestTheHistoryTellsTheRoll:
             said == "gained Out Cold on Krago, rolled 24" for said in sentences(gang)
         )
 
+    def test_a_pick_whose_roll_is_outside_the_window_folds_under_nothing(
+        self, gang, krago, injuries, campaign_type
+    ):
+        """A campaign log cut to its newest acts may hold the pick and
+        not the roll it came from; the pick then stands on its own and
+        names the roll, rather than folding under whatever act happens
+        to be there."""
+        from n26.tests.sandbox.actions import found_campaign, join_campaign
+
+        campaign = found_campaign("The Cut", campaign_type, owner=gang.owner)
+        join_campaign(gang, campaign)
+        event = roll_for(krago, "Lasting Injuries", rolled=24)
+        pick(
+            krago,
+            "Lasting Injuries",
+            result_named(injuries["table"], "Out Cold"),
+            roll=event,
+        )
+        told = [
+            "".join(span.text for span in act.spans)
+            for act in history.campaign_history(campaign, limit=1)
+        ]
+        assert told == ["gained Out Cold on Krago, rolled 24"]
+
     def test_a_generated_roll_carries_no_note(self, gang, krago):
         roll_for(krago, "Lasting Injuries", rng=random.Random(5))
         act = act_saying(gang, "rolled")
@@ -574,6 +598,34 @@ class TestThePickScreen:
         assert "Roll a D6" in client.get(address).content.decode()
         pick(juve, "Scars", scar)
         assert "Roll a D6" not in client.get(address).content.decode()
+
+    def test_rolling_for_a_choice_filled_meanwhile_is_refused(
+        self, client, owner, gang, gang_type, fighter_type, default_pack
+    ):
+        kind = create_slot_type("Scar")
+        table = create_picklist("Scar Table", kind, dice="d6", roll_selects="band")
+        scar = create_pickable("Scar", kind)
+        add_picklist_member(table, scar, roll_low=1, roll_high=6)
+        one = create_slot("Scars", kind, table, max_picks=1)
+        modifier(
+            "Fighters scar",
+            targets_every_model(is_profile_type(fighter_type)),
+            ef_adds(one),
+            carried_by=gang_type,
+        )
+        profile = create_profile("Juve", fighter_type, gang_type, price=20)
+        juve = hire(gang, profile, "Nix", paid=20)
+        slot = choice_of(juve, "Scars")
+        address = reverse(
+            "n26-choose",
+            args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
+        )
+        client.force_login(owner)
+        # The page was drawn with room; the pick lands before the Roll click.
+        pick(juve, "Scars", scar)
+        reply = client.post(address, {"act": "roll"}, follow=True)
+        assert "Take one back before rolling." in reply.content.decode()
+        assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
 
     def test_a_choice_of_one_lifts_the_row_rather_than_adding_from_the_panel(
         self, client, owner, gang, gang_type, fighter_type, default_pack

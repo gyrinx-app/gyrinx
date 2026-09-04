@@ -306,7 +306,8 @@ def choose(request, pk, slot):
         # record from this moment, and the page comes back at it. A roll
         # made at the table and entered here goes the same way, with the
         # record saying it was entered.
-        if _roll_table(found) is None:
+        if found.slot.slot is None or not found.slot.slot.picklist.dice:
+            # No die behind this choice: no page drew a Roll for it.
             raise Http404("Nothing to roll here")
         rolled = None
         if request.POST["act"] == "enter":
@@ -318,6 +319,14 @@ def choose(request, pk, slot):
         try:
             with operation(gang, actor=request.user) as op:
                 fresh = _find_slot(gang, slot)
+                if fresh.slot.is_full:
+                    # Filled while this page stood open: a roll now would
+                    # be one the next Add refuses, and a roll is on the
+                    # record for good.
+                    raise Refusal(
+                        f"{offer.label} holds all the picks it will take. "
+                        "Take one back before rolling."
+                    )
                 event = op.roll(
                     fresh.slot.slot, miniature=fresh.miniature, rolled=rolled
                 )
