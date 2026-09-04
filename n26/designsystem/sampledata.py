@@ -6,13 +6,16 @@ prove the ORM does.
 """
 
 from dataclasses import dataclass, replace
+from datetime import timedelta
 
+from django.utils import timezone
 from django.utils.text import slugify
 
 from n26.core.actions import (
     FOUNDING_HELP,
     VISIT_HELP,
     ActionsSquare,
+    HistoryLine,
     VisitLine,
     open_card,
 )
@@ -2031,6 +2034,13 @@ CARD_IMAGE = (
 )
 
 
+def model_card_founding():
+    """The sample card while the gang is still being founded: what this
+    model has left of the Trade Points its books give it to spend as it
+    joins, ahead of its rating."""
+    return replace(model_card(), founding_budget=True, trade_points_left=3)
+
+
 def model_card_written():
     """The sample card with its picture and its Lore and Notes tabs filled."""
     return replace(model_card(), notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE)
@@ -2112,6 +2122,20 @@ def gang_sheet_context():
     )
     founding_open = open_card(Action.Kind.FOUNDING, "#", help=FOUNDING_HELP)
     a_visit = VisitLine(trade_points_left=3, href="#")
+    # Fixed times, counted back from when the page is drawn, so the
+    # relative times the square prints read as a story rather than as
+    # five copies of one date frozen at the moment this file was written.
+    now = timezone.now()
+    lately = tuple(
+        HistoryLine(when=now - timedelta(minutes=minutes), actor=actor, told=told)
+        for minutes, actor, told in (
+            (4, "You", "bought Lasgun for Yolanda"),
+            (11, "You", "hired Yolanda, a Ganger"),
+            (26, "You", "renamed Vespa to Vespa Kray"),
+            (140, "You", "started the Found and equip gang action"),
+            (141, "You", "created the gang, a House Escher gang"),
+        )
+    )
     return {
         "gang": sheet,
         # The two shapes an action card has: a visit, which has figures to
@@ -2121,13 +2145,24 @@ def gang_sheet_context():
             Action.Kind.TRADING_POST_VISIT, "#", help=VISIT_HELP, facts=visit_facts
         ),
         "sample_action_founding": founding_open,
-        # The Actions square's four states. The start row is offered only
+        # The Actions square's states. The start row is offered only
         # where no founding action is open, which is what the empty
         # start_founding says.
-        "sample_square_empty": ActionsSquare(start_founding="#"),
-        "sample_square_founding": ActionsSquare(founding=founding_open),
-        "sample_square_visit": ActionsSquare(visit=a_visit, start_founding="#"),
-        "sample_square_both": ActionsSquare(founding=founding_open, visit=a_visit),
+        "sample_square_empty": ActionsSquare(
+            history=lately, start_founding="#", history_href="#"
+        ),
+        "sample_square_founding": ActionsSquare(
+            founding=founding_open, history=lately, history_href="#"
+        ),
+        "sample_square_visit": ActionsSquare(
+            visit=a_visit, history=lately, start_founding="#", history_href="#"
+        ),
+        "sample_square_both": ActionsSquare(
+            founding=founding_open, visit=a_visit, history=lately, history_href="#"
+        ),
+        # A gang nothing has been done to yet. The square says so rather
+        # than drawing a heading over nothing.
+        "sample_square_no_history": ActionsSquare(start_founding="#", history_href="#"),
         # Two tallies: the Visit Trading Post card's, and the one the
         # overspend confirmation draws under it. The second carries two
         # totals, which is what the component's per-row emphasis is for.

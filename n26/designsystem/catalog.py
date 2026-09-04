@@ -1769,7 +1769,11 @@ GROUPS: list[Group] = [
                     "would shift every card after it. The header holds the "
                     "title alone, so it stays the height of the stash card's; "
                     "the start control is a plain form in the body, drawn "
-                    "wherever the founding action is not open."
+                    "wherever the founding action is not open. The acts under "
+                    "it are built by n26.core.history, which is what stops the "
+                    "square and the history page describing one act two ways, "
+                    "and their times are relative, so the component loads "
+                    "humanize."
                 ),
             ),
             Component(
@@ -1967,7 +1971,10 @@ GROUPS: list[Group] = [
                     "asking — the counter lines included, which draw as settled "
                     "numbers wherever nobody may move them. XP is both a line "
                     "and a cell in the statline: the cell carries the target "
-                    "beside it, the line is where the number is changed. A stored model's card is three segmented tabs — Card, "
+                    "beside it, the line is where the number is changed. What a "
+                    "model has left of its founding Trade Points sits ahead of "
+                    "the rating in the gang and edit modes alone: the figure is "
+                    "the owner's business. A stored model's card is three segmented tabs — Card, "
                     "then Lore and Notes, the sections a player writes; a card with "
                     "no id (a preview, a picker option) draws the body plain. "
                     "Two modes: gang, the sheet's — dense, with the open "

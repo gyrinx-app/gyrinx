@@ -9,6 +9,11 @@ drawn whether or not anything is open — a square that came and went would
 shift every card after it, and a reader deciding what to do next is owed
 "nothing is open" as plainly as they are owed what is.
 
+Under that, the gang's last few acts. What has been done is the other half
+of what is open, and a reader who wants more than the snapshot follows it
+through to the history page. The sentences are the history page's own, so
+neither describes an act the other way.
+
 Every way to start an action posts rather than links, so nothing that
 follows links can start one. The header holds the title alone, at the
 same height as the stash card's beside it; the controls live in the body.
@@ -18,6 +23,7 @@ Whoever draws this owns the gang. There is no reader-facing shape.
   :square — a n26.core.actions.ActionsSquare.
   class — extra classes on the card.
 {% endcomment %}
+{% load humanize %}
 <c-vars :square="None" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
@@ -66,5 +72,38 @@ Whoever draws this owns the gang. There is no reader-facing shape.
                 </c-ui.button>
             </form>
         {% endif %}
+    </div>
+    {% comment %}
+    The story, newest first, ruled off from what is open above it. Each
+    time is relative, with the full one on the element itself: a snapshot
+    says how long ago, and the page it links to spends a column on the
+    exact time.
+
+    Models are named rather than linked. The way through to a model is the
+    roster below, and the way through to the whole story is the link at the
+    foot of this.
+    {% endcomment %}
+    <div class="flex flex-col gap-2 border-t border-box-border px-4 py-3">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">Recent history</h3>
+        {% if square.history %}
+            <ol class="flex flex-col gap-1.5">
+                {% for line in square.history %}
+                    <li class="flex items-baseline justify-between gap-3 text-xs">
+                        <span class="min-w-0 flex-1 text-ink-700 dark:text-ink-300">
+                            {% if line.actor %}<span class="font-medium text-ink-900 dark:text-ink-100">{{ line.actor }}</span>{% endif %}
+                            {{ line.told }}
+                        </span>
+                        <time datetime="{{ line.when|date:'c' }}"
+                              title="{{ line.when }}"
+                              class="shrink-0 text-muted">{{ line.when|naturaltime }}</time>
+                    </li>
+                {% endfor %}
+            </ol>
+        {% else %}
+            <p class="text-xs text-muted">No history for this gang yet.</p>
+        {% endif %}
+        <div>
+            <c-n26.link href="{{ square.history_href }}" class="text-xs">Full history</c-n26.link>
+        </div>
     </div>
 </c-ui.card>

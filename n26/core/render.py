@@ -614,6 +614,17 @@ class ModelCard:
     owned_by: str | None = None
     xp: int = 0
     xp_target: int | None = None
+    #: What this model has left of the Trade Points its books give it to
+    #: spend as it joins the gang, or None where it has none to spend.
+    #: Goes negative where the owner said they meant to overspend: Trade
+    #: Points inform, and only credits are refused.
+    trade_points_left: int | None = None
+    #: Whether the model has such an allowance at all. Stated rather than
+    #: inferred from the figure above, as ``GangSheet.trade_points_left``
+    #: is: a surface asking "is that a nought or an absence" of a number
+    #: is a surface that will one day get it wrong. It is the owner's
+    #: business, so only a card drawn for them shows it.
+    founding_budget: bool = False
     #: What the player wrote about this model — the only lines on a card
     #: written rather than earned. Editor HTML, sanitised where drawn: a
     #: card can be read by people who are not its owner.
@@ -1320,7 +1331,9 @@ def _choosable(
     )
 
 
-def build_model_card(miniature, card=None, computed=None, assignment_set=None):
+def build_model_card(
+    miniature, card=None, computed=None, assignment_set=None, budget=None
+):
     """Everything needed to draw one model's card.
 
     Pass ``computed`` (from ``n26.effects.compute``) to fold in what
@@ -1328,6 +1341,12 @@ def build_model_card(miniature, card=None, computed=None, assignment_set=None):
     shifted characteristics, forbidden combinations. Without it the card
     shows only what is literally assigned. Pass ``assignment_set`` to show
     one named selection instead of everything the model owns.
+
+    ``budget`` is this model's founding allowance
+    (``n26.core.founding.FoundingBudget``) where its books give it one and
+    the gang is still being founded. Handed in rather than read here: what
+    has been spent is one sum for the whole roster, and a card that asked
+    for its own would be a query a fighter.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -1347,6 +1366,8 @@ def build_model_card(miniature, card=None, computed=None, assignment_set=None):
         # by the build (``n26.core.card.set_by_hand``), because drawing
         # a card may not query.
         stat_overrides=card.stat_overrides,
+        trade_points_left=budget.remaining if budget is not None else None,
+        founding_budget=budget is not None,
     )
 
 
@@ -1363,6 +1384,8 @@ def card_to_model_card(
     notes="",
     lore="",
     image_url="",
+    trade_points_left=None,
+    founding_budget=False,
 ):
     """Turn a card into the structure a renderer draws.
 
@@ -1713,6 +1736,8 @@ def card_to_model_card(
         counters=sorted(counters, key=lambda line: not line.is_xp),
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
+        trade_points_left=trade_points_left,
+        founding_budget=founding_budget,
     )
 
 
@@ -2120,10 +2145,18 @@ def stash_lines(gang_card):
     ]
 
 
-def render_gang(gang, with_effects=True, *, card=None):
-    """A whole gang sheet. A fixed number of queries, whatever its size."""
+def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
+    """A whole gang sheet. A fixed number of queries, whatever its size.
+
+    ``for_owner`` says the sheet is being drawn for the person who owns
+    the gang, and is what puts the owner-only figures on it — what each
+    model has left of its founding Trade Points. Off by default, so a
+    reader who does not own the gang, a print run and a text card neither
+    show the figure nor pay the reads it takes to work out.
+    """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
+    from n26.core.founding import budgets_by_model
     from n26.core.models import CampaignMembership
 
     models = roster(gang)
@@ -2167,6 +2200,12 @@ def render_gang(gang, with_effects=True, *, card=None):
         gang_computed.counters if gang_computed else counter_readings(gang_card)
     )
     campaign = _campaign_block(gang_card, membership, campaign_keys, readings)
+    # What each model still has of the Trade Points its books give it to
+    # spend as it joins. Off the fold that has just been worked out, plus
+    # one sum of what the whole roster has spent — never a query a
+    # fighter — and nothing at all for a gang whose books grant none, or
+    # for a reader the figure is not for.
+    budgets = budgets_by_model(gang, computed) if with_effects and for_owner else {}
     gang_rows, gang_rules = _gang_rows(gang_card, gang_computed, campaign_keys)
     return GangSheet(
         name=gang.name,
@@ -2194,7 +2233,10 @@ def render_gang(gang, with_effects=True, *, card=None):
         image_url=(gang.image.url if gang.image else ""),
         models=[
             build_model_card(
-                model, card=cards.get(model.pk), computed=computed.get(model.pk)
+                model,
+                card=cards.get(model.pk),
+                computed=computed.get(model.pk),
+                budget=budgets.get(str(model.pk)),
             )
             for model in models
         ],

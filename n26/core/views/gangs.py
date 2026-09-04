@@ -257,7 +257,10 @@ def gang_sheet(request, pk):
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     card = build_gang_card(gang)
-    sheet = render_gang(gang, card=card)
+    # for_owner puts the owner-only figures on the cards — what a model
+    # has left of its founding Trade Points — and is what keeps a
+    # stranger's read from paying for figures they are not shown.
+    sheet = render_gang(gang, card=card, for_owner=yours)
     dialog = None
     link_campaign(sheet.campaign, request.user)
     if yours:
@@ -292,15 +295,19 @@ def gang_sheet(request, pk):
             "trade_points_href": trade_points_href(gang, request.user),
             # The gang's own actions, which are the owner's to perform.
             # Drawn for staff owners only while the actions are built out;
-            # every other reader gets no square. One query for the whole
-            # page — the open founding action — since what a visit has
-            # left is already on the sheet.
+            # every other reader gets no square. A fixed handful of
+            # queries for the whole page, whatever the roster: the open
+            # actions, and the last stretch of the gang's story with the
+            # records it names. What a visit has left is already on the
+            # sheet.
             "actions_square": (
                 actions_square(
                     gang,
                     sheet,
                     founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
+                    history_at=reverse("n26-gang-history", args=[gang.pk]),
+                    viewer=request.user,
                 )
                 if may_see_actions_square(gang, request.user)
                 else None

@@ -370,6 +370,89 @@ class TestTheCostDoesNotFollowTheLength:
             history.build(long, viewer=gang.owner)
 
 
+class TestASnapshotOfTheStory:
+    """A screen wanting the last few acts reads the last stretch of
+    events, never the whole story: a gang played for a season would
+    otherwise pay for every act it ever did to print five lines.
+
+    The sentences are the history page's own, so the two cannot describe
+    one act differently.
+    """
+
+    def _lengthen(self, gang, vex, acts):
+        for number in range(acts):
+            with edit(gang) as op:
+                op.rename(vex, f"Vex {number}")
+
+    def told(self, acts):
+        return ["".join(span.text for span in act.spans) for act in acts]
+
+    def test_the_newest_act_comes_first(self, gang, vex):
+        latest = history.latest(Gang.objects.get(pk=gang.pk), viewer=gang.owner)
+
+        assert self.told(latest)[0].startswith("hired Vex")
+
+    def test_it_gives_back_no_more_than_it_was_asked_for(self, gang, vex):
+        self._lengthen(gang, vex, 8)
+        latest = history.latest(Gang.objects.get(pk=gang.pk), limit=3)
+
+        assert len(latest) == 3
+
+    def test_they_are_the_acts_the_page_would_print_first(self, gang, vex):
+        self._lengthen(gang, vex, 4)
+        whole = Gang.objects.get(pk=gang.pk)
+        page = list(reversed(history.build(whole, viewer=gang.owner)))[:5]
+        latest = history.latest(whole, viewer=gang.owner)
+
+        assert self.told(latest) == self.told(page)
+
+    def test_a_gang_nothing_has_been_done_to_has_nothing_to_tell(
+        self, gang_type, owner
+    ):
+        """A row written without an operation behind it — the state a
+        screen has to draw something for rather than a heading over
+        nothing."""
+        bare = Gang.objects.create(
+            name="The Rust Sermon", owner=owner, gang_type=gang_type
+        )
+
+        assert history.latest(bare) == []
+
+    def test_models_are_named_rather_than_linked(self, gang, vex):
+        """The way through to a model is the roster, and the way through
+        to the whole story is the history page: knowing which models are
+        still on the roster is a query a snapshot need not spend."""
+        latest = history.latest(Gang.objects.get(pk=gang.pk), viewer=gang.owner)
+
+        assert any("Vex" in line for line in self.told(latest))
+        assert not any(span.href for act in latest for span in act.spans)
+
+    def test_the_cost_does_not_follow_the_length(
+        self, gang, vex, django_assert_num_queries
+    ):
+        """Two reads whatever the gang's age: the last stretch of events,
+        and the records those events name."""
+        self._lengthen(gang, vex, 5)
+        short = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(2):
+            history.latest(short, viewer=gang.owner)
+        self._lengthen(gang, vex, 60)
+        long = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(2):
+            history.latest(long, viewer=gang.owner)
+
+    def test_it_reads_only_the_last_stretch_of_events(self, gang, vex):
+        """The window is counted in events because acts are made of them.
+        Asked for more acts than the stretch holds, it gives what the
+        stretch tells and no more — where the whole story has them all."""
+        self._lengthen(gang, vex, history.SNAPSHOT_WINDOW + 20)
+        whole = Gang.objects.get(pk=gang.pk)
+
+        snapshot = history.latest(whole, limit=1000, viewer=gang.owner)
+        assert len(snapshot) <= history.SNAPSHOT_WINDOW
+        assert len(history.build(whole, viewer=gang.owner)) > len(snapshot)
+
+
 class TestThePageIsTheOwners:
     """The history says things the roster does not, so only the owner
     reads it — and every narrowing is an address."""

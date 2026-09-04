@@ -39,25 +39,36 @@ def budget_granted(computed):
     contribution named the counter — a model with none pays nothing to
     find that out.
     """
-    from n26.library.standard_content import (
-        FOUNDING_BUDGET_COUNTER,
-        founding_budget_counter,
-    )
+    from n26.library.standard_content import founding_budget_counter
 
-    wanted = FOUNDING_BUDGET_COUNTER.casefold()
-    named = [
-        contribution
-        for contribution in computed.counter_contributions
-        if contribution.counter.name.casefold() == wanted
-    ]
-    if not named:
+    if not _names_the_counter(computed):
         return 0
     standard = founding_budget_counter()
     if standard is None:
         return 0
+    return _raised_by(computed, standard)
+
+
+def _names_the_counter(computed):
+    """Whether anything on this card raises the founding allowance, by
+    the counter's name alone. Settled without a query, which is what
+    keeps a model with no allowance costing what it always did."""
+    from n26.library.standard_content import FOUNDING_BUDGET_COUNTER
+
+    wanted = FOUNDING_BUDGET_COUNTER.casefold()
+    return any(
+        contribution.counter.name.casefold() == wanted
+        for contribution in computed.counter_contributions
+    )
+
+
+def _raised_by(computed, standard):
+    """What this card raises the standard counter by. Pinned to the row
+    rather than the name: a homebrew pack's counter called the same thing
+    is a different counter and grants nothing here."""
     return sum(
         contribution.amount
-        for contribution in named
+        for contribution in computed.counter_contributions
         if contribution.counter.pk == standard.pk
     )
 
@@ -129,3 +140,53 @@ def budget_for(gang, miniature, computed):
         granted=granted,
         spent=trade_points_spent_by(action, miniature),
     )
+
+
+def budgets_by_model(gang, computed):
+    """Every model's founding budget under the open action, and nothing
+    at all where no founding action is open or nobody on the roster has
+    an allowance.
+
+    ``computed`` is each member's fold, keyed by model id, off the card
+    the roster was dealt from. What a model may spend is already in
+    there; what it has spent is the ledger's. Keyed by the id written
+    out, which is how a drawn card carries its model's — the two sides of
+    this join arrive from different queries and only the written form is
+    the same on both.
+
+    A fixed cost for the whole roster rather than a query a fighter: the
+    standard counter is asked for once, and what has gone is one sum
+    grouped by whoever spent it. A gang whose books grant no such
+    allowance pays for neither — nothing on any of its cards names the
+    counter.
+    """
+    from n26.core.models import Action
+    from n26.core.reconcile import trade_points_spent_by_model
+    from n26.library.standard_content import founding_budget_counter
+
+    named = {
+        model_id: fold
+        for model_id, fold in computed.items()
+        if _names_the_counter(fold)
+    }
+    if not named:
+        return {}
+    action = gang.open_action(Action.Kind.FOUNDING)
+    if action is None:
+        return {}
+    standard = founding_budget_counter()
+    if standard is None:
+        return {}
+    spent = {
+        str(model_id): total
+        for model_id, total in trade_points_spent_by_model(action).items()
+    }
+    budgets = {}
+    for model_id, fold in named.items():
+        granted = _raised_by(fold, standard)
+        if granted <= 0:
+            continue
+        budgets[str(model_id)] = FoundingBudget(
+            action=action, granted=granted, spent=spent.get(str(model_id), 0)
+        )
+    return budgets

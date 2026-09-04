@@ -411,6 +411,137 @@ class TestTheSquareOnTheGangPage:
         assert measure() == few
 
 
+class TestTheStoryUnderIt:
+    """The square prints the gang's last few acts under what is open.
+
+    What has been done is the other half of what is open, and the
+    sentences are the history page's own — neither describes an act the
+    other way. Anything more than the snapshot is a click away.
+    """
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    def test_the_latest_acts_are_printed(self, client, gang):
+        body = client.get(sheet(gang)).content.decode()
+        assert "started the Found and equip gang action" in body
+        assert "created the gang" in body
+
+    def test_the_newest_act_is_at_the_top(self, client, gang, tester):
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+
+        body = client.get(sheet(gang)).content.decode()
+        square = body[: body.index("Nothing in the stash")]
+        assert square.index("completed the Found and equip gang action") < square.index(
+            "created the gang"
+        )
+
+    def test_no_more_than_a_handful_are_printed(
+        self, client, gang, tester, make_profile, make_statline
+    ):
+        """A snapshot, not the history page: the square would push the
+        roster off the screen if it grew with the gang."""
+        from n26.core.actions import SNAPSHOT
+
+        profile = make_profile("Ganger", price=10)
+        make_statline(profile)
+        for name in ("Ain", "Bex", "Cor", "Dax", "Eth", "Fen"):
+            with operation(gang, actor=tester) as op:
+                op.hire(profile, name)
+
+        body = client.get(sheet(gang)).content.decode()
+        square = body[: body.index("Nothing in the stash")]
+        assert square.count("hired ") == SNAPSHOT
+
+    def test_the_way_through_to_the_whole_story_is_there(self, client, gang):
+        body = client.get(sheet(gang)).content.decode()
+        assert "Full history" in body
+        assert reverse("n26-gang-history", args=[gang.pk]) in body
+
+    def test_a_gang_nothing_has_been_done_to_says_so(self, client, tester, gang_type):
+        """A row written with no operation behind it: the square draws a
+        sentence rather than a heading over nothing."""
+        bare = Gang.objects.create(
+            name="The Rust Sermon",
+            owner=tester,
+            gang_type=gang_type,
+            starting_credits=1000,
+            credits=1000,
+        )
+
+        body = client.get(sheet(bare)).content.decode()
+        assert "No history for this gang yet." in body
+        assert "Full history" in body
+
+    def test_a_reader_who_does_not_own_it_gets_none_of_it(self, client, gang):
+        client.force_login(User.objects.create_user("stranger"))
+        body = client.get(sheet(gang)).content.decode()
+        assert "Full history" not in body
+        assert "started the Found and equip gang action" not in body
+
+
+class TestWhatTheSquareCosts:
+    """The square is a fixed number of reads, whatever the gang.
+
+    A page's query count is an invariant here: neither a roster that grew
+    nor a story that got longer may add one.
+    """
+
+    def test_it_is_pinned_at_three_reads(self, gang, tester, django_assert_num_queries):
+        """Which actions the gang has open, the last stretch of its
+        events, and the records those events name.
+
+        The sheet is built first, from a row of its own, so its reads are
+        not counted here — a gang holds what it read about its own open
+        actions, and one already asked would hide a read this makes.
+        """
+        from n26.core.actions import actions_square
+        from n26.core.render import render_gang
+
+        sheet_of = render_gang(Gang.objects.get(pk=gang.pk))
+        fresh = Gang.objects.get(pk=gang.pk)
+
+        with django_assert_num_queries(3):
+            actions_square(
+                fresh,
+                sheet_of,
+                founding_at=act_page(fresh),
+                visit_at="/visit",
+                history_at="/history",
+                viewer=tester,
+            )
+
+    def test_a_longer_story_costs_the_page_nothing_more(
+        self, client, gang, tester, make_profile, make_statline
+    ):
+        """The snapshot reads the last stretch of events rather than the
+        whole story, so a gang played for a season draws its square for
+        what a new one pays."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        profile = make_profile("Ganger", price=1)
+        make_statline(profile)
+        with operation(gang, actor=tester) as op:
+            model = op.hire(profile, "Vex")
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get(sheet(gang)).status_code == 200
+            return len(captured.captured_queries)
+
+        measure()
+        short = measure()
+        for number in range(60):
+            with operation(gang, actor=tester) as op:
+                op.rename(model, f"Vex {number}")
+
+        assert measure() == short
+
+
 class TestTheActsBehindIt:
     @pytest.fixture(autouse=True)
     def signed_in(self, client, tester):
