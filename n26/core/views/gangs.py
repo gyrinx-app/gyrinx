@@ -242,7 +242,7 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
-    from n26.core.actions import founding_card
+    from n26.core.actions import actions_square
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
@@ -280,10 +280,17 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
-            # The gang's own actions, which are the owner's to perform:
-            # a reader who does not own it gets no card at all.
-            "founding_action": (
-                founding_card(gang, reverse("n26-gang-founding-action", args=[gang.pk]))
+            # The gang's own actions, which are the owner's to perform: a
+            # reader who does not own it gets no square at all. One query
+            # for the whole page — the open founding action — since what a
+            # visit has left is already on the sheet.
+            "actions_square": (
+                actions_square(
+                    gang,
+                    sheet,
+                    founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
+                    visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
+                )
                 if yours
                 else None
             ),

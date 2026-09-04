@@ -248,17 +248,26 @@ class TestTheLedgerIsUnaffected:
         assert gang.credits == 1000
 
 
-class TestTheCardOnTheGangPage:
+class TestTheSquareOnTheGangPage:
+    """The Actions square: what the gang has open, in the first square of
+    the roster grid, and the menu that starts something."""
+
     @pytest.fixture(autouse=True)
     def signed_in(self, client, tester):
         client.force_login(tester)
 
-    def test_an_open_action_is_a_card_with_a_way_to_complete_it(self, client, gang):
+    def test_an_open_action_is_drawn_with_a_way_to_complete_it(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
         assert "Found and equip gang" in body
         assert "Complete action" in body
         assert "Click when you have finished hiring and equipping the gang." in body
         assert f'action="{act_page(gang)}"' in body
+
+    def test_the_menu_drops_the_start_row_while_one_is_open(self, client, gang):
+        """A gang performs one of each action at a time, so a row that
+        would be refused is a row that should not be there."""
+        body = client.get(sheet(gang)).content.decode()
+        assert "Start the Found and equip gang action" not in body
 
     def test_a_completed_action_leaves_the_way_to_start_another(
         self, client, gang, tester
@@ -267,17 +276,35 @@ class TestTheCardOnTheGangPage:
             op.close_action(gang.open_action(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
+        assert "No action is open." in body
         assert "Start the Found and equip gang action" in body
         assert "Complete action" not in body
 
-    def test_a_reader_who_does_not_own_it_gets_neither(self, client, gang):
+    def test_the_start_row_posts_rather_than_links(self, client, gang, tester):
+        """A link is followed by anything that follows links, and a reload
+        would start the action again."""
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+
+        body = client.get(sheet(gang)).content.decode()
+        start = body.index("Start the Found and equip gang action")
+        form = body.rindex("<form", 0, start)
+        assert 'method="post"' in body[form:start]
+        assert f'action="{act_page(gang)}"' in body[form:start]
+
+    def test_the_square_leads_the_grid(self, client, gang):
+        body = client.get(sheet(gang)).content.decode()
+        assert body.index("Found and equip gang") < body.index("Nothing in the stash")
+
+    def test_a_reader_who_does_not_own_it_gets_no_square(self, client, gang):
         """The roster is theirs to read; the gang's actions are not."""
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
         assert "Found and equip gang" not in body
         assert "Complete action" not in body
+        assert "No action is open." not in body
 
-    def test_the_card_costs_the_page_nothing_per_fighter(
+    def test_the_square_costs_the_page_nothing_per_fighter(
         self, client, gang, tester, make_profile, make_statline
     ):
         """The page asks the gang for its open action once, whatever the

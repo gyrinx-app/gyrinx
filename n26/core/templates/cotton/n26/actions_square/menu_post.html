@@ -1,0 +1,33 @@
+{% comment %}
+<c-n26.actions-square.menu-post> — a menu row that posts rather than links.
+
+    <c-n26.actions-square.menu-post action="{{ url }}" name="act" value="start">
+        Start the thing
+    </c-n26.actions-square.menu-post>
+
+Written out rather than built on <c-ui.dropdown.item>, which hardcodes
+type="button" ahead of its passthrough attributes — a duplicate attribute
+keeps the first, so an item inside a form draws as a menu row and submits
+nothing. The classes are that item's, so the two rows match.
+
+Starting an act must never be a link: a link is followed by anything that
+follows links, and a reload would do it again.
+
+  action — where the form posts.
+  name, value — the single field it carries.
+  class — extra classes on the button.
+{% endcomment %}
+<c-vars action="" name="" value="" class="" />
+
+<form method="post" action="{{ action }}" role="none">
+    {% csrf_token %}
+    <input type="hidden" name="{{ name }}" value="{{ value }}">
+    <button type="submit"
+            role="menuitem"
+            tabindex="-1"
+            @click="$dispatch('dropdown-close')"
+            @mouseover="$focus.focus($el)"
+            class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm text-ink-700 transition-colors hover:bg-ink-100 focus-visible:bg-ink-100 focus-visible:outline-none dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800 {{ class }}">
+        <span class="flex-1">{{ slot }}</span>
+    </button>
+</form>

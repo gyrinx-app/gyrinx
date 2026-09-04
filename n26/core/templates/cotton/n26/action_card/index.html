@@ -1,0 +1,41 @@
+{% comment %}
+<c-n26.action-card> — one open action, and the button that ends it.
+
+    <c-n26.action-card :card="visit_card">
+        <c-slot name="body">…anything between the tally and the button…</c-slot>
+    </c-n26.action-card>
+
+Boxed, it is a card of its own — a card rather than a section because it comes
+and goes with the action, where a heading would read as a standing fact about
+the gang. Unboxed it is the same thing without the chrome, for a caller that
+has already drawn a box round it; the Actions square on the gang sheet draws
+several that way.
+
+Only an open action reaches here. There is nothing to report about one nobody
+has started, so the way to start one belongs to whatever holds the card.
+
+The button posts `act` to the card's own address; nothing here is a link,
+because following one must never start or end an action.
+
+  :card — a n26.core.actions.ActionCard.
+  :boxed — False draws the contents with no card and a plainer title.
+  body — drawn between the tally and the button, for what one action has that
+    the others do not.
+  class — extra classes on the outermost element.
+{% endcomment %}
+<c-vars :card="None" :boxed="True" body="" class="" />
+
+{% if boxed %}
+    <c-ui.card class="{{ class }}">
+        <c-slot name="header">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Action</p>
+            <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">{{ card.title }}</h2>
+        </c-slot>
+        <c-n26.action-card.body :card="card">{{ body }}</c-n26.action-card.body>
+    </c-ui.card>
+{% else %}
+    <div class="{{ class }}">
+        <h3 class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">{{ card.title }}</h3>
+        <c-n26.action-card.body :card="card">{{ body }}</c-n26.action-card.body>
+    </div>
+{% endif %}

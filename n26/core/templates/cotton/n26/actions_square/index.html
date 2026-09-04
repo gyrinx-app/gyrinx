@@ -1,0 +1,86 @@
+{% comment %}
+<c-n26.actions-square> — what the gang has open, and the way to start something.
+
+    <c-n26.actions-square :square="actions" />
+
+A card built to sit in the same grid as the stash and the models, ahead of
+both: what a gang has open is read beside what it is being spent on. It is
+drawn whether or not anything is open — a square that came and went would
+shift every card after it, and a reader deciding what to do next is owed
+"nothing is open" as plainly as they are owed what is.
+
+The menu is the only way to start one, and its rows post rather than link,
+so nothing that follows links can start an act. Without scripting the menu
+never opens: it holds no fact a reader needs, only the two ways in.
+
+Whoever draws this owns the gang. There is no reader-facing shape.
+
+  :square — a n26.core.actions.ActionsSquare.
+  class — extra classes on the card.
+{% endcomment %}
+<c-vars :square="None" class="" />
+
+<c-ui.card padding="none" class="{{ class }}">
+    <c-slot name="header">
+        {# -mx-2 because the kit's header band hardcodes px-6 where the rows #}
+        {# below are px-4, so the name would start further in than the contents. #}
+        <div class="-mx-2 flex items-center gap-3">
+            <span class="min-w-0 flex-1 text-sm font-semibold text-ink-900 dark:text-ink-100">Actions</span>
+            <c-ui.dropdown align="end">
+                <c-slot name="trigger">
+                    <c-ui.button size="xs" variant="default" aria-label="Start an action">
+                        <span class="n26-icon-only gap-0.5">
+                            <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
+                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                {% comment %}
+                Offered only while none is open. A gang performs one of each
+                action at a time, and a row that would be refused is a row
+                that should not be there.
+                {% endcomment %}
+                {% if square.start_founding %}
+                    <c-n26.actions-square.menu-post action="{{ square.start_founding }}"
+                                                    name="act"
+                                                    value="start">
+                        Start the Found and equip gang action
+                    </c-n26.actions-square.menu-post>
+                {% endif %}
+                {% comment %}
+                A link, not a post: the visit is opened on its own page, where
+                the fighters who perform it are picked.
+                {% endcomment %}
+                <c-ui.dropdown.item href="{{ square.visit_href }}">
+                    Visit Trading Post
+                </c-ui.dropdown.item>
+            </c-ui.dropdown>
+        </div>
+    </c-slot>
+    <div class="flex flex-col gap-3 px-4 py-3">
+        {% if square.founding %}
+            <c-n26.action-card :card="square.founding" :boxed="False" />
+        {% endif %}
+        {% comment %}
+        A line rather than a card: what a visit is worth is decided and spent
+        on its own page, so this says it is open and how much is left, and
+        sends the reader there. Ruled off from the action above it when there
+        is one.
+        {% endcomment %}
+        {% if square.visit %}
+            <div class="flex flex-wrap items-center justify-between gap-2 {% if square.founding %}border-t border-box-border pt-3{% endif %}">
+                <span class="text-xs text-muted">
+                    Trading Post visit open —
+                    <span class="font-medium text-ink-900 dark:text-ink-100">{{ square.visit.trade_points_left }} TP</span>
+                    left
+                </span>
+                <c-ui.button size="xs" variant="default" href="{{ square.visit.href }}">
+                    Manage visit
+                </c-ui.button>
+            </div>
+        {% endif %}
+        {% if not square.anything_open %}
+            <p class="text-xs text-muted">No action is open.</p>
+        {% endif %}
+    </div>
+</c-ui.card>

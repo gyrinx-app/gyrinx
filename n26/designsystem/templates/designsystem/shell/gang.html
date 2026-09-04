@@ -87,13 +87,12 @@ a page and its chrome is not visible in either one alone.
             </c-n26.button-group>
         </c-slot>
         {% comment %}
-        The open action, between the buttons and the roster. Here rather than
-        only on its own component page: a card the width of the page changes
-        how far the roster sits from the heading, and neither view answers
-        that alone.
+        The Actions square, first in the grid. Here rather than only on its
+        own component page: whether it reads as one of the grid's squares
+        depends on the stash and the cards beside it.
         {% endcomment %}
-        <c-slot name="open_action">
-            <c-n26.action-card :card="sample_action_founding" />
+        <c-slot name="actions_square">
+            <c-n26.actions-square :square="sample_square_both" />
         </c-slot>
         <c-slot name="stash_actions">
             <c-n26.action-link href="{% url 'designsystem:shell_shop' %}">Equip</c-n26.action-link>

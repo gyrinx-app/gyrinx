@@ -186,10 +186,10 @@ class TestTheCallToAction:
         assert "Track TP spend by starting an action" not in body
 
 
-class TestTheStashCard:
-    """The gang sheet's stash is where buying is read from, so it says
-    where the Trading Post stands — both states, since "three left" and
-    "no action" are equally worth knowing before buying anything."""
+class TestTheActionsSquare:
+    """Where the gang sheet says the Trading Post stands. One square for
+    everything the gang has open, ahead of the stash, so what is open is
+    read in one place rather than found under whatever it is spent on."""
 
     def sheet(self, client, gang):
         return client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
@@ -197,8 +197,8 @@ class TestTheStashCard:
     def test_it_offers_a_way_to_start_one(self, client, tester, gang):
         client.force_login(tester)
         body = self.sheet(client, gang)
-        assert "Not tracking TP" in body
-        assert "Set up TP visit" in body
+        assert "Actions" in body
+        assert f'href="{page(gang)}"' in body
 
     def test_it_says_what_an_open_action_has_left(self, client, tester, roster, gang):
         client.force_login(tester)
@@ -207,14 +207,31 @@ class TestTheStashCard:
         body = self.sheet(client, gang)
         assert "Trading Post visit open" in body
         assert "Manage visit" in body
-        assert "Not tracking TP" not in body
+
+    def test_the_stash_card_no_longer_carries_it(self, client, tester, roster, gang):
+        """The line moved out of the stash: what a gang has open is not a
+        fact about what it is storing."""
+        client.force_login(tester)
+        start(client, gang, roster["Vex"])
+
+        body = self.sheet(client, gang)
+        # The stash card's own heading, not the wealth strip's figure of
+        # the same name, which sits further up the page.
+        assert body.index("Trading Post visit open") < body.index(">Stash</span>")
+
+    def test_it_leads_the_grid_ahead_of_the_stash(self, client, tester, gang):
+        client.force_login(tester)
+        body = self.sheet(client, gang)
+        assert body.index("No action is open.") < body.index(
+            "Nothing in the stash yet."
+        )
 
     def test_a_stranger_is_told_none_of_it(self, client, gang):
-        """The stash is theirs to read; what to do about it is not."""
+        """The roster is theirs to read; the gang's actions are not."""
         client.force_login(User.objects.create_user("stranger"))
         body = self.sheet(client, gang)
-        assert "Not tracking TP" not in body
-        assert "Set up TP visit" not in body
+        assert "No action is open." not in body
+        assert "Trading Post visit open" not in body
 
 
 class TestWhoIsOffered:

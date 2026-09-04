@@ -1739,16 +1739,44 @@ GROUPS: list[Group] = [
             Component(
                 slug="action-card",
                 tag="c-n26.action-card",
-                template="n26/action_card.html",
-                summary="The action a gang has open, and the button that ends it.",
+                template="n26/action_card/index.html",
+                summary="One open action, and the button that ends it.",
+                parts=(
+                    Part(
+                        "c-n26.action-card.body",
+                        "n26/action_card/body.html",
+                        "The figures and the button, drawn the same boxed or not.",
+                    ),
+                ),
                 notes=(
-                    "Two shapes from one prop: an open action is a card, and "
-                    "one nobody has started is the bare control that starts it "
-                    "— there is nothing to report until it is open. The button "
-                    "posts to the card's own address, never a link, because "
-                    "following a link must not start or end anything. Drawn on "
-                    "the gang sheet and on the Trade Points page, so the two "
-                    "cannot come to describe an action differently."
+                    "Only an open action reaches it: the way to start one "
+                    "belongs to whatever holds the card, which on the gang "
+                    "sheet is c-n26.actions-square. boxed=False drops the card "
+                    "and the eyebrow for a caller that has drawn its own box. "
+                    "The button posts to the card's own address, never a link, "
+                    "because following a link must not end an action."
+                ),
+            ),
+            Component(
+                slug="actions-square",
+                tag="c-n26.actions-square",
+                template="n26/actions_square/index.html",
+                summary="What a gang has open, and the way to start something.",
+                needs=(ALPINE, KIT_JS),
+                parts=(
+                    Part(
+                        "c-n26.actions-square.menu-post",
+                        "n26/actions_square/menu_post.html",
+                        "A menu row that posts rather than links.",
+                    ),
+                ),
+                notes=(
+                    "Drawn as the first square of the gang sheet's grid, ahead "
+                    "of the stash, and only for the owner. It is there whether "
+                    "or not anything is open — a square that came and went "
+                    "would shift every card after it. The menu is the only way "
+                    "to start an action and never opens without scripting, "
+                    "which is why nothing a reader needs to know lives in it."
                 ),
             ),
             Component(

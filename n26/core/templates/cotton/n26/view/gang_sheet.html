@@ -17,8 +17,8 @@ is drawn as the first card of the grid, ahead of `members`.
     when it only repeats the text beside it.
   secondary_actions — Print, and a dropdown holding Delete. A run of its own,
     after the primary actions rather than sorted in among them.
-  open_action — the gang's open action, drawn between the buttons and the
-    roster; see <c-n26.action-card>. Only the owner has one.
+  actions_square — what the gang has open, as the first square of the grid;
+    see <c-n26.actions-square>. Only the owner gets one.
   stash_empty — what to say when the stash is empty.
   stash_actions — a middot link after the Stash title (e.g. Equip).
   stash_notice — a strip above the stash's contents; see <c-n26.stash>.
@@ -38,7 +38,7 @@ is drawn as the first card of the grid, ahead of `members`.
     type_flair=""
     details=""
     actions=""
-    open_action=""
+    actions_square=""
     secondary_actions=""
     members=""
     stash_empty=""
@@ -130,17 +130,15 @@ is drawn as the first card of the grid, ahead of `members`.
     </div>
 
     {% comment %}
-    Above the roster, under the buttons: an action is something the owner is
-    part-way through, so it belongs where they will see it before they start
-    reading cards.
-    {% endcomment %}
-    {% if open_action %}{{ open_action }}{% endif %}
-
-    {% comment %}
     auto-rows-min keeps a short card short; items-start would only align the
     cards, not stop them stretching to the tallest in the row.
+
+    The Actions square leads, ahead of the stash: what the gang has open is
+    read before what it is being spent on, and on a phone — one column — it
+    is the first thing under the buttons.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {% if actions_square %}{{ actions_square }}{% endif %}
         <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
             {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
             {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}

@@ -1,0 +1,33 @@
+{% comment %}
+<c-n26.action-card.body> — an open action's figures and its button.
+
+Everything <c-n26.action-card> draws below the title, kept apart so the boxed
+and unboxed shapes cannot come to draw different contents.
+
+  :card — a n26.core.actions.ActionCard.
+  slot — drawn between the tally and the button.
+{% endcomment %}
+<c-vars :card="None" />
+
+<div class="space-y-4">
+    {% if card.facts %}<c-n26.tally :facts="card.facts" />{% endif %}
+    {% if slot.strip %}{{ slot }}{% endif %}
+    <form method="post" action="{{ card.action }}">
+        {% csrf_token %}
+        <input type="hidden" name="act" value="{{ card.act }}">
+        {% comment %}
+        The label and its tick sit in one flex span, as every other
+        icon-and-words button here does: loose in the button they break
+        onto two lines.
+        {% endcomment %}
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <c-ui.button type="submit" size="sm" variant="success">
+                <span class="flex items-center gap-1.5">
+                    <c-n26.icon name="check" class="size-4" stroke_width="2.5" />
+                    {{ card.button_label }}
+                </span>
+            </c-ui.button>
+            {% if card.help %}<p class="text-sm text-muted">{{ card.help }}</p>{% endif %}
+        </div>
+    </form>
+</div>
