@@ -149,14 +149,16 @@ jobs:
   # migration that made the table it had adopted, and only a database that
   # already had the table hid it.
   #
-  # Its own job rather than a step in `test` so a four-minute migrate does not
-  # sit in front of the test result.
+  # Its own job rather than a step in `test` so the migrate does not sit in
+  # front of the test result.
   #
-  # On a pull request the migrate only runs when the change touches the
-  # migration graph or the settings that list the apps in it: nothing else can
-  # break a from-scratch apply, and the migrate costs six minutes of Django
-  # re-rendering model state between 400-odd migrations. Every other event runs
-  # it unconditionally.
+  # On a pull request the migrate only runs when the change touches what a
+  # from-scratch apply depends on, as scripts/fresh_database_needed.py decides:
+  # migration files, an app's apps.py, the settings, the dependency lock, and
+  # the project modules the migrations import. Most of the migrate's time is
+  # Django re-rendering model state between migrations, which a pull request
+  # that touches none of those cannot change. Every other event runs it
+  # unconditionally.
   fresh-database:
     runs-on: ubuntu-latest
     services:
@@ -186,6 +188,9 @@ jobs:
 
       - name: Decide whether the migration graph changed
         id: graph
+        # Runs on the runner's python before the project environment exists;
+        # the script is standard library only. A failure in the script fails
+        # the step, so the check never skips the migrate by accident.
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -196,15 +201,14 @@ jobs:
             echo "not a pull request: migrating"
             exit 0
           fi
-          changed=$(git diff --name-only --no-renames "origin/$BASE_REF...HEAD" \
-            | grep -E '(^|/)migrations/[^/]+\.py$|^gyrinx/settings[A-Za-z_]*\.py$' || true)
+          changed=$(python3 scripts/fresh_database_needed.py "origin/$BASE_REF")
           if [ -n "$changed" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "migration graph changed:"
+            echo "the migration graph or something it depends on changed:"
             echo "$changed"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "no migration or settings change: skipping the migrate"
+            echo "nothing the migration graph depends on changed: skipping the migrate"
           fi
 
       - uses: ./.github/actions/python-env
