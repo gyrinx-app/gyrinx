@@ -28,7 +28,7 @@ import pytest
 from django.contrib.auth.models import User
 
 from n26.core.browse import EQUIPMENT_LIST, TRADING_POST, browse, terms_for
-from n26.core.models import LedgerEvent
+from n26.core.models import Action, LedgerEvent
 from n26.core.reconcile import assert_reconciled
 from n26.core.trading import receipt_for, visitors
 from n26.tests.sandbox.actions import (
@@ -141,7 +141,7 @@ class TestWhatIsLeft:
     def test_a_gang_that_has_never_been_to_a_post_has_no_visit_open(self, gang):
         """Not an allowance of nothing: the rules shut the post to a gang
         where nobody performed the action, so there is no figure at all."""
-        assert gang.starting_trade_points is None
+        assert gang.open_visit is None
         assert gang.visiting_trading_post is False
         assert gang.trade_points_left is None
 
@@ -221,14 +221,16 @@ class TestEndingTheAction:
 
         assert (
             LedgerEvent.objects.filter(
-                gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET, note="closed"
+                gang=gang,
+                kind=LedgerEvent.Kind.ACTION_CLOSED,
+                note__startswith=Action.Kind.TRADING_POST_VISIT,
             ).count()
             == 1
         )
         told = [
             act
             for act in history.build(gang)
-            if "finished the Visit Trading Post action"
+            if "completed the Visit Trading Post action"
             in " ".join(span.text for span in act.spans)
         ]
         assert len(told) == 1
@@ -237,7 +239,9 @@ class TestEndingTheAction:
         leave_trading_post(gang)
 
         assert not LedgerEvent.objects.filter(
-            gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET
+            gang=gang,
+            kind=LedgerEvent.Kind.ACTION_CLOSED,
+            note__startswith=Action.Kind.TRADING_POST_VISIT,
         ).exists()
 
     def test_what_went_before_stops_counting(self, gang, fighter, post):
@@ -308,13 +312,13 @@ class TestEndingTheAction:
 
         gang.refresh_from_db()
         assert gang.trade_points_left == 4
-        # Opened, closed, opened again: the boundary is written every
-        # time, whatever the figure.
+        # Opened, closed, opened again: two rows, and neither one's
+        # spending reaches the other, whatever the figure.
         assert (
-            LedgerEvent.objects.filter(
-                gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET
+            Action.objects.filter(
+                gang=gang, kind=Action.Kind.TRADING_POST_VISIT
             ).count()
-            == 3
+            == 2
         )
 
     def test_the_visit_moves_no_money(self, gang):
@@ -600,7 +604,7 @@ class TestWhatARankAdds:
 
         gang.refresh_from_db()
         assert minted(going) == 3
-        assert gang.starting_trade_points == 3
+        assert gang.open_visit_brought == 3
         receipt = receipt_for(gang)
         assert (receipt.available, receipt.spent, receipt.remaining) == (3, 0, 3)
         assert receipt.summary == "Leader, Champion"
@@ -748,6 +752,11 @@ class TestWhatTheHistorySays:
     """The ledger records Trade Points on the purchase that spent them, so
     the gang's history can say what a trip cost as well as what it bought."""
 
+    def sentences(self, gang):
+        from n26.core import history
+
+        return ["".join(span.text for span in act.spans) for act in history.build(gang)]
+
     def test_a_purchase_reports_the_points_it_spent(self, gang, fighter, post):
         from n26.core import history
 
@@ -808,6 +817,74 @@ class TestWhatTheHistorySays:
         opened = history.build(gang)[-1]
         assert opened.trade_points == 0
         assert opened.credits == 0
+
+    def test_the_visit_says_what_it_set_out_with(self, gang):
+        """The figure is in the sentence, not in a table the reader would
+        have to go and look at."""
+        visit_trading_post(gang, brought=4)
+
+        assert self.sentences(gang)[-1] == (
+            "started the Visit Trading Post action with 4 Trade Points"
+        )
+
+    def test_one_point_is_one_point(self, gang):
+        visit_trading_post(gang, brought=1)
+
+        assert self.sentences(gang)[-1] == (
+            "started the Visit Trading Post action with 1 Trade Point"
+        )
+
+    def test_a_visit_that_brought_none_says_so(self, gang):
+        """A visit that brought nothing is still a visit, and its line
+        says what it was worth rather than leaving the figure out."""
+        visit_trading_post(gang, brought=0)
+
+        assert self.sentences(gang)[-1] == (
+            "started the Visit Trading Post action with no Trade Points"
+        )
+
+    def test_finishing_says_what_the_book_took_away(self, gang, fighter, post):
+        """Unspent Trade Points are lost when the action ends, and a log
+        that recorded only the ending would leave the reader no way to
+        see what they lost."""
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+
+        leave_trading_post(gang)
+
+        assert self.sentences(gang)[-1] == (
+            "completed the Visit Trading Post action, discarding 1 unspent Trade Point"
+        )
+
+    def test_a_visit_that_spent_everything_loses_nothing(self, gang, fighter, post):
+        """Nothing was taken away, so the line says nothing about it —
+        rather than reporting a loss of zero."""
+        visit_trading_post(gang, brought=3)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+
+        leave_trading_post(gang)
+
+        assert self.sentences(gang)[-1] == "completed the Visit Trading Post action"
+
+    def test_a_visit_that_overspent_loses_nothing_either(self, gang, fighter, post):
+        """An owner who said they meant to go past the figure is not then
+        told they threw points away."""
+        visit_trading_post(gang, brought=1)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+
+        leave_trading_post(gang)
+
+        assert self.sentences(gang)[-1] == "completed the Visit Trading Post action"
+
+    def test_founding_carries_no_figure(self, gang, player):
+        """An action that brings no Trade Points says nothing about
+        them, opening or closing."""
+        from n26.core.operations import operation
+
+        with operation(gang, actor=player) as op:
+            op.close_action(gang.open_action(Action.Kind.FOUNDING))
+
+        assert self.sentences(gang)[-1] == "completed the Found and equip gang action"
 
 
 class TestWhatAPurchaseCountsAgainst:
@@ -873,26 +950,23 @@ class TestWhatAPurchaseCountsAgainst:
         assert gang.trade_points_left == 4
         assert_reconciled(gang)
 
-    def test_a_purchase_naming_no_action_is_counted_all_the_same(
-        self, gang, fighter, post
-    ):
-        """A purchase written before the visit had a row to point at names
-        no action, and the visit it belongs to is found instead by when
-        its assignment was created, measured from the boundary the visit
-        wrote. The figure comes out the same either way."""
+    def test_a_purchase_naming_no_action_counts_against_none(self, gang, fighter, post):
+        """The purchase stands and the money is spent; the points count
+        against nothing, which is what the owner was told when they said
+        they meant it. The visit is not made to pay for it — a gang
+        would then open one already short of what its fighters brought."""
         from n26.core.models import LedgerEntry
 
         visit_trading_post(gang, brought=4)
         bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
         gang.refresh_from_db()
-        stamped = gang.trade_points_spent
+        assert gang.trade_points_spent == 3
 
         LedgerEntry.objects.filter(pk=bought.ledger_entry.pk).update(action=None)
 
         gang.refresh_from_db()
-        assert stamped == 3
-        assert gang.trade_points_spent == stamped
-        assert gang.trade_points_left == 1
+        assert gang.trade_points_spent == 0
+        assert gang.trade_points_left == 4
 
     def test_a_closed_action_still_says_what_it_spent(self, gang, fighter, post):
         """The figure survives the visit ending. What an action spent is
@@ -933,8 +1007,12 @@ class TestWhatAPurchaseCountsAgainst:
 
 
 class TestTheActionIsTheState:
-    """What a screen reads is the action row. The figure kept beside it on
-    the gang is a copy, and where the two disagree the row wins."""
+    """What a screen reads is the action row, and only the action row.
+
+    A figure once sat beside it on the gang. Nothing writes that any
+    more, and these say nothing reads it either: set to whatever you
+    like, it changes not one figure a screen shows.
+    """
 
     def test_the_receipt_reads_the_action(self, gang):
         from n26.core.models import Gang
@@ -1036,12 +1114,37 @@ class TestReadingTheFigureOffTheGangsOwnRow:
         assert fetched.visiting_trading_post is False
 
 
+def as_it_was(gang, brought, note=None):
+    """Put a gang at a post the way one stood before actions were rows:
+    a figure on the gang, and the boundary event its visit wrote.
+
+    Nothing writes that shape any more, so a test about what became of
+    it has to build it. The event goes through an operation, as every
+    event does; the figure is set straight on the row, because the
+    column it lands in is on its way out and no writer is left to ask.
+    """
+    from n26.core.models import Gang
+    from n26.core.operations import operation
+
+    with operation(gang, actor=gang.owner) as op:
+        op.event(
+            None,
+            LedgerEvent.Kind.TRADE_POINTS_SET,
+            note=str(brought) if note is None else note,
+        )
+    Gang.objects.filter(pk=gang.pk).update(starting_trade_points=brought)
+    gang.refresh_from_db()
+
+
 class TestOpeningTheVisitsThatWereAlreadyOpen:
-    """The data migration behind the change: a gang at a post before there
-    were action rows gets one, pointing at the boundary event its visit
-    already wrote, and the purchases the figure was read from are stamped
-    with it. Run here against the live models, which is what the migration
-    sees on the way past."""
+    """The data migration behind the change: a gang at a post before
+    there were action rows gets one, pointing at the boundary event its
+    visit already wrote, and the purchases the figure was read from are
+    stamped with it.
+
+    Run against the live models, which is what the migration sees on the
+    way past.
+    """
 
     def run_it(self):
         import importlib
@@ -1053,28 +1156,23 @@ class TestOpeningTheVisitsThatWereAlreadyOpen:
         )
         module.open_the_visits(apps, None)
 
-    def undo(self, gang):
-        """Put the gang back as it was before actions were rows: the
-        figure and the boundary event, and nothing else."""
-        from n26.core.models import Action
-
-        Action.objects.filter(gang=gang).delete()
-        gang.refresh_from_db()
-        assert gang.starting_trade_points is not None
-        assert gang.visiting_trading_post is False
-
     @pytest.fixture
     def mid_visit(self, gang, fighter, post, equipment_list):
-        """A gang partway through a visit, with one purchase that counted
-        Trade Points and one that did not."""
-        visit_trading_post(gang, brought=4)
+        """A gang partway through a visit of the old shape, with one
+        purchase that counted Trade Points and one that did not.
+
+        The boundary is written first: the migration finds the purchases
+        by when they were made, so anything older than it belongs to an
+        earlier visit and is meant to be passed over.
+        """
+        as_it_was(gang, brought=4)
         counted = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
         free = buy(
             fighter, line_for(browse(equipment_list, EQUIPMENT_LIST), "Mesh armour")
         )
         gang.refresh_from_db()
-        assert gang.trade_points_left == 1
-        self.undo(gang)
+        assert gang.visiting_trading_post is False
+        assert counted.ledger_entry.action is None
         return {"counted": counted, "free": free}
 
     def test_it_opens_an_action_for_the_visit(self, gang, mid_visit):
@@ -1111,6 +1209,7 @@ class TestOpeningTheVisitsThatWereAlreadyOpen:
         assert free.action is None
 
     def test_what_is_left_reads_the_same_either_way(self, gang, mid_visit):
+        """4 brought and 3 spent, before the migration and after."""
         self.run_it()
 
         gang.refresh_from_db()
@@ -1128,8 +1227,6 @@ class TestOpeningTheVisitsThatWereAlreadyOpen:
         assert gang.trade_points_left == 1
 
     def test_a_gang_with_no_visit_open_is_left_alone(self, gang, fighter, post):
-        from n26.core.models import Action
-
         buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
 
         self.run_it()
@@ -1137,3 +1234,82 @@ class TestOpeningTheVisitsThatWereAlreadyOpen:
         assert not Action.objects.filter(
             gang=gang, kind=Action.Kind.TRADING_POST_VISIT
         ).exists()
+
+    def test_a_figure_with_no_act_behind_it_is_not_made_a_visit(self, gang):
+        """A gang holding the figure and nothing else has no event for
+        the row to point at, so it is left as it is rather than given a
+        visit nobody performed."""
+        from n26.core.models import Gang
+
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=4)
+
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is False
+
+
+class TestWhatTheOlderHistorySays:
+    """A gang that visited a post before it was an action row still holds
+    those events, and its history still has to read. The sentences are
+    kept for them, and nothing writes another."""
+
+    def sentences(self, gang):
+        from n26.core import history
+
+        return ["".join(span.text for span in act.spans) for act in history.build(gang)]
+
+    def test_an_old_visit_says_what_it_brought(self, gang):
+        as_it_was(gang, brought=4)
+
+        assert (
+            self.sentences(gang)[-1] == "visited the Trading Post with 4 Trade Points"
+        )
+
+    def test_one_point_is_one_point(self, gang):
+        as_it_was(gang, brought=1)
+
+        assert self.sentences(gang)[-1] == "visited the Trading Post with 1 Trade Point"
+
+    def test_a_boundary_carrying_no_figure_says_only_that_they_went(self, gang):
+        as_it_was(gang, brought=0, note="")
+
+        assert self.sentences(gang)[-1] == "visited the Trading Post"
+
+    def test_an_old_visit_ends_with_the_word_a_new_one_ends_with(self, gang):
+        """One act, one verb: a gang that visited either side of the
+        change reads as one story."""
+        as_it_was(gang, brought=4)
+        as_it_was(gang, brought=0, note="closed")
+
+        assert self.sentences(gang)[-1] == "completed the Visit Trading Post action"
+
+    def test_a_fighter_going_is_told_by_the_rank_they_went_as(self, gang, fighter):
+        from n26.core.operations import operation
+
+        with operation(gang, actor=gang.owner) as op:
+            op.event(fighter, LedgerEvent.Kind.VISITED_TRADING_POST, note="Leader")
+
+        assert self.sentences(gang)[-1] == (
+            f"sent {fighter.name} as Leader to the trading post"
+        )
+
+    def test_a_bare_figure_leaves_the_rank_out(self, gang, fighter):
+        """Several things raised their figure, so no single name would be
+        true and the line says only that they went."""
+        from n26.core.operations import operation
+
+        with operation(gang, actor=gang.owner) as op:
+            op.event(fighter, LedgerEvent.Kind.VISITED_TRADING_POST, note="3")
+
+        assert self.sentences(gang)[-1] == f"sent {fighter.name} to the trading post"
+
+    def test_none_of_these_notes_reach_the_page(self, gang):
+        """The note on each is a record for the code — the sentence has
+        already said the figure and the word that closed the visit."""
+        from n26.core import history
+
+        as_it_was(gang, brought=4)
+        as_it_was(gang, brought=0, note="closed")
+
+        assert [act.note for act in history.build(gang)[-2:]] == ["", ""]

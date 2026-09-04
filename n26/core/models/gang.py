@@ -67,6 +67,12 @@ class Gang(Base, Owned, Archived, Rated):
         default=0,
         help_text="Cash in hand. Pinned: starting budget less everything spent.",
     )
+    #: Nothing reads or writes this, and the column goes in the next
+    #: deploy. It is kept for one because dropping a column the outgoing
+    #: revision still reads gives every request that revision serves an
+    #: error for the seconds the two overlap. The help text below still
+    #: describes the figure as live; correcting it would take a
+    #: migration of its own, for a field with one deploy left.
     starting_trade_points = models.PositiveIntegerField(
         null=True,
         blank=True,

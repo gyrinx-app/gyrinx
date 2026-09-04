@@ -340,7 +340,7 @@ class TestWhoIsOffered:
 
         gang.refresh_from_db()
         assert gang.visiting_trading_post is True
-        assert gang.starting_trade_points == 3
+        assert gang.open_visit_brought == 3
 
     def test_a_model_promoted_into_a_rank_is_offered(
         self, client, tester, roster, gang, ranks
@@ -369,7 +369,7 @@ class TestWhoIsOffered:
         start(client, gang, roster["Vex"])
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 2
+        assert gang.open_visit_brought == 2
 
     def test_a_rank_taken_away_is_not_one_held(
         self, client, tester, roster, gang, ranks
@@ -384,7 +384,7 @@ class TestWhoIsOffered:
         start(client, gang, roster["Vex"], roster["Sura"])
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 1
+        assert gang.open_visit_brought == 1
 
 
 class TestWhatThePageCosts:
@@ -398,13 +398,19 @@ class TestWhatThePageCosts:
     number.
     """
 
-    #: Session and the signed-in reader, the gang and its stash, the
-    #: roster read once for both the offer and the equip list, the gang's
-    #: rows and their hydration, the modifier index behind them, the open
-    #: visit's events, the open visit's Action row the receipt now reads
-    #: beside them, and the standard Trading Post the receipt links to.
-    #: None of it repeats per model.
-    BUDGET = 38
+    #: The page with the post shut. Session and the signed-in reader, the
+    #: gang and its stash, the roster read once for both the offer and
+    #: the equip list, the gang's rows and their hydration, the modifier
+    #: index behind them, the actions the gang has open, and the standard
+    #: Trading Post the receipt links to. None of it repeats per model.
+    BUDGET = 37
+
+    #: The same page with a visit open, which is the state it is for.
+    #: There is a receipt to draw then, and it costs two readings of the
+    #: log: who performed the action, and what the visit has spent. Both
+    #: are one query however many fighters went and however much the gang
+    #: has bought, so this is a second fixed price and not a second rate.
+    WITH_A_VISIT = 39
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):
@@ -440,6 +446,29 @@ class TestWhatThePageCosts:
         with CaptureQueriesContext(connection) as more:
             assert client.get(page(gang)).status_code == 200
         assert len(more) == self.BUDGET
+
+    def test_an_open_visit_adds_the_receipts_two_readings(
+        self, client, tester, roster, gang, bigger
+    ):
+        """A visit open is the state the page exists for, so its cost is
+        pinned too: the two readings the receipt takes, and no more —
+        not one per fighter who went, and not one per purchase."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        start(client, gang, roster["Vex"], roster["Sura"])
+        client.get(page(gang))
+
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(page(gang)).status_code == 200
+        assert len(few) == self.WITH_A_VISIT, [q["sql"] for q in few.captured_queries]
+
+        bigger()
+
+        with CaptureQueriesContext(connection) as more:
+            assert client.get(page(gang)).status_code == 200
+        assert len(more) == self.WITH_A_VISIT
 
 
 class TestALibraryWithNoVisitContribution:
@@ -482,7 +511,7 @@ class TestALibraryWithNoVisitContribution:
         client.post(page(gang), {"brought": "5"})
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 5
+        assert gang.open_visit_brought == 5
 
     def test_ticking_a_model_sends_nobody(self, client, tester, gang, unauthored):
         """No model is offered, so a stale form naming one names nobody
@@ -508,7 +537,7 @@ class TestStartingTheAction:
 
         gang.refresh_from_db()
         assert gang.visiting_trading_post is True
-        assert gang.starting_trade_points == 3
+        assert gang.open_visit_brought == 3
         assert gang.trade_points_left == 3
 
     def test_a_fighter_who_adds_nothing_is_not_a_visitor(self, client, roster, gang):
@@ -552,7 +581,7 @@ class TestStartingTheAction:
         )
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 3
+        assert gang.open_visit_brought == 3
         assert gang.trade_points_left == 3
         told = [str(m) for m in answer.context["messages"]]
         assert any("Complete the open" in line for line in told)
@@ -647,13 +676,13 @@ class TestATypedFigure:
         start(client, gang, roster["Vex"])
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 2
+        assert gang.open_visit_brought == 2
 
     def test_a_typed_figure_wins(self, client, roster, gang):
         start(client, gang, roster["Vex"], brought=7)
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 7
+        assert gang.open_visit_brought == 7
 
     def test_a_typed_nought_wins_too(self, client, roster, gang):
         """Nought is a figure somebody meant, not an empty box."""
@@ -661,13 +690,13 @@ class TestATypedFigure:
 
         gang.refresh_from_db()
         assert gang.visiting_trading_post is True
-        assert gang.starting_trade_points == 0
+        assert gang.open_visit_brought == 0
 
     def test_an_empty_box_falls_back_to_the_ticks(self, client, roster, gang):
         start(client, gang, roster["Vex"], brought="")
 
         gang.refresh_from_db()
-        assert gang.starting_trade_points == 2
+        assert gang.open_visit_brought == 2
 
     def test_a_typed_figure_needs_nobody_ticked(self, client, roster, gang):
         """The box replaces the ticks: a number there is the amount, and
@@ -676,7 +705,7 @@ class TestATypedFigure:
 
         gang.refresh_from_db()
         assert gang.visiting_trading_post is True
-        assert gang.starting_trade_points == 4
+        assert gang.open_visit_brought == 4
         told = [str(m) for m in answer.context["messages"]]
         assert any("adding 4 Trade Points" in line for line in told)
 
@@ -853,7 +882,7 @@ class TestFinishingTheAction:
 
         gang.refresh_from_db()
         assert gang.visiting_trading_post is False
-        assert gang.starting_trade_points is None
+        assert gang.open_visit_brought is None
         assert gang.trade_points_left is None
 
     def test_it_says_unspent_points_were_discarded(self, client, roster, gang):
