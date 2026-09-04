@@ -7,19 +7,20 @@ they persist, and spending past them is the one thing this edition
 refuses.
 
 So Trade Points are kept the other way round, per design/collections.md:
-an allowance on the gang, and a sum over the ledger rather than a second
-pinned figure. What makes a trip a trip is the allowance-set event — the
-spending measured against an allowance is the spending recorded after it,
-so setting one both opens a trip and closes the one before.
+an action the gang opens and closes, carrying what the visit brought,
+and a sum over the ledger rather than a second pinned figure. What makes
+a trip a trip is that action — a purchase records the one it counted
+against, so what a visit has spent is what points back at it.
 
 Four claims, and each has a test below:
 
 * a list an author wrote out charges credits; a post swept together *by*
   Trade Point prices charges points as well;
-* what is left is the allowance less the points the ledger records after
-  it, and a refund on the same trip hands its points back;
-* setting the allowance again wipes the slate, including setting it to
-  the same figure;
+* what is left is what the visit brought less the points the purchases
+  counting against it record, and a refund on the same trip hands its
+  points back;
+* a second visit starts from nothing spent, even at the same figure, and
+  cannot open over one still open;
 * overspending is allowed and never refused — only credits refuse.
 """
 
@@ -36,13 +37,13 @@ from n26.tests.sandbox.actions import (
     buy,
     create_category,
     create_collection,
-    create_subtype,
     create_trading_post,
     create_wargear,
     found_gang,
     hire_with_option,
     leave_trading_post,
     refund,
+    remove,
     visit_trading_post,
 )
 
@@ -196,12 +197,56 @@ class TestEndingTheAction:
         assert gang.visiting_trading_post is False
         assert gang.trade_points_left is None
 
+    def test_a_second_visit_cannot_open_over_an_open_one(self, gang):
+        """A gang performs one at a time, and the act itself says so:
+        purchases made while two were open could not say which of them
+        they counted against."""
+        from n26.core.operations import Refusal
+
+        visit_trading_post(gang, brought=4)
+
+        with pytest.raises(Refusal):
+            visit_trading_post(gang, brought=4)
+
+    def test_finishing_twice_ends_the_visit_once(self, gang):
+        """Two clicks on one button arrive together often enough. The
+        second finds nothing open and writes nothing: a gang cannot leave
+        a post twice, and a history saying it did would be a lie."""
+        from n26.core import history
+
+        visit_trading_post(gang, brought=4)
+
+        leave_trading_post(gang)
+        leave_trading_post(gang)
+
+        assert (
+            LedgerEvent.objects.filter(
+                gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET, note="closed"
+            ).count()
+            == 1
+        )
+        told = [
+            act
+            for act in history.build(gang)
+            if "finished the Visit Trading Post action"
+            in " ".join(span.text for span in act.spans)
+        ]
+        assert len(told) == 1
+
+    def test_finishing_a_visit_nobody_opened_writes_nothing(self, gang):
+        leave_trading_post(gang)
+
+        assert not LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET
+        ).exists()
+
     def test_what_went_before_stops_counting(self, gang, fighter, post):
         """A second trip is measured from its own allowance. The first
         trip's spending is history, not a debt carried forward."""
         visit_trading_post(gang, brought=4)
         buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
 
+        leave_trading_post(gang)
         visit_trading_post(gang, brought=4)
 
         gang.refresh_from_db()
@@ -222,6 +267,7 @@ class TestEndingTheAction:
         visit_trading_post(gang, brought=4)
         bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
 
+        leave_trading_post(gang)
         visit_trading_post(gang, brought=4)
         refund(bought)
 
@@ -245,26 +291,30 @@ class TestEndingTheAction:
         assert gang.trade_points_spent == 0
         assert gang.trade_points_left == 4
 
-    def test_setting_the_same_figure_is_a_second_trip_not_a_no_op(
+    def test_a_second_trip_at_the_same_figure_starts_from_nothing_spent(
         self, gang, fighter, post
     ):
-        """The event is the boundary as much as the figure is, so a guard
-        that skipped an unchanged write would leave the first trip's
-        spending counting against the second."""
+        """Two trips at the same figure are two trips. Each is its own
+        action, so the first one's spending never counts against the
+        second — a guard that treated an unchanged figure as nothing to
+        do would leave it counting."""
         visit_trading_post(gang, brought=4)
         buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
         gang.refresh_from_db()
         assert gang.trade_points_left == 3
 
+        leave_trading_post(gang)
         visit_trading_post(gang, brought=4)
 
         gang.refresh_from_db()
         assert gang.trade_points_left == 4
+        # Opened, closed, opened again: the boundary is written every
+        # time, whatever the figure.
         assert (
             LedgerEvent.objects.filter(
                 gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET
             ).count()
-            == 2
+            == 3
         )
 
     def test_the_visit_moves_no_money(self, gang):
@@ -317,13 +367,25 @@ def only(gang, *names):
     return visitors(gang, chosen)
 
 
+@pytest.fixture
+def ranks(default_pack):
+    """What the ranks add, as content: the undrawn visit-contribution
+    counter and the modifier on each rank that raises it. Nothing in the
+    code names a rank or a figure."""
+    from n26.library.models import Subtype
+    from n26.library.standard_content import STANDARD_CONTENT
+
+    STANDARD_CONTENT["visit-contribution"].create()
+    return {name: Subtype.objects.get(name=name) for name in ("Leader", "Champion")}
+
+
 class TestWhoPerformsTheAction:
     """Any fighter may go, and the two named ranks bring points with them.
     Who went is recorded per model, because the rules give each model one
     Post-cycle Action and a figure cannot say whose it was."""
 
     @pytest.fixture
-    def ranked(self, gang, make_profile, make_statline):
+    def ranked(self, gang, ranks, make_profile, make_statline):
         """A Leader, a Champion and a Ganger, each holding their rank."""
         made = {}
         for name, rank in [("Rasp", "Leader"), ("Kel", "Champion"), ("Tuk", None)]:
@@ -331,7 +393,7 @@ class TestWhoPerformsTheAction:
             make_statline(profile)
             model = hire_with_option(gang, profile, name)
             if rank:
-                assign(create_subtype(rank), miniature=model)
+                assign(ranks[rank], miniature=model)
             made[name] = model
         return made
 
@@ -388,6 +450,7 @@ class TestWhoPerformsTheAction:
     def test_a_second_visit_reads_its_own_cast(self, gang, ranked):
         visit_trading_post(gang, visitors(gang))
 
+        leave_trading_post(gang)
         visit_trading_post(gang, only(gang, "Rasp"))
 
         gang.refresh_from_db()
@@ -408,6 +471,277 @@ class TestWhoPerformsTheAction:
         gang.refresh_from_db()
         receipt = receipt_for(gang)
         assert (receipt.available, receipt.spent, receipt.remaining) == (3, 3, 0)
+
+
+class TestWhatARankAdds:
+    """What a model adds is a counter reading, not a rank the code knows.
+
+    The library holds an undrawn counter and a modifier on each rank that
+    raises it, so the figure follows what a model *holds* — a fighter
+    promoted into the rank adds it, one who has lost it adds nothing —
+    and changing the figures is an authoring edit rather than a code
+    change.
+    """
+
+    @pytest.fixture
+    def hire_plain(self, gang, make_profile, make_statline):
+        def make(name):
+            profile = make_profile(f"{name} entry", price=50)
+            make_statline(profile)
+            return hire_with_option(gang, profile, name)
+
+        return make
+
+    def offered(self, gang):
+        return {one.miniature.name: one for one in visitors(gang)}
+
+    def test_a_model_promoted_into_a_rank_adds_what_the_rank_adds(
+        self, gang, ranks, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assert self.offered(gang) == {}
+
+        assign(ranks["Leader"], miniature=rasp)
+
+        assert self.offered(gang)["Rasp"].trade_points == 2
+
+    def test_a_rank_taken_away_takes_the_figure_with_it(self, gang, ranks, hire_plain):
+        rasp = hire_plain("Rasp")
+        held = assign(ranks["Leader"], miniature=rasp)
+        assert self.offered(gang)["Rasp"].trade_points == 2
+
+        remove(held)
+
+        assert self.offered(gang) == {}
+
+    def test_a_rank_cancelled_by_a_removal_adds_nothing_either(
+        self, gang, ranks, hire_plain
+    ):
+        """An owner's removal is machinery rather than a line, and the
+        computed reading cancels the pair without anything here having to
+        know it."""
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+
+        assign(ranks["Leader"], miniature=rasp, removes=True)
+
+        assert self.offered(gang) == {}
+
+    def test_a_model_holding_both_ranks_adds_the_better_figure(
+        self, gang, ranks, hire_plain
+    ):
+        """The same fighter cannot perform the action twice, so 2 and 1
+        do not come to 3. The lesser rank's modifier is scoped away from
+        models holding the better one, which is where that is settled."""
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(ranks["Champion"], miniature=rasp)
+
+        assert self.offered(gang)["Rasp"].trade_points == 2
+
+    def test_seeding_a_reworded_modifier_leaves_the_figure_alone(self, gang, ranks):
+        """The seed matches a rank's contribution by what it does, not by
+        what it is called. Matched by name, rewording one and seeding
+        again would hang a second contribution on the rank and double
+        what it adds."""
+        from n26.library.models import Modifier
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        leaders = ranks["Leader"].modifiers.filter(contributes_to_counter__isnull=False)
+        (carried,) = leaders
+        carried.name = "Leader brings two"
+        carried.save()
+
+        STANDARD_CONTENT["visit-contribution"].create()
+
+        assert list(leaders) == [carried]
+        assert (
+            Modifier.objects.filter(contributes_to_counter__isnull=False).count() == 2
+        )
+
+    def test_the_offer_is_grouped_by_the_figure(self, gang, ranks, hire_plain):
+        """The heading says what the models under it add. Ranks are not
+        what this knows, and two things may raise the reading by the same
+        amount."""
+        from n26.core.trading import as_offer
+
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+
+        offer = as_offer(visitors(gang))
+
+        assert [group.name for group in offer.groups] == [
+            "2 Trade Points each",
+            "1 Trade Point each",
+        ]
+
+    def test_a_library_with_no_counter_offers_nobody(self, gang, hire_plain):
+        """No counter, no figure: the seed was never run here, so nothing
+        on this roster adds Trade Points however it is ranked."""
+        from n26.library.models import Subtype
+
+        assign(Subtype.objects.create(name="Leader"), miniature=hire_plain("Rasp"))
+
+        assert visitors(gang) == []
+
+    def test_what_the_visit_minted_is_what_the_ledger_says(
+        self, gang, ranks, hire_plain
+    ):
+        """The figure the ticks come to is the figure the visit opened
+        with, and the receipt reads it back off the gang and the ledger
+        rather than keeping a second copy of it."""
+        from n26.core.trading import minted
+
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        going = visitors(gang)
+
+        visit_trading_post(gang, going)
+
+        gang.refresh_from_db()
+        assert minted(going) == 3
+        assert gang.starting_trade_points == 3
+        receipt = receipt_for(gang)
+        assert (receipt.available, receipt.spent, receipt.remaining) == (3, 0, 3)
+        assert receipt.summary == "Leader, Champion"
+        assert_reconciled(gang)
+
+    def test_the_figure_stays_a_fixed_number_of_queries(self, gang, ranks, hire_plain):
+        """A whole gang is a fixed number of queries however many models
+        are on it — the roster, the gang's own rows, and the modifiers
+        those reach. Never a query per fighter.
+
+        The count follows the *kinds* of content in play, not the size of
+        the roster, so both readings below are taken with a Leader and a
+        Champion already on it.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        with CaptureQueriesContext(connection) as few:
+            assert len(visitors(gang)) == 2
+
+        for name in ("Tuk", "Vesh", "Mags", "Sura"):
+            model = hire_plain(name)
+            if name in ("Vesh", "Mags"):
+                assign(ranks["Champion"], miniature=model)
+
+        with CaptureQueriesContext(connection) as more:
+            assert len(visitors(gang)) == 4
+
+        assert len(more) == len(few)
+
+
+class TestAFigureInPlaceOfARank:
+    """A model whose contribution several things raised has no single
+    name to be recorded under, so the visit records the figure.
+
+    Nothing that reads the record aloud may then say the figure as if it
+    were a rank: "sent Rasp as 3 to the trading post" is not a sentence,
+    and "3" filed as a rank on the receipt says nothing about where the
+    Trade Points came from.
+    """
+
+    @pytest.fixture
+    def hire_plain(self, gang, make_profile, make_statline):
+        def make(name):
+            profile = make_profile(f"{name} entry", price=50)
+            make_statline(profile)
+            return hire_with_option(gang, profile, name)
+
+        return make
+
+    @pytest.fixture
+    def connected(self, ranks):
+        """A rule that raises the same counter as a rank does, so a model
+        holding both has two things behind its figure."""
+        from n26.library.standard_content import visit_contribution_counter
+        from n26.tests.sandbox.actions import (
+            create_rule,
+            ef_contributes_to_counter,
+            modifier,
+            targets_model,
+        )
+
+        rule = create_rule("Well connected")
+        modifier(
+            "Well connected adds 1 Trade Point to a Trading Post visit",
+            targets_model(),
+            ef_contributes_to_counter(visit_contribution_counter(), 1),
+            carried_by=rule,
+        )
+        return rule
+
+    def sentences(self, gang):
+        from n26.core import history
+
+        return ["".join(span.text for span in act.spans) for act in history.build(gang)]
+
+    def test_the_visit_records_the_figure(self, gang, ranks, connected, hire_plain):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+
+        (one,) = visitors(gang)
+        assert (one.trade_points, one.rank) == (3, "3")
+
+        visit_trading_post(gang, [one])
+
+        (went,) = LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.VISITED_TRADING_POST
+        )
+        assert went.note == "3"
+
+    def test_the_history_says_only_that_they_went(
+        self, gang, ranks, connected, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+        visit_trading_post(gang, visitors(gang))
+
+        (sent,) = [line for line in self.sentences(gang) if line.startswith("sent ")]
+
+        assert sent == "sent Rasp to the trading post"
+
+    def test_a_rank_still_leads_the_sentence(self, gang, ranks, hire_plain):
+        """The other half of the same rule: one thing raised the figure,
+        so the line names it."""
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        visit_trading_post(gang, visitors(gang))
+
+        (sent,) = [line for line in self.sentences(gang) if line.startswith("sent ")]
+
+        assert sent == "sent Rasp as Leader to the trading post"
+
+    def test_the_receipt_leaves_the_figure_out_of_its_line(
+        self, gang, ranks, connected, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+        visit_trading_post(gang, visitors(gang))
+
+        gang.refresh_from_db()
+        receipt = receipt_for(gang)
+        assert receipt.available == 3
+        assert receipt.summary == ""
+
+    def test_the_ranks_beside_it_are_still_named(
+        self, gang, ranks, connected, hire_plain
+    ):
+        """One fighter with two things behind their figure does not take
+        the rest of the line with them."""
+        both = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=both)
+        assign(connected, miniature=both)
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        visit_trading_post(gang, visitors(gang))
+
+        gang.refresh_from_db()
+        assert receipt_for(gang).summary == "Champion"
 
 
 class TestWhatTheHistorySays:
@@ -474,3 +808,332 @@ class TestWhatTheHistorySays:
         opened = history.build(gang)[-1]
         assert opened.trade_points == 0
         assert opened.credits == 0
+
+
+class TestWhatAPurchaseCountsAgainst:
+    """A purchase records the action it counted against, so what a visit
+    has spent is what points back at it rather than what happens to fall
+    inside a stretch of time."""
+
+    def test_a_purchase_at_the_post_records_the_open_visit(self, gang, fighter, post):
+        visit_trading_post(gang, brought=4)
+
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+
+        gang.refresh_from_db()
+        assert bought.ledger_entry.action == gang.open_visit
+
+    def test_a_purchase_from_a_list_records_nothing(
+        self, gang, fighter, equipment_list
+    ):
+        """Buying from an equipment list is not part of the visit, even
+        with one open: recording it against the visit would make the
+        visit's own figures a lie."""
+        visit_trading_post(gang, brought=4)
+
+        bought = buy(
+            fighter, line_for(browse(equipment_list, EQUIPMENT_LIST), "Mesh armour")
+        )
+
+        assert bought.ledger_entry.action is None
+
+    def test_a_purchase_with_the_post_shut_records_nothing(self, gang, fighter, post):
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+
+        assert bought.ledger_entry.action is None
+
+    def test_what_an_action_spent_is_what_the_visit_spent(self, gang, fighter, post):
+        """The two arithmetics agree while a visit is open: everything it
+        has spent points at it."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+
+        gang.refresh_from_db()
+        assert trade_points_spent_for(gang.open_visit) == 3
+        assert gang.trade_points_spent == 3
+
+    def test_a_refund_returns_the_points_to_the_action_that_paid(
+        self, gang, fighter, post
+    ):
+        """The refund's event sits on the assignment the purchase made, so
+        it lands on the same action however long afterwards it happens."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        visit = gang.open_visit
+
+        refund(bought)
+
+        assert trade_points_spent_for(visit) == 0
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 4
+        assert_reconciled(gang)
+
+    def test_a_purchase_naming_no_action_is_counted_all_the_same(
+        self, gang, fighter, post
+    ):
+        """A purchase written before the visit had a row to point at names
+        no action, and the visit it belongs to is found instead by when
+        its assignment was created, measured from the boundary the visit
+        wrote. The figure comes out the same either way."""
+        from n26.core.models import LedgerEntry
+
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        stamped = gang.trade_points_spent
+
+        LedgerEntry.objects.filter(pk=bought.ledger_entry.pk).update(action=None)
+
+        gang.refresh_from_db()
+        assert stamped == 3
+        assert gang.trade_points_spent == stamped
+        assert gang.trade_points_left == 1
+
+    def test_a_closed_action_still_says_what_it_spent(self, gang, fighter, post):
+        """The figure survives the visit ending. What an action spent is
+        what points at it, so a visit two trips back can still be asked
+        and still answers with its own arithmetic."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        visit = gang.open_visit
+
+        leave_trading_post(gang)
+        visit_trading_post(gang, brought=4)
+
+        assert trade_points_spent_for(visit) == 3
+
+    def test_a_later_refund_never_funds_the_visit_that_is_open(
+        self, gang, fighter, post
+    ):
+        """Handing back kit bought on an earlier visit gives its points to
+        that visit, which is closed. The open one is untouched."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        earlier = gang.open_visit
+        leave_trading_post(gang)
+        visit_trading_post(gang, brought=4)
+
+        refund(bought)
+
+        gang.refresh_from_db()
+        assert trade_points_spent_for(earlier) == 0
+        assert trade_points_spent_for(gang.open_visit) == 0
+        assert gang.trade_points_left == 4
+
+
+class TestTheActionIsTheState:
+    """What a screen reads is the action row. The figure kept beside it on
+    the gang is a copy, and where the two disagree the row wins."""
+
+    def test_the_receipt_reads_the_action(self, gang):
+        from n26.core.models import Gang
+
+        visit_trading_post(gang, brought=4)
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=99)
+
+        gang.refresh_from_db()
+        assert receipt_for(gang).available == 4
+
+    def test_what_is_left_reads_the_action(self, gang):
+        from n26.core.models import Gang
+
+        visit_trading_post(gang, brought=4)
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=99)
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 4
+
+    def test_the_post_is_shut_where_no_action_is_open(self, gang):
+        """A figure with no action behind it is not a visit."""
+        from n26.core.models import Gang
+
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=4)
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is False
+        assert receipt_for(gang) is None
+
+
+class TestReadingTheFigureOffTheGangsOwnRow:
+    """Every screen carrying the figure strip draws what an open visit has
+    left. The queryset that fetches the gang reads it with the row, so a
+    page that only draws it pays for nothing more."""
+
+    def fetched(self, gang):
+        """The gang as the screens fetch it — the figure read with the
+        row (``n26.core.views.permissions``)."""
+        from n26.core.models import Gang
+        from n26.core.models.gang import open_visit_points
+
+        return Gang.objects.annotate(open_visit_points=open_visit_points()).get(
+            pk=gang.pk
+        )
+
+    def test_it_says_the_same_as_the_action_row(self, gang):
+        visit_trading_post(gang, brought=4)
+
+        gang.refresh_from_db()
+        assert self.fetched(gang).open_visit_brought == gang.open_visit_brought == 4
+
+    def test_a_visit_that_brought_nothing_is_still_a_visit(self, gang):
+        """Nought is a figure and None is an absence: the post is open to
+        a gang whose fighters performed the action and added no points."""
+        visit_trading_post(gang, brought=0)
+
+        fetched = self.fetched(gang)
+        assert fetched.open_visit_brought == 0
+        assert fetched.visiting_trading_post is True
+        assert fetched.trade_points_left == 0
+
+    def test_a_shut_post_reads_as_nothing(self, gang):
+        fetched = self.fetched(gang)
+        assert fetched.open_visit_brought is None
+        assert fetched.visiting_trading_post is False
+        assert fetched.trade_points_left is None
+
+    def test_drawing_the_figure_costs_no_query(self, gang, django_assert_num_queries):
+        visit_trading_post(gang, brought=4)
+        fetched = self.fetched(gang)
+
+        with django_assert_num_queries(0):
+            assert fetched.visiting_trading_post is True
+            assert fetched.open_visit_brought == 4
+
+    def test_what_is_left_costs_one(
+        self, gang, fighter, post, django_assert_num_queries
+    ):
+        """The one reading of the log that every screen showing what is
+        left asks for, and nothing beside it."""
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+        fetched = self.fetched(gang)
+
+        with django_assert_num_queries(1):
+            assert fetched.trade_points_left == 3
+
+    def test_forgetting_drops_it(self, gang):
+        """A reading taken before is dropped along with the rows, so an
+        operation deciding under the gang's own line reads what stands."""
+        visit_trading_post(gang, brought=4)
+        fetched = self.fetched(gang)
+        assert fetched.open_visit_brought == 4
+
+        leave_trading_post(gang)
+        fetched.forget_open_actions()
+
+        assert fetched.open_visit_brought is None
+        assert fetched.visiting_trading_post is False
+
+
+class TestOpeningTheVisitsThatWereAlreadyOpen:
+    """The data migration behind the change: a gang at a post before there
+    were action rows gets one, pointing at the boundary event its visit
+    already wrote, and the purchases the figure was read from are stamped
+    with it. Run here against the live models, which is what the migration
+    sees on the way past."""
+
+    def run_it(self):
+        import importlib
+
+        from django.apps import apps
+
+        module = importlib.import_module(
+            "n26.core.migrations.0044_the_open_visit_becomes_an_action"
+        )
+        module.open_the_visits(apps, None)
+
+    def undo(self, gang):
+        """Put the gang back as it was before actions were rows: the
+        figure and the boundary event, and nothing else."""
+        from n26.core.models import Action
+
+        Action.objects.filter(gang=gang).delete()
+        gang.refresh_from_db()
+        assert gang.starting_trade_points is not None
+        assert gang.visiting_trading_post is False
+
+    @pytest.fixture
+    def mid_visit(self, gang, fighter, post, equipment_list):
+        """A gang partway through a visit, with one purchase that counted
+        Trade Points and one that did not."""
+        visit_trading_post(gang, brought=4)
+        counted = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        free = buy(
+            fighter, line_for(browse(equipment_list, EQUIPMENT_LIST), "Mesh armour")
+        )
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 1
+        self.undo(gang)
+        return {"counted": counted, "free": free}
+
+    def test_it_opens_an_action_for_the_visit(self, gang, mid_visit):
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is True
+        assert gang.open_visit.trade_points == 4
+
+    def test_it_points_the_action_at_the_boundary_the_visit_wrote(
+        self, gang, mid_visit
+    ):
+        """Which is what lets the receipt still name who performed it:
+        the fighters' own records share that event's batch."""
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.open_visit.opened.kind == LedgerEvent.Kind.TRADE_POINTS_SET
+        assert gang.open_visit.opened.note == "4"
+
+    def test_it_stamps_the_purchases_that_counted(self, gang, mid_visit):
+        self.run_it()
+
+        gang.refresh_from_db()
+        counted = mid_visit["counted"].ledger_entry
+        counted.refresh_from_db()
+        assert counted.action == gang.open_visit
+
+    def test_it_leaves_a_purchase_that_counted_nothing_alone(self, gang, mid_visit):
+        free = mid_visit["free"].ledger_entry
+        self.run_it()
+
+        free.refresh_from_db()
+        assert free.action is None
+
+    def test_what_is_left_reads_the_same_either_way(self, gang, mid_visit):
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 1
+
+    def test_running_it_again_changes_nothing(self, gang, mid_visit):
+        self.run_it()
+        gang.refresh_from_db()
+        first = gang.open_visit
+
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.open_visit.pk == first.pk
+        assert gang.trade_points_left == 1
+
+    def test_a_gang_with_no_visit_open_is_left_alone(self, gang, fighter, post):
+        from n26.core.models import Action
+
+        buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+
+        self.run_it()
+
+        assert not Action.objects.filter(
+            gang=gang, kind=Action.Kind.TRADING_POST_VISIT
+        ).exists()

@@ -25,7 +25,9 @@ FOUNDING = Action.Kind.FOUNDING
 @pytest.fixture
 def tester(db):
     """The signed-in person these tests look at the app as."""
-    return User.objects.create_user("player")
+    # Staff, because the square and its address are staff-only while the
+    # action is built out; the non-staff owner has tests of their own.
+    return User.objects.create_user("player", is_staff=True)
 
 
 @pytest.fixture
@@ -346,6 +348,21 @@ class TestTheSquareOnTheGangPage:
         assert "Complete action" not in body
         assert "No action is open." not in body
 
+    def test_an_owner_who_is_not_staff_gets_no_square_yet(self, client, gang):
+        """Staff-only while the action is built out: the owner reads the
+        gang page as it was before the square, and the open action stays
+        open behind it."""
+        plain = User.objects.create_user("plain-player")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+        client.force_login(plain)
+        body = client.get(sheet(gang)).content.decode()
+        assert "Found and equip gang" not in body
+        assert "No action is open." not in body
+        assert 'value="start"' not in body
+        assert "Nothing in the stash" in body
+        assert gang.open_action(FOUNDING) is not None
+
     def test_the_square_costs_the_page_nothing_per_fighter(
         self, client, gang, tester, make_profile, make_statline
     ):
@@ -453,6 +470,14 @@ class TestTheActsBehindIt:
     def test_somebody_elses_gang_is_not_theirs_to_act_on(self, client, gang):
         client.force_login(User.objects.create_user("stranger"))
         assert client.post(act_page(gang), {"act": "finish"}).status_code == 404
+
+    def test_an_owner_who_is_not_staff_cannot_reach_the_address(self, client, gang):
+        plain = User.objects.create_user("plain-player")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+        client.force_login(plain)
+        assert client.post(act_page(gang), {"act": "finish"}).status_code == 404
+        assert gang.open_action(FOUNDING) is not None
 
     def test_signing_in_is_required(self, client, gang):
         client.logout()

@@ -5,6 +5,7 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
@@ -13,6 +14,7 @@ from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
+    may_see_actions_square,
     trade_points_href,
 )
 
@@ -280,10 +282,11 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
-            # The gang's own actions, which are the owner's to perform: a
-            # reader who does not own it gets no square at all. One query
-            # for the whole page — the open founding action — since what a
-            # visit has left is already on the sheet.
+            # The gang's own actions, which are the owner's to perform.
+            # Drawn for staff owners only while the actions are built out;
+            # every other reader gets no square. One query for the whole
+            # page — the open founding action — since what a visit has
+            # left is already on the sheet.
             "actions_square": (
                 actions_square(
                     gang,
@@ -291,7 +294,7 @@ def gang_sheet(request, pk):
                     founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                 )
-                if yours
+                if may_see_actions_square(gang, request.user)
                 else None
             ),
             # Printing follows reading rather than owning, so a reader
@@ -832,6 +835,18 @@ def _brought(data, ticked):
     return int(typed)
 
 
+def _start_help(gang, offered):
+    """What the start form says to do, for the state the gang is in."""
+    if gang.visiting_trading_post:
+        return (
+            "Finish the action above first. A gang performs one Visit "
+            "Trading Post action at a time."
+        )
+    if offered:
+        return "Select the models visiting the Trading Post, or enter a TP amount."
+    return "Enter a TP amount to start a visit."
+
+
 def _the_trading_post():
     """The standard Trading Post, or None where the library has none.
 
@@ -891,14 +906,17 @@ def gang_trade_points(request, pk):
     from the page as drawn. An empty visit: with neither a ticked
     fighter nor a typed amount there is nothing to start. And a second
     visit while one is open: the form is shut then, so a start arriving
-    anyway is a stale page rather than an intention.
+    anyway is a stale page rather than an intention. The operation
+    refuses that one too, under the gang's own line, because two clicks
+    on one button arrive together often enough for a state read before
+    the line was taken to be stale by the time the second writes.
 
     Spending past what a visit added is not among them — the purchase
     asks whether that was meant, and then does it.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.actions import visit_card
-    from n26.core.operations import operation
+    from n26.core.operations import Refusal, operation
     from n26.core.render import roster
     from n26.core.trading import as_offer, minted, receipt_for, visitors
 
@@ -928,7 +946,7 @@ def gang_trade_points(request, pk):
         if gang.visiting_trading_post:
             messages.error(
                 request,
-                "Finish the open Visit Trading Post action before starting another.",
+                "Complete the open Visit Trading Post action before starting another.",
             )
             return redirect(at)
         # Ticked boxes name models; anything else names nothing on this
@@ -951,8 +969,12 @@ def gang_trade_points(request, pk):
                 "Trade Points are a whole number, from 0 to 999.",
             )
             return redirect(at)
-        with operation(gang, actor=request.user) as op:
-            op.visit_trading_post(going, brought=brought)
+        try:
+            with operation(gang, actor=request.user) as op:
+                op.visit_trading_post(going, brought=brought)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+            return redirect(at)
         record(request, N26Noun.GANG, EventVerb.UPDATE, gang, trade_points=brought)
         if performing:
             who = (
@@ -967,7 +989,11 @@ def gang_trade_points(request, pk):
         )
         return redirect(at)
 
-    offered = visitors(gang, going=set())
+    # The roster is read once and handed to both readers of it: the page
+    # draws every fighter, and the offer is the few of them who add
+    # something.
+    members = roster(gang)
+    offered = visitors(gang, going=set(), members=members)
     receipt = receipt_for(gang)
     return render(
         request,
@@ -996,10 +1022,20 @@ def gang_trade_points(request, pk):
             # variable rather than an expression.
             "visit_open": gang.visiting_trading_post,
             "visitors": offered,
+            # What the start form says to do. Three states, and the third
+            # is a real one: a roster where nothing adds Trade Points —
+            # no ranks yet, or a library where the contribution has never
+            # been authored — leaves the typed figure as the only way in.
+            "start_help": _start_help(gang, offered),
+            # The box is an alternative to the ticks only where there are
+            # ticks. On its own it is simply the amount.
+            "amount_label": (
+                "Or enter a specific TP amount" if offered else "TP amount"
+            ),
             # Every fighter, not only those who performed the action:
             # what a visit added is the gang's, and it is spent on
             # whoever it was for. Who went is the ranks on the receipt.
-            "roster": roster(gang),
+            "roster": members,
             "offer": as_offer(offered),
             "edit_tabs": _edit_tabs(gang, "trade-points"),
         },
@@ -1037,6 +1073,10 @@ def gang_founding_action(request, pk):
     from n26.core.operations import Refusal, operation
 
     gang = _own_gang_or_404(request, pk)
+    # The square that posts here is drawn for staff owners only while the
+    # action is built out, so the address is theirs alone too.
+    if not may_see_actions_square(gang, request.user):
+        raise Http404
     at = reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":
         return redirect(at)

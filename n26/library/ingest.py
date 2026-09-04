@@ -3076,6 +3076,7 @@ def _imported(pack=None):
         SKILLS_SECTION,
         TRADING_POST_COLLECTION,
         VEHICLE_SUBTYPES,
+        visit_contribution_counter,
     )
 
     scope = {} if pack is None else {"pack": pack}
@@ -3084,11 +3085,19 @@ def _imported(pack=None):
 
     profiles = Profile.objects.filter(**scope)
 
-    # Every modifier goes: each either came from an import or names
-    # content that is about to, and a modifier pointing at a deleted
-    # trait is what stops the whole clear. Standard content wires none
-    # of its own.
-    doomed = list(Modifier.objects.filter(**scope).values_list("pk", flat=True))
+    # Every modifier goes except standard content's own: the rest either
+    # came from an import or name content that is about to go, and a
+    # modifier pointing at a deleted trait is what stops the whole clear.
+    # A seeded one is recognised the way its own seed recognises it — by
+    # what it does, never by its name — so rewording one does not put it
+    # back in the way of a clear.
+    spared = Q(pk__in=())
+    visit_counter = visit_contribution_counter()
+    if visit_counter is not None:
+        spared = Q(contributes_to_counter__counter=visit_counter)
+    doomed = list(
+        Modifier.objects.filter(**scope).exclude(spared).values_list("pk", flat=True)
+    )
 
     # A modifier holds its scope and effect, and those rows are what
     # hold the trait — deleting the modifier alone leaves them behind

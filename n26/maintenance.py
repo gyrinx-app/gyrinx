@@ -61,6 +61,7 @@ __all__ = [
     "backfill_built_ins",
     "delete_empty_affiliations",
     "delete_nameless_gang_type",
+    "open_founding_actions",
     "rehost_gang_picks",
     "repair_doubled_refunds",
     "repoint_champion_picks",
@@ -171,6 +172,10 @@ class Operation(models.TextChoices):
         "n26_delete_empty_affiliations",
         "n26: the emptied affiliation rows are deleted",
     )
+    OPEN_FOUNDING_ACTIONS = (
+        "n26_open_founding_actions",
+        "n26: the Found and equip gang action is opened on gangs that never had one",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -186,6 +191,7 @@ LOCK_KEYS = {
     Operation.REHOST_GANG_PICKS: 826_020_614,
     Operation.REPOINT_CHAMPION_PICKS: 826_020_615,
     Operation.DELETE_EMPTY_AFFILIATIONS: 826_020_616,
+    Operation.OPEN_FOUNDING_ACTIONS: 826_020_617,
 }
 
 
@@ -1322,6 +1328,173 @@ def drop_duplicate_grants_view(request):
     return render(request, "admin/maintenance/n26/drop_duplicate_grants.html", context)
 
 
+def gangs_without_a_founding_action():
+    """The unarchived gangs that have never had a founding action.
+
+    Never, rather than not at this moment: an owner who has completed
+    the act is done with it, and opening a second would put them back
+    where they started. So a completed one counts as much as an open
+    one.
+    """
+    from n26.core.models import Action, Gang
+
+    return Gang.objects.filter(archived=False).exclude(
+        actions__kind=Action.Kind.FOUNDING
+    )
+
+
+@task
+def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
+    """Open a Found and equip gang action on every unarchived gang that
+    has never had one, a gang at a time.
+
+    A gang founded before the action existed has none, so nothing on
+    its page says the act is still to be completed and its owner would
+    have to start one by hand. Each is opened through the operation a
+    founding uses, so the same event is written and the gang's history
+    reads as it would have.
+
+    Nobody is named as having done it, as the built-ins backfill does
+    the same way: the act is the estate catching up, not a person, and
+    filing it against whoever clicked in the admin would put a staff
+    username in a stranger's gang history.
+
+    The walk is every unarchived gang rather than only the ones that
+    qualify: ``run_batched`` needs a set that does not shrink as it is
+    worked through, and a gang that already has one is stepped past
+    where it stands. It is also why a rerun does nothing but walk.
+
+    Batched, because the whole estate is walked and each gang commits on
+    its own. What the run has come to is added to the record as each
+    gang lands, so a record read part-way says how far it has got.
+    """
+    from n26.core.models import Action, Gang
+    from n26.core.operations import Refusal, operation
+
+    record = Backfill.objects.get(pk=backfill_id)
+    totals = dict(record.summary.get("totals", {}))
+
+    def add_to_totals(key):
+        totals[key] = int(totals.get(key, 0)) + 1
+        _write(backfill_id, summary_patch={"totals": totals})
+
+    def do_one(pk):
+        gang = Gang.objects.filter(pk=pk, archived=False).first()
+        if gang is None:
+            # Archived, or gone, since the walk was counted. Either way
+            # it is not one of the gangs this run is for.
+            return
+        if Action.objects.filter(gang=gang, kind=Action.Kind.FOUNDING).exists():
+            add_to_totals("already_had_one")
+            return
+        try:
+            with operation(gang, actor=None) as op:
+                op.open_action(Action.Kind.FOUNDING)
+        except Refusal:
+            # The check above runs before the gang's line is held, so an
+            # owner can start the act in between and hold it by the time
+            # this gets the line. Refusing is that guard working: the
+            # gang has what this run came to give it.
+            add_to_totals("already_had_one")
+            return
+        add_to_totals("opened")
+
+    run_batched(
+        backfill_id,
+        operation=Operation.OPEN_FOUNDING_ACTIONS,
+        what="Founding actions",
+        items=Gang.objects.filter(archived=False),
+        do_one=do_one,
+        again=lambda: open_founding_actions.enqueue(backfill_id=backfill_id),
+    )
+
+
+def _preview_words(eligible, walked):
+    """What the run set out to do, in sentences the record keeps.
+
+    The second says what the run's own total counts, because the two
+    figures differ: every unarchived gang is walked and only some of
+    them get anything, so a run reporting more done than there were
+    gangs to change would otherwise read as a mistake.
+    """
+    return [
+        f"{eligible} of {walked} unarchived gang"
+        f"{'' if walked == 1 else 's'} "
+        f"{'has' if eligible == 1 else 'have'} never had a Found and "
+        "equip gang action.",
+        "Every unarchived gang is walked, so this run's total counts "
+        "gangs walked, not gangs changed.",
+    ]
+
+
+def open_founding_actions_view(request):
+    """Say how many gangs would get one (GET), or record a run and
+    enqueue it."""
+    from n26.core.models import Gang
+
+    operation = Operation.OPEN_FOUNDING_ACTIONS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That backfill is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        eligible = gangs_without_a_founding_action().count()
+        if not eligible:
+            messages.info(
+                request,
+                "There is nothing to open — every unarchived gang already "
+                "has the Found and equip gang action.",
+            )
+            return HttpResponseRedirect(address)
+        walked = Gang.objects.filter(archived=False).count()
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": _preview_words(eligible, walked), "attempts": 0},
+        )
+        open_founding_actions.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The backfill is running. This page shows what it does."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    context = page_context(
+        request,
+        operation.label,
+        gangs=Gang.objects.filter(archived=False).count(),
+        eligible=gangs_without_a_founding_action().count(),
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/open_founding_actions.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.OPEN_FOUNDING_ACTIONS.value,
+        name=Operation.OPEN_FOUNDING_ACTIONS.label,
+        added=date(2026, 9, 4),
+        description=(
+            "Open the Found and equip gang action on every unarchived "
+            "gang that has never had one. A gang founded before the "
+            "action existed has none, so its page has nothing for the "
+            "owner to complete. Each of those gangs gets the action a "
+            "gang founded today has, and the same entry in its history. "
+            "A gang that already has one, open or completed, is skipped, "
+            "so running this again changes nothing. Archived gangs are "
+            "left alone. No money moves."
+        ),
+        view=open_founding_actions_view,
+        detail_template="admin/maintenance/n26/_open_founding_actions_detail.html",
+    )
+)
+
+
 register_operation(
     MaintenanceOperation(
         operation=Operation.REHOST_GANG_PICKS.value,
@@ -1551,6 +1724,7 @@ task_routes = [
     TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
     TaskRoute(repoint_champion_picks, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(open_founding_actions, ack_deadline=600),
 ]
 
 

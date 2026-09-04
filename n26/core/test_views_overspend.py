@@ -93,6 +93,19 @@ class TestWhenTheVisitCovers:
         gang.refresh_from_db()
         assert gang.trade_points_left == 2
 
+    def test_the_purchase_records_the_visit_it_counted_against(
+        self, client, tester, gang, fighter, post, buying
+    ):
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=5)
+
+        client.force_login(tester)
+        client.post(equip_url(fighter, post), buying)
+
+        gang.refresh_from_db()
+        bought = Assignment.objects.get(gang_root=gang, wargear__isnull=False)
+        assert bought.ledger_entry.action == gang.open_visit
+
 
 class TestWhenItDoesNot:
     @pytest.fixture(autouse=True)
@@ -136,6 +149,15 @@ class TestWhenItDoesNot:
         assert "-2" in body
         assert "You don&#x27;t have enough TP" in body or "don't have enough TP" in body
         assert "You can buy it anyway." in body
+
+    def test_confirming_records_no_action(self, client, gang, fighter, post, buying):
+        """There is nothing open for it to count against, which is what
+        the question said it would do."""
+        client.post(equip_url(fighter, post), {**buying, "confirmed": "1"})
+
+        bought = Assignment.objects.get(gang_root=gang, wargear__isnull=False)
+        assert bought.ledger_entry.trade_points == 3
+        assert bought.ledger_entry.action is None
 
     def test_confirming_buys_it(self, client, gang, fighter, post, buying):
         answer = client.post(equip_url(fighter, post), {**buying, "confirmed": "1"})

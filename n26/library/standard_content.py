@@ -101,6 +101,28 @@ VEHICLE_SUBTYPES = [
 PROGRESSION_COUNTERS = ["XP"]
 XP_COUNTER = "XP"
 
+#: The counter a Visit Trading Post action reads to work out what each
+#: model adds. Undrawn: no card shows it, and nothing offers to tally it
+#: — the visit screen is the only reader. What raises it is a modifier on
+#: each rank, so a fighter promoted into a rank adds what the rank adds
+#: and one who has lost it adds nothing.
+VISIT_CONTRIBUTION_COUNTER = "Trading Post visit contribution"
+
+#: What each rank adds to a Trading Post visit (core rules), as
+#: ``(subtype, amount)``, biggest first. A model holding both ranks adds
+#: the better figure and not the sum: the same fighter cannot perform the
+#: action twice. Each rank after the first is therefore scoped away from
+#: models holding any rank above it.
+VISIT_CONTRIBUTIONS = [("Leader", 2), ("Champion", 1)]
+
+#: What each rank's contribution modifier is filed under. Named here so
+#: that a clear of imported content can leave them standing by reading
+#: this list rather than restating the names.
+VISIT_CONTRIBUTION_MODIFIERS = [
+    f"{rank} adds {amount} Trade Point{'' if amount == 1 else 's'} to a Trading Post visit"
+    for rank, amount in VISIT_CONTRIBUTIONS
+]
+
 #: The six Skill Sets and their skills, in D6 order (core rules) —
 #: the number a skill is rolled on is its position within its set. Names
 #: only: what each skill *does* is the book's wording (CLAUDE.md).
@@ -330,6 +352,91 @@ def _check_progression_counters():
         _count(Counter, name__in=PROGRESSION_COUNTERS),
         len(PROGRESSION_COUNTERS),
     )
+
+
+def visit_contribution_counter():
+    """The standard visit-contribution counter, or None where the library
+    has none.
+
+    Pinned to the default pack, as the Trading Post is: names are unique
+    per pack, so a homebrew pack's counter of the same name must not
+    stand in for the standard one. The seed, its own completeness check
+    and every reader ask this one question, because two statements of
+    what counts as the row drift in silence.
+    """
+    from n26.library.models import Counter, get_default_pack
+
+    return Counter.objects.filter(
+        name__iexact=VISIT_CONTRIBUTION_COUNTER, pack=get_default_pack()
+    ).first()
+
+
+def _create_visit_contribution():
+    """The visit counter, and one modifier per rank that raises it.
+
+    The subtypes are matched, not duplicated: the core subtypes seed
+    creates the same two rows, and either seed may be run first.
+
+    Ranks are read biggest first, and each modifier after the first is
+    narrowed to models holding none of the ranks above it. That is what
+    makes a Leader who is also a Champion add 2 rather than 3.
+
+    A rank's contribution is matched by what it does — a modifier this
+    rank carries that raises this counter — rather than by its name. A
+    rank carrying two of them would add twice what it should, and a name
+    is the one part of a modifier that may be reworded later.
+    """
+    from n26.library.authoring import (
+        ef_contributes_to_counter,
+        has_subtypes,
+        modifier,
+        targets_model,
+    )
+    from n26.library.models import Counter, Subtype
+
+    counter = visit_contribution_counter()
+    if counter is None:
+        counter = Counter.objects.create(name=VISIT_CONTRIBUTION_COUNTER, drawn=False)
+    better = []
+    for (rank, amount), name in zip(
+        VISIT_CONTRIBUTIONS, VISIT_CONTRIBUTION_MODIFIERS, strict=True
+    ):
+        subtype = Subtype.objects.filter(name__iexact=rank).first()
+        if subtype is None:
+            subtype = Subtype.objects.create(name=rank)
+        if not _raises_visit_counter(subtype, counter).exists():
+            subtype.modifiers.add(
+                modifier(
+                    name,
+                    targets_model(
+                        *([has_subtypes(*better, negate=True)] if better else [])
+                    ),
+                    ef_contributes_to_counter(counter, amount),
+                )
+            )
+        better.append(subtype)
+
+
+def _raises_visit_counter(subtype, counter):
+    """The modifiers this rank carries that raise this counter."""
+    return subtype.modifiers.filter(contributes_to_counter__counter=counter)
+
+
+def _check_visit_contribution():
+    """Asked exactly as the create asks it — the same counter lookup, the
+    same rank lookup, the same behaviour predicate — so a half-built
+    library reports what a second run would leave alone."""
+    from n26.library.models import Subtype
+
+    counter = visit_contribution_counter()
+    if counter is None:
+        return 0, 1 + len(VISIT_CONTRIBUTIONS)
+    present = 1
+    for rank, _ in VISIT_CONTRIBUTIONS:
+        subtype = Subtype.objects.filter(name__iexact=rank).first()
+        if subtype is not None and _raises_visit_counter(subtype, counter).exists():
+            present += 1
+    return present, 1 + len(VISIT_CONTRIBUTIONS)
 
 
 def skills_collection_sweeps():
@@ -792,6 +899,18 @@ STANDARD_CONTENT = {
             ),
             check=_check_progression_counters,
             create=_create_progression_counters,
+        ),
+        StandardContent(
+            key="visit-contribution",
+            name="Trading Post visit contribution",
+            help=(
+                "The counter for what each model adds to a Visit Trading "
+                "Post action, and the modifiers that raise it: 2 on the "
+                "Leader subtype, 1 on Champion. The counter is not drawn "
+                "on any card. A model holding both ranks adds 2, not 3."
+            ),
+            check=_check_visit_contribution,
+            create=_create_visit_contribution,
         ),
         StandardContent(
             key="gang-types",

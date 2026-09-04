@@ -8,7 +8,7 @@ test (or a management command) can prove the caches are honest.
 
 from datetime import UTC, datetime
 
-from django.db.models import DateTimeField, Subquery, Sum, Value
+from django.db.models import DateTimeField, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
 
 from n26.core.models import Assignment, LedgerEntry
@@ -98,26 +98,51 @@ def total_spent(gang):
 _SINCE_ALWAYS = datetime(1, 1, 1, tzinfo=UTC)
 
 
-def trade_points_spent(gang):
-    """Every Trade Point laid out since the allowance was last set.
+def trade_points_spent_for(action):
+    """Every Trade Point that counted against one action.
 
-    The allowance-set event is the boundary a trip is measured from, so
-    what was spent on an earlier trip stops counting the moment a new
-    allowance is written — which is what makes "set it again" the way to
-    both begin a trip and end one.
+    A purchase records the action it counted against on its ledger entry,
+    so this is a sum over what points at that row — no window, no
+    ordering, and an exact figure for an action long since closed.
 
     Summed from the events rather than from the entries because a refund
     settles its entry to zero and appends the returning event: reading
-    the log keeps the two acts in the order they happened.
+    the log keeps the two acts in the order they happened. The refund's
+    event sits on the assignment the purchase made, so it lands on the
+    action the purchase counted against however long afterwards the
+    owner gets round to handing the thing back.
 
-    The trip an event belongs to is the trip its *purchase* belongs to,
-    not the trip its own event happened in. A refund is an event of its
-    own, written whenever the owner gets round to it, so windowing on
-    event time lets the undoing of an earlier trip's purchase land inside
-    this one — handing back kit bought last time would mint Trade Points
-    the visit never brought. Windowing on the assignment keeps a purchase
-    and everything that later happens to it on the same side of the
-    boundary, so the two either both count or neither does.
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    return (
+        LedgerEvent.objects.filter(assignment__ledger_entry__action=action).aggregate(
+            total=Sum("trade_points_delta")
+        )["total"]
+        or 0
+    )
+
+
+def trade_points_spent(gang):
+    """What the gang's open Visit Trading Post action has spent.
+
+    Two sets of purchases, summed in one query. The first is what points
+    at the gang's open visit, which is the whole of it for a purchase
+    that recorded one — asked as a join rather than by naming the row, so
+    nothing has to know which visit is open before asking. The second is
+    a purchase under this visit that names no action at all — one
+    written before the visit had a row to point at — found instead by
+    when its assignment was created, measured from the boundary event
+    the visit wrote. The second half is here only while such purchases
+    exist.
+
+    Either way the visit an event belongs to is the visit its *purchase*
+    belongs to, and never the visit its own event happened in. A refund
+    is an event of its own, written whenever the owner gets round to it,
+    so counting by event time would let the undoing of an earlier
+    visit's purchase land inside this one — handing back kit bought last
+    time would mint Trade Points the visit never brought.
 
     Events about no assignment are outside this by construction: the
     boundary event itself is one, and none of them moves Trade Points.
@@ -126,21 +151,28 @@ def trade_points_spent(gang):
     left asks this, and a gang's page is a fixed number of queries by
     invariant rather than by hope.
     """
-    from n26.core.models import LedgerEvent
+    from n26.core.models import Action, LedgerEvent
 
     since = (
         LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET)
         .order_by("-created")
         .values("created")[:1]
     )
+    unstamped = Q(
+        assignment__ledger_entry__action__isnull=True,
+        assignment__created__gte=Coalesce(
+            Subquery(since),
+            Value(_SINCE_ALWAYS, output_field=DateTimeField()),
+        ),
+    )
+    counted = unstamped | Q(
+        assignment__ledger_entry__action__gang=gang,
+        assignment__ledger_entry__action__kind=Action.Kind.TRADING_POST_VISIT,
+        assignment__ledger_entry__action__closed__isnull=True,
+    )
     return (
         LedgerEvent.objects.filter(gang=gang)
-        .filter(
-            assignment__created__gte=Coalesce(
-                Subquery(since),
-                Value(_SINCE_ALWAYS, output_field=DateTimeField()),
-            )
-        )
+        .filter(counted)
         .aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )

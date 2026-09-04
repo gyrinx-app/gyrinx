@@ -23,7 +23,15 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player")
+    # Staff, because the Actions square is staff-only while the actions
+    # are built out. The Trade Points page itself is every owner's.
+    return User.objects.create_user("player", is_staff=True)
+
+
+@pytest.fixture
+def player(db):
+    """An owner who is not staff: sees the stash line, never the square."""
+    return User.objects.create_user("plain-player")
 
 
 @pytest.fixture
@@ -38,9 +46,17 @@ def gang(tester, gang_type):
 
 
 @pytest.fixture
-def ranks(db):
-    """The two ranks the book gives Trade Points to."""
-    return {name: Subtype.objects.create(name=name) for name in ("Leader", "Champion")}
+def ranks(default_pack):
+    """The two ranks that add Trade Points, as content says so.
+
+    The figures are not in the code: the standard seed writes the
+    undrawn visit-contribution counter and a modifier on each rank that
+    raises it, and the page reads what those come to.
+    """
+    from n26.library.standard_content import STANDARD_CONTENT
+
+    STANDARD_CONTENT["visit-contribution"].create()
+    return {name: Subtype.objects.get(name=name) for name in ("Leader", "Champion")}
 
 
 @pytest.fixture
@@ -208,18 +224,32 @@ class TestTheActionsSquare:
         assert "Trading Post visit open" in body
         assert "Manage visit" in body
 
-    def test_the_stash_card_no_longer_carries_it(self, client, tester, roster, gang):
-        """The line moved out of the stash: what a gang has open is not a
-        fact about what it is storing."""
+    def test_the_stash_card_still_carries_it(self, client, tester, roster, gang):
+        """The stash card keeps its Trading Post line for every owner while
+        the square is staff-only; a staff owner reads it in both places."""
         client.force_login(tester)
         start(client, gang, roster["Vex"])
 
         body = self.sheet(client, gang)
-        # The stash card's own heading, not the wealth strip's figure of
-        # the same name, which sits further up the page.
+        # The square's line comes first, then the stash card's own.
         assert body.index("Trading Post visit open") < body.index(">Stash</span>")
-        # Moved, not copied: one line on the page, not one per card.
+        assert body.count("Trading Post visit open") == 2
+
+    def test_an_owner_who_is_not_staff_gets_the_stash_line_and_no_square(
+        self, client, player, roster, gang
+    ):
+        gang.owner = player
+        gang.save(update_fields=["owner"])
+        client.force_login(player)
+        start(client, gang, roster["Vex"])
+
+        body = self.sheet(client, gang)
         assert body.count("Trading Post visit open") == 1
+        assert body.index(">Stash</span>") < body.index("Trading Post visit open")
+        assert "No action is open." not in body
+        assert "Found and equip gang" not in body
+        # The Trade Points page itself stays theirs.
+        assert f'href="{page(gang)}"' in body
 
     def test_it_leads_the_grid_ahead_of_the_stash(self, client, tester, gang):
         client.force_login(tester)
@@ -271,7 +301,9 @@ class TestWhoIsOffered:
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
         assert "Visit Trading Post (post-cycle action)" in body
-        assert "A Leader adds 2 Trade Points and a Champion 1." in body
+        assert (
+            "Select the models visiting the Trading Post, or enter a TP amount." in body
+        )
         assert "Nobody else" not in body
         assert "Start TP visit" in body
         assert "Start action" not in body
@@ -282,15 +314,62 @@ class TestWhoIsOffered:
         assert ':disabled="overridden || locked"' in body
 
     def test_a_gang_with_nobody_says_so(self, client, tester, gang):
-        """The page names the ranks it wanted, not a bare roster.
-
-        A gang can be full of Gangers and still have nobody who adds
-        anything, so "nobody to send" would read as a lie.
-        """
+        """A gang can be full of Gangers and still have nobody who adds
+        anything, so "nobody to send" would read as a lie. The page says
+        what is actually absent."""
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
-        assert "no Leader or Champion to send" in body
-        assert "nobody else adds Trade Points" in body
+        assert f"No model in {gang.name} adds Trade Points." in body
+
+    def test_the_typed_amount_is_still_offered(self, client, tester, gang):
+        """The box is the way in for a roster where nothing adds Trade
+        Points — including a library where the contribution was never
+        authored — so it is drawn whether or not anybody is ticked."""
+        client.force_login(tester)
+        body = client.get(page(gang)).content.decode()
+        assert re.search(r'<input[^>]*name="brought"[^>]*>', body)
+        assert "TP amount" in body
+        assert "Start TP visit" in body
+        assert "Selected models add" not in body
+
+    def test_a_typed_amount_starts_a_visit_with_nobody_to_tick(
+        self, client, tester, gang
+    ):
+        client.force_login(tester)
+        client.post(page(gang), {"brought": "3"})
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is True
+        assert gang.starting_trade_points == 3
+
+    def test_a_model_promoted_into_a_rank_is_offered(
+        self, client, tester, roster, gang, ranks
+    ):
+        """The figure follows what the model holds now, not the entry
+        they were hired as."""
+        with operation(gang, actor=tester) as op:
+            op.assign(ranks["Champion"], miniature=roster["Nix"])
+
+        client.force_login(tester)
+        boxes = re.findall(
+            r'<input[^>]*name="visiting"[^>]*value="([^"]+)"',
+            client.get(page(gang)).content.decode(),
+        )
+        assert str(roster["Nix"].pk) in boxes
+
+    def test_a_model_holding_both_ranks_adds_the_better_figure(
+        self, client, tester, roster, gang, ranks
+    ):
+        """The same fighter cannot perform the action twice, so the two
+        contributions do not add up."""
+        with operation(gang, actor=tester) as op:
+            op.assign(ranks["Champion"], miniature=roster["Vex"])
+
+        client.force_login(tester)
+        start(client, gang, roster["Vex"])
+
+        gang.refresh_from_db()
+        assert gang.starting_trade_points == 2
 
     def test_a_rank_taken_away_is_not_one_held(
         self, client, tester, roster, gang, ranks
@@ -306,6 +385,116 @@ class TestWhoIsOffered:
 
         gang.refresh_from_db()
         assert gang.starting_trade_points == 1
+
+
+class TestWhatThePageCosts:
+    """The page's own budget, pinned so it changes deliberately.
+
+    What a model adds is a counter reading, so drawing this page builds
+    the whole gang's cards and the modifier index behind them — much more
+    than the two queries the ranks used to take. That is a fixed price
+    for a gang, not a price per fighter, and the second reading below is
+    what says so: four more models, two of them ranked, and the same
+    number.
+    """
+
+    #: Session and the signed-in reader, the gang and its stash, the
+    #: roster read once for both the offer and the equip list, the gang's
+    #: rows and their hydration, the modifier index behind them, the open
+    #: visit's events, and the standard Trading Post the receipt links
+    #: to. None of it repeats per model.
+    BUDGET = 37
+
+    @pytest.fixture
+    def bigger(self, tester, gang, ranks, make_profile, make_statline):
+        """Four more models on the roster, two of them ranked — so the
+        second reading differs from the first in size alone, never in
+        which kinds of content are in play."""
+
+        def grow():
+            for name in ("Ain", "Bex", "Cor", "Dax"):
+                profile = make_profile(f"{name} entry", price=50)
+                make_statline(profile)
+                with operation(gang, actor=tester) as op:
+                    model = op.hire(profile, name)
+                    if name in ("Ain", "Bex"):
+                        op.assign(ranks["Champion"], miniature=model)
+
+        return grow
+
+    def test_it_holds_at_its_budget(self, client, tester, roster, gang, bigger):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        # The first visit warms whatever a signed-in request looks up
+        # once; the reading that counts is the ordinary second one.
+        client.get(page(gang))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(page(gang)).status_code == 200
+        assert len(few) == self.BUDGET, [q["sql"] for q in few.captured_queries]
+
+        bigger()
+
+        with CaptureQueriesContext(connection) as more:
+            assert client.get(page(gang)).status_code == 200
+        assert len(more) == self.BUDGET
+
+
+class TestALibraryWithNoVisitContribution:
+    """The counter is what says what a model adds, so a library where it
+    was never authored offers nobody — however many Leaders are on the
+    roster. The page still works: the typed figure never depended on it.
+    """
+
+    @pytest.fixture
+    def unauthored(self, tester, gang, make_profile, make_statline):
+        """A Leader and a Champion, and no counter for them to raise."""
+        made = {}
+        for name, rank in [("Vex", "Leader"), ("Sura", "Champion")]:
+            profile = make_profile(f"{name} entry", price=50)
+            make_statline(profile)
+            with operation(gang, actor=tester) as op:
+                model = op.hire(profile, name)
+                op.assign(Subtype.objects.create(name=rank), miniature=model)
+            made[name] = model
+        gang.refresh_from_db()
+        return made
+
+    def test_the_page_says_nobody_adds_anything(self, client, tester, gang, unauthored):
+        client.force_login(tester)
+        body = client.get(page(gang)).content.decode()
+
+        assert f"No model in {gang.name} adds Trade Points." in body
+        assert not re.findall(r'<input[^>]*name="visiting"[^>]*>', body)
+        assert not unrendered(body)
+
+    def test_the_typed_amount_still_opens_a_visit(
+        self, client, tester, gang, unauthored
+    ):
+        client.force_login(tester)
+        assert re.search(
+            r'<input[^>]*name="brought"[^>]*>',
+            client.get(page(gang)).content.decode(),
+        )
+
+        client.post(page(gang), {"brought": "5"})
+
+        gang.refresh_from_db()
+        assert gang.starting_trade_points == 5
+
+    def test_ticking_a_model_sends_nobody(self, client, tester, gang, unauthored):
+        """No model is offered, so a stale form naming one names nobody
+        the page could have named."""
+        client.force_login(tester)
+        answer = client.post(
+            page(gang), {"visiting": [str(unauthored["Vex"].pk)]}, follow=True
+        )
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is False
+        told = [str(m) for m in answer.context["messages"]]
+        assert any("at least one model" in line for line in told)
 
 
 class TestStartingTheAction:
@@ -363,8 +552,48 @@ class TestStartingTheAction:
 
         gang.refresh_from_db()
         assert gang.starting_trade_points == 3
+        assert gang.trade_points_left == 3
         told = [str(m) for m in answer.context["messages"]]
-        assert any("Finish the open" in line for line in told)
+        assert any("Complete the open" in line for line in told)
+
+    def test_the_operation_refuses_it_too(self, client, roster, gang, tester):
+        """The screen shuts the form, and the act behind it refuses on its
+        own account: two clicks on one button arrive together often enough
+        for a state read before the gang's line was taken to be stale by
+        the time the second one writes."""
+        from n26.core.operations import Refusal, operation
+        from n26.core.trading import visitors
+
+        start(client, gang, roster["Vex"])
+
+        with pytest.raises(Refusal):
+            with operation(gang, actor=tester) as op:
+                op.visit_trading_post(visitors(gang))
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
+
+    def test_a_visit_opened_since_the_gang_was_read_is_still_refused(
+        self, client, roster, gang, tester
+    ):
+        """The refusal is decided on what stands under the gang's line,
+        not on what was read before taking it. A reading held from before
+        would let the second click through to the database, which would
+        stop it — as a server error rather than as a sentence."""
+        from n26.core.operations import Refusal, operation
+        from n26.core.trading import visitors
+
+        stale = Gang.objects.get(pk=gang.pk)
+        # Read, and only then does somebody else open one.
+        assert stale.open_visit is None
+        start(client, gang, roster["Vex"])
+
+        with pytest.raises(Refusal):
+            with operation(stale, actor=tester) as op:
+                op.visit_trading_post(visitors(stale))
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
 
     def test_it_moves_no_money(self, client, roster, gang):
         before = Gang.objects.get(pk=gang.pk).credits
@@ -489,7 +718,7 @@ class TestATypedFigure:
 
         tag = re.search(r'<input[^>]*name="brought"[^>]*>', body).group()
         assert tag.count("class=") == 1
-        assert "Or use a specific TP amount" in body
+        assert "Or enter a specific TP amount" in body
 
     def test_the_box_shuts_with_the_rest_of_the_form(self, client, roster, gang):
         start(client, gang, roster["Vex"])
@@ -512,12 +741,12 @@ class TestTheReceipt:
 
         assert "Complete action" in client.get(page(gang)).content.decode()
 
-    def test_it_warns_that_unused_points_will_be_discarded(self, client, roster, gang):
+    def test_it_says_unspent_points_are_lost(self, client, roster, gang):
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
         assert "Click when you have finished at the Trading Post." in body
-        assert "Any unused TP will be discarded." in body
+        assert "Unspent Trade Points are lost when you complete the action." in body
 
     def test_it_names_the_ranks_that_added_the_figure(self, client, roster, gang):
         start(client, gang, roster["Vex"], roster["Sura"])

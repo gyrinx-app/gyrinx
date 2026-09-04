@@ -215,6 +215,9 @@ that said it twice would be spending the width the name needs.
             <c-slot name="stash_actions">
                 <c-n26.action-link href="{% url 'n26-equip-gang' gang.pk %}">Equip</c-n26.action-link>
             </c-slot>
+            <c-slot name="stash_notice">
+                {% include "n26/includes/stash_trading_post.html" %}
+            </c-slot>
         {% endif %}
         <c-slot name="stash_empty">
             Nothing in the stash yet.

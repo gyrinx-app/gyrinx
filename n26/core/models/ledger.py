@@ -70,6 +70,26 @@ class LedgerEntry(Base):
             "get-out is a purchase with no entry."
         ),
     )
+    #: The action this purchase counted against, where one was open —
+    #: a trip to the trading post, founding and equipping the gang. What
+    #: an action has spent is the sum over the purchases pointing at it,
+    #: and a refund's event sits on the same assignment, so handing
+    #: something back returns its Trade Points to the action that paid
+    #: for them however long afterwards it happens. Blank for a purchase
+    #: made with nothing open: the owner said they meant it, and it
+    #: counts against nothing.
+    action = models.ForeignKey(
+        "n26.Action",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchases",
+        help_text=(
+            "The action this purchase counted against — a trip to the "
+            "trading post, or founding the gang. Blank for a purchase "
+            "made with no action open."
+        ),
+    )
     note = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -148,8 +168,10 @@ class LedgerEvent(Base):
         # are the gang's, counted once on the event above, so this
         # carries none of its own — it says who went, which is what
         # answers "has this model already used their action" and what a
-        # receipt names. The note holds the rank they went as, since
-        # that is what they added rather than what they are now.
+        # receipt names. The note holds what the card said raised their
+        # figure — the rank's name, where one rank raised it, and the
+        # figure itself where several things did — since that is what
+        # they added rather than what they are now.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
         # An action opening and closing (``n26.core.models.action``).
