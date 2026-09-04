@@ -466,6 +466,22 @@ def _says_places_category(effect, parts):
     return f"{_owned(who, f'{effect.category.name} set')} appears as {section}.", hint
 
 
+@_renders("draws_pick")
+def _says_draws_pick(effect, parts):
+    who = parts.who
+    card = _agrees(who, "card", "cards")
+    lists = _agrees(who, "lists", "list")
+    return (
+        f"{_owned(who, card)} {lists} this pick{_while(who)}.",
+        (
+            "Adds a line to the card naming this pick — a fact, not a "
+            "control. The choice is made and changed on the card that "
+            "asks for it, and that card draws its own row rather than "
+            "this one."
+        ),
+    )
+
+
 @_renders("requires_companions")
 def _says_requires_companions(effect, parts):
     return (

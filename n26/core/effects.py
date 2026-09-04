@@ -70,6 +70,10 @@ from n26.library.models.modifier import MODEL, WEAPON_PROFILE
 #: A granted thing five levels deep is a content bug, not a use case.
 MAX_CHAIN_DEPTH = 5
 
+#: How a line the gang holds names its holder on a member's card. A
+#: member's card knows no name for the gang, and every surface says this.
+THE_GANG = "the gang"
+
 
 def kind_of(thing):
     """The plain name of what kind of thing this is: "skill", "wargear"…
@@ -248,6 +252,31 @@ class CategoryPlacement:
     section: object
     source: str
     source_kind: str
+
+
+@dataclass(frozen=True)
+class DrawnPick:
+    """A pick the gang holds, drawn on this model's card.
+
+    What the gang picks reaches every member and is listed on none of
+    them — unless the pickable carries a modifier saying otherwise, and
+    then every model that modifier reaches draws the line. A fact, never
+    a control: the choice belongs to whoever was asked, and their card
+    draws its own choice row rather than one of these.
+    """
+
+    #: The pick's line — the gang's assignment, riding this card.
+    node: object
+    #: What sort of thing was picked, by its slot type's name:
+    #: "Archetype". Never the slot's own label, which names one question
+    #: among several.
+    kind_label: str
+    source: str
+    source_kind: str
+
+    @property
+    def name(self):
+        return self.node.name
 
 
 @dataclass(frozen=True)
@@ -534,6 +563,10 @@ class ComputedCard:
     sorted_under: object = None
     weapons: dict = field(default_factory=dict)
     choices: list[ChoiceSlot] = field(default_factory=list)
+    #: Picks the gang holds that this card draws all the same, because a
+    #: modifier on the pickable says so — see ``DrawnPick``. Empty on
+    #: every card no such modifier reaches, which is most of them.
+    drawn_picks: list[DrawnPick] = field(default_factory=list)
     stored_effects: list[StoredEffect] = field(default_factory=list)
     #: Gang-scoped composition asks (``RequiresCompanions``), collected
     #: here and resolved against the roster by ``compute_gang`` — only a
@@ -638,6 +671,7 @@ def compute(card, index):
         ChangesCategory,
         ChangesStat,
         ContributesToCounter,
+        DrawsPick,
         OffersChoice,
         PlacesCategory,
         RemovesAssignable,
@@ -664,6 +698,9 @@ def compute(card, index):
         lines[node.key] = node
     offers = _Offers()
     given_slots = _Offers()
+    #: Gang-held picks a modifier says to draw here, settled once the
+    #: card's own questions are known — see ``_fill_drawn_picks``.
+    drawn = []
     log = _Log()
 
     # Chosen assignments by what caused them. What a choice settles on is
@@ -690,6 +727,7 @@ def compute(card, index):
         RequiresCompanions: 5,
         AllowsAtMost: 6,
         ContributesToCounter: 7,
+        DrawsPick: 8,
     }
 
     def steps_for(
@@ -967,6 +1005,18 @@ def compute(card, index):
                         log.applied.append(
                             _Applied(source_key, computed, "limits", capped)
                         )
+                    elif isinstance(effect, DrawsPick):
+                        # Only what the gang holds is drawn this way. A
+                        # pick the card carries itself already sits on
+                        # its own choice row, and drawing it again would
+                        # say it twice.
+                        gang_held = step.echoed or (
+                            step.node is not None and step.node.broadcast
+                        )
+                        if not gang_held or step.node is None:
+                            step.outcome = "skipped"
+                            continue
+                        drawn.append((step.node, step))
                     elif isinstance(effect, PlacesCategory):
                         category = _placed_category(effect, step.node, by_cause)
                         if category is None:
@@ -1030,6 +1080,7 @@ def compute(card, index):
         ],
         by_choice,
     )
+    _fill_drawn_picks(computed, drawn)
     return computed
 
 
@@ -1586,6 +1637,45 @@ def _fill_slot_choices(computed, given, by_choice):
                 slot=slot,
                 min_picks=slot.min_picks,
                 max_picks=slot.max_picks,
+            )
+        )
+
+
+def _fill_drawn_picks(computed, drawn):
+    """The gang's picks this card draws, once its own questions are known.
+
+    A pick is drawn here only where this card does not ask the question
+    it settles. The card that was asked draws a choice row holding the
+    same pick and leading to the picker, so a second line would say it
+    twice and offer nothing.
+
+    Read after the card has settled, so a carrier something took away
+    draws nothing (its step reads ``retracted`` by then), and two
+    modifiers saying to draw one pick draw one line.
+    """
+    from n26.library.models import Pickable
+
+    asked_here = {pick.key for slot in computed.choices for pick in slot.picks}
+    seen = set()
+    for node, step in drawn:
+        if step.outcome != "reached":
+            # Whatever carried it was itself taken away; the plan has
+            # already said so and there is nothing to draw.
+            continue
+        if (
+            not isinstance(node.assignable, Pickable)
+            or node.key in asked_here
+            or node.key in seen
+        ):
+            step.outcome = "skipped"
+            continue
+        seen.add(node.key)
+        computed.drawn_picks.append(
+            DrawnPick(
+                node=node,
+                kind_label=node.assignable.slot_type.name,
+                source=THE_GANG,
+                source_kind="gang",
             )
         )
 

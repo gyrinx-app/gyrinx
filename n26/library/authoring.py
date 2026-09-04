@@ -1742,6 +1742,19 @@ def ef_places_choice(section):
     return PlacesCategory.objects.create(the_chosen=True, section=section)
 
 
+def ef_draws_pick():
+    """The pick the gang holds is drawn on the card of every model this
+    reaches — ``modifier(name, targets_every_model(...), ef_draws_pick(),
+    attach_to=archetype)``.
+
+    Carried by the pickable, so the line goes wherever that pick goes.
+    It is a fact on the card and not a control: the choice stays where
+    it was asked."""
+    from n26.library.models import DrawsPick
+
+    return DrawsPick.objects.create()
+
+
 def ef_requires_companions(for_each, at_least, of):
     """A composition ask, said on the gang sheet and never enforced —
     ``ef_requires_companions(champion, 3, hive_scum)``."""

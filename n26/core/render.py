@@ -626,6 +626,11 @@ class ModelCard:
         into — the text card, the printed one — draws the lot, because a
         choice still to be made is worth a line on paper and none of them
         should go missing for want of somewhere to put it.
+
+        Not all of them can be settled here: a pick the gang holds and
+        this card draws is a fact with no address, so whatever turns
+        these into controls reads the address on the line rather than
+        assuming one.
         """
         return [*self.choices, *self.skill_choices, *self.power_choices]
 
@@ -965,6 +970,25 @@ def _choice_line(slot, host):
         provenance=Provenance(
             source=slot.source,
             source_kind=slot.source_kind,
+            computed=True,
+        ),
+    )
+
+
+def _drawn_line(drawn):
+    """A pick the gang holds, as a row on a member's card.
+
+    No key and no href: the choice belongs to whoever was asked and is
+    changed there, so this line has nowhere to lead. Full, so nothing
+    offers a way to add to it.
+    """
+    return ChoiceLine(
+        kind_label=drawn.kind_label,
+        chosen=drawn.name,
+        is_full=True,
+        provenance=Provenance(
+            source=drawn.source,
+            source_kind=drawn.source_kind,
             computed=True,
         ),
     )
@@ -1559,9 +1583,18 @@ def card_to_model_card(
         equipment=sorted(equipment, key=lambda line: line.name),
         collections=sorted(line_rows["collections"], key=lambda line: line.name),
         choices=[
-            _choice_line(slot, id)
-            for slot in (computed.choices if computed else [])
-            if question_row(slot) is None
+            *(
+                _choice_line(slot, id)
+                for slot in (computed.choices if computed else [])
+                if question_row(slot) is None
+            ),
+            # What the gang picked, where a modifier says this model's
+            # card draws it. After the card's own questions: they are
+            # this model's to settle, and these are read only.
+            *(
+                _drawn_line(drawn)
+                for drawn in (computed.drawn_picks if computed else [])
+            ),
         ],
         # Only the open ones: a settled skill question is a skill, a
         # settled power question a power, and both are already in their
