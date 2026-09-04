@@ -5,15 +5,20 @@ which gangs and fighters exist is not something to be probed for. The
 exceptions are the two read guards, ``_any_gang_or_404`` and
 ``_any_campaign_or_404``: a roster and a campaign are things players
 send each other, so owner-scoping is the rule for acting on one and not
-for reading it. All of them catch the ULIDField refusal, because a pk
-that is not a ULID is only ever a bad link and a 500 is the wrong answer
-to one.
+for reading it. Those two also record whose content the page is showing
+(``n26.impersonation.note_page_subject``), because they are exactly the
+pages that open for somebody other than the owner — an admin reading one
+is offered a way straight into that account. All of them catch the
+ULIDField refusal, because a pk that is not a ULID is only ever a bad link
+and a 500 is the wrong answer to one.
 """
 
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
+
+from n26.impersonation import note_page_subject
 
 
 def _safe_redirect(request, url, fallback_url="/"):
@@ -86,7 +91,7 @@ def _own_gang_or_404(request, pk):
         raise Http404("No such gang") from None
 
 
-def _any_gang_or_404(pk):
+def _any_gang_or_404(request, pk):
     """The gang, whoever owns it — a roster anybody may read.
 
     A gang sheet is shareable: the address one player sends another shows
@@ -105,7 +110,7 @@ def _any_gang_or_404(pk):
     from n26.core.models.gang import open_visit_points
 
     try:
-        return get_object_or_404(
+        gang = get_object_or_404(
             Gang.objects.select_related("gang_type", "owner", "stash").annotate(
                 open_visit_points=open_visit_points()
             ),
@@ -114,9 +119,11 @@ def _any_gang_or_404(pk):
         )
     except ValidationError:
         raise Http404("No such gang") from None
+    note_page_subject(request, gang.owner)
+    return gang
 
 
-def _any_campaign_or_404(pk):
+def _any_campaign_or_404(request, pk):
     """The campaign, whoever arbitrates it — a table its players may read.
 
     Not owner-scoped: the address an arbitrator sends round shows the same
@@ -137,7 +144,7 @@ def _any_campaign_or_404(pk):
     from n26.core.models import Campaign
 
     try:
-        return get_object_or_404(
+        campaign = get_object_or_404(
             Campaign.objects.select_related(
                 "owner", "campaign_type", "additions__built_ins"
             ),
@@ -146,6 +153,8 @@ def _any_campaign_or_404(pk):
         )
     except ValidationError:
         raise Http404("No such campaign") from None
+    note_page_subject(request, campaign.owner)
+    return campaign
 
 
 def _own_campaign_or_404(request, pk):

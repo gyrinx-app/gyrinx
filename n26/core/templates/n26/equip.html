@@ -83,9 +83,11 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 {% comment %}
                 Under the figures, and only while no action is open: with one open the
                 TP figure is a number that already leads here, and this would be asking
-                for a second of something a gang performs one of at a time.
+                for a second of something a gang performs one of at a time. A model
+                spending a founding allowance is buying against that instead, so a
+                visit would not be where its Trade Points came from.
                 {% endcomment %}
-                {% if trade_points_href and not gang.visiting_trading_post and not post_is_shut %}
+                {% if trade_points_href and not gang.visiting_trading_post and not post_is_shut and not founding_budget %}
                     <c-n26.link href="{{ trade_points_href }}" class="text-sm">
                         Track TP spend by starting an action →
                     </c-n26.link>
@@ -128,7 +130,9 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 {% if everything %}
                     {% include "n26/includes/unrestricted_note.html" %}
                 {% endif %}
-                {% if post_is_shut %}
+                {% if founding_budget %}
+                    {% include "n26/includes/founding_budget.html" %}
+                {% elif post_is_shut %}
                     {% include "n26/includes/not_tracking_tp.html" %}
                 {% endif %}
             </div>

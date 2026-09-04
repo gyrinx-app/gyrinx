@@ -281,6 +281,7 @@ class Operation:
         reason=None,
         bought_from=None,
         action=None,
+        spent_by=None,
         note="",
         removes=False,
         kind=None,
@@ -307,7 +308,9 @@ class Operation:
 
         ``action`` is the open action this counted against, where the
         surface that bought it says one applies. What an action has
-        spent is the sum over what points at it.
+        spent is the sum over what points at it. ``spent_by`` is whose
+        Trade Points those were, where the allowance was one model's own
+        rather than the gang's.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -345,6 +348,7 @@ class Operation:
             reason=reason,
             bought_from=bought_from,
             action=action,
+            spent_by=spent_by,
             note=note,
         )
         self.event(
@@ -596,7 +600,7 @@ class Operation:
                 "before starting another."
             )
 
-    def open_action(self, kind, trade_points=None, opened=None):
+    def open_action(self, kind, trade_points=None):
         """Start one of this gang's actions, and say so in its history.
 
         An action is a thing performed over several clicks — founding and
@@ -606,32 +610,37 @@ class Operation:
         record leaves behind.
 
         ``trade_points`` is what performing this brought, where it brings
-        anything. Nothing is priced and no money moves.
-
-        ``opened`` is that event, where the act has already written one
-        of its own. A visit to the trading post writes the boundary its
-        spending is measured from, and pointing the row at that rather
-        than at a second event of this method's own keeps one act to one
-        line in the gang's history.
+        anything. Nothing is priced and no money moves. The figure rides
+        the event's note as well as the row, so the history can say what
+        the gang set out with without reading a second table.
         """
         from n26.core.models import Action
+        from n26.core.models.action import note_for
 
         gang = self.gang
         self._refuse_if_open(kind)
-        if opened is None:
-            opened = self.event(None, LedgerEvent.Kind.ACTION_OPENED, note=kind)
+        opened = self.event(
+            None,
+            LedgerEvent.Kind.ACTION_OPENED,
+            note=note_for(kind, trade_points),
+        )
         action = Action.objects.create(
             gang=gang, kind=kind, opened=opened, trade_points=trade_points
         )
         gang.forget_open_actions()
         return action
 
-    def close_action(self, action, closed=None):
+    def close_action(self, action):
         """Finish an action, and say so in its history.
 
         What it did stays where it was written — the log between the two
         events — so closing changes nothing but the state: from here the
         gang may start another of the same kind.
+
+        What the act still had rides the closing event's note, where it
+        had anything to have: the book takes a visit's unspent Trade
+        Points away when it ends, and a log that recorded only the
+        ending would leave a reader no way to see what they lost.
 
         The row is read again here, under the gang's own line, because
         the caller's copy was read before that line was taken: two
@@ -644,19 +653,24 @@ class Operation:
         Either miss — already closed, or not this gang's — does nothing
         and returns None, so the caller can say so rather than report an
         act that did not happen.
-
-        ``closed`` is the event that ended it, where the act wrote one of
-        its own — the counterpart of ``opened`` above.
         """
         from n26.core.models import Action
+        from n26.core.models.action import note_for
+        from n26.core.reconcile import trade_points_spent_for
 
         fresh = Action.objects.filter(
             pk=action.pk, gang=self.gang, closed__isnull=True
         ).first()
         if fresh is None:
             return None
-        if closed is None:
-            closed = self.event(None, LedgerEvent.Kind.ACTION_CLOSED, note=fresh.kind)
+        left = None
+        if fresh.trade_points is not None:
+            left = fresh.trade_points - trade_points_spent_for(fresh)
+        closed = self.event(
+            None,
+            LedgerEvent.Kind.ACTION_CLOSED,
+            note=note_for(fresh.kind, left),
+        )
         fresh.closed = closed
         fresh.save(update_fields=["closed", "modified"])
         self.gang.forget_open_actions()
@@ -670,16 +684,16 @@ class Operation:
         not the same as not going — one fighter going is what opens the
         post at all.
 
-        Nothing is priced and nothing moves. The event written here is
-        the boundary the spending is measured from, so opening a visit
-        also closes whatever was open before, and what that one had left
-        stops counting — which is the book's "unspent Trade Points are
-        lost", arrived at by not counting them rather than by taking
-        them away.
+        Nothing is priced and nothing moves. What the visit has spent is
+        the purchases pointing back at its row, so the book's "unspent
+        Trade Points are lost" needs nothing taken away: closing the row
+        stops anything else counting against it, and a later visit is a
+        different row with a figure of its own.
 
-        Each fighter's own event says they went, in the same batch, so a
-        receipt can name them and the gang's history can say what each
-        model did with their action.
+        Each fighter's own event says they went, in the same batch as
+        the one that opened the action, so a receipt can name them and
+        the gang's history can say what each model did with their
+        action.
 
         ``brought`` overrides what they add up to. The operation takes
         what it is given, the way a purchase does: a territory that adds
@@ -698,9 +712,7 @@ class Operation:
         self._refuse_if_open(kind)
         going = [visitor for visitor in visitors if visitor.visiting]
         amount = minted(going) if brought is None else brought
-        self.open_action(
-            kind, trade_points=amount, opened=self._set_trade_points(amount)
-        )
+        self.open_action(kind, trade_points=amount)
         for visitor in going:
             self.event(
                 visitor.miniature,
@@ -730,30 +742,8 @@ class Operation:
         open_now = self.gang.open_action(Action.Kind.TRADING_POST_VISIT)
         if open_now is None:
             return self.gang
-        self.close_action(open_now, closed=self._set_trade_points(None))
+        self.close_action(open_now)
         return self.gang
-
-    def _set_trade_points(self, amount):
-        """Write what the gang has to spend, and the boundary with it.
-
-        Returns the boundary event, which is what the visit's own row
-        points at: one act, one line in the history, and a receipt that
-        can name who performed it from the batch that line carries.
-
-        Written every time, even where the figure has not changed —
-        which is the one place this parts company with ``set_budget``. A
-        second visit adding the same amount is a second visit, and a
-        guard that skipped the write would leave the first one's
-        spending counting against it.
-        """
-        gang = self.gang
-        gang.starting_trade_points = amount
-        gang.save(update_fields=["starting_trade_points", "modified"])
-        return self.event(
-            None,
-            LedgerEvent.Kind.TRADE_POINTS_SET,
-            note="closed" if amount is None else str(amount),
-        )
 
     def edit_notes(self, miniature, notes):
         """Store the owner's notes as written, and say they changed.
@@ -1788,6 +1778,9 @@ class Operation:
         surface: a trip to the trading post, founding and equipping the
         gang. None where none is open, which is a purchase that counts
         against nothing — allowed, once the owner has said they meant it.
+        The buyer is recorded alongside it, because an allowance may be
+        one model's own and what it has spent must follow the model that
+        spent it rather than wherever the thing ends up.
 
         ``holder`` is a model, the gang's stash, or an assignment the
         purchase hangs off. Buying into the stash is the same purchase
@@ -1801,11 +1794,15 @@ class Operation:
         from n26.library.models.collection import price_of
 
         if isinstance(holder, Stash):
-            host = {"stash": holder}
+            # Nobody's allowance buys into the stash: it is the gang's
+            # spare kit, and what it holds was never given to a model.
+            host, buyer = {"stash": holder}, None
         elif isinstance(holder, Assignment):
-            host = {"parent": holder}
+            # A weapon's paid rounds hang off the gun, and it is the
+            # model carrying the gun whose points they came out of.
+            host, buyer = {"parent": holder}, holder.miniature_root
         else:
-            host = {"miniature": holder}
+            host, buyer = {"miniature": holder}, holder
 
         if line is not None:
             thing = line.thing
@@ -1841,6 +1838,10 @@ class Operation:
             trade_points=trade_points,
             bought_from=entry,
             action=action,
+            # Recorded only where something counted it: with no action
+            # open the purchase counts against nothing, and naming a
+            # buyer would claim an allowance nobody spent.
+            spent_by=buyer if action is not None else None,
             **host,
             **kwargs,
         )

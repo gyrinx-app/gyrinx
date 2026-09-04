@@ -2222,7 +2222,9 @@ class TestClearing:
 
         assert Trait.objects.count() == 0
         # Every modifier goes with them, bar standard content's own,
-        # which name nothing an import wrote.
+        # which name nothing an import wrote. The founding-budget ones
+        # are not among those: each names the fighter entries it reaches,
+        # so they belong to the import and go with it.
         from n26.library.standard_content import VISIT_CONTRIBUTION_MODIFIERS
 
         assert sorted(Modifier.objects.values_list("name", flat=True)) == sorted(
