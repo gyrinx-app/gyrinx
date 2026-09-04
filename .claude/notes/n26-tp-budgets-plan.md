@@ -162,7 +162,11 @@ Lifted from the visit, made generic:
 - `Operation.found` opens a `FOUNDING` action. A gang page card shows it with
   a "Complete action" button. A closed founding action can be opened again
   from the same place, which is how an owner who refunded founding purchases
-  spends the budget again.
+  spends the budget again, and how a fighter hired later gets equipped from
+  their budget.
+- Every existing unarchived gang gets an open founding action from the data
+  migration in slice 1. Their past purchases carry no action, so a budget on
+  an existing gang starts whole. Owners close the action when they are done.
 - On a fighter's equip screen, while the gang's founding action is open and
   the fighter's Founding TP budget reading is above 0:
   - every line counts its TP, list lines included. This is the book's
@@ -202,8 +206,11 @@ Each slice is one PR. Sizes are guesses.
 1. **Action model and founding action** (medium). Model, two event kinds,
    `open_action` / `close_action`, `Operation.found` opens one, the gang page
    card with "Complete action" and "Start again", history sentences,
-   analytics. No budgets yet. Tests: open on found, refuse a second open,
-   close, reopen, history reads right, query counts on the gang page hold.
+   analytics, and a data migration opening a founding action for every
+   unarchived gang (1,979 in production on 2026-09-04). No budgets yet.
+   Tests: open on found, refuse a second open, close, reopen, history reads
+   right, the migration opens one per live gang and none for archived
+   gangs, query counts on the gang page hold.
 2. **Visit onto Action** (medium). Section 5 without the column drop. Tests:
    the four claims in `trading.py` still hold, `receipt_for` reads the
    action, the migration turns an open visit into an open action and stamps
@@ -229,8 +236,14 @@ Each slice is one PR. Sizes are guesses.
    content mirror before production.
 7. **Drop `Gang.starting_trade_points` and the timestamp fallback** (small,
    second deploy).
+8. **Gang header shows the open action** (small, design work first). The
+   gang page header names each open action with a link to its card, so an
+   owner sees "Found and equip gang" or "Visit Trading Post" is open
+   without scrolling. Shape to be decided when we get here. Tests: header
+   with none, one and two open actions; query count holds.
 
 Slices 3 and 4 can run in parallel with 1 and 2. Slice 5 needs 1 and 3.
+Slice 8 comes last.
 
 ## Verification before shipping slice 5
 
@@ -242,19 +255,13 @@ Slices 3 and 4 can run in parallel with 1 and 2. Slice 5 needs 1 and 3.
 - Screenshots of the equip screen in all three states: no action, founding
   budget in play, visit open. Gallery page for the Action card.
 
-## Open questions
+## Decisions taken on the open questions (Tom, 2026-09-04)
 
-- Should the founding action open for gangs that already exist, or only for
-  new ones? Recommendation: only new ones. Existing owners open it by hand.
-- Where does the founding card live: the gang page, or the edit tabs beside
-  Trade Points? Recommendation: the gang page, because it comes and goes.
-- Does a fighter hired after founding closed get a budget? The book says
-  "when added to a Gang Roster", so yes in principle. Recommendation: the
-  budget counts whenever the founding action is open, and the owner reopens
-  it to equip a new hire. Revisit if that turns out wrong.
-- Does the Trading Post visit get its own per-visit modifier for Tech Bazaar
-  and the Clanless first-visit +1 now, or stay on the typed figure?
-  Recommendation: typed figure until campaign phases exist.
+- Existing gangs get the founding action opened for them by migration.
+- The founding card lives on the gang page. A gang header showing the open
+  action is slice 8.
+- A fighter hired after founding closed gets their budget when the owner
+  reopens the action.
 
 ## Out of scope
 
