@@ -1196,6 +1196,13 @@ class TestEveryEffectCanBeSaid:
             "nothing can say is one the reach column drops in silence."
         )
 
+    def test_there_are_model_conditions_to_check(self):
+        from n26.library.models.modifier import TargetsMiniature
+
+        assert {"has_subtypes", "is_profile", "has_pickable"} <= set(
+            TargetsMiniature.CONDITIONS
+        )
+
     def test_every_model_condition_kind_has_words_for_who_it_narrows(self):
         from n26.library.models.modifier import TargetsMiniature
 

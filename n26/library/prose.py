@@ -604,24 +604,37 @@ class _Narrowings:
 #: be dropped without a word, so a test holds this to the scope's own
 #: ``CONDITIONS``; a weapon scope's conditions join the noun phrase in
 #: their own words instead.
+def _names_ranks(row, said):
+    said.named.extend(str(one) for one in row.subtypes.all())
+
+
+def _names_entries(row, said):
+    said.named.extend(str(one) for one in row.profiles.all())
+
+
+def _names_type(row, said):
+    types = [str(one).lower() for one in row.profile_types.all()]
+    if types:
+        # An empty row narrows nothing, as its condition matches nothing.
+        said.typed.append((row.negate, types))
+
+
+def _names_pick(row, said):
+    picks = [str(one) for one in row.pickables.all()]
+    if picks:
+        said.holdings.append((row.negate, picks))
+
+
+def _names_threshold(row, said):
+    said.clauses.append(f"while their {row.counter} is {row.at_least} or more")
+
+
 MODEL_NARROWINGS = {
-    "has_subtypes": lambda row, said: said.named.extend(
-        str(one) for one in row.subtypes.all()
-    ),
-    "is_profile": lambda row, said: said.named.extend(
-        str(one) for one in row.profiles.all()
-    ),
-    "is_profile_type": lambda row, said: (
-        (types := [str(one).lower() for one in row.profile_types.all()])
-        and said.typed.append((row.negate, types))
-    ),
-    "has_pickable": lambda row, said: (
-        (picks := [str(one) for one in row.pickables.all()])
-        and said.holdings.append((row.negate, picks))
-    ),
-    "counter_at_least": lambda row, said: said.clauses.append(
-        f"while their {row.counter} is {row.at_least} or more"
-    ),
+    "has_subtypes": _names_ranks,
+    "is_profile": _names_entries,
+    "is_profile_type": _names_type,
+    "has_pickable": _names_pick,
+    "counter_at_least": _names_threshold,
 }
 
 
