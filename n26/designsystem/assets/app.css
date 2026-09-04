@@ -1362,3 +1362,19 @@ a[data-busy="on"] {
         transform: rotate(360deg);
     }
 }
+
+/* A link whose page's arrival is shown where the page will land — a rail
+ * beside the catalogue it changes, marked data-busy-replaces — keeps its
+ * label and draws no ring: the reader is watching the catalogue, and the link
+ * has already taken the rail's current look. Still refused a second click. */
+[data-busy-replaces] a[data-busy="on"] {
+    -webkit-text-fill-color: currentColor;
+}
+
+[data-busy-replaces] a[data-busy="on"] > * {
+    opacity: 1;
+}
+
+[data-busy-replaces] a[data-busy="on"]::after {
+    content: none;
+}

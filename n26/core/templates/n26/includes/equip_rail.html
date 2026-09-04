@@ -1,0 +1,33 @@
+{% comment %}
+The rail of lists beside an equip catalogue — expects `collection_tabs`.
+
+Each tab is a link to a whole render, so a click is shown where its page will
+land rather than on the tab: the tab takes the current look at once, and the
+catalogue's contents give way to the spinner below until the page arrives
+(n26/core/static/n26/busy.js). The catalogue's form carries the id named
+here; a page drawing the rail with no catalogue gets the tab's look and
+nothing more.
+{% endcomment %}
+<c-ui.navlist variant="sidebar"
+              aria-label="Which list"
+              class="text-sm"
+              data-busy-replaces="#equip-catalogue">
+    {% for tab in collection_tabs %}
+        {% comment %}
+        The full name where the tab shortened it, empty where nothing was
+        lost — decided in the view, because a template tag written inside a
+        component's attributes is not read as one.
+        {% endcomment %}
+        <c-ui.navlist.item href="{{ tab.href }}"
+                           :current="tab.current"
+                           title="{{ tab.title }}"
+                           data-busy="link">
+            {{ tab.label }}
+        </c-ui.navlist.item>
+    {% endfor %}
+    <template data-busy-wait>
+        <div class="flex justify-center py-10">
+            <c-ui.spinner size="sm" color="ink" />
+        </div>
+    </template>
+</c-ui.navlist>

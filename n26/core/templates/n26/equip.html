@@ -124,22 +124,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
             below the lists need no placement of their own.
             {% endcomment %}
             <div class="flex flex-col gap-4 self-start">
-                <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
-                    {% for tab in collection_tabs %}
-                        {% comment %}
-                        The full name where the tab shortened it, empty where
-                        nothing was lost — decided in the view, because a
-                        template tag written inside a component's attributes
-                        is not read as one.
-                        {% endcomment %}
-                        <c-ui.navlist.item href="{{ tab.href }}"
-                                           :current="tab.current"
-                                           title="{{ tab.title }}"
-                                           data-busy="link">
-                            {{ tab.label }}
-                        </c-ui.navlist.item>
-                    {% endfor %}
-                </c-ui.navlist>
+                {% include "n26/includes/equip_rail.html" %}
                 {% if everything %}
                     {% include "n26/includes/unrestricted_note.html" %}
                 {% endif %}
@@ -156,6 +141,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
             this is an ordinary form and the whole page is served.
             {% endcomment %}
             <form method="post"
+                  id="equip-catalogue"
                   action="{{ action }}"
                   hx-post="{{ action }}"
                   hx-swap="none">
