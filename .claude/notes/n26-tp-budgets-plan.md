@@ -164,9 +164,11 @@ Lifted from the visit, made generic:
   from the same place, which is how an owner who refunded founding purchases
   spends the budget again, and how a fighter hired later gets equipped from
   their budget.
-- Every existing unarchived gang gets an open founding action from the data
-  migration in slice 1. Their past purchases carry no action, so a budget on
-  an existing gang starts whole. Owners close the action when they are done.
+- Existing gangs get an open founding action from a backfill (slice 7), run
+  from the maintenance admin once the feature is broadly built. Until then
+  only new gangs have one. Their past purchases carry no action, so a budget
+  on an existing gang starts whole. Owners close the action when they are
+  done.
 - On a fighter's equip screen, while the gang's founding action is open and
   the fighter's Founding TP budget reading is above 0:
   - every line counts its TP, list lines included. This is the book's
@@ -206,11 +208,9 @@ Each slice is one PR. Sizes are guesses.
 1. **Action model and founding action** (medium). Model, two event kinds,
    `open_action` / `close_action`, `Operation.found` opens one, the gang page
    card with "Complete action" and "Start again", history sentences,
-   analytics, and a data migration opening a founding action for every
-   unarchived gang (1,979 in production on 2026-09-04). No budgets yet.
-   Tests: open on found, refuse a second open, close, reopen, history reads
-   right, the migration opens one per live gang and none for archived
-   gangs, query counts on the gang page hold.
+   analytics. New gangs only; existing gangs wait for slice 7. No budgets
+   yet. Tests: open on found, refuse a second open, close, reopen, history
+   reads right, query counts on the gang page hold.
 2. **Visit onto Action** (medium). Section 5 without the column drop. Tests:
    the four claims in `trading.py` still hold, `receipt_for` reads the
    action, the migration turns an open visit into an open action and stamps
@@ -234,16 +234,30 @@ Each slice is one PR. Sizes are guesses.
 6. **Content** (authoring, no code). Modifiers on the Venator and Outcast
    profiles, the Clanless affiliation, the two subtypes. Verify on the
    content mirror before production.
-7. **Drop `Gang.starting_trade_points` and the timestamp fallback** (small,
+7. **Backfill: open the founding action for existing gangs** (small). A
+   `Backfill.Operation` choice, triggered from the maintenance admin: GET
+   previews the count, POST enqueues a task. Follows `convert_specialisation`
+   and `run_batched` in `n26/maintenance.py`: advisory lock, attempt count,
+   chunked, every outcome written onto the record. Opens one founding
+   action per unarchived gang that has never had one, through
+   `Operation.open_action` so the ledger event is written. Skips gangs with
+   any founding action, open or closed, so a rerun changes nothing. Tom
+   runs it once the feature is broadly built. Tests: preview count, one
+   opened per eligible gang, rerun is a no-op, archived gangs skipped.
+   Smoke-test on a fork of the content mirror at production volume (1,979
+   live gangs on 2026-09-04) and compare open actions before and after
+   from outside the task.
+8. **Drop `Gang.starting_trade_points` and the timestamp fallback** (small,
    second deploy).
-8. **Gang header shows the open action** (small, design work first). The
+9. **Gang header shows the open action** (small, design work first). The
    gang page header names each open action with a link to its card, so an
    owner sees "Found and equip gang" or "Visit Trading Post" is open
    without scrolling. Shape to be decided when we get here. Tests: header
    with none, one and two open actions; query count holds.
 
 Slices 3 and 4 can run in parallel with 1 and 2. Slice 5 needs 1 and 3.
-Slice 8 comes last.
+Slice 7 can be built any time after 1 but is run only when Tom says so.
+Slice 9 comes last.
 
 ## Verification before shipping slice 5
 
@@ -257,9 +271,11 @@ Slice 8 comes last.
 
 ## Decisions taken on the open questions (Tom, 2026-09-04)
 
-- Existing gangs get the founding action opened for them by migration.
+- Existing gangs get the founding action opened for them by a backfill, run
+  from the maintenance admin when the feature is broadly built. Not a
+  migration.
 - The founding card lives on the gang page. A gang header showing the open
-  action is slice 8.
+  action is slice 9.
 - A fighter hired after founding closed gets their budget when the owner
   reopens the action.
 
