@@ -20,14 +20,21 @@ from n26.core.render import build_model_card
 from n26.library.models import Skill
 from n26.tests.sandbox.actions import (
     adds,
+    assign,
     counter_at_least,
+    create_affiliation,
     create_counter,
     create_default_set,
     create_rule,
+    create_subtype,
+    ef_contributes_to_counter,
     found_gang,
+    has_subtypes,
     hire_with_option,
     modifier,
     offers_choice,
+    remove,
+    removes,
     tally,
     targets_every_model,
     targets_model,
@@ -859,3 +866,398 @@ class TestARuleThatMovesACounter:
         # the value the rule set: a tally is history, not state the
         # carrier holds open.
         assert xp_row(yolanda).counter_value.value == 61
+
+
+class TestWhatAModifierContributes:
+    """The computed counter effect: a figure that follows from what the
+    model is, rather than from anything that happened.
+
+    ``op_changes_counter`` writes once and stands until somebody tallies
+    it back. This is the other half — a reading raised for as long as its
+    carrier is held, worked out on every read and gone the moment the
+    carrier goes. Nothing reaches the ledger.
+    """
+
+    @pytest.fixture
+    def budget(self, db):
+        return create_counter("Founding budget")
+
+    @pytest.fixture
+    def plain(self, make_profile):
+        return make_profile("Plain Ganger", price=10)
+
+    def carrier_adding(self, budget, amount, name):
+        """A subtype whose whole payload is one contribution."""
+        subtype = create_subtype(name)
+        modifier(
+            f"{name} adds {amount}",
+            targets_model(),
+            ef_contributes_to_counter(budget, amount),
+            carried_by=subtype,
+        )
+        return subtype
+
+    def reading(self, miniature, counter):
+        _, computed = drawn(miniature)
+        return sum(
+            contribution.amount
+            for contribution in computed.counter_contributions
+            if contribution.counter == counter
+        )
+
+    def test_a_counter_nobody_holds_still_reads(self, gang, plain, budget):
+        """No assignment, no stored value — the reading is the sum."""
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(self.carrier_adding(budget, 4, "Chosen"), miniature=vex)
+
+        card, _ = drawn(vex)
+        (line,) = [line for line in card.counters if line.name == "Founding budget"]
+        assert (line.value, line.assignment_id) == (4, "")
+
+    def test_it_is_added_to_what_is_stored(self, gang, queen, xp):
+        """The two halves are summed: 61 tallied, 5 contributed."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(self.carrier_adding(xp, 5, "Blooded"), miniature=yolanda)
+
+        card, _ = drawn(yolanda)
+        (line,) = [line for line in card.counters if line.name == "XP"]
+        assert line.value == 66
+        # The stored half is untouched: nothing was written down.
+        assert xp_row(yolanda).counter_value.value == 61
+
+    def test_two_carriers_add_up(self, gang, plain, budget):
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(self.carrier_adding(budget, 4, "Chosen"), miniature=vex)
+        assign(self.carrier_adding(budget, 1, "Clanless"), miniature=vex)
+
+        assert self.reading(vex, budget) == 5
+
+    def test_taking_the_carrier_away_takes_the_figure_with_it(
+        self, gang, plain, budget
+    ):
+        vex = hire_with_option(gang, plain, "Vex")
+        carrier = assign(self.carrier_adding(budget, 4, "Chosen"), miniature=vex)
+        assert self.reading(vex, budget) == 4
+
+        remove(carrier)
+
+        assert self.reading(vex, budget) == 0
+        card, _ = drawn(vex)
+        assert [line for line in card.counters if line.name == "Founding budget"] == []
+
+    def test_a_cancelled_carrier_contributes_nothing(self, gang, plain, budget):
+        """Not just removal by hand: a rule that takes the carrier away
+        takes its figure with it in the same read."""
+        chosen = self.carrier_adding(budget, 4, "Chosen")
+        renounced = create_rule("Renounced")
+        modifier(
+            "Renounced cancels Chosen",
+            targets_model(),
+            removes(chosen),
+            carried_by=renounced,
+        )
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(chosen, miniature=vex)
+        assert self.reading(vex, budget) == 4
+
+        assign(renounced, miniature=vex)
+
+        assert self.reading(vex, budget) == 0
+
+    def test_nothing_is_written_down(self, gang, plain, budget):
+        """No counter assignment, no stored value, no ledger event — the
+        reading is worked out and never recorded."""
+        from n26.core.models import LedgerEvent
+
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(self.carrier_adding(budget, 4, "Chosen"), miniature=vex)
+        drawn(vex)
+
+        assert not Assignment.objects.filter(
+            miniature=vex, counter__name="Founding budget"
+        ).exists()
+        assert not LedgerEvent.objects.filter(gang=gang, kind="tallied").exists()
+
+
+class TestAThresholdReadsTheWholeReading:
+    """``CounterAtLeast`` asks where a counter stands, and a contribution
+    stands there as surely as a tally does."""
+
+    @pytest.fixture
+    def budget(self, db):
+        return create_counter("Founding budget")
+
+    @pytest.fixture
+    def plain(self, make_profile):
+        return make_profile("Plain Ganger", price=10)
+
+    @pytest.fixture
+    def wealthy(self, gang_type, budget):
+        """A gang rule that fires once the budget reaches five."""
+        modifier(
+            "Well funded at 5",
+            targets_every_model(counter_at_least(budget, 5)),
+            adds(create_rule("Well funded")),
+            carried_by=gang_type,
+        )
+
+    @pytest.fixture
+    def chosen(self, budget):
+        subtype = create_subtype("Chosen")
+        modifier(
+            "Chosen adds 5",
+            targets_model(),
+            ef_contributes_to_counter(budget, 5),
+            carried_by=subtype,
+        )
+        return subtype
+
+    def test_it_fires_on_a_contribution_alone(self, gang, plain, wealthy, chosen):
+        vex = hire_with_option(gang, plain, "Vex")
+        assert drawn(vex)[0].rules == []
+
+        assign(chosen, miniature=vex)
+
+        assert [rule.name for rule in drawn(vex)[0].rules] == ["Well funded"]
+
+    def test_it_stops_when_the_carrier_goes(self, gang, plain, wealthy, chosen):
+        vex = hire_with_option(gang, plain, "Vex")
+        carrier = assign(chosen, miniature=vex)
+        remove(carrier)
+
+        assert drawn(vex)[0].rules == []
+
+
+class TestWhatTheGangHoldsReachesTheRanks:
+    """The Clanless shape: an affiliation the gang holds, reaching every
+    model of the named ranks and nobody else.
+
+    The affiliation rides each member's card as the gang's, so its
+    modifier runs there — and its scope, not its host, decides who it
+    lands on.
+    """
+
+    @pytest.fixture
+    def budget(self, db):
+        return create_counter("Founding budget")
+
+    @pytest.fixture
+    def ranks(self, db):
+        return create_subtype("Leader"), create_subtype("Champion")
+
+    @pytest.fixture
+    def plain(self, make_profile):
+        return make_profile("Plain Ganger", price=10)
+
+    @pytest.fixture
+    def affiliated(self, gang, budget, ranks):
+        clanless = create_affiliation(
+            "Clanless",
+            effects=[
+                (
+                    targets_every_model(has_subtypes(*ranks)),
+                    ef_contributes_to_counter(budget, 1),
+                )
+            ],
+        )
+        assign(clanless, gang=gang)
+        return clanless
+
+    def reading(self, miniature, counter):
+        _, computed = drawn(miniature)
+        return sum(
+            contribution.amount
+            for contribution in computed.counter_contributions
+            if contribution.counter == counter
+        )
+
+    def test_it_reaches_every_model_of_a_named_rank_and_nobody_else(
+        self, gang, plain, budget, ranks, affiliated
+    ):
+        leader, champion = ranks
+        boss = hire_with_option(gang, plain, "Boss")
+        assign(leader, miniature=boss)
+        mags = hire_with_option(gang, plain, "Mags")
+        assign(champion, miniature=mags)
+        vex = hire_with_option(gang, plain, "Vex")
+
+        assert {
+            member.name: self.reading(member, budget) for member in (boss, mags, vex)
+        } == {"Boss": 1, "Mags": 1, "Vex": 0}
+
+    def test_the_gang_itself_reads_nothing(self, gang, budget, ranks, affiliated):
+        """The scope names models, so the gang's own card is untouched —
+        each fighter's figure is theirs, never a roster total."""
+        from n26.core.card import build_gang_card
+        from n26.core.effects import compute_gang
+
+        card = build_gang_card(gang)
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+
+        assert compute_gang(card, index).counters == []
+
+
+class TestACounterOnlyRulesRead:
+    """``drawn`` off: the counter is on the card so scopes can read it,
+    and no screen shows it or offers to move it."""
+
+    @pytest.fixture
+    def budget(self, db):
+        return create_counter("Founding budget", drawn=False)
+
+    @pytest.fixture
+    def plain(self, make_profile):
+        return make_profile("Plain Ganger", price=10)
+
+    @pytest.fixture
+    def chosen(self, budget):
+        subtype = create_subtype("Chosen")
+        modifier(
+            "Chosen adds 4",
+            targets_model(),
+            ef_contributes_to_counter(budget, 4),
+            carried_by=subtype,
+        )
+        return subtype
+
+    def test_the_card_holds_it(self, gang, plain, chosen):
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(chosen, miniature=vex)
+
+        card, _ = drawn(vex)
+        assert [(line.name, line.value) for line in card.counters] == [
+            ("Founding budget", 4)
+        ]
+
+    def test_nothing_draws_it(self, gang, plain, chosen):
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(chosen, miniature=vex)
+
+        card, _ = drawn(vex)
+        assert card.counter_lines == []
+
+    def test_the_print_sheet_and_the_text_leave_it_out(self, gang, plain, chosen):
+        from n26.core.printing import detail_groups
+        from n26.core.render_text import render_model_card
+
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(chosen, miniature=vex)
+        card, _ = drawn(vex)
+
+        assert not [
+            group for group in detail_groups(card) if group.label == "Founding budget"
+        ]
+        assert not [
+            line for line in render_model_card(card) if "Founding budget" in line
+        ]
+
+    def test_a_stored_one_is_given_no_control(self, gang, plain, budget, xp):
+        """Assigned and tallied like any other, and still not something
+        the fighter page offers to change."""
+        from n26.core.views.owned import link_counters
+
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(budget, miniature=vex)
+        assign(xp, miniature=vex)
+        card, _ = drawn(vex)
+        link_counters(card)
+
+        addressed = {line.name: bool(line.href) for line in card.counters}
+        assert addressed == {"Founding budget": False, "XP": True}
+
+    def test_the_fighter_page_does_not_show_it(
+        self, client, gang, plain, budget, kills
+    ):
+        """A drawn counter beside it, so the absence is the flag's doing
+        and not the page's."""
+        vex = hire_with_option(gang, plain, "Vex")
+        counted = assign(budget, miniature=vex)
+        assign(kills, miniature=vex)
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
+
+        assert "Kill Count" in page
+        assert "Founding budget" not in page
+        assert reverse("n26-tally", args=[counted.pk]) not in page
+
+    def test_the_gang_sheet_does_not_show_the_gangs_own(self, gang, budget):
+        from n26.core.render import render_gang
+
+        assign(budget, gang=gang)
+
+        assert render_gang(gang).counters == []
+
+    def test_a_rule_still_reads_it(self, gang, plain, budget, gang_type):
+        modifier(
+            "Well funded at 3",
+            targets_every_model(counter_at_least(budget, 3)),
+            adds(create_rule("Well funded")),
+            carried_by=gang_type,
+        )
+        vex = hire_with_option(gang, plain, "Vex")
+        counted = assign(budget, miniature=vex)
+        tally(counted, +3)
+
+        assert [rule.name for rule in drawn(vex)[0].rules] == ["Well funded"]
+
+
+class TestAuthoringAContribution:
+    def test_the_verb_makes_the_effect(self, db):
+        from n26.library.models import ContributesToCounter
+
+        counter = create_counter("Trading Post visit contribution")
+        effect = ef_contributes_to_counter(counter, 2)
+
+        assert isinstance(effect, ContributesToCounter)
+        assert (effect.counter, effect.amount) == (counter, 2)
+        assert str(effect) == "adds 2 to Trading Post visit contribution"
+
+    def test_it_lands_in_the_modifiers_own_column(self, db):
+        counter = create_counter("Trading Post visit contribution")
+        row = modifier(
+            "Leader brings 2 TP",
+            targets_model(),
+            ef_contributes_to_counter(counter, 2),
+            carried_by=create_subtype("Leader"),
+        )
+
+        assert row.contributes_to_counter is not None
+        assert str(row.effect) == "adds 2 to Trading Post visit contribution"
+
+    def test_the_plan_says_what_it_did(self, gang, make_profile):
+        counter = create_counter("Trading Post visit contribution")
+        leader = create_subtype("Leader")
+        modifier(
+            "Leader brings 2 TP",
+            targets_model(),
+            ef_contributes_to_counter(counter, 2),
+            carried_by=leader,
+        )
+        vex = hire_with_option(gang, make_profile("Plain Ganger", price=10), "Vex")
+        assign(leader, miniature=vex)
+
+        _, computed = drawn(vex)
+        (step,) = [
+            step
+            for step in computed.plan
+            if step.effect == "adds 2 to Trading Post visit contribution"
+        ]
+        assert (step.outcome, step.round) == ("reached", 0)
+
+    def test_the_reach_column_says_it_in_words(self, db):
+        from n26.library import prose
+
+        counter = create_counter("Trading Post visit contribution")
+        carrier = create_subtype("Leader")
+        row = modifier(
+            "Leader brings 2 TP",
+            targets_model(),
+            ef_contributes_to_counter(counter, 2),
+            carried_by=carrier,
+        )
+
+        said = prose.sentence_for(row, carriage=prose.SUBTYPE, thing=carrier)
+
+        assert "2 is added to" in said.text
+        assert "Trading Post visit contribution reading" in said.text

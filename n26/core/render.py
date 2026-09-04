@@ -13,7 +13,13 @@ number of queries regardless of how many models or how much kit — see
 from dataclasses import dataclass, field
 
 from n26.core.card import build_card
-from n26.core.effects import choice_notes, kind_of, limit_notes
+from n26.core.effects import (
+    ModifierIndex,
+    choice_notes,
+    counter_totals,
+    kind_of,
+    limit_notes,
+)
 from n26.library.models import (
     EMPTY_VALUE,
     Counter,
@@ -151,6 +157,11 @@ class CounterLine:
     #: reader sees, and carries the counter's annotation with it, so an
     #: annotated XP would stop being recognised as XP.
     is_xp: bool = False
+    #: Whether the counter is one a reader is shown. A counter marked
+    #: undrawn stays on the card so conditions can check it, and is
+    #: kept out of every drawing of it — ``counter_lines`` is what
+    #: leaves it out.
+    drawn: bool = True
 
 
 @dataclass
@@ -652,7 +663,8 @@ class ModelCard:
 
     @property
     def counter_lines(self):
-        """The counters to draw — every one, bar an XP nobody can move.
+        """The counters to draw — every one a reader is shown, bar an XP
+        nobody can move.
 
         XP has a cell in the statline already, and the cell is the better
         reading: it carries the target beside the value. The line earns
@@ -660,8 +672,16 @@ class ModelCard:
         screen that offers no control — a gang sheet, a print sheet, a
         hire preview — it would say the same number twice and is left
         out. Every other counter has no cell and draws either way.
+
+        A counter the author marked undrawn is left out of all of them:
+        it stays on the card so conditions can check it, and is not
+        something a reader is meant to see or change.
         """
-        return [line for line in self.counters if line.href or not line.is_xp]
+        return [
+            line
+            for line in self.counters
+            if line.drawn and (line.href or not line.is_xp)
+        ]
 
     @property
     def equipment_has_actions(self):
@@ -1266,6 +1286,11 @@ def card_to_model_card(
     }
     counted_xp = None
     counters = []
+    # What modifiers add to this card's counters. A counter with a
+    # contribution and no assignment behind it still reads, so the ones
+    # nothing on the card names get a line of their own below.
+    contributed = counter_totals(computed)
+    counted = set()
 
     # A node chosen for a choice is drawn as that choice's row, not as a
     # loose piece of equipment as well. Questions filed to a row are the
@@ -1418,7 +1443,15 @@ def card_to_model_card(
             # the value a hire opens at its printed Starting XP and every
             # tally moves — because the cell carries the target beside it
             # and a line has no room for one.
-            standing = _counter_value(node)
+            # Contributions land on the first assignment of a counter
+            # and nowhere else: two assignments of one counter are two
+            # lines, and adding a figure to each would read as twice
+            # what is due.
+            thing_key = ModifierIndex.key(thing)
+            standing = _counter_value(
+                node, 0 if thing_key in counted else contributed.get(thing_key, 0)
+            )
+            counted.add(thing_key)
             is_xp = thing.name.casefold() == XP_COUNTER.casefold()
             counters.append(
                 CounterLine(
@@ -1428,6 +1461,7 @@ def card_to_model_card(
                         str(node.assignment.pk) if node.assignment is not None else ""
                     ),
                     is_xp=is_xp,
+                    drawn=thing.drawn,
                 )
             )
             if is_xp:
@@ -1463,6 +1497,24 @@ def card_to_model_card(
                             provenance=_computed_provenance(contribution),
                         )
                     )
+        # A counter nothing on the card assigns, contributed to all the
+        # same. It reads as the sum and carries no assignment, so there
+        # is nothing to tally: the figure follows from what the model is.
+        for contribution in computed.counter_contributions:
+            thing_key = ModifierIndex.key(contribution.counter)
+            if thing_key in counted:
+                continue
+            counted.add(thing_key)
+            counters.append(
+                CounterLine(
+                    name=str(contribution.counter),
+                    value=contributed[thing_key],
+                    is_xp=(
+                        contribution.counter.name.casefold() == XP_COUNTER.casefold()
+                    ),
+                    drawn=contribution.counter.drawn,
+                )
+            )
 
     return ModelCard(
         name=name,
@@ -1542,14 +1594,15 @@ def card_to_model_card(
     )
 
 
-def _counter_value(node):
+def _counter_value(node, contributed=0):
     """What a counter node stands at: the stored value — or, on a card
     built from library alone, what the built-in says it opens at, which
-    is exactly what the hire will write."""
+    is exactly what the hire will write — plus whatever modifiers
+    contribute, which is never written down and goes with its carrier."""
     held = getattr(node.assignment, "counter_value", None) if node.assignment else None
     if held is not None:
-        return held.value
-    return node.opens_at
+        return held.value + contributed
+    return node.opens_at + contributed
 
 
 def _weapon_changes(weapon_state):
@@ -1867,9 +1920,15 @@ def render_gang(gang, with_effects=True, *, card=None):
         rows=gang_rows,
         rules=gang_rules,
         choices=choice_lines(gang_computed, host=GANG_SLOT_HOST),
-        counters=(
-            gang_computed.counters if gang_computed else counter_readings(gang_card)
-        ),
+        # Only the ones a reader is shown: a counter the author marked
+        # undrawn is there for conditions to check.
+        counters=[
+            reading
+            for reading in (
+                gang_computed.counters if gang_computed else counter_readings(gang_card)
+            )
+            if reading.thing.drawn
+        ],
         stash=stash_lines(gang_card),
         stash_rating=gang_card.stash_rating,
         remarks=gang_computed.notes if gang_computed else [],

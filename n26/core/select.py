@@ -88,6 +88,25 @@ class Matchable:
             counts=self.counts,
         )
 
+    def counting(self, extra):
+        """This matchable with more added to what its counters read.
+
+        ``extra`` is ``{key(counter): amount}``. A threshold asks what
+        the counter stands at, and what a rule contributes stands there
+        as surely as what was tallied, so the two are summed before
+        anything is asked.
+        """
+        if not extra:
+            return self
+        totals = dict(self.counts)
+        for counter_key, amount in extra.items():
+            totals[counter_key] = totals.get(counter_key, 0) + amount
+        return Matchable(
+            thing=self.thing,
+            assignables=self.assignables,
+            counts=tuple(totals.items()),
+        )
+
 
 def matchable(thing, assignables=()):
     """The default adapter: a thing and, if relevant, its printed traits.

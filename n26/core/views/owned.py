@@ -95,9 +95,12 @@ def link_counters(card, back=""):
     read off the request because a card redrawn after an act is rendered
     under that act's own address, and a control sent back carrying it
     would return the next reader to a POST-only endpoint.
+
+    A counter the author marked undrawn is passed over: it stays on the
+    card so conditions can check it, and no screen offers to move it.
     """
     for line in card.counters:
-        if line.assignment_id:
+        if line.drawn and line.assignment_id:
             line.href = reverse("n26-tally", args=[line.assignment_id])
             line.back = back
 

@@ -51,6 +51,7 @@ COMPUTED_EFFECT_FIELDS = (
     "places_category",
     "requires_companions",
     "allows_at_most",
+    "contributes_to_counter",
 )
 
 #: Effects that write player data — an assignment, a ledger event — run
@@ -1578,6 +1579,47 @@ class ChangesStat(models.Model):
         return target_kind in (MODEL, WEAPON_PROFILE)
 
 
+class ContributesToCounter(models.Model):
+    """Adds to a counter's reading for as long as the carrier is held.
+
+    The **computed** counter effect, and the other half of
+    ``OpChangesCounter``. Nothing is written down: a reading is the
+    stored value plus every contribution standing when it is read, so
+    taking the carrier away takes the figure with it. This is for a
+    number that follows from what the model *is* — the Trade Points a
+    rank adds — rather than from something that happened.
+
+    A counter contributed to with no assignment behind it still has a
+    reading — the sum is the whole of it, and there is nothing to
+    tally.
+    """
+
+    is_stored = False
+
+    counter = models.ForeignKey(
+        "library.Counter",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="The counter to add to.",
+    )
+    amount = models.PositiveIntegerField(
+        default=0,
+        help_text="How much to add, for as long as the carrier is held.",
+    )
+
+    class Meta:
+        verbose_name = "contributes to counter"
+        verbose_name_plural = "contributes to counters"
+
+    def __str__(self):
+        return f"adds {self.amount} to {self.counter}"
+
+    def accepts(self, target_kind):
+        # A model's own counter, or the gang's — both are read the same
+        # way, and a per-model budget is the point of the model case.
+        return target_kind in (MODEL, GANG)
+
+
 # --- The modifier itself -------------------------------------------------
 
 
@@ -1679,6 +1721,14 @@ class Modifier(Content):
         null=True,
         blank=True,
         related_name="modifier",
+    )
+    contributes_to_counter = models.OneToOneField(
+        ContributesToCounter,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+        verbose_name="contributes to counter",
     )
     op_adds_miniature = models.OneToOneField(
         OpAddsMiniature,

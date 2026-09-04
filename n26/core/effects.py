@@ -136,6 +136,23 @@ class StatChange:
 
 
 @dataclass
+class CounterContribution:
+    """What a modifier adds to a counter, and what added it.
+
+    Nothing is written down: a reading is the stored value plus every
+    contribution standing at the moment it is read, so the sum falls
+    back the instant a carrier goes. A counter can be contributed to
+    with no assignment behind it at all, and then the sum is the whole
+    of its reading.
+    """
+
+    counter: object
+    amount: int
+    source: str
+    source_kind: str = ""
+
+
+@dataclass
 class ComputedWeapon:
     """A weapon profile's computed additions."""
 
@@ -508,6 +525,10 @@ class ComputedCard:
     #: ``CategoryPlacement``.
     placements: list[CategoryPlacement] = field(default_factory=list)
     stat_changes: list[StatChange] = field(default_factory=list)
+    #: What modifiers add to counters this card reads. Kept apart from
+    #: the stored values so a reading can state both and neither is
+    #: mistaken for the other.
+    counter_contributions: list[CounterContribution] = field(default_factory=list)
     #: The category heading this model sorts under on the gang sheet,
     #: when a rule re-files them — None sorts by the profile's own.
     sorted_under: object = None
@@ -616,6 +637,7 @@ def compute(card, index):
         AllowsAtMost,
         ChangesCategory,
         ChangesStat,
+        ContributesToCounter,
         OffersChoice,
         PlacesCategory,
         RemovesAssignable,
@@ -667,6 +689,7 @@ def compute(card, index):
         OffersChoice: 4,
         RequiresCompanions: 5,
         AllowsAtMost: 6,
+        ContributesToCounter: 7,
     }
 
     def steps_for(
@@ -899,6 +922,25 @@ def compute(card, index):
                         log.applied.append(
                             _Applied(source_key, holder, "stat_changes", change)
                         )
+                    elif isinstance(effect, ContributesToCounter):
+                        # Never written down: the reading is worked out
+                        # from these every time it is asked for, so a
+                        # carrier taken away takes its figure with it.
+                        contributed = CounterContribution(
+                            counter=effect.counter,
+                            amount=effect.amount,
+                            source=label,
+                            source_kind=label_kind,
+                        )
+                        computed.counter_contributions.append(contributed)
+                        log.applied.append(
+                            _Applied(
+                                source_key,
+                                computed,
+                                "counter_contributions",
+                                contributed,
+                            )
+                        )
                     elif isinstance(effect, OffersChoice):
                         # Addressed on the line the offerer stands on, as a
                         # given slot is: an offer carried by something a
@@ -1106,23 +1148,55 @@ class ComputedGang:
         )
 
 
-def counter_readings(card):
-    """Every counter on a card, with where it stands. Stored assignments
-    only."""
+def counter_readings(card, computed=None):
+    """Every counter on a card, and where each one stands.
+
+    A reading is the stored value plus every contribution standing on
+    the card. A counter contributed to with no assignment behind it
+    still has a reading — it comes back the way a granted rule does,
+    with the sum as its whole value and nothing to tally.
+    """
     from n26.library.models import Counter
 
-    readings = []
+    contributed = counter_totals(computed)
+    readings, taken = [], set()
     for node in card.all_nodes():
-        if isinstance(node.assignable, Counter):
-            held = (
-                getattr(node.assignment, "counter_value", None)
-                if node.assignment is not None
-                else None
+        if not isinstance(node.assignable, Counter):
+            continue
+        held = (
+            getattr(node.assignment, "counter_value", None)
+            if node.assignment is not None
+            else None
+        )
+        thing_key = ModifierIndex.key(node.assignable)
+        # Contributions land on the first assignment of a counter and
+        # nowhere else: two assignments of one counter are two lines,
+        # and adding a figure to each would read as twice what is due.
+        added = 0 if thing_key in taken else contributed.get(thing_key, 0)
+        taken.add(thing_key)
+        readings.append(
+            CounterReading(
+                thing=node.assignable, value=(held.value if held else 0) + added
             )
-            readings.append(
-                CounterReading(thing=node.assignable, value=held.value if held else 0)
-            )
+        )
+    for contribution in computed.counter_contributions if computed else ():
+        thing_key = ModifierIndex.key(contribution.counter)
+        if thing_key in taken:
+            continue
+        taken.add(thing_key)
+        readings.append(
+            CounterReading(thing=contribution.counter, value=contributed[thing_key])
+        )
     return readings
+
+
+def counter_totals(computed):
+    """What modifiers add to each counter, keyed by the counter's key."""
+    totals = {}
+    for contribution in computed.counter_contributions if computed else ():
+        thing_key = ModifierIndex.key(contribution.counter)
+        totals[thing_key] = totals.get(thing_key, 0) + contribution.amount
+    return totals
 
 
 def compute_gang(gang_card, index):
@@ -1138,7 +1212,7 @@ def compute_gang(gang_card, index):
         choices=computed.choices,
         rules=computed.rules,
         collections=computed.collections,
-        counters=counter_readings(gang_card),
+        counters=counter_readings(gang_card, computed),
         placements=computed.placements,
         effects=computed.stored_effects,
         notes=[
@@ -1347,8 +1421,13 @@ class _Facts:
         self._select = select
         self._computed = computed
         self._weapons = {}
-        self._model = card.model_matchable().also(
-            *(contribution.thing for contribution in computed.subtypes)
+        # Counter contributions are part of what a threshold reads, and
+        # they settle round by round like everything else here: a
+        # contribution made in one round is asked about from the next.
+        self._model = (
+            card.model_matchable()
+            .also(*(contribution.thing for contribution in computed.subtypes))
+            .counting(counter_totals(computed))
         )
 
     def model(self):

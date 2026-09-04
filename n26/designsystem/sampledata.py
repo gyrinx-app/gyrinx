@@ -1826,6 +1826,7 @@ class _Counter:
     """Stands in for library.Counter: something a CounterReading can name."""
 
     name: str
+    drawn: bool = True
 
     def __str__(self):
         return self.name
