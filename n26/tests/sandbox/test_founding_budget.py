@@ -702,6 +702,133 @@ class TestTheSeed:
         assert STANDARD_CONTENT["founding-budgets"].check() == (wanted, wanted)
         assert raising.count() == 3
 
+    def test_an_entry_given_a_better_rank_stops_being_named_by_the_lesser(
+        self, budgets, venators, ranks, library
+    ):
+        """Left named by both, the entry would raise the counter twice and
+        its models would read 9 rather than 5."""
+        from n26.library.authoring import add_built_in
+        from n26.library.standard_content import (
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        was_a_champion = library[("Venators", "Hunt Champion")]
+        add_built_in(was_a_champion, ranks["Leader"])
+
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present == wanted - 2
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        settled, expected = STANDARD_CONTENT["founding-budgets"].check()
+        assert settled == expected
+        raising = venators.modifiers.filter(
+            contributes_to_counter__counter=founding_budget_counter()
+        )
+        named = {
+            row.contributes_to_counter.amount: {
+                profile.pk
+                for condition in row.targets_miniature.is_profile.all()
+                for profile in condition.profiles.all()
+            }
+            for row in raising
+        }
+        # The entry is named by the better figure alone. Nothing is left
+        # on this list at the lesser rank, so that figure is gone too.
+        assert was_a_champion.pk in named[5]
+        assert all(
+            was_a_champion.pk not in reached
+            for reached in named.values()
+            if reached is not named[5]
+        )
+        assert 4 not in named
+
+    def test_and_the_model_then_reads_the_better_figure_alone(
+        self, gang, budgets, ranks, library, hire_into
+    ):
+        from n26.library.authoring import add_built_in
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        add_built_in(library[("Venators", "Hunt Champion")], ranks["Leader"])
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert reading(hire_into(gang, ("Venators", "Hunt Champion"), "Kel")) == 5
+
+    def test_a_rank_the_library_no_longer_lists_loses_its_modifier(
+        self, budgets, venators, library
+    ):
+        """A figure with no entry to reach is not a figure this library
+        grants. Left standing with an empty set, it would name nothing —
+        and a scope naming nothing narrows nothing."""
+        from n26.library.standard_content import (
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        library[("Venators", "Hunter")].delete()
+
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present == wanted - 1
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        settled, expected = STANDARD_CONTENT["founding-budgets"].check()
+        assert settled == expected
+        assert not venators.modifiers.filter(
+            contributes_to_counter__counter=founding_budget_counter(),
+            contributes_to_counter__amount=3,
+        ).exists()
+
+    def test_and_nobody_reads_a_figure_from_the_emptied_one(
+        self, gang, budgets, library, hire_into
+    ):
+        """The entry is gone, so nothing is hired from it — what matters
+        is that everybody else still reads their own figure and not
+        somebody else's."""
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        library[("Venators", "Hunter")].delete()
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert reading(hire_into(gang, ("Venators", "Hunt Leader"), "Rasp")) == 5
+        assert reading(hire_into(gang, ("Venators", "Hunt Champion"), "Kel")) == 4
+
+    def test_the_scope_names_the_rank_as_well_as_the_entries(
+        self, budgets, venators, library
+    ):
+        """Two conditions, narrowing together. While the set of entries is
+        intact they say the same thing; emptied by something outside the
+        seed, what is left reaches that rank rather than the whole
+        roster."""
+        from n26.library.standard_content import founding_budget_counter
+
+        carried = venators.modifiers.get(
+            contributes_to_counter__counter=founding_budget_counter(),
+            contributes_to_counter__amount=5,
+        )
+        scope = carried.targets_miniature
+
+        assert scope.is_profile.filter(negate=False).exists()
+        assert scope.has_subtypes.filter(negate=False).exists()
+
+    def test_an_emptied_set_reaches_that_rank_and_no_further(
+        self, gang, budgets, venators, ranks, hire_into
+    ):
+        """What an author deleting the last entry from the admin would
+        leave: the seed rebuilds it, but until it is run the figure must
+        not land on everybody."""
+        from n26.library.standard_content import founding_budget_counter
+
+        carried = venators.modifiers.get(
+            contributes_to_counter__counter=founding_budget_counter(),
+            contributes_to_counter__amount=5,
+        )
+        for row in carried.targets_miniature.is_profile.all():
+            row.profiles.clear()
+
+        assert reading(hire_into(gang, ("Venators", "Hunter"), "Tuk")) == 3
+
     def test_a_homebrew_gang_type_of_the_same_name_is_not_it(
         self, budgets, homebrew, ranks, make_profile, make_statline
     ):

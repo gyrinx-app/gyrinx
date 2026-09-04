@@ -570,14 +570,21 @@ def _raises_founding_budget(carrier, counter, amount):
     )
 
 
+def _naming_rows(modifier):
+    """The rows naming the entries a founding-budget modifier reaches.
+
+    The positive ones only: a negated row says who it misses, which is
+    not a set the seed keeps.
+    """
+    scope = modifier.targets_miniature
+    return [] if scope is None else list(scope.is_profile.filter(negate=False))
+
+
 def _named_profiles(modifier):
     """The entries a founding-budget modifier reaches, by id."""
-    scope = modifier.targets_miniature
-    if scope is None:
-        return set()
     return {
         pk
-        for row in scope.is_profile.filter(negate=False)
+        for row in _naming_rows(modifier)
         for pk in row.profiles.values_list("pk", flat=True)
     }
 
@@ -588,7 +595,11 @@ def _budget_ranks(gang_type):
     twice.
 
     An entry carrying two of these ranks belongs to the better one, which
-    is what keeps 5 and 4 from coming to 9 for a model that is both.
+    is what keeps 5 and 4 from coming to 9 for a model that is both. It
+    is also why the set is worked out whole every time rather than added
+    to: giving a Champion entry the Leader rank moves it between two
+    figures, and an entry left named by the one it has left would raise
+    the counter twice.
     """
     from n26.library.models import Subtype
 
@@ -599,36 +610,64 @@ def _budget_ranks(gang_type):
         profiles = [] if subtype is None else _gang_list_profiles(gang_type, subtype)
         profiles = [one for one in profiles if one.pk not in claimed]
         claimed.update(one.pk for one in profiles)
-        found.append((rank, amount, profiles))
+        found.append((rank, amount, subtype, profiles))
     return found
 
 
-def _budget_modifier(carrier, counter, name, amount, profiles):
-    """Make this contribution, or bring the one already there up to date.
+def _drop_modifier(row):
+    """Take a modifier away, parts and all.
 
-    Adding to the modifier already standing rather than making a second:
-    a carrier holding two would raise the figure twice, and an entry
-    authored since the seed last ran only needs naming.
+    A modifier's columns cascade *from* its scope and its effect, so the
+    parts are what a delete has to reach; left behind, they would keep
+    nothing alive but themselves.
+    """
+    scope, effect = row.scope, row.effect
+    row.delete()
+    for part in (scope, effect):
+        if part is not None:
+            part.delete()
+
+
+def _settle_budget(carrier, counter, name, amount, subtypes, wanted):
+    """Make this contribution say what it should, whatever it said before.
+
+    One modifier per figure per carrier, and its set of entries is
+    rewritten rather than added to: an entry that has moved to another
+    rank must stop being named here, or it would raise the counter twice.
+    With no entry left to reach, the modifier goes — a rank nothing is
+    filed under is not a rank this library grants anything to.
+
+    The scope names the rank as well as the entries. The two narrow
+    together, so while the set is intact it says exactly what the entries
+    say — and if something outside the seed empties the set, what is left
+    reaches that rank rather than the whole roster.
     """
     from n26.library.authoring import (
         ef_contributes_to_counter,
+        has_subtypes,
         is_profile,
         modifier,
         targets_every_model,
     )
+    from n26.library.models import IsProfile
 
     standing = _raises_founding_budget(carrier, counter, amount).first()
+    wanted = {one.pk for one in wanted}
+    if not wanted:
+        if standing is not None:
+            _drop_modifier(standing)
+        return
     if standing is None:
         carrier.modifiers.add(
             modifier(
                 name,
-                targets_every_model(is_profile(*profiles)),
+                targets_every_model(
+                    has_subtypes(*subtypes),
+                    is_profile(*_profiles_by_id(wanted)),
+                ),
                 ef_contributes_to_counter(counter, amount),
             )
         )
-        return
-    missing = {one.pk for one in profiles} - _named_profiles(standing)
-    if not missing:
         return
     scope = standing.targets_miniature
     if scope is None:
@@ -636,12 +675,37 @@ def _budget_modifier(carrier, counter, name, amount, profiles):
         # doing. Nothing here rewrites that; the completeness check says
         # the rank is not done until somebody looks.
         return
-    from n26.library.models import IsProfile
+    rows = _naming_rows(standing) or [IsProfile.objects.create(scope=scope)]
+    for row in rows:
+        surplus = set(row.profiles.values_list("pk", flat=True)) - wanted
+        if surplus:
+            row.profiles.remove(*surplus)
+    missing = wanted - _named_profiles(standing)
+    if missing:
+        rows[0].profiles.add(*missing)
 
-    row = scope.is_profile.filter(negate=False).first() or IsProfile.objects.create(
-        scope=scope
-    )
-    row.profiles.add(*[one for one in profiles if one.pk in missing])
+
+def _profiles_by_id(ids):
+    from n26.library.models import Profile
+
+    return list(Profile.objects.filter(pk__in=ids))
+
+
+def _empty_budget_modifiers(counter):
+    """Every founding-budget modifier left naming no entry at all.
+
+    Deleting a fighter entry takes it out of the sets naming it, and a
+    modifier that named nothing else is then a contribution with nothing
+    to reach. It is rebuilt below where the library still has entries for
+    it, and stays gone where it does not.
+    """
+    from n26.library.models import Modifier
+
+    return [
+        row
+        for row in Modifier.objects.filter(contributes_to_counter__counter=counter)
+        if not _named_profiles(row)
+    ]
 
 
 def _create_founding_budgets():
@@ -656,14 +720,18 @@ def _create_founding_budgets():
     A rank's contribution is matched by what it does — a modifier this
     carrier holds that raises this counter by this figure — rather than
     by its name, so rewording one does not hang a second contribution on
-    the carrier. Entries authored since the last run are added to the
-    modifier already standing.
+    the carrier. What it *reaches* is worked out whole on every run, so
+    an entry authored since the last one is named and an entry that has
+    moved to another rank stops being.
     """
     from n26.library.models import Affiliation, Counter, GangType, Subtype
 
     counter = founding_budget_counter()
     if counter is None:
         counter = Counter.objects.create(name=FOUNDING_BUDGET_COUNTER, drawn=False)
+
+    for row in _empty_budget_modifiers(counter):
+        _drop_modifier(row)
 
     for gang_type_name, ranks in FOUNDING_BUDGETS:
         gang_type = _by_name(GangType, gang_type_name) or GangType.objects.create(
@@ -672,16 +740,13 @@ def _create_founding_budgets():
         for rank, _ in ranks:
             if _by_name(Subtype, rank) is None:
                 Subtype.objects.create(name=rank)
-        for rank, amount, profiles in _budget_ranks(gang_type):
-            if not profiles:
-                # No entry at that rank on this gang's list, so there is
-                # nothing for the figure to reach.
-                continue
-            _budget_modifier(
+        for rank, amount, subtype, profiles in _budget_ranks(gang_type):
+            _settle_budget(
                 gang_type,
                 counter,
                 _budget_modifier_name(gang_type_name, [rank], amount),
                 amount,
+                [subtype] if subtype is not None else [],
                 profiles,
             )
 
@@ -690,15 +755,14 @@ def _create_founding_budgets():
         gang_type = _by_name(GangType, gang_type_name)
         if affiliation is None or gang_type is None:
             continue
-        profiles = _affiliation_profiles(gang_type, ranks)
-        if not profiles:
-            continue
-        _budget_modifier(
+        subtypes = [_by_name(Subtype, rank) for rank in ranks]
+        _settle_budget(
             affiliation,
             counter,
             _budget_modifier_name(name, ranks, amount, more=True),
             amount,
-            profiles,
+            [one for one in subtypes if one is not None],
+            _affiliation_profiles(gang_type, ranks),
         )
 
 
@@ -708,7 +772,7 @@ def _affiliation_profiles(gang_type, ranks):
     wanted = set(ranks)
     return [
         one
-        for rank, _, profiles in _budget_ranks(gang_type)
+        for rank, _, _, profiles in _budget_ranks(gang_type)
         if rank in wanted
         for one in profiles
     ]
@@ -719,9 +783,10 @@ def _check_founding_budgets():
     same entry lookup, the same behaviour predicate — so a half-built
     library reports what a second run would leave alone.
 
-    A rank counts as done only where its modifier names every entry it
-    should, so an entry authored since the last run shows the seed
-    incomplete rather than being quietly left without an allowance.
+    A rank counts as done only where its modifier names exactly the
+    entries it should. An entry authored since the last run, one that has
+    moved to another rank, and one deleted altogether each show the seed
+    incomplete rather than being quietly left with the wrong figure.
 
     An affiliation that is not in the library is not counted, because the
     seed does not create one: it is authored content, and a library
@@ -732,34 +797,43 @@ def _check_founding_budgets():
     counter = founding_budget_counter()
     wanted, present = 1, 1 if counter is not None else 0
 
-    def done(carrier, amount, profiles):
-        standing = _raises_founding_budget(carrier, counter, amount).first()
-        return standing is not None and not (
-            {one.pk for one in profiles} - _named_profiles(standing)
+    def settled(carrier, amount, entries):
+        """Whether this figure already says what a run would make it say —
+        including saying nothing, where the modifier should be gone."""
+        standing = (
+            None
+            if counter is None
+            else _raises_founding_budget(carrier, counter, amount).first()
         )
+        if not entries:
+            return standing is None
+        return standing is not None and _named_profiles(standing) == {
+            one.pk for one in entries
+        }
+
+    def count(carrier, amount, entries):
+        nonlocal wanted, present
+        done = settled(carrier, amount, entries)
+        if not entries and done:
+            # Nothing to reach and nothing standing: this rank is not
+            # something the library has, so it is nobody's business.
+            return
+        wanted += 1
+        present += 1 if done else 0
 
     for gang_type_name, _ in FOUNDING_BUDGETS:
         gang_type = _by_name(GangType, gang_type_name)
         if gang_type is None:
             continue
-        for _, amount, profiles in _budget_ranks(gang_type):
-            if not profiles:
-                continue
-            wanted += 1
-            if counter is not None and done(gang_type, amount, profiles):
-                present += 1
+        for _, amount, _, profiles in _budget_ranks(gang_type):
+            count(gang_type, amount, profiles)
 
     for name, gang_type_name, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS:
         affiliation = _by_name(Affiliation, name)
         gang_type = _by_name(GangType, gang_type_name)
         if affiliation is None or gang_type is None:
             continue
-        profiles = _affiliation_profiles(gang_type, ranks)
-        if not profiles:
-            continue
-        wanted += 1
-        if counter is not None and done(affiliation, amount, profiles):
-            present += 1
+        count(affiliation, amount, _affiliation_profiles(gang_type, ranks))
 
     return present, wanted
 
