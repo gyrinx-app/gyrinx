@@ -272,6 +272,22 @@ class TestDeletingIt:
         assert fossils.nothing_here
         assert fossils.ok
 
+    def test_nothing_to_delete_still_explains_what_remains(self, default_pack):
+        affiliation = create_affiliation("Clanless")
+        modifier(
+            "Clanless: something new",
+            targets_model(),
+            ef_adds(create_skill("Overwatch")),
+            carried_by=affiliation,
+        )
+
+        fossils = find()
+
+        assert fossils.nothing_here
+        preview = "\n".join(fossils.preview())
+        assert "nothing selected for deletion" in preview
+        assert "leave “Clanless” where it is" in preview
+
 
 class TestWhatItRefuses:
     def test_an_affiliation_in_another_pack_is_a_refusal(self, default_pack, homebrew):

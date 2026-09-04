@@ -88,9 +88,10 @@ class Fossils:
 
     def preview(self):
         if self.nothing_here:
-            return [
-                "nothing to delete — the emptied affiliation rows were already deleted"
-            ]
+            lines = ["nothing selected for deletion"]
+            for note in self.left_alone:
+                lines.append(f"leave {note}")
+            return lines
         lines = list(self.said)
         for note in self.left_alone:
             lines.append(f"leave {note}")

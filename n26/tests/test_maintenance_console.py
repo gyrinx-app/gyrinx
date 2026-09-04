@@ -538,6 +538,7 @@ class TestTheEmptyAffiliationDeletion:
         page = response.content.decode()
         assert response.status_code == 200
         assert "Nothing to delete" in page
+        assert "No Affiliation leftovers are selected for deletion" in page
         assert not Backfill.objects.exists()
 
     def test_its_page_shows_the_plan_and_writes_nothing(

@@ -945,11 +945,8 @@ EMPTY_AFFILIATION_WORDS = {
         "affiliation offer. Run the related conversion first."
     ),
     "nothing_heading": "Nothing to delete",
-    "nothing_flash": (
-        "There was nothing to delete. The emptied affiliation rows were "
-        "already deleted."
-    ),
-    "nothing_words": "The emptied affiliation rows were already deleted.",
+    "nothing_flash": "There was nothing selected for deletion.",
+    "nothing_words": "No Affiliation leftovers are selected for deletion.",
     "refuses_heading": "The deletion cannot run",
     "button": "Delete the emptied affiliation rows",
     "confirm": "Delete these library rows? This cannot be undone.",
