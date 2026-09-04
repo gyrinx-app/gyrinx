@@ -9,8 +9,9 @@ The third example of the slots-and-picks design. One slot type, used twice:
   own, and reaches nobody else.
 
 What the gang holds is drawn on no member's card unless the pickable
-carries a modifier saying so, and the last group here is that modifier:
-the cards its scope reaches list the pick, read only.
+carries a modifier saying so, and the last two groups here are that
+modifier: the cards its scope reaches list the pick, read only, and the
+content wiring a migration writes builds exactly that shape.
 
 Sandbox content shaped like a gang list that works this way. Which
 archetypes the edition offers, which of them a champion may take, and
@@ -23,6 +24,7 @@ real pages.
 """
 
 import pytest
+from django.apps import apps as model_registry
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -33,6 +35,7 @@ from n26.core.printing import detail_groups
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_choice_offer, render_gang
 from n26.core.views.choose import link_slots
+from n26.library.archetype_display import EVERY_MODEL, draw_gang_archetypes
 from n26.library.authoring import (
     add_built_in,
     attach_modifiers_to,
@@ -584,3 +587,88 @@ class TestDrawingTheGangsPickOnTheCardsItGoverns:
 
         with django_assert_num_queries(len(few), exact=False):
             assert reader.get(page).status_code == 200
+
+
+class TestTheWiringTheMigrationWrites:
+    """The same shape, composed by the code a migration runs.
+
+    Production's archetypes are named by id in
+    ``n26.library.archetype_display`` — the one part of it a test cannot
+    stand in for. Everything else is proved here against this file's own
+    content, and the function is handed Django's model registry where the
+    migration hands it a historical one.
+    """
+
+    @pytest.fixture
+    def wired(self, archetypes, ranks):
+        return draw_gang_archetypes(
+            model_registry,
+            pickable_ids=[archetypes[name].pk for name in GANG_ARCHETYPES],
+            excepted=EXCEPTED,
+        )
+
+    def test_it_reaches_every_model_except_the_rank_it_names(self, wired, ranks):
+        (condition,) = wired.targets_miniature.has_subtypes.all()
+
+        assert (wired.targets_miniature.reach, condition.negate) == (EVERY_MODEL, True)
+        assert list(condition.subtypes.all()) == [ranks[EXCEPTED]]
+        assert str(wired.effect) == "draws the pick"
+
+    def test_the_reach_it_writes_is_the_one_the_model_declares(self):
+        """The scope's value is written out, because a migration's models
+        carry fields and no choices to read it from."""
+        from n26.library.models import TargetsMiniature
+
+        assert EVERY_MODEL == TargetsMiniature.Reach.EVERY_MODEL
+
+    def test_every_archetype_on_the_leaders_list_carries_it(self, wired, archetypes):
+        carrying = {
+            name
+            for name, pickable in archetypes.items()
+            if wired in pickable.modifiers.all()
+        }
+
+        assert carrying == set(GANG_ARCHETYPES)
+
+    def test_running_it_again_finds_what_the_first_run_made(
+        self, wired, archetypes, ranks
+    ):
+        from n26.library.models import Modifier
+
+        again = draw_gang_archetypes(
+            model_registry,
+            pickable_ids=[archetypes[name].pk for name in GANG_ARCHETYPES],
+            excepted=EXCEPTED,
+        )
+
+        assert again == wired
+        assert Modifier.objects.filter(draws_pick__isnull=False).count() == 1
+        assert (
+            archetypes["Mutant"].modifiers.filter(draws_pick__isnull=False).count() == 1
+        )
+
+    def test_a_database_without_the_content_is_left_alone(self, db):
+        """A fresh database has no pack, no archetypes and no ranks. The
+        migration runs over it and writes nothing."""
+        from n26.library.models import Modifier
+
+        assert draw_gang_archetypes(model_registry) is None
+        assert Modifier.objects.count() == 0
+
+    def test_a_rank_by_that_name_is_what_it_looks_for(self, archetypes, default_pack):
+        """Nothing is written where the rank named is not there — the
+        modifier would reach everyone, Champions included."""
+        from n26.library.models import Modifier
+
+        assert draw_gang_archetypes(model_registry, excepted="Nobody") is None
+        assert Modifier.objects.filter(draws_pick__isnull=False).count() == 0
+
+    def test_what_it_wires_draws_the_pick_the_leader_made(
+        self, reader, gang, crew, wired, archetypes
+    ):
+        choose(reader, gang, "Outcast Leader", archetypes["Mutant"])
+
+        assert [line.chosen for line in card_of(gang, "Outcast Ganger").choices] == [
+            "Mutant"
+        ]
+        assert [line.chosen for line in card_of(gang, EXCEPTED).choices] == [None]
