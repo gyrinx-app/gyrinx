@@ -3076,6 +3076,7 @@ def _imported(pack=None):
         SKILLS_SECTION,
         TRADING_POST_COLLECTION,
         VEHICLE_SUBTYPES,
+        founding_budget_counter,
         visit_contribution_counter,
     )
 
@@ -3092,9 +3093,9 @@ def _imported(pack=None):
     # what it does, never by its name — so rewording one does not put it
     # back in the way of a clear.
     spared = Q(pk__in=())
-    visit_counter = visit_contribution_counter()
-    if visit_counter is not None:
-        spared = Q(contributes_to_counter__counter=visit_counter)
+    for counter in (visit_contribution_counter(), founding_budget_counter()):
+        if counter is not None:
+            spared |= Q(contributes_to_counter__counter=counter)
     doomed = list(
         Modifier.objects.filter(**scope).exclude(spared).values_list("pk", flat=True)
     )

@@ -123,6 +123,57 @@ VISIT_CONTRIBUTION_MODIFIERS = [
     for rank, amount in VISIT_CONTRIBUTIONS
 ]
 
+#: The counter a fighter's founding budget is read off. Undrawn, like the
+#: visit's: no card shows it, and the equip screen is the only reader.
+#: What raises it is a modifier on the gang type, so a model hired into
+#: a Venator gang gets the Venator figure and one hired into any other
+#: gang gets none.
+FOUNDING_BUDGET_COUNTER = "Founding TP budget"
+
+#: What each rank may spend at founding, by gang type, biggest first
+#: (Venators and Outcast gang books). A model holding two of these ranks
+#: spends the better figure and not the sum, so each rank after the
+#: first is scoped away from models holding any rank above it.
+#:
+#: In a Venator gang the Hunter rank is the Specialist subtype: every
+#: Hunter entry carries it and nothing else a Venator gang hires does.
+FOUNDING_BUDGETS = [
+    ("Venators", [("Leader", 5), ("Champion", 4), ("Specialist", 3)]),
+    ("Outcast", [("Leader", 4), ("Champion", 3)]),
+]
+
+#: What an affiliation adds on top of the gang type's figure, as
+#: ``(affiliation, ranks, amount)`` (Outcast gang book). It reaches every
+#: model the gang holds it for, the way a Clan House affiliation reaches
+#: them with its equipment list.
+FOUNDING_BUDGET_AFFILIATIONS = [("Clanless", ["Leader", "Champion"], 1)]
+
+
+def _budget_modifier_name(carrier, ranks, amount, more=False):
+    """What a founding-budget modifier is filed under on the authoring
+    pages. Named here, as the visit's are, so a clear of imported content
+    can leave them standing without restating the names."""
+    points = "Trade Point" if amount == 1 else "Trade Points"
+    return (
+        f"{carrier} {' or '.join(ranks)} may spend "
+        f"{amount} {'more ' if more else ''}{points} at founding"
+    )
+
+
+#: What the seed always creates, since it creates the gang types too.
+FOUNDING_BUDGET_MODIFIERS = [
+    _budget_modifier_name(gang_type, [rank], amount)
+    for gang_type, ranks in FOUNDING_BUDGETS
+    for rank, amount in ranks
+]
+
+#: What it creates only where the affiliation is in the library, which is
+#: an authoring decision and never the seed's.
+FOUNDING_BUDGET_AFFILIATION_MODIFIERS = [
+    _budget_modifier_name(affiliation, ranks, amount, more=True)
+    for affiliation, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS
+]
+
 #: The six Skill Sets and their skills, in D6 order (core rules) —
 #: the number a skill is rolled on is its position within its set. Names
 #: only: what each skill *does* is the book's wording (CLAUDE.md).
@@ -437,6 +488,155 @@ def _check_visit_contribution():
         if subtype is not None and _raises_visit_counter(subtype, counter).exists():
             present += 1
     return present, 1 + len(VISIT_CONTRIBUTIONS)
+
+
+def founding_budget_counter():
+    """The standard founding-budget counter, or None where the library
+    has none.
+
+    Pinned to the default pack, as the visit's is: names are unique per
+    pack, so a homebrew pack's counter of the same name must not stand in
+    for the standard one. The seed, its own completeness check and every
+    reader ask this one question, because two statements of what counts
+    as the row drift in silence.
+    """
+    from n26.library.models import Counter, get_default_pack
+
+    return Counter.objects.filter(
+        name__iexact=FOUNDING_BUDGET_COUNTER, pack=get_default_pack()
+    ).first()
+
+
+def _by_name(model, name):
+    """A row of this kind called this, whatever its case, or None."""
+    return model.objects.filter(name__iexact=name).first()
+
+
+def _raises_founding_budget(carrier, counter, subtype):
+    """The modifiers this carrier holds that raise this counter for this
+    rank — the positive half of the scope, so the row narrowing a lesser
+    rank away from a better one is not mistaken for the better rank's
+    own contribution.
+    """
+    return carrier.modifiers.filter(
+        contributes_to_counter__counter=counter,
+        targets_miniature__has_subtypes__subtypes=subtype,
+        targets_miniature__has_subtypes__negate=False,
+    )
+
+
+def _create_founding_budgets():
+    """The founding-budget counter, and one modifier per rank that raises
+    it.
+
+    Gang types and subtypes are matched, not duplicated: their own seeds
+    create the same rows, and any of them may be run first. An
+    affiliation is authored content and is never created here — a library
+    without one has no gang holding it either.
+
+    Ranks are read biggest first, and each modifier after the first is
+    narrowed to models holding none of the ranks above it. That is what
+    makes an Outcast Leader who is also a Champion spend 4 rather than 7.
+
+    A rank's contribution is matched by what it does — a modifier this
+    carrier holds that raises this counter for this rank — rather than by
+    its name. A carrier holding two of them would raise the figure twice,
+    and a name is the one part of a modifier that may be reworded later.
+    """
+    from n26.library.authoring import (
+        ef_contributes_to_counter,
+        has_subtypes,
+        modifier,
+        targets_every_model,
+    )
+    from n26.library.models import Affiliation, Counter, GangType, Subtype
+
+    counter = founding_budget_counter()
+    if counter is None:
+        counter = Counter.objects.create(name=FOUNDING_BUDGET_COUNTER, drawn=False)
+
+    def rank_row(name):
+        return _by_name(Subtype, name) or Subtype.objects.create(name=name)
+
+    for gang_type_name, ranks in FOUNDING_BUDGETS:
+        gang_type = _by_name(GangType, gang_type_name) or GangType.objects.create(
+            name=gang_type_name
+        )
+        better = []
+        for rank, amount in ranks:
+            subtype = rank_row(rank)
+            if not _raises_founding_budget(gang_type, counter, subtype).exists():
+                gang_type.modifiers.add(
+                    modifier(
+                        _budget_modifier_name(gang_type_name, [rank], amount),
+                        targets_every_model(
+                            has_subtypes(subtype),
+                            *([has_subtypes(*better, negate=True)] if better else []),
+                        ),
+                        ef_contributes_to_counter(counter, amount),
+                    )
+                )
+            better.append(subtype)
+
+    for name, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS:
+        affiliation = _by_name(Affiliation, name)
+        if affiliation is None:
+            continue
+        subtypes = [rank_row(rank) for rank in ranks]
+        if _raises_founding_budget(affiliation, counter, subtypes[0]).exists():
+            continue
+        affiliation.modifiers.add(
+            modifier(
+                _budget_modifier_name(name, ranks, amount, more=True),
+                targets_every_model(has_subtypes(*subtypes)),
+                ef_contributes_to_counter(counter, amount),
+            )
+        )
+
+
+def _check_founding_budgets():
+    """Asked exactly as the create asks it — the same counter lookup, the
+    same rank lookup, the same behaviour predicate — so a half-built
+    library reports what a second run would leave alone.
+
+    An affiliation that is not in the library is not counted, because the
+    seed does not create one: it is authored content, and a library
+    without it has no gang holding it.
+    """
+    from n26.library.models import Affiliation, GangType, Subtype
+
+    affiliations = [
+        (_by_name(Affiliation, name), ranks[0])
+        for name, ranks, _ in FOUNDING_BUDGET_AFFILIATIONS
+    ]
+    wanted = (
+        1
+        + sum(len(ranks) for _, ranks in FOUNDING_BUDGETS)
+        + sum(1 for affiliation, _ in affiliations if affiliation is not None)
+    )
+    counter = founding_budget_counter()
+    if counter is None:
+        return 0, wanted
+    present = 1
+    for gang_type_name, ranks in FOUNDING_BUDGETS:
+        gang_type = _by_name(GangType, gang_type_name)
+        for rank, _ in ranks:
+            subtype = _by_name(Subtype, rank)
+            if (
+                gang_type is not None
+                and subtype is not None
+                and _raises_founding_budget(gang_type, counter, subtype).exists()
+            ):
+                present += 1
+    for affiliation, rank in affiliations:
+        subtype = _by_name(Subtype, rank)
+        if (
+            affiliation is not None
+            and subtype is not None
+            and _raises_founding_budget(affiliation, counter, subtype).exists()
+        ):
+            present += 1
+    return present, wanted
 
 
 def skills_collection_sweeps():
@@ -911,6 +1111,23 @@ STANDARD_CONTENT = {
             ),
             check=_check_visit_contribution,
             create=_create_visit_contribution,
+        ),
+        StandardContent(
+            key="founding-budgets",
+            name="Founding TP budgets",
+            help=(
+                "The counter for the Trade Points a model may spend "
+                "while its gang is being founded, and the modifiers that "
+                "raise it: 5 on a Venator Leader, 4 on a Venator "
+                "Champion, 3 on a Venator Specialist, 4 on an Outcast "
+                "Leader, 3 on an Outcast Champion, and 1 more for a "
+                "Clanless gang's Leaders and Champions. In a Venator "
+                "gang the Hunter rank is the Specialist subtype. The "
+                "counter is not drawn on any card. A model holding two "
+                "ranks spends the better figure, not the sum."
+            ),
+            check=_check_founding_budgets,
+            create=_create_founding_budgets,
         ),
         StandardContent(
             key="gang-types",

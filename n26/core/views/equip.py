@@ -193,7 +193,7 @@ def _trade_points_asked(line, picked):
     )
 
 
-def _counted_against(gang, line):
+def _counted_against(gang, line, budget=None):
     """The open action a purchase of this line counts against, or None.
 
     A line that counts no Trade Points counts against nothing: buying
@@ -202,11 +202,17 @@ def _counted_against(gang, line):
     figures a lie. With no visit open there is nothing to point at
     either — the purchase goes through and counts against nothing, once
     the owner has said they meant it.
+
+    A model's own founding allowance comes first, and a visit open at the
+    same time is not touched: the two are separate allowances, and the
+    points a model was given as it joined are the ones it spends.
     """
-    return gang.open_visit if line.charges_trade_points else None
+    if not line.charges_trade_points:
+        return None
+    return budget.action if budget is not None else gang.open_visit
 
 
-def _overspend(request, gang, line, asked, back):
+def _overspend(request, gang, line, asked, back, budget=None, holder=""):
     """The page that asks whether a Trade Point overspend was meant.
 
     ``None`` where nothing needs asking: the click spends no points, or
@@ -216,46 +222,63 @@ def _overspend(request, gang, line, asked, back):
     who says they meant it gets what they asked for. What the page owes
     them is the arithmetic, since the allowance is not on the screen
     they clicked from and "you are short" is not a figure.
+
+    ``budget`` is the model's own founding allowance where it has one,
+    and it is what the figures are then read from: that is the allowance
+    the purchase will count against, so it is the one the reader is
+    deciding against. ``holder`` names whoever the allowance belongs to.
     """
     from n26.core.confirm import Aside, Fact, carried
 
     if not asked or request.POST.get(CONFIRM_FIELD):
         return None
-    visit = gang.open_visit
-    open_visit = visit is not None
-    # One reading of the log, not one per figure: the page prints what
-    # has gone as well as what is left, and the two must agree. With no
-    # action open there is nothing to read — the post is shut, and the
-    # purchase has nothing to count against.
-    spent = gang.trade_points_spent if open_visit else 0
-    brought = (visit.trade_points or 0) if open_visit else 0
+    visit = None if budget is not None else gang.open_visit
+    open_action = budget is not None or visit is not None
+    if budget is not None:
+        brought, spent = budget.granted, budget.spent
+    elif visit is not None:
+        # One reading of the log, not one per figure: the page prints
+        # what has gone as well as what is left, and the two must agree.
+        brought, spent = (visit.trade_points or 0), gang.trade_points_spent
+    else:
+        # Nothing is open, so there is nothing to read and nothing for
+        # the purchase to count against.
+        brought, spent = 0, 0
     left = brought - spent
     if asked <= left:
         return None
+    # A founding allowance belongs to the model, so the sentences name
+    # the model; a visit's belongs to the gang, and the tally above is
+    # then the action's own.
+    whose = holder if budget is not None and holder else gang.name
+    if budget is not None:
+        left_over = (
+            f"What {whose} has left goes below zero, and stays there until "
+            "the action is finished."
+        )
+    elif visit is not None:
+        left_over = (
+            "What the action has left goes below zero, and stays there "
+            "until it is finished."
+        )
+    else:
+        left_over = "The purchase records the Trade Points against no action."
     return Confirmation(
         title="Not enough Trade Points",
         lead=f"{line.name} — {asked} Trade Point{pluralize(asked)}.",
         heading="You don't have enough TP for this purchase",
         body=(
             f"{line.name} uses {asked} Trade Point{pluralize(asked)}, and "
-            f"{gang.name} has {left}."
+            f"{whose} has {left}."
         ),
-        aside=Aside(
-            lead="You can buy it anyway.",
-            rest=(
-                "What the action has left goes below zero, and stays there "
-                "until it is finished."
-                if open_visit
-                else "The purchase records the Trade Points against no action."
-            ),
-        ),
+        aside=Aside(lead="You can buy it anyway.", rest=left_over),
         # The same tally the Visit Trading Post card draws, with the
         # purchase and what it leaves added under it.
         facts=(
             Fact(
                 "Available",
                 str(brought),
-                sub="" if open_visit else "no action open",
+                sub="" if open_action else "no action open",
             ),
             Fact("Spent", str(spent)),
             Fact("Remaining", str(left), ruled=True, strong=True),
@@ -369,6 +392,12 @@ class Screen:
     #: The browsed listing, or ``None`` where the screen shows only what
     #: is held.
     view: object | None
+    #: The model's founding allowance, where the gang is being founded
+    #: and this model has one. It decides three things at once: that
+    #: every line on the screen counts Trade Points, what a purchase
+    #: records them against, and the figures a question is asked with.
+    #: ``None`` on the gang's own screen and for a model with none.
+    budget: object | None = None
 
     def host(self, at):
         """The assignment roots behind this screen. ``at`` is the page
@@ -396,6 +425,8 @@ def _screen(gang, miniature=None, list_param=""):
     """
     from n26.core.access import collections_for, gang_collections
     from n26.core.browse import (
+        EQUIPMENT_LIST,
+        FOUNDING,
         all_gear,
         browse,
         priced_from,
@@ -404,6 +435,7 @@ def _screen(gang, miniature=None, list_param=""):
     )
     from n26.core.card import build_card, build_gang_card, build_modifier_index
     from n26.core.effects import compute, compute_gang
+    from n26.core.founding import budget_for
 
     def chosen_from(collections):
         """The list the address names, or the one a plain visit opens on."""
@@ -416,6 +448,13 @@ def _screen(gang, miniature=None, list_param=""):
         card = build_card(miniature, with_options=True)
         index = build_modifier_index([node.assignable for node in card.all_nodes()])
         computed = compute(card, index)
+        # A model with an allowance of its own buys every list on the
+        # screen against it, which the books call a combined figure — so
+        # the terms are the founding ones and not each collection's. A
+        # model without one is read exactly as it was before allowances
+        # existed, down to the queries.
+        budget = budget_for(gang, miniature, computed)
+        terms = FOUNDING if budget is not None else None
         collections = buyable_lists(
             access.collection
             for access in collections_for(miniature, card=card, computed=computed)
@@ -427,15 +466,17 @@ def _screen(gang, miniature=None, list_param=""):
             # restriction is likeliest to bite.
             chosen = None
             view = priced_from(
-                all_gear(ALL_LABEL, for_use_notes=True),
-                [browse(collection) for collection in collections],
+                all_gear(ALL_LABEL, terms or EQUIPMENT_LIST, for_use_notes=True),
+                [browse(collection, terms) for collection in collections],
             )
         else:
             chosen = chosen_from(collections)
-            view = browse(chosen) if chosen is not None else None
+            view = browse(chosen, terms) if chosen is not None else None
         if view is not None:
             view = with_use_notes(view, usability_for(computed))
-        return Screen(gang, miniature, card, computed, collections, chosen, view)
+        return Screen(
+            gang, miniature, card, computed, collections, chosen, view, budget
+        )
 
     card = build_gang_card(gang, with_statlines=False)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -560,6 +601,10 @@ def render_update(
             # Points figure comes back as a number that leads nowhere.
             "trade_points_href": trade_points_href(gang, request.user),
             "held_label": host.held_label,
+            "miniature": miniature,
+            # The allowance the purchase came off, redrawn: what it has
+            # left has just changed, and the block sits outside the row.
+            "founding_budget": screen.budget,
             "closed": closed,
             # The update always replaces the whole set of accessory
             # panels: a gun bought since the page was drawn has no panel
@@ -590,7 +635,9 @@ def render_confirmation(request, confirmation):
     return with_toasts(request, response)
 
 
-def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=None):
+def _buy_clicked(
+    request, gang, holder, view, *, into, collection, at="", event=None, budget=None
+):
     """One click on a Buy button, read and charged, whoever holds the thing.
 
     ``holder`` is what the purchase lands on — a fighter, or the gang's
@@ -605,6 +652,10 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=
 
     ``at`` is the page the click came from: where a question the reader
     cancels puts them back.
+
+    ``budget`` is the founding allowance the screen is buying against,
+    where there is one: it decides what the purchase records the points
+    against and what the question before an overspend is asked with.
 
     Three outcomes, and none of them is a response. The clicked line's
     key where the purchase went through; ``None`` where it was refused,
@@ -643,7 +694,7 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=
     # rather than by a rule: an overspend of Trade Points is allowed,
     # and only doing it without meaning to is not.
     asked = _trade_points_asked(line, picked)
-    confirmation = _overspend(request, gang, line, asked, at)
+    confirmation = _overspend(request, gang, line, asked, at, budget, into)
     if confirmation is not None:
         return confirmation
     try:
@@ -657,7 +708,7 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=
                 holder,
                 line=line,
                 option=[option.default_set for option in picks],
-                action=_counted_against(gang, line),
+                action=_counted_against(gang, line, budget),
                 **charge,
             )
             # Onto the gun, not onto its holder: a profile belongs to
@@ -668,7 +719,7 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=
                 op.buy(
                     bought,
                     line=part,
-                    action=_counted_against(gang, part),
+                    action=_counted_against(gang, part, budget),
                     **_charge(part, part_paid),
                 )
     except Refusal as refusal:
@@ -834,6 +885,7 @@ def equip(request, pk):
             collection=ALL_LABEL if everything else chosen.name,
             at=here(chosen),
             event={"miniature_id": str(miniature.pk)},
+            budget=screen.budget,
         )
         if isinstance(key, Confirmation):
             # Asked as a whole page where there is no script to update
@@ -958,12 +1010,16 @@ def equip(request, pk):
             # a script the click opens the panel that is already on the
             # page and never rebuilds the catalogue.
             "accessorise": accessorise_dialogs(request, host),
-            **picker_context(catalogue, view, gang),
+            # What this model may still spend while the gang is being
+            # founded, drawn beside the rail. Every line on the page
+            # counts against it.
+            "founding_budget": screen.budget,
+            **picker_context(catalogue, view, gang, screen.budget),
         },
     )
 
 
-def picker_context(catalogue, view, gang=None):
+def picker_context(catalogue, view, gang=None, budget=None):
     """What the collection picker needs to draw its strips and filters.
 
     The same on every catalogue, whoever is buying, so it is derived
@@ -971,7 +1027,10 @@ def picker_context(catalogue, view, gang=None):
     names, and the ends of the sliders.
 
     ``gang`` is handed over only so the listing can say whether the post
-    is open to it. Nothing here reads its money.
+    is open to it. Nothing here reads its money. ``budget`` is the
+    model's founding allowance, which settles the same question the
+    other way: a model spending one has somewhere for its Trade Points
+    to go, so there is nothing to tell it about the post.
     """
     sections = catalogue.sections if catalogue is not None else []
     # The sliders' ends are read off the browsed lines rather than the
@@ -993,6 +1052,7 @@ def picker_context(catalogue, view, gang=None):
         # with no way to find out why.
         "post_is_shut": bool(
             gang is not None
+            and budget is None
             and not gang.visiting_trading_post
             and any(line.charges_trade_points for line in lines)
         ),

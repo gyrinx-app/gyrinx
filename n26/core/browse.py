@@ -50,6 +50,24 @@ EQUIPMENT_LIST = Terms()
 #: the listing. What makes buying "at a trading post" is the terms you
 #: buy on, not the collection you buy from.
 TRADING_POST = Terms(charges_trade_points=True, shows_exclusive=False)
+#: Founding a gang, for a model with an allowance of its own: every line
+#: counts Trade Points, whichever list it came from, because the books
+#: give such a model one combined figure to spend across all of them.
+#: Exclusive items stay on the listing — an equipment list is exactly
+#: where they may be bought — and count nothing, having no figure.
+FOUNDING = Terms(charges_trade_points=True, shows_exclusive=True)
+
+
+def prints_trade_points(terms, in_trade_points):
+    """Whether a line from this browse prints its Trade Point figure.
+
+    A collection prices in what it deals in, so a list an author wrote
+    out by hand leaves the figure off — it answers no question a reader
+    of that list is asking. A browse that *counts* Trade Points prints
+    them wherever it found the line, because then it is the question the
+    reader is asking.
+    """
+    return in_trade_points or terms.charges_trade_points
 
 
 def terms_for(collection):
@@ -157,14 +175,14 @@ class PricedLine:
     #: charges them; a trading post does. Rides the line so the purchase
     #: needs no idea where the line came from.
     charges_trade_points: bool = False
-    #: Whether the surface this line came from deals in Trade Points at
-    #: all — a fact about the collection, not about the buying trip.
+    #: Whether a surface should print this line's Trade Point figure.
     #: A collection whose contents were chosen *by* having a TP price
     #: deals in them; one an author wrote out by hand does not, and a
-    #: number drawn there answers a question nobody browsing it can ask.
-    #: The line keeps the item's real figures either way; this says
-    #: whether a surface should print them, and "E" goes with them,
-    #: because "E" is a Trade Point value and not a separate mark.
+    #: number drawn there answers a question nobody browsing it can ask
+    #: — unless the browse counts Trade Points, which is the question
+    #: put back. The line keeps the item's real figures either way, and
+    #: "E" goes with the figure, because "E" is a Trade Point value and
+    #: not a separate mark.
     shows_trade_points: bool = False
     #: Remarks for the player about this line — "usable by Walkers only",
     #: later "over your weapon slots". One channel, not a flag per rule;
@@ -245,11 +263,14 @@ def browse(collection, terms=None):
     and do not appear under it.
 
     Whether the listing talks in Trade Points follows from the same
-    fact. A collection whose contents were chosen *by* having a TP price
-    deals in them; one written out by hand prices in credits, and a TP
-    figure or an "E" there answers a question nobody browsing it can
-    ask. Each line says which, and the lines keep the item's real
-    numbers regardless — see ``shows_trade_points``.
+    fact, unless the terms count them. A collection whose contents were
+    chosen *by* having a TP price deals in them; one written out by hand
+    prices in credits, and a TP figure or an "E" there answers a question
+    nobody browsing it can ask — but a browse that counts Trade Points
+    prints them wherever it found the line, because a reader deciding
+    against an allowance is asking exactly that. Each line says which,
+    and the lines keep the item's real numbers regardless — see
+    ``shows_trade_points``.
 
     A fixed number of queries: the entries with their prefetches, plus
     one per selector — the count follows the collection's
@@ -271,6 +292,7 @@ def browse(collection, terms=None):
     in_trade_points = any(selector.with_trade_point_price for selector in selectors)
     if terms is None:
         terms = _on_its_own_terms(in_trade_points)
+    shows_trade_points = prints_trade_points(terms, in_trade_points)
 
     for selector in selectors:
         for thing in selector.contents(include_exclusive=terms.shows_exclusive):
@@ -283,8 +305,8 @@ def browse(collection, terms=None):
                     trade_points=price.trade_points,
                     is_exclusive=price.is_exclusive,
                     charges_trade_points=terms.charges_trade_points,
-                    shows_trade_points=in_trade_points,
-                    parts=_swept_parts(thing, terms, in_trade_points),
+                    shows_trade_points=shows_trade_points,
+                    parts=_swept_parts(thing, terms, shows_trade_points),
                     choices=offered_choices(thing),
                 ),
             )
@@ -346,9 +368,9 @@ def browse(collection, terms=None):
                 is_exclusive=price.is_exclusive,
                 entry=entry,
                 charges_trade_points=terms.charges_trade_points,
-                shows_trade_points=in_trade_points,
+                shows_trade_points=shows_trade_points,
                 parts=_entry_parts(
-                    ammo.get(entry.weapon_id, ()), terms, in_trade_points
+                    ammo.get(entry.weapon_id, ()), terms, shows_trade_points
                 ),
                 choices=offered_choices(thing),
             ),
@@ -400,6 +422,9 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
         paid_profiles,
     )
 
+    # The library is nobody's collection, so it deals in Trade Points only
+    # where the browse itself counts them.
+    shows = prints_trade_points(terms, False)
     lines = []
     for model in entryable_kinds().values():
         if model.family != Family.GEAR or issubclass(model, WeaponProfile):
@@ -434,7 +459,8 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
                         trade_points=price.trade_points,
                         is_exclusive=price.is_exclusive,
                         charges_trade_points=terms.charges_trade_points,
-                        parts=_swept_parts(thing, terms, False),
+                        shows_trade_points=shows,
+                        parts=_swept_parts(thing, terms, shows),
                         choices=offered_choices(thing),
                     ),
                 )

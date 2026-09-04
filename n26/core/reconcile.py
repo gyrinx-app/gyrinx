@@ -124,6 +124,30 @@ def trade_points_spent_for(action):
     )
 
 
+def trade_points_spent_by(action, miniature):
+    """Every Trade Point one model counted against one action.
+
+    The same sum as :func:`trade_points_spent_for`, narrowed to the model
+    the assignment belongs to: a founding allowance is the model's own,
+    so what one has spent says nothing about what another may.
+
+    ``miniature_root`` rather than the host, because a weapon's paid ammo
+    hangs off the gun and not off the model, and the round is part of
+    what the model spent.
+
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    return (
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__action=action,
+            assignment__miniature_root=miniature,
+        ).aggregate(total=Sum("trade_points_delta"))["total"]
+        or 0
+    )
+
+
 def trade_points_spent(gang):
     """What the gang's open Visit Trading Post action has spent.
 
