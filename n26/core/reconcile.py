@@ -128,12 +128,14 @@ def trade_points_spent(gang):
     """What the gang's open Visit Trading Post action has spent.
 
     Two sets of purchases, summed in one query. The first is what points
-    at the open action, which is the whole of it for a purchase that
-    recorded one. The second is a purchase under this visit that names
-    no action at all — one written before the visit had a row to point
-    at — found instead by when its assignment was created, measured from
-    the boundary event the visit wrote. The second half is here only
-    while such purchases exist.
+    at the gang's open visit, which is the whole of it for a purchase
+    that recorded one — asked as a join rather than by naming the row, so
+    nothing has to know which visit is open before asking. The second is
+    a purchase under this visit that names no action at all — one
+    written before the visit had a row to point at — found instead by
+    when its assignment was created, measured from the boundary event
+    the visit wrote. The second half is here only while such purchases
+    exist.
 
     Either way the visit an event belongs to is the visit its *purchase*
     belongs to, and never the visit its own event happened in. A refund
@@ -145,11 +147,11 @@ def trade_points_spent(gang):
     Events about no assignment are outside this by construction: the
     boundary event itself is one, and none of them moves Trade Points.
 
-    One query past knowing which visit is open, boundary and all. Every
-    screen showing what a gang has left asks this, and a gang's page is
-    a fixed number of queries by invariant rather than by hope.
+    One query, boundary and all. Every screen showing what a gang has
+    left asks this, and a gang's page is a fixed number of queries by
+    invariant rather than by hope.
     """
-    from n26.core.models import LedgerEvent
+    from n26.core.models import Action, LedgerEvent
 
     since = (
         LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET)
@@ -163,10 +165,11 @@ def trade_points_spent(gang):
             Value(_SINCE_ALWAYS, output_field=DateTimeField()),
         ),
     )
-    visit = gang.open_visit
-    counted = unstamped
-    if visit is not None:
-        counted = counted | Q(assignment__ledger_entry__action=visit)
+    counted = unstamped | Q(
+        assignment__ledger_entry__action__gang=gang,
+        assignment__ledger_entry__action__kind=Action.Kind.TRADING_POST_VISIT,
+        assignment__ledger_entry__action__closed__isnull=True,
+    )
     return (
         LedgerEvent.objects.filter(gang=gang)
         .filter(counted)

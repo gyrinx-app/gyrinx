@@ -208,6 +208,38 @@ class TestEndingTheAction:
         with pytest.raises(Refusal):
             visit_trading_post(gang, brought=4)
 
+    def test_finishing_twice_ends_the_visit_once(self, gang):
+        """Two clicks on one button arrive together often enough. The
+        second finds nothing open and writes nothing: a gang cannot leave
+        a post twice, and a history saying it did would be a lie."""
+        from n26.core import history
+
+        visit_trading_post(gang, brought=4)
+
+        leave_trading_post(gang)
+        leave_trading_post(gang)
+
+        assert (
+            LedgerEvent.objects.filter(
+                gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET, note="closed"
+            ).count()
+            == 1
+        )
+        told = [
+            act
+            for act in history.build(gang)
+            if "finished the Visit Trading Post action"
+            in " ".join(span.text for span in act.spans)
+        ]
+        assert len(told) == 1
+
+    def test_finishing_a_visit_nobody_opened_writes_nothing(self, gang):
+        leave_trading_post(gang)
+
+        assert not LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET
+        ).exists()
+
     def test_what_went_before_stops_counting(self, gang, fighter, post):
         """A second trip is measured from its own allowance. The first
         trip's spending is history, not a debt carried forward."""
@@ -648,6 +680,77 @@ class TestTheActionIsTheState:
         gang.refresh_from_db()
         assert gang.visiting_trading_post is False
         assert receipt_for(gang) is None
+
+
+class TestReadingTheFigureOffTheGangsOwnRow:
+    """Every screen carrying the figure strip draws what an open visit has
+    left. The queryset that fetches the gang reads it with the row, so a
+    page that only draws it pays for nothing more."""
+
+    def fetched(self, gang):
+        """The gang as the screens fetch it — the figure read with the
+        row (``n26.core.views.permissions``)."""
+        from n26.core.models import Gang
+        from n26.core.models.gang import open_visit_points
+
+        return Gang.objects.annotate(open_visit_points=open_visit_points()).get(
+            pk=gang.pk
+        )
+
+    def test_it_says_the_same_as_the_action_row(self, gang):
+        visit_trading_post(gang, brought=4)
+
+        gang.refresh_from_db()
+        assert self.fetched(gang).open_visit_brought == gang.open_visit_brought == 4
+
+    def test_a_visit_that_brought_nothing_is_still_a_visit(self, gang):
+        """Nought is a figure and None is an absence: the post is open to
+        a gang whose fighters performed the action and added no points."""
+        visit_trading_post(gang, brought=0)
+
+        fetched = self.fetched(gang)
+        assert fetched.open_visit_brought == 0
+        assert fetched.visiting_trading_post is True
+        assert fetched.trade_points_left == 0
+
+    def test_a_shut_post_reads_as_nothing(self, gang):
+        fetched = self.fetched(gang)
+        assert fetched.open_visit_brought is None
+        assert fetched.visiting_trading_post is False
+        assert fetched.trade_points_left is None
+
+    def test_drawing_the_figure_costs_no_query(self, gang, django_assert_num_queries):
+        visit_trading_post(gang, brought=4)
+        fetched = self.fetched(gang)
+
+        with django_assert_num_queries(0):
+            assert fetched.visiting_trading_post is True
+            assert fetched.open_visit_brought == 4
+
+    def test_what_is_left_costs_one(
+        self, gang, fighter, post, django_assert_num_queries
+    ):
+        """The one reading of the log that every screen showing what is
+        left asks for, and nothing beside it."""
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+        fetched = self.fetched(gang)
+
+        with django_assert_num_queries(1):
+            assert fetched.trade_points_left == 3
+
+    def test_forgetting_drops_it(self, gang):
+        """A reading taken before is dropped along with the rows, so an
+        operation deciding under the gang's own line reads what stands."""
+        visit_trading_post(gang, brought=4)
+        fetched = self.fetched(gang)
+        assert fetched.open_visit_brought == 4
+
+        leave_trading_post(gang)
+        fetched.forget_open_actions()
+
+        assert fetched.open_visit_brought is None
+        assert fetched.visiting_trading_post is False
 
 
 class TestOpeningTheVisitsThatWereAlreadyOpen:

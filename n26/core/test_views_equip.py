@@ -2552,7 +2552,7 @@ class TestTheLibraryTabsQueryBudget:
         # lists — and a browse of each list held, which is what prices
         # the library's lines. A fixed number per list, never one per
         # item.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 52
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 51
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked

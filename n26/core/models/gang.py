@@ -1,6 +1,37 @@
 from django.db import models
+from django.db.models import OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 
 from n26.core.models.abstract import Archived, Base, Owned, Rated
+
+#: Where a queryset leaves what it read about the gang's open visit. Not
+#: the property's own name: an annotation is set with ``setattr``, and a
+#: property with no setter would refuse it.
+_OPEN_VISIT_POINTS = "open_visit_points"
+
+
+def open_visit_points(gang="pk"):
+    """A subquery reading what a gang's open Visit Trading Post action
+    brought, to annotate alongside the gang's own row.
+
+    ``gang`` is the path from the queryset's model to the gang, so a
+    fighter's queryset can ask on its gang's behalf.
+
+    Nothing and nought are different states, and this keeps them apart:
+    the figure is coalesced inside the subquery, so a null can only mean
+    there is no open visit — never a visit that brought no points.
+    """
+    from n26.core.models import Action
+
+    return Subquery(
+        Action.objects.filter(
+            gang=OuterRef(gang),
+            kind=Action.Kind.TRADING_POST_VISIT,
+            closed__isnull=True,
+        )
+        .annotate(brought=Coalesce("trade_points", Value(0)))
+        .values("brought")[:1]
+    )
 
 
 class Gang(Base, Owned, Archived, Rated):
@@ -154,10 +185,22 @@ class Gang(Base, Owned, Archived, Rated):
     def forget_open_actions(self):
         """Drop what was read, so the next reader asks again.
 
-        Called wherever an action is opened or closed. Nothing else
-        changes which are open, so nothing else has to remember.
+        Everything held about which actions are open goes, however it
+        arrived — the rows read on demand and the figure a queryset read
+        with the gang's own row. Called wherever an action is opened or
+        closed, and wherever a reading taken earlier must not be trusted.
         """
         self._open_actions = None
+        self.__dict__.pop(_OPEN_VISIT_POINTS, None)
+
+    def hold_open_visit(self, brought):
+        """Take what a queryset read about this gang's open visit.
+
+        For a queryset that reached the gang through something else — a
+        fighter's page annotates on the fighter and hands the figure
+        over here, because the gang is what draws it.
+        """
+        self.__dict__[_OPEN_VISIT_POINTS] = brought
 
     def refresh_from_db(self, *args, **kwargs):
         super().refresh_from_db(*args, **kwargs)
@@ -179,6 +222,25 @@ class Gang(Base, Owned, Archived, Rated):
         return self.open_action(Action.Kind.TRADING_POST_VISIT)
 
     @property
+    def open_visit_brought(self):
+        """What the open Visit Trading Post action brought, or None where
+        no visit is open.
+
+        Nought is a figure and None is an absence: a visit that brought
+        no points is still a visit, and the post is still open to a gang
+        performing one.
+
+        Read off the gang's own row where the queryset asked for it
+        (``open_visit_points``) — a page that draws the figure and never
+        acts on the visit wants no more than this, and pays for no query
+        of its own. Where it did not, the action is read instead.
+        """
+        if _OPEN_VISIT_POINTS in self.__dict__:
+            return self.__dict__[_OPEN_VISIT_POINTS]
+        visit = self.open_visit
+        return None if visit is None else (visit.trade_points or 0)
+
+    @property
     def visiting_trading_post(self):
         """Whether a Visit Trading Post action is open.
 
@@ -192,7 +254,7 @@ class Gang(Base, Owned, Archived, Rated):
         buy with no action open goes through once its question is
         answered.
         """
-        return self.open_visit is not None
+        return self.open_visit_brought is not None
 
     @property
     def trade_points_left(self):
@@ -202,10 +264,10 @@ class Gang(Base, Owned, Archived, Rated):
         is what the confirmation before such a purchase is for: Trade
         Points inform, and only credits are refused.
         """
-        visit = self.open_visit
-        if visit is None:
+        brought = self.open_visit_brought
+        if brought is None:
             return None
-        return (visit.trade_points or 0) - self.trade_points_spent
+        return brought - self.trade_points_spent
 
     @property
     def credits_unlimited(self):

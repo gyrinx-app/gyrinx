@@ -49,12 +49,19 @@ def _own_gang_or_404(request, pk):
     A pk that is not a ULID reaches ``to_python`` and raises
     ``ValidationError`` — a 500 for what is only ever a bad URL, so it is
     caught here. Well-formed-but-absent already 404s on its own.
+
+    What the gang's open Visit Trading Post action brought comes with the
+    row: every screen holding the figure strip draws it, and a page that
+    only draws it should not pay a query to find out.
     """
     from n26.core.models import Gang
+    from n26.core.models.gang import open_visit_points
 
     try:
         return get_object_or_404(
-            Gang.objects.select_related("gang_type", "owner", "stash"),
+            Gang.objects.select_related("gang_type", "owner", "stash").annotate(
+                open_visit_points=open_visit_points()
+            ),
             pk=pk,
             owner=request.user,
             archived=False,
@@ -74,12 +81,18 @@ def _any_gang_or_404(pk):
     Archived rosters stay out: a gang its owner has put away is not
     something a link should keep alive. A pk that is not a ULID is a bad
     URL rather than a server error, as above.
+
+    The open visit's figure rides along, as above: a sheet draws it
+    whoever is reading.
     """
     from n26.core.models import Gang
+    from n26.core.models.gang import open_visit_points
 
     try:
         return get_object_or_404(
-            Gang.objects.select_related("gang_type", "owner", "stash"),
+            Gang.objects.select_related("gang_type", "owner", "stash").annotate(
+                open_visit_points=open_visit_points()
+            ),
             pk=pk,
             archived=False,
         )
@@ -176,9 +189,10 @@ def _own_miniature_or_404(request, pk):
     memberships and archived gangs are out: a dead fighter's Equip link
     should go the way the fighter did."""
     from n26.core.models import Miniature
+    from n26.core.models.gang import open_visit_points
 
     try:
-        return get_object_or_404(
+        miniature = get_object_or_404(
             Miniature.objects.select_related(
                 "membership__gang__gang_type",
                 "membership__gang__owner",
@@ -186,7 +200,7 @@ def _own_miniature_or_404(request, pk):
                 # The profile's rank rides along: every fighter screen
                 # names the model, and the header says the rank beside it.
                 "membership__profile__category",
-            ),
+            ).annotate(open_visit_points=open_visit_points("membership__gang")),
             pk=pk,
             membership__gang__owner=request.user,
             membership__gang__archived=False,
@@ -194,3 +208,7 @@ def _own_miniature_or_404(request, pk):
         )
     except ValidationError:
         raise Http404("No such fighter") from None
+    # Asked for on the gang's behalf — a fighter's screens draw the
+    # gang's figures — so it is handed over to the gang that draws it.
+    miniature.gang.hold_open_visit(miniature.open_visit_points)
+    return miniature

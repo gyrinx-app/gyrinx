@@ -294,10 +294,12 @@ def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
     from n26.core.operations import operation
 
     gang = miniature.gang
-    if line is not None and kwargs.get("action") is None:
-        if getattr(line, "charges_trade_points", False):
-            kwargs["action"] = gang.open_visit
     with operation(gang, actor=actor or gang.owner) as op:
+        # Under the gang's own line, as the equip screen reads it: which
+        # visit is open can have changed since the page decided what to ask.
+        if line is not None and kwargs.get("action") is None:
+            if getattr(line, "charges_trade_points", False):
+                kwargs["action"] = gang.open_visit
         return op.buy(miniature, line, thing=thing, entry=entry, **kwargs)
 
 

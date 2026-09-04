@@ -384,19 +384,19 @@ class TestStartingTheAction:
         gang.refresh_from_db()
         assert gang.trade_points_left == 2
 
-    def test_a_visit_opened_since_the_page_was_read_is_still_refused(
+    def test_a_visit_opened_since_the_gang_was_read_is_still_refused(
         self, client, roster, gang, tester
     ):
         """The refusal is decided on what stands under the gang's line,
-        not on what the page found before taking it. A reading held from
-        before would let the second click through to the database, which
-        would stop it — as a server error rather than as a sentence."""
+        not on what was read before taking it. A reading held from before
+        would let the second click through to the database, which would
+        stop it — as a server error rather than as a sentence."""
         from n26.core.operations import Refusal, operation
         from n26.core.trading import visitors
 
         stale = Gang.objects.get(pk=gang.pk)
-        # The page reads the state, and only then does somebody open one.
-        assert stale.visiting_trading_post is False
+        # Read, and only then does somebody else open one.
+        assert stale.open_visit is None
         start(client, gang, roster["Vex"])
 
         with pytest.raises(Refusal):

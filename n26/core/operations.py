@@ -692,13 +692,18 @@ class Operation:
         meant it. The shut state is its own state all the same, because
         "no visit" and "a visit that has spent everything" are different
         things and the screens say so differently.
+
+        Nothing open is nothing to leave, and nothing is written. Read
+        under the gang's own line, which the operation took before this
+        ran, so two clicks on one button end the visit once: the second
+        finds it closed rather than writing the gang a second ending.
         """
         from n26.core.models import Action
 
         open_now = self.gang.open_action(Action.Kind.TRADING_POST_VISIT)
-        closed = self._set_trade_points(None)
-        if open_now is not None:
-            self.close_action(open_now, closed=closed)
+        if open_now is None:
+            return self.gang
+        self.close_action(open_now, closed=self._set_trade_points(None))
         return self.gang
 
     def _set_trade_points(self, amount):
