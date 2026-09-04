@@ -2,7 +2,7 @@ name: Python environment
 description: >
   Set up Python and uv, install the locked dependencies into .venv, write the
   .env the settings need, and optionally tune a Postgres service container for
-  pytest-xdist. Shared by every job in test.yaml and ci-checks.yml.
+  pytest-xdist.
 
 inputs:
   postgres-container:

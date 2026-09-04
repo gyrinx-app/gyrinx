@@ -57,8 +57,7 @@ pytest -m core
 
 `core` marks the tests that must never break: fundamental behaviour, a few
 end-to-end flows in each edition, and the safety and performance checks (CSRF,
-CSP, admin login, the state machine, the task queue, the query-count
-snapshots). A whole file opts in with a module-level mark:
+admin login, the state machine, the task queue, the query-count snapshots). A whole file opts in with a module-level mark:
 
 ```python
 pytestmark = [pytest.mark.django_db, pytest.mark.core]

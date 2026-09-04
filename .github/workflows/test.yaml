@@ -15,9 +15,8 @@ permissions:
 # The suite is split in two. `test` is the required check: the tests marked
 # `core` (fundamental behaviour, the critical flows, safety and performance
 # checks) plus every test the pull request itself touched. `test-full` runs
-# everything and reports, but does not block a merge. The fresh-database job
-# is required too, and is the only thing here that applies the migration
-# graph.
+# everything and reports, but does not block a merge. fresh-database is the
+# only job here that applies the migration graph.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -55,17 +54,24 @@ jobs:
           postgres-container: ${{ job.services.postgres.id }}
 
       - name: Check the core suite is neither empty nor the whole suite
+        shell: bash
         run: |
           source .venv/bin/activate
-          count=$(pytest -m core --collect-only -q -n 0 | grep -c '::')
+          # A collection error fails the step here; a clean listing with no
+          # matches must still reach the bounds message, hence `|| true`.
+          listing=$(pytest -m core --collect-only -q -n 0)
+          count=$(grep -c '::' <<<"$listing" || true)
           echo "core suite: $count tests (allowed $CORE_SUITE_MIN..$CORE_SUITE_MAX)"
           if [ "$count" -lt "$CORE_SUITE_MIN" ] || [ "$count" -gt "$CORE_SUITE_MAX" ]; then
-            echo "::error::the core suite has $count tests; adjust the marks or the bounds in test.yaml" >&2
+            echo "::error::the core suite has $count tests; adjust the marks or the bounds in test.yaml"
             exit 1
           fi
 
       - name: List the tests this pull request touched
         if: github.event_name == 'pull_request'
+        # `shell: bash` turns on pipefail, so a failing script fails the step
+        # instead of leaving an empty list behind `tee`.
+        shell: bash
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -73,9 +79,11 @@ jobs:
           scripts/changed_test_paths.py "origin/$BASE_REF" | tee changed-test-paths.txt
 
       - name: Run the core suite and the changed tests
-        timeout-minutes: 30
-        # pyproject's `-n auto` counts physical cores, which on the 4-vCPU
-        # runner is 2. `-n logical` uses all 4; the later flag wins.
+        # Generous because a change to the root conftest runs the whole suite
+        # through this job.
+        timeout-minutes: 45
+        # pyproject's `-n auto` can resolve to physical cores (half the
+        # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
         run: |
           source .venv/bin/activate
           export GYRINX_CHANGED_TEST_PATHS="$(cat changed-test-paths.txt 2>/dev/null || true)"
@@ -83,10 +91,11 @@ jobs:
 
   test-full:
     runs-on: ubuntu-latest
-    # A new push to the same pull request supersedes the run in flight. On
-    # main every push gets its own run, so a failure is never hidden.
+    # One group per pull request, so a new push cancels the run in flight.
+    # Every other run gets a group of its own: a group holds at most one
+    # pending run, so sharing one across pushes to main would drop runs.
     concurrency:
-      group: test-full-${{ github.workflow }}-${{ github.ref }}
+      group: test-full-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     services:
       postgres:
@@ -116,8 +125,8 @@ jobs:
 
       - name: Run the full suite
         timeout-minutes: 60
-        # pyproject's `-n auto` counts physical cores, which on the 4-vCPU
-        # runner is 2. `-n logical` uses all 4; the later flag wins.
+        # pyproject's `-n auto` can resolve to physical cores (half the
+        # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
         run: |
           source .venv/bin/activate
           pytest --durations=20 -v -n logical

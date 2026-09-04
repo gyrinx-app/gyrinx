@@ -31,12 +31,13 @@ from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 from n23.models import FighterCategoryChoices
+from scripts.changed_test_paths import ChangedTestPaths, parse_changed_test_paths
 
 User = get_user_model()
 
 
 # Filled by pytest_configure from GYRINX_CHANGED_TEST_PATHS.
-_CHANGED_TEST_PATHS = pytest.StashKey[tuple[bool, tuple[str, ...], frozenset[str]]]()
+_CHANGED_TEST_PATHS = pytest.StashKey[ChangedTestPaths]()
 
 
 def pytest_configure(config):
@@ -44,28 +45,23 @@ def pytest_configure(config):
 
     The required CI job runs `pytest -m core`. scripts/changed_test_paths.py
     lists the test files the change added or modified, plus the directories
-    whose conftest or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS
-    (one entry per line; directories end in "/"; "." means everything).
+    whose conftest or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
     """
-    raw = os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
-    entries = [line.strip() for line in raw.splitlines() if line.strip()]
-    everything = "." in entries
-    directories = tuple(e for e in entries if e.endswith("/"))
-    files = frozenset(e for e in entries if not e.endswith("/") and e != ".")
-    config.stash[_CHANGED_TEST_PATHS] = (everything, directories, files)
+    config.stash[_CHANGED_TEST_PATHS] = parse_changed_test_paths(
+        os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
+    )
 
 
 def pytest_itemcollected(item):
     """Mark the tests a pull request touched as `core`, so `-m core` keeps them.
 
-    This runs per item during collection, before pytest applies `-m`; adding
-    the marker any later (pytest_collection_modifyitems) misses the cut.
+    The marker has to land before pytest applies `-m`, which it does as soon
+    as collection finishes.
     """
-    everything, directories, files = item.config.stash[_CHANGED_TEST_PATHS]
-    if not (everything or directories or files):
+    changed = item.config.stash[_CHANGED_TEST_PATHS]
+    if not changed:
         return
-    rel = item.path.relative_to(item.config.rootpath).as_posix()
-    if everything or rel in files or rel.startswith(directories):
+    if changed.matches(item.path.relative_to(item.config.rootpath).as_posix()):
         item.add_marker(pytest.mark.core)
 
 

@@ -8,8 +8,10 @@ itself touched. This script works out the second half:
   has nothing to run);
 - a changed or deleted `conftest.py` lists its directory, so every test under
   it runs;
-- a changed or deleted module that a `conftest.py` imports (a fixtures
-  module) lists the directory of each conftest that imports it.
+- a changed or deleted module inside a test tree that a `conftest.py`
+  imports (a fixtures module) lists the directory of each conftest that
+  imports it. Production modules the root conftest happens to import do not
+  count; their tests are the full suite's job.
 
     scripts/changed_test_paths.py            # against origin/main
     scripts/changed_test_paths.py origin/dev # against another base
@@ -19,6 +21,7 @@ suite (the repository-root conftest changed). The root conftest reads the
 result from GYRINX_CHANGED_TEST_PATHS and marks matching tests `core`.
 """
 
+import dataclasses
 import fnmatch
 import pathlib
 import re
@@ -48,6 +51,44 @@ def module_name(path: str) -> str:
     return pathlib.PurePosixPath(path).with_suffix("").as_posix().replace("/", ".")
 
 
+def in_test_tree(path: str, conftests: dict[str, str]) -> bool:
+    """True for a module under a `tests` directory or beside a non-root conftest."""
+    parts = pathlib.PurePosixPath(path).parts
+    if "tests" in parts[:-1]:
+        return True
+    parent = pathlib.PurePosixPath(path).parent.as_posix()
+    return parent != "." and f"{parent}/conftest.py" in conftests
+
+
+@dataclasses.dataclass(frozen=True)
+class ChangedTestPaths:
+    """The parsed GYRINX_CHANGED_TEST_PATHS value."""
+
+    everything: bool
+    directories: tuple[str, ...]
+    files: frozenset[str]
+
+    def __bool__(self) -> bool:
+        return self.everything or bool(self.directories) or bool(self.files)
+
+    def matches(self, rel_path: str) -> bool:
+        return (
+            self.everything
+            or rel_path in self.files
+            or rel_path.startswith(self.directories)
+        )
+
+
+def parse_changed_test_paths(raw: str) -> ChangedTestPaths:
+    """Parse the script's output: one entry per line, directories end in "/"."""
+    entries = [line.strip() for line in raw.splitlines() if line.strip()]
+    return ChangedTestPaths(
+        everything="." in entries,
+        directories=tuple(e for e in entries if e.endswith("/")),
+        files=frozenset(e for e in entries if not e.endswith("/") and e != "."),
+    )
+
+
 def find_conftests(root: pathlib.Path = ROOT) -> dict[str, str]:
     """Map each conftest's repo-relative path to its text."""
     found = {}
@@ -75,8 +116,7 @@ def select_changed_test_paths(
     """Reduce a list of changed files to the test paths that should run.
 
     `conftests` maps conftest paths to their source, as `find_conftests`
-    returns, and `exists` says whether a changed path is still in the tree;
-    both are parameters so the rule can be tested without a checkout.
+    returns; `exists` says whether a changed path is still in the tree.
     """
     entries: set[str] = set()
     for path in changed_files:
@@ -87,7 +127,7 @@ def select_changed_test_paths(
                 entries.add(path)
         elif pathlib.PurePosixPath(path).name == "conftest.py":
             entries.add(directory_entry(path))
-        else:
+        elif in_test_tree(path, conftests):
             for conftest in conftests_importing(module_name(path), conftests):
                 entries.add(directory_entry(conftest))
     if "." in entries:
