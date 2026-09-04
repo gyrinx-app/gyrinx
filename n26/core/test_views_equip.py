@@ -309,8 +309,8 @@ def test_the_rail_says_where_a_clicked_tabs_page_will_land(
     client, tester, fighter, house_list
 ):
     """A tab is a whole render, so the wait is shown on the catalogue it
-    replaces rather than on the tab: the rail names the catalogue, the
-    catalogue carries that name, and the rail holds the spinner to draw."""
+    replaces, not on the tab. The rail names the catalogue, the catalogue
+    carries that name, and the rail holds the spinner to draw."""
     client.force_login(tester)
     html = client.get(equip_url(fighter)).content.decode()
 

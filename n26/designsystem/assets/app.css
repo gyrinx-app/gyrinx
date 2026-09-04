@@ -1363,10 +1363,10 @@ a[data-busy="on"] {
     }
 }
 
-/* A link whose page's arrival is shown where the page will land — a rail
- * beside the catalogue it changes, marked data-busy-replaces — keeps its
- * label and draws no ring: the reader is watching the catalogue, and the link
- * has already taken the rail's current look. Still refused a second click. */
+/* A link inside a rail beside the catalogue it changes, marked
+ * data-busy-replaces, keeps its label and draws no ring when it goes busy.
+ * The reader is watching the catalogue, not the link, which has already
+ * taken the rail's current look. The second click is still refused. */
 [data-busy-replaces] a[data-busy="on"] {
     -webkit-text-fill-color: currentColor;
 }

@@ -13,15 +13,16 @@
  * second activation of a control already busy.
  *
  * The state is one attribute, `data-busy="on"`, written here and drawn by the
- * design library's stylesheet (n26/designsystem/assets/app.css) — this file
- * holds no styling of its own, and the one inline style it writes is the
- * `display: none` that hides a replaced element's contents, put back when
- * the wait ends. A control that must never go busy carries
- * `data-busy="off"` from its call site; so does a form, which opts out
- * everything inside it. A plain link to a page the server has to build
- * carries `data-busy="link"` to be treated the way a button is — or, inside
- * a container carrying `data-busy-replaces`, to show its page's arrival where
- * the page will land instead of on the link.
+ * design library's stylesheet (n26/designsystem/assets/app.css). This file
+ * writes no other styling itself. The one exception is the inline
+ * `display: none` style: it hides a replaced element's contents while the
+ * page loads, and removes it again when the wait ends. A control that must
+ * never go busy carries `data-busy="off"` from its call site; so does a
+ * form, which opts out everything inside it. A plain link to a page the
+ * server has to build carries `data-busy="link"` to be treated the way a
+ * button is. Inside a container carrying `data-busy-replaces`, the same
+ * link shows the wait where the new page will land, instead of on the link
+ * itself.
  *
  * What is deliberately left alone: a button that only moves something on
  * screen — a tab, a filter, a disclosure — starts no work and never goes
@@ -144,23 +145,25 @@
      *
      * A rail of lists sits beside the catalogue it changes, and the reader
      * is watching the catalogue, not the rail. A container carrying
-     * `data-busy-replaces="<selector>"` says so: the clicked link takes the
-     * container's current look at once (`is-current`, the marker the kit's
-     * navlist styles), and that element's contents give way to the spinner
-     * in the container's own `<template data-busy-wait>` until the page
-     * arrives. The link still goes busy, so a second click is refused, and
-     * app.css leaves its label in place inside such a container.
+     * `data-busy-replaces="<selector>"` marks that spot. The clicked link
+     * takes on the container's current look at once — `is-current`, the
+     * marker the kit's navlist styles use. The target element's contents
+     * give way to the spinner in the container's own
+     * `<template data-busy-wait>` until the page arrives. The link still
+     * goes busy, so a second click is refused. Inside such a container,
+     * app.css leaves the link's label in place.
      *
-     * Contents are hidden rather than removed, and put back on a restore
-     * from the back/forward cache, which returns the page as it was left.
+     * Contents are hidden, not removed. They come back when the page is
+     * restored from the back/forward cache, which returns the page exactly
+     * as it was left.
      */
     function replaceBody(link) {
         if (optedOut(link)) return;
         var container = link.closest("[data-busy-replaces]");
         if (!container) return;
 
-        /* The look and the announcement move together: a screen reader is
-         * told the same tab is current as a sighted reader is shown. */
+        /* The look and the announcement move together: a screen reader
+         * hears which tab is current, matching what a sighted reader sees. */
         container.querySelectorAll("a.is-current").forEach(function (was) {
             was.classList.remove("is-current");
             was.removeAttribute("aria-current");
