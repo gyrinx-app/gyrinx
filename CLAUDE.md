@@ -24,6 +24,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   There is no need to prefix commands with `. .venv/bin/activate &&`.
 - The session hook also sets `DB_NAME` and `DJANGO_PORT` per-worktree — `manage` and `pytest`
   automatically target the correct database.
+- **Codex local worktrees:** configure `.codex/setup.sh` as the local-environment setup script.
+  Codex shell commands do not inherit Claude's `CLAUDE_ENV_FILE`, so run direct Python/Django
+  commands through `.codex/run.sh` (for example, `.codex/run.sh pytest` or
+  `.codex/run.sh manage check`). The existing `scripts/dev.sh` and `scripts/fmt.sh` activate the
+  worktree environment themselves.
 
 **Key Principles:**
 

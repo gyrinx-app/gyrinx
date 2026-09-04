@@ -12,6 +12,9 @@
 #                                   # per-worktree .venv and node_modules in
 #                                   # child worktrees if missing.
 #   ./scripts/dev.sh --no-watch     # Skip npm watch (CSS already built)
+#   ./scripts/dev.sh --setup-only   # Prepare dependencies, database and CSS,
+#                                   # then exit without starting Django or
+#                                   # npm run watch
 #   ./scripts/dev.sh --reset-db     # Drop and re-fork the worktree database
 #   ./scripts/dev.sh --reset-venv   # Rebuild the worktree's .venv from scratch
 #                                   # (no-op in the main worktree)
@@ -27,9 +30,11 @@ source "$SCRIPT_DIR/lib/worktree.sh"
 NO_WATCH=false
 RESET_DB=false
 RESET_VENV=false
+SETUP_ONLY=false
 for arg in "$@"; do
   case "$arg" in
     --no-watch) NO_WATCH=true ;;
+    --setup-only) SETUP_ONLY=true ;;
     --reset-db) RESET_DB=true ;;
     --reset-venv) RESET_VENV=true ;;
     *) echo "Unknown argument: $arg"; exit 1 ;;
@@ -312,6 +317,16 @@ for css in "$CSS_FILE" "$N26_CSS_FILE"; do
 done
 CSS_SIZE=$(wc -c < "$CSS_FILE" | tr -d ' ')
 N26_CSS_SIZE=$(wc -c < "$N26_CSS_FILE" | tr -d ' ')
+
+if [ "$SETUP_ONLY" = true ]; then
+  echo
+  echo "Gyrinx worktree setup complete."
+  echo "  Worktree: $WT_LABEL"
+  echo "  Database: $DB_NAME"
+  echo "  Start:    ./scripts/dev.sh"
+  echo "  Dev URL:  http://localhost:${DJANGO_PORT}"
+  exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Background process management

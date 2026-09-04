@@ -61,7 +61,8 @@ python scripts/screenshot.py --check
 
 - `dev.sh`: Starts the full development environment — forks the per-worktree database, runs
   migrations, and launches Django plus `npm run watch`. The single command you use day-to-day.
-  See [docs/useful-scripts.md](../docs/useful-scripts.md) for flags.
+  Pass `--setup-only` to prepare a worktree without starting Django or `npm run watch`.
+  See [docs/useful-scripts.md](../docs/useful-scripts.md) for the other flags.
 - `setup-local-postgres.sh`: One-time machine setup. Installs PostgreSQL 16 via Homebrew (macOS),
   initialises the cluster with ICU collation, and migrates data from any pre-existing Docker
   Postgres container.
