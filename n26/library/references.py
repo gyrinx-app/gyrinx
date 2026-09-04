@@ -201,10 +201,13 @@ def reading_sentences(modifiers):
         for condition in getattr(related, "CONDITIONS", ()):
             model = related._meta.get_field(condition).related_model
             paths.append(f"{half}__{condition}")
+            # A many-to-many is not a concrete column, and a condition
+            # row's names live there: left out, each row's words are a
+            # query of their own on every sentence.
             paths.extend(
                 f"{half}__{condition}__{field.name}"
                 for field in model._meta.get_fields()
-                if field.concrete and (field.many_to_one or field.many_to_many)
+                if field.many_to_many or (field.concrete and field.many_to_one)
             )
 
     return modifiers.prefetch_related(*paths)
