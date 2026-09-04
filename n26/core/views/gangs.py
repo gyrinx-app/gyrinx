@@ -1017,6 +1017,13 @@ def gang_founding_action(request, pk):
     (``n26.core.operations.Operation.open_action``). The card offers the
     one control the state allows, so a post that lands the wrong way
     round is a stale page rather than an intention.
+
+    Both clicks catch a refusal, not just the one with a rule of its own.
+    Every operation ends by rewriting the gang's credits, and that is
+    where a gang spending past a budget is refused — so a gang whose
+    budget was lowered under what it had already spent refuses even an
+    act that moves no money. The reader gets the sentence and the page
+    back rather than a server error.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Action
@@ -1032,9 +1039,13 @@ def gang_founding_action(request, pk):
     act = request.POST.get("act")
 
     if act == "finish":
-        with operation(gang, actor=request.user) as op:
-            open_now = gang.open_action(kind)
-            closed = op.close_action(open_now) if open_now is not None else None
+        try:
+            with operation(gang, actor=request.user) as op:
+                open_now = gang.open_action(kind)
+                closed = op.close_action(open_now) if open_now is not None else None
+        except Refusal as refused:
+            messages.error(request, str(refused))
+            return redirect(at)
         if closed is not None:
             record(
                 request, N26Noun.GANG, EventVerb.UPDATE, gang, action=kind, act="finish"

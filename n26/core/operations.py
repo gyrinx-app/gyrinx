@@ -589,13 +589,19 @@ class Operation:
         the caller's copy was read before that line was taken: two
         clicks on one button arrive together often enough, and closing
         an act twice would write it a second ending and orphan the
-        first. One already closed is nothing to do, and returns None so
-        the caller can say so rather than report an act that did not
-        happen.
+        first. The read is scoped to this operation's gang as well as to
+        the row, so an action belonging to another gang is not closed
+        here and its ending is not written into this gang's history.
+
+        Either miss — already closed, or not this gang's — does nothing
+        and returns None, so the caller can say so rather than report an
+        act that did not happen.
         """
         from n26.core.models import Action
 
-        fresh = Action.objects.filter(pk=action.pk, closed__isnull=True).first()
+        fresh = Action.objects.filter(
+            pk=action.pk, gang=self.gang, closed__isnull=True
+        ).first()
         if fresh is None:
             return None
         fresh.closed = self.event(None, LedgerEvent.Kind.ACTION_CLOSED, note=fresh.kind)

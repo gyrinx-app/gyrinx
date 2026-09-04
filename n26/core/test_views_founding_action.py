@@ -149,6 +149,36 @@ class TestClosingAndStartingAgain:
 
         assert LedgerEvent.objects.filter(gang=gang).count() == before
 
+    def test_another_gangs_action_is_not_this_operations_to_close(
+        self, gang, tester, gang_type
+    ):
+        """An operation is opened on one gang and writes that gang's
+        history. Handed an action belonging to another, it closes
+        nothing rather than ending their act and filing the ending under
+        the wrong name."""
+        theirs = Gang.objects.create(
+            name="The Rust Sermon",
+            owner=tester,
+            gang_type=gang_type,
+            starting_credits=1000,
+            credits=1000,
+        )
+        with operation(theirs, actor=tester) as op:
+            op.found(gang_type)
+        open_now = theirs.open_action(FOUNDING)
+        before = LedgerEvent.objects.filter(gang=theirs).count()
+
+        with operation(gang, actor=tester) as op:
+            assert op.close_action(open_now) is None
+
+        open_now.refresh_from_db()
+        assert open_now.is_open
+        assert theirs.open_action(FOUNDING) is not None
+        assert LedgerEvent.objects.filter(gang=theirs).count() == before
+        assert not LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.ACTION_CLOSED
+        ).exists()
+
     def test_a_closed_action_may_be_started_again(self, gang, tester):
         with operation(gang, actor=tester) as op:
             op.close_action(gang.open_action(FOUNDING))
@@ -291,6 +321,30 @@ class TestTheActsBehindIt:
         assert gang.open_action(FOUNDING) is None
         lines = [str(m) for m in answer.context["messages"]]
         assert "Completed the Found and equip gang action." in lines
+
+    def test_a_gang_past_its_budget_is_told_so_rather_than_broken(
+        self, client, gang, tester, make_profile, make_statline
+    ):
+        """Every operation ends by rewriting the gang's credits, and a
+        gang whose budget was lowered under what it had already spent is
+        refused there — even by an act that moves no money. The reader
+        gets the sentence and the page back."""
+        profile = make_profile("Ganger", price=500)
+        make_statline(profile)
+        with operation(gang, actor=tester) as op:
+            op.hire(profile, "Vex")
+        # Written straight to the column, as the admin writes it: the
+        # operation that would lower the budget is refused by the same
+        # rule this is about.
+        Gang.objects.filter(pk=gang.pk).update(starting_credits=100)
+
+        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+
+        assert answer.status_code == 200
+        assert answer.redirect_chain == [(sheet(gang), 302)]
+        assert gang.open_action(FOUNDING) is not None
+        lines = [str(m) for m in answer.context["messages"]]
+        assert any("Not enough credits" in line for line in lines)
 
     def test_starting_one_opens_it_again(self, client, gang, tester):
         with operation(gang, actor=tester) as op:
