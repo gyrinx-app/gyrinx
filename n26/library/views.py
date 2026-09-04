@@ -1284,8 +1284,104 @@ def leaf(request, kind):
             "kind_help": kind_help(model),
             "rows": rows,
             "count": len(rows),
+            # Ticking rows to act on several at once is offered only
+            # where the act exists: hanging a modifier on a thing that
+            # can carry one.
+            "bulk_attach": _carries_modifiers(kind),
         },
     )
+
+
+@staff_member_required
+def attach_modifier(request, kind):
+    """Hang one modifier on several things of a kind at once.
+
+    The listing's tick boxes lead here with the ticked rows in the
+    address, so the page survives a reload and Back is a real answer.
+    Nothing changes until the form posts, and the post carries the
+    same rows as hidden fields. A thing that already carries the
+    modifier is left alone and counted, so the same selection can be
+    posted twice without harm.
+    """
+    from n26.library import authoring
+    from n26.library.models import Modifier
+
+    spec = _spec_for(kind)
+    model = _model_for(spec)
+    if not _carries_modifiers(kind):
+        raise Http404(f"A {kind} cannot carry modifiers")
+    singular = model._meta.verbose_name
+    plural = model._meta.verbose_name_plural
+
+    asked = request.POST if request.method == "POST" else request.GET
+    things = list(_selected(_rows(model, kind), asked.getlist("pk")))
+    if not things:
+        messages.error(request, f"Select at least one {singular} first.")
+        return redirect("authoring-leaf", kind=kind)
+    if not Modifier.objects.exists():
+        messages.error(request, "No modifiers to attach yet. Create one first.")
+        return redirect("authoring-leaf", kind=kind)
+
+    if request.method == "POST":
+        modifier = get_object_or_404(Modifier, pk=request.POST.get("modifier", ""))
+        had = set(
+            model.objects.filter(
+                pk__in=[thing.pk for thing in things], modifiers=modifier
+            ).values_list("pk", flat=True)
+        )
+        with transaction.atomic():
+            for thing in things:
+                if thing.pk not in had:
+                    authoring.attach_modifiers_to(thing, [modifier])
+        attached = len(things) - len(had)
+        if attached == 0:
+            said = f"Every selected {singular} already had {modifier.name}."
+        else:
+            noun = singular if attached == 1 else plural
+            said = f"Attached {modifier.name} to {attached} {noun}."
+            if had:
+                said += f" {len(had)} already had it."
+        messages.success(request, said)
+        return redirect("authoring-leaf", kind=kind)
+
+    rows = [
+        {
+            **_naming(thing),
+            "pk": thing.pk,
+            "url": reverse("authoring-detail", args=[kind, thing.pk]),
+        }
+        for thing in things
+    ]
+    attachable = [
+        {
+            "pk": modifier.pk,
+            "label": f"{modifier.name} — {modifier.scope}: {modifier.effect}",
+        }
+        for modifier in _reading_sentences(Modifier.objects.all())
+    ]
+    return render(
+        request,
+        "authoring/attach_modifier.html",
+        {
+            "kind": kind,
+            "verbose_name": singular,
+            "verbose_name_plural": plural,
+            "noun": singular if len(rows) == 1 else plural,
+            "rows": rows,
+            "count": len(rows),
+            "attachable_modifiers": attachable,
+        },
+    )
+
+
+def _selected(rows, pks):
+    """The rows a page was handed, by pk — none at all if a pk is not
+    even the shape of one, rather than an error page for a mistyped
+    address."""
+    try:
+        return rows.filter(pk__in=pks) if pks else rows.none()
+    except ValueError, ValidationError:
+        return rows.none()
 
 
 @staff_member_required

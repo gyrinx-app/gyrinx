@@ -54,7 +54,7 @@ twice in a row.
     visible rows out of the DOM instead would not be reactive: nothing
     in that read mentions the query, so the number would never change.
     {% endcomment %}
-    <div x-data="{ query: '', haystacks: [], register(haystack) { this.haystacks.push(haystack) }, matches(haystack) { const q = this.query.trim().toLowerCase(); return !q || haystack.includes(q); }, get shown() { return this.haystacks.filter(h => this.matches(h)).length }, }"
+    <div x-data="{ query: '', haystacks: [], register(haystack) { this.haystacks.push(haystack) }, matches(haystack) { const q = this.query.trim().toLowerCase(); return !q || haystack.includes(q); }, get shown() { return this.haystacks.filter(h => this.matches(h)).length }, ticked: 0, count() { this.ticked = this.$root.querySelectorAll('input[name=pk]:checked').length }, tickShown(on) { this.$root.querySelectorAll('tr:not([hidden]) input[name=pk]').forEach(box => { box.checked = on }); this.count() }, }"
          class="mt-8 flex flex-col gap-3">
         {% if rows %}
             <c-n26.search-bar :live="True"
@@ -65,22 +65,41 @@ twice in a row.
                       x-text="shown">{{ count }}</span>
                 of {{ count }} {{ verbose_name_plural }}
             </p>
-            <c-ui.table>
-                <tbody>
-                    {% for row in rows %}
-                        {# :hidden rather than x-show: a table row's own display value is not `block`. #}
-                        <tr x-data="{ haystack: '{{ row.search|escapejs }}' }"
-                            x-init="register(haystack)"
-                            :hidden="!matches(haystack)">
-                            {% include "authoring/_name_cell.html" with row=row %}
-                            {# The author's own note reads as one more thing the row says about itself. #}
-                            <td class="w-full text-muted">
-                                {{ row.notes|join:" · " }}{% if row.notes and row.help %} · {% endif %}{{ row.help }}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </c-ui.table>
+            {% comment %}
+            Ticking several rows and acting on them is a form the whole
+            table sits in. The act itself is a page of its own, reached
+            with the ticked rows in its address, so nothing here changes
+            anything and the selection survives a reload. The bar's
+            count and its select-all are script: without it the boxes
+            still tick one by one and the button still leads on.
+            {% endcomment %}
+            {% if bulk_attach %}
+                <form method="get"
+                      action="{% url 'authoring-attach-modifier' kind %}"
+                      @change="count()">
+                    <c-n26.action-bar :surface="True" class="mb-3">
+                        <label class="flex items-center gap-2 text-sm" x-cloak>
+                            <input type="checkbox"
+                                   class="size-4 accent-[var(--color-accent)] focus-ring"
+                                   @change="tickShown($event.target.checked)">
+                            Select all shown
+                        </label>
+                        <span class="text-sm text-muted">
+                            <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
+                                  x-text="ticked">0</span>
+                            selected
+                        </span>
+                        <c-slot name="trailing">
+                            <c-ui.button type="submit" variant="primary">
+                                Attach a modifier
+                            </c-ui.button>
+                        </c-slot>
+                    </c-n26.action-bar>
+                    {% include "authoring/_leaf_table.html" with rows=rows bulk=True %}
+                </form>
+            {% else %}
+                {% include "authoring/_leaf_table.html" with rows=rows bulk=False %}
+            {% endif %}
             <p x-show="shown === 0"
                x-cloak
                class="py-6 text-center text-sm text-muted">No {{ verbose_name_plural }} match that.</p>

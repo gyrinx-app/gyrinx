@@ -324,6 +324,12 @@ urlpatterns = [
         authoring_views.create,
         name="authoring-create",
     ),
+    # Before the pk route for the same reason as "new".
+    path(
+        "authoring/<slug:kind>/attach-modifier/",
+        authoring_views.attach_modifier,
+        name="authoring-attach-modifier",
+    ),
     path(
         "authoring/<slug:kind>/<str:pk>/delete/",
         authoring_views.thing_delete,

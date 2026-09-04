@@ -2142,8 +2142,13 @@ def row_printing(body, words):
 
 
 def cells_of(row):
-    """A row's cells, in the order they are read."""
-    return re.findall(r"<td\b.*?</td>", row, re.S)
+    """A row's cells, in the order they are read. A box to tick is a
+    control rather than something read, so it is left out."""
+    return [
+        cell
+        for cell in re.findall(r"<td\b.*?</td>", row, re.S)
+        if 'type="checkbox"' not in cell
+    ]
 
 
 def words_in(markup):
@@ -7048,3 +7053,142 @@ class TestTheAboutColumn:
         body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
         assert "Assigned to" in body
         assert "No gang yet." in body
+
+
+class TestAttachingAModifierToSeveral:
+    """The listing of a kind that can carry modifiers lets an author tick
+    rows and hang one modifier on all of them from a page of its own.
+    The ticked rows travel in the address, so the page reloads and Back
+    works; a thing that already carries the modifier is left as it is."""
+
+    @pytest.fixture
+    def gang_types(self, default_pack):
+        from n26.library.authoring import create_gang_type
+
+        return [create_gang_type(name) for name in ("Escher", "Goliath", "Orlock")]
+
+    @pytest.fixture
+    def grant(self, default_pack):
+        from n26.library.authoring import (
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_every_model,
+        )
+
+        return modifier(
+            "Everyone is Agile",
+            targets_every_model(),
+            ef_adds(create_subtype("Agile")),
+        )
+
+    def test_the_listing_offers_a_box_per_row_where_modifiers_can_hang(
+        self, author, client, gang_types
+    ):
+        body = client.get("/n26/authoring/gang-type/").content.decode()
+        assert body.count('name="pk"') == 3
+        assert "Attach a modifier" in body
+        assert 'action="/n26/authoring/gang-type/attach-modifier/"' in body
+
+    def test_a_kind_that_cannot_carry_modifiers_offers_none(
+        self, author, client, fighter_stats
+    ):
+        body = client.get("/n26/authoring/stat/").content.decode()
+        assert 'name="pk"' not in body
+        assert "Attach a modifier" not in body
+        assert client.get("/n26/authoring/stat/attach-modifier/").status_code == 404
+
+    def test_the_page_names_what_was_ticked_and_offers_every_modifier(
+        self, author, client, gang_types, grant
+    ):
+        escher, goliath, _ = gang_types
+        response = client.get(
+            "/n26/authoring/gang-type/attach-modifier/",
+            {"pk": [str(escher.pk), str(goliath.pk)]},
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "Attach a modifier to 2 gang types" in body
+        assert "Escher" in body
+        assert "Goliath" in body
+        assert "Orlock" not in body
+        assert "Everyone is Agile" in body
+
+    def test_posting_hangs_it_on_each_and_counts_those_that_had_it(
+        self, author, client, gang_types, grant
+    ):
+        from n26.library.authoring import attach_modifiers_to
+
+        escher, goliath, orlock = gang_types
+        attach_modifiers_to(escher, [grant])
+
+        response = client.post(
+            "/n26/authoring/gang-type/attach-modifier/",
+            {"pk": [str(t.pk) for t in gang_types], "modifier": str(grant.pk)},
+            follow=True,
+        )
+
+        assert response.redirect_chain[-1][0] == "/n26/authoring/gang-type/"
+        assert [m.message for m in response.context["messages"]] == [
+            "Attached Everyone is Agile to 2 gang types. 1 already had it."
+        ]
+        for gang_type in gang_types:
+            assert list(gang_type.modifiers.all()) == [grant]
+
+    def test_posting_again_changes_nothing_and_says_so(
+        self, author, client, gang_types, grant
+    ):
+        data = {"pk": [str(t.pk) for t in gang_types], "modifier": str(grant.pk)}
+        client.post("/n26/authoring/gang-type/attach-modifier/", data, follow=True)
+        response = client.post(
+            "/n26/authoring/gang-type/attach-modifier/", data, follow=True
+        )
+        assert [m.message for m in response.context["messages"]] == [
+            "Every selected gang type already had Everyone is Agile."
+        ]
+        for gang_type in gang_types:
+            assert gang_type.modifiers.count() == 1
+
+    def test_nothing_ticked_sends_the_author_back_with_a_word(
+        self, author, client, gang_types, grant
+    ):
+        response = client.get("/n26/authoring/gang-type/attach-modifier/", follow=True)
+        assert response.redirect_chain[-1][0] == "/n26/authoring/gang-type/"
+        assert [m.message for m in response.context["messages"]] == [
+            "Select at least one gang type first."
+        ]
+
+    def test_a_mistyped_address_is_not_an_error_page(
+        self, author, client, gang_types, grant
+    ):
+        response = client.get(
+            "/n26/authoring/gang-type/attach-modifier/", {"pk": "not-a-pk"}
+        )
+        assert response.status_code == 302
+
+    def test_the_page_costs_the_same_however_many_modifiers_there_are(
+        self, author, client, gang_types, grant
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import (
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_every_model,
+        )
+
+        address = "/n26/authoring/gang-type/attach-modifier/"
+        data = {"pk": [str(t.pk) for t in gang_types]}
+        with CaptureQueriesContext(connection) as few:
+            client.get(address, data)
+        for number in range(6):
+            modifier(
+                f"Everyone is Agile {number}",
+                targets_every_model(),
+                ef_adds(create_subtype(f"Agile {number}")),
+            )
+        with CaptureQueriesContext(connection) as more:
+            client.get(address, data)
+        assert len(more) <= len(few)
