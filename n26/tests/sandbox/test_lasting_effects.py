@@ -86,7 +86,7 @@ def tables(default_pack, fighter_stats):
             "table": Picklist.objects.get(name=f"{name} Table"),
             "slot": Slot.objects.get(name=name),
         }
-        for name, _, _, _ in LASTING_EFFECT_TABLES
+        for name, _, _, _, _ in LASTING_EFFECT_TABLES
     }
 
 
@@ -157,10 +157,13 @@ class TestTheTablesAsSeeded:
     """Both tables cover their die exactly, with nothing doubled and
     nothing unrollable — pinned so a band changes deliberately."""
 
-    @pytest.mark.parametrize("name", [n for n, _, _, _ in LASTING_EFFECT_TABLES])
-    def test_the_table_is_whole(self, tables, name):
+    @pytest.mark.parametrize(
+        ("name", "rolls"),
+        [(n, {"d66": 36, "d6": 6}[dice]) for n, _, _, dice, _ in LASTING_EFFECT_TABLES],
+    )
+    def test_the_table_is_whole(self, tables, name, rolls):
         said = coverage(tables[name]["table"])
-        assert said.covered == said.total == 36
+        assert said.covered == said.total == rolls
         assert said.unclaimed == []
         assert said.doubled == []
         assert said.bandless == []
@@ -189,15 +192,42 @@ class TestTheTablesAsSeeded:
             STANDARD_CONTENT["lasting-effect-tables"].create()
 
     def test_the_shared_names_are_separate_results_per_table(self, tables):
-        """Lesson Learnt, the three Enmities and Captured sit on both
-        tables at the same rolls — as two pickables each, because a
-        pickable belongs to one slot type."""
+        """Lesson Learnt sits on three tables, Grievous Wound on three,
+        Out Cold on two — as one pickable per table, because a pickable
+        belongs to one slot type; the twins are told apart by qualifier."""
         from n26.library.models import Pickable
         from n26.library.standard_content import SHARED_LASTING_RESULTS
 
+        assert SHARED_LASTING_RESULTS >= {"Lesson Learnt", "Grievous Wound", "Out Cold"}
         for name in SHARED_LASTING_RESULTS:
+            on_tables = {
+                table
+                for table, _, rows, _, _ in LASTING_EFFECT_TABLES
+                if any(result == name for _, _, result in rows)
+            }
             types = {p.slot_type.name for p in Pickable.objects.filter(name=name)}
-            assert types == {"Lasting Injury", "Lasting Damage"}, name
+            assert types == on_tables, name
+
+    def test_a_table_seeded_before_a_later_twin_gains_no_second_copy(
+        self, default_pack
+    ):
+        """Production seeded the first two tables before the others
+        existed, so the Lasting Damage table's Superficial Damage carries
+        no qualifier. Seeding again must find that row, not make a twin
+        beside it and double the band."""
+        from n26.library.models import Pickable, PicklistMember
+
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        early = Pickable.objects.get(
+            name="Superficial Damage", slot_type__name="Lasting Damage"
+        )
+        assert early.qualifier == ""
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        assert Pickable.objects.filter(name="Superficial Damage").count() == 2
+        assert (
+            PicklistMember.objects.filter(pickable__name="Superficial Damage").count()
+            == 2
+        )
 
 
 class TestAFighterIsHurt:

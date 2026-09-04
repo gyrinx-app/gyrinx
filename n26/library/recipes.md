@@ -239,24 +239,30 @@ founding one.
 
 > Draft, for review.
 
-A model taken out of action rolls on one of the book's two D66 tables
-and keeps the result for good. Each table is a slot type of its own —
-two, not one, so a fighter can never be handed vehicle damage — and
-the app never rolls: the dice are the table's, and a player adds the
-result they rolled.
+A model taken out of action rolls on a table and keeps the result for
+good. There are four tables: the book's Lasting Injury and Lasting
+Damage tables (D66), the Spyrer Hunting Rig Glitches a Spyrer's suit
+takes instead of injuries (D66), and the delegation injuries an
+alliance's models roll (D6). Each is a slot type of its own, so a
+fighter can never be handed vehicle damage — and the app never rolls:
+the dice are the table's, and a player adds the result they rolled.
 
 1. On **Foundations**, create the **lasting effect tables**. One press
-   makes both tables whole: a slot type each with *allows repeats* set —
-   a second Eye Injury is a second Eye Injury — every result at its
-   band, and a standing choice each. Each table's own page shows every
-   roll covered. (Five results sit on both tables at the same rolls; a
-   pack holds one pickable per name, so the damage twins arrive with a
-   qualifier, which players never see.)
-2. Standard content carries names and numbers only, so finish the ten
-   results that worsen a characteristic by hand: on each, attach a
-   **modifier** — targets the model, worsens that characteristic by
-   one. A result that changes no number needs nothing — the card says
-   the model has it, and the rest is played at the table.
+   makes all four tables whole: a slot type each with *allows repeats*
+   set — a second Eye Injury is a second Eye Injury — every result at
+   its band, and a standing choice each. Each table's own page shows
+   every roll covered. (Several results sit on more than one table at
+   the same rolls; a pack holds one pickable per name, so the later
+   twins arrive with a qualifier, which players never see.)
+2. Standard content carries names and numbers only, so finish the
+   results that change a number by hand. On each of the ten injury and
+   damage results that worsen a characteristic, attach a **modifier** —
+   targets the model, worsens that characteristic by one. On each of the
+   ten Spyrer glitch results (rolls 51 to 64), attach two: one that
+   worsens the characteristic, and one that *moves a counter* — the
+   Glitch Count, up by one. A result that changes no number needs
+   nothing — the card says the model has it, and the rest is played at
+   the table.
 3. Put each table's choice on the gang types rather than on the
    entries. Create a **modifier**: reaches *all models in the gang*,
    narrowed to those that *are a Fighter*, and *gives* the Lasting
@@ -266,6 +272,18 @@ result they rolled.
    that moment — gangs founded long ago included, because nothing is
    written on any model. A gang type created later needs the same two
    attachments.
+4. Spyre Hunters are the exception. On that gang type, take the
+   fighters' Lasting Injury modifier off and attach two in its place,
+   both reaching *all models in the gang* that *are a Fighter*: one
+   narrowed to models that have the **Spyrer** subtype, giving the
+   Spyrer Hunting Rig Glitches choice; the other narrowed to models
+   that do *not* have it, giving Lasting Injury as before. A Spyrer's
+   card then asks under Hunting Rig Glitches and never under Lasting
+   Injuries.
+5. A delegation's models roll on the D6 table. Giving them the
+   Delegation Lasting Injuries choice needs a way to reach exactly
+   those models; naming their entries one by one on the modifier is the
+   only way today, and which entries count is not yet settled.
 
 Taking one of those modifiers off a gang type takes the row off every
 card at once, and leaves what players had already picked where it is,
