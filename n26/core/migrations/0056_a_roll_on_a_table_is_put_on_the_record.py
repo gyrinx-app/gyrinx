@@ -14,7 +14,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0079_the_gangs_archetype_is_drawn_on_the_models_it_governs"),
-        ("n26", "0050_a_purchase_records_who_spent_the_trade_points"),
+        ("n26", "0055_the_gang_stops_keeping_a_copy_of_the_visits_figure"),
     ]
 
     operations = [
