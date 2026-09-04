@@ -921,3 +921,205 @@ class TestTheSeed:
         assign(rule, miniature=leader)
 
         assert reading(leader) == 5
+
+
+def sheet_of(gang):
+    """The gang sheet, drawn from a row of its own."""
+    from n26.core.models import Gang
+    from n26.core.render import render_gang
+
+    return render_gang(Gang.objects.get(pk=gang.pk))
+
+
+def card_for(gang, name):
+    return next(card for card in sheet_of(gang).models if card.name == name)
+
+
+class TestTheRosterReadInOneGo:
+    """Every model's allowance is worked out for the whole roster at once.
+
+    The reading is already in the fold the cards are drawn from, and what
+    has gone is one sum grouped by whoever spent it — so a gang sheet of
+    sixteen fighters is drawn for what one of two costs.
+    """
+
+    def test_a_budgeted_model_carries_its_figure(self, gang, leader):
+        card = card_for(gang, "Rasp")
+
+        assert card.founding_budget is True
+        assert card.trade_points_left == 5
+
+    def test_a_model_with_no_allowance_carries_none(self, gang, hire_into, leader):
+        hire_into(gang, ("Allies", "Bone Scrivener"), "Wren")
+        card = card_for(gang, "Wren")
+
+        assert card.founding_budget is False
+        assert card.trade_points_left is None
+
+    def test_what_one_has_spent_is_not_charged_to_another(
+        self, gang, hire_into, leader, kit, legacy_list
+    ):
+        champion = hire_into(gang, ("Venators", "Hunt Champion"), "Kade")
+        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+
+        assert card_for(gang, "Rasp").trade_points_left == 2
+        assert card_for(gang, champion.name).trade_points_left == 4
+
+    def test_the_figure_goes_when_the_action_is_complete(self, gang, leader, player):
+        complete_action(gang, FOUNDING_KIND, actor=player)
+        card = card_for(gang, "Rasp")
+
+        assert card.founding_budget is False
+        assert card.trade_points_left is None
+
+    def test_spending_past_it_reads_below_nothing(
+        self, gang, hire_into, kit, legacy_list
+    ):
+        """Trade Points inform and only credits are refused, so a model
+        the owner meant to overspend reports what it is over by."""
+        hunter = hire_into(gang, ("Venators", "Hunter"), "Sull")
+        for _ in range(2):
+            buy_at_founding(
+                hunter, line_for(browse(legacy_list, FOUNDING), "Flak plate")
+            )
+
+        assert card_for(gang, "Sull").trade_points_left == -3
+
+    def test_the_cost_does_not_follow_the_roster(
+        self, gang, hire_into, leader, django_assert_num_queries
+    ):
+        """Two reads for the allowances however many models carry one:
+        the standard counter, asked once for the roster rather than once
+        a model, and what every model has spent under the founding
+        action. Which actions the gang has open is a third, and the sheet
+        pays it for the visit's figure whether or not anybody has an
+        allowance.
+        """
+        from n26.core.models import Gang
+        from n26.core.render import render_gang
+
+        def measure():
+            fresh = Gang.objects.get(pk=gang.pk)
+            with django_assert_num_queries(self.SHEET):
+                render_gang(fresh)
+
+        measure()
+        for name in ("Kade", "Sull", "Nix"):
+            hire_into(gang, ("Venators", "Hunt Champion"), name)
+        measure()
+
+    #: What drawing this gang's sheet reads. Pinned so it changes
+    #: deliberately: the rows, the fold's own lookups, the gang's open
+    #: actions, the standard counter and the one sum of what has been
+    #: spent against the founding action.
+    SHEET = 33
+
+    def test_the_allowances_are_two_of_those_reads(
+        self, gang, hire_into, leader, django_assert_num_queries
+    ):
+        """The standard counter, so a homebrew one of the same name is
+        not mistaken for it, and one sum of what the roster has spent.
+        Which actions the gang has open is not among them: the sheet asks
+        that for the visit's figure whether or not anybody has an
+        allowance."""
+        from n26.core.card import build_gang_card, build_modifier_index
+        from n26.core.effects import compute
+        from n26.core.founding import budgets_by_model
+        from n26.core.models import Gang
+
+        fresh = Gang.objects.get(pk=gang.pk)
+        card = build_gang_card(fresh)
+        index = build_modifier_index(
+            [
+                node.assignable
+                for member in card.members.values()
+                for node in member.all_nodes()
+            ]
+        )
+        folds = {pk: compute(member, index) for pk, member in card.members.items()}
+        fresh.open_actions()
+
+        with django_assert_num_queries(2):
+            budgets_by_model(fresh, folds)
+
+    def test_a_gang_whose_books_grant_none_asks_nothing(
+        self, outcast, player, make_profile, make_statline, django_assert_num_queries
+    ):
+        """No card names the counter, so there is nothing to look up —
+        not the gang's open actions, and not the ledger."""
+        from n26.core.card import build_gang_card, build_modifier_index
+        from n26.core.effects import compute
+        from n26.core.founding import budgets_by_model
+        from n26.core.models import Gang
+        from n26.library.models import GangType
+
+        plain = GangType.objects.create(name="Corpse Grinder Cult")
+        profile = make_profile("Cutter", price=45, gang_type=plain)
+        make_statline(profile)
+        theirs = found_gang("The Rust Sermon", plain, owner=player, budget=1000)
+        hire_with_option(theirs, profile, "Sull")
+
+        fresh = Gang.objects.get(pk=theirs.pk)
+        card = build_gang_card(fresh)
+        index = build_modifier_index(
+            [
+                node.assignable
+                for member in card.members.values()
+                for node in member.all_nodes()
+            ]
+        )
+        folds = {pk: compute(member, index) for pk, member in card.members.items()}
+
+        with django_assert_num_queries(0):
+            assert budgets_by_model(fresh, folds) == {}
+
+
+class TestTheFigureOnTheGangPage:
+    """The gang page prints what a model has left ahead of its rating.
+
+    An owner deciding who to spend on next reads it off the roster rather
+    than opening every fighter's screen. It is the owner's business, so a
+    reader who does not own the gang is not shown it.
+    """
+
+    #: What the hover says, per model. The whole of it, because a
+    #: substring of it would pass on a page that had drawn half a
+    #: sentence.
+    HOVER = "Trade Points {} can spend while the Found and equip gang action is open."
+
+    def page(self, gang):
+        from django.urls import reverse
+
+        return reverse("n26-gang", args=[gang.pk])
+
+    def body(self, client, gang, reader=None):
+        client.force_login(reader or gang.owner)
+        return client.get(self.page(gang)).content.decode()
+
+    def test_a_budgeted_model_shows_what_it_has_left(self, client, gang, leader):
+        assert ">5 TP<span" in self.body(client, gang)
+
+    def test_the_hover_says_what_the_figure_is(self, client, gang, leader):
+        assert self.HOVER.format("Rasp") in self.body(client, gang)
+
+    def test_spending_moves_it(self, client, gang, leader, kit, legacy_list):
+        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+
+        assert ">2 TP<span" in self.body(client, gang)
+
+    def test_completing_the_action_takes_it_away(self, client, gang, leader, player):
+        complete_action(gang, FOUNDING_KIND, actor=player)
+
+        assert self.HOVER.format("Rasp") not in self.body(client, gang)
+
+    def test_a_model_with_no_allowance_shows_nothing(self, client, gang, hire_into):
+        """The ally is ranked Champion by its own book, and no gang's
+        list names it — so nothing on its card raises the counter."""
+        hire_into(gang, ("Allies", "Bone Scrivener"), "Wren")
+
+        assert self.HOVER.format("Wren") not in self.body(client, gang)
+
+    def test_a_reader_who_does_not_own_it_is_not_shown_it(self, client, gang, leader):
+        stranger = User.objects.create_user("a-stranger")
+
+        assert self.HOVER.format("Rasp") not in self.body(client, gang, reader=stranger)

@@ -5,8 +5,10 @@ they carry.
     <c-n26.model-card :card="card" mode="edit" />
 
 Draws a n26.render.ModelCard (n26/core/render.py) and computes nothing; the
-figure beside the name is the model's pinned rating. card.collections and
-card.effects are on the structure and deliberately not drawn.
+figure beside the name is the model's pinned rating, with what it has left of
+its founding Trade Points ahead of it where its books grant any and the gang
+is still being founded. card.collections and card.effects are on the
+structure and deliberately not drawn.
 
 mode decides how much of the card is clickable: gang keeps the controls to the
 actions slot, edit brings out the choice buttons and a menu on each piece of
@@ -62,10 +64,27 @@ control by the actions opens it.
             </div>
 
             <div class="flex shrink-0 flex-col items-end gap-1.5">
-                <c-ui.tooltip size="sm">
-                    <span class="text-sm font-medium tabular-nums">{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
-                    <c-slot name="content">Rating, including weapons and wargear</c-slot>
-                </c-ui.tooltip>
+                <div class="flex items-baseline gap-1 text-sm font-medium tabular-nums">
+                    {% comment %}
+                    What the model has left of the Trade Points its books
+                    give it to spend as it joins, ahead of the rating and
+                    quieter than it: the allowance runs out with the
+                    founding, and the rating is the figure a card is read
+                    by. Drawn only where the owner is reading — what one
+                    of their fighters may still spend is their business.
+                    {% endcomment %}
+                    {% if card.founding_budget %}
+                        <c-n26.model-card.mode when="gang edit">
+                            <span class="text-muted"
+                                  title="Trade Points {{ card.name }} can spend while the Found and equip gang action is open.">{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
+                            <span aria-hidden="true" class="text-muted">·</span>
+                        </c-n26.model-card.mode>
+                    {% endif %}
+                    <c-ui.tooltip size="sm">
+                        <span>{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
+                        <c-slot name="content">Rating, including weapons and wargear</c-slot>
+                    </c-ui.tooltip>
+                </div>
 
                 {% if actions or card.image_url %}
                     <div class="flex flex-nowrap items-center gap-2">

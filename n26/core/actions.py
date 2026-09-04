@@ -9,10 +9,12 @@ a sentence of help, and one button that moves it on.
 
 ``ActionsSquare`` gathers them into the one place a gang's page reports
 them: a square in the same grid as the stash and the models, so what is
-open is read beside what it is being spent on.
+open is read beside what it is being spent on. It carries the gang's
+last few acts too — what has been done is the other half of what is
+open, and a reader deciding what to do next wants both in one place.
 
-Nothing here queries beyond asking the gang for its open action, and
-nothing here knows HTML.
+What the square costs is the gang's open actions and the last stretch
+of its story. Nothing here knows HTML.
 """
 
 from dataclasses import dataclass
@@ -30,6 +32,10 @@ VISIT_HELP = (
     "Click when you have finished at the Trading Post. Unspent Trade "
     "Points are lost when you complete the action."
 )
+
+#: How many acts the square prints. Enough to say what has been going on
+#: without becoming the history page, which is one click away.
+SNAPSHOT = 5
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,21 @@ class VisitLine:
 
 
 @dataclass(frozen=True)
+class HistoryLine:
+    """One act from the gang's story, as the square prints it.
+
+    ``told`` is the sentence with the actor left off, so a screen can
+    draw who did it apart from what they did the way the history page
+    does. The sentence is the history's own — the square tells nothing a
+    second way.
+    """
+
+    when: object
+    actor: str
+    told: str
+
+
+@dataclass(frozen=True)
 class ActionsSquare:
     """What a gang has open, and the ways to start something.
 
@@ -76,11 +97,17 @@ class ActionsSquare:
 
     ``start_founding`` is where the start form posts, and is empty while
     a founding action is open.
+
+    ``history`` is the gang's last few acts, newest first, and is empty
+    for a gang nothing has been done to yet. The square says so rather
+    than drawing a heading over nothing.
     """
 
     founding: ActionCard | None = None
     visit: VisitLine | None = None
+    history: tuple = ()
     start_founding: str = ""
+    history_href: str = ""
 
     @property
     def anything_open(self):
@@ -121,13 +148,34 @@ def visit_card(receipt, at):
     )
 
 
-def actions_square(gang, sheet, *, founding_at, visit_at):
-    """The gang page's Actions square: what is open, and what may start.
+def history_lines(gang, viewer=None, limit=SNAPSHOT):
+    """The gang's last few acts as the square prints them, newest first.
+
+    The sentences are built by the history's own builder, so the square
+    and the history page cannot describe one act two ways.
+    """
+    from n26.core import history
+
+    return tuple(
+        HistoryLine(
+            when=act.when,
+            actor=act.actor,
+            told="".join(span.text for span in act.spans),
+        )
+        for act in history.latest(gang, limit=limit, viewer=viewer)
+    )
+
+
+def actions_square(gang, sheet, *, founding_at, visit_at, history_at, viewer=None):
+    """The gang page's Actions square: what is open, what has been done,
+    and what may start.
 
     The visit is read off the sheet rather than the gang, because what an
     open one has left is a ledger query and the sheet has already asked
     it. The founding action costs nothing beyond that: the gang read
-    every action it has open in one go, and the sheet already asked.
+    every action it has open in one go, and the sheet already asked. The
+    story is the one thing here that is nobody else's reading, and it is
+    bounded — the last stretch of events, whatever the gang's age.
     """
     founding = founding_card(gang, founding_at)
     visit = None
@@ -136,5 +184,7 @@ def actions_square(gang, sheet, *, founding_at, visit_at):
     return ActionsSquare(
         founding=founding,
         visit=visit,
+        history=history_lines(gang, viewer=viewer),
         start_founding="" if founding is not None else founding_at,
+        history_href=history_at,
     )

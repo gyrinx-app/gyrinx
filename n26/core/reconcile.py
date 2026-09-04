@@ -142,6 +142,33 @@ def trade_points_spent_by(action, miniature):
     )
 
 
+def trade_points_spent_by_model(action):
+    """What every model has spent against one action, keyed by model id.
+
+    The same sum as :func:`trade_points_spent_by`, asked once for the
+    whole roster rather than once per model: a screen drawing a line for
+    each fighter with an allowance would otherwise pay a query a line,
+    and a gang's page is a fixed number of queries by invariant.
+
+    Purchases that recorded no buyer are left out rather than gathered
+    under a blank name — nobody's own allowance buys into the stash.
+
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    buyer = "assignment__ledger_entry__spent_by"
+    spends = (
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__action=action,
+            **{f"{buyer}__isnull": False},
+        )
+        .values(buyer)
+        .annotate(total=Sum("trade_points_delta"))
+    )
+    return {row[buyer]: row["total"] or 0 for row in spends}
+
+
 def trade_points_spent(gang):
     """What the gang's open Visit Trading Post action has spent.
 

@@ -115,6 +115,13 @@ class Act:
         return " ".join(words).casefold()
 
 
+#: How many events back a snapshot reads. Acts are made of events — one
+#: hire is a dozen of them — so a window counted in acts is not something
+#: a query can ask for, and this is many times the handful of acts any
+#: snapshot wants.
+SNAPSHOT_WINDOW = 200
+
+
 def build(gang, viewer=None):
     """Every act in this gang's history, oldest first.
 
@@ -123,21 +130,59 @@ def build(gang, viewer=None):
     length — the events, their records, the living — and nothing per
     row.
     """
+    return _acts_from(_events(gang), viewer, alive=_alive(gang))
+
+
+def latest(gang, limit=5, viewer=None):
+    """The gang's last few acts, newest first.
+
+    The whole history is not read to print five lines of it: the last
+    stretch of events is, and the acts those events make up. An act whose
+    events straddle the far end of that stretch would be told short,
+    which is why the window is many times the number of acts asked for
+    and why what comes back is taken from the near end.
+
+    Models are named here rather than linked. This is the way through to
+    the history page, which links them, and asking which of them are
+    still on the roster is a query a snapshot need not spend.
+
+    Two queries, and a third only where the stretch holds a propagated
+    grant: the events, the records they name, and what those grants are
+    now part of.
+    """
+    acts = _acts_from(_events(gang, window=SNAPSHOT_WINDOW), viewer, alive=frozenset())
+    return list(reversed(acts))[:limit]
+
+
+def _events(gang, window=None):
+    """The gang's events, oldest first — all of them, or the last
+    ``window`` of them read back to front and turned round."""
+    rows = gang.ledger_events.select_related(
+        "miniature", "actor", "campaign", "campaign_asset__asset__kind"
+    )
+    if window is None:
+        return list(rows.order_by("created", "id"))
+    newest = list(rows.order_by("-created", "-id")[:window])
+    newest.reverse()
+    return newest
+
+
+def _alive(gang):
+    """The models still on the roster. The history keeps the dead, but
+    only the living have a page to link to — a departed model's name
+    reads as words."""
     from n26.core.models import Miniature
 
-    events = list(
-        gang.ledger_events.select_related(
-            "miniature", "actor", "campaign", "campaign_asset__asset__kind"
-        ).order_by("created", "id")
-    )
-    rows = _rows_for(events)
-    # The history keeps the dead, but only the living have a page to
-    # link to — a departed model's name reads as words.
-    alive = set(
+    return set(
         Miniature.objects.filter(
             membership__gang=gang, membership__archived=False
         ).values_list("pk", flat=True)
     )
+
+
+def _acts_from(events, viewer, *, alive):
+    """The acts these events tell, oldest first."""
+    rows = _rows_for(events)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
