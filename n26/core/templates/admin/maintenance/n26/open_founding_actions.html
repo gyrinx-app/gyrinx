@@ -1,0 +1,69 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The founding-action backfill's console page: how many gangs would get
+one, a run button, and the recent runs. There is nothing to preview
+beyond the count — every eligible gang is treated the same way — so the
+page is a figure and a button.
+Context from open_founding_actions_view (n26/maintenance.py): title,
+gangs, eligible, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Opens the Found and equip gang action on every unarchived gang that has
+        never had one. A gang founded before the action existed has none, so its
+        page has nothing for the owner to complete. Each of those gangs gets the
+        action a gang founded today has, and the same entry in its history.
+    </p>
+    <p>
+        A gang that already has one, open or completed, is skipped, so running
+        this again changes nothing. Archived gangs are left alone. No money
+        moves.
+    </p>
+    <p>{{ eligible }} of {{ gangs }} unarchived gang{{ gangs|pluralize }} would get the action.</p>
+    {% if eligible %}
+        <form method="post" class="mt-form">
+            {% csrf_token %}
+            <button type="submit" class="button default">Open the missing actions</button>
+        </form>
+    {% else %}
+        <h2>Nothing to open</h2>
+        <p>Every unarchived gang already has the Found and equip gang action.</p>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

@@ -30,6 +30,7 @@ from n26.maintenance import (
     convert_variant_view,
     delete_empty_affiliations_view,
     delete_nameless_gang_type_view,
+    open_founding_actions_view,
 )
 
 pytestmark = pytest.mark.django_db
@@ -603,3 +604,124 @@ def leftover_world(default_pack, person_type, owner):
     from n26.tests.sandbox.test_empty_affiliations import build_leftover_world
 
     return build_leftover_world(person_type, owner)
+
+
+class TestTheFoundingActionBackfill:
+    """The repair still on offer: gangs founded before the Found and
+    equip gang action existed are given one."""
+
+    @pytest.fixture
+    def old_gang(self, owner, default_pack, gang_type):
+        """A gang as one founded before the action existed."""
+        from n26.core.models import LedgerEvent
+        from n26.tests.sandbox.actions import found_gang
+
+        gang = found_gang("Before The Action", gang_type, owner=owner, budget=1000)
+        LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.ACTION_OPENED
+        ).delete()
+        return gang
+
+    def test_its_lock_is_not_shared(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert (
+            LOCK_KEYS[Operation.OPEN_FOUNDING_ACTIONS]
+            != LOCK_KEYS[Operation.REPOINT_CHAMPION_PICKS]
+        )
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.OPEN_FOUNDING_ACTIONS.value in registered
+        found = resolve_operation(Operation.OPEN_FOUNDING_ACTIONS.value)
+        assert found.name == Operation.OPEN_FOUNDING_ACTIONS.label
+        assert found.view is open_founding_actions_view
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(reverse("admin:maintenance_n26_open_founding_actions"))
+
+        assert response.status_code in (302, 403)
+
+    def test_its_page_counts_the_gangs_and_writes_nothing(
+        self, client, superuser, old_gang
+    ):
+        from n26.core.models import Action
+
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_open_founding_actions"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "1 of 1 unarchived gang would get the action" in page
+        assert not Backfill.objects.exists()
+        assert not Action.objects.filter(gang=old_gang).exists()
+
+    def test_its_page_says_when_there_is_nothing_to_open(
+        self, client, superuser, owner, default_pack, gang_type
+    ):
+        from n26.tests.sandbox.actions import found_gang
+
+        found_gang("Founded Today", gang_type, owner=owner, budget=1000)
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_open_founding_actions"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Nothing to open" in page
+
+    def test_applying_records_what_it_opened(self, client, superuser, old_gang):
+        from n26.core.models import Action
+
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_open_founding_actions"))
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.OPEN_FOUNDING_ACTIONS)
+        assert run.status == Backfill.Status.DONE
+        assert run.summary["preview"] == [
+            "1 of 1 unarchived gang has never had a Found and equip gang action.",
+            "Every unarchived gang is walked, so this run's total counts "
+            "gangs walked, not gangs changed.",
+        ]
+        assert run.summary["totals"]["opened"] == 1
+        assert old_gang.open_action(Action.Kind.FOUNDING) is not None
+        old_gang.refresh_from_db()
+        assert_reconciled(old_gang)
+
+    def test_the_record_page_labels_what_the_run_walked_and_opened(
+        self, client, superuser, old_gang
+    ):
+        """The walk and the totals differ, so the page says which is
+        which rather than dumping the summary as it was stored."""
+        client.force_login(superuser)
+        client.post(reverse("admin:maintenance_n26_open_founding_actions"))
+        run = Backfill.objects.get(operation=Operation.OPEN_FOUNDING_ACTIONS)
+
+        page = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[run.id])
+        ).content.decode()
+
+        assert "gang walked" in page or "gangs walked" in page
+        assert "Gangs given a Found and equip gang action" in page
+        assert "Gangs skipped: they already had one, open or completed" in page
+        assert "never had a Found and equip gang action." in page
+        assert "{'opened'" not in page
+
+    def test_applying_with_nothing_to_open_records_no_run(
+        self, client, superuser, owner, default_pack, gang_type
+    ):
+        from n26.tests.sandbox.actions import found_gang
+
+        found_gang("Founded Today", gang_type, owner=owner, budget=1000)
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_open_founding_actions"))
+
+        assert response.status_code == 302
+        assert not Backfill.objects.exists()
