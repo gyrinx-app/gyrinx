@@ -14,8 +14,9 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core.models import Campaign, Gang
+from n26.core.models import Gang
 from n26.flags import CAMPAIGNS
+from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
@@ -83,9 +84,11 @@ class TestWhoIsOffered:
         assert "Impersonate" not in body
 
     def test_a_campaign_names_its_arbitrator(
-        self, client, overseer, player, campaigns_open
+        self, client, overseer, player, campaigns_open, campaign_type
     ):
-        campaign = Campaign.objects.create(name="Dust Falls", owner=player, budget=1000)
+        campaign = found_campaign(
+            "Dust Falls", campaign_type, owner=player, budget=1000
+        )
 
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
 
