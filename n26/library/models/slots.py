@@ -208,7 +208,18 @@ class Dice(models.TextChoices):
                 return 10 * rng.randint(1, 6) + rng.randint(1, 6)  # nosec B311
             case cls.TWO_D6:
                 return rng.randint(1, 6) + rng.randint(1, 6)  # nosec B311
-        raise ValueError(f"{dice!r} is not a die.")
+        raise ValueError(f"{dice!r} is not a die.")  # pragma: no cover
+
+    @classmethod
+    def label_for(cls, value, fallback=None):
+        """The die's name as a player says it — "D66" — for a stored
+        value. A value the set no longer names reads as ``fallback``'s
+        name where one is given, else as it was written: the record
+        keeps the roll, and the roll is what matters."""
+        try:
+            return cls(value).label
+        except ValueError:
+            return cls(fallback).label if fallback else str(value).upper()
 
     @classmethod
     def faces(cls, dice, roll):

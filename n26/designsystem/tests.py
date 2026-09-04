@@ -222,6 +222,25 @@ class TestTheChoicePicksPage:
         assert 'aria-label="Add Ironhead Squats"' in page
 
 
+class TestTheRollPages:
+    """The roll controls and the roll panel reach the gallery drawn, in
+    every state the demos claim, not as a polite fallback."""
+
+    def test_the_controls_page_draws_both_ways_to_record_a_roll(self, reader):
+        page = reader.get("/n26/design/c/roll-table/").content.decode()
+        assert "table" in page
+        assert 'value="roll"' in page
+        assert 'name="rolled"' in page
+
+    def test_the_panel_page_draws_its_three_states(self, reader):
+        page = reader.get("/n26/design/c/roll-result/").content.decode()
+        assert "Landed on a result" in page
+        assert "Already applied" in page
+        assert 'aria-label="A die showing 2"' in page
+        assert 'aria-label="Add Out Cold"' in page
+        assert "High enough for" in page
+
+
 class TestTheOwnedDialogsPage:
     """The two questions the panel grew reach the gallery drawn, not as a
     polite fallback."""

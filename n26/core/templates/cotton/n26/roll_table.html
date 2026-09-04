@@ -9,7 +9,9 @@ to the gang's history and comes back showing where it landed. Plain submit
 buttons and no form of its own — the page owns the form and the token.
 
   :table — a n26.render.RollTable: the die's name and the lowest and highest
-    roll it can make, which bound the field.
+    roll it can make, for the field's hint. The server refuses a number the
+    die cannot make; the field itself is not bounded, because HTML validation
+    on one field would stop every other button on the page's form.
 {% endcomment %}
 <c-vars :table="None" class="" />
 
@@ -22,6 +24,13 @@ width sits on a wrapper: the kit's input does not declare `class`, so one
 passed to it would print a second class attribute and drop its styling.
 {% endcomment %}
 <div {{ attrs }} class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5 {{ class }}">
+    {% comment %}
+    Pressing Enter in the field submits the form through its first submit
+    button in document order. That has to be the Enter act, not Roll, or a
+    typed number becomes a random roll on the record — so an unseen Enter
+    button comes first.
+    {% endcomment %}
+    <button type="submit" name="act" value="enter" class="sr-only" tabindex="-1" aria-hidden="true">Enter</button>
     <c-ui.button type="submit" name="act" value="roll" variant="primary">
         Roll a {{ table.dice_label }}
     </c-ui.button>
@@ -29,10 +38,9 @@ passed to it would print a second class attribute and drop its styling.
     <span class="hidden w-px self-stretch bg-box-border sm:block" aria-hidden="true"></span>
     <div class="flex items-center gap-2">
         <div class="w-56">
-            <c-ui.input name="rolled" type="number"
-                        inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}"
-                        placeholder="Your roll from the table"
-                        aria-label="Rolled at the table? Enter the number" />
+            <c-ui.input name="rolled" type="number" inputmode="numeric"
+                        placeholder="Your roll from the table ({{ table.lowest }}–{{ table.highest }})"
+                        aria-label="The number you rolled at the table" />
         </div>
         <c-ui.button type="submit" name="act" value="enter" variant="default">Enter</c-ui.button>
     </div>

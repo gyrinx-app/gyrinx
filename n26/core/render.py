@@ -586,12 +586,15 @@ def lift_landing(offer, landed, threshold=False):
     informs rather than polices. An offer nothing landed on is returned
     as it was.
     """
-    if not landed:
-        return offer
     first, rest = [], []
     for group in offer.groups:
         for option in group.options:
             (first if option.key in landed else rest).append(option)
+    if not first:
+        # Nothing on the list is where the roll landed — a full choice,
+        # or a roll no result claims. A heading over nothing says less
+        # than the list as it stands.
+        return offer
     groups = [
         ChoosableGroup(
             name="Rolled high enough for" if threshold else "Landed on",

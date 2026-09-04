@@ -237,7 +237,7 @@ class TestThePickNamesItsRoll:
         made = pick(krago, "Lasting Injuries", out_cold, roll=event)
 
         assert made.roll == event
-        assert event.pick == made
+        assert list(event.picks.all()) == [made]
         slot = choice_of(krago, "Lasting Injuries")
         assert [p.assignable.name for p in slot.picks] == ["Out Cold"]
         assert_reconciled(gang)
@@ -250,6 +250,39 @@ class TestThePickNamesItsRoll:
         with pytest.raises(Refusal, match="roll of 24 has already been applied"):
             pick(krago, "Lasting Injuries", out_cold, roll=event)
         assert Assignment.objects.filter(roll=event).count() == 1
+
+    def test_a_pick_taken_back_frees_its_roll(self, gang, krago, injuries):
+        """Removing what was picked is how a mistake is undone, and the
+        roll it came from is still the roll that was made."""
+        from n26.tests.sandbox.actions import remove
+
+        event = roll_for(krago, "Lasting Injuries", rolled=24)
+        out_cold = result_named(injuries["table"], "Out Cold")
+        first = pick(krago, "Lasting Injuries", out_cold, roll=event)
+        remove(first)
+
+        second = pick(krago, "Lasting Injuries", out_cold, roll=event)
+        assert second.roll == event
+        assert first.roll == event
+        assert_reconciled(gang)
+
+    def test_a_roll_is_refused_on_a_choice_that_is_not_a_slots(self, gang, krago):
+        """An offer has no dice; a roll handed to one is a caller's mistake."""
+        from n26.library.models.modifier import OffersChoice
+
+        event = roll_for(krago, "Lasting Injuries", rolled=24)
+        slot = choice_of(krago, "Lasting Injuries")
+        with operation(gang, actor=gang.owner) as op:
+            with pytest.raises(ValueError, match="backed by a slot"):
+                op.choose(
+                    slot.anchor.assignment,
+                    result_named(
+                        Picklist.objects.get(name="Lasting Injury Table"), "Out Cold"
+                    ),
+                    offer=OffersChoice(),
+                    roll=event,
+                    miniature=krago,
+                )
 
     def test_the_landing_row_is_not_enforced(self, gang, krago, injuries):
         """The rules substitute results — "counts as Out Cold" — so the
@@ -308,6 +341,28 @@ class TestTheHistoryTellsTheRoll:
             if "rolled" in "".join(s.text for s in act.spans)
         )
 
+    def test_a_pick_made_days_after_its_roll_stands_on_its_own_day(
+        self, gang, krago, injuries
+    ):
+        from datetime import timedelta
+
+        event = roll_for(krago, "Lasting Injuries", rolled=24)
+        LedgerEvent.objects.filter(pk=event.pk).update(
+            created=event.created - timedelta(days=3)
+        )
+        pick(
+            krago,
+            "Lasting Injuries",
+            result_named(injuries["table"], "Out Cold"),
+            roll=event,
+        )
+
+        rolled = act_saying(gang, "rolled 24")
+        assert rolled.subs == []
+        assert any(
+            said == "gained Out Cold on Krago, rolled 24" for said in sentences(gang)
+        )
+
     def test_a_generated_roll_carries_no_note(self, gang, krago):
         roll_for(krago, "Lasting Injuries", rng=random.Random(5))
         act = act_saying(gang, "rolled")
@@ -340,10 +395,17 @@ class TestThePickScreen:
         client.force_login(owner)
         page = client.get(address).content.decode()
         assert "Roll a D66" in page
-        assert "Rolled at the table? Enter the number" in page
+        # Enter in the field must reach the Enter act, not Roll: the first
+        # submit button in the form decides, so an unseen one comes first.
+        assert page.index('value="enter"') < page.index('value="roll"')
+        assert 'min="' not in page.split("Your roll from the table")[0][-600:]
+        assert "The number you rolled at the table" in page
         assert "or add a result by hand" in page
         assert 'name="rolled"' in page
-        assert 'min="11"' in page and 'max="66"' in page
+        # The range is a hint in the field, never a browser constraint —
+        # one bounded field would stop every other button on the form.
+        assert "(11–66)" in page
+        assert 'min="11"' not in page
 
     def test_a_choice_with_no_dice_offers_no_roll(
         self, client, owner, gang, gang_type, fighter_type, default_pack
@@ -472,6 +534,68 @@ class TestThePickScreen:
         assert made.miniature == krago
         assert_reconciled(gang)
 
+    def test_a_full_choice_offers_no_roll(
+        self, client, owner, gang, gang_type, fighter_type, default_pack
+    ):
+        """A roll for a choice that takes no more picks would be one the
+        next Add refuses, so the controls are not drawn."""
+        kind = create_slot_type("Scar")
+        table = create_picklist("Scar Table", kind, dice="d6", roll_selects="band")
+        scar = create_pickable("Scar", kind)
+        add_picklist_member(table, scar, roll_low=1, roll_high=6)
+        one = create_slot("Scars", kind, table, max_picks=1)
+        modifier(
+            "Fighters scar",
+            targets_every_model(is_profile_type(fighter_type)),
+            ef_adds(one),
+            carried_by=gang_type,
+        )
+        profile = create_profile("Juve", fighter_type, gang_type, price=20)
+        juve = hire(gang, profile, "Nix", paid=20)
+        slot = choice_of(juve, "Scars")
+        address = reverse(
+            "n26-choose",
+            args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
+        )
+        client.force_login(owner)
+        assert "Roll a D6" in client.get(address).content.decode()
+        pick(juve, "Scars", scar)
+        assert "Roll a D6" not in client.get(address).content.decode()
+
+    def test_a_choice_of_one_lifts_the_row_rather_than_adding_from_the_panel(
+        self, client, owner, gang, gang_type, fighter_type, default_pack
+    ):
+        """Radios post under the name a panel button would, so a choice of
+        one is settled from the lifted row and its Save, never a second
+        control with the same name."""
+        kind = create_slot_type("Fate")
+        table = create_picklist("Fate Table", kind, dice="d6", roll_selects="band")
+        for low, name in ((1, "Doomed"), (4, "Blessed")):
+            add_picklist_member(
+                table, create_pickable(name, kind), roll_low=low, roll_high=low + 2
+            )
+        one = create_slot("Fate", kind, table, min_picks=0, max_picks=1)
+        modifier(
+            "Fighters have a fate",
+            targets_every_model(is_profile_type(fighter_type)),
+            ef_adds(one),
+            carried_by=gang_type,
+        )
+        profile = create_profile("Juve", fighter_type, gang_type, price=20)
+        juve = hire(gang, profile, "Nix", paid=20)
+        slot = choice_of(juve, "Fate")
+        address = reverse(
+            "n26-choose",
+            args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
+        )
+        client.force_login(owner)
+        client.post(address, {"act": "enter", "rolled": "5"})
+        event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
+        page = client.get(f"{address}?roll={event.pk}").content.decode()
+        assert "Landed on" in page
+        assert 'aria-label="Add Blessed"' not in page
+        assert page.count('name="thing"') >= 2  # the radios, not a button
+
     def test_a_spent_roll_is_shown_as_spent_and_not_offered_again(
         self, client, owner, gang, krago, address, injuries
     ):
@@ -484,8 +608,10 @@ class TestThePickScreen:
         page = client.get(f"{address}?roll={event.pk}").content.decode()
         assert "Already applied: Out Cold." in page
         assert f'name="roll" value="{event.pk}"' not in page
-        # The Roll controls come back, since this roll is done with.
+        # The Roll controls come back, since this roll is done with — and
+        # the panel offers nothing of its own, so there is one Roll.
         assert "Roll a D66" in page
+        assert page.count('value="roll"') == 1
 
         reply = client.post(
             address,

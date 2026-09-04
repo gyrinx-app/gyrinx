@@ -15,8 +15,7 @@ and no form of its own: the page owns the form.
 <c-vars :roll="None" class="" />
 
 <section {{ attrs }}
-         class="flex flex-col gap-5 rounded-box border border-box-border p-6 sm:flex-row sm:items-center sm:gap-6 {{ class }}"
-         aria-live="polite">
+         class="flex flex-col gap-5 rounded-box border border-box-border p-6 sm:flex-row sm:items-center sm:gap-6 {{ class }}">
     {% comment %}
     Two halves: what came up, and what to do about it. Side by side where
     there is room; stacked on a narrow screen, where the words would otherwise
@@ -45,14 +44,17 @@ and no form of its own: the page owns the form.
     The next step is the big one: Add what the roll landed on. Roll again is
     the quiet alternative beside it — the rules allow a re-roll only where
     something grants one, and the record keeps both rolls either way. On a
-    narrow screen the Add takes the width the row leaves it.
+    narrow screen the Add takes the width the row leaves it. A spent roll
+    draws neither: the page's own Roll controls are back beneath it.
     {% endcomment %}
-    <span class="flex shrink-0 items-center gap-2">
-        {% if roll.add %}
-            <c-ui.button type="submit" name="thing" value="{{ roll.add.key }}" variant="primary"
-                         class="flex-1 sm:flex-none"
-                         aria-label="Add {{ roll.add.name }}">Add {{ roll.add.name }}</c-ui.button>
-        {% endif %}
-        <c-ui.button type="submit" name="act" value="roll" variant="ghost" size="sm">Roll again</c-ui.button>
-    </span>
+    {% if not roll.is_spent %}
+        <span class="flex shrink-0 items-center gap-2">
+            {% if roll.add %}
+                <c-ui.button type="submit" name="thing" value="{{ roll.add.key }}" variant="primary"
+                             class="flex-1 sm:flex-none"
+                             aria-label="Add {{ roll.add.name }}">Add {{ roll.add.name }}</c-ui.button>
+            {% endif %}
+            <c-ui.button type="submit" name="act" value="roll" variant="ghost" size="sm">Roll again</c-ui.button>
+        </span>
+    {% endif %}
 </section>

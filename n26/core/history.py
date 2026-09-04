@@ -183,6 +183,7 @@ def _alive(gang):
 def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
+    _name_the_rolls(events, rows)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -224,11 +225,34 @@ def _rows_for(events):
             "stash",
             # A pick says its kind through the question it answered.
             "chosen_for_slot__slot_type",
-            # And where a table was rolled for it, the roll it came from.
-            "roll",
         )
     )
     return {row.pk: row for row in fetched}
+
+
+def _name_the_rolls(events, rows):
+    """Put the slot on each roll event and the roll on each pick that
+    came from one — two reads, and only on histories holding a roll.
+
+    Joined here rather than on every event and every record, because a
+    roll is rare beside the run of purchases and grants, and the history
+    is read whole on every page.
+    """
+    from n26.library.models import Slot
+
+    rolled = [e for e in events if e.kind == Kind.ROLLED]
+    picks = [row for row in rows.values() if row.roll_id is not None]
+    if not rolled and not picks:
+        return
+    slots = Slot.objects.in_bulk({e.slot_id for e in rolled if e.slot_id})
+    for e in rolled:
+        e.slot = slots.get(e.slot_id)
+    by_pk = {e.pk: e for e in rolled}
+    missing = {row.roll_id for row in picks} - set(by_pk)
+    if missing:
+        by_pk |= LedgerEvent.objects.in_bulk(missing)
+    for row in picks:
+        row.roll = by_pk.get(row.roll_id)
 
 
 def _clusters(events):
@@ -278,11 +302,14 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             # A pick made for a roll folds under the roll: "rolled 24"
             # with "Out Cold" beneath it is one act however many
             # requests it took. The roll's act is keyed by its event,
-            # which no record's key can be.
+            # which no record's key can be. Same day only — a pick made
+            # days after its roll is its own act on its own day, and
+            # says which roll it came from in its own sentence.
             home = act_of[row.roll_id]
-            home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
-            act_of.setdefault(row.pk, home)
-            continue
+            if home.when.date() == e.created.date():
+                home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
+                act_of.setdefault(row.pk, home)
+                continue
         ride = _rides(e, row)
         if (
             joined
@@ -593,7 +620,7 @@ def _tell(e, row, alive):
         case Kind.GRANTED if row is not None and row.roll_id is not None:
             # A pick whose roll is not in the story — told further back
             # than the page reaches, or not told at all.
-            rolled = f", rolled {row.roll.roll}" if row.roll is not None else ""
+            rolled = f", rolled {row.roll.roll}" if row.roll else ""
             return (
                 Span("gained "),
                 thing,
@@ -806,14 +833,9 @@ def _points(figure, unspent=False):
 
 
 def _dice_label(dice):
-    """The die's name as a player says it — "D66" — from what the record
-    holds. A die the library no longer names reads as it was written."""
     from n26.library.models import Dice
 
-    try:
-        return Dice(dice).label
-    except ValueError:
-        return dice.upper()
+    return Dice.label_for(dice)
 
 
 def _for(model, at, word="for"):
@@ -975,7 +997,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     from n26.core.models import LedgerEvent, Miniature
 
     events = LedgerEvent.objects.filter(campaign=campaign).select_related(
-        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__kind", "slot"
+        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__kind"
     )
     events = (
         events.order_by("-created", "-id")[:limit]
@@ -989,6 +1011,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         return
 
     rows = _rows_for(events)
+    _name_the_rolls(events, rows)
     sources = _comes_with_sources(events, rows)
     # Only the living have a page to link to, across every gang here.
     alive = set(

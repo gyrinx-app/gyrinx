@@ -1520,7 +1520,7 @@ GROUPS: list[Group] = [
                     "Drawn on the pick screen above a list that is a roll "
                     "table. Two ways to record one roll: a button that rolls "
                     "the die here, and a field for a roll made at the table, "
-                    "which only takes numbers the die can roll. Both post to "
+                    "with the die's range as its hint. Both post to "
                     "the page, which writes the roll to the gang's history before "
                     "anything is picked and comes back showing where it "
                     "landed. Plain submit buttons and no form of its own."

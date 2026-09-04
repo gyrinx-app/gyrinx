@@ -150,7 +150,10 @@ def _roll_table(found):
     from n26.library.models import Dice
 
     slot = found.slot.slot
-    if slot is None or not slot.picklist.dice:
+    if slot is None or not slot.picklist.dice or found.slot.is_full:
+        # A full choice takes no more picks, so a roll for it would be
+        # one the next Add refuses; the way to another is to take a
+        # pick back first.
         return None
     dice = Dice(slot.picklist.dice)
     rolls = Dice.rolls(dice)
@@ -189,7 +192,7 @@ def _roll_named(request, gang, found):
     The pick that spent the roll, where one has, comes back on the event
     so the page can say so and stop offering it.
     """
-    return _roll_at(request.GET.get("roll", ""), gang, found, ("pick",))
+    return _roll_at(request.GET.get("roll", ""), gang, found)
 
 
 def _roll_posted(request, gang, found):
@@ -199,30 +202,40 @@ def _roll_posted(request, gang, found):
 
 def _roll_result(event, found, offer):
     """One roll, as the page draws it, and the keys of the rows it reached."""
+    from django.db.models import F
+
+    from n26.core.operations import ROLL_ENTERED
     from n26.core.render import RollResult, option_key
     from n26.library.models import Dice, RollSelects
 
     picklist = found.slot.slot.picklist
-    members = picklist.members.select_related("pickable")
+    # In the list's own roll order, so what the panel names reads in the
+    # order the list beneath it draws.
+    members = picklist.members.select_related("pickable").order_by(
+        F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+    )
     landed = picklist.landing(event.roll, members)
     keys = {option_key(member.pickable) for member in landed}
     named = {
         option.key: option.name for group in offer.groups for option in group.options
     }
-    spent = getattr(event, "pick", None)
+    # The standing pick this roll was spent on, where there is one. A pick
+    # taken back frees its roll, so an archived one does not count.
+    spent = event.picks.filter(archived=False).select_related("pickable").first()
     # The die as the record holds it; a die the library no longer names
     # reads as the table's, since the figure is what the page is about.
+    dice = Dice(picklist.dice)
     try:
-        dice = Dice(event.dice) if event.dice else Dice(picklist.dice)
+        dice = Dice(event.dice) if event.dice else dice
     except ValueError:
-        dice = Dice(picklist.dice)
+        pass
     result = RollResult(
         key=str(event.pk),
         total=event.roll,
         dice_label=dice.label,
         faces=Dice.faces(dice, event.roll),
         landed=tuple(named.get(option_key(m.pickable), m.label) for m in landed),
-        entered=bool(event.note),
+        entered=event.note == ROLL_ENTERED,
         applied=str(spent.assignable) if spent is not None else "",
         threshold=picklist.roll_selects == RollSelects.THRESHOLD,
     )
@@ -458,11 +471,14 @@ def choose(request, pk, slot):
             option
             for group in offer.groups
             for option in group.options
-            if option.key in landed and option.control in {"choose", "both", ""}
+            if option.key in landed and option.control in {"choose", "both"}
         ]
         if not roll.is_spent and len(addable) == 1 and len(landed) == 1:
-            # One result, still open: the panel carries the Add, and the
-            # list below stays the whole table, unlifted.
+            # One result, still open, on a choice worked at a pick at a
+            # time: the panel carries the Add, and the list below stays
+            # the whole table, unlifted. A choice of one is settled by
+            # its radios, which post under the same name a panel button
+            # would, so that shape lifts the row instead.
             roll = replace(roll, add=addable[0])
         elif not roll.is_spent:
             offer = lift_landing(offer, landed, threshold=roll.threshold)

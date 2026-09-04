@@ -216,6 +216,10 @@ class NotOnOffer(Refusal):
 #: campaign is asked about once rather than on every event it writes.
 _UNASKED = object()
 
+#: The note on a roll that was made at the table and entered, which is
+#: how the record tells one from a roll the page generated.
+ROLL_ENTERED = "Rolled at the table and entered here."
+
 
 def _movement_note(moved, reason):
     """A tally's note: what moved, then why, inside the column's width.
@@ -315,8 +319,9 @@ class Operation:
         rather than the gang's.
 
         ``roll`` is the ledger event recording the roll this pick came
-        from, where a table was rolled for it. Only ``_choose_for_slot``
-        sets it, having checked the roll is this choice's and unspent.
+        from, where a table was rolled for it. It has to be a roll made
+        for the choice the pick settles, with no standing pick already
+        naming it; ``_choose_for_slot`` is where that is checked.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -1592,6 +1597,10 @@ class Operation:
                 slot = anchor.assignable
             if slot is not None:
                 return self._choose_for_slot(anchor, slot, chosen, **kwargs)
+        if kwargs.get("roll") is not None:
+            # Only a slot's table is rolled on; an offer has no dice, so a
+            # roll handed to one is a caller's mistake, not a refusal.
+            raise ValueError("Only a choice backed by a slot is rolled for.")
 
         asked = (
             [offer]
@@ -1689,7 +1698,10 @@ class Operation:
                     f"That roll was not made for {slot.choice_label}. "
                     "Roll again for this choice."
                 )
-            if Assignment.objects.filter(roll=roll).exists():
+            # One standing pick per roll. A pick taken back frees its
+            # roll, and the check runs under the gang's lock, so two
+            # clicks for one gang are read one after the other.
+            if Assignment.objects.filter(roll=roll, archived=False).exists():
                 raise Refusal(
                     f"That roll of {roll.roll} has already been applied. "
                     "Roll again for another result."
@@ -1940,7 +1952,7 @@ class Operation:
         elif rolled not in Dice.rolls(dice):
             raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
         else:
-            note = note or "Rolled at the table and entered here."
+            note = note or ROLL_ENTERED
         return self.event(
             miniature,
             LedgerEvent.Kind.ROLLED,
