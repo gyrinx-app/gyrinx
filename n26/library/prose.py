@@ -637,9 +637,10 @@ def _names_threshold(row, said):
 
 
 #: How each condition a model scope can carry reaches the sentence, by
-#: the condition's related name on the scope. A kind missing here would
-#: be dropped without a word, so a test holds this to the scope's own
-#: ``CONDITIONS``; a weapon scope's conditions join the noun phrase in
+#: the condition's related name on the scope. It must name every entry
+#: in the scope's ``CONDITIONS``: a kind missing here would be dropped
+#: without a word, and the sentence would claim a wider reach than the
+#: modifier has. A weapon scope's conditions join the noun phrase in
 #: their own words instead.
 MODEL_NARROWINGS = {
     "has_subtypes": _names_ranks,

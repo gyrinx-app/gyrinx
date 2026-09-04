@@ -14,6 +14,7 @@ from n26.library.authoring import (
     add_built_in,
     add_default_member,
     add_entry,
+    add_picklist_member,
     attach_modifiers_to,
     counter_at_least,
     create_affiliation,
@@ -23,6 +24,7 @@ from n26.library.authoring import (
     create_default_set,
     create_gang_type,
     create_hidden,
+    create_pickable,
     create_picklist,
     create_power,
     create_profile,
@@ -43,6 +45,7 @@ from n26.library.authoring import (
     ef_places,
     ef_removes,
     ef_requires_companions,
+    has_pickable,
     has_subtypes,
     has_traits,
     is_profile_type,
@@ -240,33 +243,24 @@ class TestATypeNarrowsTheSubject:
 
 
 class TestAPickNarrowsTheSubject:
-    """A model that must hold a pick is said with the pick beside it —
-    the scope's own words, so the sentence and the name agree."""
+    """A model that must hold a pick is said with the pick beside it:
+    "with" the pick, or "without" it when the row leaves holders out."""
 
     @pytest.fixture
-    def legacies(self, default_pack):
-        from n26.library.authoring import (
-            add_picklist_member,
-            create_pickable,
-            create_picklist,
-            create_slot_type,
-        )
-
+    def cawdor(self, default_pack):
         slot_type = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
         table = create_picklist("Gang Legacies", slot_type)
         cawdor = create_pickable("Cawdor", slot_type)
         add_picklist_member(table, cawdor)
         return cawdor
 
-    def test_a_grant_to_those_holding_a_pick_names_it(self, escher, legacies, backstab):
-        from n26.library.authoring import has_pickable
-
+    def test_a_grant_to_those_holding_a_pick_names_it(self, escher, cawdor, backstab):
         attach_modifiers_to(
             escher,
             [
                 modifier(
                     "Cawdor legacy: Backstab",
-                    targets_every_model(has_pickable(legacies)),
+                    targets_every_model(has_pickable(cawdor)),
                     ef_adds(backstab),
                 )
             ],
@@ -276,18 +270,16 @@ class TestAPickNarrowsTheSubject:
             "Every fighter with Cawdor gains Backstab, while the gang holds this."
         ]
 
-    def test_several_picks_read_as_any_of_them(self, escher, legacies, backstab):
+    def test_several_picks_read_as_any_of_them(self, escher, cawdor, backstab):
         """A row naming two picks reaches a model holding either, and the
         sentence must not read as though it needs both."""
-        from n26.library.authoring import create_pickable, has_pickable
-
-        delaque = create_pickable("Delaque", legacies.slot_type)
+        delaque = create_pickable("Delaque", cawdor.slot_type)
         attach_modifiers_to(
             escher,
             [
                 modifier(
                     "Either legacy: Backstab",
-                    targets_every_model(has_pickable(legacies, delaque)),
+                    targets_every_model(has_pickable(cawdor, delaque)),
                     ef_adds(backstab),
                 )
             ],
@@ -297,15 +289,13 @@ class TestAPickNarrowsTheSubject:
             "Every fighter with Cawdor or Delaque gains Backstab, while the gang holds this."
         ]
 
-    def test_negated_it_says_without(self, escher, legacies, backstab):
-        from n26.library.authoring import has_pickable
-
+    def test_negated_it_says_without(self, escher, cawdor, backstab):
         attach_modifiers_to(
             escher,
             [
                 modifier(
                     "No legacy: Backstab",
-                    targets_every_model(has_pickable(legacies, negate=True)),
+                    targets_every_model(has_pickable(cawdor, negate=True)),
                     ef_adds(backstab),
                 )
             ],
@@ -1218,9 +1208,10 @@ class TestTheQueryCountStaysFlat:
             prose_for(much_used)
 
 
-class TestEveryEffectCanBeSaid:
-    """A discovering guard: an effect with no renderer is one the reach
-    column would drop without a word."""
+class TestEveryEffectScopeAndNarrowingCanBeSaid:
+    """Discovering guards: an effect with no renderer, a scope with no
+    subject, or a narrowing with no words is one the reach column would
+    drop without a word."""
 
     def test_there_is_something_to_check(self):
         from n26.library.models.modifier import EFFECT_FIELDS
