@@ -251,11 +251,13 @@ Each slice is one PR. Sizes are guesses.
    from outside the task.
 8. **Drop `Gang.starting_trade_points` and the timestamp fallback** (small,
    second deploy).
-9. **Gang header shows the open action** (small, design work first). The
-   gang page header names each open action with a link to its card, so an
-   owner sees "Found and equip gang" or "Visit Trading Post" is open
-   without scrolling. Shape to be decided when we get here. Tests: header
-   with none, one and two open actions; query count holds.
+9. **Actions square follow-ups** (small). Slice 1 already draws the open
+   action as one grid square on the gang sheet, before the stash, with the
+   Trading Post visit indicator moved into it and an actions menu (Tom's
+   direction, 2026-09-04). This slice adds what that square grows into: a
+   snapshot of the latest gang ledger history, and any per-action entries
+   the later slices need in the menu. Tests: square with none, one and two
+   open actions; query count holds.
 
 Slices 3 and 4 can run in parallel with 1 and 2. Slice 5 needs 1 and 3.
 Slice 7 can be built any time after 1 but is run only when Tom says so.
