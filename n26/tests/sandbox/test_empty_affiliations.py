@@ -19,8 +19,10 @@ from n26.library.models import (
     Affiliation,
     Collection,
     CollectionEntry,
+    CollectionSelector,
     Hidden,
     Modifier,
+    Skill,
     Slot,
 )
 from n26.tests.sandbox.actions import (
@@ -177,7 +179,7 @@ class TestWhatItWouldDelete:
         assert f"delete the menu “{menus['Clan House']}” and its sections" in said
         assert "a whole-kind Affiliation offer" in said
         assert "Corruption" in said
-        assert f"delete the marker “{vestigial}”, which nothing holds" in said
+        assert f"delete the marker “{vestigial}” because no assignment uses it" in said
         assert "those are the new system" in said
         assert fossils.counts["kind rows"] == 8
         assert fossils.counts["menus"] == 4
@@ -202,6 +204,27 @@ class TestWhatItWouldDelete:
         assert "delete the emptied affiliation “Clanless”" not in "\n".join(
             fossils.preview()
         )
+
+    def test_an_unrelated_unused_hidden_is_not_a_conversion_leftover(
+        self, default_pack
+    ):
+        rank = create_slot_type("Rank", plural_name="Ranks", allows_repeats=False)
+        ranks = create_picklist("Ranks", rank)
+        slot = create_slot("Rank", rank, ranks, min_picks=0, max_picks=1)
+        hidden = create_hidden("Future rank")
+        grant = modifier(
+            "offers a rank",
+            targets_model(),
+            ef_adds(slot),
+            carried_by=hidden,
+        )
+
+        fossils = find()
+
+        assert fossils.nothing_here
+        apply(fossils)
+        assert Hidden.objects.filter(pk=hidden.pk).exists()
+        assert Modifier.objects.filter(pk=grant.pk).exists()
 
 
 class TestDeletingIt:
@@ -251,6 +274,17 @@ class TestDeletingIt:
 
 
 class TestWhatItRefuses:
+    def test_an_affiliation_in_another_pack_is_a_refusal(self, default_pack, homebrew):
+        authored = create_affiliation("Homebrew allegiance", pack=homebrew)
+
+        fossils = find()
+
+        assert not fossils.ok
+        assert any("another pack" in problem for problem in fossils.problems)
+        with pytest.raises(Refused):
+            apply(fossils)
+        assert Affiliation.objects.filter(pk=authored.pk).exists()
+
     def test_a_live_assignment_still_naming_an_affiliation_is_a_refusal(
         self, default_pack, person_type, owner
     ):
@@ -274,7 +308,7 @@ class TestWhatItRefuses:
 
         assert not fossils.ok
         assert any(
-            "1 assignment still name “Mutant”" in problem
+            "1 assignment still names “Mutant”" in problem
             for problem in fossils.problems
         )
         with pytest.raises(Refused):
@@ -305,13 +339,32 @@ class TestWhatItRefuses:
 
         assert not fossils.ok
         assert any(
-            "Affiliation offer" in problem and "still live" in problem
+            "affiliation offer" in problem and "still in use" in problem
             for problem in fossils.problems
         )
         with pytest.raises(Refused):
             apply(fossils)
         assert Affiliation.objects.filter(name="Clanless").exists()
         assert_reconciled(gang)
+
+    def test_an_unheld_carrier_keeps_its_affiliation_offer(self, default_pack):
+        create_affiliation("Clanless")
+        carrier = create_subtype("Future specialist")
+        offered = modifier(
+            "offers an affiliation",
+            targets_model(),
+            offers_choice(Affiliation),
+            carried_by=carrier,
+        )
+
+        fossils = find()
+
+        assert not fossils.ok
+        assert any("remains attached" in problem for problem in fossils.problems)
+        with pytest.raises(Refused):
+            apply(fossils)
+        assert Modifier.objects.filter(pk=offered.pk).exists()
+        assert carrier.modifiers.filter(pk=offered.pk).exists()
 
     def test_an_entry_added_after_the_plan_is_a_refusal(self, leftover_world):
         """A menu's entries cascade with it. An entry that arrived
@@ -359,7 +412,8 @@ class TestWhatItRefuses:
 
         assert fossils.ok
         assert any(
-            f"the menu “{menu}”: not everything in it is going" in note
+            f"the menu “{menu}” because it also contains entries that will remain"
+            in note
             for note in fossils.left_alone
         )
 
@@ -367,6 +421,32 @@ class TestWhatItRefuses:
 
         assert Collection.objects.filter(pk=menu.pk).exists()
         assert CollectionEntry.objects.filter(collection=menu).count() == 1
+
+    def test_a_menu_with_a_selector_keeps_its_shape(self, leftover_world):
+        _, _, menus, _, _ = leftover_world
+        menu = menus["Affiliations"]
+        selector = CollectionSelector.of(menu, Skill, pack=menu.pack)
+
+        fossils = find()
+
+        assert fossils.ok
+        assert menu.pk not in fossils.collections
+        apply(fossils)
+        assert Collection.objects.filter(pk=menu.pk).exists()
+        assert CollectionSelector.objects.filter(pk=selector.pk).exists()
+
+    def test_a_modifier_attached_after_the_plan_is_a_refusal(self, leftover_world):
+        gang, _, _, _, _ = leftover_world
+        fossils = find()
+        offered = Modifier.objects.get(name="Corruption")
+        carrier = create_subtype("Future specialist")
+        carrier.modifiers.add(offered)
+
+        with pytest.raises(Refused):
+            apply(fossils)
+
+        assert carrier.modifiers.filter(pk=offered.pk).exists()
+        assert_reconciled(gang)
 
     def test_a_marker_a_profile_comes_with_is_left_alone(self, leftover_world):
         """Nobody holding a marker is not the same as nothing naming it:
@@ -380,7 +460,7 @@ class TestWhatItRefuses:
 
         assert fossils.ok
         assert any(
-            f"the marker “{vestigial}”" in note and "still name it" in note
+            f"the marker “{vestigial}”" in note and "still used by" in note
             for note in fossils.left_alone
         )
 

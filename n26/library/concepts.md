@@ -4,9 +4,9 @@ This should give you a solid grounding in how Gyrinx N26 fits together.
 
 If you take nothing else away:
 
-1. **To control who gets a thing, control where it lands — don't look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a slot whose pick is assigned to the gang. Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on a pickable or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
+1. **To control who gets a thing, control where it lands — do not look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a slot whose pick is assigned to the gang. Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on a pickable or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
 
-2. **Behaviour is always a modifier on a carrier — and modifiers are shared, so edit with care.** A rule or a pickable is just a name; everything they do rides them as modifiers (scope + effect, conditions ANDed). Two practical consequences: to make content do something, attach the modifier to the thing that should carry it; and before editing an existing modifier, check its carriers — the change lands everywhere it's attached. Know the two effect families: computed effects (gives, takes away, stat changes, counter contributions, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and won't undo — author those as one-way doors.
+2. **Behaviour comes from modifiers attached to carriers — and modifiers are shared, so edit with care.** A rule or a pickable starts as a name; its attached modifiers define its behaviour (scope + effect, conditions ANDed). Two practical consequences: attach a modifier to the content it should affect; and before editing an existing modifier, check its carriers, because the change applies everywhere it is attached. Know the two effect families: computed effects (gives, takes away, stat changes, counter contributions, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and removal will not reverse them.
 
 3. **Being in a collection and being offered from a section of it are two separate authoring acts.** Entries and sweeps decide **membership** of the collection; **placement** decides whether a particular category appears. If you narrow a choice "from section: Primary" and the skill's category hasn't been placed into Primary for that fighter, it will not be offered — it's sitting in "Other". So a working "choose a Primary skill" needs both halves authored: the content in the collection, and a placement putting its category in that section for the right models.
 
@@ -14,9 +14,9 @@ If you take nothing else away:
 
 ## Assignment
 
-**An assignment has three components**: *what* is held (an **assignable** — a weapon, a skill, a pickable…), *who it is assigned to* (the **host**), and *what brought it* (its **cause** — remove the cause and the assignment goes too). Nothing gets onto a card any other way; everything from a hired fighter's profile to a granted rule is one of these assignments.
+**An assignment has three components**: *what* is held (an **assignable** — a weapon, a skill, a pickable…), *who it is assigned to* (the **host**), and the source of the assignment (its **cause**). Removing the cause also removes the assignment. Every item on a card, from a hired fighter's profile to a granted rule, is an assignment.
 
-An **assignable** is typically very simple: a piece of data that, once assigned, can carry modifiers. Sometimes they have extra configuration. Rule, Skill and a pickable are all assignables.
+An **assignable** is typically very simple: a piece of data that, once assigned, can carry modifiers. Sometimes they have extra configuration. Rules, skills and pickables are all assignables.
 
 The **host** is the specific object the assignment sits on: a model, the gang, a parent item (a scope fitted to a gun), or the stash *only*. Host decides *reach*: an assignment hosted on a model is that model's; an assignment hosted on the gang is **broadcast** to every member's card.
 
@@ -75,9 +75,9 @@ So the relationships after one hire, spelled out:
 
 ### A gang-level choice (slot type)
 
-*Who the gang sides with, which god it follows, which corruption it took — chosen once, as a pick.*
+*Who the gang sides with, which god it follows, or which corruption it has — chosen once, as a pick.*
 
-Do not author a new kind for this. Create a **slot type** (Affiliation, Chaos God, Variant, or a new name), its **pickables**, a **picklist**, and a **slot** assigned to the gang. Grant that slot from a hidden built into the gang type, or from the gang type itself. What the choice does rides the pickable as ordinary modifiers — equipment lists opened to some ranks, a further slot granted while this pick stands.
+Do not author a new kind for this. Create a **slot type** (Affiliation, Chaos God, Variant, or a new name), its **pickables**, a **picklist**, and a **slot** assigned to the gang. Grant that slot from a hidden built into the gang type, or from the gang type itself. Attach ordinary modifiers to each pickable to define its effects. For example, a pickable can open equipment lists to some ranks or grant another slot while the pick remains assigned.
 
 The slot type's name is the word the card and the history use. The slot's label is the question on one card. See **Slot type** below.
 

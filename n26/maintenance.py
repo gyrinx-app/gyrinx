@@ -169,7 +169,7 @@ class Operation(models.TextChoices):
     )
     DELETE_EMPTY_AFFILIATIONS = (
         "n26_delete_empty_affiliations",
-        "n26: the emptied Affiliation rows are deleted",
+        "n26: the emptied affiliation rows are deleted",
     )
 
 
@@ -746,7 +746,7 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
         if not plan.ok:
             messages.error(
                 request,
-                f"The {words['noun']} refuses: " + "; ".join(plan.problems),
+                f"The {words['noun']} cannot run: " + "; ".join(plan.problems) + ".",
             )
             return HttpResponseRedirect(address)
         backfill = Backfill.objects.create(
@@ -757,7 +757,7 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
         )
         task_fn.enqueue(backfill_id=str(backfill.id))
         messages.success(
-            request, f"The {words['noun']} is running. This page shows what it did."
+            request, f"The {words['noun']} is running. The result will appear below."
         )
         return HttpResponseRedirect(
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
@@ -932,25 +932,26 @@ def rehost_gang_picks_view(request):
 EMPTY_AFFILIATION_WORDS = {
     "noun": "deletion",
     "intro": (
-        "This deletes library rows and nothing a player holds: the "
-        "Affiliation kind rows the conversions emptied, the menus those "
-        "kinds were chosen from, the fossil offers nothing carries, and "
-        "the vestigial Hidden that grants a slot nobody holds. Every row "
-        "it would delete is listed below, along with anything it leaves "
-        "alone and why. The slot types named Affiliation, Clan House, "
-        "Chaos God and Variant — and their pickables, picklists and "
-        "slots — stay; those are the new system. Because none of what "
-        "goes is in use, no page should move at all — and that is what "
-        "it proves before committing. It refuses while any assignment "
-        "still names an Affiliation, or while anybody still holds an "
-        "Affiliation offer — both belong to a conversion that has not "
-        "run."
+        "This deletes old library rows without changing player data: "
+        "emptied affiliation rows, their menus, unused affiliation "
+        "offers, and unused hidden rows that grant slots. The rows "
+        "selected for deletion are listed below, together with the rows "
+        "that will remain and the reason for keeping them. The slot types "
+        "named Affiliation, Clan House, Chaos God and Variant remain, "
+        "along with their pickables, picklists and slots. Those rows are "
+        "the new system. The deletion is rolled back if it would change "
+        "any checked gang page. The deletion cannot run while any "
+        "assignment still names an affiliation or anyone still holds an "
+        "affiliation offer. Run the related conversion first."
     ),
     "nothing_heading": "Nothing to delete",
-    "nothing_flash": "There was nothing to delete — the emptied Affiliation rows have gone already.",
-    "nothing_words": "The emptied Affiliation rows have gone already.",
-    "refuses_heading": "The deletion refuses",
-    "button": "Delete the emptied Affiliation rows",
+    "nothing_flash": (
+        "There was nothing to delete. The emptied affiliation rows were "
+        "already deleted."
+    ),
+    "nothing_words": "The emptied affiliation rows were already deleted.",
+    "refuses_heading": "The deletion cannot run",
+    "button": "Delete the emptied affiliation rows",
     "confirm": "Delete these library rows? This cannot be undone.",
 }
 
@@ -1510,13 +1511,13 @@ register_operation(
         name=Operation.DELETE_EMPTY_AFFILIATIONS.label,
         added=date(2026, 8, 29),
         description=(
-            "Delete what the Affiliation conversions left behind: the "
-            "emptied kind rows, the menus nothing offers from, the fossil "
-            "offers, and the vestigial Hidden that nothing holds. All "
-            "library, none of it in use, so it proves that no page moves "
-            "at all. The slot types named Affiliation, Clan House, Chaos "
-            "God and Variant stay. Refuses while any assignment still "
-            "names an Affiliation."
+            "Delete the affiliation library rows left after the "
+            "conversions: the emptied kind rows, their menus, unused "
+            "affiliation offers, and unused hidden rows that grant slots. "
+            "The deletion is rolled back if it would change any checked "
+            "gang page. The slot types named Affiliation, Clan House, "
+            "Chaos God and Variant remain. The deletion cannot run while "
+            "any assignment still names an affiliation."
         ),
         view=delete_empty_affiliations_view,
         detail_template="admin/maintenance/n26/_delete_detail.html",

@@ -487,7 +487,7 @@ class TestTheEmptyAffiliationDeletion:
     def test_its_lock_is_not_shared(self):
         keys = list(LOCK_KEYS.values())
         assert len(keys) == len(set(keys))
-        assert LOCK_KEYS[Operation.DELETE_EMPTY_AFFILIATIONS] == 826_020_614
+        assert LOCK_KEYS[Operation.DELETE_EMPTY_AFFILIATIONS] == 826_020_616
         assert (
             LOCK_KEYS[Operation.DELETE_EMPTY_AFFILIATIONS]
             != LOCK_KEYS[Operation.BACKFILL_BUILT_INS]
@@ -568,7 +568,7 @@ class TestTheEmptyAffiliationDeletion:
         assert response.status_code == 302
         run = Backfill.objects.get(operation=Operation.DELETE_EMPTY_AFFILIATIONS)
         assert run.status == Backfill.Status.DONE
-        assert any("deleted" in line for line in run.summary["report"])
+        assert any("Deleted" in line for line in run.summary["report"])
         assert not Affiliation.objects.exists()
         assert_reconciled(gang)
 
@@ -590,7 +590,7 @@ class TestTheEmptyAffiliationDeletion:
         page = client.get(address).content.decode()
         posted = client.post(address)
 
-        assert "The deletion refuses" in page
+        assert "The deletion cannot run" in page
         assert "assignment" in page and "Mutant" in page
         assert posted.status_code == 302
         assert not Backfill.objects.exists()

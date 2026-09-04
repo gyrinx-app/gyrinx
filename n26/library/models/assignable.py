@@ -920,12 +920,11 @@ class Rule(Content, Assignable):
 
 
 class Affiliation(Content, Assignable):
-    """A leftover chosen-carrier kind. Author a slot type instead.
+    """Affiliations are retired. Use a slot type, pickables, and a grant of
+    that slot for gang-level choices.
 
-    Gang-level choices — who the gang sides with, which god it follows,
-    which corruption it took — are a slot type, its pickables, and a
-    grant of that slot. The leftover rows stay reachable until they are
-    deleted; nothing new is authored here.
+    Existing affiliation rows remain available here until they are
+    deleted.
     """
 
     family = Family.GANG

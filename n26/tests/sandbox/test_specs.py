@@ -181,7 +181,6 @@ class TestHelpIsSourcedNeverWritten:
             for kind in (
                 "power",
                 "skill",
-                "affiliation",
                 "subtype",
             )
         )

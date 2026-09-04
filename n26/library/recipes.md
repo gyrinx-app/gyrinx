@@ -11,12 +11,12 @@ Where a step is not yet possible, it says so plainly.
 
 Genestealer Cult, Chaos and Malstrain corruption are one build with
 different contents: a corruption is a choice the gang makes once, and
-everything it does rides the chosen pickable as ordinary modifiers.
+all of its effects come from modifiers attached to the chosen pickable.
 
 ### The choice
 
-A gang-level choice is a **slot type**, not a new kind. The same six
-steps that build a Gang Legacy build this — the pick lands on the gang.
+Use a **slot type** for this gang-level choice. Follow the same six steps
+as a Gang Legacy, assigning the pick to the gang.
 
 1. Create a **slot type** named "Variant" — what is being chosen — and
    give it a plural. Turn *allows repeats* off. Everything below is
@@ -24,8 +24,8 @@ steps that build a Gang Legacy build this — the pick lands on the gang.
 2. Add a **pickable** for each corruption — "Genestealer Cult
    Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
 3. Add a **picklist** named "Variants" holding those three.
-4. Add a **slot** labelled "Variant", taking 0–1 (most gangs never
-   answer), assigned to the gang.
+4. Add a **slot** labelled "Variant", taking 0–1 (most gangs leave it
+   empty), assigned to the gang.
 5. Create a **hidden** if the gang type should carry the question
    without drawing a line of its own, or skip this and attach the grant
    to the gang type directly.
@@ -33,16 +33,16 @@ steps that build a Gang Legacy build this — the pick lands on the gang.
    slot.
 
 Every gang of those types now shows an open "Variant" question on its
-sheet. Most players never make that choice. The ones who do pick one
-pickable, and everything below hangs off that pick.
+sheet. Most players never make that choice. Players who use it make one
+pick. The chosen pickable's modifiers provide the effects described
+below.
 
 ### What a corruption grants
 
-Each of these is a modifier carried by the corruption's pickable.
-Everything a chosen thing brings rides it as modifiers — *gives*,
-*brings a model*, *moves a counter* — and never as built-in items: a
-pickable is chosen, not bought or hired, so nothing would ever hand
-built-in items over.
+Each effect is a modifier carried by the corruption's pickable: *gives*,
+*brings a model*, or *moves a counter*. Do not add these as built-in
+items. Pickables are chosen rather than bought or hired, so built-in
+items would never be assigned.
 
 **New fighters to hire.** Create the profiles — Aberrant, Abominant,
 Helot Cult Witch, Chaos Spawn, Brood Scum. Create a collection listing
@@ -70,10 +70,10 @@ credits, usable by Prospects, carrying *gives* the Extra Arm rule. List
 it in the corruption's collection.
 
 **A god to dedicate to (Chaos).** Create a **slot type** named "Chaos
-God", refusing repeats; a pickable per god; a picklist of the four; and
-a slot labelled "Chaos God", taking 0–1, assigned to the gang. On the
-Chaos Corrupted pickable: targets the gang, *gives* that slot. Anything
-one god means rides that god's pickable the same way.
+God" and turn *allows repeats* off. Add a pickable per god, a picklist of
+the four, and a slot labelled "Chaos God", taking 0–1 and assigned to
+the gang. On the Chaos Corrupted pickable: targets the gang, *gives*
+that slot. Attach each god's effects to that god's pickable.
 
 **Post-cycle actions (Chaos).** Create each action as a **rule**. On the
 pickable: targets the gang, *gives* the rule. They print on the gang's

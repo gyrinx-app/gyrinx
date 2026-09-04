@@ -49,6 +49,7 @@ it too exists solely for what is going.
 
 from dataclasses import dataclass, field
 
+from django.conf import settings
 from django.db import transaction
 
 #: How many gangs the proof draws when nothing being deleted is held —
@@ -88,15 +89,15 @@ class Fossils:
     def preview(self):
         if self.nothing_here:
             return [
-                "nothing to delete — the emptied Affiliation rows have gone already"
+                "nothing to delete — the emptied affiliation rows were already deleted"
             ]
         lines = list(self.said)
         for note in self.left_alone:
             lines.append(f"leave {note}")
         lines.append(
-            f"prove {len(self.gang_ids)} gang"
-            f"{'' if len(self.gang_ids) == 1 else 's'} read exactly the same, "
-            "or refuse"
+            f"check that {len(self.gang_ids)} gang page"
+            f"{'' if len(self.gang_ids) == 1 else 's'} render exactly the same; "
+            "delete nothing if any page changes"
         )
         return lines
 
@@ -127,7 +128,11 @@ def _named_by(model, rows):
         if not getattr(entry_field, "concrete", False):
             continue
         if getattr(entry_field, "related_model", None) is model:
-            return CollectionEntry.objects.filter(**{f"{entry_field.name}__in": rows})
+            return CollectionEntry.objects.filter(
+                **{f"{entry_field.name}__in": rows},
+                pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+                collection__pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            )
     return CollectionEntry.objects.none()
 
 
@@ -195,7 +200,12 @@ def _anything_naming(row, doomed):
                 here = here.exclude(pk__in=spared)
             count = here.count()
             if count:
-                found.append(f"{count} {model._meta.verbose_name_plural}")
+                noun = (
+                    model._meta.verbose_name
+                    if count == 1
+                    else model._meta.verbose_name_plural
+                )
+                found.append(f"{count} {noun}")
     return ", ".join(sorted(found))
 
 
@@ -219,11 +229,6 @@ def _leave_the_new_system(left_alone):
         SlotType.objects.filter(name__in=KEPT_SLOT_TYPE_NAMES).order_by("name")
     )
     if not standing:
-        left_alone.append(
-            "the slot types named Affiliation, Clan House, Chaos God and "
-            "Variant, and every pickable, picklist and slot of theirs — "
-            "those are the new system, and none stand yet"
-        )
         return
     names = ", ".join(f"“{row}”" for row in standing)
     noun = "slot type" if len(standing) == 1 else "slot types"
@@ -257,11 +262,24 @@ def find():
 
     doomed_kinds = []
     for column, model in _kinds():
-        for row in model.objects.all().order_by("name"):
+        outside = model.objects.exclude(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        ).count()
+        if outside:
+            problems.append(
+                f"{outside} {model._meta.verbose_name}"
+                f"{'' if outside == 1 else 's'} belong"
+                f"{'' if outside != 1 else 's'} to another pack. This deletion "
+                "only removes N26 conversion leftovers"
+            )
+        for row in model.objects.filter(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        ).order_by("name"):
             held = Assignment.objects.filter(**{column: row}).count()
             if held:
                 problems.append(
-                    f"{held} assignment{'' if held == 1 else 's'} still name "
+                    f"{held} assignment{'' if held == 1 else 's'} still "
+                    f"{'names' if held == 1 else 'name'} "
                     f"“{row}”, so it cannot be deleted yet"
                 )
                 continue
@@ -270,7 +288,7 @@ def find():
                 left_alone.append(
                     f"“{row}” where it is: it still carries "
                     f"{carried} modifier{'' if carried == 1 else 's'}, so it "
-                    "is doing something whatever its column says"
+                    "remains in use"
                 )
                 continue
             doomed_kinds.append(row)
@@ -291,14 +309,38 @@ def find():
     )
     offers = []
     for offer in OffersChoice.objects.filter(of_kind__in=kinds).select_related(
-        "from_section"
+        "from_section", "modifier", "modifier__pack"
     ):
-        carried_by = _held_carriers(offer)
-        if carried_by:
+        try:
+            offer_modifier = offer.modifier
+        except Modifier.DoesNotExist:
             problems.append(
-                f"somebody still holds the Affiliation offer on “{carried_by}”, "
-                "so the old question is still live"
+                f"the affiliation offer {offer.pk} has no modifier. Fix that "
+                "library data before running the deletion"
             )
+            continue
+        if offer_modifier.pack.slug != settings.DEFAULT_CONTENT_PACK_SLUG:
+            problems.append(
+                f"the affiliation offer “{offer_modifier}” belongs to another "
+                "pack. This deletion only removes N26 conversion leftovers"
+            )
+            continue
+        carriers = carriers_of(offer_modifier)
+        if carriers:
+            carried_by = _held_carriers(offer)
+            if carried_by:
+                problems.append(
+                    f"the affiliation offer on “{carried_by}” is still in use. "
+                    "Run the related conversion first"
+                )
+            else:
+                named = ", ".join(
+                    f"{kind} “{row}”" for kind, row in sorted(carriers, key=str)
+                )
+                problems.append(
+                    f"the affiliation offer “{offer_modifier}” remains attached "
+                    f"to {named}. Remove or convert it first"
+                )
             continue
         offers.append(offer)
     if problems:
@@ -306,17 +348,41 @@ def find():
 
     collections = []
     for collection in Collection.objects.filter(
-        pk__in={entry.collection_id for entry in entries}
+        pk__in={entry.collection_id for entry in entries},
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
     ).order_by("name"):
         held = set(
             CollectionEntry.objects.filter(collection=collection).values_list(
                 "pk", flat=True
             )
         )
-        if held - doomed_entries:
+        section_ids = set(
+            CollectionSection.objects.filter(
+                collection=collection,
+                pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            ).values_list("pk", flat=True)
+        )
+        named_by = _anything_naming(
+            collection,
+            {
+                CollectionEntry: doomed_entries,
+                CollectionSection: section_ids,
+            },
+        )
+        carried = collection.modifiers.count()
+        if held - doomed_entries or named_by or carried:
+            reasons = []
+            if held - doomed_entries:
+                reasons.append("it also contains entries that will remain")
+            if named_by:
+                reasons.append(f"it is still used by {named_by}")
+            if carried:
+                reasons.append(
+                    f"it carries {carried} modifier{'' if carried == 1 else 's'}"
+                )
             left_alone.append(
-                f"the menu “{collection}”: not everything in it is going, "
-                "so it loses those entries and keeps its shape"
+                f"the menu “{collection}” because {'; '.join(reasons)}. The "
+                "emptied affiliation entries will still be deleted"
             )
             continue
         collections.append(collection)
@@ -324,9 +390,11 @@ def find():
 
     for offer in OffersChoice.objects.filter(from_section__in=sections):
         if offer not in offers:
+            offer_modifier = Modifier.objects.filter(offers_choice=offer).first()
+            label = f"“{offer_modifier}”" if offer_modifier else f"offer {offer.pk}"
             problems.append(
-                f"“{offer.modifier}” asks for a menu that would go but is "
-                "not an offer of Affiliation, so the menu is not dead"
+                f"{label} uses a menu selected for deletion but does not offer "
+                "an affiliation. Keep or update the menu first"
             )
     places = list(PlacesCategory.objects.filter(section__in=sections))
 
@@ -339,8 +407,18 @@ def find():
         | Modifier.objects.filter(places_category__in=places)
     }
 
+    for modifier in modifiers.values():
+        if modifier.pack.slug != settings.DEFAULT_CONTENT_PACK_SLUG:
+            problems.append(
+                f"the modifier “{modifier}” belongs to another pack. This "
+                "deletion only removes N26 conversion leftovers"
+            )
+
     hiddens = []
-    for hidden in Hidden.objects.filter(modifiers__in=modifiers.values()).distinct():
+    for hidden in Hidden.objects.filter(
+        modifiers__in=modifiers.values(),
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+    ).distinct():
         others = hidden.modifiers.exclude(pk__in=modifiers).count()
         if others:
             left_alone.append(
@@ -348,54 +426,88 @@ def find():
                 f"modifier{'' if others == 1 else 's'}"
             )
             continue
-        handers = {
-            naming: set(
-                naming.objects.filter(hidden=hidden).values_list("pk", flat=True)
-            )
-            for naming in (AddsAssignable, RemovesAssignable)
-        }
+        handers = {AddsAssignable: set(), RemovesAssignable: set()}
+        hander_modifiers = {}
+        for naming in handers:
+            for effect in naming.objects.filter(hidden=hidden):
+                effect_modifier = Modifier.objects.filter(
+                    **{_part_name(effect): effect}
+                ).first()
+                if (
+                    effect_modifier is None
+                    or effect_modifier.pack.slug != settings.DEFAULT_CONTENT_PACK_SLUG
+                    or carriers_of(effect_modifier)
+                ):
+                    continue
+                handers[naming].add(effect.pk)
+                hander_modifiers[effect_modifier.pk] = effect_modifier
         named_by = _anything_naming(hidden, {**handers, Modifier: set(modifiers)})
         if named_by:
-            left_alone.append(f"the marker “{hidden}”: {named_by} still name it")
+            left_alone.append(
+                f"the marker “{hidden}” because it is still used by {named_by}"
+            )
             continue
         hiddens.append(hidden)
+        modifiers.update(hander_modifiers)
 
-    for row in Modifier.objects.filter(
-        adds_assignable__in=AddsAssignable.objects.filter(hidden__in=hiddens)
-    ) | Modifier.objects.filter(
-        removes_assignable__in=RemovesAssignable.objects.filter(hidden__in=hiddens)
-    ):
-        modifiers[row.pk] = row
+    doomed_hidden_ids = {hidden.pk for hidden in hiddens}
+    for modifier in modifiers.values():
+        other_carriers = [
+            (kind, row)
+            for kind, row in carriers_of(modifier)
+            if not (kind == "Hidden" and row.pk in doomed_hidden_ids)
+        ]
+        if other_carriers:
+            named = ", ".join(
+                f"{kind} “{row}”" for kind, row in sorted(other_carriers, key=str)
+            )
+            problems.append(
+                f"the modifier “{modifier}” remains attached to {named}. "
+                "Remove or convert it first"
+            )
+
+    if problems:
+        return Fossils(problems=tuple(problems))
 
     already = {hidden.pk for hidden in hiddens}
-    for hidden in Hidden.objects.order_by("name"):
+    for hidden in Hidden.objects.filter(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).order_by("name"):
         if hidden.pk in already:
             continue
-        grants = [
-            modifier
-            for modifier in hidden.modifiers.all()
-            if getattr(modifier, "adds_assignable", None) is not None
-            and modifier.adds_assignable.slot_id
+        held_modifiers = list(hidden.modifiers.all())
+        if len(held_modifiers) != 1:
+            continue
+        grant = held_modifiers[0]
+        effect = getattr(grant, "adds_assignable", None)
+        if (
+            effect is None
+            or effect.slot_id is None
+            or grant.pack.slug != settings.DEFAULT_CONTENT_PACK_SLUG
+            or effect.slot.slot_type.name != "Variant"
+            or effect.slot.pack.slug != settings.DEFAULT_CONTENT_PACK_SLUG
+            or effect.slot.slot_type.pack.slug != settings.DEFAULT_CONTENT_PACK_SLUG
+        ):
+            continue
+        other_carriers = [
+            (kind, row)
+            for kind, row in carriers_of(grant)
+            if not (kind == "Hidden" and row.pk == hidden.pk)
         ]
-        if not grants:
+        if not any(
+            kind == "GangType" and row.pack.slug == settings.DEFAULT_CONTENT_PACK_SLUG
+            for kind, row in other_carriers
+        ):
             continue
         if Assignment.objects.filter(hidden=hidden).exists():
             continue
-        named_by = _anything_naming(
-            hidden, {Modifier: {modifier.pk for modifier in hidden.modifiers.all()}}
-        )
+        named_by = _anything_naming(hidden, {Modifier: {grant.pk}})
         if named_by:
-            left_alone.append(f"the marker “{hidden}”: {named_by} still name it")
+            left_alone.append(
+                f"the marker “{hidden}” because it is still used by {named_by}"
+            )
             continue
         hiddens.append(hidden)
-        for modifier in hidden.modifiers.all():
-            others = [
-                (kind, row)
-                for kind, row in carriers_of(modifier)
-                if not (kind == "Hidden" and row.pk == hidden.pk)
-            ]
-            if not others:
-                modifiers[modifier.pk] = modifier
 
     doomed = {
         type(row): {r.pk for r in doomed_kinds if type(r) is type(row)}
@@ -413,7 +525,7 @@ def find():
         named_by = _anything_naming(row, doomed)
         if named_by:
             problems.append(
-                f"{named_by} still name “{row}”, so it cannot be deleted yet"
+                f"“{row}” is still used by {named_by}, so it cannot be deleted yet"
             )
     if problems:
         return Fossils(problems=tuple(problems))
@@ -432,9 +544,11 @@ def find():
     for collection in collections:
         said.append(f"delete the menu “{collection}” and its sections")
     for modifier in sorted(modifiers.values(), key=str):
-        said.append(f"delete the modifier “{modifier}”, which nothing needs")
+        said.append(
+            f"delete the modifier “{modifier}” because no remaining row uses it"
+        )
     for hidden in hiddens:
-        said.append(f"delete the marker “{hidden}”, which nothing holds")
+        said.append(f"delete the marker “{hidden}” because no assignment uses it")
 
     if not (doomed_kinds or entries or collections or modifiers or hiddens):
         return Fossils(nothing_here=True, left_alone=tuple(left_alone))
@@ -529,11 +643,13 @@ def _same_deletion_set(left, right):
         and set(left.sections) == set(right.sections)
         and set(left.modifiers) == set(right.modifiers)
         and set(left.hiddens) == set(right.hiddens)
+        and set(left.gang_ids) == set(right.gang_ids)
     )
 
 
 def apply(fossils):
     """Delete exactly what was read, and prove every page unmoved."""
+    from django.db import connection
     from django.db.models import ProtectedError
 
     from n26.core.capture import differences, gang_state
@@ -546,40 +662,91 @@ def apply(fossils):
         CollectionSection,
         Hidden,
         Modifier,
+        OffersChoice,
     )
 
     if fossils.problems:
-        raise Refused("not deleted: " + "; ".join(fossils.problems))
+        raise Refused(
+            "The deletion cannot run because " + "; ".join(fossils.problems) + "."
+        )
     if fossils.nothing_here:
         return list(fossils.preview())
 
     report = list(fossils.preview())
     try:
         with _one_snapshot(), transaction.atomic():
-            # The plan was read before this transaction opened, and a
-            # menu's entries cascade rather than protect — so an entry
-            # added in between would ride a delete down instead of
-            # refusing. The menus are locked first: inserting an entry
-            # takes a key-share lock on its collection, which this
-            # conflicts with. Then the plan is read again, and anything
-            # that moved before the lock refuses.
-            list(
-                Collection.objects.select_for_update()
-                .filter(pk__in=fossils.collections)
+            # An affiliation offer points only at the ContentType, not at an
+            # Affiliation row. Fence writes to the offer table before the
+            # repeatable-read snapshot is established, or a new whole-kind
+            # offer could appear after validation with no answers left for it.
+            if connection.vendor == "postgresql":
+                table = connection.ops.quote_name(OffersChoice._meta.db_table)
+                with connection.cursor() as cursor:
+                    cursor.execute(f"LOCK TABLE {table} IN SHARE MODE")
+            # The plan was read before this transaction opened. Every
+            # row whose relations cascade is locked before the second
+            # reading, so a new entry, modifier attachment, or edited
+            # effect cannot ride the deletion down. Foreign-key checks
+            # take key-share locks on their targets, which these locks
+            # conflict with. Anything that moved before the locks were
+            # taken changes the second reading and refuses.
+            kind_rows = {}
+            for model, pk in fossils.kind_rows:
+                kind_rows.setdefault(model, []).append(pk)
+            for model in sorted(kind_rows, key=lambda item: item._meta.label_lower):
+                list(
+                    model.objects.select_for_update()
+                    .filter(pk__in=kind_rows[model])
+                    .order_by("pk")
+                )
+            for model, pks in (
+                (Collection, fossils.collections),
+                (CollectionSection, fossils.sections),
+                (CollectionEntry, fossils.entries),
+                (Hidden, fossils.hiddens),
+            ):
+                list(
+                    model.objects.select_for_update().filter(pk__in=pks).order_by("pk")
+                )
+            hidden_modifier_ids = Hidden.objects.filter(
+                pk__in=fossils.hiddens
+            ).values_list("modifiers__pk", flat=True)
+            locked_modifiers = list(
+                Modifier.objects.select_for_update()
+                .filter(pk__in={*fossils.modifiers, *hidden_modifier_ids})
                 .order_by("pk")
             )
-            list(
-                CollectionEntry.objects.select_for_update()
-                .filter(pk__in=fossils.entries)
-                .order_by("pk")
-            )
+            modifier_parts = {}
+            for modifier in locked_modifiers:
+                for one_to_one in Modifier._meta.get_fields():
+                    if not (
+                        getattr(one_to_one, "one_to_one", False)
+                        and getattr(one_to_one, "concrete", False)
+                    ):
+                        continue
+                    part_id = getattr(modifier, f"{one_to_one.name}_id")
+                    if part_id is not None:
+                        modifier_parts.setdefault(one_to_one.related_model, []).append(
+                            part_id
+                        )
+            for model in sorted(
+                modifier_parts, key=lambda item: item._meta.label_lower
+            ):
+                list(
+                    model.objects.select_for_update()
+                    .filter(pk__in=modifier_parts[model])
+                    .order_by("pk")
+                )
             now = find()
             if now.problems:
-                raise Refused("not deleted: " + "; ".join(now.problems))
+                raise Refused(
+                    "The deletion cannot run because " + "; ".join(now.problems) + "."
+                )
             if now.nothing_here or not _same_deletion_set(fossils, now):
                 raise Refused(
-                    "not deleted: what stands has changed since the plan "
-                    "was read — read it again"
+                    "The deletion cannot run because the rows selected for deletion "
+                    "have changed since the plan was read. Reload this page to "
+                    "generate a new plan."
                 )
 
             gangs = list(Gang.objects.filter(pk__in=fossils.gang_ids))
@@ -605,15 +772,16 @@ def apply(fossils):
             changed = differences(before, after)
             if changed:
                 raise Refused(
-                    "refused — what a reader is told would change:\n  "
-                    + "\n  ".join(changed[:10])
+                    "The deletion cannot run because a checked gang page would "
+                    "change:\n  " + "\n  ".join(changed[:10])
                 )
             for gang in gangs:
                 try:
                     assert_reconciled(gang)
                 except Exception as failed:
                     raise Refused(
-                        f"refused — {gang} no longer reconciles: {failed}"
+                        "The deletion cannot run because "
+                        f"{gang} no longer reconciles: {failed}."
                     ) from failed
     except ConversionRefused as refused:
         raise Refused(str(refused)) from refused
@@ -622,8 +790,9 @@ def apply(fossils):
         # is a referent nobody listed, and the answer is a refusal in
         # words rather than a traceback.
         raise Refused(
-            "refused — something still names what would be deleted: "
-            f"{sorted(str(obj) for obj in protected.protected_objects)[:5]}"
+            "The deletion cannot run because these rows still refer to a row "
+            "selected for deletion: "
+            f"{sorted(str(obj) for obj in protected.protected_objects)[:5]}."
         ) from protected
-    report.append("deleted; every page reads the same")
+    report.append("Deleted. The checked gang pages render the same.")
     return report
