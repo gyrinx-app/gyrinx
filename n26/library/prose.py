@@ -138,6 +138,25 @@ class _Who:
     persistence: str
     #: Who an offer is put to.
     asked: str = "them"
+    #: Whether a narrowing may follow the subject as a phrase — "every
+    #: fighter with Cawdor". A pronoun or a clause cannot take one, and
+    #: its narrowings lead the sentence instead: "While holding Cawdor,
+    #: they gain …".
+    qualifiable: bool = True
+    #: Whether a narrowing has been appended to ``subject``, so that a
+    #: possessive can no longer be made by adding 's — "every fighter
+    #: with Cawdor's weapons" hands the weapons to Cawdor — and what is
+    #: owned is said the long way round instead (``_owned``).
+    qualified: bool = False
+
+
+def _owned(who, thing):
+    """What the subject has, as a noun phrase: "their Ballistic Skill",
+    or "the Ballistic Skill of every fighter with Cawdor" once the
+    subject carries a narrowing of its own."""
+    if who.qualified:
+        return f"the {thing} of {who.subject}"
+    return f"{who.possessive} {thing}"
 
 
 def _a(name):
@@ -182,6 +201,7 @@ def _who(carriage, thing=None):
             weapons="the weapons of whoever ends up carrying this",
             plural=False,
             persistence="while they carry it",
+            qualifiable=False,
         )
     return _Who(
         subject="they",
@@ -189,6 +209,7 @@ def _who(carriage, thing=None):
         weapons="their weapons",
         plural=True,
         persistence="while they have it",
+        qualifiable=False,
     )
 
 
@@ -364,7 +385,7 @@ def _says_changes_stat(effect, parts):
             hint,
         )
     return (
-        f"{who.possessive} {effect.stat.full_name} is {change}{_while(who)}.",
+        f"{_owned(who, effect.stat.full_name)} is {change}{_while(who)}.",
         hint,
     )
 
@@ -428,7 +449,7 @@ def _says_places_category(effect, parts):
                 "not happen, and the plan says why."
             ),
         )
-    return f"{who.possessive} {effect.category.name} set appears as {section}.", hint
+    return f"{_owned(who, f'{effect.category.name} set')} appears as {section}.", hint
 
 
 @_renders("requires_companions")
@@ -494,7 +515,7 @@ def _says_op_adds_miniature(effect, parts):
 @_renders("op_changes_counter")
 def _says_op_changes_counter(effect, parts):
     who = parts.who
-    counter = f"{who.possessive} {effect.counter}"
+    counter = _owned(who, str(effect.counter))
     if effect.mode == effect.Mode.ADD:
         moved = f"{effect.amount} is added to {counter}"
     elif effect.mode == effect.Mode.SUBTRACT:
@@ -511,20 +532,13 @@ def _says_op_changes_counter(effect, parts):
     )
 
 
-def _and_then(names):
-    """Several things a chain hands on, said as a list."""
+def _and_then(names, joiner="and"):
+    """Several names said as a list — "A, B and C", or with ``joiner``
+    "or" where any one of them will do."""
     names = list(names)
     if len(names) == 1:
         return names[0]
-    return f"{', '.join(names[:-1])} and {names[-1]}"
-
-
-def _one_of(names):
-    """Several things any one of which will do, said as a list."""
-    names = list(names)
-    if len(names) == 1:
-        return names[0]
-    return f"{', '.join(names[:-1])} or {names[-1]}"
+    return f"{', '.join(names[:-1])} {joiner} {names[-1]}"
 
 
 def sentence_for(modifier, carriage=UNATTACHED, thing=None, chain=None):
@@ -594,46 +608,59 @@ def _effect_field(modifier):
 
 @dataclass
 class _Narrowings:
-    """What a model scope's conditions have said, sorted by the shape
+    """What a model scope's conditions narrow it to, sorted by the shape
     each takes in the sentence."""
 
-    #: Ranks or entries named outright: they replace the subject.
+    #: Ranks or entries named outright: they become the subject.
     named: list = field(default_factory=list)
-    #: Ranks or entries the row leaves out: they follow the subject.
-    excepted: list = field(default_factory=list)
-    #: A Type narrowing, as ``(negated, lowercased type names)``.
-    typed: list = field(default_factory=list)
-    #: Picks the model must hold, as ``(negated, names)``.
-    holdings: list = field(default_factory=list)
+    #: Types the model must be, lowercased: "vehicle".
+    types: list = field(default_factory=list)
+    #: Ranks, entries or types the row leaves out, worded: "Champion",
+    #: "vehicles".
+    left_out: list = field(default_factory=list)
+    #: Whether one of ``left_out`` is a Type, which widens a gang-wide
+    #: subject to "every model" — a vehicle left out of "every fighter"
+    #: would read as though vehicles were fighters.
+    a_type_left_out: bool = False
+    #: Picks the model must hold or not hold, worded: "with Cawdor",
+    #: "without Cawdor or Delaque".
+    picks: list = field(default_factory=list)
     #: Clauses about the moment rather than the model.
     clauses: list = field(default_factory=list)
 
 
-def _names_ranks(row, said):
+def _names_ranks(row, found):
     names = [str(one) for one in row.subtypes.all()]
-    (said.excepted if row.negate else said.named).extend(names)
+    (found.left_out if row.negate else found.named).extend(names)
 
 
-def _names_entries(row, said):
+def _names_entries(row, found):
     names = [str(one) for one in row.profiles.all()]
-    (said.excepted if row.negate else said.named).extend(names)
+    (found.left_out if row.negate else found.named).extend(names)
 
 
-def _names_type(row, said):
+def _names_type(row, found):
     types = [str(one).lower() for one in row.profile_types.all()]
-    if types:
+    if not types:
         # An empty row says nothing, as its condition narrows nothing.
-        said.typed.append((row.negate, types))
+        return
+    if row.negate:
+        found.left_out.extend(f"{kind}s" for kind in types)
+        found.a_type_left_out = True
+    else:
+        found.types.extend(types)
 
 
-def _names_pick(row, said):
+def _names_pick(row, found):
     picks = [str(one) for one in row.pickables.all()]
     if picks:
-        said.holdings.append((row.negate, picks))
+        # A row naming several picks is satisfied by any one of them.
+        held = _and_then(picks, "or")
+        found.picks.append(f"without {held}" if row.negate else f"with {held}")
 
 
-def _names_threshold(row, said):
-    said.clauses.append(f"while their {row.counter} is {row.at_least} or more")
+def _names_threshold(row, found):
+    found.clauses.append(f"while their {row.counter} is {row.at_least} or more")
 
 
 #: How each condition a model scope can carry reaches the sentence, by
@@ -655,61 +682,76 @@ def _narrowed(who, scope):
     """The subject once the scope's conditions have had their say.
 
     Each narrowing has its own shape, because each means something
-    different. Ranks or entries named replace the subject outright —
-    "Champion and Leader" says who is reached better than any pronoun
-    could, in the names as authored, because a content name is never
-    inflected — and follow it after "except" when the row leaves them
-    out. A Type is the model's own word: "every vehicle". A pick held
-    joins as "with" or "without". A threshold becomes a clause in front,
-    being a condition on the moment rather than on the person, and the
-    sentence then drops its own "while" so as not to say the same thing
-    twice. A narrowing of the weapons joins the noun phrase, in the
-    words the condition row says of itself, so the modifier's own name
-    and this sentence cannot come to describe the selection differently.
+    different. Ranks or entries named become the subject — "Champion and
+    Leader" says who is reached better than any pronoun could, in the
+    names as authored, because a content name is never inflected — and
+    a Type beside them is their kind: "Champion vehicles". A Type alone
+    is the model's own word, "every vehicle". Whatever a row leaves out
+    follows after one "except"; a pick held joins as "with" or
+    "without", before the exception so it qualifies the subject and not
+    what was left out. A threshold becomes a clause in front, being a
+    condition on the moment rather than on the person, and the sentence
+    then drops its own "while" so as not to say the same thing twice.
+
+    A subject that is a pronoun or a clause takes no phrase after it, so
+    its narrowings lead the sentence as clauses too: "While holding
+    Cawdor, they gain …". A narrowing of the weapons joins the noun
+    phrase, in the words the condition row says of itself, so the
+    modifier's own name and this sentence cannot come to describe the
+    selection differently.
     """
     if not getattr(scope, "CONDITIONS", ()) or scope.pk is None:
         return who, ""
-    said = _Narrowings()
+    found = _Narrowings()
     of_weapons = []
     for related in scope.CONDITIONS:
-        say = MODEL_NARROWINGS.get(related)
+        record = MODEL_NARROWINGS.get(related)
         for row in getattr(scope, related).all():
-            if say is not None:
-                say(row, said)
+            if record is not None:
+                record(row, found)
             else:
                 of_weapons.append(str(row))
-    lead = " and ".join(said.clauses)
-    weapons = " ".join([who.weapons, *of_weapons])
-    subject, possessive, plural = who.subject, who.possessive, who.plural
-    if said.named:
-        subject = _and_then(said.named)
-        # Names are said as authored and never inflected, so one name is
-        # one subject: "Champion gains", "Champion and Leader gain".
-        plural = len(said.named) != 1
-    elif said.typed:
-        # A Type is a possession every model has exactly one of, so the
-        # narrowing reads as the model's own word — "every vehicle" —
-        # in place of the gang-wide "every fighter". Ranks named
-        # alongside are the more specific narrowing and win above.
-        negate, types = said.typed[0]
-        if negate:
-            # A Type left out joins whatever else is left out, so one
-            # "except" carries them all: "every model except vehicles
-            # and Champion".
-            subject = "every model"
-            said.excepted[:0] = [f"{kind}s" for kind in types]
-        else:
-            subject = f"every {_and_then(types)}"
+
+    subject, plural = who.subject, who.plural
+    if found.named:
+        subject = _and_then(found.named)
+        plural = len(found.named) != 1
+        if found.types:
+            subject = f"{subject} {_and_then(f'{kind}s' for kind in found.types)}"
+            plural = True
+    elif found.types:
+        subject = f"every {_and_then(found.types, 'or')}"
         plural = False
-    if said.excepted:
-        subject = f"{subject} except {_and_then(said.excepted)}"
-    # A row naming several picks is satisfied by any one of them, so the
-    # sentence says "or": "with" holding any, "without" holding none.
-    for negate, picks in said.holdings:
-        subject = f"{subject} {'without' if negate else 'with'} {_one_of(picks)}"
-    if said.named or said.excepted or said.typed or said.holdings:
-        possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
-        weapons = " ".join([f"{possessive} weapons", *of_weapons])
+    elif found.a_type_left_out and who.qualifiable:
+        subject = "every model"
+
+    clauses = list(found.clauses)
+    qualified = False
+    if who.qualifiable or subject != who.subject:
+        if found.picks:
+            subject = f"{subject} {' and '.join(found.picks)}"
+        if found.left_out:
+            subject = f"{subject} except {_and_then(found.left_out)}"
+        qualified = bool(found.picks or found.left_out)
+    else:
+        # "They with Cawdor" is no sentence: a pronoun's narrowings are
+        # said up front instead, and the closing "while" gives way to them.
+        clauses.extend(
+            "while "
+            + phrase.replace("with", "holding", 1).replace("withouting", "not holding")
+            for phrase in found.picks
+        )
+        if found.left_out:
+            clauses.append(f"unless they are {_and_then(found.left_out, 'or')}")
+    lead = " and ".join(clauses)
+
+    possessive, weapons = who.possessive, " ".join([who.weapons, *of_weapons])
+    if subject != who.subject:
+        if qualified:
+            weapons = " ".join([f"the weapons of {subject}", *of_weapons])
+        else:
+            possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
+            weapons = " ".join([f"{possessive} weapons", *of_weapons])
     return (
         _Who(
             subject=subject,
@@ -718,6 +760,8 @@ def _narrowed(who, scope):
             plural=plural,
             persistence="" if lead else who.persistence,
             asked=who.asked,
+            qualifiable=who.qualifiable,
+            qualified=qualified,
         ),
         lead,
     )

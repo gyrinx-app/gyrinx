@@ -219,7 +219,7 @@ class TestATypeAndARankLeftOut:
         )
 
         assert texts(prose_for(escher).does) == [
-            "Every model except vehicles and Champion gains Backstab, while the gang holds this."
+            "Every model except Champion and vehicles gains Backstab, while the gang holds this."
         ]
 
 
@@ -242,6 +242,105 @@ class TestARankLeftOut:
 
         assert texts(prose_for(escher).does) == [
             "Every fighter except Champion gains Backstab, while the gang holds this."
+        ]
+
+
+class TestNarrowingsCompose:
+    """Two narrowings on one scope are both said, in an order that keeps
+    each attached to the right thing."""
+
+    @pytest.fixture
+    def cawdor(self, default_pack):
+        slot_type = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
+        table = create_picklist("Gang Legacies", slot_type)
+        cawdor = create_pickable("Cawdor", slot_type)
+        add_picklist_member(table, cawdor)
+        return cawdor
+
+    def carried(self, escher, scope, effect, name="Composed"):
+        attach_modifiers_to(escher, [modifier(name, scope, effect)])
+        return texts(prose_for(escher).does)
+
+    def test_a_rank_and_a_type_are_the_ranks_of_that_kind(
+        self, escher, backstab, vehicle_type, default_pack
+    ):
+        champion = create_subtype("Champion")
+        assert self.carried(
+            escher,
+            targets_every_model(has_subtypes(champion), is_profile_type(vehicle_type)),
+            ef_adds(backstab),
+        ) == ["Champion vehicles gain Backstab, while the gang holds this."]
+
+    def test_either_type_reads_or(self, escher, backstab, fighter_type, vehicle_type):
+        assert self.carried(
+            escher,
+            targets_every_model(is_profile_type(fighter_type, vehicle_type)),
+            ef_adds(backstab),
+        ) == ["Every fighter or vehicle gains Backstab, while the gang holds this."]
+
+    def test_a_pick_qualifies_the_subject_not_what_is_left_out(
+        self, escher, backstab, vehicle_type, cawdor
+    ):
+        assert self.carried(
+            escher,
+            targets_every_model(
+                is_profile_type(vehicle_type, negate=True), has_pickable(cawdor)
+            ),
+            ef_adds(backstab),
+        ) == [
+            "Every model with Cawdor except vehicles gains Backstab, while the gang holds this."
+        ]
+
+    def test_two_pick_rows_are_joined(self, escher, backstab, cawdor):
+        delaque = create_pickable("Delaque", cawdor.slot_type)
+        assert self.carried(
+            escher,
+            targets_every_model(
+                has_pickable(cawdor), has_pickable(delaque, negate=True)
+            ),
+            ef_adds(backstab),
+        ) == [
+            "Every fighter with Cawdor and without Delaque gains Backstab, while the gang holds this."
+        ]
+
+    def test_what_a_qualified_subject_has_is_said_the_long_way_round(
+        self, escher, cawdor, fighter_stats
+    ):
+        assert self.carried(
+            escher,
+            targets_every_model(has_pickable(cawdor)),
+            ef_changes_stat(fighter_stats["BS"], mode="worsen", amount=1),
+        ) == [
+            "The Ballistic Skill of every fighter with Cawdor is 1 worse, while the gang holds this."
+        ]
+
+    def test_a_type_left_out_owns_the_long_way_round_too(
+        self, escher, vehicle_type, fighter_stats
+    ):
+        assert self.carried(
+            escher,
+            targets_every_model(is_profile_type(vehicle_type, negate=True)),
+            ef_changes_stat(fighter_stats["BS"], mode="worsen", amount=1),
+        ) == [
+            "The Ballistic Skill of every model except vehicles is 1 worse, while the gang holds this."
+        ]
+
+    def test_a_pronouns_narrowings_lead_the_sentence(
+        self, backstab, cawdor, default_pack
+    ):
+        """ "They with Cawdor" is no sentence; a bearer-reach modifier on
+        a rule says its narrowing first and drops the closing "while"."""
+        rule = create_rule("Veterans")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Veterans", targets_model(has_pickable(cawdor)), ef_adds(backstab)
+                )
+            ],
+        )
+        assert texts(prose_for(rule).does) == [
+            "While holding Cawdor, they gain Backstab."
         ]
 
 
@@ -1239,6 +1338,31 @@ class TestTheQueryCountStaysFlat:
 
         with django_assert_num_queries(budget):
             prose_for(much_used)
+
+    def test_narrowed_scopes_cost_no_query_per_row(
+        self, escher, backstab, default_pack
+    ):
+        """A condition row's names are many-to-many, and each was a query
+        of its own on every sentence until the prefetch reached them."""
+        champion = create_subtype("Champion")
+        slot_type = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
+        cawdor = create_pickable("Cawdor", slot_type)
+        rule = create_rule("Narrowed")
+
+        def narrowed(number):
+            return modifier(
+                f"Narrowed {number}",
+                targets_every_model(has_subtypes(champion), has_pickable(cawdor)),
+                ef_adds(backstab),
+            )
+
+        attach_modifiers_to(rule, [narrowed(0)])
+        prose_for(rule)
+        budget = self._budget(rule)
+
+        attach_modifiers_to(rule, [narrowed(n) for n in range(1, 6)])
+
+        assert self._budget(rule) == budget
 
     def test_the_budget_is_what_it_is(self, much_used, django_assert_num_queries):
         """Pinned so that a new sweep is a decision somebody made.
