@@ -363,11 +363,18 @@ def visit_contribution_counter():
     stand in for the standard one. The seed, its own completeness check
     and every reader ask this one question, because two statements of
     what counts as the row drift in silence.
+
+    The pack is named by its slug rather than fetched first, so a page
+    asking this pays one query and not two. A library with no default
+    pack has no counter in it either, which is the same None.
     """
-    from n26.library.models import Counter, get_default_pack
+    from django.conf import settings
+
+    from n26.library.models import Counter
 
     return Counter.objects.filter(
-        name__iexact=VISIT_CONTRIBUTION_COUNTER, pack=get_default_pack()
+        name__iexact=VISIT_CONTRIBUTION_COUNTER,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
     ).first()
 
 

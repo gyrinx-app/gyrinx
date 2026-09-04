@@ -31,6 +31,7 @@ from django.urls import reverse
 from n26.core.campaigns import NO_CEILING
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
+from n26.core.models.action import read_note
 
 Kind = LedgerEvent.Kind
 
@@ -565,8 +566,13 @@ def _tell(e, row, alive):
             if now:
                 return (Span(f"set the budget to {now}"),), "money"
             return (Span("changed the budget"),), "money"
+        # A trip to the trading post wrote these before it was an action
+        # of its own. Nothing writes them now; the sentences stay so that
+        # a gang's older history still reads. Finishing says "completed",
+        # the word an action's own ending uses, so a gang that visited
+        # either side of the change reads as one story.
         case Kind.TRADE_POINTS_SET if e.note == "closed":
-            return (Span("finished the Visit Trading Post action"),), "money"
+            return (Span("completed the Visit Trading Post action"),), "money"
         case Kind.TRADE_POINTS_SET:
             brought = e.note
             if brought == "1":
@@ -576,12 +582,24 @@ def _tell(e, row, alive):
                     Span(f"visited the Trading Post with {brought} Trade Points"),
                 ), "money"
             return (Span("visited the Trading Post"),), "money"
-        case Kind.ACTION_OPENED | Kind.ACTION_CLOSED:
-            named = _action_named(e.note)
-            verb = "started" if e.kind == Kind.ACTION_OPENED else "completed"
-            if named:
-                return (Span(f"{verb} the {named} action"),), "gang"
-            return (Span(f"{verb} an action"),), "gang"
+        case Kind.ACTION_OPENED:
+            named, brought = read_note(e.note)
+            if not named:
+                return (Span("started an action"),), "gang"
+            if brought is None:
+                return (Span(f"started the {named} action"),), "gang"
+            return (
+                Span(f"started the {named} action with {_points(brought)}"),
+            ), "gang"
+        case Kind.ACTION_CLOSED:
+            named, left = read_note(e.note)
+            if not named:
+                return (Span("completed an action"),), "gang"
+            if left is None or left <= 0:
+                return (Span(f"completed the {named} action"),), "gang"
+            return (
+                Span(f"completed the {named} action, discarding {_points(left, True)}"),
+            ), "gang"
         case Kind.VISITED_TRADING_POST:
             # What raised their figure rides the note, so the line says
             # what they added rather than what they happen to be now. A
@@ -627,18 +645,14 @@ def _tell(e, row, alive):
     return (Span(e.get_kind_display().casefold()),), category
 
 
-def _action_named(note):
-    """The action's own name, read from the kind its note holds.
-
-    Empty for a note naming no kind this edition has, which leaves the
-    sentence saying an action was started without inventing which.
-    """
-    from n26.core.models import Action
-
-    try:
-        return Action.Kind(note).label
-    except ValueError:
-        return ""
+def _points(figure, unspent=False):
+    """A figure of Trade Points as a sentence can carry it."""
+    noun = "unspent Trade Point" if unspent else "Trade Point"
+    if figure == 0:
+        return f"no {noun}s"
+    if figure == 1:
+        return f"1 {noun}"
+    return f"{figure} {noun}s"
 
 
 def _for(model, at, word="for"):
