@@ -110,7 +110,11 @@ GROUPS: list[Group] = [
                     "hidden label, no second click — until the work ends; that comes "
                     "from n26/core/static/n26/busy.js and the [data-busy] rules in "
                     'app.css, and data-busy="off" on the button or its form opts a '
-                    "control out."
+                    'control out. A plain link opts in with data-busy="link"; inside '
+                    'a container carrying data-busy-replaces="<selector>" it takes '
+                    "the current look instead and that element's contents give way "
+                    "to the container's <template data-busy-wait> spinner, which is "
+                    "how the equip rail shows a list loading."
                 ),
             ),
             Component(

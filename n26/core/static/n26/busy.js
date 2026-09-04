@@ -14,7 +14,9 @@
  *
  * The state is one attribute, `data-busy="on"`, written here and drawn by the
  * design library's stylesheet (n26/designsystem/assets/app.css) — this file
- * holds no styling and reads none. A control that must never go busy carries
+ * holds no styling of its own, and the one inline style it writes is the
+ * `display: none` that hides a replaced element's contents, put back when
+ * the wait ends. A control that must never go busy carries
  * `data-busy="off"` from its call site; so does a form, which opts out
  * everything inside it. A plain link to a page the server has to build
  * carries `data-busy="link"` to be treated the way a button is — or, inside
@@ -153,21 +155,27 @@
      * from the back/forward cache, which returns the page as it was left.
      */
     function replaceBody(link) {
+        if (optedOut(link)) return;
         var container = link.closest("[data-busy-replaces]");
         if (!container) return;
 
+        /* The look and the announcement move together: a screen reader is
+         * told the same tab is current as a sighted reader is shown. */
         container.querySelectorAll("a.is-current").forEach(function (was) {
             was.classList.remove("is-current");
+            was.removeAttribute("aria-current");
             was.setAttribute("data-busy-was-current", "");
         });
         link.classList.add("is-current");
+        link.setAttribute("aria-current", "page");
         link.setAttribute("data-busy-took-current", "");
 
         var body = document.querySelector(
             container.getAttribute("data-busy-replaces"),
         );
         var wait = container.querySelector("template[data-busy-wait]");
-        if (!body || !wait || body.hasAttribute("data-busy-replaced")) return;
+        if (!body || !wait || !wait.content.firstElementChild) return;
+        if (body.hasAttribute("data-busy-replaced")) return;
         Array.prototype.forEach.call(body.children, function (child) {
             child.style.setProperty("display", "none");
         });
@@ -194,12 +202,14 @@
             .querySelectorAll("[data-busy-took-current]")
             .forEach(function (link) {
                 link.classList.remove("is-current");
+                link.removeAttribute("aria-current");
                 link.removeAttribute("data-busy-took-current");
             });
         document
             .querySelectorAll("[data-busy-was-current]")
             .forEach(function (link) {
                 link.classList.add("is-current");
+                link.setAttribute("aria-current", "page");
                 link.removeAttribute("data-busy-was-current");
             });
     }
