@@ -335,25 +335,6 @@ def collection_tabs(collections, chosen):
     ]
 
 
-def _panel_response(request, dialog):
-    """The confirmation panel alone, for an htmx GET that named one.
-
-    ``None`` for every other request, so a caller reads it as "not that
-    kind of click" and carries on rendering the screen.
-
-    ``HX-Replace-Url`` sets the address to the one that renders this
-    panel on a plain visit — so a reload draws it again and a link to it
-    works. Replaced rather than pushed: an open confirmation is not
-    somewhere to go back to, and the panel's own way out already stands
-    where the back button would.
-    """
-    if request.method != "GET" or not is_htmx(request):
-        return None
-    response = render(request, "n26/includes/equip_panel.html", {"dialog": dialog})
-    response["HX-Replace-Url"] = request.get_full_path()
-    return response
-
-
 @dataclass(frozen=True)
 class Screen:
     """What an equip screen is showing, derived in one place.
@@ -788,7 +769,11 @@ def equip(request, pk):
     """
     from n26.core.listing import build_catalogue
     from n26.core.owned import possessions
-    from n26.core.views.owned import accessorise_dialogs, owned_dialog
+    from n26.core.views.owned import (
+        accessorise_dialogs,
+        owned_dialog,
+        panel_response,
+    )
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
@@ -871,7 +856,7 @@ def equip(request, pk):
     owned = possessions(host)
 
     dialog = owned_dialog(request, host)
-    if (panel := _panel_response(request, dialog)) is not None:
+    if (panel := panel_response(request, dialog)) is not None:
         return panel
 
     # The whole screen, as one structure: the browsed list joined to what
@@ -1099,7 +1084,11 @@ def equip_gang(request, pk):
     from n26.core.owned import possessions
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
-    from n26.core.views.owned import accessorise_dialogs, owned_dialog
+    from n26.core.views.owned import (
+        accessorise_dialogs,
+        owned_dialog,
+        panel_response,
+    )
 
     gang = _own_gang_or_404(request, pk)
 
@@ -1165,7 +1154,7 @@ def equip_gang(request, pk):
     refunds = not gang.credits_unlimited
 
     dialog = owned_dialog(request, host)
-    if (panel := _panel_response(request, dialog)) is not None:
+    if (panel := panel_response(request, dialog)) is not None:
         return panel
 
     if stash_tab:

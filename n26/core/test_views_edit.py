@@ -540,6 +540,100 @@ class TestKitActionsOnTheCard:
         assert "Add an accessory to Lasgun" in body
         assert "Telescopic sight" in body
 
+    def test_a_kit_menu_item_fetches_its_panel(self, client, tester, vex, sword):
+        """The card's menu items ask for the confirmation alone, and the
+        page holds the host the answer lands in. Without script they are
+        still links, and the server draws the page with the panel open."""
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+
+        assert f'hx-get="{edit_url(vex)}?sell={sword.pk}"' in body
+        assert 'id="n26-dialog-host"' in body
+
+    def test_the_weapon_menu_fetches_its_panel_too(self, client, tester, vex, gun):
+        """A gun's name draws its own menu, through a different route
+        from the rest of the kit; it carries the same acts the same way."""
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+
+        assert f'hx-get="{edit_url(vex)}?accessorise={gun.pk}"' in body
+        assert f'hx-get="{edit_url(vex)}?sell={gun.pk}"' in body
+
+    def test_the_page_asked_for_whole_is_drawn_whole(self, client, tester, vex, sword):
+        """Only a click that named a panel gets the panel."""
+        client.force_login(tester)
+        body = client.get(
+            edit_url(vex), headers={"HX-Request": "true"}
+        ).content.decode()
+
+        assert "<html" in body
+        assert "Characteristics" in body
+
+    def test_a_click_with_script_is_answered_with_the_panel_alone(
+        self, client, tester, vex, sword
+    ):
+        """The question is about one thing the model holds, so the card,
+        the edit boxes and the roster are not drawn to ask it. The panel
+        replaces the host by id and corrects the address to the one that
+        draws it on a plain visit."""
+        client.force_login(tester)
+        response = client.get(
+            f"{edit_url(vex)}?sell={sword.pk}", headers={"HX-Request": "true"}
+        )
+        body = response.content.decode()
+
+        assert response["HX-Replace-Url"] == f"{edit_url(vex)}?sell={sword.pk}"
+        assert 'id="n26-dialog-host" hx-swap-oob="true"' in body
+        assert "<dialog" in body
+        assert reverse("n26-sell", args=[sword.pk]) in body
+        assert "Characteristics" not in body
+        # The panel's own submit is not partial here (see panel_response).
+        assert "hx-post" not in body
+
+    def test_the_accessory_question_is_answered_the_same_way(
+        self, client, tester, vex, gun
+    ):
+        from n26.library.authoring import create_weapon_accessory
+
+        create_weapon_accessory("Telescopic sight", price=25)
+        client.force_login(tester)
+        response = client.get(
+            f"{edit_url(vex)}?accessorise={gun.pk}", headers={"HX-Request": "true"}
+        )
+        body = response.content.decode()
+
+        assert 'id="n26-dialog-host" hx-swap-oob="true"' in body
+        assert "Add an accessory to Lasgun" in body
+        assert "Telescopic sight" in body
+
+    def test_the_panel_alone_costs_fewer_queries_than_the_page(
+        self, client, tester, vex, sword
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        with CaptureQueriesContext(connection) as whole:
+            client.get(f"{edit_url(vex)}?sell={sword.pk}")
+        with CaptureQueriesContext(connection) as panel:
+            client.get(
+                f"{edit_url(vex)}?sell={sword.pk}", headers={"HX-Request": "true"}
+            )
+
+        assert len(panel) < len(whole)
+
+    def test_a_click_naming_nothing_closes_the_panel(self, client, tester, vex):
+        """An address naming a dialog for something that is not there
+        answers with an empty host, which closes whatever was open."""
+        client.force_login(tester)
+        response = client.get(
+            f"{edit_url(vex)}?sell=nothing", headers={"HX-Request": "true"}
+        )
+        body = response.content.decode()
+
+        assert 'id="n26-dialog-host" hx-swap-oob="true"' in body
+        assert "<dialog" not in body
+
     def test_selling_lands_back_on_the_edit_page(
         self, client, tester, gang, vex, sword
     ):

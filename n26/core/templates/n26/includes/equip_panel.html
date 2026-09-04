@@ -9,10 +9,13 @@ said with different content, and leaves the catalogue underneath untouched.
 Drawn as a panel this page opened rather than one the server put in front of
 the reader, because that is what it is: the address is corrected as it arrives,
 and leaving puts the address back instead of asking for the whole screen.
+
+`htmx` says whether the panel's own submit posts partially too — see
+n26.core.views.owned.panel_response for which screens may say so.
 {% endcomment %}
 <div id="n26-dialog-host" hx-swap-oob="true">
     {% if dialog %}
-        <c-n26.owned-dialog :dialog="dialog" :redrawn="True" :htmx="True">
+        <c-n26.owned-dialog :dialog="dialog" :redrawn="True" :htmx="htmx">
             {% csrf_token %}
         </c-n26.owned-dialog>
     {% endif %}
