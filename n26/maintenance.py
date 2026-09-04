@@ -62,6 +62,7 @@ __all__ = [
     "delete_nameless_gang_type",
     "rehost_gang_picks",
     "repair_doubled_refunds",
+    "repoint_champion_picks",
     "run_batched",
     "task_routes",
 ]
@@ -161,6 +162,10 @@ class Operation(models.TextChoices):
         "n26_rehost_gang_picks",
         "n26: the picks a gang holds move off its models onto the gang",
     )
+    REPOINT_CHAMPION_PICKS = (
+        "n26_repoint_champion_picks",
+        "n26: the Champion picks move onto the Champion archetypes",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -174,6 +179,7 @@ LOCK_KEYS = {
     Operation.BACKFILL_BUILT_INS: 826_020_612,
     Operation.DROP_DUPLICATE_GRANTS: 826_020_613,
     Operation.REHOST_GANG_PICKS: 826_020_614,
+    Operation.REPOINT_CHAMPION_PICKS: 826_020_615,
 }
 
 
@@ -899,6 +905,72 @@ def rehost_gang_picks_view(request):
 
 
 @task
+def repoint_champion_picks(backfill_id, **said_by_whoever_enqueued_it):
+    """Point every live pick at the pickable of its own name on its
+    slot's picklist, and prove every affected gang's books whole, once.
+
+    A gang's worth of picks in one transaction: small enough to hold,
+    and a gang that fails to reconcile unwinds its own move.
+    """
+    from n26.core.repoint_champion_picks import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.REPOINT_CHAMPION_PICKS,
+        "Champion pick repointing",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+REPOINT_WORDS = {
+    "noun": "move",
+    "intro": (
+        "This moves picks between pickables in players' gangs. A slot "
+        "draws from a picklist, and pointing the slot at a different list "
+        "moves nothing already picked: the pick goes on naming what was "
+        "picked, which the list the slot now reads may not hold at all. "
+        "A Champion's Archetype and the gang's were picked from one list, "
+        "so every Champion's pick names the gang's archetype and reads "
+        "the gang's skill sets rather than the Champion's. Every live "
+        "pick of a slot that puts the pick on the model that made it, "
+        "where the slot's picklist does not hold what was picked, is "
+        "moved onto the pickable of the same name on that list. Nothing "
+        "else changes: the pick still names the assignment that asked and "
+        "the slot it settles, so the card still reads it as chosen, and "
+        "it still goes when that model does. An archived pick is counted "
+        "and left alone. No money moves; every gang is proved to "
+        "reconcile."
+    ),
+    "nothing_heading": "Nothing to move",
+    "nothing_flash": (
+        "There was nothing to move — every live pick names something its "
+        "slot's picklist offers."
+    ),
+    "nothing_words": "Every live pick names something its slot's picklist offers.",
+    "refuses_heading": "The move cannot run",
+    "button": "Move the picks onto their slot's own pickables",
+    "confirm": (
+        "Move every live pick onto the pickable of the same name on its "
+        "slot's picklist? This cannot be undone."
+    ),
+}
+
+
+def repoint_champion_picks_view(request):
+    """Preview the move (GET), or record a run and enqueue it."""
+    from n26.core.repoint_champion_picks import find
+
+    return _deletion_view(
+        request,
+        Operation.REPOINT_CHAMPION_PICKS,
+        find,
+        repoint_champion_picks,
+        REPOINT_WORDS,
+    )
+
+
+@task
 def audit_reconcile(backfill_id, **said_by_whoever_enqueued_it):
     """Check every unarchived gang's books against its ledger.
 
@@ -1211,6 +1283,28 @@ register_operation(
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.REPOINT_CHAMPION_PICKS.value,
+        name=Operation.REPOINT_CHAMPION_PICKS.label,
+        added=date(2026, 9, 4),
+        description=(
+            "A slot draws from a picklist, and pointing the slot at a "
+            "different list moves nothing already picked. A Champion's "
+            "Archetype and the gang's were picked from one list, so a "
+            "Champion's pick names the gang's archetype and reads the "
+            "gang's skill sets rather than the Champion's. This points "
+            "each such pick at the pickable of the same name on its "
+            "slot's own picklist. Each still names what asked it and the "
+            "slot it settles, so the card still reads it as chosen. No "
+            "money moves; every gang is proved to reconcile."
+        ),
+        view=repoint_champion_picks_view,
+        detail_template="admin/maintenance/n26/_rehost_detail.html",
+    )
+)
+
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DROP_DUPLICATE_GRANTS.value,
         name=Operation.DROP_DUPLICATE_GRANTS.label,
         added=date(2026, 8, 31),
@@ -1373,6 +1467,7 @@ task_routes = [
     TaskRoute(backfill_built_ins, ack_deadline=600),
     TaskRoute(drop_duplicate_grants, ack_deadline=600),
     TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(repoint_champion_picks, ack_deadline=600, min_retry_delay=60),
 ]
 
 
