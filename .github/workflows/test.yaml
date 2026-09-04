@@ -57,9 +57,15 @@ jobs:
         shell: bash
         run: |
           source .venv/bin/activate
-          # A collection error fails the step here; a clean listing with no
-          # matches must still reach the bounds message, hence `|| true`.
-          listing=$(pytest -m core --collect-only -q -n 0)
+          # pytest exits 5 when the marker selects nothing; that case must
+          # reach the bounds message below. Any other failure is a collection
+          # error and fails the step.
+          status=0
+          listing=$(pytest -m core --collect-only -q -n 0) || status=$?
+          if [ "$status" -ne 0 ] && [ "$status" -ne 5 ]; then
+            echo "::error::collecting the core suite failed (pytest exit $status)"
+            exit "$status"
+          fi
           count=$(grep -c '::' <<<"$listing" || true)
           echo "core suite: $count tests (allowed $CORE_SUITE_MIN..$CORE_SUITE_MAX)"
           if [ "$count" -lt "$CORE_SUITE_MIN" ] || [ "$count" -gt "$CORE_SUITE_MAX" ]; then

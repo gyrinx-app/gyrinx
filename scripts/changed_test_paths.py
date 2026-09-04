@@ -136,9 +136,20 @@ def select_changed_test_paths(
 
 
 def changed_files_against(base: str) -> list[str]:
-    """Every path the change added, modified, renamed or deleted."""
+    """Every path the change added, modified or deleted.
+
+    Renames are reported as a delete of the old path and an add of the new
+    one, so a moved conftest still lists the tree it left.
+    """
     out = subprocess.run(  # nosec B607 — fixed argv; git resolved from PATH like every repo tool
-        ["git", "diff", "--name-only", "--diff-filter=AMRD", f"{base}...HEAD"],
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=AMD",
+            f"{base}...HEAD",
+        ],
         check=True,
         capture_output=True,
         text=True,
