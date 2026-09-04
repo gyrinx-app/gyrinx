@@ -173,6 +173,28 @@ class TestTheArticleFollowsTheName:
         ]
 
 
+class TestARankLeftOut:
+    """A row that names the ranks it does not reach reads "except", never
+    as if it reached those ranks alone."""
+
+    def test_everyone_but_champions(self, escher, backstab, default_pack):
+        champion = create_subtype("Champion")
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "Not the champions",
+                    targets_every_model(has_subtypes(champion, negate=True)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every fighter except Champion gains Backstab, while the gang holds this."
+        ]
+
+
 class TestATypeNarrowsTheSubject:
     """A model's Type is the one narrowing a gang-wide reach can say in
     the model's own word: a grant to every vehicle in the gang says

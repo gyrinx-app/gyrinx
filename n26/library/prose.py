@@ -599,6 +599,8 @@ class _Narrowings:
 
     #: Ranks or entries named outright: they replace the subject.
     named: list = field(default_factory=list)
+    #: Ranks or entries the row leaves out: they follow the subject.
+    excepted: list = field(default_factory=list)
     #: A Type narrowing, as ``(negated, lowercased type names)``.
     typed: list = field(default_factory=list)
     #: Picks the model must hold, as ``(negated, names)``.
@@ -607,17 +609,14 @@ class _Narrowings:
     clauses: list = field(default_factory=list)
 
 
-#: How each condition a model scope can carry reaches the sentence, by
-#: the condition's related name on the scope. A kind missing here would
-#: be dropped without a word, so a test holds this to the scope's own
-#: ``CONDITIONS``; a weapon scope's conditions join the noun phrase in
-#: their own words instead.
 def _names_ranks(row, said):
-    said.named.extend(str(one) for one in row.subtypes.all())
+    names = [str(one) for one in row.subtypes.all()]
+    (said.excepted if row.negate else said.named).extend(names)
 
 
 def _names_entries(row, said):
-    said.named.extend(str(one) for one in row.profiles.all())
+    names = [str(one) for one in row.profiles.all()]
+    (said.excepted if row.negate else said.named).extend(names)
 
 
 def _names_type(row, said):
@@ -637,6 +636,11 @@ def _names_threshold(row, said):
     said.clauses.append(f"while their {row.counter} is {row.at_least} or more")
 
 
+#: How each condition a model scope can carry reaches the sentence, by
+#: the condition's related name on the scope. A kind missing here would
+#: be dropped without a word, so a test holds this to the scope's own
+#: ``CONDITIONS``; a weapon scope's conditions join the noun phrase in
+#: their own words instead.
 MODEL_NARROWINGS = {
     "has_subtypes": _names_ranks,
     "is_profile": _names_entries,
@@ -649,16 +653,18 @@ MODEL_NARROWINGS = {
 def _narrowed(who, scope):
     """The subject once the scope's conditions have had their say.
 
-    Three shapes, because the three narrowings mean different things. A
-    condition on the ranks replaces the subject outright — "Champion and
-    Leader" says who is reached better than any pronoun could, in the
-    names as authored, because a content name is never inflected. A
-    threshold becomes a clause in front, being a condition on the moment
-    rather than on the person, and the sentence then drops its own
-    "while" so as not to say the same thing twice. A narrowing of the
-    weapons joins the noun phrase, in the words the condition row says
-    of itself, so the modifier's own name and this sentence cannot come
-    to describe the selection differently.
+    Each narrowing has its own shape, because each means something
+    different. Ranks or entries named replace the subject outright —
+    "Champion and Leader" says who is reached better than any pronoun
+    could, in the names as authored, because a content name is never
+    inflected — and follow it after "except" when the row leaves them
+    out. A Type is the model's own word: "every vehicle". A pick held
+    joins as "with" or "without". A threshold becomes a clause in front,
+    being a condition on the moment rather than on the person, and the
+    sentence then drops its own "while" so as not to say the same thing
+    twice. A narrowing of the weapons joins the noun phrase, in the
+    words the condition row says of itself, so the modifier's own name
+    and this sentence cannot come to describe the selection differently.
     """
     if not getattr(scope, "CONDITIONS", ()) or scope.pk is None:
         return who, ""
@@ -688,11 +694,13 @@ def _narrowed(who, scope):
         else:
             subject = f"every {_and_then(types)}"
         plural = False
+    if said.excepted:
+        subject = f"{subject} except {_and_then(said.excepted)}"
     # A row naming several picks is satisfied by any one of them, so the
     # sentence says "or": "with" holding any, "without" holding none.
     for negate, picks in said.holdings:
         subject = f"{subject} {'without' if negate else 'with'} {_one_of(picks)}"
-    if said.named or said.typed or said.holdings:
+    if said.named or said.excepted or said.typed or said.holdings:
         possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
         weapons = " ".join([f"{possessive} weapons", *of_weapons])
     return (
