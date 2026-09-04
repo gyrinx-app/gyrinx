@@ -3,11 +3,13 @@
 A gang's Trade Points are not a standing figure. They arrive when a
 fighter performs the action, are spent at the post, and what is left is
 lost when the action is done; the rules also shut the post entirely to a
-gang where nobody performed it. The edition keeps that as an amount on
-the gang — null while no visit is open — plus the event the spending is
-measured from (``n26.core.reconcile.trade_points_spent``). There is no
-visit table: what a visit *is* is the events one act wrote, which is
-already how the ledger describes everything else.
+gang where nobody performed it. The edition keeps that as an
+``n26.core.models.Action`` row, open from the click that started the
+visit to the click that ended it, carrying what the visit brought. What
+it has spent is the purchases pointing back at it
+(``n26.core.reconcile.trade_points_spent``), so the story of a visit
+stays what the ledger says, which is already how everything else in this
+edition is described.
 
         Two ranks add Trade Points, and only they are offered: picking a
         fighter who adds none is a choice with no consequence, and the form
@@ -166,9 +168,9 @@ class Receipt:
     """An open Visit Trading Post action, as the figures it is read by.
 
     Built for the screen rather than stored: what a visit added is the
-    amount on the gang, what it has spent is the ledger's answer, and who
-    went is the events the opening act wrote. Nothing here is a second
-    copy of any of them.
+    figure on the action, what it has spent is the ledger's answer, and
+    who went is the events the opening act wrote. Nothing here is a
+    second copy of any of them.
     """
 
     available: int
@@ -218,18 +220,19 @@ def _still_here(miniature):
 def receipt_for(gang):
     """The open visit's figures, or None where the post is shut.
 
-    One query beyond what the figures already cost: who went, read off
-    the batch the opening act stamped on every event it wrote.
+    Read off the action the gang has open: what it brought is on the row,
+    and who performed it is the batch the opening event stamped on
+    everything that act wrote.
+
+    One query beyond what the figures already cost: who went.
     """
     from n26.core.models import LedgerEvent
 
-    if not gang.visiting_trading_post:
+    visit = gang.open_visit
+    if visit is None:
         return None
-    opened = (
-        LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET)
-        .order_by("-created")
-        .first()
-    )
+    available = visit.trade_points or 0
+    opened = visit.opened
     went = []
     if opened is not None and opened.batch is not None:
         went = [
@@ -248,8 +251,8 @@ def receipt_for(gang):
         ]
     spent = gang.trade_points_spent
     return Receipt(
-        available=gang.starting_trade_points,
+        available=available,
         spent=spent,
-        remaining=gang.starting_trade_points - spent,
+        remaining=available - spent,
         contributors=tuple(went),
     )

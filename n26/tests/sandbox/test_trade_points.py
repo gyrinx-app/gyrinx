@@ -7,19 +7,20 @@ they persist, and spending past them is the one thing this edition
 refuses.
 
 So Trade Points are kept the other way round, per design/collections.md:
-an allowance on the gang, and a sum over the ledger rather than a second
-pinned figure. What makes a trip a trip is the allowance-set event — the
-spending measured against an allowance is the spending recorded after it,
-so setting one both opens a trip and closes the one before.
+an action the gang opens and closes, carrying what the visit brought,
+and a sum over the ledger rather than a second pinned figure. What makes
+a trip a trip is that action — a purchase records the one it counted
+against, so what a visit has spent is what points back at it.
 
 Four claims, and each has a test below:
 
 * a list an author wrote out charges credits; a post swept together *by*
   Trade Point prices charges points as well;
-* what is left is the allowance less the points the ledger records after
-  it, and a refund on the same trip hands its points back;
-* setting the allowance again wipes the slate, including setting it to
-  the same figure;
+* what is left is what the visit brought less the points the purchases
+  counting against it record, and a refund on the same trip hands its
+  points back;
+* a second visit starts from nothing spent, even at the same figure, and
+  cannot open over one still open;
 * overspending is allowed and never refused — only credits refuse.
 """
 
@@ -196,12 +197,24 @@ class TestEndingTheAction:
         assert gang.visiting_trading_post is False
         assert gang.trade_points_left is None
 
+    def test_a_second_visit_cannot_open_over_an_open_one(self, gang):
+        """A gang performs one at a time, and the act itself says so:
+        purchases made while two were open could not say which of them
+        they counted against."""
+        from n26.core.operations import Refusal
+
+        visit_trading_post(gang, brought=4)
+
+        with pytest.raises(Refusal):
+            visit_trading_post(gang, brought=4)
+
     def test_what_went_before_stops_counting(self, gang, fighter, post):
         """A second trip is measured from its own allowance. The first
         trip's spending is history, not a debt carried forward."""
         visit_trading_post(gang, brought=4)
         buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
 
+        leave_trading_post(gang)
         visit_trading_post(gang, brought=4)
 
         gang.refresh_from_db()
@@ -222,6 +235,7 @@ class TestEndingTheAction:
         visit_trading_post(gang, brought=4)
         bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
 
+        leave_trading_post(gang)
         visit_trading_post(gang, brought=4)
         refund(bought)
 
@@ -245,26 +259,30 @@ class TestEndingTheAction:
         assert gang.trade_points_spent == 0
         assert gang.trade_points_left == 4
 
-    def test_setting_the_same_figure_is_a_second_trip_not_a_no_op(
+    def test_a_second_trip_at_the_same_figure_starts_from_nothing_spent(
         self, gang, fighter, post
     ):
-        """The event is the boundary as much as the figure is, so a guard
-        that skipped an unchanged write would leave the first trip's
-        spending counting against the second."""
+        """Two trips at the same figure are two trips. Each is its own
+        action, so the first one's spending never counts against the
+        second — a guard that treated an unchanged figure as nothing to
+        do would leave it counting."""
         visit_trading_post(gang, brought=4)
         buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
         gang.refresh_from_db()
         assert gang.trade_points_left == 3
 
+        leave_trading_post(gang)
         visit_trading_post(gang, brought=4)
 
         gang.refresh_from_db()
         assert gang.trade_points_left == 4
+        # Opened, closed, opened again: the boundary is written every
+        # time, whatever the figure.
         assert (
             LedgerEvent.objects.filter(
                 gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET
             ).count()
-            == 2
+            == 3
         )
 
     def test_the_visit_moves_no_money(self, gang):
@@ -388,6 +406,7 @@ class TestWhoPerformsTheAction:
     def test_a_second_visit_reads_its_own_cast(self, gang, ranked):
         visit_trading_post(gang, visitors(gang))
 
+        leave_trading_post(gang)
         visit_trading_post(gang, only(gang, "Rasp"))
 
         gang.refresh_from_db()
@@ -474,3 +493,261 @@ class TestWhatTheHistorySays:
         opened = history.build(gang)[-1]
         assert opened.trade_points == 0
         assert opened.credits == 0
+
+
+class TestWhatAPurchaseCountsAgainst:
+    """A purchase records the action it counted against, so what a visit
+    has spent is what points back at it rather than what happens to fall
+    inside a stretch of time."""
+
+    def test_a_purchase_at_the_post_records_the_open_visit(self, gang, fighter, post):
+        visit_trading_post(gang, brought=4)
+
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+
+        gang.refresh_from_db()
+        assert bought.ledger_entry.action == gang.open_visit
+
+    def test_a_purchase_from_a_list_records_nothing(
+        self, gang, fighter, equipment_list
+    ):
+        """Buying from an equipment list is not part of the visit, even
+        with one open: recording it against the visit would make the
+        visit's own figures a lie."""
+        visit_trading_post(gang, brought=4)
+
+        bought = buy(
+            fighter, line_for(browse(equipment_list, EQUIPMENT_LIST), "Mesh armour")
+        )
+
+        assert bought.ledger_entry.action is None
+
+    def test_a_purchase_with_the_post_shut_records_nothing(self, gang, fighter, post):
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+
+        assert bought.ledger_entry.action is None
+
+    def test_what_an_action_spent_is_what_the_visit_spent(self, gang, fighter, post):
+        """The two arithmetics agree while a visit is open: everything it
+        has spent points at it."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+
+        gang.refresh_from_db()
+        assert trade_points_spent_for(gang.open_visit) == 3
+        assert gang.trade_points_spent == 3
+
+    def test_a_refund_returns_the_points_to_the_action_that_paid(
+        self, gang, fighter, post
+    ):
+        """The refund's event sits on the assignment the purchase made, so
+        it lands on the same action however long afterwards it happens."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        visit = gang.open_visit
+
+        refund(bought)
+
+        assert trade_points_spent_for(visit) == 0
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 4
+        assert_reconciled(gang)
+
+    def test_a_purchase_naming_no_action_is_counted_all_the_same(
+        self, gang, fighter, post
+    ):
+        """A purchase written before the visit had a row to point at names
+        no action, and the visit it belongs to is found instead by when
+        its assignment was created, measured from the boundary the visit
+        wrote. The figure comes out the same either way."""
+        from n26.core.models import LedgerEntry
+
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        stamped = gang.trade_points_spent
+
+        LedgerEntry.objects.filter(pk=bought.ledger_entry.pk).update(action=None)
+
+        gang.refresh_from_db()
+        assert stamped == 3
+        assert gang.trade_points_spent == stamped
+        assert gang.trade_points_left == 1
+
+    def test_a_closed_action_still_says_what_it_spent(self, gang, fighter, post):
+        """The figure survives the visit ending. What an action spent is
+        what points at it, so a visit two trips back can still be asked
+        and still answers with its own arithmetic."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        visit = gang.open_visit
+
+        leave_trading_post(gang)
+        visit_trading_post(gang, brought=4)
+
+        assert trade_points_spent_for(visit) == 3
+
+    def test_a_later_refund_never_funds_the_visit_that_is_open(
+        self, gang, fighter, post
+    ):
+        """Handing back kit bought on an earlier visit gives its points to
+        that visit, which is closed. The open one is untouched."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        gang.refresh_from_db()
+        earlier = gang.open_visit
+        leave_trading_post(gang)
+        visit_trading_post(gang, brought=4)
+
+        refund(bought)
+
+        gang.refresh_from_db()
+        assert trade_points_spent_for(earlier) == 0
+        assert trade_points_spent_for(gang.open_visit) == 0
+        assert gang.trade_points_left == 4
+
+
+class TestTheActionIsTheState:
+    """What a screen reads is the action row. The figure kept beside it on
+    the gang is a copy, and where the two disagree the row wins."""
+
+    def test_the_receipt_reads_the_action(self, gang):
+        from n26.core.models import Gang
+
+        visit_trading_post(gang, brought=4)
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=99)
+
+        gang.refresh_from_db()
+        assert receipt_for(gang).available == 4
+
+    def test_what_is_left_reads_the_action(self, gang):
+        from n26.core.models import Gang
+
+        visit_trading_post(gang, brought=4)
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=99)
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 4
+
+    def test_the_post_is_shut_where_no_action_is_open(self, gang):
+        """A figure with no action behind it is not a visit."""
+        from n26.core.models import Gang
+
+        Gang.objects.filter(pk=gang.pk).update(starting_trade_points=4)
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is False
+        assert receipt_for(gang) is None
+
+
+class TestOpeningTheVisitsThatWereAlreadyOpen:
+    """The data migration behind the change: a gang at a post before there
+    were action rows gets one, pointing at the boundary event its visit
+    already wrote, and the purchases the figure was read from are stamped
+    with it. Run here against the live models, which is what the migration
+    sees on the way past."""
+
+    def run_it(self):
+        import importlib
+
+        from django.apps import apps
+
+        module = importlib.import_module(
+            "n26.core.migrations.0044_the_open_visit_becomes_an_action"
+        )
+        module.open_the_visits(apps, None)
+
+    def undo(self, gang):
+        """Put the gang back as it was before actions were rows: the
+        figure and the boundary event, and nothing else."""
+        from n26.core.models import Action
+
+        Action.objects.filter(gang=gang).delete()
+        gang.refresh_from_db()
+        assert gang.starting_trade_points is not None
+        assert gang.visiting_trading_post is False
+
+    @pytest.fixture
+    def mid_visit(self, gang, fighter, post, equipment_list):
+        """A gang partway through a visit, with one purchase that counted
+        Trade Points and one that did not."""
+        visit_trading_post(gang, brought=4)
+        counted = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        free = buy(
+            fighter, line_for(browse(equipment_list, EQUIPMENT_LIST), "Mesh armour")
+        )
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 1
+        self.undo(gang)
+        return {"counted": counted, "free": free}
+
+    def test_it_opens_an_action_for_the_visit(self, gang, mid_visit):
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is True
+        assert gang.open_visit.trade_points == 4
+
+    def test_it_points_the_action_at_the_boundary_the_visit_wrote(
+        self, gang, mid_visit
+    ):
+        """Which is what lets the receipt still name who performed it:
+        the fighters' own records share that event's batch."""
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.open_visit.opened.kind == LedgerEvent.Kind.TRADE_POINTS_SET
+        assert gang.open_visit.opened.note == "4"
+
+    def test_it_stamps_the_purchases_that_counted(self, gang, mid_visit):
+        self.run_it()
+
+        gang.refresh_from_db()
+        counted = mid_visit["counted"].ledger_entry
+        counted.refresh_from_db()
+        assert counted.action == gang.open_visit
+
+    def test_it_leaves_a_purchase_that_counted_nothing_alone(self, gang, mid_visit):
+        free = mid_visit["free"].ledger_entry
+        self.run_it()
+
+        free.refresh_from_db()
+        assert free.action is None
+
+    def test_what_is_left_reads_the_same_either_way(self, gang, mid_visit):
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 1
+
+    def test_running_it_again_changes_nothing(self, gang, mid_visit):
+        self.run_it()
+        gang.refresh_from_db()
+        first = gang.open_visit
+
+        self.run_it()
+
+        gang.refresh_from_db()
+        assert gang.open_visit.pk == first.pk
+        assert gang.trade_points_left == 1
+
+    def test_a_gang_with_no_visit_open_is_left_alone(self, gang, fighter, post):
+        from n26.core.models import Action
+
+        buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
+
+        self.run_it()
+
+        assert not Action.objects.filter(
+            gang=gang, kind=Action.Kind.TRADING_POST_VISIT
+        ).exists()

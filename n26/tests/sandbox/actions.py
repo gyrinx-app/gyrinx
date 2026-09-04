@@ -285,10 +285,18 @@ def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
     """Buy for a model — a browsed line, or freely (the get-out).
 
     ``option=`` names what was chosen where the thing offers a choice.
+
+    A line that counts Trade Points counts against the gang's open
+    visit, which is the decision the equip screen makes: what an action
+    has spent is what points back at it, so a test buying through this
+    wrapper has to record the same thing a click would.
     """
     from n26.core.operations import operation
 
     gang = miniature.gang
+    if line is not None and kwargs.get("action") is None:
+        if getattr(line, "charges_trade_points", False):
+            kwargs["action"] = gang.open_visit
     with operation(gang, actor=actor or gang.owner) as op:
         return op.buy(miniature, line, thing=thing, entry=entry, **kwargs)
 

@@ -363,8 +363,48 @@ class TestStartingTheAction:
 
         gang.refresh_from_db()
         assert gang.starting_trade_points == 3
+        assert gang.trade_points_left == 3
         told = [str(m) for m in answer.context["messages"]]
-        assert any("Finish the open" in line for line in told)
+        assert any("Complete the open" in line for line in told)
+
+    def test_the_operation_refuses_it_too(self, client, roster, gang, tester):
+        """The screen shuts the form, and the act behind it refuses on its
+        own account: two clicks on one button arrive together often enough
+        for a state read before the gang's line was taken to be stale by
+        the time the second one writes."""
+        from n26.core.operations import Refusal, operation
+        from n26.core.trading import visitors
+
+        start(client, gang, roster["Vex"])
+
+        with pytest.raises(Refusal):
+            with operation(gang, actor=tester) as op:
+                op.visit_trading_post(visitors(gang))
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
+
+    def test_a_visit_opened_since_the_page_was_read_is_still_refused(
+        self, client, roster, gang, tester
+    ):
+        """The refusal is decided on what stands under the gang's line,
+        not on what the page found before taking it. A reading held from
+        before would let the second click through to the database, which
+        would stop it — as a server error rather than as a sentence."""
+        from n26.core.operations import Refusal, operation
+        from n26.core.trading import visitors
+
+        stale = Gang.objects.get(pk=gang.pk)
+        # The page reads the state, and only then does somebody open one.
+        assert stale.visiting_trading_post is False
+        start(client, gang, roster["Vex"])
+
+        with pytest.raises(Refusal):
+            with operation(stale, actor=tester) as op:
+                op.visit_trading_post(visitors(stale))
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
 
     def test_it_moves_no_money(self, client, roster, gang):
         before = Gang.objects.get(pk=gang.pk).credits
@@ -512,12 +552,12 @@ class TestTheReceipt:
 
         assert "Complete action" in client.get(page(gang)).content.decode()
 
-    def test_it_warns_that_unused_points_will_be_discarded(self, client, roster, gang):
+    def test_it_says_unspent_points_are_lost(self, client, roster, gang):
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
         assert "Click when you have finished at the Trading Post." in body
-        assert "Any unused TP will be discarded." in body
+        assert "Unspent Trade Points are lost when you complete the action." in body
 
     def test_it_names_the_ranks_that_added_the_figure(self, client, roster, gang):
         start(client, gang, roster["Vex"], roster["Sura"])

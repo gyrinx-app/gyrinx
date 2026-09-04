@@ -27,7 +27,8 @@ FOUNDING_HELP = "Click when you have finished hiring and equipping the gang."
 #: The same, for a trip to the trading post — where the book also has
 #: something to say about what completing it takes away.
 VISIT_HELP = (
-    "Click when you have finished at the Trading Post. Any unused TP will be discarded."
+    "Click when you have finished at the Trading Post. Unspent Trade "
+    "Points are lost when you complete the action."
 )
 
 
@@ -96,7 +97,8 @@ def open_card(kind, at, *, help="", facts=()):
 def founding_card(gang, at):
     """The gang's open Found and equip gang action, or None.
 
-    One query — the gang's own open action of that kind.
+    The gang reads all its open actions in one query and holds them, so
+    a page drawing this beside the visit's figure pays for one.
     """
     from n26.core.models import Action
 
@@ -125,8 +127,8 @@ def actions_square(gang, sheet, *, founding_at, visit_at):
 
     The visit is read off the sheet rather than the gang, because what an
     open one has left is a ledger query and the sheet has already asked
-    it. The founding action is the one query this adds to the page,
-    whatever the roster.
+    it. The founding action costs nothing beyond that: the gang read
+    every action it has open in one go, and the sheet already asked.
     """
     founding = founding_card(gang, founding_at)
     visit = None

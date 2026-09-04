@@ -38,7 +38,9 @@ class Action(Base):
     #: The event that opened this. Cascades, because the event is the act:
     #: an action whose opening is gone is a record of nothing. Nothing
     #: deletes a gang's events but the gang itself going, which takes the
-    #: action either way.
+    #: action either way. Which kind of event it is follows from the act:
+    #: one that writes a boundary of its own points at that rather than
+    #: at a second event saying the same thing twice.
     opened = models.ForeignKey(
         "n26.LedgerEvent", on_delete=models.CASCADE, related_name="+"
     )

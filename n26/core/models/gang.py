@@ -40,11 +40,9 @@ class Gang(Base, Owned, Archived, Rated):
         null=True,
         blank=True,
         help_text=(
-            "What a Visit Trading Post action brought, while one is open. "
-            "Null means no visit: the post is shut, which is a different "
-            "state from a visit that has spent everything. Unlike credits "
-            "there is no pinned counterpart — what is left is this less "
-            "what the ledger records after the visit began."
+            "A copy of what the open Visit Trading Post action brought, "
+            "kept beside it. Empty when no visit is open. The action "
+            "itself holds the figure the screens read."
         ),
     )
     colour = models.CharField(
@@ -63,6 +61,10 @@ class Gang(Base, Owned, Archived, Rated):
     #: A picture of the gang, in the site's media storage. Surfaces read
     #: its URL and never the bytes.
     image = models.ImageField(upload_to="gang-images/", blank=True, default="")
+
+    #: What ``open_actions`` read, or None before it has. Held on the
+    #: instance rather than fetched per question; see there.
+    _open_actions = None
 
     class Meta:
         verbose_name = "gang"
@@ -120,15 +122,61 @@ class Gang(Base, Owned, Archived, Rated):
 
         return trade_points_spent(self)
 
+    def open_actions(self):
+        """Every action this gang has open, by kind.
+
+        One query for all of them, held on the instance. A page asks
+        about more than one kind — the gang sheet draws the founding
+        card and the visit's figure in the same breath — and asking per
+        kind would cost a query each, so they are read together and the
+        instance remembers.
+
+        The opening event rides along: what a visit brought and who
+        performed it are read off it, and a second query for a row
+        already in hand would be a join this could have made.
+
+        Held, where what an action has spent is not: spending moves as a
+        page acts on it, and which actions are open does not. An
+        operation drops what was held the moment it closes, so a page
+        that opened or closed one still reads the truth.
+        """
+        if self._open_actions is None:
+            from n26.core.models import Action
+
+            self._open_actions = {
+                action.kind: action
+                for action in Action.objects.filter(
+                    gang=self, closed__isnull=True
+                ).select_related("opened")
+            }
+        return self._open_actions
+
+    def forget_open_actions(self):
+        """Drop what was read, so the next reader asks again.
+
+        Called wherever an action is opened or closed. Nothing else
+        changes which are open, so nothing else has to remember.
+        """
+        self._open_actions = None
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        self.forget_open_actions()
+
     def open_action(self, kind):
         """The action of this kind the gang has open, or None.
 
-        One query and one row: the database holds a gang to one open
-        action of each kind, so there is never a set to pick from.
+        One row at most: the database holds a gang to one open action of
+        each kind, so there is never a set to pick from.
         """
+        return self.open_actions().get(kind)
+
+    @property
+    def open_visit(self):
+        """The open Visit Trading Post action, or None."""
         from n26.core.models import Action
 
-        return Action.objects.filter(gang=self, kind=kind, closed__isnull=True).first()
+        return self.open_action(Action.Kind.TRADING_POST_VISIT)
 
     @property
     def visiting_trading_post(self):
@@ -144,7 +192,7 @@ class Gang(Base, Owned, Archived, Rated):
         buy with no action open goes through once its question is
         answered.
         """
-        return self.starting_trade_points is not None
+        return self.open_visit is not None
 
     @property
     def trade_points_left(self):
@@ -154,9 +202,10 @@ class Gang(Base, Owned, Archived, Rated):
         is what the confirmation before such a purchase is for: Trade
         Points inform, and only credits are refused.
         """
-        if not self.visiting_trading_post:
+        visit = self.open_visit
+        if visit is None:
             return None
-        return self.starting_trade_points - self.trade_points_spent
+        return (visit.trade_points or 0) - self.trade_points_spent
 
     @property
     def credits_unlimited(self):
