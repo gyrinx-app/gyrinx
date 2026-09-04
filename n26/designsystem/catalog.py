@@ -1774,9 +1774,10 @@ GROUPS: list[Group] = [
                     "Drawn as the first square of the gang sheet's grid, ahead "
                     "of the stash, and only for the owner. It is there whether "
                     "or not anything is open — a square that came and went "
-                    "would shift every card after it. The menu is the only way "
-                    "to start an action and never opens without scripting, "
-                    "which is why nothing a reader needs to know lives in it."
+                    "would shift every card after it. The menu never opens "
+                    "without scripting, so every start control it holds is "
+                    "drawn in the body too: the founding one wherever that "
+                    "action is not open, whatever else the gang has going on."
                 ),
             ),
             Component(

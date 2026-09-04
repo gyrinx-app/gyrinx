@@ -9,9 +9,11 @@ drawn whether or not anything is open — a square that came and went would
 shift every card after it, and a reader deciding what to do next is owed
 "nothing is open" as plainly as they are owed what is.
 
-The menu is the only way to start one, and its rows post rather than link,
-so nothing that follows links can start an act. Without scripting the menu
-never opens: it holds no fact a reader needs, only the two ways in.
+Every way to start an action posts rather than links, so nothing that
+follows links can start one. The menu never opens without scripting, so
+each start control is drawn in the body as well — the same post, twice,
+because a square whose only way in is a menu is no way in at all for a
+reader without it.
 
 Whoever draws this owns the gang. There is no reader-facing shape.
 
@@ -81,6 +83,22 @@ Whoever draws this owns the gang. There is no reader-facing shape.
         {% endif %}
         {% if not square.anything_open %}
             <p class="text-xs text-muted">No action is open.</p>
+        {% endif %}
+        {% comment %}
+        The menu never opens without scripting, so its rows are the only way
+        in and for some readers there are none. The control is repeated here
+        as a plain form, posting exactly what the menu row posts, and drawn
+        wherever that row is — which is whenever the founding action is not
+        open, whatever else the gang has going on.
+        {% endcomment %}
+        {% if square.start_founding %}
+            <form method="post" action="{{ square.start_founding }}">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="start">
+                <c-ui.button type="submit" size="xs" variant="default">
+                    Start the Found and equip gang action
+                </c-ui.button>
+            </form>
         {% endif %}
     </div>
 </c-ui.card>

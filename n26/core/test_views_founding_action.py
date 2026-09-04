@@ -292,6 +292,48 @@ class TestTheSquareOnTheGangPage:
         assert 'method="post"' in body[form:start]
         assert f'action="{act_page(gang)}"' in body[form:start]
 
+    def plain_start_form(self, body, after):
+        """The start form drawn in the square's body — the one following
+        ``after``, where the menu's own row sits in the header above it."""
+        start = body.index('value="start"', body.index(after))
+        return body[body.rindex("<form", 0, start) : start]
+
+    def test_an_empty_square_starts_one_without_scripting(self, client, gang, tester):
+        """The menu never opens without scripting, so the same post is
+        drawn in the square's body as a plain form. Two forms, one act."""
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+
+        body = client.get(sheet(gang)).content.decode()
+        form = self.plain_start_form(body, "No action is open.")
+        assert 'method="post"' in form
+        assert f'action="{act_page(gang)}"' in form
+        assert body.count('value="start"') == 2
+
+    def test_a_visit_open_does_not_take_that_control_away(self, client, gang, tester):
+        """The plain control is drawn wherever the menu's row is: whenever
+        the founding action is not open, whatever else the gang has going
+        on. A visit is not the founding action."""
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=3)
+
+        body = client.get(sheet(gang)).content.decode()
+        assert "Trading Post visit open" in body
+        assert "No action is open." not in body
+        form = self.plain_start_form(body, "Trading Post visit open")
+        assert 'method="post"' in form
+        assert f'action="{act_page(gang)}"' in form
+        assert body.count('value="start"') == 2
+
+    def test_an_open_founding_action_takes_both_controls_away(self, client, gang):
+        """Nothing offers an act that would be refused: one of each kind
+        at a time, so neither the menu row nor the plain button is there."""
+        body = client.get(sheet(gang)).content.decode()
+        assert "Start the Found and equip gang action" not in body
+        assert 'value="start"' not in body
+
     def test_the_square_leads_the_grid(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
         assert body.index("Found and equip gang") < body.index("Nothing in the stash")
