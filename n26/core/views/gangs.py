@@ -906,14 +906,17 @@ def gang_trade_points(request, pk):
     from the page as drawn. An empty visit: with neither a ticked
     fighter nor a typed amount there is nothing to start. And a second
     visit while one is open: the form is shut then, so a start arriving
-    anyway is a stale page rather than an intention.
+    anyway is a stale page rather than an intention. The operation
+    refuses that one too, under the gang's own line, because two clicks
+    on one button arrive together often enough for a state read before
+    the line was taken to be stale by the time the second writes.
 
     Spending past what a visit added is not among them — the purchase
     asks whether that was meant, and then does it.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.actions import visit_card
-    from n26.core.operations import operation
+    from n26.core.operations import Refusal, operation
     from n26.core.render import roster
     from n26.core.trading import as_offer, minted, receipt_for, visitors
 
@@ -943,7 +946,7 @@ def gang_trade_points(request, pk):
         if gang.visiting_trading_post:
             messages.error(
                 request,
-                "Finish the open Visit Trading Post action before starting another.",
+                "Complete the open Visit Trading Post action before starting another.",
             )
             return redirect(at)
         # Ticked boxes name models; anything else names nothing on this
@@ -966,8 +969,12 @@ def gang_trade_points(request, pk):
                 "Trade Points are a whole number, from 0 to 999.",
             )
             return redirect(at)
-        with operation(gang, actor=request.user) as op:
-            op.visit_trading_post(going, brought=brought)
+        try:
+            with operation(gang, actor=request.user) as op:
+                op.visit_trading_post(going, brought=brought)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+            return redirect(at)
         record(request, N26Noun.GANG, EventVerb.UPDATE, gang, trade_points=brought)
         if performing:
             who = (

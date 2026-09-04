@@ -193,6 +193,19 @@ def _trade_points_asked(line, picked):
     )
 
 
+def _counted_against(gang, line):
+    """The open action a purchase of this line counts against, or None.
+
+    A line that counts no Trade Points counts against nothing: buying
+    from an equipment list while a visit is open is not part of that
+    visit, and recording it against one would make the visit's own
+    figures a lie. With no visit open there is nothing to point at
+    either — the purchase goes through and counts against nothing, once
+    the owner has said they meant it.
+    """
+    return gang.open_visit if line.charges_trade_points else None
+
+
 def _overspend(request, gang, line, asked, back):
     """The page that asks whether a Trade Point overspend was meant.
 
@@ -208,13 +221,14 @@ def _overspend(request, gang, line, asked, back):
 
     if not asked or request.POST.get(CONFIRM_FIELD):
         return None
-    open_visit = gang.visiting_trading_post
+    visit = gang.open_visit
+    open_visit = visit is not None
     # One reading of the log, not one per figure: the page prints what
     # has gone as well as what is left, and the two must agree. With no
     # action open there is nothing to read — the post is shut, and the
     # purchase has nothing to count against.
     spent = gang.trade_points_spent if open_visit else 0
-    brought = gang.starting_trade_points if open_visit else 0
+    brought = (visit.trade_points or 0) if open_visit else 0
     left = brought - spent
     if asked <= left:
         return None
@@ -643,6 +657,7 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=
                 holder,
                 line=line,
                 option=[option.default_set for option in picks],
+                action=_counted_against(gang, line),
                 **charge,
             )
             # Onto the gun, not onto its holder: a profile belongs to
@@ -650,7 +665,12 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=
             # either way, so each part is charged at the price its own
             # listing was showing.
             for part, part_paid in paid_for:
-                op.buy(bought, line=part, **_charge(part, part_paid))
+                op.buy(
+                    bought,
+                    line=part,
+                    action=_counted_against(gang, part),
+                    **_charge(part, part_paid),
+                )
     except Refusal as refusal:
         messages.error(request, str(refusal))
         return None

@@ -70,6 +70,26 @@ class LedgerEntry(Base):
             "get-out is a purchase with no entry."
         ),
     )
+    #: The action this purchase counted against, where one was open —
+    #: a trip to the trading post, founding and equipping the gang. What
+    #: an action has spent is the sum over the purchases pointing at it,
+    #: and a refund's event sits on the same assignment, so handing
+    #: something back returns its Trade Points to the action that paid
+    #: for them however long afterwards it happens. Blank for a purchase
+    #: made with nothing open: the owner said they meant it, and it
+    #: counts against nothing.
+    action = models.ForeignKey(
+        "n26.Action",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purchases",
+        help_text=(
+            "The action this purchase counted against — a trip to the "
+            "trading post, or founding the gang. Blank for a purchase "
+            "made with no action open."
+        ),
+    )
     note = models.CharField(max_length=255, blank=True)
 
     class Meta:
