@@ -4,8 +4,8 @@
     <c-n26.roll-result :roll="roll" />
 
 Draws a n26.render.RollResult: the dice where the total says which faces they
-showed, the figure, the die, and where it landed — or that nothing on the table
-claims it, or that it has already been applied. The Roll again control sits
+showed, the figure, the die, and where it landed — or that the table has no
+result for it, or that it has already been applied. The Roll again control sits
 here rather than with the table's own Roll control because this is where a
 reader deciding to roll again is looking. Plain submit button and no form of
 its own: the page owns the form.
@@ -30,7 +30,7 @@ its own: the page owns the form.
             Rolled {{ roll.total }} <span class="font-normal text-muted">on a {{ roll.dice_label }}</span>
         </span>
         <span class="block text-muted">
-            {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}{{ name }}{% endfor %}.{% else %}No result on this table is at {{ roll.total }}.{% endif %}
+            {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another result.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}{{ name }}{% endfor %}.{% else %}This table has no result for {{ roll.total }}.{% endif %}
             {% if roll.entered %}Rolled at the table and entered here.{% endif %}
         </span>
     </span>

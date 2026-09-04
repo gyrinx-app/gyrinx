@@ -1517,10 +1517,10 @@ GROUPS: list[Group] = [
                 summary="The controls that roll on a choice's table.",
                 notes=(
                     "Drawn on the pick screen above a list that is a roll "
-                    "table. Two ways to one record: a button that rolls the "
-                    "die here, and a field for a roll made at the table, "
-                    "bounded to what the die can make. Both post to the page, "
-                    "which writes the roll to the gang's history before "
+                    "table. Two ways to record one roll: a button that rolls "
+                    "the die here, and a field for a roll made at the table, "
+                    "which only takes numbers the die can roll. Both post to "
+                    "the page, which writes the roll to the gang's history before "
                     "anything is picked and comes back showing where it "
                     "landed. Plain submit buttons and no form of its own."
                 ),
@@ -1542,8 +1542,8 @@ GROUPS: list[Group] = [
                     "a reload draws the same result — nothing is rolled by "
                     "drawing. Shows the dice where the total says which faces "
                     "they showed (a D66's two, a D6's one) and the figure "
-                    "alone otherwise; says where it landed, that nothing on "
-                    "the table claims it, or that it has already been "
+                    "alone otherwise; says where it landed, that the table "
+                    "has no result for it, or that it has already been "
                     "applied. Roll again lives here because this is where a "
                     "reader deciding to roll again is looking."
                 ),

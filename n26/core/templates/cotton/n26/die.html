@@ -2,7 +2,7 @@
 <c-n26.die> — one die face, drawn as pips.
 
     <c-n26.die value="4" />
-    <c-n26.die value="6" class="size-12" />
+    <c-n26.die value="6" class="text-5xl" />
 
 A rounded square with the pips of a D6 face laid on a three-by-three grid. The
 face is announced as words, since a grid of dots says nothing to a reader who
@@ -25,7 +25,7 @@ pips and the gaps together — a percentage would measure the parent instead.
 <span {{ attrs }}
       class="grid size-[1em] shrink-0 grid-cols-3 grid-rows-3 gap-[0.08em] rounded-[0.18em] border border-ink-300 bg-white p-[0.16em] shadow-sm dark:border-ink-600 dark:bg-ink-900 {{ class }}"
       role="img"
-      aria-label="A die showing {{ value }}">
+      aria-label="{% if value %}A die showing {{ value }}{% else %}A die, not yet rolled{% endif %}">
     {% for pip in pips|get_item:value|default:"000000000" %}
         <span class="size-full rounded-full {% if pip == '1' %}bg-ink-900 dark:bg-ink-100{% endif %}"></span>
     {% endfor %}

@@ -1692,7 +1692,7 @@ class Operation:
             if Assignment.objects.filter(roll=roll).exists():
                 raise Refusal(
                     f"That roll of {roll.roll} has already been applied. "
-                    "Roll again for another."
+                    "Roll again for another result."
                 )
             kwargs |= {"roll": roll}
         if not isinstance(chosen, Pickable) or chosen.slot_type_id != slot.slot_type_id:
@@ -1938,7 +1938,7 @@ class Operation:
         if rolled is None:
             rolled = Dice.roll(dice, rng)
         elif rolled not in Dice.rolls(dice):
-            raise Refusal(f"{rolled} is not a roll a {dice.label} can make.")
+            raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
         else:
             note = note or "Rolled at the table and entered here."
         return self.event(

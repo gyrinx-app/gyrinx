@@ -212,7 +212,7 @@ class TestARollGoesOnTheRecord:
         assert event.note == "Rolled at the table and entered here."
 
     def test_a_number_the_die_cannot_make_is_refused_in_words(self, gang, krago):
-        with pytest.raises(Refusal, match="37 is not a roll a D66 can make"):
+        with pytest.raises(Refusal, match="You cannot roll 37 on a D66"):
             roll_for(krago, "Lasting Injuries", rolled=37)
         assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
 
@@ -332,7 +332,7 @@ class TestThePickScreen:
         client.force_login(owner)
         page = client.get(address).content.decode()
         assert "Roll a D66" in page
-        assert "Rolled at the table? Enter the result." in page
+        assert "Rolled at the table? Enter the number." in page
         assert 'name="rolled"' in page
         assert 'min="11"' in page and 'max="66"' in page
 
@@ -400,7 +400,7 @@ class TestThePickScreen:
     ):
         client.force_login(owner)
         reply = client.post(address, {"act": "enter", "rolled": "37"}, follow=True)
-        assert "37 is not a roll a D66 can make." in reply.content.decode()
+        assert "You cannot roll 37 on a D66." in reply.content.decode()
         assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
 
     def test_entering_nothing_asks_for_the_number(self, client, owner, gang, address):

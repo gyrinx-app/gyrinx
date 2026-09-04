@@ -3,7 +3,7 @@
 
     <c-n26.roll-table :table="roll_table" />
 
-Two ways to the same record: a button that rolls the die here, and a field for
+Two ways to record one roll: a button that rolls the die here, and a field for
 a roll already made at the table. Both post to the page, which writes the roll
 to the gang's history and comes back showing where it landed. Plain submit
 buttons and no form of its own — the page owns the form and the token.
@@ -23,7 +23,7 @@ buttons and no form of its own — the page owns the form and the token.
     {% endcomment %}
     <div class="flex items-end gap-2">
         <div class="w-40">
-            <c-ui.input label="Rolled at the table? Enter the result."
+            <c-ui.input label="Rolled at the table? Enter the number."
                         id="rolled-at-the-table" name="rolled" type="number"
                         inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}" />
         </div>
