@@ -114,9 +114,14 @@ opens with the Actions square, then the stash, then `members`.
     irreversible one behind an edge. ml-auto keeps the buttons at the right edge
     even for a gang with no details, under the wealth strip above them, and
     shrink-0 makes a squeezed row wrap the facts rather than squash a button.
+
+    min-w-0 on the facts is what lets a long pickable list shrink and wrap
+    inside its control. Without it the nowrap min-content of that control is
+    the row's floor, and md:flex-row grows the page sideways. md:flex-wrap
+    drops the actions under the facts when both will not share a line.
     {% endcomment %}
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        {% if details %}{{ details }}{% endif %}
+    <div class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
+        {% if details %}<div class="min-w-0 max-w-full">{{ details }}</div>{% endif %}
         <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 md:ml-auto md:shrink-0">
             <div class="flex flex-wrap items-center gap-2">
                 {{ actions }}

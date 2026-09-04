@@ -1947,6 +1947,13 @@ STASH = [
 #: draws as a fact rather than as a button that goes nowhere.
 CHOICES = [
     ChoiceLine(kind_label="Skill trees", chosen="Ferocity, Brawn, Cunning", href="#"),
+    # A slot holding every variant: the names are one control, and that
+    # control must wrap on a narrow sheet rather than grow the page.
+    ChoiceLine(
+        kind_label="Variant",
+        chosen="Genestealer Cult Corrupted, Chaos Corrupted, Malstrain Corrupted",
+        href="#",
+    ),
     # Unresolved is information, not an error: n26.render is explicit that
     # a renderer informs and does not police.
     ChoiceLine(kind_label="Territory", chosen=None, href="#"),
@@ -1958,10 +1965,10 @@ def gang_sheet():
     """One gang, with enough going on to exercise the sheet.
 
     The awkward cases on purpose: a choice holding three things — the "list inside
-    one control" the detail list exists for — an unresolved choice, a choice with
-    nowhere to send anyone, counters, a stash holding something granted rather
-    than bought, and what a campaign gave the gang, credited to the campaign type
-    that brought it.
+    one control" the detail list exists for — a longer list of variants that
+    must wrap, an unresolved choice, a choice with nowhere to send anyone,
+    counters, a stash holding something granted rather than bought, and what a
+    campaign gave the gang, credited to the campaign type that brought it.
     """
     return GangSheet(
         name="The Ashen Choir",
