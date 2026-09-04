@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0080_campaign_type_asset_kind_and_asset"),
-        ("n26", "0044_the_open_visit_becomes_an_action"),
+        ("n26", "0055_the_gang_stops_keeping_a_copy_of_the_visits_figure"),
     ]
 
     operations = [

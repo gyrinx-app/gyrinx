@@ -228,7 +228,7 @@ def print_setup(request, pk):
 
     from n26.core.render import WEAPON_SLOTS_PER_CARD
 
-    gang = _any_gang_or_404(pk)
+    gang = _any_gang_or_404(request, pk)
     yours = gang.owner_id == request.user.id
     loaded = _config_for(request, gang)
     sheet = render_gang(gang)
@@ -322,7 +322,7 @@ def print_gang(request, pk):
     from n26.core.card import build_gang_card
     from n26.core.render import stash_lines
 
-    gang = _any_gang_or_404(pk)
+    gang = _any_gang_or_404(request, pk)
     config = _config_for(request, gang)
     wanted, weapon_ids, include_header, include_stash, include_notes = _what_to_print(
         request, gang, config

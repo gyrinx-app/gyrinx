@@ -123,6 +123,54 @@ VISIT_CONTRIBUTION_MODIFIERS = [
     for rank, amount in VISIT_CONTRIBUTIONS
 ]
 
+#: The heading a gang's own fighter entries are filed under. Everything
+#: else a gang may hire — allies, hired guns, hangers-on — is filed
+#: under a heading of its own, which is what tells the two apart.
+GANG_LIST_SECTION = "Gang List"
+
+#: The counter a fighter's founding budget is read off. Undrawn, like the
+#: visit's: no card shows it, and the equip screen is the only reader.
+#: What raises it is a modifier on the gang type, so a model hired into
+#: a Venator gang gets the Venator figure and one hired into any other
+#: gang gets none.
+FOUNDING_BUDGET_COUNTER = "Founding TP budget"
+
+#: What each rank on a gang's own list may spend at founding, by gang
+#: type, biggest first (Venators and Outcast gang books).
+#:
+#: The rank is the subtype a gang's entries come with, and it is used to
+#: find those entries rather than to reach models: a rank's subtype is
+#: carried right across the library, and an ally or a hired gun ranked
+#: Champion is nobody's Champion but their own. So each modifier names
+#: the gang's own Gang List entries at that rank outright. A gang's
+#: entry that carries two of these ranks is named by the better one and
+#: left out of the rest, which is what keeps 5 and 4 from coming to 9.
+#:
+#: In a Venator gang the Hunter rank is the Specialist subtype: every
+#: Hunter entry carries it.
+FOUNDING_BUDGETS = [
+    ("Venators", [("Leader", 5), ("Champion", 4), ("Specialist", 3)]),
+    ("Outcast", [("Leader", 4), ("Champion", 3)]),
+]
+
+#: What an affiliation adds on top of the gang type's figure, as
+#: ``(affiliation, gang type, ranks, amount)`` (Outcast gang book). Held
+#: by the gang, so it reaches every model on the roster the way a Clan
+#: House affiliation reaches them with its equipment list — and narrowed
+#: to the same entries the gang type's own figures name.
+FOUNDING_BUDGET_AFFILIATIONS = [("Clanless", "Outcast", ["Leader", "Champion"], 1)]
+
+
+def _budget_modifier_name(carrier, ranks, amount, more=False):
+    """What a founding-budget modifier is filed under on the authoring
+    pages."""
+    points = "Trade Point" if amount == 1 else "Trade Points"
+    return (
+        f"{carrier} {' or '.join(ranks)} may spend "
+        f"{amount} {'more ' if more else ''}{points} at founding"
+    )
+
+
 #: The six Skill Sets and their skills, in D6 order (core rules) —
 #: the number a skill is rolled on is its position within its set. Names
 #: only: what each skill *does* is the book's wording (CLAUDE.md).
@@ -363,11 +411,18 @@ def visit_contribution_counter():
     stand in for the standard one. The seed, its own completeness check
     and every reader ask this one question, because two statements of
     what counts as the row drift in silence.
+
+    The pack is named by its slug rather than fetched first, so a page
+    asking this pays one query and not two. A library with no default
+    pack has no counter in it either, which is the same None.
     """
-    from n26.library.models import Counter, get_default_pack
+    from django.conf import settings
+
+    from n26.library.models import Counter
 
     return Counter.objects.filter(
-        name__iexact=VISIT_CONTRIBUTION_COUNTER, pack=get_default_pack()
+        name__iexact=VISIT_CONTRIBUTION_COUNTER,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
     ).first()
 
 
@@ -401,7 +456,7 @@ def _create_visit_contribution():
     for (rank, amount), name in zip(
         VISIT_CONTRIBUTIONS, VISIT_CONTRIBUTION_MODIFIERS, strict=True
     ):
-        subtype = Subtype.objects.filter(name__iexact=rank).first()
+        subtype = _by_name(Subtype, rank)
         if subtype is None:
             subtype = Subtype.objects.create(name=rank)
         if not _raises_visit_counter(subtype, counter).exists():
@@ -433,10 +488,361 @@ def _check_visit_contribution():
         return 0, 1 + len(VISIT_CONTRIBUTIONS)
     present = 1
     for rank, _ in VISIT_CONTRIBUTIONS:
-        subtype = Subtype.objects.filter(name__iexact=rank).first()
+        subtype = _by_name(Subtype, rank)
         if subtype is not None and _raises_visit_counter(subtype, counter).exists():
             present += 1
     return present, 1 + len(VISIT_CONTRIBUTIONS)
+
+
+def founding_budget_counter():
+    """The standard founding-budget counter, or None where the library
+    has none.
+
+    Pinned to the default pack, as the visit's is: names are unique per
+    pack, so a homebrew pack's counter of the same name must not stand in
+    for the standard one. The seed, its own completeness check and every
+    reader ask this one question, because two statements of what counts
+    as the row drift in silence.
+
+    The pack is named by its slug rather than fetched first, so a page
+    asking this pays one query and not two. A library with no default
+    pack has no counter in it either, which is the same None.
+    """
+    from django.conf import settings
+
+    from n26.library.models import Counter
+
+    return Counter.objects.filter(
+        name__iexact=FOUNDING_BUDGET_COUNTER,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+    ).first()
+
+
+def _by_name(model, name):
+    """A row of this kind called this in the default pack, or None.
+
+    Pinned to the pack for the same reason the counter is: names are
+    unique per pack, so a homebrew pack's gang type or subtype of the
+    same name is a different thing and must not stand in for the
+    standard one.
+    """
+    from django.conf import settings
+
+    return model.objects.filter(
+        name__iexact=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).first()
+
+
+def _gang_list_profiles(gang_type, subtype):
+    """The gang's own entries at this rank, biggest name last.
+
+    Its own list, and not everything ranked that way: a rank's subtype is
+    carried right across the library — fourteen allied entries and three
+    Dramatis Personae are ranked Champion — and none of them is on this
+    gang's list or given its founding allowance. What tells them apart is
+    the heading each is filed under.
+
+    Read from the library rather than listed, so an entry authored later
+    is named the next time the seed runs, and the completeness check
+    says so until it has been.
+    """
+    from django.conf import settings
+
+    from n26.library.models import Profile
+
+    return list(
+        Profile.objects.filter(
+            gang_type=gang_type,
+            category__section__name__iexact=GANG_LIST_SECTION,
+            built_ins__members__subtype=subtype,
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+        )
+        .distinct()
+        .order_by("name")
+    )
+
+
+def _raises_founding_budget(carrier, counter, amount):
+    """The modifiers this carrier holds that raise this counter by this
+    much.
+
+    Each rank a carrier grants an allowance to grants a different figure,
+    so the figure is what tells one rank's modifier from another's. A
+    name is the one part of a modifier that may be reworded later, and
+    the entries it reaches are the part the seed keeps up to date.
+    """
+    return carrier.modifiers.filter(
+        contributes_to_counter__counter=counter,
+        contributes_to_counter__amount=amount,
+    )
+
+
+def _naming_rows(modifier):
+    """The rows naming the entries a founding-budget modifier reaches.
+
+    The positive ones only: a negated row says who it misses, which is
+    not a set the seed keeps.
+    """
+    scope = modifier.targets_miniature
+    return [] if scope is None else list(scope.is_profile.filter(negate=False))
+
+
+def _named_profiles(modifier):
+    """The entries a founding-budget modifier reaches, by id."""
+    return {
+        pk
+        for row in _naming_rows(modifier)
+        for pk in row.profiles.values_list("pk", flat=True)
+    }
+
+
+def _budget_ranks(gang_type):
+    """Each rank this gang type grants an allowance to, with the figure
+    and the entries it reaches — biggest figure first, and no entry named
+    twice.
+
+    An entry carrying two of these ranks belongs to the better one, which
+    is what keeps 5 and 4 from coming to 9 for a model that is both. It
+    is also why the set is worked out whole every time rather than added
+    to: giving a Champion entry the Leader rank moves it between two
+    figures, and an entry left named by the one it has left would raise
+    the counter twice.
+    """
+    from n26.library.models import Subtype
+
+    ranks = dict(FOUNDING_BUDGETS).get(gang_type.name, [])
+    claimed, found = set(), []
+    for rank, amount in ranks:
+        subtype = _by_name(Subtype, rank)
+        profiles = [] if subtype is None else _gang_list_profiles(gang_type, subtype)
+        profiles = [one for one in profiles if one.pk not in claimed]
+        claimed.update(one.pk for one in profiles)
+        found.append((rank, amount, subtype, profiles))
+    return found
+
+
+def _drop_modifier(row):
+    """Take a modifier away, parts and all.
+
+    A modifier's columns cascade *from* its scope and its effect, so the
+    parts are what a delete has to reach; left behind, they would keep
+    nothing alive but themselves.
+    """
+    scope, effect = row.scope, row.effect
+    row.delete()
+    for part in (scope, effect):
+        if part is not None:
+            part.delete()
+
+
+def _settle_budget(carrier, counter, name, amount, subtypes, wanted):
+    """Make this contribution say what it should, whatever it said before.
+
+    One modifier per figure per carrier, and its set of entries is
+    rewritten rather than added to: an entry that has moved to another
+    rank must stop being named here, or it would raise the counter twice.
+    With no entry left to reach, the modifier goes — a rank nothing is
+    filed under is not a rank this library grants anything to.
+
+    The scope names the rank as well as the entries. The two narrow
+    together, so while the set is intact it says exactly what the entries
+    say — and if something outside the seed empties the set, what is left
+    reaches that rank rather than the whole roster.
+    """
+    from n26.library.authoring import (
+        ef_contributes_to_counter,
+        has_subtypes,
+        is_profile,
+        modifier,
+        targets_every_model,
+    )
+    from n26.library.models import IsProfile
+
+    standing = _raises_founding_budget(carrier, counter, amount).first()
+    wanted = {one.pk for one in wanted}
+    if not wanted:
+        if standing is not None:
+            _drop_modifier(standing)
+        return
+    if standing is None:
+        carrier.modifiers.add(
+            modifier(
+                name,
+                targets_every_model(
+                    has_subtypes(*subtypes),
+                    is_profile(*_profiles_by_id(wanted)),
+                ),
+                ef_contributes_to_counter(counter, amount),
+            )
+        )
+        return
+    scope = standing.targets_miniature
+    if scope is None:
+        # It reaches something other than the models — an author's own
+        # doing. Nothing here rewrites that; the completeness check says
+        # the rank is not done until somebody looks.
+        return
+    rows = _naming_rows(standing) or [IsProfile.objects.create(scope=scope)]
+    for row in rows:
+        surplus = set(row.profiles.values_list("pk", flat=True)) - wanted
+        if surplus:
+            row.profiles.remove(*surplus)
+    missing = wanted - _named_profiles(standing)
+    if missing:
+        rows[0].profiles.add(*missing)
+
+
+def _profiles_by_id(ids):
+    from n26.library.models import Profile
+
+    return list(Profile.objects.filter(pk__in=ids))
+
+
+def _empty_budget_modifiers(counter):
+    """Every founding-budget modifier left naming no entry at all.
+
+    Deleting a fighter entry takes it out of the sets naming it, and a
+    modifier that named nothing else is then a contribution with nothing
+    to reach. It is rebuilt below where the library still has entries for
+    it, and stays gone where it does not.
+    """
+    from n26.library.models import Modifier
+
+    return [
+        row
+        for row in Modifier.objects.filter(contributes_to_counter__counter=counter)
+        if not _named_profiles(row)
+    ]
+
+
+def _create_founding_budgets():
+    """The founding-budget counter, and one modifier per rank that raises
+    it for the gang's own entries at that rank.
+
+    Gang types and subtypes are matched, not duplicated: their own seeds
+    create the same rows, and any of them may be run first. An
+    affiliation is authored content and is never created here — a library
+    without one has no gang holding it either.
+
+    A rank's contribution is matched by what it does — a modifier this
+    carrier holds that raises this counter by this figure — rather than
+    by its name, so rewording one does not hang a second contribution on
+    the carrier. What it *reaches* is worked out whole on every run, so
+    an entry authored since the last one is named and an entry that has
+    moved to another rank stops being.
+    """
+    from n26.library.models import Affiliation, Counter, GangType, Subtype
+
+    counter = founding_budget_counter()
+    if counter is None:
+        counter = Counter.objects.create(name=FOUNDING_BUDGET_COUNTER, drawn=False)
+
+    for row in _empty_budget_modifiers(counter):
+        _drop_modifier(row)
+
+    for gang_type_name, ranks in FOUNDING_BUDGETS:
+        gang_type = _by_name(GangType, gang_type_name) or GangType.objects.create(
+            name=gang_type_name
+        )
+        for rank, _ in ranks:
+            if _by_name(Subtype, rank) is None:
+                Subtype.objects.create(name=rank)
+        for rank, amount, subtype, profiles in _budget_ranks(gang_type):
+            _settle_budget(
+                gang_type,
+                counter,
+                _budget_modifier_name(gang_type_name, [rank], amount),
+                amount,
+                [subtype] if subtype is not None else [],
+                profiles,
+            )
+
+    for name, gang_type_name, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS:
+        affiliation = _by_name(Affiliation, name)
+        gang_type = _by_name(GangType, gang_type_name)
+        if affiliation is None or gang_type is None:
+            continue
+        subtypes = [_by_name(Subtype, rank) for rank in ranks]
+        _settle_budget(
+            affiliation,
+            counter,
+            _budget_modifier_name(name, ranks, amount, more=True),
+            amount,
+            [one for one in subtypes if one is not None],
+            _affiliation_profiles(gang_type, ranks),
+        )
+
+
+def _affiliation_profiles(gang_type, ranks):
+    """The entries an affiliation's extra figure reaches: the same ones
+    the gang type's own figures name, at the ranks it lists."""
+    wanted = set(ranks)
+    return [
+        one
+        for rank, _, _, profiles in _budget_ranks(gang_type)
+        if rank in wanted
+        for one in profiles
+    ]
+
+
+def _check_founding_budgets():
+    """Asked exactly as the create asks it — the same counter lookup, the
+    same entry lookup, the same behaviour predicate — so a half-built
+    library reports what a second run would leave alone.
+
+    A rank counts as done only where its modifier names exactly the
+    entries it should. An entry authored since the last run, one that has
+    moved to another rank, and one deleted altogether each show the seed
+    incomplete rather than being quietly left with the wrong figure.
+
+    An affiliation that is not in the library is not counted, because the
+    seed does not create one: it is authored content, and a library
+    without it has no gang holding it.
+    """
+    from n26.library.models import Affiliation, GangType
+
+    counter = founding_budget_counter()
+    wanted, present = 1, 1 if counter is not None else 0
+
+    def settled(carrier, amount, entries):
+        """Whether this figure already says what a run would make it say —
+        including saying nothing, where the modifier should be gone."""
+        standing = (
+            None
+            if counter is None
+            else _raises_founding_budget(carrier, counter, amount).first()
+        )
+        if not entries:
+            return standing is None
+        return standing is not None and _named_profiles(standing) == {
+            one.pk for one in entries
+        }
+
+    def count(carrier, amount, entries):
+        nonlocal wanted, present
+        done = settled(carrier, amount, entries)
+        if not entries and done:
+            # Nothing to reach and nothing standing: this rank is not
+            # something the library has, so it is nobody's business.
+            return
+        wanted += 1
+        present += 1 if done else 0
+
+    for gang_type_name, _ in FOUNDING_BUDGETS:
+        gang_type = _by_name(GangType, gang_type_name)
+        if gang_type is None:
+            continue
+        for _, amount, _, profiles in _budget_ranks(gang_type):
+            count(gang_type, amount, profiles)
+
+    for name, gang_type_name, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS:
+        affiliation = _by_name(Affiliation, name)
+        gang_type = _by_name(GangType, gang_type_name)
+        if affiliation is None or gang_type is None:
+            continue
+        count(affiliation, amount, _affiliation_profiles(gang_type, ranks))
+
+    return present, wanted
 
 
 def skills_collection_sweeps():
@@ -911,6 +1317,23 @@ STANDARD_CONTENT = {
             ),
             check=_check_visit_contribution,
             create=_create_visit_contribution,
+        ),
+        StandardContent(
+            key="founding-budgets",
+            name="Founding TP budgets",
+            help=(
+                "The counter for the Trade Points a model may spend "
+                "while its gang is being founded, and the modifiers that "
+                "raise it: 5 on a Venator Leader, 4 on a Venator "
+                "Champion, 3 on a Venator Specialist, 4 on an Outcast "
+                "Leader, 3 on an Outcast Champion, and 1 more for a "
+                "Clanless gang's Leaders and Champions. In a Venator "
+                "gang the Hunter rank is the Specialist subtype. The "
+                "counter is not drawn on any card. A model holding two "
+                "ranks spends the better figure, not the sum."
+            ),
+            check=_check_founding_budgets,
+            create=_create_founding_budgets,
         ),
         StandardContent(
             key="gang-types",

@@ -46,6 +46,15 @@ since the page was drawn has no panel until this delivers one, and a gun
 parted with would leave its panel behind.
 {% endcomment %}
 <div id="n26-accessorise-host" hx-swap-oob="true">{% include "n26/includes/equip_accessorise.html" %}</div>
+{% comment %}
+The founding allowance, where the screen is drawing one: the purchase came off
+it, so what it has left has just changed. Only where the page has the block —
+htmx drops an out-of-band element whose id is not on the page, so emitting it
+for a screen without one would be a silent nothing rather than an error.
+{% endcomment %}
+{% if founding_budget %}
+    {% include "n26/includes/founding_budget.html" with redrawn=True %}
+{% endif %}
 {% if closed %}
     {% comment %}
     The act was submitted from a confirmation panel; an empty host replaces

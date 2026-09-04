@@ -6,10 +6,7 @@ cache, and each can be recomputed. These functions do the recomputing, so a
 test (or a management command) can prove the caches are honest.
 """
 
-from datetime import UTC, datetime
-
-from django.db.models import DateTimeField, Q, Subquery, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Sum
 
 from n26.core.models import Assignment, LedgerEntry
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
@@ -91,13 +88,6 @@ def total_spent(gang):
     )
 
 
-#: What "since the allowance was set" means for a gang that has never
-#: set one: since always. A gang can spend at a post without an allowance
-#: — the purchase asks first and then goes through — so those points have
-#: to count against nothing rather than not count at all.
-_SINCE_ALWAYS = datetime(1, 1, 1, tzinfo=UTC)
-
-
 def trade_points_spent_for(action):
     """Every Trade Point that counted against one action.
 
@@ -124,56 +114,69 @@ def trade_points_spent_for(action):
     )
 
 
+def trade_points_spent_by(action, miniature):
+    """Every Trade Point one model spent against one action.
+
+    The same sum as :func:`trade_points_spent_for`, narrowed to whoever
+    spent it: a founding allowance is the model's own, so what one has
+    spent says nothing about what another may.
+
+    Narrowed on the buyer the purchase recorded and never on where the
+    thing is now. An owner may move a gun into the stash or hand it to
+    somebody else, and neither hands the points back — moving kit about
+    is not a refund. Reading the assignment's model instead would refill
+    the buyer's allowance the moment they stashed anything, and refunding
+    the gun from its new owner would take that owner's allowance below
+    zero for points they never spent.
+
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    return (
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__action=action,
+            assignment__ledger_entry__spent_by=miniature,
+        ).aggregate(total=Sum("trade_points_delta"))["total"]
+        or 0
+    )
+
+
 def trade_points_spent(gang):
     """What the gang's open Visit Trading Post action has spent.
 
-    Two sets of purchases, summed in one query. The first is what points
-    at the gang's open visit, which is the whole of it for a purchase
-    that recorded one — asked as a join rather than by naming the row, so
-    nothing has to know which visit is open before asking. The second is
-    a purchase under this visit that names no action at all — one
-    written before the visit had a row to point at — found instead by
-    when its assignment was created, measured from the boundary event
-    the visit wrote. The second half is here only while such purchases
-    exist.
+    ``trade_points_spent_for`` by another route: the visit is asked for
+    as a join rather than named, so a screen wanting the figure needs no
+    query of its own to find out which visit is open first.
 
-    Either way the visit an event belongs to is the visit its *purchase*
-    belongs to, and never the visit its own event happened in. A refund
-    is an event of its own, written whenever the owner gets round to it,
-    so counting by event time would let the undoing of an earlier
-    visit's purchase land inside this one — handing back kit bought last
-    time would mint Trade Points the visit never brought.
+    A purchase made with nothing open counts against nothing, which is
+    what the owner was told when they said they meant it. It is not
+    swept into the next visit: the gang would then open one already
+    short of what its fighters brought.
+
+    The visit an event belongs to is the visit its *purchase* belongs
+    to, and never the visit its own event happened in. A refund is an
+    event of its own, written whenever the owner gets round to it, and
+    it sits on the assignment the purchase made — so handing back kit
+    bought last time returns its points to that visit, and mints none
+    for this one.
 
     Events about no assignment are outside this by construction: the
-    boundary event itself is one, and none of them moves Trade Points.
+    two an action writes are among them, and none of them moves Trade
+    Points.
 
-    One query, boundary and all. Every screen showing what a gang has
-    left asks this, and a gang's page is a fixed number of queries by
-    invariant rather than by hope.
+    One query. Every screen showing what a gang has left asks this, and
+    a gang's page is a fixed number of queries by invariant rather than
+    by hope.
     """
     from n26.core.models import Action, LedgerEvent
 
-    since = (
-        LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET)
-        .order_by("-created")
-        .values("created")[:1]
-    )
-    unstamped = Q(
-        assignment__ledger_entry__action__isnull=True,
-        assignment__created__gte=Coalesce(
-            Subquery(since),
-            Value(_SINCE_ALWAYS, output_field=DateTimeField()),
-        ),
-    )
-    counted = unstamped | Q(
-        assignment__ledger_entry__action__gang=gang,
-        assignment__ledger_entry__action__kind=Action.Kind.TRADING_POST_VISIT,
-        assignment__ledger_entry__action__closed__isnull=True,
-    )
     return (
-        LedgerEvent.objects.filter(gang=gang)
-        .filter(counted)
-        .aggregate(total=Sum("trade_points_delta"))["total"]
+        LedgerEvent.objects.filter(
+            gang=gang,
+            assignment__ledger_entry__action__kind=Action.Kind.TRADING_POST_VISIT,
+            assignment__ledger_entry__action__closed__isnull=True,
+        ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )
 
