@@ -286,6 +286,7 @@ class Operation:
         note="",
         removes=False,
         kind=None,
+        roll=None,
     ):
         """Write one assignment: an assignable, a host, and a cause.
 
@@ -312,6 +313,10 @@ class Operation:
         spent is the sum over what points at it. ``spent_by`` is whose
         Trade Points those were, where the allowance was one model's own
         rather than the gang's.
+
+        ``roll`` is the ledger event recording the roll this pick came
+        from, where a table was rolled for it. Only ``_choose_for_slot``
+        sets it, having checked the roll is this choice's and unspent.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -326,6 +331,7 @@ class Operation:
             materialised_from=materialised_from,
             materialised_for=materialised_for,
             removes=removes,
+            roll=roll,
         )
         if list_price is None:
             list_price = paid + discount
@@ -1643,7 +1649,7 @@ class Operation:
             **kwargs,
         )
 
-    def _choose_for_slot(self, anchor, slot, chosen, **kwargs):
+    def _choose_for_slot(self, anchor, slot, chosen, roll=None, **kwargs):
         """Settle one slot: write the pick, pointing back at what asked.
 
         The pick names both the assignment that asked and the slot it
@@ -1666,9 +1672,29 @@ class Operation:
         its pick belongs with the item rather than with the gang: a
         thing bought unassigned takes what was chosen for it along when
         somebody finally carries it.
+
+        ``roll`` is the event :meth:`roll` wrote, where the table was
+        rolled for this pick. It has to be a roll for this very choice
+        and one nothing has been picked for yet — a roll is applied
+        once, and the second click is refused in words rather than
+        writing a second pick. Which row the roll landed on is not
+        checked: the rules substitute results ("counts as Out Cold"),
+        and the record shows the roll beside whatever was picked.
         """
         from n26.library.models import Pickable, Slot
 
+        if roll is not None:
+            if roll.kind != LedgerEvent.Kind.ROLLED or roll.slot_id != slot.pk:
+                raise Refusal(
+                    f"That roll was not made for {slot.choice_label}. "
+                    "Roll again for this choice."
+                )
+            if Assignment.objects.filter(roll=roll).exists():
+                raise Refusal(
+                    f"That roll of {roll.roll} has already been applied. "
+                    "Roll again for another."
+                )
+            kwargs |= {"roll": roll}
         if not isinstance(chosen, Pickable) or chosen.slot_type_id != slot.slot_type_id:
             raise NotOnOffer(
                 anchor,
@@ -1880,6 +1906,47 @@ class Operation:
             paid=0,
             rating=price_of(thing).credits,
             reason=Reason.REWARD,
+            note=note,
+        )
+
+    def roll(self, slot, *, miniature=None, rolled=None, rng=None, note=""):
+        """Roll on a choice's table and put the roll on the record.
+
+        The roll is written the moment it is made, before anything is
+        picked for it and whether or not anything ever is: once the dice
+        are down the result stands, and a roll that was made and then
+        rolled again should read that way. The event is about the model
+        whose card the choice was on, or the gang for the gang's own
+        choices, and names the slot so the pick that follows can be
+        checked against it.
+
+        ``rolled`` is a roll made at the table and entered here rather
+        than generated; it goes on the record the same way, with the
+        note saying so, and has to be a roll the die can make. ``rng``
+        is for a test that wants the dice loaded.
+
+        A slot whose list is not a roll table has nothing to roll; no
+        page draws a control for one, so that is a caller's mistake
+        rather than a refusal.
+        """
+        from n26.library.models import Dice
+
+        picklist = slot.picklist
+        if not picklist.dice:
+            raise ValueError(f"{slot.choice_label} is not rolled for.")
+        dice = Dice(picklist.dice)
+        if rolled is None:
+            rolled = Dice.roll(dice, rng)
+        elif rolled not in Dice.rolls(dice):
+            raise Refusal(f"{rolled} is not a roll a {dice.label} can make.")
+        else:
+            note = note or "Rolled at the table and entered here."
+        return self.event(
+            miniature,
+            LedgerEvent.Kind.ROLLED,
+            roll=rolled,
+            dice=dice.value,
+            slot=slot,
             note=note,
         )
 

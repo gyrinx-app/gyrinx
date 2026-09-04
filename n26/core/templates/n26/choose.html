@@ -18,6 +18,13 @@ A choice that holds several picks is not one of many, so it is not radios: each
 option carries its own act, a click settles or unsettles that one, and the page
 comes back. There is nothing to save at the end, so there is no Save — the view
 says which shape this is.
+
+A choice whose list is a roll table can be rolled for here. The Roll control
+posts, the server rolls and writes the roll to the gang's history, and the page
+comes back at ?roll=<event> showing where it landed, with those rows lifted to
+the top. Every pick posted from that page carries the roll, so the record says
+what was rolled beside what was picked. The URL holds the roll, so the result
+survives a reload and can be linked to; nothing is rolled by drawing.
 {% endcomment %}
 {% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -67,6 +74,21 @@ says which shape this is.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% if roll %}
+            {% comment %}
+            The roll the page was opened on. Its key rides every pick posted
+            from here, so the pick names its roll — until the roll is spent,
+            when no pick may name it again and the input is left out.
+            {% endcomment %}
+            {% if not roll.is_spent %}<input type="hidden" name="roll" value="{{ roll.key }}">{% endif %}
+            <c-n26.roll-result :roll="roll" />
+        {% endif %}
+        {% if roll_table %}
+            <c-n26.form-section title="Roll"
+                                description="The roll goes on the gang's history the moment it is made, whether or not anything is picked for it.">
+                <c-n26.roll-table :table="roll_table" />
+            </c-n26.form-section>
+        {% endif %}
         {% comment %}
         Nothing to pick from is a thing to say, not a page to hide. It happens
         when the offer narrows to a tier the fighter has nothing placed in yet —

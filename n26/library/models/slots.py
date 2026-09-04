@@ -28,6 +28,8 @@ everything it does. The use-case for this is the same as hidden
 assignables.
 """
 
+import random
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
@@ -186,6 +188,41 @@ class Dice(models.TextChoices):
                 return tuple(range(2, 13))
         return ()
 
+    @classmethod
+    def roll(cls, dice, rng=None):
+        """One roll of this die, as the table reads it — the number a
+        band is looked up by. A D66 is tens and units, a 2D6 is a sum, a
+        D3 is a D6 halved and rounded up. ``rng`` is anything with
+        ``randint``; the module's own by default, so a test can pass a
+        seeded one and a page never needs to."""
+        if rng is None:
+            rng = random
+        # Game dice, not a secret: a seeded generator is what a test
+        # wants and nothing here guards anything.
+        match dice:
+            case cls.D3:
+                return (rng.randint(1, 6) + 1) // 2  # nosec B311
+            case cls.D6:
+                return rng.randint(1, 6)  # nosec B311
+            case cls.D66:
+                return 10 * rng.randint(1, 6) + rng.randint(1, 6)  # nosec B311
+            case cls.TWO_D6:
+                return rng.randint(1, 6) + rng.randint(1, 6)  # nosec B311
+        raise ValueError(f"{dice!r} is not a die.")
+
+    @classmethod
+    def faces(cls, dice, roll):
+        """The dice faces a roll shows, where the total says which: a
+        D66's two dice, a D6's one. A 2D6 total does not say which two
+        faces made it, and a D3 is read off a D6 already halved, so both
+        show nothing — the figure alone is what the record holds."""
+        match dice:
+            case cls.D6:
+                return (roll,)
+            case cls.D66:
+                return (roll // 10, roll % 10)
+        return ()
+
 
 class RollSelects(models.TextChoices):
     """How a roll finds its result on a table. A band table gives the
@@ -296,6 +333,25 @@ class Picklist(Content):
         super().clean()
         if bool(self.dice) != bool(self.roll_selects):
             raise ValidationError({"dice": ROLL_TABLE_IS_WHOLE})
+
+    def landing(self, roll, members=None):
+        """The rows a roll lands on: the one whose band holds it on a band
+        table, every row whose band starts at or below it on a threshold
+        table, in the list's own order. Empty for a roll nothing claims,
+        and for a list that is not a roll table at all. ``members`` lets
+        a caller that has the rows in hand pass them, so a page that
+        already listed the table does not read it twice."""
+        if not self.dice:
+            return []
+        if members is None:
+            members = self.members.all()
+        if self.roll_selects == RollSelects.THRESHOLD:
+            return [m for m in members if m.roll_low is not None and m.roll_low <= roll]
+        return [
+            m
+            for m in members
+            if m.roll_low is not None and m.roll_low <= roll <= m.roll_high
+        ]
 
     @property
     def may_offer(self):

@@ -209,6 +209,14 @@ class LedgerEvent(Base):
         JOINED_CAMPAIGN = "joined_campaign", "Joined a campaign"
         LEFT_CAMPAIGN = "left_campaign", "Left a campaign"
 
+        # A roll on a roll table, put on the record the moment it is
+        # made — before anything is picked for it, and whether or not
+        # anything ever is. The pick that follows names this event, so
+        # a roll nothing followed stands on its own in the history, which
+        # is what a second roll looks like to whoever reads it. ``roll``
+        # and ``dice`` say what came up; ``slot`` says what it was for.
+        ROLLED = "rolled", "Rolled"
+
     #: A campaign's pooled asset changing hands is journal-only too, kind
     #: GRANTED or TOOK_AWAY: the gang holds the token and never owns it,
     #: so there is no entry and nothing for reconcile to fold.
@@ -290,6 +298,25 @@ class LedgerEvent(Base):
     trade_points_delta = models.IntegerField(default=0)
     rating_delta = models.IntegerField(default=0)
     note = models.CharField(max_length=255, blank=True)
+    #: What a roll came to, on an event recording one — the number a
+    #: table is read by, so 24 on a D66 and 8 on a 2D6. Columns rather
+    #: than words in the note, so nothing has to parse a sentence to
+    #: find the figure again. Empty on every other kind.
+    roll = models.PositiveSmallIntegerField(null=True, blank=True)
+    #: The die that roll was of, as the table named it at the time — a
+    #: table may change its die later, and the record keeps what was
+    #: actually rolled. The library's closed set of dice; not declared
+    #: as choices here because the library imports this app.
+    dice = models.CharField(max_length=8, blank=True, default="")
+    #: The choice a roll was made for. Set to nothing if the slot goes:
+    #: the roll still happened.
+    slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     class Meta:
         verbose_name = "ledger event"

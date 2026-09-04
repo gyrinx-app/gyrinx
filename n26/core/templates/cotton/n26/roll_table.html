@@ -1,0 +1,27 @@
+{% comment %}
+<c-n26.roll-table> — the controls that roll on a choice's table.
+
+    <c-n26.roll-table :table="roll_table" />
+
+Two ways to the same record: a button that rolls the die here, and a field for
+a roll already made at the table. Both post to the page, which writes the roll
+to the gang's history and comes back showing where it landed. Plain submit
+buttons and no form of its own — the page owns the form and the token.
+
+  :table — a n26.render.RollTable: the die's name and the lowest and highest
+    roll it can make, which bound the field.
+{% endcomment %}
+<c-vars :table="None" class="" />
+
+<div {{ attrs }} class="flex flex-wrap items-end gap-x-6 gap-y-3 {{ class }}">
+    <c-ui.button type="submit" name="act" value="roll" variant="primary">
+        Roll a {{ table.dice_label }}
+    </c-ui.button>
+    <div class="flex items-end gap-2">
+        <c-ui.input label="Rolled at the table? Enter the result."
+                    id="rolled-at-the-table" name="rolled" type="number"
+                    inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}"
+                    class="w-28" />
+        <c-ui.button type="submit" name="act" value="enter" variant="default">Enter</c-ui.button>
+    </div>
+</div>

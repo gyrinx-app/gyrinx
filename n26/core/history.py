@@ -224,6 +224,8 @@ def _rows_for(events):
             "stash",
             # A pick says its kind through the question it answered.
             "chosen_for_slot__slot_type",
+            # And where a table was rolled for it, the roll it came from.
+            "roll",
         )
     )
     return {row.pk: row for row in fetched}
@@ -271,6 +273,15 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     for e in cluster:
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
+            continue
+        if e.kind == Kind.GRANTED and row is not None and row.roll_id in act_of:
+            # A pick made for a roll folds under the roll: "rolled 24"
+            # with "Out Cold" beneath it is one act however many
+            # requests it took. The roll's act is keyed by its event,
+            # which no record's key can be.
+            home = act_of[row.roll_id]
+            home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
+            act_of.setdefault(row.pk, home)
             continue
         ride = _rides(e, row)
         if (
@@ -323,6 +334,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                 local[row.pk] = act
                 if e.kind in {Kind.PURCHASED, Kind.ADDED, Kind.GRANTED}:
                     act_of.setdefault(row.pk, act)
+            elif e.kind == Kind.ROLLED:
+                act_of[e.pk] = act
 
     # Ridden things come before their riders in the log, so a chain
     # settles in one pass: each rider finds its ride already mapped.
@@ -577,9 +590,28 @@ def _tell(e, row, alive):
                     *_for(model, at, "to"),
                 ), category
             return (Span("added "), thing, *_for(model, at, "to")), category
+        case Kind.GRANTED if row is not None and row.roll_id is not None:
+            # A pick whose roll is not in the story — told further back
+            # than the page reaches, or not told at all.
+            rolled = f", rolled {row.roll.roll}" if row.roll is not None else ""
+            return (
+                Span("gained "),
+                thing,
+                *_for(model, at, "on"),
+                Span(rolled),
+            ), category
         case Kind.GRANTED:
             # Only reached when what caused it is not in the story.
             return (Span("gained "), thing, *_for(model, at, "on")), category
+        case Kind.ROLLED:
+            # The choice it was for is on the event: what the pick that
+            # follows says its kind is, said here before there is a pick.
+            asked = f" — {e.slot.choice_label}" if e.slot is not None else ""
+            return (
+                Span(f"rolled {e.roll} on a {_dice_label(e.dice)}"),
+                *_for(model, at),
+                Span(asked),
+            ), "model"
         case Kind.TOOK_AWAY:
             return (
                 Span("took "),
@@ -773,6 +805,17 @@ def _points(figure, unspent=False):
     return f"{figure} {noun}s"
 
 
+def _dice_label(dice):
+    """The die's name as a player says it — "D66" — from what the record
+    holds. A die the library no longer names reads as it was written."""
+    from n26.library.models import Dice
+
+    try:
+        return Dice(dice).label
+    except ValueError:
+        return dice.upper()
+
+
 def _for(model, at, word="for"):
     """(" for ", {model}) with the name linked, or nothing where the
     act has no model."""
@@ -932,7 +975,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     from n26.core.models import LedgerEvent, Miniature
 
     events = LedgerEvent.objects.filter(campaign=campaign).select_related(
-        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__kind"
+        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__kind", "slot"
     )
     events = (
         events.order_by("-created", "-id")[:limit]

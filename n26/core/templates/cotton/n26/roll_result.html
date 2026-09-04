@@ -1,0 +1,38 @@
+{% comment %}
+<c-n26.roll-result> — what a roll came to, above the table it was rolled on.
+
+    <c-n26.roll-result :roll="roll" />
+
+Draws a n26.render.RollResult: the dice where the total says which faces they
+showed, the figure, the die, and where it landed — or that nothing on the table
+claims it, or that it has already been applied. The Roll again control sits
+here rather than with the table's own Roll control because this is where a
+reader deciding to roll again is looking. Plain submit button and no form of
+its own: the page owns the form.
+
+  :roll — a n26.render.RollResult.
+{% endcomment %}
+<c-vars :roll="None" class="" />
+
+<section {{ attrs }}
+         class="flex flex-wrap items-center gap-4 rounded-box border border-box-border p-4 {{ class }}"
+         aria-live="polite">
+    {% if roll.faces %}
+        <span class="flex gap-2">
+            {% for face in roll.faces %}<c-n26.die value="{{ face }}" class="size-12" />{% endfor %}
+        </span>
+    {% else %}
+        <span class="flex size-12 shrink-0 items-center justify-center rounded-[18%] border border-ink-300 bg-white text-2xl font-semibold tabular-nums text-ink-900 dark:border-ink-600 dark:bg-ink-900 dark:text-ink-100"
+              aria-hidden="true">{{ roll.total }}</span>
+    {% endif %}
+    <span class="min-w-0 flex-1">
+        <span class="block text-lg font-semibold text-ink-900 dark:text-ink-100">
+            Rolled {{ roll.total }} <span class="font-normal text-muted">on a {{ roll.dice_label }}</span>
+        </span>
+        <span class="block text-muted">
+            {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}{{ name }}{% endfor %}.{% else %}No result on this table is at {{ roll.total }}.{% endif %}
+            {% if roll.entered %}Rolled at the table and entered here.{% endif %}
+        </span>
+    </span>
+    <c-ui.button type="submit" name="act" value="roll" variant="primary" size="sm">Roll again</c-ui.button>
+</section>

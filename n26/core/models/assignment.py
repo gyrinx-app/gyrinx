@@ -282,6 +282,21 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
+    # The roll this pick came from, where a table was rolled for it: the
+    # ledger event that recorded the roll. One-to-one, so a roll is
+    # applied once — a second pick naming the same roll is refused at
+    # the database, however it was posted. Null on a pick made without
+    # rolling, and on everything that is not a pick. SET_NULL because
+    # the ledger is append-only and an event is never deleted in the
+    # ordinary run of things; the pick outliving its roll is survivable.
+    roll = models.OneToOneField(
+        "n26.LedgerEvent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pick",
+    )
+
     # Which built-in membership this materialised, and for which carrier
     # — the profile's membership, the gang's founding, the bought mount's
     # own assignment. Null on everything that was not materialised from a
