@@ -98,6 +98,24 @@ reader's other campaigns — the same pattern a gang's screens use.
                     {{ campaign.budget }}¢
                 {% endif %}
             </c-n26.detail-list.row>
+            {% comment %}
+            Settled at founding: what every gang that joins is given comes
+            from the type, and the assignments that gave it exist from the
+            first join on, so there is nothing here to click.
+            {% endcomment %}
+            <c-n26.detail-list.row label="Campaign type"
+                                   value="{{ campaign.campaign_type }}"
+                                   :editable="False" />
+            {% comment %}
+            What the arbitrator has added for this campaign alone, drawn
+            only once there is something: every campaign starts with none,
+            and a row saying so would be a row about nothing.
+            {% endcomment %}
+            {% if additions %}
+                <c-n26.detail-list.row label="Additions" :editable="False">
+                    {% for name in additions %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                </c-n26.detail-list.row>
+            {% endif %}
         </c-n26.detail-list>
         {% if campaign.summary %}
             {% comment %}
@@ -205,17 +223,6 @@ reader's other campaigns — the same pattern a gang's screens use.
                             gives that name.
                             {% endcomment %}
                             <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.wealth }}¢</span>
-                            {% if membership.may_remove %}
-                                <c-ui.button size="sm"
-                                             variant="ghost"
-                                             href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}"
-                                             aria-label="Remove {{ membership.gang.name }}"
-                                             title="Remove {{ membership.gang.name }}">
-                                    <span class="n26-icon-only">
-                                        <c-n26.icon name="x-mark" class="size-4" />
-                                    </span>
-                                </c-ui.button>
-                            {% endif %}
                         </li>
                     {% endfor %}
                 </ul>

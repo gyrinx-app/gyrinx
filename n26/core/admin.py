@@ -298,11 +298,18 @@ class CampaignAdmin(OneAtATime, admin.ModelAdmin):
     assignments, moves no money and pins no cache, so there is nothing here
     for an edit to skip."""
 
-    list_display = ["name", "owner", "budget", "archived"]
-    list_filter = ["archived"]
+    list_display = ["name", "owner", "campaign_type", "budget", "archived"]
+    list_filter = ["archived", "campaign_type"]
     search_fields = ["name", "owner__username"]
     autocomplete_fields = ["owner"]
-    list_select_related = ["owner"]
+    list_select_related = ["owner", "campaign_type"]
+    # Written once, by founding, along with the pack and the additions type
+    # the campaign never exists without. Founding is the only way to make
+    # a campaign, so there is no add form here.
+    readonly_fields = ["campaign_type", "pack", "additions"]
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(CampaignEvent)
@@ -326,6 +333,7 @@ class CampaignMembershipAdmin(ReadOnlyAdmin):
     list_filter = ["campaign"]
     search_fields = ["campaign__name", "gang__name"]
     list_select_related = ["campaign", "gang"]
+    raw_id_fields = ["type_carrier", "additions_carrier"]
 
 
 @admin.register(Battle)

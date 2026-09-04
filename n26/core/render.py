@@ -169,6 +169,10 @@ class CounterLine:
     #: kept out of every drawing of it — ``counter_lines`` is what
     #: leaves it out.
     drawn: bool = True
+    #: Where the counter came from, where something brought it — a
+    #: campaign type giving every member gang Reputation. Empty for a
+    #: counter assigned directly, which is what a model's own reads as.
+    provenance: Provenance = field(default_factory=Provenance)
 
 
 @dataclass
@@ -733,6 +737,26 @@ class StashLine:
 
 
 @dataclass
+class CampaignBlock:
+    """What the gang has because it is in a campaign, under the campaign's
+    name.
+
+    Everything here is caused by one of the membership's two carriers —
+    the campaign's shared type and its additions — and each line names
+    that carrier as its source, the way any granted line does. Possessions
+    that are not counters are ``lines``; the counters have their standing
+    values. Nothing here is the gang's own: it arrived with the campaign
+    and leaves with it, which is why the sheet keeps it apart from the
+    gang's own rows and counters.
+    """
+
+    name: str
+    campaign_id: str
+    lines: list[AssignableLine] = field(default_factory=list)
+    counters: list[CounterLine] = field(default_factory=list)
+
+
+@dataclass
 class GangSheet:
     """The whole gang, derived — never assembled by hand.
 
@@ -761,6 +785,9 @@ class GangSheet:
     choices: list[ChoiceLine] = field(default_factory=list)
     #: Counters the gang keeps, with their standing values.
     counters: list = field(default_factory=list)
+    #: What the campaign the gang is playing gave it, or None where it is
+    #: playing none. Its counters are not repeated in ``counters``.
+    campaign: CampaignBlock | None = None
     stash: list[StashLine] = field(default_factory=list)
     stash_rating: int = 0
     #: What an open Visit Trading Post action has left, or None where
@@ -1690,11 +1717,15 @@ def _provenance_within(card):
     return provenance_of
 
 
-def _gang_rows(gang_card, gang_computed):
+def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
     """The gang's own rows as lines, same skipping rules as a model card:
     a Hidden draws nothing, a chosen thing is drawn as its choice's row,
     and counters have their own readings. Rules come back as their own list,
     dispatched the way a model card keeps rules apart from kit.
+
+    ``skipping`` names nodes drawn elsewhere — what a campaign gave, which
+    the sheet draws under the campaign's name rather than among the
+    gang's own.
 
     What a rule grants the gang folds in from ``ComputedGang`` the way a
     model card folds in its contributions — a named rule with the rules,
@@ -1715,7 +1746,7 @@ def _gang_rows(gang_card, gang_computed):
     rows = []
     rules = []
     for node in gang_card.roots:
-        if node.key in chosen_keys:
+        if node.key in chosen_keys or node.key in skipping:
             continue
         if node.suppressed:
             # Taken away by a modifier — the assignment stays, the line goes.
@@ -1745,6 +1776,75 @@ def _gang_rows(gang_card, gang_computed):
                     )
                 )
     return rows, sorted(rules, key=lambda line: line.name)
+
+
+def _campaign_keys(gang_card, membership):
+    """The keys of every node on the gang's card that the campaign put
+    there: the two carriers and everything caused by either, however
+    deep — a Settlement's own built-ins are the campaign's as much as
+    the Settlement is."""
+    if membership is None:
+        return frozenset()
+    carriers = {membership.type_carrier_id, membership.additions_carrier_id}
+    carriers.discard(None)
+    nodes = {node.key: node for node in gang_card.all_nodes()}
+    keys = set(carriers)
+    for node in gang_card.roots:
+        seen = set()
+        key = node.caused_by_key
+        while key is not None and key not in seen:
+            if key in carriers:
+                keys.add(node.key)
+                break
+            seen.add(key)
+            cause = nodes.get(key)
+            key = cause.caused_by_key if cause else None
+    return frozenset(keys)
+
+
+def _campaign_block(gang_card, membership, keys, readings):
+    """What the campaign gave, credited to its carriers.
+
+    ``readings`` are every counter reading on the gang's card; the ones
+    the campaign brought are taken out of it, so the sheet draws each
+    counter once. The carriers themselves draw no line: a campaign type is
+    the source of the block, not something in it.
+    """
+    from n26.library.models import Counter
+
+    if membership is None:
+        return None
+    carriers = {membership.type_carrier_id, membership.additions_carrier_id}
+    provenance_of = _provenance_within(gang_card)
+    lines = []
+    counters = []
+    for node in gang_card.roots:
+        if node.key not in keys or node.key in carriers or node.suppressed:
+            continue
+        if isinstance(node.assignable, Counter):
+            reading = next((r for r in readings if r.thing == node.assignable), None)
+            if reading is None:
+                continue
+            counters.append(
+                CounterLine(
+                    name=reading.name,
+                    value=reading.value,
+                    assignment_id=str(node.key),
+                    drawn=node.assignable.drawn,
+                    provenance=provenance_of(node),
+                )
+            )
+            readings.remove(reading)
+            continue
+        if isinstance(node.assignable, DRAWS_NO_LINE):
+            continue
+        lines.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
+    return CampaignBlock(
+        name=membership.campaign.name,
+        campaign_id=str(membership.campaign_id),
+        lines=lines,
+        counters=[line for line in counters if line.drawn],
+    )
 
 
 def roster(gang):
@@ -1926,6 +2026,7 @@ def render_gang(gang, with_effects=True, *, card=None):
     """A whole gang sheet. A fixed number of queries, whatever its size."""
     from n26.core.card import build_gang_card, build_modifier_index
     from n26.core.effects import compute, compute_gang, counter_readings
+    from n26.core.models import CampaignMembership
 
     models = roster(gang)
     gang_card = card or build_gang_card(gang)
@@ -1958,7 +2059,20 @@ def render_gang(gang, with_effects=True, *, card=None):
         if recategorised:
             models = _mustered(models, recategorised)
 
-    gang_rows, gang_rules = _gang_rows(gang_card, gang_computed)
+    # The campaign the gang is playing, if any: one query, whatever the
+    # roster's size. What it gave is on the card already; this says which
+    # nodes those are, and what to call the block they are drawn under.
+    membership = (
+        CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+        .select_related("campaign")
+        .first()
+    )
+    campaign_keys = _campaign_keys(gang_card, membership)
+    readings = list(
+        gang_computed.counters if gang_computed else counter_readings(gang_card)
+    )
+    campaign = _campaign_block(gang_card, membership, campaign_keys, readings)
+    gang_rows, gang_rules = _gang_rows(gang_card, gang_computed, campaign_keys)
     return GangSheet(
         name=gang.name,
         gang_type=gang.gang_type.name,
@@ -1973,14 +2087,10 @@ def render_gang(gang, with_effects=True, *, card=None):
         rules=gang_rules,
         choices=choice_lines(gang_computed, host=GANG_SLOT_HOST),
         # Only the ones a reader is shown: a counter the author marked
-        # undrawn is there for conditions to check.
-        counters=[
-            reading
-            for reading in (
-                gang_computed.counters if gang_computed else counter_readings(gang_card)
-            )
-            if reading.thing.drawn
-        ],
+        # undrawn is there for conditions to check. What the campaign
+        # brought has already been taken out, to be drawn under its name.
+        counters=[reading for reading in readings if reading.thing.drawn],
+        campaign=campaign,
         stash=stash_lines(gang_card),
         stash_rating=gang_card.stash_rating,
         remarks=gang_computed.notes if gang_computed else [],

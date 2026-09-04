@@ -490,11 +490,11 @@ class TestWhoseCampaignsAreListed:
     to one campaign."""
 
     @pytest.fixture
-    def make_campaign(self, tester):
+    def make_campaign(self, tester, campaign_type):
         def make(name, owner=None):
-            from n26.core.models import Campaign
+            from n26.tests.sandbox.actions import found_campaign
 
-            return Campaign.objects.create(name=name, owner=owner or tester)
+            return found_campaign(name, campaign_type, owner=owner or tester)
 
         return make
 

@@ -260,9 +260,10 @@ class TestTheGangSheet:
         # hydration pass per relation the cards hold, the statline
         # prefetch chain and the shapes it is drawn to, whatever their
         # owners set by hand, one per assignable kind for the modifier
-        # index, the stash read that wealth includes, and what a trading
-        # post allowance has left (design/gang-sheet.md).
-        assert many <= 34, f"{many} queries is more than this should ever need"
+        # index, the stash read that wealth includes, what a trading post
+        # allowance has left, and the campaign the gang is playing
+        # (design/gang-sheet.md).
+        assert many <= 35, f"{many} queries is more than this should ever need"
 
 
 class TestTheTextRenderer:

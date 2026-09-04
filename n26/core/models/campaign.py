@@ -38,6 +38,13 @@ class Campaign(Base, Owned, Archived):
     Deliberately not ``Rated``. A campaign holds no assignments, so there is
     nothing for a rating to sum; what it is worth is not a question anybody
     asks of it.
+
+    A campaign is founded on a **campaign type** from the system pack, and
+    carries two things of its own from that moment: a **pack** the arbitrator
+    owns, and an **additions** type created empty in it. A gang that joins is
+    assigned both types, so what the shared type gives every member and what
+    the arbitrator adds for this campaign reach the gang by the same path a
+    gang type's built-ins do (design/campaign-assets.md).
     """
 
     #: Named here rather than taken from ``Owned`` because the other edition
@@ -52,6 +59,40 @@ class Campaign(Base, Owned, Archived):
         related_name="n26_campaigns",
     )
     name = models.CharField(max_length=200)
+    #: What the campaign was founded on. Shared with every other campaign of
+    #: the type and edited by staff, so a fix to it reaches running campaigns.
+    campaign_type = models.ForeignKey(
+        "library.CampaignType",
+        on_delete=models.PROTECT,
+        related_name="campaigns",
+        help_text=(
+            "The campaign type this campaign was founded on. Every gang that "
+            "joins gets this type and everything that comes with it."
+        ),
+    )
+    #: The arbitrator's own pack, created at founding. Holds the additions
+    #: type and everything the arbitrator creates for this campaign. Pack
+    #: pickers offer the system pack alone, so nothing here is ever offered
+    #: to another campaign or gang. Neither the pack nor the campaign can be
+    #: deleted while the other stands.
+    pack = models.OneToOneField(
+        "library.ContentPack",
+        on_delete=models.PROTECT,
+        related_name="campaign",
+        help_text="The pack holding what the arbitrator creates for this campaign.",
+    )
+    #: A second campaign type, created empty in the pack at founding and
+    #: assigned to every member gang beside the shared one. The arbitrator's
+    #: additions land here, never on the shared type.
+    additions = models.OneToOneField(
+        "library.CampaignType",
+        on_delete=models.PROTECT,
+        related_name="additions_to",
+        help_text=(
+            "This campaign's own campaign type, holding what the arbitrator "
+            "adds on top of the type the campaign was founded on."
+        ),
+    )
     budget = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -178,8 +219,14 @@ class CampaignMembership(Base):
     joins another still says what it did and when.
 
     ``created`` is when the gang joined; ``left`` is when it stopped, and is
-    unset while it is still playing. A campaign never writes to a gang, so
-    this row is the whole of what being in one means.
+    unset while it is still playing.
+
+    Joining assigns the campaign's two types to the gang, and the two
+    **carriers** point at those assignments the way ``Gang.founding`` points
+    at the founding one. Everything the gang has because it is in this
+    campaign — its Settlement, its Reputation counter — is caused by one of
+    them, so the card can say where each came from and leaving can take them
+    all away at once.
     """
 
     campaign = models.ForeignKey(
@@ -195,6 +242,33 @@ class CampaignMembership(Base):
     #: When the gang stopped playing. Unset while it still is, which is what
     #: the one-at-a-time constraint counts.
     left = models.DateTimeField(null=True, blank=True)
+    #: The gang-hosted assignment naming the campaign's shared type, written
+    #: on joining. What the type gives every member gang is caused by it.
+    type_carrier = models.OneToOneField(
+        "n26.Assignment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="type_carrier_of",
+        help_text=(
+            "The gang's assignment of the campaign's type. The type's "
+            "built-ins on this gang are caused by it."
+        ),
+    )
+    #: The gang-hosted assignment naming the campaign's additions type,
+    #: written on joining beside the other. What the arbitrator adds is
+    #: caused by it.
+    additions_carrier = models.OneToOneField(
+        "n26.Assignment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="additions_carrier_of",
+        help_text=(
+            "The gang's assignment of the campaign's additions type. What "
+            "the arbitrator adds to this campaign is caused by it."
+        ),
+    )
 
     class Meta:
         verbose_name = "campaign membership"

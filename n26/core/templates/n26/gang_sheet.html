@@ -79,7 +79,7 @@ that said it twice would be spending the width the name needs.
         choices and no counters would pay a line of space for an element with
         nothing in it. The component draws the slot only if it is filled.
         {% endcomment %}
-        {% if sheet.rules or sheet.choices or sheet.counters %}
+        {% if sheet.rules or sheet.choices or sheet.counters or sheet.campaign %}
             <c-slot name="details">
                 <c-n26.detail-list>
                     {% comment %}
@@ -99,6 +99,34 @@ that said it twice would be spending the width the name needs.
                                                value="{{ counter.value }}"
                                                :editable="False" />
                     {% endfor %}
+                    {% comment %}
+                    What the campaign gave, under the campaign's name: one
+                    row, because "what does this gang have from Dust
+                    Falls" is one question. Each thing is credited to the
+                    campaign type that brought it the way a granted line
+                    is — a dotted underline whose tooltip names the source
+                    — since none of it is the gang's own and all of it
+                    leaves with the campaign.
+                    {% endcomment %}
+                    {% if sheet.campaign %}
+                        <c-n26.detail-list.row label="{{ sheet.campaign.name }}" :editable="False">
+                            {% spaceless %}
+                                {% for line in sheet.campaign.lines %}
+                                    <c-ui.tooltip size="sm">
+                                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> (from {{ line.provenance.source }})</span></span>{% if not forloop.last or sheet.campaign.counters %}<span>,&nbsp;</span>{% endif %}
+                                        <c-slot name="content">From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}</c-slot>
+                                    </c-ui.tooltip>
+                                {% endfor %}
+                                {% for counter in sheet.campaign.counters %}
+                                    <c-ui.tooltip size="sm">
+                                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ counter.name }} <span class="tabular-nums">{{ counter.value }}</span><span class="sr-only"> (from {{ counter.provenance.source }})</span></span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                        <c-slot name="content">From {{ counter.provenance.source }}{% if counter.provenance.source_kind %} ({{ counter.provenance.source_kind }}){% endif %}</c-slot>
+                                    </c-ui.tooltip>
+                                {% endfor %}
+                                {% if not sheet.campaign.lines and not sheet.campaign.counters %}—{% endif %}
+                            {% endspaceless %}
+                        </c-n26.detail-list.row>
+                    {% endif %}
                 </c-n26.detail-list>
             </c-slot>
         {% endif %}

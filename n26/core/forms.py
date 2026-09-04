@@ -9,7 +9,7 @@ gang types are the library's own.
 from django import forms
 
 from n26.core.widgets import RichText
-from n26.library.models import GangType
+from n26.library.models import CampaignType, GangType
 
 
 class CreateGangForm(forms.Form):
@@ -359,6 +359,54 @@ class CampaignForm(forms.Form):
         widget=RichText(),
         help_text="What this campaign is, and anything the players have agreed.",
     )
+
+
+class FoundCampaignForm(CampaignForm):
+    """Setting a campaign up: the standing facts, and what it is founded on.
+
+    The type is asked once. It fixes what every gang that joins is given,
+    and those assignments exist from the first join on — so the edit form
+    is the plain ``CampaignForm``, and the type is not on it.
+    """
+
+    # Only the types anybody may found on: the system pack's, unarchived.
+    # A campaign's own additions type lives in a pack the arbitrator owns
+    # and is never offered here, or anywhere else.
+    campaign_type = forms.ModelChoiceField(
+        queryset=CampaignType.objects.selectable().exclude(name__regex=r"^\s*$"),
+        label="Campaign type",
+        help_text=(
+            "What the campaign runs on. Every gang that joins gets what the "
+            "type includes."
+        ),
+        error_messages={
+            "invalid_choice": (
+                "That is not a campaign type you can found on. Select one of "
+                "the types shown."
+            ),
+            "required": "Select a campaign type.",
+        },
+    )
+
+    def campaign_type_choices(self):
+        """The cards the view draws for ``campaign_type``, one per type.
+
+        The same types the field validates against, said once, in the
+        shape ``CreateGangForm.gang_type_choices`` uses: ``checked`` is
+        worked out here so a redisplay after a failed submit keeps the
+        reader's pick. The line under the name is the type's own help,
+        which is the one thing the library says about a type to a reader.
+        """
+        submitted = str(self["campaign_type"].value() or "")
+        return [
+            {
+                "value": str(row.pk),
+                "label": str(row),
+                "description": row.library_author_help,
+                "checked": str(row.pk) == submitted,
+            }
+            for row in self.fields["campaign_type"].queryset
+        ]
 
 
 class BringGangForm(forms.Form):
