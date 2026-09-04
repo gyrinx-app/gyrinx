@@ -1,14 +1,19 @@
-"""What the quick switcher must put in the HTML, whatever else it draws.
+"""Quick-switcher HTML wiring and executable scroll/placement checks.
 
-No database: a component is a template and a set of props, and everything
-claimed here is decided before a request exists. The assertions are substrings
-that can only be there if the behaviour worked — a destination that is a real
-link, a current row that says so without relying on the tick, and a chevron
-that has a name of its own when there is nothing beside it to borrow one from.
+No database is needed: render the real Cotton component, check its public
+markup, and execute its Alpine methods with controlled touch and viewport
+inputs. Native browser scrolling still needs a browser check.
 """
 
+import html
+import json
 import re
+import shutil
 
+# Runs repository-owned JavaScript with Node, without a shell.
+import subprocess  # nosec B404
+
+import pytest
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -216,22 +221,38 @@ class TestStayingOnTheScreen:
         assert "window.removeEventListener('scroll', kit, true)" in html
         assert "window.removeEventListener('resize', kit)" in html
 
-    def test_the_panel_is_not_a_second_scroll_box(self):
-        """The list of rows is the scroller. A second overflow-y-auto on
-        the dropdown around it hands a touch gesture to the page."""
-        # The noscript strip also hides overflow as a box; the kit panel
-        # is the half that must not be a second scroll container.
-        panel = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>").split(
-            "<noscript>"
-        )[0]
-        assert "max-h-[calc(100vh-4rem)]" in panel
-        assert "overflow-hidden" in panel
-        assert "overflow-y-auto overflow-x-hidden" not in panel
-        assert "overscroll-contain" in panel
-
-    def test_reaching_the_end_of_the_list_does_not_scroll_the_page(self):
+    def test_the_dropdown_is_the_only_scroll_container(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
-        assert "max-h-72 overflow-y-auto overscroll-contain" in html
+        menu = html.split("<noscript>")[0]
+        assert "overflow-y-auto overflow-x-hidden" in menu
+        assert "max-h-72" not in menu
+        assert "sticky top-0" in menu
+        assert "scrollPaddingTop" in menu
+        assert 'x-ref="filterHeader"' in menu
+
+    def test_touch_boundaries_are_contained_without_disabling_native_scrolling(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert '@touchstart.passive="startTouch($event)"' in html
+        assert '@touchmove="containTouch($event)"' in html
+        assert '@touchcancel="touchY = null; touchX = null"' in html
+        assert "event.touches.length !== 1" in html
+        assert "event.preventDefault()" in html
+        assert "overscroll-contain" in html
+
+    def test_the_menu_fits_the_visible_viewport_when_the_keyboard_opens(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert "viewport.height" in html
+        assert "viewport.offsetTop" in html
+        assert "panel.style.maxHeight" in html
+        for event in ("resize", "scroll"):
+            assert (
+                f"window.visualViewport?.addEventListener('{event}', this.refit)"
+                in html
+            )
+            assert (
+                f"window.visualViewport?.removeEventListener('{event}', this.refit)"
+                in html
+            )
 
     def test_the_scriptless_strip_gives_up_its_width_rather_than_overflow(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
@@ -303,7 +324,7 @@ class TestMovingThroughItFromTheKeyboard:
         highlight moved to is often below the fold of it."""
         html = panel()
         assert "rows[to].el.scrollIntoView({ block: 'nearest' });" in html
-        assert "max-h-72 overflow-y-auto" in html
+        assert "overflow-y-auto overflow-x-hidden" in html
 
     def test_enter_presses_the_highlighted_row_s_own_link(self):
         """The same path the pointer takes: the panel's click handler closes
@@ -466,3 +487,96 @@ class TestTheDirectivesCompile:
                     "it, so the rest of the expression is commented out:\n"
                     f"{expr}"
                 )
+
+
+@pytest.mark.skipif(
+    not shutil.which("node"), reason="Node.js runs the component behaviour checks"
+)
+def test_scroll_boundaries_and_visible_viewport():
+    """Execute the rendered Alpine methods; CSS substring checks cannot
+    establish which gestures are cancelled or whether a menu fits."""
+    data = next(
+        html.unescape(match)
+        for match in re.findall(r'x-data="([^"]*)"', panel(), re.DOTALL)
+        if "containTouch(event)" in match
+    )
+    checks = r"""
+const assert = require('node:assert/strict');
+const scope = eval('(' + SOURCE + ')');
+const panel = {
+    style: {}, scrollTop: 0, clientHeight: 200, scrollHeight: 600,
+    get offsetWidth() { return Math.min(256, parseFloat(this.style.maxWidth) || 256) },
+    get offsetHeight() { return Math.min(this.scrollHeight, parseFloat(this.style.maxHeight) || 600) },
+    closest() { return {getBoundingClientRect: () => anchor} },
+};
+let anchor = {left: 100, right: 180, top: 200, bottom: 230};
+scope.$el = {parentElement: panel};
+scope.$refs = {filterHeader: {offsetHeight: 52}};
+global.document = {documentElement: {clientWidth: 390, clientHeight: 844}};
+global.getComputedStyle = () => ({fontSize: '16px'});
+global.window = {visualViewport: {offsetLeft: 0, offsetTop: 0, width: 390, height: 844}};
+
+function gesture(scrollTop, deltaY, deltaX = 0, fingers = 1) {
+    panel.scrollTop = scrollTop;
+    scope.startTouch({touches: [{clientX: 100, clientY: 100}]});
+    let cancelled = false;
+    scope.containTouch({
+        touches: Array.from({length: fingers}, () => ({clientX: 100 + deltaX, clientY: 100 + deltaY})),
+        preventDefault() { cancelled = true },
+    });
+    return cancelled;
+}
+assert.equal(gesture(0, 20), true, 'dragging past the top must not scroll the page');
+assert.equal(gesture(400, -20), true, 'dragging past the bottom must not scroll the page');
+assert.equal(gesture(0, -20), false, 'scroll down natively from the top');
+assert.equal(gesture(400, 20), false, 'scroll up natively from the bottom');
+assert.equal(gesture(200, -20), false, 'keep native scrolling and momentum within the menu');
+assert.equal(gesture(200, 20), false);
+assert.equal(gesture(0, 20, 40), false, 'leave horizontal gestures alone');
+assert.equal(gesture(0, 20, 0, 2), false, 'leave pinch zoom alone');
+assert.equal(gesture(0, 0), false, 'a tap is not a scroll');
+panel.scrollHeight = panel.clientHeight;
+assert.equal(gesture(0, 20), true, 'short and empty menus contain both directions');
+assert.equal(gesture(0, -20), true);
+panel.scrollHeight = 600;
+
+function fits() {
+    scope.fit();
+    const viewport = window.visualViewport || {offsetTop: 0, height: 844};
+    const top = parseFloat(panel.style.top);
+    assert.ok(top >= viewport.offsetTop + 8, 'menu starts inside the visible viewport');
+    assert.ok(top + panel.offsetHeight <= viewport.offsetTop + viewport.height - 8,
+        'menu ends inside the visible viewport');
+    assert.ok(panel.offsetHeight > 52, 'search and destinations remain reachable');
+    const left = parseFloat(panel.style.left);
+    const visible = window.visualViewport || {offsetLeft: 0, width: 390};
+    assert.ok(left >= visible.offsetLeft + 8);
+    assert.ok(left + panel.offsetWidth <= visible.offsetLeft + visible.width - 8);
+    assert.equal(panel.style.minWidth, 'min(var(--dd-min), ' + (visible.width - 16) + 'px)');
+}
+fits();
+assert.equal(panel.style.top, '234px');
+assert.equal(panel.style.scrollPaddingTop, '52px');
+anchor = {left: 100, right: 180, top: 720, bottom: 750};
+fits();
+assert.ok(parseFloat(panel.style.top) < anchor.top, 'flip above a low trigger');
+window.visualViewport = {offsetLeft: 0, offsetTop: 120, width: 390, height: 300};
+anchor = {left: 100, right: 180, top: 220, bottom: 250};
+fits();
+assert.ok(panel.offsetHeight < 200, 'the keyboard must shrink the scrollport');
+window.visualViewport = {offsetLeft: 50, offsetTop: 120, width: 195, height: 300};
+fits();
+window.visualViewport = null;
+fits();
+"""
+    result = subprocess.run(
+        [
+            shutil.which("node"),
+            "-e",
+            "const SOURCE = " + json.dumps(data) + ";\n" + checks,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
