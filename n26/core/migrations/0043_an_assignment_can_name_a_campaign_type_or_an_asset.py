@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0078_campaign_type_asset_kind_and_asset"),
+        ("library", "0080_campaign_type_asset_kind_and_asset"),
         ("n26", "0042_a_gang_opens_and_closes_actions"),
     ]
 

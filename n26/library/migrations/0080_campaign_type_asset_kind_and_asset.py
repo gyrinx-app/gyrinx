@@ -11,7 +11,7 @@ import n26.library.models.pack
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0077_champions_pick_their_own_archetype"),
+        ("library", "0079_the_gangs_archetype_is_drawn_on_the_models_it_governs"),
     ]
 
     operations = [
