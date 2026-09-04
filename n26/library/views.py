@@ -29,7 +29,12 @@ from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 
-from n26.library.forms import generate_form, statline_form_for, suggestion_form_for
+from n26.library.forms import (
+    cross_pack_refusal,
+    generate_form,
+    statline_form_for,
+    suggestion_form_for,
+)
 from n26.library.models.assignable import Family
 from n26.library.references import carrying_models as _assignable_models
 from n26.library.references import forward_relations as _forward_relations
@@ -53,6 +58,7 @@ LEAF_KINDS = {
     "power": "create_power",
     "counter": "create_counter",
     "hidden": "create_hidden",
+    "asset": "create_asset",
     "slot-type": "create_slot_type",
     "pickable": "create_pickable",
     "picklist": "create_picklist",
@@ -66,6 +72,7 @@ LEAF_KINDS = {
     "category": "create_category",
     "affiliation": "create_affiliation",
     "gang-type": "create_gang_type",
+    "campaign-type": "create_campaign_type",
     "profile": "create_profile",
     "collection": "create_collection",
 }
@@ -153,6 +160,23 @@ def _describe_built_in(member):
     if member.weapon_profile_id is not None and member.gun_member_id is None:
         notes.append("rides whatever matching gun is already held")
     return _label_for(thing), notes
+
+
+def _describe_asset_kind(kind):
+    """One class of asset a campaign type deals in: what several are
+    called, how the kind behaves, and how many assets are of it — the
+    count being what an author has to clear before the kind can go.
+
+    Reads the assets with ``.all()``, so a page that prefetched them
+    describes every kind of a type without a query per row.
+    """
+    count = len(kind.assets.all())
+    notes = [kind.plural, kind.get_mode_display().lower()]
+    if count == 0:
+        notes.append("no assets yet")
+    else:
+        notes.append(f"{count} asset" if count == 1 else f"{count} assets")
+    return kind.label_singular, notes
 
 
 def _describe_picklist_member(member):
@@ -335,6 +359,31 @@ DETAIL_KINDS = {
         "statline": False,
         "describe": _describe_statline_stat,
         "parts_hint": lambda parts: parts.select_related("stat"),
+    },
+    "campaign-type": {
+        "verb": "add_asset_kind",
+        "parts": "asset_kinds",
+        "statline": False,
+        "describe": _describe_asset_kind,
+        "parts_hint": lambda parts: parts.prefetch_related("assets"),
+        "parts_label": "asset kinds",
+        "part_name": "asset kind",
+        "parts_description": (
+            "The classes of asset a campaign of this type deals in — "
+            "Territory, Racket, Settlement. Each has a label a campaign page "
+            "prints, and a mode every asset of the kind follows."
+        ),
+        "nothing_yet": (
+            "No asset kinds yet. A campaign of this type has nothing to hand "
+            "out until it has one."
+        ),
+        # An asset kind has no page of its own: its four fields are
+        # edited in place, on the row that lists it.
+        "editable": True,
+        # Taking a kind off is refused while any asset is of it, and the
+        # refusal needs a page: a row's control cannot say what stands
+        # in the way.
+        "removes": "authoring-asset-kind-remove",
     },
     "picklist": {
         "verb": "add_picklist_member",
@@ -893,6 +942,34 @@ def _describe_gang_type(gang_type):
     return notes
 
 
+def _describe_campaign_type(campaign_type):
+    """A campaign type, as a listing needs to tell one from the next:
+    the kinds of asset it deals in and how many assets it offers.
+
+    Reads both sets with ``.all()``, so a listing that prefetched them
+    describes every type without a query per row.
+    """
+    kinds = [kind.plural for kind in campaign_type.asset_kinds.all()]
+    count = len(campaign_type.assets.all())
+    notes = [", ".join(kinds) if kinds else "no asset kinds yet"]
+    if count == 0:
+        notes.append("offers no assets yet")
+    else:
+        notes.append(
+            f"offers {count} asset" if count == 1 else f"offers {count} assets"
+        )
+    return notes
+
+
+def _describe_asset(asset):
+    """An asset: which kind of which campaign type it is, and the income
+    figure its card prints."""
+    notes = [f"{asset.kind} ({asset.kind.campaign_type})"]
+    if asset.income:
+        notes.append(f"income {asset.income}cr")
+    return notes
+
+
 def _describe_slot_type(slot_type):
     """How much has been built in this slot type, and whether one
     holder may pick the same pickable twice."""
@@ -978,6 +1055,8 @@ LEAF_DESCRIBE = {
     "skill": _describe_skill,
     "profile": _describe_profile,
     "gang-type": _describe_gang_type,
+    "campaign-type": _describe_campaign_type,
+    "asset": _describe_asset,
     "slot-type": _describe_slot_type,
     "pickable": _describe_pickable,
     "picklist": _describe_picklist,
@@ -1020,6 +1099,10 @@ LEAF_LISTING_HINTS = {
         "members"
     ),
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
+    # A campaign type says its kinds and counts its catalogue; an asset
+    # says which kind of which type it is.
+    "campaign-type": lambda rows: rows.prefetch_related("asset_kinds", "assets"),
+    "asset": lambda rows: rows.select_related("kind__campaign_type"),
 }
 
 
@@ -1325,7 +1408,11 @@ def attach_modifier(request, kind):
     plural = model._meta.verbose_name_plural
 
     asked = request.POST if request.method == "POST" else request.GET
-    things = list(_selected(_rows(model, kind), asked.getlist("pk")))
+    # The pack rides along: attaching checks each row's against the
+    # modifier's, and reading it per row would be a query per selection.
+    things = list(
+        _selected(_rows(model, kind).select_related("pack"), asked.getlist("pk"))
+    )
     if not things:
         messages.error(request, f"Select at least one {singular} first.")
         return redirect("authoring-leaf", kind=kind)
@@ -1334,7 +1421,22 @@ def attach_modifier(request, kind):
         return redirect("authoring-leaf", kind=kind)
 
     if request.method == "POST":
-        modifier = get_object_or_404(Modifier, pk=request.POST.get("modifier", ""))
+        modifier = get_object_or_404(
+            Modifier.objects.select_related("pack"), pk=request.POST.get("modifier", "")
+        )
+        # Every selected row is a carrier the modifier would be referenced
+        # from, so the first that may not reference it refuses the whole
+        # act: attaching to some of a selection is not what was asked.
+        refusals = [
+            refusal
+            for refusal in (
+                cross_pack_refusal(thing.pack, modifier) for thing in things
+            )
+            if refusal is not None
+        ]
+        if refusals:
+            messages.error(request, refusals[0])
+            return redirect("authoring-leaf", kind=kind)
         had = set(
             model.objects.filter(
                 pk__in=[thing.pk for thing in things], modifiers=modifier
@@ -1637,6 +1739,8 @@ DETAIL_PARENTS = {
     # the breadcrumb is where a reader learns it.
     "pickable": ("slot-type", "slot_type"),
     "slot": ("slot-type", "slot_type"),
+    # An asset is filed under the campaign type whose kind it is one of.
+    "asset": ("campaign-type", "campaign_type"),
 }
 
 
@@ -1744,10 +1848,19 @@ def detail(request, kind, pk):
         request.method == "POST"
         and act
         and with_modifiers
-        and act != "edit"
+        and act not in ("edit", "edit-part")
         and posted_to is None
     ):
         response, composer = _modifier_action(request, kind, thing, act)
+        if response is not None:
+            return response
+
+    # A part edited in place posts its own form back here, naming the
+    # part. Saved, the page is redrawn fresh; refused, the bound form
+    # takes that part's place in the listing with its errors on it.
+    edited = None
+    if request.method == "POST" and act == "edit-part":
+        response, edited = _edit_part(request, kind, thing, sections)
         if response is not None:
             return response
 
@@ -1836,6 +1949,7 @@ def detail(request, kind, pk):
                 (
                     part,
                     {
+                        "pk": part.pk,
                         "label": label,
                         "notes": notes,
                         # Blank for a kind whose parts have no page of their
@@ -1846,6 +1960,9 @@ def detail(request, kind, pk):
                         "remove_url": reverse(removes, args=[part.pk])
                         if removes
                         else "",
+                        # A part edited in place carries its own form; the
+                        # one just refused keeps the form it was refused on.
+                        "edit_form": _part_edit_form(section, part_spec, part, edited),
                     },
                 )
             )
@@ -1859,6 +1976,7 @@ def detail(request, kind, pk):
         drawn.append(
             {
                 "act": section.get("act", ""),
+                "editable": bool(section.get("editable")),
                 "part_verbose_name": part_name,
                 # "Add an option", "Add a firing line". Worked out rather
                 # than written beside each name, so a kind renamed on its
@@ -1930,6 +2048,58 @@ def detail(request, kind, pk):
     )
 
 
+def _part_edit_form(section, part_spec, part, edited):
+    """The form a part edited in place is drawn with: the one just
+    refused, where this is the part it was refused on, else a fresh one
+    opened on the part. Nothing for a section whose parts are not edited
+    here."""
+    if not section.get("editable"):
+        return None
+    if edited is not None and edited[0] == str(part.pk):
+        return edited[1]
+    return generate_form(part_spec).opened_on(part, prefix=f"part-{part.pk}")
+
+
+def _edit_part(request, kind, thing, sections):
+    """Write one in-place edit of a part back onto it.
+
+    Returns ``(response, refused)``: a redirect when the edit landed, or
+    ``(None, (pk, bound_form))`` when it was refused and the page should
+    redraw with that form's errors in place. A post naming a part this
+    thing does not have, or a section whose parts are not edited here,
+    is a mistyped address rather than an author's mistake.
+    """
+    section = next((one for one in sections if one.get("editable")), None)
+    if section is None:
+        raise Http404("Nothing on this page is edited in place")
+    part_spec = specs()[section["verb"]]
+    part = get_object_or_404(
+        getattr(thing, section["parts"]).all(), pk=request.POST.get("part", "")
+    )
+    form = generate_form(part_spec).opened_on(
+        part, request.POST, request.FILES, prefix=f"part-{part.pk}"
+    )
+    if form.is_valid():
+        try:
+            with transaction.atomic():
+                form.apply_to(part)
+        except ValidationError as refused:
+            form.add_error(None, refused)
+        except IntegrityError:
+            named = part_spec.identity
+            form.add_error(
+                named,
+                f"{thing} already has {_article_for(part_spec.creates._meta.verbose_name)} "
+                f"{part_spec.creates._meta.verbose_name} called "
+                f"“{form.cleaned_data[named]}”.",
+            )
+        else:
+            said, _ = section["describe"](part)
+            messages.success(request, f"Saved {said}.")
+            return redirect("authoring-detail", kind=kind, pk=thing.pk), None
+    return None, (str(part.pk), form)
+
+
 def _modifier_action(request, kind, thing, act):
     """One modifier action against a carrier: compose, attach, detach.
 
@@ -1961,10 +2131,18 @@ def _modifier_action(request, kind, thing, act):
             return redirect("authoring-detail", kind=kind, pk=thing.pk), None
         return None, composer
 
-    modifier = get_object_or_404(Modifier, pk=request.POST.get("modifier", ""))
+    modifier = get_object_or_404(
+        Modifier.objects.select_related("pack"), pk=request.POST.get("modifier", "")
+    )
     if act == "attach":
-        authoring.attach_modifiers_to(thing, [modifier])
-        messages.success(request, f"Attached {modifier.name}.")
+        # Attaching is a reference from the carrier to the modifier, and
+        # the same rule the forms hold for a picked row holds for it.
+        refusal = cross_pack_refusal(thing.pack, modifier)
+        if refusal is not None:
+            messages.error(request, refusal)
+        else:
+            authoring.attach_modifiers_to(thing, [modifier])
+            messages.success(request, f"Attached {modifier.name}.")
     elif act == "detach":
         authoring.detach_modifier(thing, modifier)
         messages.success(request, f"Detached {modifier.name} — it still exists.")
@@ -3464,6 +3642,56 @@ def picklist_member_remove(request, pk):
             "thing": member,
             "label": member.label,
             "picklist": picklist,
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
+def asset_kind_remove(request, pk):
+    """The question asked before an asset kind is taken off its campaign
+    type.
+
+    Refused in words while any asset is of the kind — each would be left
+    of no kind at all — so the page says up front how many stand in the
+    way, and the act itself says so again if they are still there.
+    """
+    from n26.library import authoring
+    from n26.library.models import AssetKind
+
+    kind = get_object_or_404(
+        AssetKind.objects.select_related("campaign_type").prefetch_related("assets"),
+        pk=pk,
+    )
+    campaign_type = kind.campaign_type
+    back = reverse("authoring-detail", args=["campaign-type", campaign_type.pk])
+    held = list(kind.assets.all())
+
+    if request.method == "POST":
+        said = kind.plural
+        try:
+            with transaction.atomic():
+                authoring.remove_asset_kind(kind)
+        except ValidationError as refused:
+            messages.error(request, " ".join(refused.messages))
+            return redirect(request.path)
+        messages.success(request, f"{campaign_type} no longer deals in {said}.")
+        return redirect(back)
+
+    return render(
+        request,
+        "authoring/asset_kind_remove.html",
+        {
+            "thing": kind,
+            "label": kind.label_singular,
+            "campaign_type": campaign_type,
+            "assets": [
+                {
+                    "label": _label_for(asset),
+                    "url": reverse("authoring-detail", args=["asset", asset.pk]),
+                }
+                for asset in held
+            ],
             "back": back,
         },
     )

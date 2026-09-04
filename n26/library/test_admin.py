@@ -161,3 +161,30 @@ def test_a_lists_pickables_are_edited_on_the_list(admin_client, default_pack):
     ).content.decode()
 
     assert "Cawdor" in html
+
+
+def test_campaign_type_admin_pages_render(admin_client, default_pack):
+    from n26.library.authoring import add_asset_kind, create_campaign_type
+
+    campaign_type = create_campaign_type("Dominion")
+    add_asset_kind(campaign_type, "Territory", "pooled")
+    assert admin_client.get("/admin/library/campaigntype/").status_code == 200
+    assert admin_client.get("/admin/library/campaigntype/add/").status_code == 200
+    assert (
+        admin_client.get(
+            f"/admin/library/campaigntype/{campaign_type.pk}/change/"
+        ).status_code
+        == 200
+    )
+
+
+def test_asset_admin_pages_render(admin_client, default_pack):
+    from n26.library.authoring import add_asset_kind, create_asset, create_campaign_type
+
+    kind = add_asset_kind(create_campaign_type("Dominion"), "Territory", "pooled")
+    asset = create_asset("Old Ruins", kind, income=10)
+    assert admin_client.get("/admin/library/asset/").status_code == 200
+    assert admin_client.get("/admin/library/asset/add/").status_code == 200
+    assert (
+        admin_client.get(f"/admin/library/asset/{asset.pk}/change/").status_code == 200
+    )

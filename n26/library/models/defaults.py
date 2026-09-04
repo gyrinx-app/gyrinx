@@ -57,7 +57,9 @@ from n26.library.models.base import Content
 #: deliberately absent: without its slot it shows nothing and does
 #: nothing, so building one in could only be a mistake. To arrive with
 #: the choice already made, name the slot and give it a starting pick
-#: (``default_pickable``).
+#: (``default_pickable``). An **asset** is here because an asset of a
+#: held-one-each kind — a Settlement — arrives built into its campaign
+#: type, on every gang that joins.
 DEFAULT_ASSIGNABLE_FIELDS = (
     "weapon",
     "weapon_profile",
@@ -69,6 +71,7 @@ DEFAULT_ASSIGNABLE_FIELDS = (
     "collection",
     "counter",
     "slot",
+    "asset",
 )
 
 
@@ -200,6 +203,13 @@ class DefaultAssignment(NamesAnAssignable, Content):
     )
     slot = models.ForeignKey(
         "library.Slot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    asset = models.ForeignKey(
+        "library.Asset",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

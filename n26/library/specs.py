@@ -246,6 +246,11 @@ class Spec:
     #: draws a Deprecated pill on the card. Never removed while content
     #: uses the verb.
     deprecated: bool = False
+    #: Whether the verb writes its row into the pack of the carrier it is
+    #: handed, rather than the default pack. A part that is part of its
+    #: carrier — an asset kind of a campaign type — says so, and the form
+    #: checking what the row may reference judges by that pack.
+    joins_carrier_pack: bool = False
 
     @property
     def name(self):
@@ -323,6 +328,9 @@ def _build_registry():
     from n26.library.models import (
         Affiliation,
         AllowsAtMost,
+        Asset,
+        AssetKind,
+        CampaignType,
         Category,
         ChangesCategory,
         ChangesStat,
@@ -1098,6 +1106,48 @@ def _build_registry():
                 "qualifier": Text(source=(GangType, "qualifier")),
                 "library_author_help": Text(
                     source=(GangType, "library_author_help"), long=True
+                ),
+            },
+        ),
+        # The campaign surface: the type a campaign is founded on, the
+        # kinds of asset it deals in, and the assets themselves.
+        Spec(
+            authoring.create_campaign_type,
+            {
+                "name": Text(source=(CampaignType, "name")),
+                "assets": Many(
+                    model=Asset,
+                    source=(CampaignType, "assets"),
+                    replaced_by=authoring.set_assets,
+                ),
+                "qualifier": Text(source=(CampaignType, "qualifier")),
+                "library_author_help": Text(
+                    source=(CampaignType, "library_author_help"), long=True
+                ),
+            },
+        ),
+        Spec(
+            authoring.add_asset_kind,
+            {
+                "label_singular": Text(source=(AssetKind, "label_singular")),
+                "label_plural": Text(source=(AssetKind, "label_plural")),
+                "mode": Choice(source=(AssetKind, "mode")),
+                "position": Int(source=(AssetKind, "position")),
+            },
+            model=AssetKind,
+            identity="label_singular",
+            joins_carrier_pack=True,
+        ),
+        Spec(
+            authoring.create_asset,
+            {
+                "name": Text(source=(Asset, "name")),
+                "annotation": Text(source=(Asset, "annotation")),
+                "kind": One(model=AssetKind, source=(Asset, "kind")),
+                "income": Int(source=(Asset, "income")),
+                "qualifier": Text(source=(Asset, "qualifier")),
+                "library_author_help": Text(
+                    source=(Asset, "library_author_help"), long=True
                 ),
             },
         ),

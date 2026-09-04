@@ -3,6 +3,9 @@ from django.contrib import admin
 
 from n26.library import artwork
 from n26.library.models import (
+    Asset,
+    AssetKind,
+    CampaignType,
     ContentPack,
     GangType,
     Pickable,
@@ -63,6 +66,32 @@ class GangTypeAdmin(admin.ModelAdmin):
     list_filter = ["pack", "archived"]
     search_fields = ["name"]
     list_select_related = ["pack"]
+
+
+class AssetKindInline(admin.TabularInline):
+    model = AssetKind
+    extra = 1
+    fields = ["label_singular", "label_plural", "mode", "position"]
+    ordering = ["position"]
+
+
+@admin.register(CampaignType)
+class CampaignTypeAdmin(admin.ModelAdmin):
+    list_display = ["name", "pack", "archived"]
+    list_filter = ["pack", "archived"]
+    search_fields = ["name"]
+    inlines = [AssetKindInline]
+    # A plain multi-select here would draw every asset in the library.
+    autocomplete_fields = ["assets"]
+    list_select_related = ["pack"]
+
+
+@admin.register(Asset)
+class AssetAdmin(admin.ModelAdmin):
+    list_display = ["name", "kind", "income", "pack", "archived"]
+    list_filter = ["pack", "kind__campaign_type", "kind__mode", "archived"]
+    search_fields = ["name", "qualifier"]
+    list_select_related = ["pack", "kind", "kind__campaign_type"]
 
 
 @admin.register(Stat)

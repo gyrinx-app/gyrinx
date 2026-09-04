@@ -53,6 +53,8 @@ ASSIGNABLE_FIELDS = {
     "affiliation": "library.Affiliation",
     "hidden": "library.Hidden",
     "gang_type": "library.GangType",
+    "campaign_type": "library.CampaignType",
+    "asset": "library.Asset",
     "counter": "library.Counter",
     "slot": "library.Slot",
     "pickable": "library.Pickable",
@@ -156,6 +158,20 @@ class Assignment(NamesAnAssignable, Base, Archived):
     )
     gang_type = models.ForeignKey(
         "library.GangType",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+    campaign_type = models.ForeignKey(
+        "library.CampaignType",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+    asset = models.ForeignKey(
+        "library.Asset",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

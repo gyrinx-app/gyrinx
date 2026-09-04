@@ -1445,7 +1445,7 @@ class TestTheQueryCountStaysFlat:
         discovery like any other. And one query per condition kind a
         model scope can carry, read whether or not the row has any.
         """
-        with django_assert_num_queries(62):
+        with django_assert_num_queries(66):
             prose_for(much_used)
 
 

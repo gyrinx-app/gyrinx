@@ -273,6 +273,13 @@ urlpatterns = [
         authoring_views.picklist_member_remove,
         name="authoring-picklist-member-remove",
     ),
+    # An asset kind belongs to its campaign type and is edited on that
+    # type's page; taking it off is the one act that needs an address.
+    path(
+        "authoring/asset-kinds/<str:pk>/remove/",
+        authoring_views.asset_kind_remove,
+        name="authoring-asset-kind-remove",
+    ),
     # A literal address, so it matches ahead of the kind catch-all: a
     # roll table's gaps and overlaps are facts about the whole list, and
     # the picklist's own page shows only one row at a time.

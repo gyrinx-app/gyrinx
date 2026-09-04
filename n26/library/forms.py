@@ -354,6 +354,62 @@ def _initial_from(spec, row):
     return initial
 
 
+def cross_pack_refusal(writing_into, referenced):
+    """Why a row in ``writing_into`` may not point at ``referenced``, in
+    words — or nothing, where it may.
+
+    System content is what every pack builds on, so it can point only at
+    system content: a system row naming something in a pack a person owns
+    would carry that person's content into every gang that holds the
+    row, and would stop resolving for them the day the pack was deleted.
+    Owned content may point at anything it can see. One statement of the
+    rule, read by every form and page that writes a reference; the models
+    do not check it (design/campaign-assets.md).
+    """
+    pack = getattr(referenced, "pack", None)
+    if pack is None or writing_into.owner_id is not None or pack.owner_id is None:
+        return None
+    label = getattr(referenced, "authoring_label", None) or str(referenced)
+    return (
+        f"{label} is in the {pack.name} pack, which has an owner. Content in "
+        f"the {writing_into.name} pack can only reference content in packs "
+        f"that nobody owns."
+    )
+
+
+def picks_in(spec_fields, cleaned):
+    """Every content row a form's picks name, by the field to refuse on.
+
+    A union's refusal lands on the chosen kind's picker, because the
+    union's own name is not a field on the form.
+    """
+    from n26.library.models.base import Content
+
+    picked = {}
+    for name, kind in spec_fields.items():
+        value = cleaned.get(name)
+        if isinstance(kind, Many) and value is not None:
+            picked[name] = [row for row in value if isinstance(row, Content)]
+        elif isinstance(kind, One) and isinstance(value, Content):
+            picked[name] = [value]
+        elif isinstance(kind, Union) and isinstance(value, Content):
+            picked[f"{name}_{cleaned.get(f'{name}_kind')}"] = [value]
+    return picked
+
+
+def refuse_cross_pack_references(form, writing_into, picks):
+    """Put a refusal on each field of ``form`` whose pick crosses packs.
+
+    ``picks`` is ``{field name: rows}``. Reads the pack off each row, so
+    a picker whose queryset joined the pack pays no query per row.
+    """
+    for name, rows in picks.items():
+        for row in rows:
+            refusal = cross_pack_refusal(writing_into, row)
+            if refusal is not None:
+                form.add_error(name, refusal)
+
+
 class GeneratedForm(forms.Form):
     """Base for spec-generated forms: filtered_by and unions in clean,
     and ``compile()`` performing the verb call."""
@@ -364,7 +420,7 @@ class GeneratedForm(forms.Form):
     #: chosen kind's and verb_data() can pass them on.
     union_asks = {}
 
-    def __init__(self, *args, collection=None, carrier=None, **kwargs):
+    def __init__(self, *args, collection=None, carrier=None, editing=None, **kwargs):
         super().__init__(*args, **kwargs)
         #: The collection this form is being filled *within*, when the
         #: flow knows one — what filtered_by checks against.
@@ -372,6 +428,9 @@ class GeneratedForm(forms.Form):
         #: The thing this part is being added to, when the flow knows
         #: one — what ``within`` narrows a picker to.
         self.carrier = carrier
+        #: The row this form was opened on, when it edits one that already
+        #: exists — whose pack an edit stays in.
+        self.editing = editing
         if carrier is None:
             return
         for name, kind in self.spec.fields.items():
@@ -413,7 +472,31 @@ class GeneratedForm(forms.Form):
                 self._clean_union(name, kind, cleaned)
             if isinstance(kind, Artwork):
                 artwork.clean_onto(self, cleaned, name, f"{name}_upload")
+        writing_into = self.writes_into()
+        refuse_cross_pack_references(
+            self, writing_into, picks_in(self.spec.fields, cleaned)
+        )
+        # A part names the thing it is added to, so the carrier is a
+        # reference the row will hold as surely as any pick.
+        carrier_refusal = cross_pack_refusal(writing_into, self.carrier)
+        if carrier_refusal is not None:
+            self.add_error(None, carrier_refusal)
         return cleaned
+
+    def writes_into(self):
+        """The pack the row this form writes belongs to.
+
+        An edit stays in its row's pack. A part whose verb writes it into
+        its carrier's pack (``Spec.joins_carrier_pack``) goes there.
+        Anything else lands in the default pack, which is where the verbs
+        put a row unless handed a pack, and these forms hand none.
+        """
+        from n26.library.models.pack import get_default_pack
+
+        pack = getattr(self.editing, "pack", None)
+        if pack is None and self.spec.joins_carrier_pack:
+            pack = getattr(self.carrier, "pack", None)
+        return pack if pack is not None else get_default_pack()
 
     def _clean_union(self, name, kind, cleaned):
         """Exactly one thing, picked or newly named, of the chosen kind."""
@@ -514,7 +597,7 @@ class GeneratedForm(forms.Form):
         form carries, so a submission naming one anyway writes nothing.
         """
         initial = _initial_from(cls.spec, thing)
-        form = cls(data, files, initial=initial, prefix=prefix)
+        form = cls(data, files, initial=initial, prefix=prefix, editing=thing)
         for name, kind in cls.spec.fields.items():
             if getattr(kind, "fixed", False):
                 form.fields.pop(name, None)
@@ -662,6 +745,13 @@ def condition_chip_form(kinds):
             )
             if empty:
                 self.add_error(field_name, f"A {chosen} condition needs {field_name}.")
+        # A condition is part of a modifier, and the composer writes
+        # modifiers into the default pack.
+        from n26.library.models.pack import get_default_pack
+
+        refuse_cross_pack_references(
+            self, get_default_pack(), picks_in(specs()[chosen].fields, cleaned)
+        )
         return cleaned
 
     def payload(self):
@@ -809,6 +899,24 @@ def suggestion_form_for(kind_model):
                 help_text=ask.help,
             )
 
+    def clean(self):
+        """A suggestion's pick is written into the new row's own pack,
+        which is the default pack; the same rule the generated forms
+        hold applies to it."""
+        from n26.library.models.base import Content
+        from n26.library.models.pack import get_default_pack
+
+        # Named rather than super(): this becomes a method of a class
+        # built by type(), which has no class cell for super to read.
+        cleaned = forms.Form.clean(self)
+        picks = {}
+        for suggestion in self.offer:
+            value = cleaned.get(suggestion.slug)
+            rows = list(value) if suggestion.many and value is not None else [value]
+            picks[suggestion.slug] = [row for row in rows if isinstance(row, Content)]
+        refuse_cross_pack_references(self, get_default_pack(), picks)
+        return cleaned
+
     def apply(self, created):
         """The built-ins the author took, made against ``created``."""
         from n26.library import authoring
@@ -838,6 +946,7 @@ def suggestion_form_for(kind_model):
         return made
 
     attrs["apply"] = apply
+    attrs["clean"] = clean
     return type("SuggestedBuiltInsForm", (forms.Form,), attrs)
 
 

@@ -119,7 +119,9 @@ thing twice, a line apart.
                 <c-n26.form-section title="{{ section.part_verbose_name_plural|capfirst }}"
                                     description="{{ section.parts_description }}"
                                     class="mt-8">
-                    {% if section.parts %}
+                    {% if section.parts and section.editable %}
+                        {% include "authoring/_editable_parts.html" %}
+                    {% elif section.parts %}
                         <c-ui.table>
                             <tbody>
                                 {% for part in section.parts %}
