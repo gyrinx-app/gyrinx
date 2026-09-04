@@ -136,10 +136,37 @@ class TestPickingOnAGrantedSlot:
         grant(gang_type, injuries["slot"], fighter_type)
         for _ in range(2):
             slot = choice_of(yolanda, "Lasting Injuries")
-            choose(slot.anchor.assignment, injuries["eye"], slot=slot.slot)
+            choose(
+                slot.anchor.assignment,
+                injuries["eye"],
+                slot=slot.slot,
+                miniature=yolanda,
+            )
 
         slot = choice_of(yolanda, "Lasting Injuries")
         assert [p.assignable.name for p in slot.picks] == ["Eye Injury"] * 2
+        assert_reconciled(gang)
+
+    def test_a_pick_stays_with_the_model_that_made_it(
+        self, gang, gang_type, injuries, fighter_type, yolanda
+    ):
+        """The anchor is the gang's founding line, so without a host
+        named the pick would land on the gang and ride every fighter's
+        card. The choose page names the model it was made from."""
+        grant(gang_type, injuries["slot"], fighter_type)
+        other = hire(
+            gang,
+            create_profile("Juve", fighter_type, gang_type, price=25),
+            "Wren",
+            paid=25,
+        )
+        slot = choice_of(yolanda, "Lasting Injuries")
+        choose(
+            slot.anchor.assignment, injuries["eye"], slot=slot.slot, miniature=yolanda
+        )
+
+        assert Assignment.objects.get(pickable=injuries["eye"]).miniature == yolanda
+        assert choice_of(other, "Lasting Injuries").picks == []
         assert_reconciled(gang)
 
     def test_detaching_the_grant_takes_the_choice_off_but_keeps_the_picks(
@@ -147,7 +174,9 @@ class TestPickingOnAGrantedSlot:
     ):
         standing = grant(gang_type, injuries["slot"], fighter_type)
         slot = choice_of(yolanda, "Lasting Injuries")
-        choose(slot.anchor.assignment, injuries["eye"], slot=slot.slot)
+        choose(
+            slot.anchor.assignment, injuries["eye"], slot=slot.slot, miniature=yolanda
+        )
         pick = Assignment.objects.get(pickable=injuries["eye"])
 
         detach_modifier(gang_type, standing)
