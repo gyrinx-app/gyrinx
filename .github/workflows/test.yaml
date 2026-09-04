@@ -151,6 +151,12 @@ jobs:
   #
   # Its own job rather than a step in `test` so a four-minute migrate does not
   # sit in front of the test result.
+  #
+  # On a pull request the migrate only runs when the change touches the
+  # migration graph or the settings that list the apps in it: nothing else can
+  # break a from-scratch apply, and the migrate costs six minutes of Django
+  # re-rendering model state between 400-odd migrations. Every other event runs
+  # it unconditionally.
   fresh-database:
     runs-on: ubuntu-latest
     services:
@@ -174,18 +180,47 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The migration-graph check diffs against the base branch.
+          fetch-depth: 0
+
+      - name: Decide whether the migration graph changed
+        id: graph
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "not a pull request: migrating"
+            exit 0
+          fi
+          changed=$(git diff --name-only --no-renames "origin/$BASE_REF...HEAD" \
+            | grep -E '(^|/)migrations/[^/]+\.py$|^gyrinx/settings[A-Za-z_]*\.py$' || true)
+          if [ -n "$changed" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "migration graph changed:"
+            echo "$changed"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "no migration or settings change: skipping the migrate"
+          fi
 
       - uses: ./.github/actions/python-env
+        if: steps.graph.outputs.run == 'true'
 
       # A database of its own, so the run starts from genuinely nothing rather
       # than from whatever the service image left in `postgres`.
       - name: Create an empty database
+        if: steps.graph.outputs.run == 'true'
         env:
           PGPASSWORD: postgres
         run: |
           psql -h localhost -U postgres -c 'CREATE DATABASE gyrinx_fresh;'
 
       - name: Migrate the empty database
+        if: steps.graph.outputs.run == 'true'
         timeout-minutes: 30
         run: |
           source .venv/bin/activate
