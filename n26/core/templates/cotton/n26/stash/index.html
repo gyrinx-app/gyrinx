@@ -21,8 +21,11 @@ contents shifts every fighter after it around the grid.
     wealth strip above is where that number lives.
   empty — what to say when there is nothing.
   actions — links after the title in a middot run (e.g. Equip), not buttons.
+  notice — a strip above the contents, ruled off from them. For a standing
+    fact about buying rather than about what is stored, which a reader
+    wants before reading a list rather than after it.
 {% endcomment %}
-<c-vars :lines="None" :total="0" empty="" actions="" class="" />
+<c-vars :lines="None" :total="0" empty="" actions="" notice="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
@@ -40,6 +43,9 @@ contents shifts every fighter after it around the grid.
             <span class="shrink-0 text-sm tabular-nums text-muted">{{ total }}¢</span>
         </div>
     </c-slot>
+    {% if notice.strip %}
+        <div class="border-b border-box-border px-4 py-3">{{ notice }}</div>
+    {% endif %}
     {% if lines %}
         <dl class="flex flex-col gap-1 px-4 py-3">
             {% regroup lines|dictsort:"kind" by kind as kinds %}

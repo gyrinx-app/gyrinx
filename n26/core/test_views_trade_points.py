@@ -23,7 +23,15 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player")
+    # Staff, because the Actions square is staff-only while the actions
+    # are built out. The Trade Points page itself is every owner's.
+    return User.objects.create_user("player", is_staff=True)
+
+
+@pytest.fixture
+def player(db):
+    """An owner who is not staff: sees the stash line, never the square."""
+    return User.objects.create_user("plain-player")
 
 
 @pytest.fixture
@@ -208,18 +216,32 @@ class TestTheActionsSquare:
         assert "Trading Post visit open" in body
         assert "Manage visit" in body
 
-    def test_the_stash_card_no_longer_carries_it(self, client, tester, roster, gang):
-        """The line moved out of the stash: what a gang has open is not a
-        fact about what it is storing."""
+    def test_the_stash_card_still_carries_it(self, client, tester, roster, gang):
+        """The stash card keeps its Trading Post line for every owner while
+        the square is staff-only; a staff owner reads it in both places."""
         client.force_login(tester)
         start(client, gang, roster["Vex"])
 
         body = self.sheet(client, gang)
-        # The stash card's own heading, not the wealth strip's figure of
-        # the same name, which sits further up the page.
+        # The square's line comes first, then the stash card's own.
         assert body.index("Trading Post visit open") < body.index(">Stash</span>")
-        # Moved, not copied: one line on the page, not one per card.
+        assert body.count("Trading Post visit open") == 2
+
+    def test_an_owner_who_is_not_staff_gets_the_stash_line_and_no_square(
+        self, client, player, roster, gang
+    ):
+        gang.owner = player
+        gang.save(update_fields=["owner"])
+        client.force_login(player)
+        start(client, gang, roster["Vex"])
+
+        body = self.sheet(client, gang)
         assert body.count("Trading Post visit open") == 1
+        assert body.index(">Stash</span>") < body.index("Trading Post visit open")
+        assert "No action is open." not in body
+        assert "Found and equip gang" not in body
+        # The Trade Points page itself stays theirs.
+        assert f'href="{page(gang)}"' in body
 
     def test_it_leads_the_grid_ahead_of_the_stash(self, client, tester, gang):
         client.force_login(tester)
