@@ -1,0 +1,12 @@
+{# title: A heading over part of the list #}
+{# note: One list, facts from two places. The heading marks where the campaign's facts start, and the rows wrap around it as they wrap around each other. Uppercase and letter-spaced, so it cannot be read as a row label whose value failed to render. #}
+{# layout: full #}
+<c-n26.detail-list>
+    <c-n26.detail-list.row label="Type" value="Escher (HoB)" :editable="False" />
+    <c-n26.detail-list.row label="Skill trees" value="Ferocity, Brawn, Cunning" href="#" />
+    <c-n26.detail-list.heading>
+        Dust Falls
+    </c-n26.detail-list.heading>
+    <c-n26.detail-list.row label="Settlement" value="Settlement" :editable="False" />
+    <c-n26.detail-list.row label="Territory" value="Old Ruins" :editable="False" />
+</c-n26.detail-list>

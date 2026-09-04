@@ -24,6 +24,14 @@ def _names(lines):
     return sorted(str(line.name) for line in lines)
 
 
+def _assets(lines):
+    """What the campaign gave, each with the label it is drawn under and
+    the income printed beside it."""
+    return sorted(
+        (str(line.kind_label), str(line.name), str(line.income)) for line in lines
+    )
+
+
 def _rated(lines):
     """Lines whose printed figure matters as much as their name."""
     return sorted((str(line.name), line.rating) for line in lines)
@@ -105,15 +113,12 @@ def gang_state(gang):
         "campaign": (
             {
                 "name": sheet.campaign.name,
-                "lines": _names(sheet.campaign.lines),
+                "lines": _assets(sheet.campaign.lines),
                 "counters": sorted(
                     (str(counter.name), str(counter.value))
                     for counter in sheet.campaign.counters
                 ),
-                "holdings": sorted(
-                    (holding.name, holding.kind, str(holding.income))
-                    for holding in sheet.campaign.holdings
-                ),
+                "holdings": _assets(sheet.campaign.holdings),
             }
             if sheet.campaign
             else None

@@ -300,8 +300,8 @@ class TestWhatHoldingDoes:
     ):
         grant_asset(tokens[1], gang)
         block = render_gang(gang).campaign
-        assert [(h.name, h.kind, h.income) for h in block.holdings] == [
-            ("Old Ruins by the sump", "territory", 30)
+        assert [(h.kind_label, h.name, h.income) for h in block.holdings] == [
+            ("Territory", "Old Ruins by the sump", 30)
         ]
         assert block.holdings[0].campaign_asset_id == str(tokens[1].pk)
         # Held, never owned: the gang's own rows do not list it.
@@ -354,6 +354,19 @@ class TestThePoolPages:
         return FeatureFlag.objects.create(
             slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
         )
+
+    def test_the_gang_sheet_links_the_campaign_and_the_pool(
+        self, client, tokens, gang, campaign
+    ):
+        """A reader inside the campaigns feature gets the way through to
+        the campaign and to the pool a holding belongs to."""
+        grant_asset(tokens[0], gang)
+        client.force_login(gang.owner)
+
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert reverse("n26-campaign", args=[campaign.pk]) in body
+        assert reverse("n26-campaign-pool", args=[campaign.pk]) in body
 
     def test_the_pool_lists_held_and_unclaimed_by_kind(
         self, client, tokens, gang, campaign, arbitrator

@@ -1,0 +1,6 @@
+{# title: A campaign's assets and its counter #}
+{# note: The heading names the campaign; everything under it came from that campaign. Settlement is a possession, so its value has a tooltip naming the campaign type that brought it. Old Ruins is a holding — the campaign's, not the gang's — so it links to the pool, and its income is printed after the name. Reputation is an ordinary counter row, with the tally controls the gang's owner gets. #}
+{# layout: full #}
+<c-n26.detail-list>
+    <c-n26.campaign-block :campaign="gang.campaign" />
+</c-n26.detail-list>

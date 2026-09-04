@@ -1,0 +1,29 @@
+{% comment %}
+<c-n26.detail-list.heading> — a name for the rows that follow it.
+
+    <c-n26.detail-list>
+        <c-n26.detail-list.row label="House list" value="Escher" />
+        <c-n26.detail-list.heading>
+            <c-n26.link href="/campaigns/1/" tone="current">Dust Falls</c-n26.link>
+        </c-n26.detail-list.heading>
+        <c-n26.detail-list.row label="Settlement" value="Settlement" :editable="False" />
+    </c-n26.detail-list>
+
+For the one case where a detail list holds facts from two places at once: the
+gang's own, and what a campaign gave it. Uppercase and letter-spaced, so it
+cannot be misread as a row label whose value failed to render.
+
+A <div> rather than a heading element, because the container is a <dl>, which
+may hold only <dt>, <dd> and <div>. It carries role="presentation" because a
+<div> in a <dl> is read as a term-and-description group, and this one is a name
+with neither: without it, anything reading the list aloud meets an empty group.
+Rows wrap around it as they wrap around each other: it marks where the next
+group of rows starts, and does not enclose them.
+
+  class — extra classes on the heading.
+{% endcomment %}
+<c-vars class="" />
+
+<div role="presentation" class="flex items-baseline {{ class }}">
+    <span class="text-xs font-semibold uppercase tracking-wide text-muted">{{ slot }}</span>
+</div>

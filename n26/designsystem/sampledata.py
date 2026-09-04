@@ -37,6 +37,7 @@ from n26.core.images import MAX_PX, PORTRAIT
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
     AssignableLine,
+    CampaignAssetLine,
     CampaignBlock,
     ChoiceLine,
     ChoiceOffer,
@@ -45,7 +46,6 @@ from n26.core.render import (
     CounterLine,
     EffectLine,
     GangSheet,
-    HoldingLine,
     ModelCard,
     Provenance,
     StashLine,
@@ -1936,27 +1936,39 @@ def gang_sheet():
         campaign=CampaignBlock(
             name="Dust Falls",
             campaign_id="dust-falls",
+            # Addressed, as they are for a reader inside the campaigns
+            # feature. Empty is the other state: the name and the holding
+            # draw as text.
+            href="#",
+            pool_href="#",
             lines=[
-                AssignableLine(
+                CampaignAssetLine(
+                    kind_label="Settlement",
                     name="Settlement",
                     provenance=Provenance(
                         source="N26 core", source_kind="campaign type"
                     ),
                 )
             ],
+            # Addressed, so the demo shows the tally controls an owner
+            # gets. A reader who does not own the gang gets the number.
             counters=[
                 CounterLine(
                     name="Reputation",
                     value=3,
+                    tallied=3,
+                    assignment_id="reputation",
+                    href="#",
+                    back="#",
                     provenance=Provenance(
                         source="N26 core", source_kind="campaign type"
                     ),
                 )
             ],
             holdings=[
-                HoldingLine(
+                CampaignAssetLine(
+                    kind_label="Territory",
                     name="Old Ruins",
-                    kind="territory",
                     income=30,
                     campaign_asset_id="old-ruins",
                 )

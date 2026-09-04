@@ -48,6 +48,29 @@ def trade_points_href(gang, user):
     return reverse("n26-gang-trade-points", args=[gang.pk])
 
 
+def link_campaign(block, user):
+    """Point a gang sheet's campaign block at the campaign's own pages,
+    or at nothing for a reader who cannot open them.
+
+    A roster opens for whoever holds its address, and the campaign pages
+    behind these two links are signed-in-only and inside the campaigns
+    feature. A name somebody cannot open is a name, not a link: offering
+    the door and refusing them at it is worse than never offering.
+
+    One query, and only for a gang playing a campaign.
+    """
+    from django.urls import reverse
+
+    from n26.flags import CAMPAIGNS, enabled
+
+    if block is None:
+        return
+    if user is None or not user.is_authenticated or not enabled(CAMPAIGNS, user):
+        return
+    block.href = reverse("n26-campaign", args=[block.campaign_id])
+    block.pool_href = reverse("n26-campaign-pool", args=[block.campaign_id])
+
+
 def may_see_actions_square(gang, user):
     """Whether the gang page draws its Actions square for this reader.
 

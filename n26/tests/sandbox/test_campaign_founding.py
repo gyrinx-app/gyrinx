@@ -216,12 +216,51 @@ class TestTheGangSheet:
         block = render_gang(gang).campaign
         assert block.name == "Dust Falls"
         assert [
-            (line.name, line.provenance.source, line.provenance.source_kind)
+            (
+                line.kind_label,
+                line.name,
+                line.provenance.source,
+                line.provenance.source_kind,
+            )
             for line in block.lines
-        ] == [("Settlement", "N26 core", "campaign type")]
+        ] == [("Settlement", "Settlement", "N26 core", "campaign type")]
         assert [
             (line.name, line.value, line.provenance.source) for line in block.counters
         ] == [("Reputation", 0, "N26 core")]
+
+    def test_the_owner_can_tally_the_campaigns_counter_from_the_sheet(
+        self, client, membership, gang
+    ):
+        client.force_login(gang.owner)
+        at = reverse("n26-gang", args=[gang.pk])
+        assert "Add one to Reputation" in client.get(at).content.decode()
+        (reputation,) = render_gang(gang).campaign.counters
+
+        client.post(
+            reverse("n26-tally", args=[reputation.assignment_id]),
+            {"change": 1, "back": at},
+        )
+
+        assert [line.value for line in render_gang(gang).campaign.counters] == [1]
+
+    def test_a_reader_who_does_not_own_the_gang_gets_no_tally_control(
+        self, client, membership, gang
+    ):
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Reputation" in body
+        assert "Add one to Reputation" not in body
+
+    def test_a_reader_outside_the_campaigns_feature_gets_the_name_alone(
+        self, client, membership, gang, campaign
+    ):
+        """The campaign pages answer a reader outside the feature with a
+        404, so the sheet names the campaign rather than linking to it."""
+        client.force_login(gang.owner)
+
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Dust Falls" in body
+        assert reverse("n26-campaign", args=[campaign.pk]) not in body
 
     def test_the_campaigns_counter_is_drawn_once(self, membership, gang):
         sheet = render_gang(gang)
@@ -327,7 +366,9 @@ class TestGivingExistingCampaignsTheirPacks:
         give_campaigns_their_packs(apps)
 
         block = render_gang(gang).campaign
-        assert [line.name for line in block.lines] == ["Settlement"]
+        assert [(line.kind_label, line.name) for line in block.lines] == [
+            ("Settlement", "Settlement")
+        ]
         assert [(line.name, line.value) for line in block.counters] == [
             ("Reputation", 0)
         ]
