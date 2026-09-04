@@ -622,8 +622,10 @@ class _Narrowings:
     #: subject to "every model" — a vehicle left out of "every fighter"
     #: would read as though vehicles were fighters.
     a_type_left_out: bool = False
-    #: Picks the model must hold or not hold, worded: "with Cawdor",
-    #: "without Cawdor or Delaque".
+    #: Picks the model must hold or not hold, as ``(left out, names said
+    #: as any of them)``: ``(False, "Cawdor")``, ``(True, "Cawdor or
+    #: Delaque")``. Worded where the subject is known, because a phrase
+    #: and a clause say them differently.
     picks: list = field(default_factory=list)
     #: Clauses about the moment rather than the model.
     clauses: list = field(default_factory=list)
@@ -655,8 +657,7 @@ def _names_pick(row, found):
     picks = [str(one) for one in row.pickables.all()]
     if picks:
         # A row naming several picks is satisfied by any one of them.
-        held = _and_then(picks, "or")
-        found.picks.append(f"without {held}" if row.negate else f"with {held}")
+        found.picks.append((row.negate, _and_then(picks, "or")))
 
 
 def _names_threshold(row, found):
@@ -717,7 +718,8 @@ def _narrowed(who, scope):
         subject = _and_then(found.named)
         plural = len(found.named) != 1
         if found.types:
-            subject = f"{subject} {_and_then(f'{kind}s' for kind in found.types)}"
+            kinds = _and_then((f"{kind}s" for kind in found.types), "or")
+            subject = f"{subject} {kinds}"
             plural = True
     elif found.types:
         subject = f"every {_and_then(found.types, 'or')}"
@@ -729,7 +731,11 @@ def _narrowed(who, scope):
     qualified = False
     if who.qualifiable or subject != who.subject:
         if found.picks:
-            subject = f"{subject} {' and '.join(found.picks)}"
+            phrases = [
+                f"{'without' if left_out else 'with'} {held}"
+                for left_out, held in found.picks
+            ]
+            subject = f"{subject} {' and '.join(phrases)}"
         if found.left_out:
             subject = f"{subject} except {_and_then(found.left_out)}"
         qualified = bool(found.picks or found.left_out)
@@ -737,9 +743,8 @@ def _narrowed(who, scope):
         # "They with Cawdor" is no sentence: a pronoun's narrowings are
         # said up front instead, and the closing "while" gives way to them.
         clauses.extend(
-            "while "
-            + phrase.replace("with", "holding", 1).replace("withouting", "not holding")
-            for phrase in found.picks
+            f"while {'not holding' if left_out else 'holding'} {held}"
+            for left_out, held in found.picks
         )
         if found.left_out:
             clauses.append(f"unless they are {_and_then(found.left_out, 'or')}")

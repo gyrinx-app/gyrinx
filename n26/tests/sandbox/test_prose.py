@@ -343,6 +343,34 @@ class TestNarrowingsCompose:
             "While holding Cawdor, they gain Backstab."
         ]
 
+    def test_a_pronouns_pick_left_out_leads_too(self, backstab, cawdor, default_pack):
+        rule = create_rule("Outsiders")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Outsiders",
+                    targets_model(has_pickable(cawdor, negate=True)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+        assert texts(prose_for(rule).does) == [
+            "While not holding Cawdor, they gain Backstab."
+        ]
+
+    def test_ranks_of_either_kind_read_or(
+        self, escher, backstab, fighter_type, vehicle_type, default_pack
+    ):
+        champion = create_subtype("Champion")
+        assert self.carried(
+            escher,
+            targets_every_model(
+                has_subtypes(champion), is_profile_type(fighter_type, vehicle_type)
+            ),
+            ef_adds(backstab),
+        ) == ["Champion fighters or vehicles gain Backstab, while the gang holds this."]
+
 
 class TestATypeNarrowsTheSubject:
     """A model's Type is the one narrowing a gang-wide reach can say in
