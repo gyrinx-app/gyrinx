@@ -254,6 +254,27 @@ class TestAPickNarrowsTheSubject:
             "Every fighter with Cawdor gains Backstab, while the gang holds this."
         ]
 
+    def test_several_picks_read_as_any_of_them(self, escher, legacies, backstab):
+        """A row naming two picks reaches a model holding either, and the
+        sentence must not read as though it needs both."""
+        from n26.library.authoring import create_pickable, has_pickable
+
+        delaque = create_pickable("Delaque", legacies.slot_type)
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "Either legacy: Backstab",
+                    targets_every_model(has_pickable(legacies, delaque)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every fighter with Cawdor or Delaque gains Backstab, while the gang holds this."
+        ]
+
     def test_negated_it_says_without(self, escher, legacies, backstab):
         from n26.library.authoring import has_pickable
 

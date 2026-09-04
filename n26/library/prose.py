@@ -519,6 +519,14 @@ def _and_then(names):
     return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
+def _one_of(names):
+    """Several things any one of which will do, said as a list."""
+    names = list(names)
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} or {names[-1]}"
+
+
 def sentence_for(modifier, carriage=UNATTACHED, thing=None, chain=None):
     """One modifier, as a sentence about whoever carries it.
 
@@ -615,7 +623,7 @@ def _names_entries(row, said):
 def _names_type(row, said):
     types = [str(one).lower() for one in row.profile_types.all()]
     if types:
-        # An empty row narrows nothing, as its condition matches nothing.
+        # An empty row says nothing, as its condition narrows nothing.
         said.typed.append((row.negate, types))
 
 
@@ -680,8 +688,10 @@ def _narrowed(who, scope):
         else:
             subject = f"every {_and_then(types)}"
         plural = False
+    # A row naming several picks is satisfied by any one of them, so the
+    # sentence says "or": "with" holding any, "without" holding none.
     for negate, picks in said.holdings:
-        subject = f"{subject} {'without' if negate else 'with'} {_and_then(picks)}"
+        subject = f"{subject} {'without' if negate else 'with'} {_one_of(picks)}"
     if said.named or said.typed or said.holdings:
         possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
         weapons = " ".join([f"{possessive} weapons", *of_weapons])
