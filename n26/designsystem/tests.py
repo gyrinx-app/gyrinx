@@ -173,6 +173,18 @@ class TestTheOwnedDialogsPage:
         assert "Everything goes together. 91¢." in page
 
 
+class TestTheSelectPage:
+    """Its demos reach the gallery drawn, not as a polite fallback."""
+
+    def test_the_multiple_demo_draws_a_list_not_a_dropdown(self, reader):
+        page = reader.get("/n26/design/c/select/").content.decode()
+        assert "The chosen row is marked" in page
+        assert 'name="demo-profile-types"' in page
+        assert "n26-select-multiple" in page
+        assert "Fighter" in page
+        assert "Vehicle" in page
+
+
 class TestTheFilterSelectsPage:
     """Its props and its demos reach the gallery, and the select survives."""
 

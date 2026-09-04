@@ -6929,7 +6929,35 @@ class TestThePickersStillPostWhatTheySay:
         picker = re.search(r'<select[^>]*name="traits".*?</select>', body, re.S)
         assert picker, "the traits picker is not a <select>"
         assert "multiple" in picker.group(0)
+        assert "n26-select-multiple" in picker.group(0)
         assert f'value="{rending.pk}"' in picker.group(0)
+
+
+class TestAShortManyPickerShowsWhatIsChosen:
+    """Profile types is two options. Below min_options the filter box
+    leaves the native select in view, so the chosen row has to look
+    chosen."""
+
+    def test_the_profile_types_list_marks_the_chosen_row(
+        self, author, client, default_pack, fighter_type, vehicle_type
+    ):
+        body = client.get(
+            "/n26/authoring/modifiers/new/"
+            "?scope_kind=targets_model&effect_kind=ef_adds&chips=1"
+            "&conditions-0-kind=is_profile_type"
+            f"&conditions-0-profile_types={fighter_type.pk}"
+        ).content.decode()
+        picker = re.search(
+            r'<select[^>]*name="conditions-0-profile_types".*?</select>',
+            body,
+            re.S,
+        )
+        assert picker, "the profile types picker is not a <select>"
+        tag = picker.group(0)
+        assert "multiple" in tag
+        assert "n26-select-multiple" in tag
+        assert "Fighter" in tag
+        assert "Vehicle" in tag
 
 
 class TestTheDocumentation:

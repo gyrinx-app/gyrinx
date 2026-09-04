@@ -223,7 +223,9 @@ GROUPS: list[Group] = [
                 notes=(
                     'variant="native" (the default) needs no JS and gets the platform '
                     'picker. variant="listbox" routes to c-ui.menu, and its slot must '
-                    "then contain c-ui.menu.item — not c-ui.select.option."
+                    "then contain c-ui.menu.item — not c-ui.select.option. A multiple "
+                    "native select is a list: the kit's option fill would hide which "
+                    "rows are chosen, so the override marks option:checked instead."
                 ),
                 parts=(
                     Part(
