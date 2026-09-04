@@ -1,0 +1,23 @@
+{% comment %}
+What this model may still spend while the gang is being founded, as the tally
+every other Trade Point figure is drawn by.
+
+Under the rail, in the place the "Not tracking TP" note takes when there is no
+allowance: it is a fact about buying on this page rather than about anything on
+the list. The two are never drawn together — a model with an allowance has
+somewhere for its Trade Points to go.
+
+Wants `founding_budget` (n26.core.founding.FoundingBudget) and `miniature`.
+`redrawn` marks the copy a purchase's update delivers, which replaces the one on
+the page by id so the figures move without a reload.
+{% endcomment %}
+<div id="n26-founding-budget"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}
+     class="self-start rounded-box border border-box-border p-3">
+    <p class="text-sm font-medium text-ink-900 dark:text-ink-100">Founding Trade Points</p>
+    <p class="mt-0.5 text-xs text-muted">
+        What {{ miniature.name }} can spend while the Found and equip gang action is
+        open. Everything on this page counts against it, including the equipment lists.
+    </p>
+    <c-n26.tally :facts="founding_budget.facts" class="mt-2 text-sm" />
+</div>

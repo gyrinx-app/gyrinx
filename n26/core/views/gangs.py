@@ -253,7 +253,7 @@ def gang_sheet(request, pk):
     from n26.core.views.owned import link_counters, link_stash_actions, owned_dialog
     from n26.core.views.skills import link_skills
 
-    gang = _any_gang_or_404(pk)
+    gang = _any_gang_or_404(request, pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     card = build_gang_card(gang)
@@ -608,7 +608,7 @@ def _written_page(request, pk, *, field, template):
     """
     from n26.core.render import roster, summarise_roster
 
-    gang = _any_gang_or_404(pk)
+    gang = _any_gang_or_404(request, pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
     members = roster(gang)
     entries = [

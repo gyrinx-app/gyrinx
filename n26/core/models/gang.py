@@ -67,15 +67,6 @@ class Gang(Base, Owned, Archived, Rated):
         default=0,
         help_text="Cash in hand. Pinned: starting budget less everything spent.",
     )
-    starting_trade_points = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text=(
-            "A copy of what the open Visit Trading Post action brought, "
-            "kept beside it. Empty when no visit is open. The action "
-            "itself holds the figure the screens read."
-        ),
-    )
     colour = models.CharField(
         max_length=50,
         blank=True,

@@ -90,6 +90,27 @@ class LedgerEntry(Base):
             "made with no action open."
         ),
     )
+    #: Whose Trade Points these were. An allowance may belong to one
+    #: model rather than to the gang — what a fighter is given to spend
+    #: as it joins — and what it has spent has to follow the buyer, never
+    #: the thing bought: moving a gun into the stash or handing it to
+    #: somebody else does not refund the points, and refunding it there
+    #: returns them to whoever spent them. Blank where nothing was
+    #: recorded against an action, and for a purchase into the stash,
+    #: which nobody's allowance pays for.
+    spent_by = models.ForeignKey(
+        "n26.Miniature",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        db_index=True,
+        help_text=(
+            "The model whose Trade Points this purchase spent. Blank for "
+            "a purchase that counted against no action, or one into the "
+            "stash."
+        ),
+    )
     note = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -158,11 +179,10 @@ class LedgerEvent(Base):
         # what every later purchase is measured against, so a reader owed
         # an explanation of "where did my credits go" is owed this too.
         BUDGET_SET = "budget_set", "Budget set"
-        # A Visit Trading Post action opening or closing. Like the budget
-        # it moves nothing of its own, and unlike it the event is the
-        # boundary the spending is measured from: what a visit has left
-        # is what it added less every Trade Point the log records after
-        # it, so writing one both opens a visit and closes the one before.
+        # A Visit Trading Post action opening or closing, from before it
+        # was an action row. Nothing writes one now — the pair below say
+        # it for every kind of action — and the kind stays so that a
+        # gang's older history still has a word for what it did.
         TRADE_POINTS_SET = "trade_points_set", "Trade Points set"
         # One fighter performing that action. The Trade Points they add
         # are the gang's, counted once on the event above, so this
@@ -177,7 +197,9 @@ class LedgerEvent(Base):
         # An action opening and closing (``n26.core.models.action``).
         # Neither moves anything of its own: what an action did is the
         # log between the two. The note holds the kind, so a reader of
-        # the history can be told which action without a join.
+        # the history can be told which action without a join, and the
+        # figure the act carried where it carried one — what a visit
+        # brought, and what it still had when it ended.
         ACTION_OPENED = "action_opened", "Action started"
         ACTION_CLOSED = "action_closed", "Action completed"
 

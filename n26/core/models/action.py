@@ -83,3 +83,34 @@ class Action(Base):
     @property
     def is_open(self):
         return self.closed_id is None
+
+
+def note_for(kind, figure=None):
+    """The note for the event opening or closing an action of this kind.
+
+    The kind comes first, so the history can say which action was
+    started without a join. A figure follows it where the act has one:
+    what a visit brought when it opened, and what it still had when it
+    closed. An act with no figure carries the kind alone.
+    """
+    if figure is None:
+        return str(kind)
+    return f"{kind} {figure}"
+
+
+def read_note(note):
+    """An action note's two parts: the kind's name, and its figure.
+
+    The name is empty for a note naming no kind this edition has, which
+    leaves a sentence saying an action was started without inventing
+    which one. The figure is None where the note carries none.
+    """
+    kind, _, figure = note.partition(" ")
+    try:
+        name = Action.Kind(kind).label
+    except ValueError:
+        return "", None
+    try:
+        return name, int(figure)
+    except ValueError:
+        return name, None

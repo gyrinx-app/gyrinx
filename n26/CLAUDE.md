@@ -44,7 +44,9 @@ Concretely:
   events through `gyrinx.analytics`; `n26/maintenance.py` offers this
   edition's repairs through `gyrinx.maintenance` and runs them on
   `gyrinx.tasks`; `n26/flags.py` claims this edition's gated features
-  through `gyrinx.site.flags`; models that need a durable status column
+  through `gyrinx.site.flags`; `n26/impersonation.py` says whose content
+  a page is showing through `gyrinx.impersonation`; models that need a
+  durable status column
   with row-locked transitions use `gyrinx.state_machine`, the pattern
   the task framework's own records use
   (`n26/core/models/built_in_propagation.py` and the code driving it);
@@ -66,6 +68,15 @@ Concretely:
   is one call — the words are ours, because an edition knows what happened
   and how to say it, and the delivery is the platform's. It is the only file
   here that writes a notification.
+- **`n26/impersonation.py` is a single-file seam of the same shape.** Signing
+  in as somebody else is the site's: one session key, one middleware that
+  swaps the user for a request, one log of who went into whose account and
+  when. A second implementation here would give the two editions separate
+  records of that, which is the one thing an audit of it must not have. What
+  crosses is one call — an edition knows which of its pages open for somebody
+  other than their owner, and says so; the platform decides whether the
+  reader may go in, and the edition draws the way in its own account menu.
+  It is the only file here that names the overlay.
 - **`n26/analytics.py` is one of the four platform modules n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
   events table, one log stream, one dashboard, and every question asked
@@ -138,7 +149,9 @@ Concretely:
   `core:notifications`, the account page and the inbox both editions
   send a reader to, plus `core:dice`, a roller that knows nothing about
   either game, plus the banner's own dismiss and click-tracking
-  routes, which act on a platform-owned Banner. Writing the path out
+  routes, which act on a platform-owned Banner, plus
+  `core:impersonate-start` and `core:impersonate-stop`, which act on the
+  session rather than on anything either edition owns. Writing the path out
   instead is the worse option, not the safer one: a name that stops
   resolving raises on render, while a path that stops existing serves a
   404 in silence for as long as nobody clicks it. What crosses is a
