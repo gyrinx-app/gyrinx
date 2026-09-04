@@ -6,6 +6,8 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.test import Client
 from django.urls import reverse
 
+pytestmark = pytest.mark.core
+
 
 @pytest.mark.django_db
 def test_csrf_failure_redirects_with_message(client: Client):

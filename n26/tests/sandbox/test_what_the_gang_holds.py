@@ -59,7 +59,7 @@ from n26.tests.sandbox.actions import (
     targets_weapons,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 @pytest.fixture

@@ -16,7 +16,7 @@ from gyrinx.site.flags import enabled, known_flags
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 GROUP_NAME = "N26 Campaigns"
 

@@ -14,6 +14,8 @@ from gyrinx.tasks import discovery
 from gyrinx.tasks.registry import get_all_tasks
 from gyrinx.tasks.route import TaskRoute
 
+pytestmark = pytest.mark.core
+
 
 class _StubAppConfig:
     def __init__(self, name):

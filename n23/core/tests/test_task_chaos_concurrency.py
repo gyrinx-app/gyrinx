@@ -36,6 +36,8 @@ from n23.core.tasks import (
     propagate_default_child_fighter_assignment,
 )
 
+pytestmark = pytest.mark.core
+
 
 def _run_concurrently(target, *, n=2, timeout=15):
     """Run ``target`` on ``n`` threads concurrently.

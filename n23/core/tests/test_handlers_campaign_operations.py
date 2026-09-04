@@ -21,6 +21,8 @@ from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import Campaign, CampaignAction
 from n23.core.models.list import List
 
+pytestmark = pytest.mark.core
+
 
 def _start(user, campaign, capture):
     """Start the campaign AND run its deferred Phase-2 clone tasks.

@@ -7,6 +7,8 @@ from django.test import override_settings
 
 from gyrinx.tasks import TaskRoute
 
+pytestmark = pytest.mark.core
+
 
 def sample_task():
     """A sample task function for testing."""

@@ -20,6 +20,8 @@ from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from n23.models import FighterCategoryChoices
 
+pytestmark = pytest.mark.core
+
 
 @pytest.mark.django_db
 def test_handle_equipment_purchase_campaign_mode(

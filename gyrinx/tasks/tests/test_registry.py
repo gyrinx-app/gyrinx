@@ -4,8 +4,12 @@ Tests for task registry.
 
 from unittest.mock import patch
 
+import pytest
+
 from gyrinx.tasks import TaskRoute
 from gyrinx.tasks.registry import get_all_tasks, get_task
+
+pytestmark = pytest.mark.core
 
 
 def sample_task():

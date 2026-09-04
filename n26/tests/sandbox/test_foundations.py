@@ -25,7 +25,7 @@ from n26.library.standard_content import (
     WEAPON_STATLINE,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 @pytest.fixture

@@ -8,6 +8,8 @@ from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack
 
+pytestmark = pytest.mark.core
+
 # --- Model: validate_list_packs Tests ---
 
 

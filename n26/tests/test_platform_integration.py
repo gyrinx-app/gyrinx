@@ -24,7 +24,7 @@ from django.contrib.auth.models import User
 
 from n26.core.views.changelog import CHANGELOG_TAG
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 @pytest.fixture

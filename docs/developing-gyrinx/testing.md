@@ -41,8 +41,43 @@ pytest
 ptw .
 ```
 
-CI runs the same `pytest` invocation against a GitHub Actions service container
-Postgres — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
+CI runs the suite against a GitHub Actions service container Postgres in two
+jobs — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
+
+### The Core Suite
+
+Pull requests are gated on the `test` job, which runs the tests marked `core`
+plus every test the pull request touched. The `test-full` job runs everything
+and reports, but does not block a merge.
+
+```bash
+# Run what the required CI job runs
+pytest -m core
+```
+
+`core` marks the tests that must never break: fundamental behaviour, a few
+end-to-end flows in each edition, and the safety and performance checks (CSRF,
+admin login, the state machine, the task queue, the query-count snapshots). A whole file opts in with a module-level mark:
+
+```python
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
+```
+
+Keep the set small — the job checks it stays between the bounds set in
+`test.yaml`, so it cannot quietly grow back into the full suite. A test that
+covers a critical flow belongs in it; a test that covers one page or one
+edge case does not.
+
+The pull request's own tests join the run through
+`scripts/changed_test_paths.py`: it lists the test files the change added or
+modified, the directory of any changed `conftest.py`, and the trees whose
+conftest imports a changed fixtures module. The root conftest reads that list
+from `GYRINX_CHANGED_TEST_PATHS` and marks those tests `core` too. To see what
+a branch would pull in:
+
+```bash
+scripts/changed_test_paths.py origin/main
+```
 
 ### Per-Worktree Testing
 

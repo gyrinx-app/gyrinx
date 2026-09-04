@@ -404,6 +404,9 @@ staleness, so you'll need a one-off `--create-db` run after changing a model.
 
 - When debugging with print output, run `pytest -n 0 -s <test>` — the default `-n auto`
   (pytest-xdist) swallows `-s`/print output in workers.
+- CI gates pull requests on `pytest -m core` plus the tests the PR touched; the full suite
+  runs but does not block. Mark a file `core` only for fundamental behaviour, a critical
+  flow, or a safety/performance check. See `docs/developing-gyrinx/testing.md`.
 
 ### Frontend Development
 

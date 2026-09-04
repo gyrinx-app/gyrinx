@@ -14,6 +14,8 @@ from gyrinx.tasks.local_backend import DatabaseBackend
 from gyrinx.tasks.models import QueuedTask, TaskExecution
 from gyrinx.tasks.worker import Outcome, compute_backoff, deliver
 
+pytestmark = pytest.mark.core
+
 # --- Test tasks. Registered lazily below so the registry lookup used by the
 # worker/manual driver resolves them. ---
 

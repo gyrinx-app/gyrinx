@@ -1,3 +1,4 @@
+import os
 from collections.abc import Callable
 
 import pytest
@@ -30,8 +31,38 @@ from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 from n23.models import FighterCategoryChoices
+from scripts.changed_test_paths import ChangedTestPaths, parse_changed_test_paths
 
 User = get_user_model()
+
+
+# Filled by pytest_configure from GYRINX_CHANGED_TEST_PATHS.
+_CHANGED_TEST_PATHS = pytest.StashKey[ChangedTestPaths]()
+
+
+def pytest_configure(config):
+    """Read the test paths the pull request touched.
+
+    The required CI job runs `pytest -m core`. scripts/changed_test_paths.py
+    lists the test files the change added or modified, plus the directories
+    whose conftest or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
+    """
+    config.stash[_CHANGED_TEST_PATHS] = parse_changed_test_paths(
+        os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
+    )
+
+
+def pytest_itemcollected(item):
+    """Mark the tests a pull request touched as `core`, so `-m core` keeps them.
+
+    The marker has to land before pytest applies `-m`, which it does as soon
+    as collection finishes.
+    """
+    changed = item.config.stash[_CHANGED_TEST_PATHS]
+    if not changed:
+        return
+    if changed.matches(item.path.relative_to(item.config.rootpath).as_posix()):
+        item.add_marker(pytest.mark.core)
 
 
 @pytest.fixture(scope="session", autouse=True)

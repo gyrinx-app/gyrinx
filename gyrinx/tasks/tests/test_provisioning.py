@@ -18,6 +18,8 @@ from gyrinx.tasks import provisioning
 from gyrinx.tasks.apps import TasksConfig
 from gyrinx.tasks.route import TaskRoute
 
+pytestmark = pytest.mark.core
+
 
 def _route(name="a_task"):
     """A TaskRoute whose function is irrelevant — only its config is read here."""

@@ -11,6 +11,8 @@ from django.utils import timezone
 from gyrinx.state_machine import InvalidStateTransition
 from gyrinx.tasks.models import TaskExecution
 
+pytestmark = pytest.mark.core
+
 
 def make_task_id():
     """Generate a unique task ID for tests."""

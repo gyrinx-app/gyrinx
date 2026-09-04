@@ -1,10 +1,13 @@
 """The #1947 system check: declared @task functions must be registered."""
 
+import pytest
 from django.tasks import task
 
 import gyrinx.tasks.checks as checks
 from gyrinx.tasks.registry import get_all_tasks
 from gyrinx.tasks.route import TaskRoute
+
+pytestmark = pytest.mark.core
 
 
 # Module-level @task functions (Django requires module scope) for tests that

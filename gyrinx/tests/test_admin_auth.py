@@ -13,6 +13,8 @@ from gyrinx.accounts.admin import (
 )
 from gyrinx.accounts.models import UserProfile
 
+pytestmark = pytest.mark.core
+
 
 @pytest.mark.django_db
 def test_email_address_admin_is_registered():

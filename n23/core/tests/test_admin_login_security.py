@@ -15,6 +15,8 @@ from django.conf import settings
 from django.test import Client, override_settings
 from django.urls import reverse
 
+pytestmark = pytest.mark.core
+
 ADMIN_INDEX = "/admin/"
 ADMIN_LOGIN = "/admin/login/"
 ALLAUTH_LOGIN = "/accounts/login/"

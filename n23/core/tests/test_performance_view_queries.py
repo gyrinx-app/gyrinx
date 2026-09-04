@@ -36,6 +36,8 @@ from n23.core.models.list import (
 )
 from n23.models import FighterCategoryChoices
 
+pytestmark = pytest.mark.core
+
 User = get_user_model()
 
 

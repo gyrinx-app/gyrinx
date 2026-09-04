@@ -13,6 +13,8 @@ from gyrinx.tasks import TaskRoute
 from gyrinx.tasks.backend import PubSubBackend
 from gyrinx.tasks.models import TaskExecution
 
+pytestmark = pytest.mark.core
+
 
 def make_task_id():
     """Generate a unique task ID for tests."""
