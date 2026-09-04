@@ -17,11 +17,16 @@ buttons and no form of its own — the page owns the form and the token.
     <c-ui.button type="submit" name="act" value="roll" variant="primary">
         Roll a {{ table.dice_label }}
     </c-ui.button>
+    {% comment %}
+    The width sits on a wrapper: the kit's input does not declare `class`, so
+    one passed to it would print a second class attribute and drop its styling.
+    {% endcomment %}
     <div class="flex items-end gap-2">
-        <c-ui.input label="Rolled at the table? Enter the result."
-                    id="rolled-at-the-table" name="rolled" type="number"
-                    inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}"
-                    class="w-28" />
+        <div class="w-40">
+            <c-ui.input label="Rolled at the table? Enter the result."
+                        id="rolled-at-the-table" name="rolled" type="number"
+                        inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}" />
+        </div>
         <c-ui.button type="submit" name="act" value="enter" variant="default">Enter</c-ui.button>
     </div>
 </div>

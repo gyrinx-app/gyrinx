@@ -6,10 +6,11 @@
 
 A rounded square with the pips of a D6 face laid on a three-by-three grid. The
 face is announced as words, since a grid of dots says nothing to a reader who
-cannot see it. Sized by the class it is given; the pips scale with it because
-they are fractions of the square.
+cannot see it. Sized in ems, so a text-size class on it scales the square, the
+pips and the gaps together — a percentage would measure the parent instead.
 
   value — 1 to 6. Anything else draws an empty square.
+  class — a text size sets the die's size; text-5xl is a 48px die.
 {% endcomment %}
 <c-vars value=""
         :pips="{
@@ -22,10 +23,10 @@ they are fractions of the square.
         }"
         class="" />
 <span {{ attrs }}
-      class="grid aspect-square shrink-0 grid-cols-3 grid-rows-3 place-items-center rounded-[18%] border border-ink-300 bg-white p-[12%] shadow-sm dark:border-ink-600 dark:bg-ink-900 {{ class }}"
+      class="grid size-[1em] shrink-0 grid-cols-3 grid-rows-3 gap-[0.08em] rounded-[0.18em] border border-ink-300 bg-white p-[0.16em] shadow-sm dark:border-ink-600 dark:bg-ink-900 {{ class }}"
       role="img"
       aria-label="A die showing {{ value }}">
     {% for pip in pips|get_item:value|default:"000000000" %}
-        <span class="size-[70%] rounded-full {% if pip == '1' %}bg-ink-900 dark:bg-ink-100{% endif %}"></span>
+        <span class="size-full rounded-full {% if pip == '1' %}bg-ink-900 dark:bg-ink-100{% endif %}"></span>
     {% endfor %}
 </span>

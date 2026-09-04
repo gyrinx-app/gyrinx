@@ -19,7 +19,7 @@ its own: the page owns the form.
          aria-live="polite">
     {% if roll.faces %}
         <span class="flex gap-2">
-            {% for face in roll.faces %}<c-n26.die value="{{ face }}" class="size-12" />{% endfor %}
+            {% for face in roll.faces %}<c-n26.die value="{{ face }}" class="text-5xl" />{% endfor %}
         </span>
     {% else %}
         <span class="flex size-12 shrink-0 items-center justify-center rounded-[18%] border border-ink-300 bg-white text-2xl font-semibold tabular-nums text-ink-900 dark:border-ink-600 dark:bg-ink-900 dark:text-ink-100"
