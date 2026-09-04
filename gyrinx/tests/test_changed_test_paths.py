@@ -39,7 +39,23 @@ def test_is_test_file_matches_the_pyproject_globs(path, expected):
 
 def test_changed_test_files_are_listed_as_themselves():
     changed = ["n23/core/tests/test_clone.py", "n26/core/test_navigation.py"]
-    assert select_changed_test_paths(changed, CONFTESTS) == sorted(changed)
+    assert select_changed_test_paths(changed, CONFTESTS, exists=lambda p: True) == (
+        sorted(changed)
+    )
+
+
+def test_a_deleted_test_file_has_nothing_to_run():
+    changed = ["n23/core/tests/test_clone.py", "n23/core/tests/test_gone.py"]
+    assert select_changed_test_paths(
+        changed, CONFTESTS, exists=lambda p: p != "n23/core/tests/test_gone.py"
+    ) == ["n23/core/tests/test_clone.py"]
+
+
+def test_a_deleted_conftest_still_lists_its_directory():
+    changed = ["n23/core/tests/conftest.py"]
+    assert select_changed_test_paths(changed, CONFTESTS, exists=lambda p: False) == [
+        "n23/core/tests/"
+    ]
 
 
 def test_source_and_non_python_changes_add_nothing():

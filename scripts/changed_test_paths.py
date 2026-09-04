@@ -4,10 +4,12 @@
 The required job runs `pytest -m core` plus whatever tests the pull request
 itself touched. This script works out the second half:
 
-- a test file that was added or modified is listed as itself;
-- a changed `conftest.py` lists its directory, so every test under it runs;
-- a changed module that a `conftest.py` imports (a fixtures module) lists the
-  directory of each conftest that imports it.
+- a test file that was added or modified is listed as itself (a deleted one
+  has nothing to run);
+- a changed or deleted `conftest.py` lists its directory, so every test under
+  it runs;
+- a changed or deleted module that a `conftest.py` imports (a fixtures
+  module) lists the directory of each conftest that imports it.
 
     scripts/changed_test_paths.py            # against origin/main
     scripts/changed_test_paths.py origin/dev # against another base
@@ -22,7 +24,7 @@ import pathlib
 import re
 import subprocess  # nosec B404 — runs one fixed git command to list changed files
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -66,19 +68,23 @@ def conftests_importing(module: str, conftests: dict[str, str]) -> list[str]:
 
 
 def select_changed_test_paths(
-    changed_files: Iterable[str], conftests: dict[str, str]
+    changed_files: Iterable[str],
+    conftests: dict[str, str],
+    exists: Callable[[str], bool] = lambda path: (ROOT / path).exists(),
 ) -> list[str]:
     """Reduce a list of changed files to the test paths that should run.
 
     `conftests` maps conftest paths to their source, as `find_conftests`
-    returns; it is a parameter so the rule can be tested without a checkout.
+    returns, and `exists` says whether a changed path is still in the tree;
+    both are parameters so the rule can be tested without a checkout.
     """
     entries: set[str] = set()
     for path in changed_files:
         if not path.endswith(".py"):
             continue
         if is_test_file(path):
-            entries.add(path)
+            if exists(path):
+                entries.add(path)
         elif pathlib.PurePosixPath(path).name == "conftest.py":
             entries.add(directory_entry(path))
         else:
@@ -90,14 +96,15 @@ def select_changed_test_paths(
 
 
 def changed_files_against(base: str) -> list[str]:
+    """Every path the change added, modified, renamed or deleted."""
     out = subprocess.run(  # nosec B607 — fixed argv; git resolved from PATH like every repo tool
-        ["git", "diff", "--name-only", "--diff-filter=AMR", f"{base}...HEAD"],
+        ["git", "diff", "--name-only", "--diff-filter=AMRD", f"{base}...HEAD"],
         check=True,
         capture_output=True,
         text=True,
         cwd=ROOT,
     ).stdout
-    return [line for line in out.splitlines() if line and (ROOT / line).exists()]
+    return [line for line in out.splitlines() if line]
 
 
 def main(argv: list[str]) -> int:
