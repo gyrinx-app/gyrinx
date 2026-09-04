@@ -34,8 +34,16 @@ because following one must never start or end an action.
         <c-n26.action-card.body :card="card">{{ body }}</c-n26.action-card.body>
     </c-ui.card>
 {% else %}
+    {% comment %}
+    Unboxed, the title carries a badge saying this is the action in
+    progress, and the button is the small size the square's other
+    controls use, so the square reads as one set.
+    {% endcomment %}
     <div class="{{ class }}">
-        <h3 class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">{{ card.title }}</h3>
-        <c-n26.action-card.body :card="card">{{ body }}</c-n26.action-card.body>
+        <div class="mb-2 flex flex-wrap items-center gap-2">
+            <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-100">{{ card.title }}</h3>
+            <c-ui.badge color="ink" size="sm">Current action</c-ui.badge>
+        </div>
+        <c-n26.action-card.body :card="card" button_size="xs">{{ body }}</c-n26.action-card.body>
     </div>
 {% endif %}

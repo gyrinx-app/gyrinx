@@ -75,13 +75,12 @@ class ActionsSquare:
     saying to a reader deciding what to do next.
 
     ``start_founding`` is where the start form posts, and is empty while
-    a founding action is open — the menu then offers the visit alone.
+    a founding action is open.
     """
 
     founding: ActionCard | None = None
     visit: VisitLine | None = None
     start_founding: str = ""
-    visit_href: str = ""
 
     @property
     def anything_open(self):
@@ -138,5 +137,4 @@ def actions_square(gang, sheet, *, founding_at, visit_at):
         founding=founding,
         visit=visit,
         start_founding="" if founding is not None else founding_at,
-        visit_href=visit_at,
     )
