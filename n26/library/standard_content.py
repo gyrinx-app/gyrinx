@@ -517,10 +517,12 @@ def _check_subtypes():
     return _count(Subtype, name__in=names), len(names)
 
 
-#: The two lasting-effect tables (core rules: the Lasting Injury and
-#: Lasting Damage tables), as ``(band low, band high, result)``. Names
-#: and bands only — what a result *does* is a modifier, which seeds
-#: never write, so the ten characteristic results are finished by hand.
+#: The lasting-effect tables (core rules: the Lasting Injury and Lasting
+#: Damage tables; the Spyre Hunters list's Hunting Rig Glitches; the
+#: alliance rules' delegation injuries), as ``(band low, band high,
+#: result)``. Names and bands only — what a result *does* is a modifier,
+#: which seeds never write, so the results that change a characteristic
+#: or move a counter are finished by hand.
 LASTING_INJURY_TABLE = [
     (11, 11, "Lesson Learnt"),
     (12, 12, "Eternal Enmity"),
@@ -558,48 +560,112 @@ LASTING_DAMAGE_TABLE = [
     (66, 66, "Catastrophic Explosion!"),
 ]
 
-#: On both tables at the same rolls. A pack holds one pickable per name,
-#: so the damage twin of each carries a qualifier — author-facing only,
-#: never a player's word.
-SHARED_LASTING_RESULTS = {
-    "Lesson Learnt",
-    "Eternal Enmity",
-    "Bitter Enmity",
-    "Personal Enmity",
-    "Captured",
-}
+#: A Spyrer's suit takes the hit: their own D66 in place of the Lasting
+#: Injury table. Ten results each move the Glitch Count as well.
+SPYRER_GLITCH_TABLE = [
+    (11, 11, "Lesson Learnt"),
+    (12, 12, "Eternal Enmity"),
+    (13, 13, "Bitter Enmity"),
+    (14, 14, "Personal Enmity"),
+    (15, 15, "Horrid Scars"),
+    (16, 16, "Impressive Scars"),
+    (21, 26, "Superficial Damage"),
+    (31, 46, "Grievous Wound"),
+    (51, 51, "Anxiety Suppression Damaged"),
+    (52, 52, "Neural Feedback"),
+    (53, 53, "Humbled"),
+    (54, 54, "Vox Ghosts"),
+    (55, 55, "Gyroscopic Destabilisation"),
+    (56, 56, "Seized Locomotors"),
+    (61, 61, "Targeting Uplink Disruption"),
+    (62, 62, "Stuttering Servos"),
+    (63, 63, "Damaged Musculature"),
+    (64, 64, "Reduced Plate Density"),
+    (65, 65, "Multiple Glitches"),
+    (66, 66, "Critical Overload"),
+]
 
-#: (slot type, plural, rows, the damage twins' qualifier)
+#: An alliance's delegation rolls a D6, not a D66.
+DELEGATION_INJURY_TABLE = [
+    (1, 2, "Out Cold"),
+    (3, 5, "Grievous Wound"),
+    (6, 6, "Critical Injury"),
+]
+
+#: ``(slot type, plural — the card's heading, rows, die, qualifier)``.
+#: A pack holds one pickable per name and qualifier, and several results
+#: sit on more than one table at the same rolls. A table's qualifier
+#: goes on each of its results that an earlier table already names, so
+#: the first table's rows stay plain and every later twin is told apart
+#: — author-facing only, never a player's word.
 LASTING_EFFECT_TABLES = [
-    ("Lasting Injury", "Lasting Injuries", LASTING_INJURY_TABLE, ""),
-    ("Lasting Damage", "Lasting Damage", LASTING_DAMAGE_TABLE, "vehicle"),
+    ("Lasting Injury", "Lasting Injuries", LASTING_INJURY_TABLE, "d66", ""),
+    ("Lasting Damage", "Lasting Damage", LASTING_DAMAGE_TABLE, "d66", "vehicle"),
+    (
+        "Spyrer Hunting Rig Glitch",
+        "Spyrer Hunting Rig Glitches",
+        SPYRER_GLITCH_TABLE,
+        "d66",
+        "spyrer",
+    ),
+    (
+        "Delegation Lasting Injury",
+        "Delegation Lasting Injuries",
+        DELEGATION_INJURY_TABLE,
+        "d6",
+        "delegation",
+    ),
 ]
 
 
+def _twin_qualifier(table_index, result):
+    """The qualifier a result carries on this table: the table's own if
+    an earlier table already names the result, else none."""
+    earlier = LASTING_EFFECT_TABLES[:table_index]
+    if any(result in {row[2] for row in rows} for _, _, rows, _, _ in earlier):
+        return LASTING_EFFECT_TABLES[table_index][4]
+    return ""
+
+
+#: Every result named on more than one table.
+SHARED_LASTING_RESULTS = {
+    result
+    for index, (_, _, rows, _, _) in enumerate(LASTING_EFFECT_TABLES)
+    for _, _, result in rows
+    if _twin_qualifier(index, result)
+}
+
+
 def _lasting_row(model, name, qualifier, slot_type, defaults):
-    """One pickable or slot, matched the way its uniqueness is defined:
-    per pack on lowercased name and qualifier, not per slot type. An
-    exact-key lookup scoped to the slot type would miss a row that
-    differs only in case or belongs to another type, then trip the
-    unique constraint trying to insert its double."""
-    row = model.objects.filter(name__iexact=name, qualifier__iexact=qualifier).first()
-    if row is None:
-        return model.objects.create(
-            name=name, qualifier=qualifier, slot_type=slot_type, **defaults
-        )
-    if row.slot_type_id != slot_type.pk:
+    """One pickable or slot for a table, matched three ways in turn.
+
+    Its own slot type's row of that name is the one, whatever qualifier
+    it was created with — a table seeded before a later table shared the
+    name must not gain a second copy. Failing that, a row of that name
+    and qualifier under another slot type is a name already claimed,
+    refused in words rather than tripping the per-pack unique constraint
+    (lowercased name and qualifier, not slot type) as a bare error.
+    Otherwise the row is created.
+    """
+    own = model.objects.filter(name__iexact=name, slot_type=slot_type).first()
+    if own is not None:
+        return own
+    taken = model.objects.filter(name__iexact=name, qualifier__iexact=qualifier).first()
+    if taken is not None:
         raise RuntimeError(
             f'A {model._meta.verbose_name} named "{name}" already belongs '
-            f'to the "{row.slot_type}" slot type, so the "{slot_type}" '
+            f'to the "{taken.slot_type}" slot type, so the "{slot_type}" '
             f"table cannot claim the name."
         )
-    return row
+    return model.objects.create(
+        name=name, qualifier=qualifier, slot_type=slot_type, **defaults
+    )
 
 
 def _create_lasting_effect_tables():
     from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
 
-    for name, plural, rows, twin_qualifier in LASTING_EFFECT_TABLES:
+    for index, (name, plural, rows, dice, _) in enumerate(LASTING_EFFECT_TABLES):
         slot_type = SlotType.objects.filter(name__iexact=name).first()
         if slot_type is None:
             slot_type = SlotType.objects.create(
@@ -612,12 +678,13 @@ def _create_lasting_effect_tables():
             table = Picklist.objects.create(
                 name=f"{name} Table",
                 slot_type=slot_type,
-                dice="d66",
+                dice=dice,
                 roll_selects="band",
             )
         for position, (low, high, result) in enumerate(rows):
-            qualifier = twin_qualifier if result in SHARED_LASTING_RESULTS else ""
-            pickable = _lasting_row(Pickable, result, qualifier, slot_type, {})
+            pickable = _lasting_row(
+                Pickable, result, _twin_qualifier(index, result), slot_type, {}
+            )
             PicklistMember.objects.get_or_create(
                 picklist=table,
                 pickable=pickable,
@@ -639,8 +706,8 @@ def _create_lasting_effect_tables():
 def _check_lasting_effect_tables():
     from n26.library.models import PicklistMember, Slot, SlotType
 
-    names = [name for name, _, _, _ in LASTING_EFFECT_TABLES]
-    members = sum(len(rows) for _, _, rows, _ in LASTING_EFFECT_TABLES)
+    names = [name for name, _, _, _, _ in LASTING_EFFECT_TABLES]
+    members = sum(len(rows) for _, _, rows, _, _ in LASTING_EFFECT_TABLES)
     present = _count(SlotType, name__in=names)
     present += _count(
         PicklistMember,
@@ -680,12 +747,13 @@ STANDARD_CONTENT = {
             key="lasting-effect-tables",
             name="Lasting effect tables",
             help=(
-                "The Lasting Injury and Lasting Damage tables as D66 roll "
+                "The Lasting Injury and Lasting Damage tables, the Spyrer "
+                "Hunting Rig Glitches and the delegation injuries as roll "
                 "tables — a slot type, results at their bands, and a "
-                "standing choice each. Names and bands only: the ten "
-                "results that worsen a characteristic still need their "
+                "standing choice each. Names and bands only: results that "
+                "change a characteristic or move a counter still need their "
                 "modifiers attached, and each gang type a modifier that "
-                "gives every fighter or vehicle its choice."
+                "gives its models the right choice."
             ),
             check=_check_lasting_effect_tables,
             create=_create_lasting_effect_tables,
