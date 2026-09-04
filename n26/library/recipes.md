@@ -280,10 +280,18 @@ the dice are the table's, and a player adds the result they rolled.
    that do *not* have it, giving Lasting Injury as before. A Spyrer's
    card then asks under Hunting Rig Glitches and never under Lasting
    Injuries.
-5. A delegation's models roll on the D6 table. Giving them the
-   Delegation Lasting Injuries choice needs a way to reach exactly
-   those models; naming their entries one by one on the modifier is the
-   only way today, and which entries count is not yet settled.
+5. A delegation's models roll on the D6 table instead, and the swap
+   rides the models themselves rather than the gang types. Create a
+   **hidden** item named "Delegation" carrying two modifiers, both
+   reaching *the model carrying it*: one *takes away* the Lasting
+   Injury choice, the other *gives* the Delegation Lasting Injuries
+   choice. Then build it into each delegation entry — the fighters
+   under the Allies gang type. A delegation model's card asks under
+   Delegation Lasting Injuries and never under Lasting Injuries, in any
+   gang, while every gang type's own grants stay as they are. Anything
+   else the alliance rules say of a delegation belongs on the same
+   hidden item; an entry added to the Allies list later needs it built
+   in too.
 
 Taking one of those modifiers off a gang type takes the row off every
 card at once, and leaves what players had already picked where it is,
