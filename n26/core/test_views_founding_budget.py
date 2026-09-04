@@ -29,26 +29,61 @@ pytestmark = pytest.mark.django_db
 
 FOUNDING = Action.Kind.FOUNDING
 
+#: The Venator entries these tests hire, as ``(entry, the subtype naming
+#: its rank)``. A Hunter is a Specialist, which is how the gang list
+#: marks the rank; the allied entry is ranked Champion and filed under a
+#: heading of its own, so no founding figure names it.
+GANG_LIST = [("Hunt Leader", "Leader"), ("Hunter", "Specialist")]
+ALLIES = [("Bone Scrivener", "Champion")]
+
 
 @pytest.fixture
-def budgets(default_pack):
-    from n26.library.standard_content import STANDARD_CONTENT
+def ranks(default_pack):
+    from n26.library.models import Subtype
+
+    return {
+        name: Subtype.objects.create(name=name)
+        for name in ("Leader", "Champion", "Specialist")
+    }
+
+
+@pytest.fixture
+def library(ranks, make_profile, make_statline):
+    """A Venator gang list and one allied entry, then the seed. Authored
+    first, because the seed names the entries it finds."""
+    from n26.library.authoring import add_built_in, create_category
+    from n26.library.models import GangType
+    from n26.library.standard_content import GANG_LIST_SECTION, STANDARD_CONTENT
+
+    entries = {}
+
+    def author(gang_type, section, name, rank):
+        profile = make_profile(
+            f"{gang_type.name} {name}",
+            price=0,
+            gang_type=gang_type,
+            category=create_category(section, f"{gang_type.name} {rank} {section}"),
+        )
+        make_statline(profile, movement=5, weapon_skill=4, toughness=3)
+        add_built_in(profile, ranks[rank])
+        entries[name] = profile
+
+    venators = GangType.objects.create(name="Venators")
+    for name, rank in GANG_LIST:
+        author(venators, GANG_LIST_SECTION, name, rank)
+    allies = GangType.objects.create(name="Allies")
+    for name, rank in ALLIES:
+        author(allies, "Allies", name, rank)
 
     STANDARD_CONTENT["founding-budgets"].create()
+    return entries
 
 
 @pytest.fixture
-def venators(budgets):
+def venators(library):
     from n26.library.models import GangType
 
     return GangType.objects.get(name="Venators")
-
-
-@pytest.fixture
-def ranks(budgets):
-    from n26.library.models import Subtype
-
-    return {name: Subtype.objects.get(name=name) for name in ("Leader", "Champion")}
 
 
 @pytest.fixture
@@ -73,29 +108,24 @@ def gang(venators, tester):
 
 
 @pytest.fixture
-def hire(gang, tester, make_profile, make_statline):
-    def make(name, *rank_rows):
-        profile = make_profile(
-            f"{name} entry", price=0, gang_type=gang.gang_type, pack=gang.gang_type.pack
-        )
-        make_statline(profile, movement=5, weapon_skill=4, toughness=3)
+def hire(gang, tester, library):
+    def make(entry, name):
         with operation(gang, actor=tester) as op:
-            model = op.hire(profile, name)
-            for rank in rank_rows:
-                op.assign(rank, miniature=model)
-        return model
+            return op.hire(library[entry], name)
 
     return make
 
 
 @pytest.fixture
-def leader(hire, ranks):
-    return hire("Rasp", ranks["Leader"])
+def leader(hire):
+    return hire("Hunt Leader", "Rasp")
 
 
 @pytest.fixture
 def ganger(hire):
-    return hire("Vesh")
+    """An ally the gang hired in: ranked Champion by its own book, and
+    given no founding allowance by this one."""
+    return hire("Bone Scrivener", "Vesh")
 
 
 @pytest.fixture
@@ -380,12 +410,12 @@ class TestGoingPastIt:
 
 class TestTheQueryBudget:
     """A model with no allowance asks nothing extra, and one with an
-    allowance asks two questions however much it has spent.
+    allowance asks three questions however much it has spent.
 
     Pinned by what is asked rather than by a total: an equip page's total
     moves with the kit on the model, and what matters here is that the
-    allowance costs a fixed pair of questions and that a model without
-    one costs neither.
+    allowance costs a fixed set of questions and that a model without one
+    asks none of them.
     """
 
     #: The gang reading which actions it has open. Matched on the head of
@@ -393,6 +423,10 @@ class TestTheQueryBudget:
     #: own row carries a subquery over the same table saying what the
     #: gang's open visit brought.
     ACTIONS = 'SELECT "n26_action"."id"'
+    #: The standard counter, so a homebrew one of the same name is not
+    #: mistaken for it. Named by its pack's slug, which is the join that
+    #: tells it from the counters a card's modifiers bring along.
+    COUNTER = '"library_contentpack"'
     #: What this model has spent under the founding action.
     SPEND = 'SUM("n26_ledgerevent"."trade_points_delta")'
 
@@ -410,18 +444,25 @@ class TestTheQueryBudget:
     def reads_actions(self, asked):
         return [sql for sql in asked if sql.startswith(self.ACTIONS)]
 
+    def reads_counter(self, asked):
+        return [
+            sql for sql in asked if '"library_counter"' in sql and self.COUNTER in sql
+        ]
+
     def reads_spend(self, asked):
         return [sql for sql in asked if self.SPEND in sql]
 
-    def test_a_model_with_no_allowance_asks_neither_question(
+    def test_a_model_with_no_allowance_asks_none_of_them(
         self, client, tester, ganger, legacy_list
     ):
-        """Nothing raised the counter, so the page never finds out
-        whether the gang is being founded at all."""
+        """Nothing on the card named the counter, so the page never asks
+        the library about it and never finds out whether the gang is
+        being founded at all."""
         client.force_login(tester)
 
         asked = self.asked(client, equip_url(ganger, legacy_list))
 
+        assert self.reads_counter(asked) == []
         assert self.reads_actions(asked) == []
         assert self.reads_spend(asked) == []
 
@@ -432,6 +473,7 @@ class TestTheQueryBudget:
 
         asked = self.asked(client, equip_url(leader, legacy_list))
 
+        assert len(self.reads_counter(asked)) == 1
         assert len(self.reads_actions(asked)) == 1
         assert len(self.reads_spend(asked)) == 1
 
@@ -445,6 +487,7 @@ class TestTheQueryBudget:
 
         asked = self.asked(client, url)
 
+        assert len(self.reads_counter(asked)) == 1
         assert len(self.reads_actions(asked)) == 1
         assert len(self.reads_spend(asked)) == 1
 
@@ -460,5 +503,6 @@ class TestTheQueryBudget:
 
         asked = self.asked(client, equip_url(leader, legacy_list))
 
+        assert len(self.reads_counter(asked)) == 1
         assert len(self.reads_actions(asked)) == 1
         assert self.reads_spend(asked) == []

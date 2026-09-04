@@ -90,6 +90,27 @@ class LedgerEntry(Base):
             "made with no action open."
         ),
     )
+    #: Whose Trade Points these were. An allowance may belong to one
+    #: model rather than to the gang — what a fighter is given to spend
+    #: as it joins — and what it has spent has to follow the buyer, never
+    #: the thing bought: moving a gun into the stash or handing it to
+    #: somebody else does not refund the points, and refunding it there
+    #: returns them to whoever spent them. Blank where nothing was
+    #: recorded against an action, and for a purchase into the stash,
+    #: which nobody's allowance pays for.
+    spent_by = models.ForeignKey(
+        "n26.Miniature",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        db_index=True,
+        help_text=(
+            "The model whose Trade Points this purchase spent. Blank for "
+            "a purchase that counted against no action, or one into the "
+            "stash."
+        ),
+    )
     note = models.CharField(max_length=255, blank=True)
 
     class Meta:

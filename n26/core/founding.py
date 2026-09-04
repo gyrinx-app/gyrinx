@@ -33,13 +33,16 @@ def budget_granted(computed):
     already on the card, and only one that names this counter is worth
     asking the library about.
 
-    Pinned to the default pack, as every reader of a standard counter is:
-    counter names are unique per pack, so a homebrew pack's counter of
-    the same name must not stand in for the standard one. The pack is
-    asked for only where a contribution named the counter, so a model
-    with no such contribution pays nothing to find that out.
+    Pinned to the standard counter, as every reader of one is: counter
+    names are unique per pack, so a homebrew pack's counter of the same
+    name must not stand in for it. That is one query, and only where a
+    contribution named the counter — a model with none pays nothing to
+    find that out.
     """
-    from n26.library.standard_content import FOUNDING_BUDGET_COUNTER
+    from n26.library.standard_content import (
+        FOUNDING_BUDGET_COUNTER,
+        founding_budget_counter,
+    )
 
     wanted = FOUNDING_BUDGET_COUNTER.casefold()
     named = [
@@ -49,13 +52,13 @@ def budget_granted(computed):
     ]
     if not named:
         return 0
-    from n26.library.models import get_default_pack
-
-    pack = get_default_pack().pk
+    standard = founding_budget_counter()
+    if standard is None:
+        return 0
     return sum(
         contribution.amount
         for contribution in named
-        if contribution.counter.pack_id == pack
+        if contribution.counter.pk == standard.pk
     )
 
 
@@ -104,12 +107,13 @@ def budget_for(gang, miniature, computed):
     None covers both halves of "none": a model whose card raises the
     counter by nothing, and a gang whose founding action is complete. The
     first is settled without a query, so a screen for a model with no
-    allowance costs exactly what it did before this existed.
+    allowance asks exactly what it did before this existed.
 
-    Two queries where there is one: which actions the gang has open —
-    held on the gang, so a purchase on the same request reads it again
-    for free — and what this model has already spent under the founding
-    one.
+    Three queries where there is one: the standard counter, so a
+    homebrew one of the same name is not mistaken for it; which actions
+    the gang has open — held on the gang, so a purchase on the same
+    request reads it again for free — and what this model has already
+    spent under the founding one.
     """
     from n26.core.models import Action
     from n26.core.reconcile import trade_points_spent_by

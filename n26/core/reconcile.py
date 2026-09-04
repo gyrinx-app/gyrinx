@@ -125,15 +125,19 @@ def trade_points_spent_for(action):
 
 
 def trade_points_spent_by(action, miniature):
-    """Every Trade Point one model counted against one action.
+    """Every Trade Point one model spent against one action.
 
-    The same sum as :func:`trade_points_spent_for`, narrowed to the model
-    the assignment belongs to: a founding allowance is the model's own,
-    so what one has spent says nothing about what another may.
+    The same sum as :func:`trade_points_spent_for`, narrowed to whoever
+    spent it: a founding allowance is the model's own, so what one has
+    spent says nothing about what another may.
 
-    ``miniature_root`` rather than the host, because a weapon's paid ammo
-    hangs off the gun and not off the model, and the round is part of
-    what the model spent.
+    Narrowed on the buyer the purchase recorded and never on where the
+    thing is now. An owner may move a gun into the stash or hand it to
+    somebody else, and neither hands the points back — moving kit about
+    is not a refund. Reading the assignment's model instead would refill
+    the buyer's allowance the moment they stashed anything, and refunding
+    the gun from its new owner would take that owner's allowance below
+    zero for points they never spent.
 
     One query.
     """
@@ -142,7 +146,7 @@ def trade_points_spent_by(action, miniature):
     return (
         LedgerEvent.objects.filter(
             assignment__ledger_entry__action=action,
-            assignment__miniature_root=miniature,
+            assignment__ledger_entry__spent_by=miniature,
         ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )

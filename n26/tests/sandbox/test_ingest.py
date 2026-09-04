@@ -2222,16 +2222,13 @@ class TestClearing:
 
         assert Trait.objects.count() == 0
         # Every modifier goes with them, bar standard content's own,
-        # which name nothing an import wrote. The Clanless contribution
-        # is not among them: it is only made where that affiliation is
-        # in the library, and these sheets write no affiliations.
-        from n26.library.standard_content import (
-            FOUNDING_BUDGET_MODIFIERS,
-            VISIT_CONTRIBUTION_MODIFIERS,
-        )
+        # which name nothing an import wrote. The founding-budget ones
+        # are not among those: each names the fighter entries it reaches,
+        # so they belong to the import and go with it.
+        from n26.library.standard_content import VISIT_CONTRIBUTION_MODIFIERS
 
         assert sorted(Modifier.objects.values_list("name", flat=True)) == sorted(
-            VISIT_CONTRIBUTION_MODIFIERS + FOUNDING_BUDGET_MODIFIERS
+            VISIT_CONTRIBUTION_MODIFIERS
         )
 
     def test_a_reworded_seed_modifier_still_stands_after_a_clear(

@@ -39,6 +39,7 @@ from n26.tests.sandbox.actions import (
     create_wargear,
     found_gang,
     hire_with_option,
+    move,
     refund,
     sell,
     start_action,
@@ -55,35 +56,90 @@ def player():
     return User.objects.create_user("tom")
 
 
+#: The entries each gang list holds, as ``(entry, the subtype naming its
+#: rank)``. Shaped the way the books' lists are: a Venator gang's Hunters
+#: are Specialists, an Outcast gang's Hive Scum is a Ganger and gets
+#: nothing.
+GANG_LISTS = {
+    "Venators": [
+        ("Hunt Leader", "Leader"),
+        ("Hunt Champion", "Champion"),
+        ("Hunter", "Specialist"),
+    ],
+    "Outcast": [
+        ("Leader", "Leader"),
+        ("Champion", "Champion"),
+        ("Hive Scum", "Ganger"),
+    ],
+}
+
+#: What a gang may also hire, whoever authored it: filed under a heading
+#: of its own, and ranked the same way its own book ranks it.
+ALLIES = [("Bone Scrivener", "Champion")]
+
+
 @pytest.fixture
-def budgets(default_pack):
-    """What the books grant, as content: the undrawn counter and the
-    modifiers on each gang type and on the Clanless affiliation that
-    raise it. Nothing in the code names a gang, a rank or a figure."""
-    from n26.library.standard_content import STANDARD_CONTENT
-
-    STANDARD_CONTENT["founding-budgets"].create()
-
-
-@pytest.fixture
-def ranks(budgets):
+def ranks(default_pack):
     from n26.library.models import Subtype
 
     return {
-        name: Subtype.objects.get(name=name)
-        for name in ("Leader", "Champion", "Specialist")
+        name: Subtype.objects.create(name=name)
+        for name in ("Leader", "Champion", "Specialist", "Ganger")
     }
 
 
 @pytest.fixture
-def venators(budgets):
+def library(ranks, make_profile, make_statline):
+    """Two gang lists and one allied entry, then the seed.
+
+    The seed reads the library, so the entries are authored first: a
+    gang's own list is what its founding figures name, and an ally ranked
+    the same way is filed under its own heading and named by nobody.
+    """
+    from n26.library.authoring import add_built_in, create_category
+    from n26.library.models import GangType
+    from n26.library.standard_content import GANG_LIST_SECTION, STANDARD_CONTENT
+
+    entries = {}
+
+    def author(gang_type, section, name, rank):
+        category = create_category(section, f"{gang_type.name} {rank} {section}")
+        profile = make_profile(
+            f"{gang_type.name} {name}", price=50, gang_type=gang_type, category=category
+        )
+        make_statline(profile)
+        add_built_in(profile, ranks[rank])
+        entries[(gang_type.name, name)] = profile
+
+    for gang_type_name, rows in GANG_LISTS.items():
+        gang_type = GangType.objects.create(name=gang_type_name)
+        for name, rank in rows:
+            author(gang_type, GANG_LIST_SECTION, name, rank)
+
+    allies = GangType.objects.create(name="Allies")
+    for name, rank in ALLIES:
+        author(allies, "Allies", name, rank)
+
+    STANDARD_CONTENT["founding-budgets"].create()
+    return entries
+
+
+@pytest.fixture
+def budgets(library):
+    """The seed, run over an authored library — named for what it grants
+    rather than for what it reads."""
+    return library
+
+
+@pytest.fixture
+def venators(library):
     from n26.library.models import GangType
 
     return GangType.objects.get(name="Venators")
 
 
 @pytest.fixture
-def outcast(budgets):
+def outcast(library):
     from n26.library.models import GangType
 
     return GangType.objects.get(name="Outcast")
@@ -95,18 +151,13 @@ def gang(venators, player):
 
 
 @pytest.fixture
-def hire_into(make_profile, make_statline):
-    """Hire a model of its own entry into any gang, at any rank."""
+def hire_into(library):
+    """Hire one of the library's entries into a gang, under a name, with
+    any further subtypes assigned to the model itself."""
 
-    def make(gang, name, *rank_rows):
-        profile = make_profile(
-            f"{name} entry",
-            price=50,
-            gang_type=gang.gang_type,
-            pack=gang.gang_type.pack,
-        )
-        make_statline(profile)
-        model = hire_with_option(gang, profile, name)
+    def make(gang, entry, name, *rank_rows):
+        gang_type, entry_name = entry
+        model = hire_with_option(gang, library[(gang_type, entry_name)], name)
         for rank in rank_rows:
             assign(rank, miniature=model)
         return model
@@ -115,8 +166,8 @@ def hire_into(make_profile, make_statline):
 
 
 @pytest.fixture
-def leader(gang, ranks, hire_into):
-    return hire_into(gang, "Rasp", ranks["Leader"])
+def leader(gang, hire_into):
+    return hire_into(gang, ("Venators", "Hunt Leader"), "Rasp")
 
 
 @pytest.fixture
@@ -175,54 +226,86 @@ def buy_at_founding(miniature, line, **kwargs):
 
 class TestWhatTheBooksGrant:
     """The figure is a counter reading, raised by the gang type and by
-    what the gang is affiliated with. A model in a gang whose book grants
-    no such allowance reads nothing at all."""
+    what the gang is affiliated with. It names the gang's own entries, so
+    a model hired from somebody else's list reads nothing.
+    """
 
     def test_a_venator_leader_may_spend_five(self, leader):
         assert reading(leader) == 5
 
-    def test_a_venator_champion_may_spend_four(self, gang, ranks, hire_into):
-        assert reading(hire_into(gang, "Kel", ranks["Champion"])) == 4
+    def test_a_venator_champion_may_spend_four(self, gang, hire_into):
+        assert reading(hire_into(gang, ("Venators", "Hunt Champion"), "Kel")) == 4
 
-    def test_a_venator_hunter_may_spend_three(self, gang, ranks, hire_into):
-        """Every Venator Hunter entry carries the Specialist subtype, and
-        nothing else a Venator gang hires does."""
-        assert reading(hire_into(gang, "Tuk", ranks["Specialist"])) == 3
+    def test_a_venator_hunter_may_spend_three(self, gang, hire_into):
+        """Every Venator Hunter entry is a Specialist, which is how the
+        gang list marks the rank."""
+        assert reading(hire_into(gang, ("Venators", "Hunter"), "Tuk")) == 3
 
-    def test_a_model_with_no_rank_may_spend_nothing(self, gang, hire_into):
-        assert reading(hire_into(gang, "Vesh")) == 0
+    def test_an_outcast_hive_scum_may_spend_nothing(self, outcast, player, hire_into):
+        """The Outcast book gives its Leaders and Champions a figure and
+        nobody else one."""
+        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
 
-    def test_a_model_holding_both_ranks_spends_the_better_figure(
+        assert reading(hire_into(gang, ("Outcast", "Hive Scum"), "Nix")) == 0
+
+    def test_an_ally_ranked_champion_may_spend_nothing(
+        self, outcast, player, hire_into
+    ):
+        """A rank's subtype is carried right across the library, and an
+        allied entry ranked Champion is nobody's Champion but their own.
+        The figure names the gang's own entries, so hiring one in changes
+        nothing about what it may spend."""
+        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+
+        hired = hire_into(gang, ("Allies", "Bone Scrivener"), "Aster")
+
+        assert reading(hired) == 0
+
+    def test_a_model_given_a_second_rank_still_spends_the_better_figure(
         self, gang, ranks, hire_into
     ):
         """The allowance is one allowance, so 5 and 4 do not come to 9.
-        The lesser rank's modifier is scoped away from models holding the
-        better one, which is where that is settled."""
-        both = hire_into(gang, "Rasp", ranks["Leader"], ranks["Champion"])
+        The figures name entries, and a Hunt Leader is one entry however
+        many ranks are hung on the model."""
+        both = hire_into(gang, ("Venators", "Hunt Leader"), "Rasp", ranks["Champion"])
 
         assert reading(both) == 5
 
-    def test_a_clanless_gang_adds_one_more(self, outcast, player, ranks, hire_into):
+    def test_a_clanless_gang_adds_one_more(self, outcast, player, hire_into):
         from n26.library.models import Affiliation
-
-        clanless = Affiliation.objects.create(name="Clanless")
         from n26.library.standard_content import STANDARD_CONTENT
 
+        clanless = Affiliation.objects.create(name="Clanless")
         STANDARD_CONTENT["founding-budgets"].create()
         gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
         assign(clanless, gang=gang)
 
-        assert reading(hire_into(gang, "Sura", ranks["Leader"])) == 5
-        assert reading(hire_into(gang, "Nix", ranks["Champion"])) == 4
+        assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
+        assert reading(hire_into(gang, ("Outcast", "Champion"), "Nix")) == 4
+        assert reading(hire_into(gang, ("Outcast", "Hive Scum"), "Tuk")) == 0
 
     def test_a_gang_whose_book_grants_none_reads_nothing(
-        self, gang_type, player, ranks, hire_into
+        self, gang_type, player, library, hire_with_escher
     ):
-        """Escher hands nobody an allowance, so its Leader has none —
-        and neither does anybody hired into a gang of that type."""
+        """Escher hands nobody an allowance, so its Leader has none."""
         escher = found_gang("The Wire", gang_type, owner=player, budget=1000)
 
-        assert reading(hire_into(escher, "Yolanda", ranks["Leader"])) == 0
+        assert reading(hire_with_escher(escher, "Yolanda")) == 0
+
+
+@pytest.fixture
+def hire_with_escher(ranks, make_profile, make_statline):
+    """A gang list nobody's founding figures name, ranked all the same."""
+
+    def make(gang, name):
+        from n26.library.authoring import add_built_in
+
+        profile = make_profile("Escher Leader", price=50, gang_type=gang.gang_type)
+        make_statline(profile)
+        add_built_in(profile, ranks["Leader"])
+        return hire_with_option(gang, profile, name)
+
+    return make
 
 
 class TestWhatCountsAgainstIt:
@@ -266,11 +349,11 @@ class TestWhatCountsAgainstIt:
         assert_reconciled(gang)
 
     def test_another_models_spending_is_not_this_ones(
-        self, gang, leader, ranks, hire_into, legacy_list
+        self, gang, leader, hire_into, legacy_list
     ):
         """The allowance belongs to the model, so what one has spent says
         nothing about what another may."""
-        kel = hire_into(gang, "Kel", ranks["Champion"])
+        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
         buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
 
         assert budget(leader).spent == 3
@@ -298,6 +381,66 @@ class TestWhatCountsAgainstIt:
 
         assert budget(leader).remaining == -1
         assert_reconciled(gang)
+
+
+class TestMovingWhatWasBought:
+    """Spend follows the buyer, never the thing. Moving kit about is not
+    a refund, and an owner who stashes a gun has not been handed its
+    Trade Points back.
+    """
+
+    def test_stashing_it_does_not_hand_the_points_back(self, gang, leader, legacy_list):
+        bought = buy_at_founding(
+            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
+        )
+
+        move(bought, gang.stash)
+
+        assert budget(leader).spent == 3
+        assert budget(leader).remaining == 2
+
+    def test_handing_it_to_somebody_else_does_not_either(
+        self, gang, leader, hire_into, legacy_list
+    ):
+        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
+        bought = buy_at_founding(
+            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
+        )
+
+        move(bought, kel)
+
+        assert budget(leader).spent == 3
+        assert budget(kel).spent == 0
+        assert budget(kel).remaining == 4
+
+    def test_and_refunding_it_there_returns_them_to_whoever_spent_them(
+        self, gang, leader, hire_into, legacy_list
+    ):
+        """Otherwise the model it was handed to goes below zero for points
+        it never spent, and the one who bought it never gets them back."""
+        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
+        bought = buy_at_founding(
+            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
+        )
+        move(bought, kel)
+
+        refund(bought)
+
+        assert budget(leader).spent == 0
+        assert budget(kel).spent == 0
+        assert budget(kel).remaining == 4
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_the_tally_a_screen_draws_does_not_move(self, gang, leader, legacy_list):
+        bought = buy_at_founding(
+            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
+        )
+        before = budget(leader).facts
+
+        move(bought, gang.stash)
+
+        assert budget(leader).facts == before
 
 
 class TestGivingSomethingBack:
@@ -402,12 +545,12 @@ class TestTwoAllowancesAtOnce:
         assert gang.trade_points_left == 6
 
     def test_and_the_visits_purchases_are_not_the_models(
-        self, gang, leader, ranks, hire_into, post
+        self, gang, leader, hire_into, post
     ):
         """A model with no allowance buys against the visit, as it always
         did."""
         visit_trading_post(gang, brought=6)
-        vesh = hire_into(gang, "Vesh")
+        vesh = hire_into(gang, ("Allies", "Bone Scrivener"), "Vesh")
 
         buy(vesh, line_for(browse(post), "Mesh armour"))
 
@@ -443,8 +586,9 @@ class TestTheSeed:
         assert set(raising.values_list("pk", flat=True)) == before
 
     def test_a_reworded_modifier_is_left_alone(self, budgets, venators):
-        """Matched by name, rewording one and seeding again would hang a
-        second contribution on the gang type and double what it grants."""
+        """Matched by name, rewording one and running the seed again
+        would hang a second contribution on the gang type and double what
+        it grants."""
         from n26.library.standard_content import (
             STANDARD_CONTENT,
             founding_budget_counter,
@@ -456,11 +600,139 @@ class TestTheSeed:
         carried = raising.get(contributes_to_counter__amount=5)
         carried.name = "Hunt Leaders get five"
         carried.save()
+        before = sorted(raising.values_list("pk", flat=True))
 
         STANDARD_CONTENT["founding-budgets"].create()
 
-        assert list(raising.order_by("pk")) == list(raising.order_by("pk"))
+        assert sorted(raising.values_list("pk", flat=True)) == before
         assert raising.count() == 3
+
+    def test_an_entry_authored_later_shows_it_incomplete(
+        self, budgets, venators, ranks, make_profile, make_statline
+    ):
+        """A new Hunt Leader entry is one nobody has given a figure to
+        yet. Saying so is the point: the alternative is an entry that is
+        quietly unbudgeted and nothing to show for it."""
+        from n26.library.authoring import add_built_in, create_category
+        from n26.library.standard_content import GANG_LIST_SECTION, STANDARD_CONTENT
+
+        newcomer = make_profile(
+            "Ogryn Hunt Leader",
+            price=50,
+            gang_type=venators,
+            category=create_category(GANG_LIST_SECTION, "Venators Ogryn"),
+        )
+        make_statline(newcomer)
+        add_built_in(newcomer, ranks["Leader"])
+
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present == wanted - 1
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert STANDARD_CONTENT["founding-budgets"].check() == (wanted, wanted)
+
+    def test_and_the_entry_is_named_by_the_modifier_already_standing(
+        self, budgets, venators, ranks, make_profile, make_statline
+    ):
+        """Added to the one there rather than given a second: two
+        modifiers granting the same figure would raise it twice."""
+        from n26.library.authoring import add_built_in, create_category
+        from n26.library.standard_content import (
+            GANG_LIST_SECTION,
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        newcomer = make_profile(
+            "Ogryn Hunt Leader",
+            price=50,
+            gang_type=venators,
+            category=create_category(GANG_LIST_SECTION, "Venators Ogryn"),
+        )
+        make_statline(newcomer)
+        add_built_in(newcomer, ranks["Leader"])
+        raising = venators.modifiers.filter(
+            contributes_to_counter__counter=founding_budget_counter()
+        )
+        before = sorted(raising.values_list("pk", flat=True))
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert sorted(raising.values_list("pk", flat=True)) == before
+        named = raising.get(contributes_to_counter__amount=5).targets_miniature
+        assert newcomer.pk in {
+            profile.pk
+            for row in named.is_profile.all()
+            for profile in row.profiles.all()
+        }
+
+    def test_a_contribution_reaching_the_wrong_models_is_brought_round(
+        self, budgets, venators, ranks
+    ):
+        """A figure that reached a rank rather than the gang's own entries
+        would hand an allied Champion a Champion's allowance. The seed
+        narrows the modifier already standing to the entries instead of
+        making a second one, so nothing raises the figure twice."""
+        from n26.library.authoring import (
+            ef_contributes_to_counter,
+            has_subtypes,
+            recompose_modifier,
+            targets_every_model,
+        )
+        from n26.library.standard_content import (
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        counter = founding_budget_counter()
+        raising = venators.modifiers.filter(contributes_to_counter__counter=counter)
+        carried = raising.get(contributes_to_counter__amount=5)
+        recompose_modifier(
+            carried,
+            carried.name,
+            targets_every_model(has_subtypes(ranks["Leader"])),
+            ef_contributes_to_counter(counter, 5),
+        )
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present == wanted - 1
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert STANDARD_CONTENT["founding-budgets"].check() == (wanted, wanted)
+        assert raising.count() == 3
+
+    def test_a_homebrew_gang_type_of_the_same_name_is_not_it(
+        self, budgets, homebrew, ranks, make_profile, make_statline
+    ):
+        """Names are unique per pack, so somebody's own pack may hold a
+        gang type called Venators. Its entries are not the standard
+        list's and are given no figure."""
+        from n26.library.authoring import add_built_in, create_category
+        from n26.library.models import GangType, Subtype
+        from n26.library.standard_content import (
+            GANG_LIST_SECTION,
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        theirs = GangType.objects.create(name="Venators", pack=homebrew)
+        their_rank = Subtype.objects.create(name="Leader", pack=homebrew)
+        their_entry = make_profile(
+            "Their Hunt Leader",
+            price=50,
+            gang_type=theirs,
+            pack=homebrew,
+            category=create_category(GANG_LIST_SECTION, "Their Leaders", pack=homebrew),
+        )
+        make_statline(their_entry)
+        add_built_in(their_entry, their_rank)
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert not theirs.modifiers.filter(
+            contributes_to_counter__counter=founding_budget_counter()
+        ).exists()
 
     def test_an_affiliation_the_library_lacks_is_not_created(self, budgets):
         """Affiliations are authored content. A library without Clanless
