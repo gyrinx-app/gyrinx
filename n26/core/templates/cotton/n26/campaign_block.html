@@ -20,15 +20,24 @@ Each counter draws an ordinary counter row, so a campaign's Reputation looks
 the same as any counter the gang keeps. Its tally controls are drawn only where
 the line carries an address, which n26.core.views.owned.link_counters sets for
 the gang's owner and for nobody else.
+
+The campaign's own two addresses arrive the same way, from
+n26.core.views.permissions.link_campaign, and are empty for a reader who cannot
+open the campaign pages. Building them here from a URL name instead would offer
+everybody a link that answers most of them with a 404.
+
+  :campaign — a n26.render.CampaignBlock.
+  class — extra classes; they land on every row, because there is nothing else
+    to put them on.
 {% endcomment %}
-<c-vars :campaign="None" />
+<c-vars :campaign="None" class="" />
 
 {% if campaign %}
-    <c-n26.detail-list.heading>
-        <c-n26.link href="{% url 'n26-campaign' campaign.campaign_id %}" tone="current">{{ campaign.name }}</c-n26.link>
+    <c-n26.detail-list.heading class="{{ class }}">
+        <c-n26.link href="{{ campaign.href }}" tone="current">{{ campaign.name }}</c-n26.link>
     </c-n26.detail-list.heading>
     {% for line in campaign.lines %}
-        <c-n26.detail-list.row label="{{ line.kind_label }}" :editable="False">
+        <c-n26.detail-list.row label="{{ line.kind_label }}" :editable="False" class="{{ class }}">
             {% spaceless %}
                 {% if line.provenance.source %}
                     <c-ui.tooltip size="sm">
@@ -43,15 +52,15 @@ the gang's owner and for nobody else.
         </c-n26.detail-list.row>
     {% endfor %}
     {% for holding in campaign.holdings %}
-        <c-n26.detail-list.row label="{{ holding.kind_label }}" :editable="False">
+        <c-n26.detail-list.row label="{{ holding.kind_label }}" :editable="False" class="{{ class }}">
             {% spaceless %}
-                <c-n26.link href="{% url 'n26-campaign-pool' campaign.campaign_id %}" tone="current">{{ holding.name }}</c-n26.link>
+                <c-n26.link href="{{ campaign.pool_href }}" tone="current">{{ holding.name }}</c-n26.link>
                 {% if holding.income %}<span class="text-muted">&nbsp;· income {{ holding.income }}¢</span>{% endif %}
             {% endspaceless %}
         </c-n26.detail-list.row>
     {% endfor %}
     {% for counter in campaign.counters %}
-        <c-n26.detail-list.row :editable="False">
+        <c-n26.detail-list.row :editable="False" class="{{ class }}">
             <c-slot name="label">
                 {% if counter.provenance.source %}
                     <c-ui.tooltip size="sm">

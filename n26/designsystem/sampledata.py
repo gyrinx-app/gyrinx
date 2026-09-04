@@ -1936,6 +1936,11 @@ def gang_sheet():
         campaign=CampaignBlock(
             name="Dust Falls",
             campaign_id="dust-falls",
+            # Addressed, as they are for a reader inside the campaigns
+            # feature. Empty is the other state: the name and the holding
+            # draw as text.
+            href="#",
+            pool_href="#",
             lines=[
                 CampaignAssetLine(
                     kind_label="Settlement",

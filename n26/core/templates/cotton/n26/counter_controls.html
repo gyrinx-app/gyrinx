@@ -3,10 +3,10 @@
 
     <c-n26.counter-controls :counter="counter" :htmx="True" />
 
-Drawn beside the number on a card's counter line, and only where the line
-carries an address: a card that depicts nobody, a print sheet and the gang
-sheet all draw the number alone. This is the single-model control, on the
-model's own page.
+Drawn beside a counter's number, and only where the line carries an address: a
+card that depicts nobody, a print sheet and a reader who does not own the gang
+all draw the number alone. Two screens fill those addresses in — a model's own
+page for the counters it keeps, and the gang sheet for the campaign's.
 
 A form each way, because the value has to reach the server in a field: htmx
 does not read a form's submitter, so a single form with two buttons would post

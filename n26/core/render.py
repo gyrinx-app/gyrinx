@@ -140,7 +140,8 @@ class CounterLine:
     ``href`` is where a change is posted, filled in by whoever knows the
     URL space — like a choice's own href, and empty by default. A line
     with none draws as a fact with nothing to click, which is what a
-    gang sheet, a print sheet and a hire preview all want.
+    print sheet, a hire preview and any reader who does not own the gang
+    all want.
 
     ``back`` is the screen the control belongs to, carried so a reader
     with no scripting lands on it rather than on the address the act
@@ -794,6 +795,13 @@ class CampaignBlock:
     lines: list[CampaignAssetLine] = field(default_factory=list)
     counters: list[CounterLine] = field(default_factory=list)
     holdings: list[CampaignAssetLine] = field(default_factory=list)
+    #: Where the campaign's name and its holdings lead — the campaign
+    #: page and its pool — filled in by whoever knows both the URL space
+    #: and who may open them, as a counter's own href is. Empty draws
+    #: plain text, which is what a reader outside the campaigns feature
+    #: gets: the pages behind these answer them with a 404.
+    href: str = ""
+    pool_href: str = ""
 
 
 @dataclass
@@ -1895,7 +1903,9 @@ def _campaign_block(gang_card, membership, keys, readings):
                     name=reading.name,
                     value=reading.value,
                     tallied=_counter_value(node),
-                    assignment_id=str(node.key),
+                    assignment_id=(
+                        str(node.assignment.pk) if node.assignment is not None else ""
+                    ),
                     drawn=node.assignable.drawn,
                     provenance=provenance_of(node),
                 )

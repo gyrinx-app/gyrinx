@@ -41,7 +41,8 @@ a page and its chrome is not visible in either one alone.
                 The gang's rules, open questions and counters in one strip:
                 the rules are settled facts from the gang type (one row —
                 one answer to one question), the choices know where their
-                own pickers are, the counters have nowhere to go yet.
+                own pickers are, the gang's own counters have nowhere to
+                go. What the campaign gave follows, under its own name.
                 {% endcomment %}
                 {% if gang.rules %}
                     <c-n26.detail-list.row label="Rules" :editable="False">
@@ -52,6 +53,7 @@ a page and its chrome is not visible in either one alone.
                 {% for counter in gang.counters %}
                     <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
                 {% endfor %}
+                <c-n26.campaign-block :campaign="gang.campaign" />
             </c-n26.detail-list>
         </c-slot>
         {% comment %}

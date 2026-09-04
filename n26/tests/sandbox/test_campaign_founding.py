@@ -250,6 +250,18 @@ class TestTheGangSheet:
         assert "Reputation" in body
         assert "Add one to Reputation" not in body
 
+    def test_a_reader_outside_the_campaigns_feature_gets_the_name_alone(
+        self, client, membership, gang, campaign
+    ):
+        """The campaign pages answer a reader outside the feature with a
+        404, so the sheet names the campaign rather than linking to it."""
+        client.force_login(gang.owner)
+
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Dust Falls" in body
+        assert reverse("n26-campaign", args=[campaign.pk]) not in body
+
     def test_the_campaigns_counter_is_drawn_once(self, membership, gang):
         sheet = render_gang(gang)
         assert [reading.name for reading in sheet.counters] == []

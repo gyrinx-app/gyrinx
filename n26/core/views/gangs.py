@@ -14,6 +14,7 @@ from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
+    link_campaign,
     may_see_actions_square,
     trade_points_href,
 )
@@ -258,15 +259,16 @@ def gang_sheet(request, pk):
     card = build_gang_card(gang)
     sheet = render_gang(gang, card=card)
     dialog = None
+    link_campaign(sheet.campaign, request.user)
     if yours:
         link_slots(gang, sheet, *sheet.models)
         link_skills(*sheet.models)
         link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
         if sheet.campaign:
-            # This page is where a campaign counter is moved. A model's
-            # counter is moved on the model's own page; a counter the gang
-            # keeps is drawn here and nowhere else, so here is the only
-            # place its controls can be offered.
+            # The campaign's counters only. A model's counter is moved on
+            # the model's own page; a campaign counter is drawn here and
+            # nowhere else, so here is the only place its controls can be
+            # offered. The gang's own counters stay settled facts.
             link_counters(sheet.campaign, back=at)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
