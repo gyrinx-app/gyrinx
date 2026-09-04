@@ -302,6 +302,19 @@ class TestThePickNamesItsRoll:
         with pytest.raises(Refusal, match="not made for Lasting Injuries"):
             pick(krago, "Lasting Injuries", out_cold, roll=stray)
 
+    def test_a_roll_made_on_another_fighters_card_is_refused(
+        self, gang, gang_type, fighter_type, krago, injuries
+    ):
+        """The operation holds the card scoping too, so no caller — not
+        only the page — can hand one fighter's roll to another's pick."""
+        profile = create_profile("Second Ganger", fighter_type, gang_type, price=50)
+        other = hire(gang, profile, "Nix", paid=50)
+        theirs = roll_for(other, "Lasting Injuries", rolled=24)
+        out_cold = result_named(injuries["table"], "Out Cold")
+        with pytest.raises(Refusal, match="different card"):
+            pick(krago, "Lasting Injuries", out_cold, roll=theirs)
+        assert not Assignment.objects.filter(roll=theirs).exists()
+
     def test_a_pick_made_without_rolling_names_no_roll(self, gang, krago, injuries):
         made = pick(
             krago, "Lasting Injuries", result_named(injuries["table"], "Out Cold")

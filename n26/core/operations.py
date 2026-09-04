@@ -1728,6 +1728,20 @@ class Operation:
                     kwargs |= {"stash": stash}
                 else:
                     kwargs |= {"gang": anchor.gang or anchor.gang_root}
+        if roll is not None:
+            # A roll belongs to the card it was made on: this gang's, and
+            # the model the pick lands on (or no model, for the gang's
+            # own choice). Checked here as well as by the page, so no
+            # caller can hand one fighter's roll to another's pick.
+            gang = anchor.gang or anchor.gang_root
+            host = kwargs.get("miniature")
+            if roll.gang_id != gang.pk or roll.miniature_id != (
+                host.pk if host is not None else None
+            ):
+                raise Refusal(
+                    "That roll was made for a different card. "
+                    "Roll again for this choice."
+                )
         return self.assign(
             chosen,
             caused_by=anchor,
