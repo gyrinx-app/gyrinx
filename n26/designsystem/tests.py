@@ -101,7 +101,7 @@ class TestTheActionCardPage:
 
 
 class TestTheActionsSquarePage:
-    """Its props and all four states reach the gallery drawn."""
+    """Its props and all five states reach the gallery drawn."""
 
     def test_the_page_documents_the_props_declared_in_the_template(self, reader):
         page = reader.get("/n26/design/c/actions-square/").content.decode()
@@ -111,16 +111,30 @@ class TestTheActionsSquarePage:
         page = reader.get("/n26/design/c/actions-square/").content.decode()
         assert "Current action" in page
 
-    def test_all_four_demos_render_rather_than_falling_back(self, reader):
+    def test_all_five_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/actions-square/").content.decode()
         assert "Nothing open" in page
         assert "The founding open" in page
         assert "A visit open" in page
         assert "Both open" in page
+        assert "Nothing done yet" in page
         # From the markup the demos rendered, not their titles.
         assert "No action is open." in page
         assert "Trading Post visit open" in page
         assert "Complete action" in page
+
+    def test_the_story_under_the_square_is_drawn(self, reader):
+        """The snapshot's own markup, and one of the sample sentences —
+        a demo that fell back to "No examples yet" would carry the
+        heading from no state at all."""
+        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        assert "Recent history" in page
+        assert "Full history" in page
+        assert "hired Yolanda, a Ganger" in page
+
+    def test_a_gang_with_no_story_says_so(self, reader):
+        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        assert "No history for this gang yet." in page
 
     def test_the_start_row_is_a_post_not_a_link(self, reader):
         """Starting an act must never be a link: a link is followed by
@@ -516,12 +530,14 @@ class TestTheModelCardsTooltips:
         assert 'title="Select' not in page
         assert 'title="From' not in page
         assert 'title="Granted' not in page
+        assert 'title="Trade Points' not in page
 
     def test_the_provenance_and_rating_bubbles_are_drawn(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
         assert 'role="tooltip"' in page
         assert "From Leader" in page
         assert "Rating, including weapons and wargear" in page
+        assert "can spend while the Found and equip gang action is open" in page
 
     def test_both_kinds_of_open_choice_draw_their_way_in(self, reader):
         """The sample carries an open one-pick choice and a several-pick

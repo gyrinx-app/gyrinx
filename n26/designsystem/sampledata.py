@@ -2129,7 +2129,7 @@ def gang_sheet_context():
     lately = tuple(
         HistoryLine(when=now - timedelta(minutes=minutes), actor=actor, told=told)
         for minutes, actor, told in (
-            (4, "You", "bought the Lasgun for Yolanda"),
+            (4, "You", "bought Lasgun for Yolanda"),
             (11, "You", "hired Yolanda, a Ganger"),
             (26, "You", "renamed Vespa to Vespa Kray"),
             (140, "You", "started the Found and equip gang action"),

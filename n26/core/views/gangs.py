@@ -257,7 +257,10 @@ def gang_sheet(request, pk):
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     card = build_gang_card(gang)
-    sheet = render_gang(gang, card=card)
+    # for_owner puts the owner-only figures on the cards — what a model
+    # has left of its founding Trade Points — and is what keeps a
+    # stranger's read from paying for figures they are not shown.
+    sheet = render_gang(gang, card=card, for_owner=yours)
     dialog = None
     link_campaign(sheet.campaign, request.user)
     if yours:

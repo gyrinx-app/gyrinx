@@ -924,11 +924,11 @@ class TestTheSeed:
 
 
 def sheet_of(gang):
-    """The gang sheet, drawn from a row of its own."""
+    """The gang sheet as its owner reads it, from a row of its own."""
     from n26.core.models import Gang
     from n26.core.render import render_gang
 
-    return render_gang(Gang.objects.get(pk=gang.pk))
+    return render_gang(Gang.objects.get(pk=gang.pk), for_owner=True)
 
 
 def card_for(gang, name):
@@ -1001,7 +1001,7 @@ class TestTheRosterReadInOneGo:
         def measure():
             fresh = Gang.objects.get(pk=gang.pk)
             with django_assert_num_queries(self.SHEET):
-                render_gang(fresh)
+                render_gang(fresh, for_owner=True)
 
         measure()
         for name in ("Kade", "Sull", "Nix"):
@@ -1010,9 +1010,9 @@ class TestTheRosterReadInOneGo:
 
     #: What drawing this gang's sheet reads. Pinned so it changes
     #: deliberately: the rows, the fold's own lookups, the gang's open
-    #: actions, the standard counter and the one sum of what has been
-    #: spent against the founding action.
-    SHEET = 33
+    #: actions, the campaign it is playing, the standard counter and the
+    #: one sum of what has been spent against the founding action.
+    SHEET = 35
 
     def test_the_allowances_are_two_of_those_reads(
         self, gang, hire_into, leader, django_assert_num_queries
@@ -1041,6 +1041,21 @@ class TestTheRosterReadInOneGo:
 
         with django_assert_num_queries(2):
             budgets_by_model(fresh, folds)
+
+    def test_a_reader_who_is_not_the_owner_pays_for_none_of_it(
+        self, gang, hire_into, leader, django_assert_num_queries
+    ):
+        """The figure is the owner's, so a stranger's read of the same
+        roster neither shows it nor spends the two reads it takes."""
+        from n26.core.models import Gang
+        from n26.core.render import render_gang
+
+        fresh = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(self.SHEET - 2):
+            sheet = render_gang(fresh)
+
+        assert all(not card.founding_budget for card in sheet.models)
+        assert all(card.trade_points_left is None for card in sheet.models)
 
     def test_a_gang_whose_books_grant_none_asks_nothing(
         self, outcast, player, make_profile, make_statline, django_assert_num_queries
@@ -1085,7 +1100,7 @@ class TestTheFigureOnTheGangPage:
     #: What the hover says, per model. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "Trade Points {} can spend while the Found and equip gang action is open."
+    HOVER = "Trade Points {} can spend while the Found and equip gang action is open"
 
     def page(self, gang):
         from django.urls import reverse

@@ -75,8 +75,10 @@ control by the actions opens it.
                     {% endcomment %}
                     {% if card.founding_budget %}
                         <c-n26.model-card.mode when="gang edit">
-                            <span class="text-muted"
-                                  title="Trade Points {{ card.name }} can spend while the Found and equip gang action is open.">{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
+                            <c-ui.tooltip size="sm">
+                                <span class="text-muted">{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
+                                <c-slot name="content">Trade Points {{ card.name }} can spend while the Found and equip gang action is open</c-slot>
+                            </c-ui.tooltip>
                             <span aria-hidden="true" class="text-muted">·</span>
                         </c-n26.model-card.mode>
                     {% endif %}

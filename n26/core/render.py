@@ -2145,8 +2145,15 @@ def stash_lines(gang_card):
     ]
 
 
-def render_gang(gang, with_effects=True, *, card=None):
-    """A whole gang sheet. A fixed number of queries, whatever its size."""
+def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
+    """A whole gang sheet. A fixed number of queries, whatever its size.
+
+    ``for_owner`` says the sheet is being drawn for the person who owns
+    the gang, and is what puts the owner-only figures on it — what each
+    model has left of its founding Trade Points. Off by default, so a
+    reader who does not own the gang, a print run and a text card neither
+    show the figure nor pay the reads it takes to work out.
+    """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
     from n26.core.founding import budgets_by_model
@@ -2196,8 +2203,9 @@ def render_gang(gang, with_effects=True, *, card=None):
     # What each model still has of the Trade Points its books give it to
     # spend as it joins. Off the fold that has just been worked out, plus
     # one sum of what the whole roster has spent — never a query a
-    # fighter — and nothing at all for a gang whose books grant none.
-    budgets = budgets_by_model(gang, computed) if with_effects else {}
+    # fighter — and nothing at all for a gang whose books grant none, or
+    # for a reader the figure is not for.
+    budgets = budgets_by_model(gang, computed) if with_effects and for_owner else {}
     gang_rows, gang_rules = _gang_rows(gang_card, gang_computed, campaign_keys)
     return GangSheet(
         name=gang.name,
