@@ -36,13 +36,13 @@ from n26.tests.sandbox.actions import (
     buy,
     create_category,
     create_collection,
-    create_subtype,
     create_trading_post,
     create_wargear,
     found_gang,
     hire_with_option,
     leave_trading_post,
     refund,
+    remove,
     visit_trading_post,
 )
 
@@ -317,13 +317,25 @@ def only(gang, *names):
     return visitors(gang, chosen)
 
 
+@pytest.fixture
+def ranks(default_pack):
+    """What the ranks add, as content: the undrawn visit-contribution
+    counter and the modifier on each rank that raises it. Nothing in the
+    code names a rank or a figure."""
+    from n26.library.models import Subtype
+    from n26.library.standard_content import STANDARD_CONTENT
+
+    STANDARD_CONTENT["visit-contribution"].create()
+    return {name: Subtype.objects.get(name=name) for name in ("Leader", "Champion")}
+
+
 class TestWhoPerformsTheAction:
     """Any fighter may go, and the two named ranks bring points with them.
     Who went is recorded per model, because the rules give each model one
     Post-cycle Action and a figure cannot say whose it was."""
 
     @pytest.fixture
-    def ranked(self, gang, make_profile, make_statline):
+    def ranked(self, gang, ranks, make_profile, make_statline):
         """A Leader, a Champion and a Ganger, each holding their rank."""
         made = {}
         for name, rank in [("Rasp", "Leader"), ("Kel", "Champion"), ("Tuk", None)]:
@@ -331,7 +343,7 @@ class TestWhoPerformsTheAction:
             make_statline(profile)
             model = hire_with_option(gang, profile, name)
             if rank:
-                assign(create_subtype(rank), miniature=model)
+                assign(ranks[rank], miniature=model)
             made[name] = model
         return made
 
@@ -408,6 +420,277 @@ class TestWhoPerformsTheAction:
         gang.refresh_from_db()
         receipt = receipt_for(gang)
         assert (receipt.available, receipt.spent, receipt.remaining) == (3, 3, 0)
+
+
+class TestWhatARankAdds:
+    """What a model adds is a counter reading, not a rank the code knows.
+
+    The library holds an undrawn counter and a modifier on each rank that
+    raises it, so the figure follows what a model *holds* — a fighter
+    promoted into the rank adds it, one who has lost it adds nothing —
+    and changing the figures is an authoring edit rather than a code
+    change.
+    """
+
+    @pytest.fixture
+    def hire_plain(self, gang, make_profile, make_statline):
+        def make(name):
+            profile = make_profile(f"{name} entry", price=50)
+            make_statline(profile)
+            return hire_with_option(gang, profile, name)
+
+        return make
+
+    def offered(self, gang):
+        return {one.miniature.name: one for one in visitors(gang)}
+
+    def test_a_model_promoted_into_a_rank_adds_what_the_rank_adds(
+        self, gang, ranks, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assert self.offered(gang) == {}
+
+        assign(ranks["Leader"], miniature=rasp)
+
+        assert self.offered(gang)["Rasp"].trade_points == 2
+
+    def test_a_rank_taken_away_takes_the_figure_with_it(self, gang, ranks, hire_plain):
+        rasp = hire_plain("Rasp")
+        held = assign(ranks["Leader"], miniature=rasp)
+        assert self.offered(gang)["Rasp"].trade_points == 2
+
+        remove(held)
+
+        assert self.offered(gang) == {}
+
+    def test_a_rank_cancelled_by_a_removal_adds_nothing_either(
+        self, gang, ranks, hire_plain
+    ):
+        """An owner's removal is machinery rather than a line, and the
+        computed reading cancels the pair without anything here having to
+        know it."""
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+
+        assign(ranks["Leader"], miniature=rasp, removes=True)
+
+        assert self.offered(gang) == {}
+
+    def test_a_model_holding_both_ranks_adds_the_better_figure(
+        self, gang, ranks, hire_plain
+    ):
+        """The same fighter cannot perform the action twice, so 2 and 1
+        do not come to 3. The lesser rank's modifier is scoped away from
+        models holding the better one, which is where that is settled."""
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(ranks["Champion"], miniature=rasp)
+
+        assert self.offered(gang)["Rasp"].trade_points == 2
+
+    def test_seeding_a_reworded_modifier_leaves_the_figure_alone(self, gang, ranks):
+        """The seed matches a rank's contribution by what it does, not by
+        what it is called. Matched by name, rewording one and seeding
+        again would hang a second contribution on the rank and double
+        what it adds."""
+        from n26.library.models import Modifier
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        leaders = ranks["Leader"].modifiers.filter(contributes_to_counter__isnull=False)
+        (carried,) = leaders
+        carried.name = "Leader brings two"
+        carried.save()
+
+        STANDARD_CONTENT["visit-contribution"].create()
+
+        assert list(leaders) == [carried]
+        assert (
+            Modifier.objects.filter(contributes_to_counter__isnull=False).count() == 2
+        )
+
+    def test_the_offer_is_grouped_by_the_figure(self, gang, ranks, hire_plain):
+        """The heading says what the models under it add. Ranks are not
+        what this knows, and two things may raise the reading by the same
+        amount."""
+        from n26.core.trading import as_offer
+
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+
+        offer = as_offer(visitors(gang))
+
+        assert [group.name for group in offer.groups] == [
+            "2 Trade Points each",
+            "1 Trade Point each",
+        ]
+
+    def test_a_library_with_no_counter_offers_nobody(self, gang, hire_plain):
+        """No counter, no figure: the seed was never run here, so nothing
+        on this roster adds Trade Points however it is ranked."""
+        from n26.library.models import Subtype
+
+        assign(Subtype.objects.create(name="Leader"), miniature=hire_plain("Rasp"))
+
+        assert visitors(gang) == []
+
+    def test_what_the_visit_minted_is_what_the_ledger_says(
+        self, gang, ranks, hire_plain
+    ):
+        """The figure the ticks come to is the figure the visit opened
+        with, and the receipt reads it back off the gang and the ledger
+        rather than keeping a second copy of it."""
+        from n26.core.trading import minted
+
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        going = visitors(gang)
+
+        visit_trading_post(gang, going)
+
+        gang.refresh_from_db()
+        assert minted(going) == 3
+        assert gang.starting_trade_points == 3
+        receipt = receipt_for(gang)
+        assert (receipt.available, receipt.spent, receipt.remaining) == (3, 0, 3)
+        assert receipt.summary == "Leader, Champion"
+        assert_reconciled(gang)
+
+    def test_the_figure_stays_a_fixed_number_of_queries(self, gang, ranks, hire_plain):
+        """A whole gang is a fixed number of queries however many models
+        are on it — the roster, the gang's own rows, and the modifiers
+        those reach. Never a query per fighter.
+
+        The count follows the *kinds* of content in play, not the size of
+        the roster, so both readings below are taken with a Leader and a
+        Champion already on it.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        with CaptureQueriesContext(connection) as few:
+            assert len(visitors(gang)) == 2
+
+        for name in ("Tuk", "Vesh", "Mags", "Sura"):
+            model = hire_plain(name)
+            if name in ("Vesh", "Mags"):
+                assign(ranks["Champion"], miniature=model)
+
+        with CaptureQueriesContext(connection) as more:
+            assert len(visitors(gang)) == 4
+
+        assert len(more) == len(few)
+
+
+class TestAFigureInPlaceOfARank:
+    """A model whose contribution several things raised has no single
+    name to be recorded under, so the visit records the figure.
+
+    Nothing that reads the record aloud may then say the figure as if it
+    were a rank: "sent Rasp as 3 to the trading post" is not a sentence,
+    and "3" filed as a rank on the receipt says nothing about where the
+    Trade Points came from.
+    """
+
+    @pytest.fixture
+    def hire_plain(self, gang, make_profile, make_statline):
+        def make(name):
+            profile = make_profile(f"{name} entry", price=50)
+            make_statline(profile)
+            return hire_with_option(gang, profile, name)
+
+        return make
+
+    @pytest.fixture
+    def connected(self, ranks):
+        """A rule that raises the same counter as a rank does, so a model
+        holding both has two things behind its figure."""
+        from n26.library.standard_content import visit_contribution_counter
+        from n26.tests.sandbox.actions import (
+            create_rule,
+            ef_contributes_to_counter,
+            modifier,
+            targets_model,
+        )
+
+        rule = create_rule("Well connected")
+        modifier(
+            "Well connected adds 1 Trade Point to a Trading Post visit",
+            targets_model(),
+            ef_contributes_to_counter(visit_contribution_counter(), 1),
+            carried_by=rule,
+        )
+        return rule
+
+    def sentences(self, gang):
+        from n26.core import history
+
+        return ["".join(span.text for span in act.spans) for act in history.build(gang)]
+
+    def test_the_visit_records_the_figure(self, gang, ranks, connected, hire_plain):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+
+        (one,) = visitors(gang)
+        assert (one.trade_points, one.rank) == (3, "3")
+
+        visit_trading_post(gang, [one])
+
+        (went,) = LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.VISITED_TRADING_POST
+        )
+        assert went.note == "3"
+
+    def test_the_history_says_only_that_they_went(
+        self, gang, ranks, connected, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+        visit_trading_post(gang, visitors(gang))
+
+        (sent,) = [line for line in self.sentences(gang) if line.startswith("sent ")]
+
+        assert sent == "sent Rasp to the trading post"
+
+    def test_a_rank_still_leads_the_sentence(self, gang, ranks, hire_plain):
+        """The other half of the same rule: one thing raised the figure,
+        so the line names it."""
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        visit_trading_post(gang, visitors(gang))
+
+        (sent,) = [line for line in self.sentences(gang) if line.startswith("sent ")]
+
+        assert sent == "sent Rasp as Leader to the trading post"
+
+    def test_the_receipt_leaves_the_figure_out_of_its_line(
+        self, gang, ranks, connected, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+        visit_trading_post(gang, visitors(gang))
+
+        gang.refresh_from_db()
+        receipt = receipt_for(gang)
+        assert receipt.available == 3
+        assert receipt.summary == ""
+
+    def test_the_ranks_beside_it_are_still_named(
+        self, gang, ranks, connected, hire_plain
+    ):
+        """One fighter with two things behind their figure does not take
+        the rest of the line with them."""
+        both = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=both)
+        assign(connected, miniature=both)
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        visit_trading_post(gang, visitors(gang))
+
+        gang.refresh_from_db()
+        assert receipt_for(gang).summary == "Champion"
 
 
 class TestWhatTheHistorySays:

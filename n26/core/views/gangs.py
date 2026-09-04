@@ -835,6 +835,18 @@ def _brought(data, ticked):
     return int(typed)
 
 
+def _start_help(gang, offered):
+    """What the start form says to do, for the state the gang is in."""
+    if gang.visiting_trading_post:
+        return (
+            "Finish the action above first. A gang performs one Visit "
+            "Trading Post action at a time."
+        )
+    if offered:
+        return "Select the models visiting the Trading Post, or enter a TP amount."
+    return "Enter a TP amount to start a visit."
+
+
 def _the_trading_post():
     """The standard Trading Post, or None where the library has none.
 
@@ -970,7 +982,11 @@ def gang_trade_points(request, pk):
         )
         return redirect(at)
 
-    offered = visitors(gang, going=set())
+    # The roster is read once and handed to both readers of it: the page
+    # draws every fighter, and the offer is the few of them who add
+    # something.
+    members = roster(gang)
+    offered = visitors(gang, going=set(), members=members)
     receipt = receipt_for(gang)
     return render(
         request,
@@ -999,10 +1015,20 @@ def gang_trade_points(request, pk):
             # variable rather than an expression.
             "visit_open": gang.visiting_trading_post,
             "visitors": offered,
+            # What the start form says to do. Three states, and the third
+            # is a real one: a roster where nothing adds Trade Points —
+            # no ranks yet, or a library where the contribution has never
+            # been authored — leaves the typed figure as the only way in.
+            "start_help": _start_help(gang, offered),
+            # The box is an alternative to the ticks only where there are
+            # ticks. On its own it is simply the amount.
+            "amount_label": (
+                "Or enter a specific TP amount" if offered else "TP amount"
+            ),
             # Every fighter, not only those who performed the action:
             # what a visit added is the gang's, and it is spent on
             # whoever it was for. Who went is the ranks on the receipt.
-            "roster": roster(gang),
+            "roster": members,
             "offer": as_offer(offered),
             "edit_tabs": _edit_tabs(gang, "trade-points"),
         },

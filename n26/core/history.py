@@ -583,9 +583,12 @@ def _tell(e, row, alive):
                 return (Span(f"{verb} the {named} action"),), "gang"
             return (Span(f"{verb} an action"),), "gang"
         case Kind.VISITED_TRADING_POST:
-            # The rank they went as rides the note, so the line says what
-            # they added rather than what they happen to be now.
-            went_as = f" as {e.note}" if e.note else ""
+            # What raised their figure rides the note, so the line says
+            # what they added rather than what they happen to be now. A
+            # bare figure lands there where several things raised it, and
+            # "sent Rasp as 3" is no sentence — the line then says only
+            # that they went.
+            went_as = f" as {e.note}" if e.note and not e.note.isdigit() else ""
             return (
                 Span("sent "),
                 at,

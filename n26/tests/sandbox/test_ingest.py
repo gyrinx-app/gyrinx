@@ -2221,9 +2221,40 @@ class TestClearing:
         clear_imported()
 
         assert Trait.objects.count() == 0
-        # Every modifier goes with them: standard content wires none of
-        # its own for a clear to spare.
-        assert Modifier.objects.count() == 0
+        # Every modifier goes with them, bar standard content's own,
+        # which name nothing an import wrote.
+        from n26.library.standard_content import VISIT_CONTRIBUTION_MODIFIERS
+
+        assert sorted(Modifier.objects.values_list("name", flat=True)) == sorted(
+            VISIT_CONTRIBUTION_MODIFIERS
+        )
+
+    def test_a_reworded_seed_modifier_still_stands_after_a_clear(
+        self, foundation, sheets
+    ):
+        """A clear recognises standard content the way the seed that made
+        it does — by what a modifier raises, never by its name — so
+        rewording one does not put it in the way of the next clear."""
+        from n26.library.ingest import clear_imported
+        from n26.library.models.modifier import Modifier
+        from n26.library.standard_content import visit_contribution_counter
+
+        seeded = Modifier.objects.filter(
+            contributes_to_counter__counter=visit_contribution_counter()
+        )
+        assert seeded.count() == 2
+        for row in seeded:
+            row.name = f"Reworded {row.name}"
+            row.save()
+
+        perform(plan_ingest(pack=None, **sheets))
+        clear_imported()
+
+        assert seeded.count() == 2
+        assert all(
+            name.startswith("Reworded ")
+            for name in seeded.values_list("name", flat=True)
+        )
 
     def test_a_gang_using_the_content_stops_the_clear(self, foundation, sheets):
         """Player data protects what it uses: the content does not go out
