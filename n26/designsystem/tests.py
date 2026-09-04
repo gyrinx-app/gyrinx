@@ -441,3 +441,18 @@ class TestTheModelCardsTooltips:
         assert ">Choose</" in legacy[: legacy.index("</dd>")]
         injuries = page[page.index("Lasting Injuries</dt>") :]
         assert ">Add</" in injuries[: injuries.index("</dd>")]
+
+
+class TestThePrintSheet:
+    """Paper shows what a slot holds, not the control that fills it.
+
+    The sample card carries lasting injuries with room left, so the
+    screen card draws Add beside them. A printed card is read away from
+    the picker, and the Add has nowhere to go.
+    """
+
+    def test_a_partial_several_pick_does_not_print_add(self, reader):
+        page = reader.get("/n26/design/print/sheet/?specimen=cards").content.decode()
+        assert "Lasting Injuries" in page
+        assert "Eye Injury, Out Cold" in page
+        assert "(add)" not in page
