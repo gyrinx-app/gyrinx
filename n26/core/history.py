@@ -611,7 +611,7 @@ def _tell(e, row, alive):
                 Span(f"rolled {e.roll} on a {_dice_label(e.dice)}"),
                 *_for(model, at),
                 Span(asked),
-            ), "model"
+            ), "model" if model is not None else "gang"
         case Kind.TOOK_AWAY:
             return (
                 Span("took "),

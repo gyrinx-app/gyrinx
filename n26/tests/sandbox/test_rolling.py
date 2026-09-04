@@ -15,6 +15,7 @@ beside whatever was picked.
 """
 
 import random
+import re
 
 import pytest
 from django.contrib.auth.models import User
@@ -318,6 +319,13 @@ class TestTheHistoryTellsTheRoll:
         assert act.category == "model"
         assert act.miniature_name == "Krago"
 
+    def test_the_gangs_own_roll_is_a_fact_about_the_gang(self, gang, injuries):
+        with operation(gang, actor=gang.owner) as op:
+            op.roll(injuries["slot"], rolled=24)
+        act = act_saying(gang, "rolled 24")
+        assert act.category == "gang"
+        assert act.miniature_name == ""
+
 
 class TestThePickScreen:
     """The choose page rolls, shows the roll, and posts picks against it."""
@@ -381,7 +389,7 @@ class TestThePickScreen:
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
         assert "Rolled 24" in page
-        assert "Landed on Out Cold." in page
+        assert re.search(r"Landed on <strong[^>]*>Out Cold</strong>\.", page)
         assert "Rolled at the table and entered here." in page
         assert 'aria-label="A die showing 2"' in page
         assert 'aria-label="A die showing 4"' in page
@@ -423,7 +431,10 @@ class TestThePickScreen:
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
-        assert "High enough for Toughness, Leadership." in page
+        assert re.search(
+            r"High enough for <strong[^>]*>Toughness</strong>, <strong[^>]*>Leadership</strong>\.",
+            page,
+        )
         assert "Rolled high enough for" in page
         assert "Above the roll" in page
         # Several results open: no single Add in the panel, so the lifted
@@ -504,6 +515,27 @@ class TestThePickScreen:
         )
         assert reply.status_code == 404
         assert not Assignment.objects.filter(roll=stray).exists()
+
+    def test_a_roll_made_for_another_fighter_is_no_such_roll(
+        self, client, owner, gang, gang_type, fighter_type, krago, address, injuries
+    ):
+        """One Slot row serves every fighter, so the slot alone would let
+        Krago's roll be drawn on, and spent from, another fighter's page."""
+        profile = create_profile("Second Ganger", fighter_type, gang_type, price=50)
+        other = hire(gang, profile, "Nix", paid=50)
+        theirs = roll_for(other, "Lasting Injuries", rolled=24)
+
+        client.force_login(owner)
+        assert client.get(f"{address}?roll={theirs.pk}").status_code == 404
+        reply = client.post(
+            address,
+            {
+                "thing": option_key(result_named(injuries["table"], "Out Cold")),
+                "roll": str(theirs.pk),
+            },
+        )
+        assert reply.status_code == 404
+        assert not Assignment.objects.filter(roll=theirs).exists()
 
     def test_a_roll_key_that_is_no_key_is_no_such_roll(self, client, owner, address):
         client.force_login(owner)

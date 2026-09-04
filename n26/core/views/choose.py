@@ -157,54 +157,44 @@ def _roll_table(found):
     return RollTable(dice_label=dice.label, lowest=rolls[0], highest=rolls[-1])
 
 
+def _roll_at(key, gang, found, select_related=()):
+    """The roll a key names, or None for no key — a 404 for a key that
+    names no roll made for this very choice on this very card.
+
+    Scoped to the gang, the slot and the model whose card was clicked
+    (or to no model, for the gang's own choice). One Slot row serves
+    every fighter of the gang, so the slot alone would let a roll made
+    for one fighter be drawn on, and spent from, another's page.
+    """
+    from n26.core.models import LedgerEvent
+
+    if not key or found.slot.slot is None:
+        return None
+    try:
+        return get_object_or_404(
+            LedgerEvent.objects.select_related(*select_related),
+            pk=key,
+            gang=gang,
+            kind=LedgerEvent.Kind.ROLLED,
+            slot=found.slot.slot,
+            miniature=found.miniature,
+        )
+    except ValidationError:
+        raise Http404("No such roll") from None
+
+
 def _roll_named(request, gang, found):
     """The roll the page was opened on, or None when it was opened plain.
 
-    Read from the gang's own record and checked against this very
-    choice: a roll made for another slot, or for another gang, is a bad
-    link and a 404 rather than a result drawn over the wrong table. The
-    pick that spent the roll, where one has, comes back on the event so
-    the page can say so and stop offering it.
+    The pick that spent the roll, where one has, comes back on the event
+    so the page can say so and stop offering it.
     """
-    from n26.core.models import LedgerEvent
-
-    key = request.GET.get("roll", "")
-    if not key or found.slot.slot is None:
-        return None
-    try:
-        return get_object_or_404(
-            LedgerEvent.objects.select_related("pick"),
-            pk=key,
-            gang=gang,
-            kind=LedgerEvent.Kind.ROLLED,
-            slot=found.slot.slot,
-        )
-    except ValidationError:
-        raise Http404("No such roll") from None
+    return _roll_at(request.GET.get("roll", ""), gang, found, ("pick",))
 
 
 def _roll_posted(request, gang, found):
-    """The roll a pick says it came from, or None for a pick made plain.
-
-    Looked up under the gang and this choice, so a key from anywhere
-    else reads as a stale page rather than as somebody else's roll.
-    Raises ``Http404`` for a key that names no such roll.
-    """
-    from n26.core.models import LedgerEvent
-
-    key = request.POST.get("roll", "")
-    if not key or found.slot.slot is None:
-        return None
-    try:
-        return get_object_or_404(
-            LedgerEvent,
-            pk=key,
-            gang=gang,
-            kind=LedgerEvent.Kind.ROLLED,
-            slot=found.slot.slot,
-        )
-    except ValidationError:
-        raise Http404("No such roll") from None
+    """The roll a pick says it came from, or None for a pick made plain."""
+    return _roll_at(request.POST.get("roll", ""), gang, found)
 
 
 def _roll_result(event, found, offer):
@@ -220,7 +210,12 @@ def _roll_result(event, found, offer):
         option.key: option.name for group in offer.groups for option in group.options
     }
     spent = getattr(event, "pick", None)
-    dice = Dice(event.dice) if event.dice else Dice(picklist.dice)
+    # The die as the record holds it; a die the library no longer names
+    # reads as the table's, since the figure is what the page is about.
+    try:
+        dice = Dice(event.dice) if event.dice else Dice(picklist.dice)
+    except ValueError:
+        dice = Dice(picklist.dice)
     result = RollResult(
         key=str(event.pk),
         total=event.roll,
@@ -291,6 +286,7 @@ def choose(request, pk, slot):
     found = _find_slot(gang, slot)
     offer = build_choice_offer(found.slot, found.computed)
     back = reverse("n26-gang", args=[gang.pk])
+    here = reverse("n26-choose", args=[gang.pk, slot])
 
     if request.method == "POST" and request.POST.get("act") in {"roll", "enter"}:
         # Rolling writes before anything is picked: the roll is on the
@@ -305,7 +301,7 @@ def choose(request, pk, slot):
                 rolled = int(request.POST.get("rolled", ""))
             except ValueError:
                 messages.error(request, "Enter the number you rolled.")
-                return redirect(request.path)
+                return redirect(here)
         try:
             with operation(gang, actor=request.user) as op:
                 fresh = _find_slot(gang, slot)
@@ -314,7 +310,7 @@ def choose(request, pk, slot):
                 )
         except Refusal as refusal:
             messages.error(request, str(refusal))
-            return redirect(request.path)
+            return redirect(here)
         record(
             request,
             N26Noun.CHOICE,
@@ -324,7 +320,7 @@ def choose(request, pk, slot):
             action="roll",
             entered=rolled is not None,
         )
-        return redirect(f"{request.path}?roll={event.pk}")
+        return redirect(f"{here}?roll={event.pk}")
 
     if request.method == "POST":
         dropped = request.POST.get("remove", "")
@@ -344,7 +340,7 @@ def choose(request, pk, slot):
                 messages.error(
                     request, "That is not one of the things available to pick."
                 )
-                return redirect(request.path)
+                return redirect(here)
             with operation(gang, actor=request.user) as op:
                 for pick in _settled(_find_slot(gang, slot)):
                     op.remove(pick.assignment)
@@ -372,9 +368,9 @@ def choose(request, pk, slot):
             # asked to take back — a stale page either way, and the list
             # itself is the reply.
             messages.error(request, "That is not one of the things available to pick.")
-            return redirect(request.path)
+            return redirect(here)
         # A worked-at choice comes back to itself; a settled one leaves.
-        landing = request.path if offer.takes_several else back
+        landing = here if offer.takes_several else back
         try:
             with operation(gang, actor=request.user) as op:
                 # The page named the picks it drew, but it was drawn
@@ -426,7 +422,7 @@ def choose(request, pk, slot):
                     )
         except Refusal as refusal:
             messages.error(request, str(refusal))
-            return redirect(request.path)
+            return redirect(here)
         # Which choice was made and with what. Changing your mind
         # records a second choice rather than editing the first: what a
         # player picked and then dropped is a thing worth being able to ask
