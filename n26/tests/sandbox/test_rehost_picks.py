@@ -16,6 +16,8 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
+from n26.core.card import build_card, build_modifier_index
+from n26.core.effects import compute
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled, check_gang
 from n26.core.rehost_picks import Refused, apply, find
@@ -25,10 +27,12 @@ from n26.library.authoring import (
     create_pickable,
     create_picklist,
     create_profile,
+    create_rule,
     create_slot,
     create_slot_type,
     ef_adds,
     modifier,
+    targets_every_model,
     targets_model,
 )
 from n26.maintenance import Operation, rehost_gang_picks_view
@@ -50,15 +54,26 @@ def slot_type(default_pack):
     return create_slot_type("Archetype", allows_repeats=False)
 
 
+#: What the gang's archetype gives every member once the gang holds it.
+PAYLOAD = "Unstable"
+
+
 @pytest.fixture
 def archetypes(slot_type):
-    return {name: create_pickable(name, slot_type) for name in ("Brawler", "Wyrd")}
+    made = {name: create_pickable(name, slot_type) for name in ("Brawler", "Wyrd")}
+    modifier(
+        f"Brawler: {PAYLOAD}",
+        targets_every_model(),
+        ef_adds(create_rule(PAYLOAD)),
+        attach_to=made["Brawler"],
+    )
+    return made
 
 
 @pytest.fixture
 def gang_slot(slot_type, archetypes):
-    """The Leader is asked. Which host the pick lands on is set by the
-    test, because the fault is the slot changing its mind."""
+    """The Leader is asked. Where the pick lands is set by each test,
+    because the fault is a slot pointed at one host and then the other."""
     return create_slot(
         "Gang archetype",
         slot_type,
@@ -122,9 +137,23 @@ def console(db):
     return client
 
 
-def _says(slot, host):
+def _point_slot_at(slot, host):
     slot.assigned_to = host
     slot.save(update_fields=["assigned_to"])
+
+
+def rides_as_broadcast(miniature, pickable):
+    """Whether the gang's pick rides this model's card as a broadcast row."""
+    return any(
+        node.broadcast and node.assignable == pickable
+        for node in build_card(miniature).all_nodes()
+    )
+
+
+def rules_on(miniature):
+    card = build_card(miniature, with_statlines=True)
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    return [line.name for line in compute(card, index).rules]
 
 
 def card_of(gang, name):
@@ -153,7 +182,7 @@ def astray(reader, gang, leader, scum, gang_slot, archetypes):
     pick = choose(reader, gang, "Leader", archetypes["Brawler"])
     assert pick.miniature == leader
     assert pick.caused_by == leader.membership
-    _says(gang_slot, "gang")
+    _point_slot_at(gang_slot, "gang")
     gang.refresh_from_db()
     assert_reconciled(gang)
     return pick
@@ -163,7 +192,7 @@ class TestFindingWhatSitsOnAModel:
     def test_a_pick_the_gang_already_holds_is_not_named(
         self, reader, gang, leader, gang_slot, archetypes
     ):
-        _says(gang_slot, "gang")
+        _point_slot_at(gang_slot, "gang")
         pick = choose(reader, gang, "Leader", archetypes["Brawler"])
         assert pick.gang == gang
 
@@ -210,6 +239,32 @@ class TestFindingWhatSitsOnAModel:
         astray.refresh_from_db()
         assert astray.miniature is not None
 
+    def test_a_pick_made_for_one_model_of_a_gang_carried_choice_refuses(
+        self, reader, gang, leader, scum, gang_slot, archetypes, gang_type
+    ):
+        """A choice the gang carries for each member rides every card, and
+        settling it names the fighter clicked. That fighter's pick is not
+        stray, whichever way the slot points, and is never hoisted."""
+        modifier(
+            "Everyone is asked their Archetype",
+            targets_every_model(),
+            ef_adds(gang_slot),
+            attach_to=gang_type,
+        )
+        _point_slot_at(gang_slot, "gang")
+        theirs = choose(reader, gang, "Scum", archetypes["Wyrd"])
+        assert theirs.miniature == scum
+        assert theirs.chosen_for.gang_id == gang.pk
+
+        plan = find()
+
+        assert not plan.ok
+        assert any("made for this one on purpose" in p for p in plan.problems)
+        with pytest.raises(Refused):
+            apply(plan)
+        theirs.refresh_from_db()
+        assert theirs.miniature == scum
+
 
 class TestMovingThePick:
     def test_the_pick_lands_on_the_gang_and_keeps_its_links(
@@ -236,6 +291,18 @@ class TestMovingThePick:
         apply(find())
 
         assert chosen_on(gang, "Leader") == "Brawler"
+
+    def test_the_gangs_pick_now_rides_every_members_card(
+        self, gang, scum, astray, archetypes
+    ):
+        """What the repair is for: a pick the gang holds is a fact about
+        every member, and what it gives reaches them through the gang."""
+        assert not rides_as_broadcast(scum, archetypes["Brawler"])
+
+        apply(find())
+
+        assert rides_as_broadcast(scum, archetypes["Brawler"])
+        assert PAYLOAD in rules_on(scum)
 
     def test_what_the_pick_caused_stays_where_it_is(
         self, gang, leader, astray, default_pack
@@ -345,7 +412,7 @@ class TestSeveralGangsAndSeveralPicks:
         other = found_gang("The Others", gang_type, owner=owner, budget=1000)
         hire(other, leader_profile, "Leader", paid=LEADER_PRICE)
         third = choose(reader, other, "Leader", archetypes["Brawler"])
-        _says(gang_slot, "gang")
+        _point_slot_at(gang_slot, "gang")
         return {"gang": gang, "other": other, "picks": (first, second, third)}
 
     def test_the_plan_names_each_gang_and_counts_the_whole(self, crowd):
@@ -364,6 +431,11 @@ class TestSeveralGangsAndSeveralPicks:
             in (plan.preview())
         )
         assert "3 picks across 2 gangs" in plan.preview()
+
+    def test_the_plan_can_be_read_for_one_gang_alone(self, crowd):
+        narrowed = find(crowd["other"].pk)
+
+        assert narrowed.gangs == ((crowd["other"].pk, (crowd["picks"][2].pk,)),)
 
     def test_every_pick_lands_on_its_own_gang(self, crowd):
         report = apply(find())

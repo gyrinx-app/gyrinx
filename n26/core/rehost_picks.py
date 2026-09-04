@@ -90,17 +90,39 @@ def _astray(archived=False):
     )
 
 
+def _asked_of_this_model(pick):
+    """Whether the choice this pick settles was the model's own to make.
+
+    A slot pointing at the gang can still put its pick on a model on
+    purpose: a choice the gang carries for each of its members rides
+    every card, and settling it names the fighter whose card was
+    clicked, so that fighter's pick is theirs alone. Such a pick is not
+    stray, and hoisting it onto the gang would make one fighter's choice
+    everyone's. The two are told apart by what asked: a stray pick was
+    asked by the model's own line (its membership, or something it
+    carries), a deliberate one by a line the gang carries that is about
+    nobody in particular.
+    """
+    asked = pick.chosen_for
+    if asked is None:
+        return False
+    if asked.miniature_root_id is not None:
+        return asked.miniature_root_id == pick.miniature_id
+    return False
+
+
 def find(gang_id=None):
-    """What stands to be moved, gang by gang — or for one gang alone,
-    which is how a move re-reads its plan under the lock without
-    scanning the estate again."""
+    """What stands to be moved, gang by gang. ``gang_id`` narrows the
+    plan to that one gang."""
     astray = _astray()
     archived_astray = _astray(archived=True)
     if gang_id is not None:
         astray = astray.filter(gang_root_id=gang_id)
         archived_astray = archived_astray.filter(gang_root_id=gang_id)
     picks = list(
-        astray.select_related("miniature__membership").order_by("created", "id")
+        astray.select_related("miniature__membership", "chosen_for").order_by(
+            "created", "id"
+        )
     )
     archived = archived_astray.count()
     if not picks:
@@ -115,6 +137,13 @@ def find(gang_id=None):
                 f"pick {pick.pk} sits on a model that is not a member of the "
                 f"gang it is rooted in ({pick.gang_root_id}) — not the stray "
                 "pick this moves"
+            )
+            continue
+        if not _asked_of_this_model(pick):
+            problems.append(
+                f"pick {pick.pk} settles a choice the gang carries for each "
+                "of its models, and was made for this one on purpose — not "
+                "the stray pick this moves"
             )
             continue
         by_gang.setdefault(pick.gang_root_id, []).append(pick.pk)
