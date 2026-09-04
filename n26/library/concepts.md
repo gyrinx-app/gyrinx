@@ -28,7 +28,7 @@ Modifiers are shared by design: they can attach on any number of specific assign
 
 Effects are split by when they happen:
 
-- **computed** ones (gives, takes away, changes a stat, adds to a counter, offers a choice, places a category, notes a limit) are re-derived on every read and vanish with their carrier
+- **computed** ones (gives, takes away, changes a stat, adds to a counter, offers a choice, places a category, draws the pick, notes a limit) are re-derived on every read and vanish with their carrier
 - **written** ones (brings a model, moves a counter) run once at arrival and are never undone by removal.
 
 We use **carrier** as a library-side word for one specific piece of *content*, typically because they "carry" a modifier. A power maul carries its "+1 Strength" modifier; the Clan House pickable carries a grant of the house slot. Carrier is about authoring — edit the carrier's modifier and it changes everywhere that carrier appears.
@@ -237,7 +237,7 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 
 The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave; two slots of one slot type on one holder stay independent, even where one thing opened both; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
 
-A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included.
+A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included. A pickable that carries the *draws the pick on the card* effect is displayed after all, on the cards its scope reaches — see below.
 
 Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
 
@@ -322,6 +322,16 @@ settled by choosing a power)
 (A minor third path exists: the code making the choice may name the host explicitly, which beats both — it is how a gang-carried offer that each fighter settles individually lands on the fighter who was clicked.)
 
 > Tom note: we probably want to extend these to support multiple different types
+
+### Draws the pick on the card (an effect)
+
+*Lists the pick carrying it on the cards this modifier reaches.*
+
+No fields: the scope is the whole of what it says. Carried by a pickable, so the line comes and goes with the pick, and it acts only on a pick **the gang** holds — a model's own pick is already the row of the choice that settled it.
+
+The line is headed by the slot type's name ("Archetype") and holds what was picked. It leads nowhere: the choice is made and changed on the card that was asked for it, and that card draws its own choice row instead of this.
+
+For an Outcast gang's archetype, picked by the leader and played by every model except the Champions, who pick one of their own.
 
 ### Ledger (entry + events)
 

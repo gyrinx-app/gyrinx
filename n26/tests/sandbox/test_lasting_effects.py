@@ -36,11 +36,14 @@ from n26.library.standard_content import (
 )
 from n26.library.views import coverage
 from n26.tests.sandbox.actions import (
+    add_built_in,
     attach_modifiers_to,
     changes_stat,
     choose,
+    create_hidden,
     create_profile,
     ef_adds,
+    ef_removes,
     found_gang,
     hire,
     is_profile_type,
@@ -325,6 +328,52 @@ class TestAFighterIsHurt:
         assert not any(
             c.source == "Eye Injury" for c in computed_for(other).stat_changes
         )
+        assert_reconciled(gang)
+
+
+class TestADelegationIsHurt:
+    """An ally's delegation rolls a D6 of its own. The swap rides the
+    delegation entry as a hidden item that takes the gang type's injury
+    choice away and gives the delegation one, so no gang type's grant
+    has to know a delegation exists."""
+
+    @pytest.fixture
+    def bailiff(self, gang, gang_type, fighter_type, tables, standing):
+        marker = create_hidden("Delegation")
+        modifier(
+            "Delegation: no Lasting Injuries",
+            targets_model(),
+            ef_removes(tables["Lasting Injury"]["slot"]),
+            carried_by=marker,
+        )
+        modifier(
+            "Delegation: its own table",
+            targets_model(),
+            ef_adds(tables["Delegation Lasting Injury"]["slot"]),
+            carried_by=marker,
+        )
+        profile = create_profile("Bailiff", fighter_type, gang_type, price=60)
+        add_built_in(profile, marker)
+        return hire(gang, profile, "The Bailiff", paid=60)
+
+    def test_the_card_asks_under_the_delegations_table_alone(self, bailiff, yolanda):
+        assert choice_of(bailiff, "Delegation Lasting Injuries") is not None
+        assert choice_of(bailiff, "Lasting Injuries") is None
+        assert choice_of(yolanda, "Lasting Injuries") is not None
+        assert choice_of(yolanda, "Delegation Lasting Injuries") is None
+
+    def test_a_grievous_wound_lands_and_the_gang_reconciles(
+        self, gang, bailiff, tables
+    ):
+        table = tables["Delegation Lasting Injury"]["table"]
+        pick(
+            bailiff,
+            "Delegation Lasting Injuries",
+            result_named(table, "Grievous Wound"),
+        )
+
+        slot = choice_of(bailiff, "Delegation Lasting Injuries")
+        assert [p.assignable.name for p in slot.picks] == ["Grievous Wound"]
         assert_reconciled(gang)
 
 

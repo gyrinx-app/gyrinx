@@ -1318,7 +1318,7 @@ def model_card():
 
     Deliberately includes the awkward cases: a modified characteristic, a weapon
     with a paid second profile, a trait granted by a modifier rather than printed,
-    and an unresolved choice.
+    an unresolved choice, and a pick the gang holds drawn with nothing to click.
     """
     return ModelCard(
         # An id, because the card component reads it as "this depicts a stored
@@ -1475,6 +1475,17 @@ def model_card():
                 href="#",
                 provenance=Provenance(
                     source="Ganger", source_kind="profile", computed=True
+                ),
+            ),
+            # What the gang picked, drawn on the card of a model that
+            # plays by it. No href: the choice belongs to whoever was
+            # asked for it, so this line is a fact with nothing to click.
+            ChoiceLine(
+                kind_label="Archetype",
+                chosen="Brawler",
+                is_full=True,
+                provenance=Provenance(
+                    source="the gang", source_kind="gang", computed=True
                 ),
             ),
         ],

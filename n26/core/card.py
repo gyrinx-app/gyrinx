@@ -441,8 +441,11 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         "counter_value",
         "profile__profile_type",
         # A chosen-mode placement reads the chosen thing's category off
-        # the assignment already in memory — never by a query.
+        # the assignment already in memory — never by a query. A pick
+        # drawn on a card it did not land on names its slot type there,
+        # which is the same rule: compute may not query.
         "pickable__category",
+        "pickable__slot_type",
         # Whether a slot type allows the same pickable twice is read
         # while a card's notes are worked out, which may not query. The
         # picklist behind the choice rides along for the picker, which

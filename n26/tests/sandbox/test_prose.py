@@ -41,6 +41,7 @@ from n26.library.authoring import (
     ef_allows_at_most,
     ef_changes_category,
     ef_changes_stat,
+    ef_draws_pick,
     ef_offers_choice,
     ef_places,
     ef_removes,
@@ -1279,6 +1280,29 @@ class TestTheRemainingEffects:
         assert texts(prose_for(rule).does) == [
             "No model should hold more than 1 Psychic Familiar — their card "
             "warns when one does; nothing is blocked."
+        ]
+
+    def test_a_drawn_pick_says_whose_cards_list_it(self, default_pack):
+        """The exception rides the subject, so what the sentence owns is
+        said the long way round — "the card of every fighter except…"
+        rather than a possessive that would hand the card to the rank
+        the scope steps around."""
+        champion = create_subtype("Champion")
+        archetype = create_pickable("Brawler", create_slot_type("Archetype"))
+        attach_modifiers_to(
+            archetype,
+            [
+                modifier(
+                    "Archetype: drawn on every model except Champions",
+                    targets_every_model(has_subtypes(champion, negate=True)),
+                    ef_draws_pick(),
+                )
+            ],
+        )
+
+        assert texts(prose_for(archetype).does) == [
+            "The card of every fighter except Champion lists this pick, "
+            "while they have it."
         ]
 
 

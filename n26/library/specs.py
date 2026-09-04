@@ -692,6 +692,20 @@ def _build_registry():
             ),
         ),
         Spec(
+            authoring.ef_draws_pick,
+            {},
+            label="Draws the pick on the card",
+            blurb=(
+                "The models this reaches list the pick carrying it on "
+                "their cards. For a pick the gang holds and its models "
+                "play by; the choice stays where it was made."
+            ),
+            example=(
+                "The gang's Outcast archetype is listed on every model's "
+                "card except the Champions', who pick their own."
+            ),
+        ),
+        Spec(
             authoring.ef_requires_companions,
             {
                 "for_each": One(model=Subtype, source=(RequiresCompanions, "for_each")),
