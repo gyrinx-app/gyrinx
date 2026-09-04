@@ -8,6 +8,10 @@ The third example of the slots-and-picks design. One slot type, used twice:
 * a champion is offered a choice of the same slot type whose pick is his
   own, and reaches nobody else.
 
+What the gang holds is drawn on no member's card unless the pickable
+carries a modifier saying so, and the last group here is that modifier:
+the cards its scope reaches list the pick, read only.
+
 Sandbox content shaped like a gang list that works this way. Which
 archetypes the edition offers, which of them a champion may take, and
 what each one does are the maintainer's to state; the shape is what is
@@ -25,11 +29,13 @@ from django.urls import reverse
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Assignment
+from n26.core.printing import detail_groups
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_choice_offer, render_gang
 from n26.core.views.choose import link_slots
 from n26.library.authoring import (
     add_built_in,
+    attach_modifiers_to,
     create_pickable,
     create_picklist,
     create_profile,
@@ -38,6 +44,7 @@ from n26.library.authoring import (
     create_slot_type,
     create_subtype,
     ef_adds,
+    ef_draws_pick,
     has_subtypes,
     modifier,
     targets_every_model,
@@ -392,6 +399,180 @@ class TestTheGangPageStaysFlat:
         choose(reader, gang, "Outcast Leader", archetypes["Mutant"])
         page = reverse("n26-gang", args=[gang.pk])
 
+        with CaptureQueriesContext(connection) as few:
+            assert reader.get(page).status_code == 200
+
+        offered = Picklist.objects.get(name="Outcast Archetypes")
+        for index in range(20):
+            add_picklist_member(
+                offered, create_pickable(f"Archetype {index}", slot_type)
+            )
+
+        with django_assert_num_queries(len(few), exact=False):
+            assert reader.get(page).status_code == 200
+
+
+class TestDrawingTheGangsPickOnTheCardsItGoverns:
+    """The gang's archetype, drawn on the cards of the models it governs.
+
+    A pick the gang holds rides every member's card and is listed on
+    none of them. A modifier the pickable carries says otherwise: every
+    model its scope reaches draws the pick as a line of its own. Which
+    models those are is the scope's to say — here everyone but the
+    Champions, who have an archetype of their own — so nothing is read
+    off where the pick happened to land.
+
+    The line is a fact and not a control. The choice is the leader's,
+    and his card is where it is made and changed.
+    """
+
+    @pytest.fixture
+    def gang_choice(self, slot_type, archetypes):
+        """The leader's question, labelled as itself.
+
+        The label and the slot type read differently on purpose: a drawn
+        pick says what sort of thing was picked by its type's name,
+        where the label names one question among several.
+        """
+        return create_slot(
+            "Gang archetype",
+            slot_type,
+            create_picklist(
+                "Outcast Archetypes",
+                slot_type,
+                members=[archetypes[name] for name in GANG_ARCHETYPES],
+            ),
+            label="Gang archetype",
+            min_picks=1,
+            max_picks=1,
+            assigned_to="gang",
+        )
+
+    @pytest.fixture
+    def drawing(self, archetypes, ranks):
+        """One modifier, hung on every archetype the leader may pick.
+
+        They all say the same thing about who sees the line, and a
+        modifier is shared by design.
+        """
+        rule = modifier(
+            "Archetype: drawn on every model except Champions",
+            targets_every_model(has_subtypes(ranks[EXCEPTED], negate=True)),
+            ef_draws_pick(),
+        )
+        for name in GANG_ARCHETYPES:
+            attach_modifiers_to(archetypes[name], [rule])
+        return rule
+
+    @pytest.fixture
+    def mutant(self, reader, gang, crew, drawing, archetypes):
+        choose(reader, gang, "Outcast Leader", archetypes["Mutant"])
+        return crew
+
+    def test_the_ganger_draws_what_the_gang_picked(self, gang, mutant):
+        (line,) = card_of(gang, "Outcast Ganger").choices
+
+        assert (line.kind_label, line.chosen) == ("Archetype", "Mutant")
+
+    def test_the_line_has_nothing_to_click(self, gang, mutant):
+        """The choice belongs to whoever was asked, so this leads
+        nowhere and offers nothing to add."""
+        (line,) = card_of(gang, "Outcast Ganger").choices
+
+        assert (line.href, line.key) == ("", "")
+        assert line.is_full
+
+    def test_it_says_the_slot_type_rather_than_the_question(self, gang, mutant):
+        """What sort of thing was picked, never the label of the
+        question that asked for it."""
+        (drawn,) = card_of(gang, "Outcast Ganger").choices
+        (asked,) = card_of(gang, "Outcast Leader").choices
+
+        assert (drawn.kind_label, asked.kind_label) == ("Archetype", "Gang archetype")
+
+    def test_the_champion_draws_none_of_it(self, gang, mutant):
+        """His own question, still open, and nothing of the gang's."""
+        lines = card_of(gang, EXCEPTED).choices
+
+        assert [(line.kind_label, line.chosen) for line in lines] == [
+            ("Archetype", None)
+        ]
+
+    def test_the_champions_step_says_it_was_skipped(self, mutant):
+        """The plan says the scope stepped around him, rather than
+        leaving a reader to notice that nothing happened."""
+        outcomes = [
+            step.outcome
+            for step in computed_card(mutant[EXCEPTED]).plan
+            if step.effect == "draws the pick"
+        ]
+
+        assert outcomes == ["skipped"]
+
+    def test_the_leaders_card_draws_it_once_and_it_is_the_live_one(self, gang, mutant):
+        (line,) = card_of(gang, "Outcast Leader").choices
+
+        assert line.chosen == "Mutant"
+        assert line.href, "the card that asks the question keeps its picker"
+
+    def test_the_leaders_step_is_skipped_because_his_card_asks_it(self, mutant):
+        outcomes = [
+            step.outcome
+            for step in computed_card(mutant["Outcast Leader"]).plan
+            if step.effect == "draws the pick"
+        ]
+
+        assert outcomes == ["skipped"]
+
+    def test_a_rank_hired_afterwards_draws_it_too(
+        self, reader, gang, mutant, person_type, default_pack
+    ):
+        later = create_profile("Hive Scum", person_type, gang.gang_type, price=20)
+        add_built_in(later, create_subtype("Hive Scum"))
+        hire(gang, later, "Scum", paid=20)
+
+        (line,) = card_of(gang, "Scum").choices
+        assert (line.kind_label, line.chosen) == ("Archetype", "Mutant")
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_the_gangs_own_card_is_untouched(self, gang, mutant):
+        """The gang holds the pick and lists it among its own rows, as
+        it did before anything drew it on a fighter."""
+        sheet = sheet_of(gang)
+
+        assert sheet.questions == []
+        assert "Mutant" in [line.name for line in sheet.rows]
+
+    def test_a_champions_own_pick_of_the_same_archetype_draws_nothing(
+        self, reader, gang, crew, drawing, archetypes
+    ):
+        """The modifier acts on what the gang holds. A champion picking
+        the same archetype for himself holds it himself, and it stays on
+        his own choice row."""
+        choose(reader, gang, EXCEPTED, archetypes["Mutant"])
+
+        assert card_of(gang, "Outcast Ganger").choices == []
+        (his,) = card_of(gang, EXCEPTED).choices
+        assert (his.chosen, bool(his.href)) == ("Mutant", True)
+
+    def test_the_print_sheet_prints_it_as_text(self, gang, mutant):
+        printed = detail_groups(card_of(gang, "Outcast Ganger"))
+
+        assert ("Archetype", "Mutant") in [
+            (group.label, group.text) for group in printed
+        ]
+
+    def test_more_pickables_do_not_mean_more_queries(
+        self, reader, gang, mutant, slot_type, django_assert_num_queries
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import add_picklist_member
+        from n26.library.models import Picklist
+
+        page = reverse("n26-gang", args=[gang.pk])
         with CaptureQueriesContext(connection) as few:
             assert reader.get(page).status_code == 200
 

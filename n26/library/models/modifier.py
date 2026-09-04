@@ -49,6 +49,7 @@ COMPUTED_EFFECT_FIELDS = (
     "changes_category",
     "offers_choice",
     "places_category",
+    "draws_pick",
     "requires_companions",
     "allows_at_most",
     "contributes_to_counter",
@@ -1257,6 +1258,38 @@ class PlacesCategory(models.Model):
         return target_kind == MODEL
 
 
+class DrawsPick(models.Model):
+    """The pick the gang holds is drawn on the bearer's card.
+
+    A pick assigned to the gang rides every member's card so that what
+    it gives reaches them, and is listed on none of them: what the gang
+    holds is shown on the gang. Some picks are the exception — an
+    archetype the whole gang plays by belongs on the cards of the models
+    it governs, beside their skills — and which models those are is this
+    scope's to say, never a rule read off where the pick landed.
+
+    The line is a fact, not a control: the choice is made and changed on
+    the card that asks for it, and that card draws its own choice row
+    rather than a second copy of this. A model's own pick is already a
+    row on its card, so a pick the card itself holds draws nothing here
+    either.
+
+    Computed, so the line appears and disappears with the pick.
+    """
+
+    is_stored = False
+
+    class Meta:
+        verbose_name = "draws the pick on the card"
+        verbose_name_plural = "draw the pick on the card"
+
+    def __str__(self):
+        return "draws the pick"
+
+    def accepts(self, target_kind):
+        return target_kind == MODEL
+
+
 class RequiresCompanions(models.Model):
     """The gang keeps companions in ratio — "Lead the Masses": at least
     three Outcast Hive Scum on the roster for each Outcast Champion.
@@ -1707,6 +1740,14 @@ class Modifier(Content):
         null=True,
         blank=True,
         related_name="modifier",
+    )
+    draws_pick = models.OneToOneField(
+        DrawsPick,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+        verbose_name="draws the pick on the card",
     )
     requires_companions = models.OneToOneField(
         RequiresCompanions,
