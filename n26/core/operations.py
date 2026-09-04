@@ -281,6 +281,7 @@ class Operation:
         reason=None,
         bought_from=None,
         action=None,
+        spent_by=None,
         note="",
         removes=False,
         kind=None,
@@ -307,7 +308,9 @@ class Operation:
 
         ``action`` is the open action this counted against, where the
         surface that bought it says one applies. What an action has
-        spent is the sum over what points at it.
+        spent is the sum over what points at it. ``spent_by`` is whose
+        Trade Points those were, where the allowance was one model's own
+        rather than the gang's.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -345,6 +348,7 @@ class Operation:
             reason=reason,
             bought_from=bought_from,
             action=action,
+            spent_by=spent_by,
             note=note,
         )
         self.event(
@@ -1747,6 +1751,9 @@ class Operation:
         surface: a trip to the trading post, founding and equipping the
         gang. None where none is open, which is a purchase that counts
         against nothing — allowed, once the owner has said they meant it.
+        The buyer is recorded alongside it, because an allowance may be
+        one model's own and what it has spent must follow the model that
+        spent it rather than wherever the thing ends up.
 
         ``holder`` is a model, the gang's stash, or an assignment the
         purchase hangs off. Buying into the stash is the same purchase
@@ -1760,11 +1767,15 @@ class Operation:
         from n26.library.models.collection import price_of
 
         if isinstance(holder, Stash):
-            host = {"stash": holder}
+            # Nobody's allowance buys into the stash: it is the gang's
+            # spare kit, and what it holds was never given to a model.
+            host, buyer = {"stash": holder}, None
         elif isinstance(holder, Assignment):
-            host = {"parent": holder}
+            # A weapon's paid rounds hang off the gun, and it is the
+            # model carrying the gun whose points they came out of.
+            host, buyer = {"parent": holder}, holder.miniature_root
         else:
-            host = {"miniature": holder}
+            host, buyer = {"miniature": holder}, holder
 
         if line is not None:
             thing = line.thing
@@ -1800,6 +1811,10 @@ class Operation:
             trade_points=trade_points,
             bought_from=entry,
             action=action,
+            # Recorded only where something counted it: with no action
+            # open the purchase counts against nothing, and naming a
+            # buyer would claim an allowance nobody spent.
+            spent_by=buyer if action is not None else None,
             **host,
             **kwargs,
         )

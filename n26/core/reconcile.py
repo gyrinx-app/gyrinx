@@ -114,6 +114,34 @@ def trade_points_spent_for(action):
     )
 
 
+def trade_points_spent_by(action, miniature):
+    """Every Trade Point one model spent against one action.
+
+    The same sum as :func:`trade_points_spent_for`, narrowed to whoever
+    spent it: a founding allowance is the model's own, so what one has
+    spent says nothing about what another may.
+
+    Narrowed on the buyer the purchase recorded and never on where the
+    thing is now. An owner may move a gun into the stash or hand it to
+    somebody else, and neither hands the points back — moving kit about
+    is not a refund. Reading the assignment's model instead would refill
+    the buyer's allowance the moment they stashed anything, and refunding
+    the gun from its new owner would take that owner's allowance below
+    zero for points they never spent.
+
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    return (
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__action=action,
+            assignment__ledger_entry__spent_by=miniature,
+        ).aggregate(total=Sum("trade_points_delta"))["total"]
+        or 0
+    )
+
+
 def trade_points_spent(gang):
     """What the gang's open Visit Trading Post action has spent.
 

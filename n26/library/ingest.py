@@ -103,6 +103,7 @@ from django.db.models import Max, Q
 from n26.library.models.profile import TYPE_NAMES
 from n26.library.sheets import SHEET_NAMES
 from n26.library.standard_content import (
+    GANG_LIST_SECTION,
     MODEL_CHARACTERISTICS,
     SKILLS_COLLECTION,
     SKILLS_SECTION,
@@ -982,8 +983,9 @@ def _statline_values(row, columns):
 #: The headings the profiles sheet homes fighters under, and the order
 #: the hire list reads them in: the gang's own list first, everything
 #: hired beside it after. A blank ``Section`` cell means the gang list —
-#: the sheet only spells out the other one.
-GANG_LIST_SECTION = "Gang List"
+#: the sheet only spells out the other one. The gang list's own heading
+#: is named in standard_content, because the founding-budget seed reads
+#: it too and two statements of it would drift.
 PROFILE_SECTIONS = {GANG_LIST_SECTION: 0, "Supplementary Fighters": 1}
 
 
@@ -3091,6 +3093,11 @@ def _imported(pack=None):
     # A seeded one is recognised the way its own seed recognises it — by
     # what it does, never by its name — so rewording one does not put it
     # back in the way of a clear.
+    # The founding-budget modifiers are not among the spared, though they
+    # are standard content too: each names the fighter entries it reaches,
+    # and a scope left naming nothing narrows nothing — every model in the
+    # gang would read a Leader's allowance. So they go with the entries
+    # and are made again the next time the seed runs.
     spared = Q(pk__in=())
     visit_counter = visit_contribution_counter()
     if visit_counter is not None:
