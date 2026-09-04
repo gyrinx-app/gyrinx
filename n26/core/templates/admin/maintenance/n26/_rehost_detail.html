@@ -1,0 +1,23 @@
+{% comment %}
+    The summary of one move run, on the Backfill detail page: what it
+    was going to move, and — once it has finished — what it did.
+{% endcomment %}
+{% if backfill.summary.report %}
+    <h2>What it did</h2>
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% elif backfill.summary.preview %}
+    <h2>What it is doing</h2>
+    <p>
+        The preview listed these picks to move. Each gang is one transaction,
+        so a gang whose picks have not moved yet stands exactly as it did, and
+        a gang that fails to reconcile is left as it stood and named below.
+    </p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}
