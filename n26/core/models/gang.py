@@ -67,21 +67,6 @@ class Gang(Base, Owned, Archived, Rated):
         default=0,
         help_text="Cash in hand. Pinned: starting budget less everything spent.",
     )
-    #: Nothing reads or writes this, and the column goes in the next
-    #: deploy. It is kept for one because dropping a column the outgoing
-    #: revision still reads gives every request that revision serves an
-    #: error for the seconds the two overlap. The help text below still
-    #: describes the figure as live; correcting it would take a
-    #: migration of its own, for a field with one deploy left.
-    starting_trade_points = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text=(
-            "A copy of what the open Visit Trading Post action brought, "
-            "kept beside it. Empty when no visit is open. The action "
-            "itself holds the figure the screens read."
-        ),
-    )
     colour = models.CharField(
         max_length=50,
         blank=True,
