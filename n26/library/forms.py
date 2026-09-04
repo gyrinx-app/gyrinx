@@ -512,10 +512,21 @@ class GeneratedForm(forms.Form):
         form rather than only hidden — ``apply_to`` writes the fields the
         form carries, so a submission naming one anyway writes nothing.
         """
-        form = cls(data, files, initial=_initial_from(cls.spec, thing), prefix=prefix)
+        initial = _initial_from(cls.spec, thing)
+        form = cls(data, files, initial=initial, prefix=prefix)
         for name, kind in cls.spec.fields.items():
             if getattr(kind, "fixed", False):
                 form.fields.pop(name, None)
+                continue
+            if not (isinstance(kind, Choice) and name in initial):
+                continue
+            current = str(initial[name])
+            offered = {str(value) for value, _label in form.fields[name].choices}
+            if current not in offered:
+                form.fields[name].choices = [
+                    *form.fields[name].choices,
+                    (current, f"{current.replace('_', ' ')} (retired)"),
+                ]
         return form
 
     def apply_to(self, thing):

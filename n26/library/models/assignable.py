@@ -920,16 +920,11 @@ class Rule(Content, Assignable):
 
 
 class Affiliation(Content, Assignable):
-    """Who the gang sides with, chosen once when the gang is created.
+    """Affiliations are retired. Use a slot type, pickables, and a grant of
+    that slot for gang-level choices.
 
-    A chosen carrier: the whole of what it means rides it as ordinary
-    modifiers, and it is its own kind so the card says "Affiliation:".
-    An affiliation's payload is typically *access* —
-    equipment lists opened to some ranks, so its gives are scoped while
-    the affiliation itself rides gang-wide — and an affiliation may
-    itself offer a further choice (Clan House's "choose one of the six
-    Houses"): what is chosen is an ordinary assignment hosted on the
-    gang, so a choice carried on it simply computes into another slot.
+    Existing affiliation rows remain available here until they are
+    deleted.
     """
 
     family = Family.GANG

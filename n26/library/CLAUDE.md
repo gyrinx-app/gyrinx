@@ -118,8 +118,8 @@ steps into that file.** The rules for what goes in it:
 
 - Author-facing language only: the things to create and how to join
   them. No technical internals, no code, no model or field names —
-  the words are the authoring pages' own (affiliation, collection,
-  modifier, *gives*, *offers a choice*).
+  the words are the authoring pages' own (slot type, pickable,
+  collection, modifier, *gives*, *offers a choice*).
 - Clear and simple. Match the register of the modifier option cards in
   `specs.py` — short, concrete, one game example beats a paragraph.
 - A step that is not yet possible says so plainly, in one sentence.

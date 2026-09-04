@@ -373,9 +373,9 @@ def _build_registry():
     )
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
     from n26.library.models.modifier import (
+        AUTHORABLE_OFFER_KINDS,
         COUNTABLE_FIELDS,
         GRANTABLE_FIELDS,
-        OFFERABLE_KINDS,
     )
 
     # What a built-in may be, derived from the DefaultAssignment row
@@ -607,7 +607,7 @@ def _build_registry():
             authoring.ef_offers_choice,
             {
                 "model": Choice(
-                    options=OFFERABLE_KINDS,
+                    options=AUTHORABLE_OFFER_KINDS,
                     coerce=_offerable_kind_to_model,
                     reads=lambda row: row.of_kind.model,
                 ),

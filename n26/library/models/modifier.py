@@ -74,6 +74,13 @@ OFFERABLE_KINDS = (
     "subtype",
 )
 
+#: Kinds authors may choose for a new offer. Affiliation remains valid above
+#: only so legacy rows can still be loaded and repaired before the model is
+#: removed; the slot-based replacement is the only authorable route now.
+AUTHORABLE_OFFER_KINDS = tuple(
+    kind for kind in OFFERABLE_KINDS if kind != "affiliation"
+)
+
 EFFECT_FIELDS = (*COMPUTED_EFFECT_FIELDS, *STORED_EFFECT_FIELDS)
 
 #: Which assignable kinds an AddsAssignable/RemovesAssignable can name.

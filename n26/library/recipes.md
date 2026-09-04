@@ -11,33 +11,42 @@ Where a step is not yet possible, it says so plainly.
 
 Genestealer Cult, Chaos and Malstrain corruption are one build with
 different contents: a corruption is a choice the gang makes once, and
-everything it does rides the chosen item as ordinary modifiers.
+all of its effects come from modifiers attached to the chosen pickable.
 
 ### The choice
 
-1. Create an **affiliation** for each corruption — "Genestealer Cult
-   Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
-2. Create a **collection** named "Corruptions" and switch off *Prices its
-   entries* — it is a menu, not a catalogue. List the three affiliations in it.
-3. Create a **modifier**: targets the gang, *offers a choice* of
-   affiliation from that menu, labelled "Corruption". Attach it to every
-   gang type that can be corrupted.
+Use a **slot type** for this gang-level choice. Follow the same six steps
+as a Gang Legacy, assigning the pick to the gang.
 
-Every gang of those types now shows an open "Corruption" question on its
-sheet. Most players never make that choice. The ones who do pick one affiliation,
-and everything below hangs off that pick.
+1. Create a **slot type** named "Variant" — what is being chosen — and
+   give it a plural. Turn *allows repeats* off. Everything below is
+   built on its page.
+2. Add a **pickable** for each corruption — "Genestealer Cult
+   Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
+3. Add a **picklist** named "Variants" holding those three.
+4. Add a **slot** labelled "Variant", taking 0–1 (most gangs leave it
+   empty), assigned to the gang.
+5. Create a **hidden** if the gang type should carry the question
+   without drawing a line of its own, or skip this and attach the grant
+   to the gang type directly.
+6. On that hidden or gang type: targets the gang, *gives* the Variant
+   slot.
+
+Every gang of those types now shows an open "Variant" question on its
+sheet. Most players never make that choice. Players who use it make one
+pick. The chosen pickable's modifiers provide the effects described
+below.
 
 ### What a corruption grants
 
-Each of these is a modifier carried by the corruption's affiliation.
-Everything a chosen thing brings rides it as modifiers — *gives*,
-*brings a model*, *moves a counter* — and never as built-in items: an
-affiliation is chosen, not bought or hired, so nothing would ever hand
-built-in items over.
+Each effect is a modifier carried by the corruption's pickable: *gives*,
+*brings a model*, or *moves a counter*. Do not add these as built-in
+items. Pickables are chosen rather than bought or hired, so built-in
+items would never be assigned.
 
 **New fighters to hire.** Create the profiles — Aberrant, Abominant,
 Helot Cult Witch, Chaos Spawn, Brood Scum. Create a collection listing
-them at their prices. On the affiliation: targets the gang, *gives* the
+them at their prices. On the pickable: targets the gang, *gives* the
 collection.
 
 Once a gang carries that collection, its hire page grows a section named
@@ -53,23 +62,24 @@ corruption's collection at 35 credits. A player buys it for their Leader
 whenever suits — at hire or later; the book's timing is theirs to honour.
 
 **Familiars.** Create the familiar as **wargear**, usable by Leaders and
-Champions, and put it in a collection. On the affiliation: targets models
+Champions, and put it in a collection. On the pickable: targets models
 that are Leaders or Champions, *gives* that collection.
 
 **Extra Arm on Prospects.** Create a **wargear** named "Extra Arm" at 20
 credits, usable by Prospects, carrying *gives* the Extra Arm rule. List
 it in the corruption's collection.
 
-**A god to dedicate to (Chaos).** Create an affiliation per god, and a
-menu collection listing the four. On the Chaos affiliation: targets the
-gang, *offers a choice* from that menu, labelled "Dedicated to". Anything
-one god means rides that god's affiliation the same way.
+**A god to dedicate to (Chaos).** Create a **slot type** named "Chaos
+God" and turn *allows repeats* off. Add a pickable per god, a picklist of
+the four, and a slot labelled "Chaos God", taking 0–1 and assigned to
+the gang. On the Chaos Corrupted pickable: targets the gang, *gives*
+that slot. Attach each god's effects to that god's pickable.
 
 **Post-cycle actions (Chaos).** Create each action as a **rule**. On the
-affiliation: targets the gang, *gives* the rule. They print on the gang's
+pickable: targets the gang, *gives* the rule. They print on the gang's
 card.
 
-**Counts and bans.** Each is one modifier on the affiliation. For "0–2
+**Counts and bans.** Each is one modifier on the pickable. For "0–2
 Aberrants": targets the gang, *notes a limit*, set to 2, naming the
 Aberrant profile — the gang's sheet says nothing until a third one is
 hired, and then it says the roster is over. For "no Brutes, Hangers-on or
@@ -91,7 +101,7 @@ rule that improves their weapons or shifts a characteristic does so from
 there, and only a rule you want printed on each fighter's card as well
 needs a second *gives* aimed at the model. The rules are then granted
 rather than built in, so there is a single thing standing behind the lot.
-On each corruption's affiliation, add *takes something away* naming that
+On each corruption's pickable, add *takes something away* naming that
 hidden item: aimed at the gang, which is where the item sits, and aimed at
 the model too if the fighters' own cards were given rules of their own.
 Everything the hidden item was handing out goes with it, and drop the

@@ -32,9 +32,11 @@ twice in a row.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="actions">
-            <c-ui.button href="{% url 'authoring-create' kind %}" variant="primary">
-                New {{ verbose_name }}
-            </c-ui.button>
+            {% if not retired %}
+                <c-ui.button href="{% url 'authoring-create' kind %}" variant="primary">
+                    New {{ verbose_name }}
+                </c-ui.button>
+            {% endif %}
         </c-slot>
     </c-n26.page-header>
     {% if kind_help %}

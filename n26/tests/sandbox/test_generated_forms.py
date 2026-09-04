@@ -150,6 +150,29 @@ class TestGeneratedForms:
             OffersChoice._meta.get_field("from_section").help_text
         )
 
+    def test_a_retired_choice_remains_selected_and_can_be_saved(self, default_pack):
+        from n26.library.models import Affiliation, OffersChoice
+
+        effect = OffersChoice.of(Affiliation, will_be_assigned_to="gang")
+        form_class = generate_form(specs()["ef_offers_choice"])
+
+        opened = form_class.opened_on(effect)
+        assert opened["model"].value() == "affiliation"
+        assert ("affiliation", "affiliation (retired)") in opened.fields[
+            "model"
+        ].choices
+
+        submitted = form_class.opened_on(
+            effect,
+            {
+                "edit-model": "affiliation",
+                "edit-will_be_assigned_to": "gang",
+            },
+        )
+        assert submitted.is_valid(), submitted.errors
+        replacement = submitted.compile()
+        assert replacement.of_kind.model == "affiliation"
+
     def test_a_valid_form_compiles_to_the_verb_call(self, skills_and_powers):
         collection, tiers = skills_and_powers
         create_category("Skills", "Combat")

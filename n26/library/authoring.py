@@ -474,8 +474,8 @@ def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwar
 def create_affiliation(
     name, effects=(), qualifier="", library_author_help="", **kwargs
 ):
-    """A chosen carrier for where the gang's loyalties lie;
-    ``effects`` are (scope, effect) pairs."""
+    """A leftover chosen-carrier kind. New gang-level choices are a
+    slot type. ``effects`` are (scope, effect) pairs."""
     from n26.library.models import Affiliation
 
     carrier = Affiliation.objects.create(

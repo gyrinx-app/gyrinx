@@ -22,7 +22,7 @@ import pytest
 from django.contrib.auth.models import User
 
 from n26.library.specs import specs
-from n26.library.views import LEAF_KINDS
+from n26.library.views import LEAF_KINDS, RETIRED_KINDS
 
 pytestmark = pytest.mark.django_db
 
@@ -86,12 +86,16 @@ class TestTheMenuIsBackedBySpecs:
         response = client.get(f"/n26/authoring/{kind}/")
         assert response.status_code == 200
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    @pytest.mark.parametrize(
+        "kind", sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS), ids=str
+    )
     def test_every_kind_has_a_create_page(self, kind, author, client, default_pack):
         response = client.get(f"/n26/authoring/{kind}/new/")
         assert response.status_code == 200
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    @pytest.mark.parametrize(
+        "kind", sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS), ids=str
+    )
     def test_no_switch_is_handed_a_value_javascript_cannot_read(
         self, kind, author, client, default_pack
     ):
@@ -120,6 +124,38 @@ class TestTheMenuIsBackedBySpecs:
 
     def test_an_unknown_kind_is_a_404(self, author, client, default_pack):
         assert client.get("/n26/authoring/gadget/").status_code == 404
+
+
+class TestAffiliationIsRetiredFromTheMenu:
+    """What an affiliation said is said by slots and picks. The menu
+    stops inviting another one; leftover rows stay reachable."""
+
+    def test_the_index_offers_none_of_the_retired_kinds(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/").content.decode()
+
+        for kind in RETIRED_KINDS:
+            assert f"/n26/authoring/{kind}/new/" not in body, kind
+
+    def test_a_retired_kinds_page_still_opens(self, author, client, default_pack):
+        from n26.tests.sandbox.actions import create_affiliation
+
+        held = create_affiliation("Clanless")
+
+        listing = client.get("/n26/authoring/affiliation/")
+        page = client.get(f"/n26/authoring/affiliation/{held.pk}/")
+
+        assert listing.status_code == 200
+        assert page.status_code == 200
+        assert "Clanless" in page.content.decode()
+        assert "/n26/authoring/affiliation/new/" not in listing.content.decode()
+        listing_body = listing.content.decode()
+        assert re.search(
+            r'<a href="/n26/authoring/affiliation/"[^>]*aria-current="page"',
+            listing_body,
+        )
+        assert ">Affiliations</span>" in listing_body
 
 
 class TestTheIndex:
@@ -886,7 +922,7 @@ class TestFamilies:
         assert positions == sorted(positions)
         # A kind sits under its family.
         assert positions[2] < body.index("wargear")
-        assert positions[3] < body.index("affiliation")
+        assert positions[3] < body.index("gang-type")
 
     def test_the_family_table(self):
         """The grouping as agreed, pinned so it changes deliberately."""
@@ -961,11 +997,16 @@ class TestTheCarriers:
         assert made.library_author_help.startswith("Rides the option set")
         assert not made.modifiers.exists()  # armed by the composer, later
 
-    def test_the_chosen_carrier(self, author, client, default_pack):
-        from n26.library.models import Affiliation
+    def test_the_chosen_carrier_is_no_longer_offered(
+        self, author, client, default_pack
+    ):
+        """A gang-level choice is a slot type now. The Affiliation
+        create page is closed so nobody authors another leftover."""
+        response = client.get("/n26/authoring/affiliation/new/")
+        posted = client.post("/n26/authoring/affiliation/new/", {"name": "Clan House"})
 
-        client.post("/n26/authoring/affiliation/new/", {"name": "Clan House"})
-        assert Affiliation.objects.filter(name="Clan House").exists()
+        assert response.status_code == 404
+        assert posted.status_code == 404
 
 
 @pytest.fixture
@@ -4042,50 +4083,62 @@ class TestTheCollectionPage:
         assert Collection.objects.filter(name="House Escher Armoury").exists()
 
     def test_the_affiliation_pick_list_is_buildable_end_to_end(
-        self, author, client, default_pack, gang_type
+        self, author, client, default_pack, gang_type, owner
     ):
-        """The whole guide, through the pages: affiliations, the menu
-        collection with its default section and entries, the hidden
-        carrier armed by the composer, the gang type's built-in — and
-        then a player's picker offering exactly the two answers."""
+        """The whole guide, through the pages: a slot type, its
+        pickables, a picklist, a slot granted by a hidden built into the
+        gang type — and then a player's picker offering exactly the two
+        answers."""
         from n26.core.render import render_gang
-        from n26.library.models import Affiliation, Collection, Hidden
+        from n26.library.models import Hidden, Pickable, Picklist, Slot, SlotType
         from n26.tests.sandbox.actions import found_gang
 
-        # The carriers and the menu, every row through a page.
-        for name in ("Clanless Outcast", "Clan House Outcast"):
-            client.post("/n26/authoring/affiliation/new/", {"name": name})
-        client.post("/n26/authoring/collection/new/", {"name": "Affiliations"})
-        picks = Collection.objects.get(name="Affiliations")
-        page = f"/n26/authoring/collection/{picks.pk}/"
         client.post(
-            page, {"act": "section", "name": "Affiliations", "is_default": "on"}
+            "/n26/authoring/slot-type/new/",
+            {"name": "Affiliation", "plural_name": "Affiliations"},
         )
+        slot_type = SlotType.objects.get(name="Affiliation")
+        page = f"/n26/authoring/slot-type/{slot_type.pk}/"
         for name in ("Clanless Outcast", "Clan House Outcast"):
-            made = client.post(
-                page,
+            made = client.post(page, {"act": "pickable", "name": name, "qualifier": ""})
+            assert made.status_code == 302
+        client.post(page, {"act": "picklist", "name": "Affiliations"})
+        picks = Picklist.objects.get(name="Affiliations")
+        for name in ("Clanless Outcast", "Clan House Outcast"):
+            added = client.post(
+                f"/n26/authoring/picklist/{picks.pk}/",
                 {
-                    "act": "entry",
-                    "thing_kind": "affiliation",
-                    "thing_affiliation": str(Affiliation.objects.get(name=name).pk),
+                    "pickable": str(Pickable.objects.get(name=name).pk),
+                    "label_override": "",
+                    "position": "0",
                 },
             )
-            assert made.status_code == 302
+            assert added.status_code == 302
+        client.post(
+            page,
+            {
+                "act": "slot",
+                "name": "Affiliation",
+                "picklist": str(picks.pk),
+                "label": "Affiliation",
+                "min_picks": "0",
+                "max_picks": "1",
+                "assigned_to": "gang",
+                "position": "0",
+            },
+        )
+        slot = Slot.objects.get(name="Affiliation")
 
-        # The question: a hidden carrier, armed on its own page.
         client.post("/n26/authoring/hidden/new/", {"name": "Affiliation"})
         hidden = Hidden.objects.get(name="Affiliation")
-        section = picks.sections.get()
         composed = client.post(
             f"/n26/authoring/hidden/{hidden.pk}/",
             {
                 "act": "compose",
                 "scope_kind": "targets_gang",
-                "effect_kind": "ef_offers_choice",
-                "what-model": "affiliation",
-                "what-from_section": str(section.pk),
-                "what-label": "affiliation",
-                "what-will_be_assigned_to": "bearer",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "slot",
+                "what-thing_slot": str(slot.pk),
                 "conditions-TOTAL_FORMS": "0",
                 "conditions-INITIAL_FORMS": "0",
                 "conditions-MIN_NUM_FORMS": "0",
@@ -4094,7 +4147,6 @@ class TestTheCollectionPage:
         )
         assert composed.status_code == 302
 
-        # Into the gang type's Comes with, through its page.
         aboard = client.post(
             f"/n26/authoring/gang-type/{gang_type.pk}/",
             {
@@ -4105,17 +4157,12 @@ class TestTheCollectionPage:
         )
         assert aboard.status_code == 302
 
-        # The player's side of the seam: found a gang, click the choice.
-        from django.contrib.auth.models import User
-
-        owner = User.objects.create_user("outcast-founder")
-        # The page changed the row; this test's instance predates it.
         gang_type.refresh_from_db()
         gang = found_gang("The Unmade", gang_type, owner=owner)
         line = next(
-            slot
-            for slot in render_gang(gang).choices
-            if slot.kind_label == "Affiliation"
+            choice
+            for choice in render_gang(gang).choices
+            if choice.kind_label == "Affiliation"
         )
         client.force_login(owner)
         picker = client.get(f"/n26/gangs/{gang.pk}/choose/{line.key}/").content.decode()
