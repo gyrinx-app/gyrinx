@@ -12,6 +12,8 @@ number of queries regardless of how many models or how much kit — see
 
 from dataclasses import dataclass, field
 
+from django.utils.text import capfirst
+
 from n26.core.card import build_card
 from n26.core.effects import (
     ModifierIndex,
@@ -737,20 +739,30 @@ class StashLine:
 
 
 @dataclass(frozen=True)
-class HoldingLine:
-    """One of the campaign's pooled assets the gang holds, drawn on its
-    sheet: the copy's name, what kind of asset it is in the campaign
-    type's own word, and the income figure printed beside it.
+class CampaignAssetLine:
+    """One asset the gang has from its campaign, drawn as a row of its
+    own: what kind of asset it is on the left, what this one is called on
+    the right.
+
+    ``kind_label`` is the campaign type's own word for the class of thing
+    — "Settlement", "Territory" — as the author wrote it, so it reads as
+    a row label. Where the thing the campaign gave is not an asset at
+    all, it is that kind's own name ("Special rule"): the same fact,
+    taken from the model rather than from an asset kind.
 
     ``income`` is drawn and never collected; the gang's credits do not
-    move for it. ``campaign_asset_id`` is the campaign's token, for a link to the
-    pool it belongs to. A holding has no provenance line: the campaign is
-    its source, and the block is already drawn under the campaign's name.
+    move for it. ``provenance`` names the carrier that brought a
+    possession, and is empty on a holding — a holding's source is the
+    campaign, and the block is already drawn under the campaign's name.
+    ``campaign_asset_id`` is the campaign's token, set on a holding and
+    empty on a possession, so a renderer can tell the two apart and link
+    a holding to the pool it belongs to.
     """
 
+    kind_label: str
     name: str
-    kind: str
     income: int = 0
+    provenance: Provenance = field(default_factory=Provenance)
     campaign_asset_id: str = ""
 
 
@@ -759,16 +771,19 @@ class CampaignBlock:
     """What the gang has because it is in a campaign, under the campaign's
     name.
 
-    Everything here is caused by one of the membership's two carriers —
-    the campaign's shared type and its additions — and each line names
-    that carrier as its source, the way any granted line does. Possessions
-    that are not counters are ``lines``; the counters have their standing
-    values. Nothing here is the gang's own: it arrived with the campaign
+    Everything in ``lines`` is caused by one of the membership's two
+    carriers — the campaign's shared type and its additions — and names
+    that carrier as its source, the way any granted line does. The
+    counters carry their standing values, and are drawn as ordinary
+    counter rows so a campaign's Reputation reads as any counter the gang
+    keeps. Nothing here is the gang's own: it arrived with the campaign
     and leaves with it, which is why the sheet keeps it apart from the
     gang's own rows and counters.
 
     ``holdings`` are the campaign's pooled assets the gang holds — held,
-    never owned, and worth nothing to the gang's rating. What holding one
+    never owned, and worth nothing to the gang's rating. They take the
+    same row shape as a possession, because a reader asking what this
+    gang has from the campaign is asking one question. What holding one
     does for the gang lands where any modifier's work does: a Reputation
     contribution in the counter's reading here, a rule among the gang's
     rules, each credited to the token.
@@ -776,9 +791,9 @@ class CampaignBlock:
 
     name: str
     campaign_id: str
-    lines: list[AssignableLine] = field(default_factory=list)
+    lines: list[CampaignAssetLine] = field(default_factory=list)
     counters: list[CounterLine] = field(default_factory=list)
-    holdings: list[HoldingLine] = field(default_factory=list)
+    holdings: list[CampaignAssetLine] = field(default_factory=list)
 
 
 @dataclass
@@ -1827,6 +1842,25 @@ def _campaign_keys(gang_card, membership):
     return frozenset(keys)
 
 
+def _asset_kind_labels(assets):
+    """What each asset's kind is called, keyed by the asset's id.
+
+    One query for the whole block, and none where the campaign gave no
+    asset. The kind is not on the assignment's own fetch — widening that
+    would put another join on every assignment query in the app, for a
+    fact only this block reads.
+    """
+    from n26.library.models import Asset
+
+    if not assets:
+        return {}
+    return dict(
+        Asset.objects.filter(pk__in={asset.pk for asset in assets}).values_list(
+            "pk", "kind__label_singular"
+        )
+    )
+
+
 def _campaign_block(gang_card, membership, keys, readings):
     """What the campaign gave, credited to its carriers.
 
@@ -1834,14 +1868,20 @@ def _campaign_block(gang_card, membership, keys, readings):
     the campaign brought are taken out of it, so the sheet draws each
     counter once. The carriers themselves draw no line: a campaign type is
     the source of the block, not something in it.
+
+    Each possession draws a row labelled with what sort of thing it is,
+    which for an asset is its kind's own word and for anything else is
+    the kind's name. The holdings take the same shape, so the block reads
+    as one run of "what this gang has from the campaign" whether the
+    gang owns the thing or only holds it.
     """
-    from n26.library.models import Counter
+    from n26.library.models import Asset, Counter
 
     if membership is None:
         return None
     carriers = {membership.type_carrier_id, membership.additions_carrier_id}
     provenance_of = _provenance_within(gang_card)
-    lines = []
+    possessions = []
     counters = []
     for node in gang_card.roots:
         if node.key not in keys or node.key in carriers or node.suppressed:
@@ -1854,6 +1894,7 @@ def _campaign_block(gang_card, membership, keys, readings):
                 CounterLine(
                     name=reading.name,
                     value=reading.value,
+                    tallied=_counter_value(node),
                     assignment_id=str(node.key),
                     drawn=node.assignable.drawn,
                     provenance=provenance_of(node),
@@ -1863,16 +1904,29 @@ def _campaign_block(gang_card, membership, keys, readings):
             continue
         if isinstance(node.assignable, DRAWS_NO_LINE):
             continue
-        lines.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
+        possessions.append(node)
+    labels = _asset_kind_labels(
+        [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
+    )
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
-        lines=lines,
+        lines=[
+            CampaignAssetLine(
+                kind_label=labels.get(
+                    node.assignable.pk, capfirst(kind_of(node.assignable))
+                ),
+                name=node.name,
+                income=getattr(node.assignable, "income", 0),
+                provenance=provenance_of(node),
+            )
+            for node in possessions
+        ],
         counters=[line for line in counters if line.drawn],
         holdings=[
-            HoldingLine(
+            CampaignAssetLine(
+                kind_label=token.asset.kind.label_singular,
                 name=str(token),
-                kind=token.kind_label,
                 income=token.asset.income,
                 campaign_asset_id=str(token.pk),
             )

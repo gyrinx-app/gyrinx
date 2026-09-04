@@ -1,0 +1,71 @@
+{% comment %}
+<c-n26.campaign-block> — what a gang has from its campaign, as rows in the
+strip of standing facts.
+
+    <c-n26.detail-list>
+        <c-n26.campaign-block :campaign="sheet.campaign" />
+    </c-n26.detail-list>
+
+Draws <c-n26.detail-list.row>s and no container of its own, so the campaign's
+facts sit in the same list as the gang's own. It has to be called inside a
+<c-n26.detail-list>.
+
+Takes a n26.render.CampaignBlock. An asset draws a row whose label is the
+campaign type's word for its class — Settlement, Territory — and whose value is
+this one's name, whether the gang owns it or only holds it. A possession has a
+tooltip naming the carrier that brought it; a holding's value links to the pool
+it belongs to, because a holding is the campaign's and can change hands.
+
+Each counter draws an ordinary counter row, so a campaign's Reputation looks
+the same as any counter the gang keeps. Its tally controls are drawn only where
+the line carries an address, which n26.core.views.owned.link_counters sets for
+the gang's owner and for nobody else.
+{% endcomment %}
+<c-vars :campaign="None" />
+
+{% if campaign %}
+    <c-n26.detail-list.heading>
+        <c-n26.link href="{% url 'n26-campaign' campaign.campaign_id %}" tone="current">{{ campaign.name }}</c-n26.link>
+    </c-n26.detail-list.heading>
+    {% for line in campaign.lines %}
+        <c-n26.detail-list.row label="{{ line.kind_label }}" :editable="False">
+            {% spaceless %}
+                {% if line.provenance.source %}
+                    <c-ui.tooltip size="sm">
+                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> (from {{ line.provenance.source }})</span></span>
+                        <c-slot name="content">From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}</c-slot>
+                    </c-ui.tooltip>
+                {% else %}
+                    <span>{{ line.name }}</span>
+                {% endif %}
+                {% if line.income %}<span class="text-muted">&nbsp;· income {{ line.income }}¢</span>{% endif %}
+            {% endspaceless %}
+        </c-n26.detail-list.row>
+    {% endfor %}
+    {% for holding in campaign.holdings %}
+        <c-n26.detail-list.row label="{{ holding.kind_label }}" :editable="False">
+            {% spaceless %}
+                <c-n26.link href="{% url 'n26-campaign-pool' campaign.campaign_id %}" tone="current">{{ holding.name }}</c-n26.link>
+                {% if holding.income %}<span class="text-muted">&nbsp;· income {{ holding.income }}¢</span>{% endif %}
+            {% endspaceless %}
+        </c-n26.detail-list.row>
+    {% endfor %}
+    {% for counter in campaign.counters %}
+        <c-n26.detail-list.row :editable="False">
+            <c-slot name="label">
+                {% if counter.provenance.source %}
+                    <c-ui.tooltip size="sm">
+                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ counter.name }}<span class="sr-only"> (from {{ counter.provenance.source }})</span></span>
+                        <c-slot name="content">From {{ counter.provenance.source }}{% if counter.provenance.source_kind %} ({{ counter.provenance.source_kind }}){% endif %}</c-slot>
+                    </c-ui.tooltip>
+                {% else %}
+                    {{ counter.name }}
+                {% endif %}
+            </c-slot>
+            {% spaceless %}
+                <span class="tabular-nums">{{ counter.value }}</span>
+                {% if counter.href %}<c-n26.counter-controls :counter="counter" />{% endif %}
+            {% endspaceless %}
+        </c-n26.detail-list.row>
+    {% endfor %}
+{% endif %}

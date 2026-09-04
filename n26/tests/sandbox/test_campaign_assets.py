@@ -300,8 +300,8 @@ class TestWhatHoldingDoes:
     ):
         grant_asset(tokens[1], gang)
         block = render_gang(gang).campaign
-        assert [(h.name, h.kind, h.income) for h in block.holdings] == [
-            ("Old Ruins by the sump", "territory", 30)
+        assert [(h.kind_label, h.name, h.income) for h in block.holdings] == [
+            ("Territory", "Old Ruins by the sump", 30)
         ]
         assert block.holdings[0].campaign_asset_id == str(tokens[1].pk)
         # Held, never owned: the gang's own rows do not list it.

@@ -249,7 +249,7 @@ def gang_sheet(request, pk):
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
-    from n26.core.views.owned import link_stash_actions, owned_dialog
+    from n26.core.views.owned import link_counters, link_stash_actions, owned_dialog
     from n26.core.views.skills import link_skills
 
     gang = _any_gang_or_404(pk)
@@ -262,6 +262,12 @@ def gang_sheet(request, pk):
         link_slots(gang, sheet, *sheet.models)
         link_skills(*sheet.models)
         link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
+        if sheet.campaign:
+            # This page is where a campaign counter is moved. A model's
+            # counter is moved on the model's own page; a counter the gang
+            # keeps is drawn here and nowhere else, so here is the only
+            # place its controls can be offered.
+            link_counters(sheet.campaign, back=at)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None

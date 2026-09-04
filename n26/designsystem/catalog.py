@@ -1860,6 +1860,11 @@ GROUPS: list[Group] = [
                         "n26/detail_list/row.html",
                         "One label and its value, as an xs button.",
                     ),
+                    Part(
+                        "c-n26.detail-list.heading",
+                        "n26/detail_list/heading.html",
+                        "A name for the rows that follow it.",
+                    ),
                 ),
                 notes=(
                     "Labelled facts where the value is also the way to edit it, "
@@ -1889,6 +1894,25 @@ GROUPS: list[Group] = [
                     "— a card built from a profile's default equipment has real "
                     "offers and nothing to choose against — draws as text with an "
                     "em dash rather than a button that goes nowhere."
+                ),
+            ),
+            Component(
+                slug="campaign-block",
+                tag="c-n26.campaign-block",
+                template="n26/campaign_block.html",
+                summary="What a gang has from its campaign, as detail-list rows.",
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "Rows rather than a container of its own, so what the "
+                    "campaign gave sits in the same c-n26.detail-list as the "
+                    "gang's own facts, under a heading naming the campaign. An "
+                    "asset's row is labelled with the campaign type's word for "
+                    "its class, and its value is this one's name, whether the "
+                    "gang owns it or only holds it; a holding links to the pool "
+                    "because it can change hands. The tally controls beside a "
+                    "counter are drawn only where the line carries an address, "
+                    "which n26.core.views.owned.link_counters sets for the "
+                    "gang's owner alone."
                 ),
             ),
             Component(
