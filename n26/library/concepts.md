@@ -99,6 +99,26 @@ Fields of its own: an icon (stored artwork, drawn inline so it takes the text's 
 
 Assignable for the same reason a profile is: founding is a gang-hosted assignment naming the type. That gives the gang's built-ins something to be caused by (the house list arrives this way), and gives gang-wide modifiers a carrier. Mostly overrides and extras — the fighter entries are profiles, and each entry's skill access rides that profile. Its pricing fields stay at zero; nobody buys a gang type.
 
+### Campaign type
+
+*A kind of campaign — Dominion, Law & Misrule — assigned to every gang that joins a campaign founded on it.*
+
+Fields of its own: its **asset kinds** (see below) and the **assets** it offers — its catalogue. An asset can be offered by several campaign types.
+
+Assignable for the same reason a gang type is: joining a campaign is a gang-hosted assignment naming the type. That gives the built-ins every member gang arrives with — a Reputation counter with its opening value, a Settlement — something to be caused by, and gives campaign-wide modifiers a carrier every member's card can find. Its pricing fields stay at zero; nobody buys a campaign type.
+
+Shared types live in the system pack. The one that ships is **N26 core**, with Settlement (held one each) and Territory (pooled) as its kinds, a Settlement asset, and Reputation at 0 built in. An arbitrator's additions to one campaign — a counter, a kind, a label — go on a second campaign type in that campaign's own pack, layered on the shared one rather than copied from it.
+
+**Asset kind** — *a class of asset a campaign type deals in: Territory, Racket, Settlement.* A row on the campaign type, edited on its page: a label (singular and plural, the plural defaulting to an s), a **mode**, and a position. The mode is on the kind, not the asset, because a whole class behaves one way. **Held one each**: every gang is given one when it joins, and it is never staked (a Settlement, a home territory). **Pooled**: the campaign holds a pool of them and each has one holder at a time (a Territory, a Racket, a Relic). Two kinds of one type cannot share a label, and a kind cannot be removed while any asset is of it.
+
+### Asset
+
+*One thing a campaign deals in — a Settlement, the Old Ruins territory, a Racket — of one asset kind.*
+
+Fields of its own: its **kind** (which fixes the campaign type it belongs to and how it behaves) and an **income** figure. The income is printed on the card and never collected; nothing moves credits. What holding the asset does for its holder — Reputation while held, a special rule, a free hire — rides it as ordinary modifiers.
+
+Assignable so that an asset of a held-one-each kind can be built into its campaign type and arrive on every member gang, and so that an asset of either kind can carry modifiers. A pooled asset is never assigned: the campaign's token records who holds it.
+
 ### Hidden
 
 *A carrier for effects that draws no row of its own.*

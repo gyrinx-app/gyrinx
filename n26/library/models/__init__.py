@@ -17,6 +17,7 @@ from n26.library.models.assignable import (
     WeaponProfile,
 )
 from n26.library.models.base import Content, ContentManager, ContentQuerySet
+from n26.library.models.campaign_type import Asset, AssetKind, CampaignType
 from n26.library.models.category import Category, Section
 from n26.library.models.collection import (
     Collection,
@@ -88,6 +89,9 @@ __all__ = [
     "TargetsMiniature",
     "TargetsWeapons",
     "Assignable",
+    "Asset",
+    "AssetKind",
+    "CampaignType",
     "Counter",
     "Family",
     "Optioned",

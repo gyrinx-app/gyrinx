@@ -227,9 +227,11 @@ def carriage_of(thing, edges):
     Below that the kind decides, because a subtype is a fact about a
     model and a gun is something a model carries.
     """
-    from n26.library.models import GangType, Subtype
+    from n26.library.models import CampaignType, GangType, Subtype
 
-    if isinstance(thing, GangType):
+    # Both types are assigned to the gang itself: a gang is founded on
+    # one and joins a campaign on the other.
+    if isinstance(thing, (CampaignType, GangType)):
         return GANG
     if _reaches_the_gang(edges):
         return GANG
@@ -1114,14 +1116,15 @@ def _reaches_the_gang(edges):
     Either way what it does reaches every member, so its sentences speak
     of every fighter rather than of a bearer.
     """
-    from n26.library.models import GangType
+    from n26.library.models import CampaignType, GangType
 
     for reference in of_kind(edges.references, "library.addsassignable"):
         modifier = _modifier_of(reference.row)
         if modifier is not None and modifier.targets_gang_id is not None:
             return True
     return any(
-        reference.field == "built_ins" and isinstance(reference.row, GangType)
+        reference.field == "built_ins"
+        and isinstance(reference.row, (CampaignType, GangType))
         for reference in edges.holders
     )
 

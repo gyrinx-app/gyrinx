@@ -1,0 +1,51 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before an asset kind is taken off its campaign type,
+at an address of its own. A page rather than a prompt: it survives a
+reload, Back is a real way out, and it works with scripting switched
+off. Nothing here changes anything — the form's POST is the act.
+
+While any asset is of the kind the act is refused, so the page lists
+them: each is a way to the asset, where its kind is changed or the asset
+deleted.
+{% endcomment %}
+{% block head_title %}Remove {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-asset-kind-remove' thing.pk %}"
+                     title="Remove the {{ label }} asset kind?"
+                     lead="{{ campaign_type }} will no longer deal in {{ thing.plural }}."
+                     submit_label="Remove asset kind"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ campaign_type }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Remove {{ label }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if assets %}
+            <c-ui.alert variant="warning" title="Assets are still of this kind">
+                You cannot remove it until you delete these assets, or change them to another kind:
+                <ul class="mt-2 list-disc pl-5">
+                    {% for asset in assets %}
+                        <li>
+                            <c-n26.link href="{{ asset.url }}">
+                                {{ asset.label }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </c-ui.alert>
+        {% else %}
+            <c-ui.alert variant="info" title="No assets are of this kind">
+                Removing it changes only what this campaign type deals in.
+            </c-ui.alert>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

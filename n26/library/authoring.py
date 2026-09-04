@@ -80,6 +80,115 @@ def create_gang_type(
     )
 
 
+# --- Campaign types and assets ---------------------------------------------
+
+
+def create_campaign_type(
+    name, assets=(), qualifier="", library_author_help="", **kwargs
+):
+    """A kind of campaign, for a campaign to be founded on. ``assets`` is
+    the catalogue it offers; its asset kinds are added afterwards with
+    ``add_asset_kind``. Stored stripped, as a gang type's name is."""
+    from n26.library.models import CampaignType
+
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("A campaign type needs a name.")
+    campaign_type = CampaignType.objects.create(
+        name=name,
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **kwargs,
+    )
+    if assets:
+        campaign_type.assets.set(assets)
+    return campaign_type
+
+
+def set_assets(campaign_type, assets=None):
+    """The catalogue, replaced — the write ``revise`` refuses.
+
+    The list handed over is the whole statement: an asset it does not
+    name is no longer offered by this type. Nothing a campaign already
+    holds changes; this is what a campaign of the type can hand out from
+    now on. ``None`` says nothing and leaves the catalogue as it was.
+    """
+    if assets is not None:
+        campaign_type.assets.set(assets)
+    return campaign_type
+
+
+def add_asset_kind(
+    campaign_type, label_singular, mode, label_plural="", position=None, **kwargs
+):
+    """One class of asset a campaign type deals in, at the end of its
+    listing unless placed. Two kinds of one type cannot share a label,
+    whatever the case: a campaign page would print two headings that read
+    the same.
+
+    A kind is part of its type, so it lands in the type's pack unless
+    told otherwise — a type in a campaign's own pack keeps its kinds there.
+    """
+    from n26.library.models import AssetKind
+
+    if "pack" not in kwargs and "pack_id" not in kwargs:
+        kwargs["pack_id"] = campaign_type.pack_id
+    label_singular = (label_singular or "").strip()
+    if not label_singular:
+        raise ValidationError("An asset kind needs a label.")
+    if campaign_type.asset_kinds.filter(label_singular__iexact=label_singular).exists():
+        raise ValidationError(
+            f"{campaign_type} already has an asset kind called “{label_singular}”."
+        )
+    if position is None:
+        last = campaign_type.asset_kinds.aggregate(last=Max("position"))["last"]
+        position = 0 if last is None else last + 1
+    return AssetKind.objects.create(
+        campaign_type=campaign_type,
+        label_singular=label_singular,
+        label_plural=label_plural,
+        mode=mode,
+        position=position,
+        **kwargs,
+    )
+
+
+def remove_asset_kind(kind):
+    """Take an asset kind off its campaign type.
+
+    Refused in words while any asset is of this kind: each of those
+    would be left of no kind at all, and the database would refuse the
+    delete with nobody's name on it. Move or delete the assets first.
+    """
+    count = kind.assets.count()
+    if count:
+        noun = "asset is" if count == 1 else "assets are"
+        them = "it" if count == 1 else "them"
+        their = "its" if count == 1 else "their"
+        raise ValidationError(
+            f"{count} {noun} of the kind {kind}. Delete {them}, or change "
+            f"{their} kind, before removing {kind}."
+        )
+    kind.delete()
+
+
+def create_asset(
+    name, kind, annotation="", income=0, qualifier="", library_author_help="", **kwargs
+):
+    """One asset of one kind — a Settlement, the Old Ruins territory."""
+    from n26.library.models import Asset
+
+    return Asset.objects.create(
+        name=name,
+        kind=kind,
+        annotation=annotation,
+        income=income,
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **kwargs,
+    )
+
+
 def create_stat(
     short_name,
     full_name,

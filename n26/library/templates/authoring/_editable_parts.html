@@ -1,0 +1,32 @@
+{% comment %}
+Parts edited in place: one form per part, where the parts of a kind have
+no page of their own. Each form names its part in `part` and says in
+`act` that this is an edit rather than an addition, so the view knows
+which form was clicked. Removing stays a page of its own, as it is for
+every part, because what the act reaches cannot be read off the row.
+
+Takes `section`, whose parts each carry an `edit_form`.
+{% endcomment %}
+<div class="space-y-4">
+    {% for part in section.parts %}
+        <form method="post"
+              class="rounded-box border border-box-border p-4"
+              id="part-{{ part.pk }}">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="edit-part">
+            <input type="hidden" name="part" value="{{ part.pk }}">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span class="font-medium">{{ part.label }}</span>
+                <span class="text-sm text-muted">{{ part.notes|join:" · " }}</span>
+            </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">{% include "authoring/_form.html" with form=part.edit_form %}</div>
+            <c-n26.form-actions submit_label="Save" size="sm" class="mt-4">
+                {% if part.remove_url %}
+                    <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                        Remove
+                    </c-ui.button>
+                {% endif %}
+            </c-n26.form-actions>
+        </form>
+    {% endfor %}
+</div>
