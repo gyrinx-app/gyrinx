@@ -9,7 +9,8 @@ in it.
 
 from dataclasses import dataclass
 
-from n26.core.printing import balance_columns, estimate_lines
+from n26.core.printing import balance_columns, detail_groups, estimate_lines
+from n26.core.render import ChoiceLine, ModelCard, Statline
 
 
 @dataclass(frozen=True)
@@ -96,3 +97,41 @@ class TestBalanceColumns:
         worse, and a greedy fill gets this wrong."""
         groups = [Group("a", 20), Group("b", 3), Group("c", 3), Group("d", 3)]
         assert labels(balance_columns(groups)) == [["a"], ["b", "c", "d"]]
+
+
+def card_with(*choices):
+    return ModelCard(
+        name="Ozostium",
+        rating=430,
+        statline=Statline(),
+        choices=list(choices),
+    )
+
+
+class TestDetailGroups:
+    """What a printed card writes for its loose assignables.
+
+    The column split is tested above; this is the words that go into it.
+    """
+
+    def test_a_partial_several_pick_prints_what_it_holds(self):
+        """Paper cannot add another pick. The Add on the screen card is a
+        way into the picker, and a printed card is read away from one."""
+        card = card_with(
+            ChoiceLine(
+                kind_label="Lasting Injuries",
+                chosen="Head Injury",
+                takes_several=True,
+                is_full=False,
+            )
+        )
+        groups = detail_groups(card)
+        assert [(group.label, group.text) for group in groups] == [
+            ("Lasting Injuries", "Head Injury")
+        ]
+
+    def test_an_unresolved_choice_prints_as_a_blank(self):
+        """An empty slot is a write-in on paper, not a prompt."""
+        card = card_with(ChoiceLine(kind_label="Archetype", chosen=None))
+        groups = detail_groups(card)
+        assert [(group.label, group.text) for group in groups] == [("Archetype", "—")]

@@ -87,12 +87,9 @@ def detail_groups(card) -> list[DetailGroup]:
     if card.equipment:
         groups.append(DetailGroup("Gear", ", ".join(e.name for e in card.equipment)))
     for choice in card.questions:
-        chosen = choice.chosen or "—"
-        if choice.is_resolved and not choice.is_full:
-            # On paper as on screen: a choice with room left says so,
-            # because the sheet is read away from the picker.
-            chosen = f"{chosen} (add)"
-        groups.append(DetailGroup(choice.kind_label, chosen))
+        # What it holds, or a blank. The Add on the screen card is a way
+        # into the picker, and nothing on paper can be added.
+        groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
     for effect in card.effects:
         # "(when taken)" on paper as on screen. A printed card is read away
         # from the application, so an effect that has not happened yet has to
