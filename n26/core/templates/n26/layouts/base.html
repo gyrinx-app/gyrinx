@@ -396,12 +396,16 @@ gtm_container_id, messages, user.
                             form submits. Nothing is lost without JavaScript
                             because this menu's panel is Alpine's and is not
                             there at all.
+
+                            requestSubmit is preferred so the form's own submit
+                            event fires, and guarded because it throws where it
+                            is missing (Safari before 16).
                             {% endcomment %}
                             {% if impersonate_target %}
                                 <form method="post"
                                       action="{% url 'core:impersonate-start' impersonate_target.pk %}"
                                       role="none"
-                                      x-on:click="$el.requestSubmit()">
+                                      x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
                                     {% csrf_token %}
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                     <c-ui.dropdown.item variant="danger">
