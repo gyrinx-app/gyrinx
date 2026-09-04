@@ -433,7 +433,12 @@ def _screen(gang, miniature=None, list_param=""):
         usability_for,
         with_use_notes,
     )
-    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.card import (
+        build_card,
+        build_gang_card,
+        build_modifier_index,
+        carriers,
+    )
     from n26.core.effects import compute, compute_gang
     from n26.core.founding import budget_for
 
@@ -446,7 +451,7 @@ def _screen(gang, miniature=None, list_param=""):
         # The options ride along because these screens name what each copy
         # was bought with, which no other surface built from a card does.
         card = build_card(miniature, with_options=True)
-        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        index = build_modifier_index(carriers(card))
         computed = compute(card, index)
         # A model with an allowance of its own buys every list on the
         # screen against it, which the books call a combined figure — so
@@ -479,7 +484,7 @@ def _screen(gang, miniature=None, list_param=""):
         )
 
     card = build_gang_card(gang, with_statlines=False)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    index = build_modifier_index(carriers(card))
     computed = compute_gang(card, index)
     collections = buyable_lists(
         access.collection

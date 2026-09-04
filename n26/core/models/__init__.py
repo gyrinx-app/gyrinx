@@ -6,6 +6,7 @@ from n26.core.models.built_in_propagation import BuiltInPropagationTask
 from n26.core.models.campaign import (
     Battle,
     Campaign,
+    CampaignAsset,
     CampaignEvent,
     CampaignMembership,
     CampaignParticipant,
@@ -33,6 +34,7 @@ __all__ = [
     "BuiltInPropagationTask",
     "Battle",
     "Campaign",
+    "CampaignAsset",
     "CampaignEvent",
     "CampaignMembership",
     "CampaignParticipant",

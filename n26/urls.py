@@ -69,6 +69,30 @@ urlpatterns = [
         views.remove_battle,
         name="n26-campaign-remove-battle",
     ),
+    # The campaign's pool of assets: every copy, who holds it, and the
+    # acts on one copy. Adding and dropping are the arbitrator's; taking
+    # away is also the holding gang's owner's.
+    path("campaigns/<str:pk>/pool/", views.campaign_pool, name="n26-campaign-pool"),
+    path(
+        "campaigns/<str:pk>/pool/add/",
+        views.add_to_pool,
+        name="n26-campaign-pool-add",
+    ),
+    path(
+        "campaigns/<str:pk>/pool/<str:token_pk>/grant/",
+        views.grant_asset,
+        name="n26-campaign-asset-grant",
+    ),
+    path(
+        "campaigns/<str:pk>/pool/<str:token_pk>/take-away/",
+        views.take_away_asset,
+        name="n26-campaign-asset-take-away",
+    ),
+    path(
+        "campaigns/<str:pk>/pool/<str:token_pk>/drop/",
+        views.drop_asset,
+        name="n26-campaign-asset-drop",
+    ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
     # After gangs/new/, which would otherwise resolve "new" as an id.

@@ -75,7 +75,12 @@ def _find_slot(gang, key):
     it, and the address stops resolving — a 404, because the question no
     longer exists rather than because the reader may not ask it.
     """
-    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.card import (
+        build_card,
+        build_gang_card,
+        build_modifier_index,
+        carriers,
+    )
     from n26.core.effects import compute, compute_gang
     from n26.core.models import Miniature
     from n26.core.render import GANG_SLOT_HOST
@@ -101,7 +106,7 @@ def _find_slot(gang, key):
             raise Http404("No such fighter") from None
         card = build_card(miniature)
 
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    index = build_modifier_index(carriers(card))
     computed = compute_gang(card, index) if miniature is None else compute(card, index)
 
     for slot in computed.choices:

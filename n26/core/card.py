@@ -190,6 +190,12 @@ class Card:
     #: costs no query of its own.
     gang_card: object = None
 
+    #: The campaign's tokens the gang holds, dealt onto this card from
+    #: the gang's the way its assignments are dealt as broadcast nodes:
+    #: a token's modifiers scoped to models reach this model through
+    #: them, as the gang's guest. Never lines, never worth anything here.
+    holdings: list = field(default_factory=list, repr=False)
+
     #: What kind of thing this card belongs to. Scopes read it — an
     #: unfiltered ``TargetsMiniature`` must not swallow a gang, nor
     #: ``TargetsGang`` a model — so each card type says what it hosts.
@@ -321,6 +327,12 @@ class GangCard:
     #: the same question of the same assignments, so the answer is the same
     #: for all of them. None until something asks.
     acquired: tuple | None = field(default=None, repr=False)
+    #: The campaign's tokens this gang holds — the pooled assets granted
+    #: to it and not yet taken away. Not nodes: a holding is written on
+    #: no assignment, draws no line among the gang's own and counts for
+    #: nothing, but ``n26.core.effects`` reads each one as a carrier of
+    #: its asset's modifiers while it is held.
+    holdings: list = field(default_factory=list, repr=False)
 
     host_kind = GANG
 
@@ -540,6 +552,25 @@ def gang_rows(gang):
     )
 
 
+def held_tokens(gang):
+    """The campaign's tokens this gang holds, in the pool's order — one
+    query, with the asset and its kind along, so what a token is called
+    and what kind it is are read off it without another.
+
+    Held means the holding membership is still open: a token pointing at
+    a membership that has closed is nobody's, whatever the column says.
+    """
+    from n26.core.models import CampaignAsset
+
+    if gang is None:
+        return []
+    return list(
+        CampaignAsset.objects.filter(
+            holder__gang=gang, holder__left__isnull=True
+        ).select_related("asset__kind")
+    )
+
+
 def assemble(
     miniature,
     rows,
@@ -603,6 +634,7 @@ def assemble(
         gang_card=gang_card,
         stat_overrides=stat_overrides or {},
         removals=removals,
+        holdings=list(gang_card.holdings) if gang_card is not None else [],
     )
     # Only what the model owns. The gang-hosted assignments ride the card
     # so their modifiers reach it; they are not part of what it is worth.
@@ -621,9 +653,9 @@ def build_card(
 
     Two assignment queries rather than one — the model's own, then the
     gang's, which ride along so gang-wide modifiers reach this card —
-    hydrated together in one pass. A whole gang's worth still costs a
-    fixed number — see ``build_cards_for_gang``, where both come back
-    in the same fetch.
+    hydrated together in one pass, and one more for the campaign's tokens
+    the gang holds. A whole gang's worth still costs a fixed number — see
+    ``build_cards_for_gang``, where both come back in the same fetch.
 
     The gang-hosted assignments are also assembled into the gang's own
     card and carried on this one, so that what the gang holds by grant
@@ -645,7 +677,12 @@ def build_card(
         gang_card=(
             None
             if gang is None
-            else GangCard(gang=gang, roots=_forest(shared), shared_rows=shared)
+            else GangCard(
+                gang=gang,
+                roots=_forest(shared),
+                shared_rows=shared,
+                holdings=held_tokens(gang),
+            )
         ),
         stat_overrides=(
             set_by_hand(miniature=miniature).get(miniature.pk, {})
@@ -686,7 +723,9 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     hosted on the gang except the stash, plus one for its contents — kept
     apart because the stash's assignments belong on no member's card and
     nothing in them broadcasts (storage, not facts about anyone) — then
-    one shared hydration pass over both.
+    one shared hydration pass over both. One more for the campaign's
+    tokens the gang holds, which are not assignments and ride no fetch of
+    them.
 
     An ``assignment_set`` filters every member's card through the same
     seam ``build_card`` uses — a selection of equipment roots that may
@@ -710,6 +749,7 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
         stash_roots=_forest(stash_rows),
         member_rows=grouped,
         shared_rows=shared,
+        holdings=held_tokens(gang),
         # One query for the whole roster's settings, dealt out below —
         # asking model by model is how a gang's budget starts growing
         # with the number of models in it.
@@ -941,12 +981,12 @@ def build_modifier_index(assignables, max_depth=3):
         # a small query per path. Joining every path into each kind's
         # fetch instead would make a many-join select whose *planning*
         # costs more than all of these run in.
-        for things in by_model.values():
-            prefetch_related_objects(things, "modifiers")
+        for model, things in by_model.items():
+            prefetch_related_objects(things, _modifiers_path(model))
         hydrated = {}
         for things in by_model.values():
             for thing in things:
-                for modifier in thing.modifiers.all():
+                for modifier in _modifiers_of(thing):
                     hydrated.setdefault(modifier.pk, modifier)
         prefetch_related_objects(list(hydrated.values()), *related, *also_prefetch)
 
@@ -956,7 +996,7 @@ def build_modifier_index(assignables, max_depth=3):
                 # A carrier reached from two kinds must resolve to the one
                 # hydrated instance, or the other copy answers compute
                 # with the lazy queries it is forbidden to make.
-                modifiers = [hydrated[m.pk] for m in thing.modifiers.all()]
+                modifiers = [hydrated[m.pk] for m in _modifiers_of(thing)]
                 index.add(thing, modifiers)
                 for modifier in modifiers:
                     granted_thing = getattr(modifier.effect, "thing", None)
@@ -965,3 +1005,43 @@ def build_modifier_index(assignables, max_depth=3):
         frontier = granted
 
     return index
+
+
+def _modifiers_path(model):
+    """Where a carrier of this kind keeps its modifiers, as a prefetch path.
+
+    An assignable carries its own. A campaign's token carries none and
+    stands in for its asset's — ``carries_modifiers_of`` names the
+    relation to follow — so the index files the asset's modifiers under
+    the token, and what they do is credited to the token.
+    """
+    via = getattr(model, "carries_modifiers_of", None)
+    return f"{via}__modifiers" if via else "modifiers"
+
+
+def _modifiers_of(thing):
+    """The modifiers one carrier runs, already prefetched."""
+    via = getattr(type(thing), "carries_modifiers_of", None)
+    return (getattr(thing, via) if via else thing).modifiers.all()
+
+
+def carriers(*cards):
+    """Everything the modifier index must hold to compute these cards.
+
+    Each node's assignable, and the campaign's tokens the gang holds —
+    read off a gang's own card, or off the gang card a member's card
+    carries, since what a holding gives the gang is dealt onto every
+    member as the gang's guest. An index built from the nodes alone would
+    run a token's modifiers nowhere and say nothing about it.
+    """
+    things = []
+    for card in cards:
+        things.extend(node.assignable for node in card.all_nodes())
+        gang_card = (
+            card
+            if getattr(card, "host_kind", None) == GANG
+            else getattr(card, "gang_card", None)
+        )
+        if gang_card is not None:
+            things.extend(gang_card.holdings)
+    return things

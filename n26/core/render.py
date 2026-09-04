@@ -736,6 +736,24 @@ class StashLine:
     menu: tuple = ()
 
 
+@dataclass(frozen=True)
+class HoldingLine:
+    """One of the campaign's pooled assets the gang holds, drawn on its
+    sheet: the copy's name, what kind of asset it is in the campaign
+    type's own word, and the income figure printed beside it.
+
+    ``income`` is drawn and never collected; the gang's credits do not
+    move for it. ``campaign_asset_id`` is the campaign's token, for a link to the
+    pool it belongs to. A holding has no provenance line: the campaign is
+    its source, and the block is already drawn under the campaign's name.
+    """
+
+    name: str
+    kind: str
+    income: int = 0
+    campaign_asset_id: str = ""
+
+
 @dataclass
 class CampaignBlock:
     """What the gang has because it is in a campaign, under the campaign's
@@ -748,12 +766,19 @@ class CampaignBlock:
     values. Nothing here is the gang's own: it arrived with the campaign
     and leaves with it, which is why the sheet keeps it apart from the
     gang's own rows and counters.
+
+    ``holdings`` are the campaign's pooled assets the gang holds — held,
+    never owned, and worth nothing to the gang's rating. What holding one
+    does for the gang lands where any modifier's work does: a Reputation
+    contribution in the counter's reading here, a rule among the gang's
+    rules, each credited to the token.
     """
 
     name: str
     campaign_id: str
     lines: list[AssignableLine] = field(default_factory=list)
     counters: list[CounterLine] = field(default_factory=list)
+    holdings: list[HoldingLine] = field(default_factory=list)
 
 
 @dataclass
@@ -1844,6 +1869,15 @@ def _campaign_block(gang_card, membership, keys, readings):
         campaign_id=str(membership.campaign_id),
         lines=lines,
         counters=[line for line in counters if line.drawn],
+        holdings=[
+            HoldingLine(
+                name=str(token),
+                kind=token.kind_label,
+                income=token.asset.income,
+                campaign_asset_id=str(token.pk),
+            )
+            for token in gang_card.holdings
+        ],
     )
 
 
@@ -2024,7 +2058,7 @@ def stash_lines(gang_card):
 
 def render_gang(gang, with_effects=True, *, card=None):
     """A whole gang sheet. A fixed number of queries, whatever its size."""
-    from n26.core.card import build_gang_card, build_modifier_index
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
     from n26.core.models import CampaignMembership
 
@@ -2039,10 +2073,7 @@ def render_gang(gang, with_effects=True, *, card=None):
         # One index for the whole gang, not one per model. The gang's own
         # nodes are listed too — they also ride member cards as broadcast,
         # and the index's seen-set makes the overlap free.
-        assignables = [
-            node.assignable for card in cards.values() for node in card.all_nodes()
-        ] + [node.assignable for node in gang_card.all_nodes()]
-        index = build_modifier_index(assignables)
+        index = build_modifier_index(carriers(gang_card, *cards.values()))
         # The gang first: what it holds by grant is dealt onto every
         # member's card, and it is settled — after the gang's own
         # removals — before any member reads it.

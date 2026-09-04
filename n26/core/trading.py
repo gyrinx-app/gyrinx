@@ -61,21 +61,14 @@ def _readings(gang, counter):
     A fixed number of queries however many models are on the roster:
     ``compute`` touches the database not at all.
     """
-    from n26.core.card import build_gang_card, build_modifier_index
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
 
     # No statlines: nothing here draws a card, and pulling each
     # profile's characteristics along would be several queries for
     # figures this never reads.
     card = build_gang_card(gang, with_statlines=False)
-    index = build_modifier_index(
-        [
-            node.assignable
-            for member in card.members.values()
-            for node in member.all_nodes()
-        ]
-        + [node.assignable for node in card.all_nodes()]
-    )
+    index = build_modifier_index(carriers(card, *card.members.values()))
     compute_gang(card, index)
     readings = {}
     for miniature_id, member in card.members.items():

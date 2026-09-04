@@ -65,7 +65,7 @@ to be gone is put back.
 
 from dataclasses import dataclass, field
 
-from n26.library.models.modifier import MODEL, WEAPON_PROFILE
+from n26.library.models.modifier import GANG, MODEL, WEAPON_PROFILE
 
 #: A granted thing five levels deep is a content bug, not a use case.
 MAX_CHAIN_DEPTH = 5
@@ -85,10 +85,15 @@ def kind_of(thing):
     so. Every surface drawing a kind already draws nothing when there is
     none.
     """
+    from n26.core.models import CampaignAsset
     from n26.library.models import Hidden, Pickable, Slot
 
     if isinstance(thing, (Hidden, Slot, Pickable)):
         return ""
+    if isinstance(thing, CampaignAsset):
+        # A campaign's token is named by what its campaign type calls the
+        # kind — "territory", "racket" — never by the table it sits in.
+        return thing.kind_label
     return str(thing._meta.verbose_name)
 
 
@@ -763,6 +768,20 @@ def compute(card, index):
             # see ``is_orphan_pick``.
             continue
         pending.extend(steps_for(node.assignable, False, 0, node=node))
+
+    # A campaign's tokens the gang holds are the second kind of carrier.
+    # A holding is written nowhere on the card — the gang holds the copy
+    # and never owns it — so it stands on no line and is worth nothing,
+    # and what its asset's modifiers do is credited to the token itself,
+    # named as its campaign type names the kind. On a member's card the
+    # tokens ride as the gang's guests, the way its assignments ride as
+    # broadcast: a scope aimed at every model reaches the fighter, one
+    # aimed at the bearer reaches nobody, and a stored effect is never
+    # said here.
+    guest = getattr(card, "host_kind", MODEL) != GANG
+    for token in getattr(card, "holdings", ()):
+        seen.add(ModifierIndex.key(token))
+        pending.extend(steps_for(token, False, 0, echoed=guest))
 
     # What the gang holds by grant is dealt on here too. The gang-hosted
     # assignments already ride the card; a thing the gang was *given* has

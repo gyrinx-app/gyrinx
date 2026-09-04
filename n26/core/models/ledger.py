@@ -209,6 +209,9 @@ class LedgerEvent(Base):
         JOINED_CAMPAIGN = "joined_campaign", "Joined a campaign"
         LEFT_CAMPAIGN = "left_campaign", "Left a campaign"
 
+    #: A campaign's pooled asset changing hands is journal-only too, kind
+    #: GRANTED or TOOK_AWAY: the gang holds the token and never owns it,
+    #: so there is no entry and nothing for reconcile to fold.
     assignment = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.CASCADE,
@@ -225,6 +228,19 @@ class LedgerEvent(Base):
         null=True,
         blank=True,
         related_name="ledger_events",
+    )
+    #: The campaign's token a journal-only event is about, where it is
+    #: about one — a pooled asset granted to this gang or taken away from
+    #: it. Never set beside ``assignment`` or ``miniature``, for the same
+    #: reason those two are never set together. Set to nothing if the
+    #: token is dropped from the pool; the note keeps the name, so the
+    #: line still says what changed hands.
+    campaign_asset = models.ForeignKey(
+        "n26.CampaignAsset",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
     )
     #: Set on every event at write. The history's anchor: derivable from
     #: the assignment's roots or the model's membership, but a reader of
@@ -280,9 +296,12 @@ class LedgerEvent(Base):
         verbose_name_plural = "ledger events"
         ordering = ["created"]
         constraints = [
+            # At most one of the three subjects is set: any two of them
+            # could disagree about what the record is about.
             models.CheckConstraint(
-                condition=models.Q(assignment__isnull=True)
-                | models.Q(miniature__isnull=True),
+                condition=models.Q(assignment__isnull=True, miniature__isnull=True)
+                | models.Q(assignment__isnull=True, campaign_asset__isnull=True)
+                | models.Q(miniature__isnull=True, campaign_asset__isnull=True),
                 name="ledger_event_about_at_most_one",
             ),
         ]
@@ -297,9 +316,12 @@ class LedgerEvent(Base):
     @property
     def about(self):
         """What the record concerns: the thing acquired, the model acted
-        on, or — neither set — the gang itself."""
+        on, the campaign's token that changed hands, or — none set — the
+        gang itself."""
         if self.assignment_id is not None:
             return self.assignment.assignable
         if self.miniature_id is not None:
             return self.miniature
+        if self.campaign_asset_id is not None:
+            return self.campaign_asset
         return self.gang

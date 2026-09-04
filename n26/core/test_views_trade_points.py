@@ -400,17 +400,18 @@ class TestWhatThePageCosts:
 
     #: The page with the post shut. Session and the signed-in reader, the
     #: gang and its stash, the roster read once for both the offer and
-    #: the equip list, the gang's rows and their hydration, the modifier
-    #: index behind them, the actions the gang has open, and the standard
-    #: Trading Post the receipt links to. None of it repeats per model.
-    BUDGET = 37
+    #: the equip list, the gang's rows and their hydration, the campaign
+    #: tokens the gang holds, the modifier index behind them, the actions
+    #: the gang has open, and the standard Trading Post the receipt links
+    #: to. None of it repeats per model.
+    BUDGET = 38
 
     #: The same page with a visit open, which is the state it is for.
     #: There is a receipt to draw then, and it costs two readings of the
     #: log: who performed the action, and what the visit has spent. Both
     #: are one query however many fighters went and however much the gang
     #: has bought, so this is a second fixed price and not a second rate.
-    WITH_A_VISIT = 39
+    WITH_A_VISIT = 40
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):

@@ -279,7 +279,7 @@ def render_card_update(request, miniature, at):
     around it, so an act costs what the page costs and not more.
     """
     from n26.core.access import model_collections
-    from n26.core.card import build_card, build_modifier_index
+    from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.owned import EquipHost
     from n26.core.render import build_model_card
@@ -290,7 +290,7 @@ def render_card_update(request, miniature, at):
 
     gang = miniature.membership.gang
     own = build_card(miniature, with_statlines=True, with_options=True)
-    index = build_modifier_index([node.assignable for node in own.all_nodes()])
+    index = build_modifier_index(carriers(own))
     computed = compute(own, index)
     card = build_model_card(miniature, card=own, computed=computed)
     link_slots(gang, card)
@@ -352,7 +352,7 @@ def edit_fighter(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import model_collections
-    from n26.core.card import build_card, build_modifier_index
+    from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.forms import (
         FighterLoreForm,
@@ -397,7 +397,7 @@ def edit_fighter(request, pk):
                 return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST" and request.POST.get("act") == "skills":
         own = build_card(miniature)
-        index = build_modifier_index([node.assignable for node in own.all_nodes()])
+        index = build_modifier_index(carriers(own))
         try:
             with operation(gang, actor=request.user) as op:
                 selected, cleared = apply_ticks(
@@ -436,7 +436,7 @@ def edit_fighter(request, pk):
     elif request.method == "POST" and request.POST.get("act") in EDITABLE_KINDS:
         field = EDITABLE_KINDS[request.POST["act"]]
         own = build_card(miniature)
-        index = build_modifier_index([node.assignable for node in own.all_nodes()])
+        index = build_modifier_index(carriers(own))
         try:
             with operation(gang, actor=request.user) as op:
                 added, taken, restored = _apply_edits(
@@ -571,7 +571,7 @@ def edit_fighter(request, pk):
     # options each copy was bought with ride along because the kit acts
     # below describe every copy, and would otherwise ask per copy.
     own = build_card(miniature, with_statlines=True, with_options=True)
-    index = build_modifier_index([node.assignable for node in own.all_nodes()])
+    index = build_modifier_index(carriers(own))
     computed = compute(own, index)
 
     # The same acts the equip listing offers, pointed at this page so

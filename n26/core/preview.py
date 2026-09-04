@@ -193,20 +193,14 @@ def _scratch_roster(state, created):
 
 def _read(gang, fighters):
     """Compute every card and say what it says, in plain data."""
-    from n26.core.card import build_gang_card, build_modifier_index
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang
 
     gang_card = build_gang_card(gang)
     member_cards = {
         name: gang_card.members[miniature.pk] for name, miniature in fighters.items()
     }
-    index = build_modifier_index(
-        [
-            node.assignable
-            for card in (gang_card, *member_cards.values())
-            for node in card.all_nodes()
-        ]
-    )
+    index = build_modifier_index(carriers(gang_card, *member_cards.values()))
     computed_gang = compute_gang(gang_card, index)
 
     cards = []

@@ -45,6 +45,7 @@ from n26.core.render import (
     CounterLine,
     EffectLine,
     GangSheet,
+    HoldingLine,
     ModelCard,
     Provenance,
     StashLine,
@@ -1950,6 +1951,14 @@ def gang_sheet():
                     provenance=Provenance(
                         source="N26 core", source_kind="campaign type"
                     ),
+                )
+            ],
+            holdings=[
+                HoldingLine(
+                    name="Old Ruins",
+                    kind="territory",
+                    income=30,
+                    campaign_asset_id="old-ruins",
                 )
             ],
         ),

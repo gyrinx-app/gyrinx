@@ -59,7 +59,7 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     selection is about which guns clutter the card, so every wargear row
     of the gang's joins the selected set before it filters anything.
     """
-    from n26.core.card import build_card, build_modifier_index
+    from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.models import Assignment
     from n26.core.printing import detail_columns
@@ -77,10 +77,7 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     # queries mostly in planning, so a print that built each model's card
     # alone would cost seconds on a full roster.
     cards = gang_card.members_under(selection)
-    index = build_modifier_index(
-        [node.assignable for card in cards.values() for node in card.all_nodes()]
-        + [node.assignable for node in gang_card.all_nodes()]
-    )
+    index = build_modifier_index(carriers(gang_card, *cards.values()))
 
     rows = []
     for miniature in miniatures:
