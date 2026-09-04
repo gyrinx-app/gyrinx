@@ -17,6 +17,8 @@ is drawn as the first card of the grid, ahead of `members`.
     when it only repeats the text beside it.
   secondary_actions — Print, and a dropdown holding Delete. A run of its own,
     after the primary actions rather than sorted in among them.
+  open_action — the gang's open action, drawn between the buttons and the
+    roster; see <c-n26.action-card>. Only the owner has one.
   stash_empty — what to say when the stash is empty.
   stash_actions — a middot link after the Stash title (e.g. Equip).
   stash_notice — a strip above the stash's contents; see <c-n26.stash>.
@@ -36,6 +38,7 @@ is drawn as the first card of the grid, ahead of `members`.
     type_flair=""
     details=""
     actions=""
+    open_action=""
     secondary_actions=""
     members=""
     stash_empty=""
@@ -125,6 +128,13 @@ is drawn as the first card of the grid, ahead of `members`.
             {% endif %}
         </div>
     </div>
+
+    {% comment %}
+    Above the roster, under the buttons: an action is something the owner is
+    part-way through, so it belongs where they will see it before they start
+    reading cards.
+    {% endcomment %}
+    {% if open_action %}{{ open_action }}{% endif %}
 
     {% comment %}
     auto-rows-min keeps a short card short; items-start would only align the

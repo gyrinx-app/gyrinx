@@ -1737,6 +1737,21 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="action-card",
+                tag="c-n26.action-card",
+                template="n26/action_card.html",
+                summary="The action a gang has open, and the button that ends it.",
+                notes=(
+                    "Two shapes from one prop: an open action is a card, and "
+                    "one nobody has started is the bare control that starts it "
+                    "— there is nothing to report until it is open. The button "
+                    "posts to the card's own address, never a link, because "
+                    "following a link must not start or end anything. Drawn on "
+                    "the gang sheet and on the Trade Points page, so the two "
+                    "cannot come to describe an action differently."
+                ),
+            ),
+            Component(
                 slug="wealth",
                 tag="c-n26.wealth",
                 template="n26/wealth/index.html",

@@ -67,6 +67,36 @@ class TestThePictureBoxPage:
         assert "Remove picture" in page
 
 
+class TestTheActionCardPage:
+    """Its props and all three of its states reach the gallery drawn."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        # Read from the component's own <c-vars>, so a prop added there and
+        # nowhere else still has to appear here.
+        assert "card" in page
+        assert "body" in page
+
+    def test_all_three_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        # The titles come from the demo files; the rest is markup the demos
+        # rendered, because a directory the catalog cannot find yields
+        # "No examples yet" instead of an error.
+        assert "An action with figures" in page
+        assert "An action with none" in page
+        assert "Nothing open" in page
+        assert "Visit Trading Post" in page
+        assert "Complete action" in page
+        assert "Start the Found and equip gang action" in page
+
+    def test_an_action_with_no_figures_draws_no_tally(self, reader):
+        """A row of noughts is worse than nothing: the founding counts
+        nothing yet, so it says nothing."""
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        start = page.index("An action with none")
+        assert "Remaining" not in page[start:]
+
+
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 
@@ -333,6 +363,14 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/").content.decode()
         assert "The Ashen Choir" in page
         assert "Goliath (HoC)" in page
+
+    def test_the_gang_shell_draws_the_open_action(self, reader):
+        """The card is the width of the page and sits between the buttons
+        and the roster, so how much room it takes is a question only the
+        shell answers."""
+        page = reader.get("/n26/design/shell/gang/").content.decode()
+        assert "Found and equip gang" in page
+        assert "Complete action" in page
 
     def test_the_new_gang_shell_offers_its_types(self, reader):
         page = reader.get("/n26/design/shell/new-gang/").content.decode()

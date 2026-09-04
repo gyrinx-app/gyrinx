@@ -86,6 +86,15 @@ a page and its chrome is not visible in either one alone.
                 </c-ui.dropdown>
             </c-n26.button-group>
         </c-slot>
+        {% comment %}
+        The open action, between the buttons and the roster. Here rather than
+        only on its own component page: a card the width of the page changes
+        how far the roster sits from the heading, and neither view answers
+        that alone.
+        {% endcomment %}
+        <c-slot name="open_action">
+            <c-n26.action-card :card="sample_action_founding" />
+        </c-slot>
         <c-slot name="stash_actions">
             <c-n26.action-link href="{% url 'designsystem:shell_shop' %}">Equip</c-n26.action-link>
         </c-slot>

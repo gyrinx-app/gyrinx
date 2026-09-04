@@ -152,6 +152,13 @@ class LedgerEvent(Base):
         # that is what they added rather than what they are now.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
+        # An action opening and closing (``n26.core.models.action``).
+        # Neither moves anything of its own: what an action did is the
+        # log between the two. The note holds the kind, so a reader of
+        # the history can be told which action without a join.
+        ACTION_OPENED = "action_opened", "Action started"
+        ACTION_CLOSED = "action_closed", "Action completed"
+
         # Where the gang plays. Its own acts, because a gang joining or
         # leaving is something that happened to the gang — the campaign it
         # names reads them too, which is how one record serves both.

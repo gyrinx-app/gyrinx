@@ -548,6 +548,60 @@ class Operation:
         )
         return gang
 
+    def open_action(self, kind, trade_points=None):
+        """Start one of this gang's actions, and say so in its history.
+
+        An action is a thing performed over several clicks — founding and
+        equipping the gang, a trip to the trading post — so it is opened
+        here and closed later. The event written first is what the row
+        points at: the act is the record, and the row is the state that
+        record leaves behind.
+
+        ``trade_points`` is what performing this brought, where it brings
+        anything. Nothing is priced and no money moves.
+
+        One of each kind at a time. Opening a second is refused rather
+        than recorded, because nothing spent while two were open could
+        say which of them it counted against.
+        """
+        from n26.core.models import Action
+
+        gang = self.gang
+        already = gang.open_action(kind)
+        if already is not None:
+            raise Refusal(
+                f"Complete the open {already.get_kind_display()} action "
+                "before starting another."
+            )
+        opened = self.event(None, LedgerEvent.Kind.ACTION_OPENED, note=kind)
+        return Action.objects.create(
+            gang=gang, kind=kind, opened=opened, trade_points=trade_points
+        )
+
+    def close_action(self, action):
+        """Finish an action, and say so in its history.
+
+        What it did stays where it was written — the log between the two
+        events — so closing changes nothing but the state: from here the
+        gang may start another of the same kind.
+
+        The row is read again here, under the gang's own line, because
+        the caller's copy was read before that line was taken: two
+        clicks on one button arrive together often enough, and closing
+        an act twice would write it a second ending and orphan the
+        first. One already closed is nothing to do, and returns None so
+        the caller can say so rather than report an act that did not
+        happen.
+        """
+        from n26.core.models import Action
+
+        fresh = Action.objects.filter(pk=action.pk, closed__isnull=True).first()
+        if fresh is None:
+            return None
+        fresh.closed = self.event(None, LedgerEvent.Kind.ACTION_CLOSED, note=fresh.kind)
+        fresh.save(update_fields=["closed", "modified"])
+        return fresh
+
     def visit_trading_post(self, visitors=(), brought=None):
         """Open a Visit Trading Post action, performed by these fighters.
 
@@ -943,12 +997,18 @@ class Operation:
         caused by it and its gang-wide modifiers have a carrier that
         every member's card can find.
         """
-        from n26.core.models import Stash
+        from n26.core.models import Action, Stash
 
         founding = self.assign(gang_type, gang=self.gang, paid=0, **kwargs)
         self.gang.founding = founding
         self.gang.save(update_fields=["founding", "modified"])
         Stash.objects.get_or_create(gang=self.gang)
+        # Founding and equipping the gang is an act the owner performs over
+        # many clicks, so it opens here and the owner closes it when they
+        # are done. A gang founded again — its type corrected where the
+        # founding assignment had gone — keeps the action it already has.
+        if self.gang.open_action(Action.Kind.FOUNDING) is None:
+            self.open_action(Action.Kind.FOUNDING)
         self._record_options(founding, taken)
         self.reconcile_defaults(founding, gang=self.gang)
         return founding

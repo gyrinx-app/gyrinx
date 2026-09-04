@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 
 from django.utils.text import slugify
 
+from n26.core.actions import FOUNDING_HELP, VISIT_HELP, card_for
 from n26.core.browse import (
     CategoryGroup,
     CollectionView,
@@ -2010,6 +2011,7 @@ def model_card_editable():
 
 def gang_sheet_context():
     """What the gang sheet view needs."""
+    from n26.core.models import Action
     from n26.core.render import RosterGroup, RosterLine, RosterSummary
 
     sheet = gang_sheet()
@@ -2035,16 +2037,32 @@ def gang_sheet_context():
         count=len(members),
         rating=sum(rating for _, _, rating in members),
     )
+    visit_facts = (
+        Fact("Available", "4", sub="Leader, Champion × 2"),
+        Fact("Spent", "1"),
+        Fact("Remaining", "3", ruled=True, strong=True),
+    )
     return {
         "gang": sheet,
+        # The three states an action card has: a visit, which has figures to
+        # show; the founding, which has none; and one nobody has started,
+        # which is the control on its own. Built by the real function off
+        # the real kinds, so a title or a label changed there changes here.
+        "sample_action_visit": card_for(
+            Action.Kind.TRADING_POST_VISIT,
+            "#",
+            is_open=True,
+            help=VISIT_HELP,
+            facts=visit_facts,
+        ),
+        "sample_action_founding": card_for(
+            Action.Kind.FOUNDING, "#", is_open=True, help=FOUNDING_HELP
+        ),
+        "sample_action_closed": card_for(Action.Kind.FOUNDING, "#", is_open=False),
         # Two tallies: the Visit Trading Post card's, and the one the
         # overspend confirmation draws under it. The second carries two
         # totals, which is what the component's per-row emphasis is for.
-        "tally_facts": (
-            Fact("Available", "4", sub="Leader, Champion × 2"),
-            Fact("Spent", "1"),
-            Fact("Remaining", "3", ruled=True, strong=True),
-        ),
+        "tally_facts": visit_facts,
         "tally_overspend": (
             Fact("Available", "4"),
             Fact("Spent", "3"),

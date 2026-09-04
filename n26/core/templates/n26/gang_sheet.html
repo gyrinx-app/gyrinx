@@ -201,6 +201,16 @@ that said it twice would be spending the width the name needs.
                 </c-ui.button>
             </c-slot>
         {% endif %}
+        {% comment %}
+        The gang's own action, where one is open — and where none is, the
+        control that starts it. Both are the owner's; a reader who does not
+        own the gang gets neither.
+        {% endcomment %}
+        {% if founding_action %}
+            <c-slot name="open_action">
+                <c-n26.action-card :card="founding_action" />
+            </c-slot>
+        {% endif %}
         {% if yours %}
             <c-slot name="stash_actions">
                 <c-n26.action-link href="{% url 'n26-equip-gang' gang.pk %}">Equip</c-n26.action-link>

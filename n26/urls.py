@@ -97,6 +97,14 @@ urlpatterns = [
         views.gang_trade_points,
         name="n26-gang-trade-points",
     ),
+    # Starting and completing one of the gang's own actions. The card
+    # that posts here lives on the gang page, which is where both answers
+    # land; there is no page of its own to open.
+    path(
+        "gangs/<str:pk>/actions/founding/",
+        views.gang_founding_action,
+        name="n26-gang-founding-action",
+    ),
     path("gangs/<str:pk>/delete/", views.delete_gang, name="n26-delete-gang"),
     # The slot's own address. It names the card, the assignment carrying
     # the offer and the offer itself, so one route serves a fighter's

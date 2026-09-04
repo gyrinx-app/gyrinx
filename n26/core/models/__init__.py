@@ -1,4 +1,5 @@
 from n26.core.models.abstract import Archived, Base, Owned
+from n26.core.models.action import Action
 from n26.core.models.assignment import Assignment
 from n26.core.models.assignment_set import AssignmentSet
 from n26.core.models.built_in_propagation import BuiltInPropagationTask
@@ -24,6 +25,7 @@ from n26.core.models.stat_override import StatOverride
 
 __all__ = [
     "SETTING_GROUPS",
+    "Action",
     "Archived",
     "Assignment",
     "AssignmentSet",

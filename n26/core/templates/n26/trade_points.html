@@ -4,9 +4,10 @@
 The Visit Trading Post action — the one open, and starting another.
 
 Two posts, no query string. The card is the open visit, read as a receipt: what
-it added, what has gone, what is left, and who performed the action. Its
-button finishes the visit, which shuts the post and loses the remainder — the
-book's rule, so the button says so rather than asking again.
+it added, what has gone, what is left, and who performed the action. It is
+<c-n26.action-card>, the same shape every action is drawn in; its button
+finishes the visit, which shuts the post and loses the remainder — the book's
+rule, so the button says so rather than asking again.
 
 The form beneath starts one. The ticks are the usual way to name a figure — a
 visit adds what its fighters add — with a box beneath them for an owner who
@@ -53,25 +54,16 @@ takes a typed figure over the ticks.
         both would draw every message twice.
         {% endcomment %}
         {% include "n26/includes/messages.html" %}
-        {% if receipt %}
-            {% comment %}
-            A card rather than a section: it comes and goes with the action,
-            where a heading would read as a standing fact about the gang.
-            {% endcomment %}
-            <c-ui.card>
-                <c-slot name="header">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-muted">Action</p>
-                    <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">Visit Trading Post</h2>
-                </c-slot>
-                <div class="space-y-4">
-                    <c-n26.tally :facts="receipt.facts" />
-                    {% comment %}
-                    Every fighter, not only those who performed the action:
-                    what a visit added is the gang's, and it is spent on
-                    whoever it was for. Which ranks added it is the line
-                    under Available.
-                    {% endcomment %}
-                    {% if roster %}
+        {% if visit_card %}
+            <c-n26.action-card :card="visit_card">
+                {% comment %}
+                Every fighter, not only those who performed the action:
+                what a visit added is the gang's, and it is spent on
+                whoever it was for. Which ranks added it is the line
+                under Available.
+                {% endcomment %}
+                {% if roster %}
+                    <c-slot name="body">
                         <div class="border-t border-box-border pt-3">
                             <p class="mb-1 text-xs text-muted">Equip a model</p>
                             <ul class="flex flex-col gap-1">
@@ -89,30 +81,9 @@ takes a typed figure over the ticks.
                                 {% endfor %}
                             </ul>
                         </div>
-                    {% endif %}
-                    <form method="post" action="{{ action }}">
-                        {% csrf_token %}
-                        <input type="hidden" name="act" value="finish">
-                        {% comment %}
-                        The label and its tick sit in one flex span, as every
-                        other icon-and-words button here does: loose in the
-                        button they break onto two lines.
-                        {% endcomment %}
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <c-ui.button type="submit" size="sm" variant="success">
-                                <span class="flex items-center gap-1.5">
-                                    <c-n26.icon name="check" class="size-4" stroke_width="2.5" />
-                                    Complete action
-                                </span>
-                            </c-ui.button>
-                            <p class="text-sm text-muted">
-                                Click when you have finished at the Trading Post.
-                                Any unused TP will be discarded.
-                            </p>
-                        </div>
-                    </form>
-                </div>
-            </c-ui.card>
+                    </c-slot>
+                {% endif %}
+            </c-n26.action-card>
         {% endif %}
         <form method="post"
               action="{{ action }}"
