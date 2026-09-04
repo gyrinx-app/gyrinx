@@ -120,6 +120,16 @@ class Gang(Base, Owned, Archived, Rated):
 
         return trade_points_spent(self)
 
+    def open_action(self, kind):
+        """The action of this kind the gang has open, or None.
+
+        One query and one row: the database holds a gang to one open
+        action of each kind, so there is never a set to pick from.
+        """
+        from n26.core.models import Action
+
+        return Action.objects.filter(gang=self, kind=kind, closed__isnull=True).first()
+
     @property
     def visiting_trading_post(self):
         """Whether a Visit Trading Post action is open.

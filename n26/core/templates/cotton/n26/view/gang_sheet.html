@@ -7,8 +7,8 @@
     </c-n26.view.gang-sheet>
 
 The caller builds the breadcrumb's owner, the detail list, the action buttons and
-the fighter cards; this component decides only where each of them goes. The stash
-is drawn as the first card of the grid, ahead of `members`.
+the fighter cards; this component decides only where each of them goes. The grid
+opens with the Actions square, then the stash, then `members`.
 
   :sheet — a n26.render.GangSheet. Its figures — the roster count and the wealth
     strip — are drawn opposite the name, the count off the sheet's own tally.
@@ -17,9 +17,10 @@ is drawn as the first card of the grid, ahead of `members`.
     when it only repeats the text beside it.
   secondary_actions — Print, and a dropdown holding Delete. A run of its own,
     after the primary actions rather than sorted in among them.
+  actions_square — what the gang has open, as the first square of the grid;
+    see <c-n26.actions-square>. Only the owner gets one.
   stash_empty — what to say when the stash is empty.
   stash_actions — a middot link after the Stash title (e.g. Equip).
-  stash_notice — a strip above the stash's contents; see <c-n26.stash>.
 {% endcomment %}
 {# The slots are declared: an undeclared slot name is not empty when nobody #}
 {# fills it — it resolves to the caller's own variable of that name. #}
@@ -36,11 +37,11 @@ is drawn as the first card of the grid, ahead of `members`.
     type_flair=""
     details=""
     actions=""
+    actions_square=""
     secondary_actions=""
     members=""
     stash_empty=""
     stash_actions=""
-    stash_notice=""
     class=""
 />
 
@@ -129,12 +130,16 @@ is drawn as the first card of the grid, ahead of `members`.
     {% comment %}
     auto-rows-min keeps a short card short; items-start would only align the
     cards, not stop them stretching to the tallest in the row.
+
+    The Actions square leads, ahead of the stash: what the gang has open is
+    read before what it is being spent on, and on a phone — one column — it
+    is the first thing under the buttons.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {% if actions_square %}{{ actions_square }}{% endif %}
         <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
             {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
             {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
-            {% if stash_notice %}<c-slot name="notice">{{ stash_notice }}</c-slot>{% endif %}
         </c-n26.stash>
         {{ members }}
     </div>

@@ -9,6 +9,13 @@ from dataclasses import dataclass, replace
 
 from django.utils.text import slugify
 
+from n26.core.actions import (
+    FOUNDING_HELP,
+    VISIT_HELP,
+    ActionsSquare,
+    VisitLine,
+    open_card,
+)
 from n26.core.browse import (
     CategoryGroup,
     CollectionView,
@@ -2017,6 +2024,7 @@ def model_card_editable():
 
 def gang_sheet_context():
     """What the gang sheet view needs."""
+    from n26.core.models import Action
     from n26.core.render import RosterGroup, RosterLine, RosterSummary
 
     sheet = gang_sheet()
@@ -2042,16 +2050,37 @@ def gang_sheet_context():
         count=len(members),
         rating=sum(rating for _, _, rating in members),
     )
+    visit_facts = (
+        Fact("Available", "4", sub="Leader, Champion × 2"),
+        Fact("Spent", "1"),
+        Fact("Remaining", "3", ruled=True, strong=True),
+    )
+    founding_open = open_card(Action.Kind.FOUNDING, "#", help=FOUNDING_HELP)
+    a_visit = VisitLine(trade_points_left=3, href="#")
     return {
         "gang": sheet,
+        # The two shapes an action card has: a visit, which has figures to
+        # show, and the founding, which has none. Built by the real function
+        # off the real kinds, so a title changed there changes here.
+        "sample_action_visit": open_card(
+            Action.Kind.TRADING_POST_VISIT, "#", help=VISIT_HELP, facts=visit_facts
+        ),
+        "sample_action_founding": founding_open,
+        # The Actions square's four states. The start row is offered only
+        # where no founding action is open, which is what the empty
+        # start_founding says.
+        "sample_square_empty": ActionsSquare(start_founding="#", visit_href="#"),
+        "sample_square_founding": ActionsSquare(founding=founding_open, visit_href="#"),
+        "sample_square_visit": ActionsSquare(
+            visit=a_visit, start_founding="#", visit_href="#"
+        ),
+        "sample_square_both": ActionsSquare(
+            founding=founding_open, visit=a_visit, visit_href="#"
+        ),
         # Two tallies: the Visit Trading Post card's, and the one the
         # overspend confirmation draws under it. The second carries two
         # totals, which is what the component's per-row emphasis is for.
-        "tally_facts": (
-            Fact("Available", "4", sub="Leader, Champion × 2"),
-            Fact("Spent", "1"),
-            Fact("Remaining", "3", ruled=True, strong=True),
-        ),
+        "tally_facts": visit_facts,
         "tally_overspend": (
             Fact("Available", "4"),
             Fact("Spent", "3"),

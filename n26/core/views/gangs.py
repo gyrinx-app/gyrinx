@@ -242,6 +242,7 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
+    from n26.core.actions import actions_square
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
@@ -279,6 +280,20 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
+            # The gang's own actions, which are the owner's to perform: a
+            # reader who does not own it gets no square at all. One query
+            # for the whole page — the open founding action — since what a
+            # visit has left is already on the sheet.
+            "actions_square": (
+                actions_square(
+                    gang,
+                    sheet,
+                    founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
+                    visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
+                )
+                if yours
+                else None
+            ),
             # Printing follows reading rather than owning, so a reader
             # who does not own the gang is still offered it — but a
             # visitor who has not signed in is not.
@@ -882,6 +897,7 @@ def gang_trade_points(request, pk):
     asks whether that was meant, and then does it.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.actions import visit_card
     from n26.core.operations import operation
     from n26.core.render import roster
     from n26.core.trading import as_offer, minted, receipt_for, visitors
@@ -952,6 +968,7 @@ def gang_trade_points(request, pk):
         return redirect(at)
 
     offered = visitors(gang, going=set())
+    receipt = receipt_for(gang)
     return render(
         request,
         "n26/trade_points.html",
@@ -964,10 +981,10 @@ def gang_trade_points(request, pk):
             # wants. Empty where the library has no post, which leaves
             # the buttons off rather than sending anybody nowhere.
             "post": _the_trading_post(),
-            # The open visit, or None where the post is shut. The card is
-            # drawn from this and the form below it either way, so the
+            # The open visit as every action is drawn, or None where the
+            # post is shut. The form below it is drawn either way, so the
             # page reads the same whichever state it is in.
-            "receipt": receipt_for(gang),
+            "visit_card": visit_card(receipt, at) if receipt else None,
             # What each offered fighter adds, keyed by the box value, so
             # the running total can follow the ticks without a second
             # copy of who is on the list.
@@ -987,6 +1004,72 @@ def gang_trade_points(request, pk):
             "edit_tabs": _edit_tabs(gang, "trade-points"),
         },
     )
+
+
+@login_required
+def gang_founding_action(request, pk):
+    """Start or complete the Found and equip gang action.
+
+    The card lives on the gang page; this is only the act behind it, so
+    a GET here is somebody following a link and lands back on the page
+    having changed nothing. ``act`` says which of the two was clicked,
+    and both go through an operation, which is what writes the event the
+    history reads.
+
+    Which action is open is read inside the operation, under the gang's
+    own line: two clicks on one button arrive together often enough, and
+    a state read before the line is taken can already be stale by the
+    time the second click writes. Starting a second while one is open is
+    refused there too
+    (``n26.core.operations.Operation.open_action``). The card offers the
+    one control the state allows, so a post that lands the wrong way
+    round is a stale page rather than an intention.
+
+    Both clicks catch a refusal, not just the one with a rule of its own.
+    Every operation ends by rewriting the gang's credits, and that is
+    where a gang spending past a budget is refused — so a gang whose
+    budget was lowered under what it had already spent refuses even an
+    act that moves no money. The reader gets the sentence and the page
+    back rather than a server error.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import Action
+    from n26.core.operations import Refusal, operation
+
+    gang = _own_gang_or_404(request, pk)
+    at = reverse("n26-gang", args=[gang.pk])
+    if request.method != "POST":
+        return redirect(at)
+
+    kind = Action.Kind.FOUNDING
+    label = kind.label
+    act = request.POST.get("act")
+
+    if act == "finish":
+        try:
+            with operation(gang, actor=request.user) as op:
+                open_now = gang.open_action(kind)
+                closed = op.close_action(open_now) if open_now is not None else None
+        except Refusal as refused:
+            messages.error(request, str(refused))
+            return redirect(at)
+        if closed is not None:
+            record(
+                request, N26Noun.GANG, EventVerb.UPDATE, gang, action=kind, act="finish"
+            )
+            messages.success(request, f"Completed the {label} action.")
+        return redirect(at)
+
+    if act == "start":
+        try:
+            with operation(gang, actor=request.user) as op:
+                op.open_action(kind)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+            return redirect(at)
+        record(request, N26Noun.GANG, EventVerb.UPDATE, gang, action=kind, act="start")
+        messages.success(request, f"Started the {label} action.")
+    return redirect(at)
 
 
 @login_required

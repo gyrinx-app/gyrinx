@@ -1737,6 +1737,50 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="action-card",
+                tag="c-n26.action-card",
+                template="n26/action_card/index.html",
+                summary="One open action, and the button that ends it.",
+                parts=(
+                    Part(
+                        "c-n26.action-card.body",
+                        "n26/action_card/body.html",
+                        "The figures and the button, drawn the same boxed or not.",
+                    ),
+                ),
+                notes=(
+                    "Only an open action reaches it: the way to start one "
+                    "belongs to whatever holds the card, which on the gang "
+                    "sheet is c-n26.actions-square. boxed=False drops the card "
+                    "and the eyebrow for a caller that has drawn its own box. "
+                    "The button posts to the card's own address, never a link, "
+                    "because following a link must not end an action."
+                ),
+            ),
+            Component(
+                slug="actions-square",
+                tag="c-n26.actions-square",
+                template="n26/actions_square/index.html",
+                summary="What a gang has open, and the way to start something.",
+                needs=(ALPINE, KIT_JS),
+                parts=(
+                    Part(
+                        "c-n26.actions-square.menu-post",
+                        "n26/actions_square/menu_post.html",
+                        "A menu row that posts rather than links.",
+                    ),
+                ),
+                notes=(
+                    "Drawn as the first square of the gang sheet's grid, ahead "
+                    "of the stash, and only for the owner. It is there whether "
+                    "or not anything is open — a square that came and went "
+                    "would shift every card after it. The menu never opens "
+                    "without scripting, so every start control it holds is "
+                    "drawn in the body too: the founding one wherever that "
+                    "action is not open, whatever else the gang has going on."
+                ),
+            ),
+            Component(
                 slug="wealth",
                 tag="c-n26.wealth",
                 template="n26/wealth/index.html",
@@ -1860,9 +1904,10 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "A card among the fighters' cards, taking the roster grid's "
-                    "first slot, so moving something between a card and the stash "
-                    "is a move between two like things on one screen. Items are "
+                    "A card among the fighters' cards, taking a slot in the "
+                    "roster grid, so moving something between a card and the "
+                    "stash is a move between two like things on one screen. "
+                    "Items are "
                     "grouped by kind, run on and wrap rather than taking a row "
                     "each, with each rating against its own item and the total on "
                     "the header line. An empty stash still draws the card — a slot "

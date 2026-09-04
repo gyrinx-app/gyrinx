@@ -576,6 +576,12 @@ def _tell(e, row, alive):
                     Span(f"visited the Trading Post with {brought} Trade Points"),
                 ), "money"
             return (Span("visited the Trading Post"),), "money"
+        case Kind.ACTION_OPENED | Kind.ACTION_CLOSED:
+            named = _action_named(e.note)
+            verb = "started" if e.kind == Kind.ACTION_OPENED else "completed"
+            if named:
+                return (Span(f"{verb} the {named} action"),), "gang"
+            return (Span(f"{verb} an action"),), "gang"
         case Kind.VISITED_TRADING_POST:
             # The rank they went as rides the note, so the line says what
             # they added rather than what they happen to be now.
@@ -618,6 +624,20 @@ def _tell(e, row, alive):
     return (Span(e.get_kind_display().casefold()),), category
 
 
+def _action_named(note):
+    """The action's own name, read from the kind its note holds.
+
+    Empty for a note naming no kind this edition has, which leaves the
+    sentence saying an action was started without inventing which.
+    """
+    from n26.core.models import Action
+
+    try:
+        return Action.Kind(note).label
+    except ValueError:
+        return ""
+
+
 def _for(model, at, word="for"):
     """(" for ", {model}) with the name linked, or nothing where the
     act has no model."""
@@ -635,6 +655,8 @@ _NOTE_IS_MACHINERY = {
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,
     Kind.TALLIED,
+    Kind.ACTION_OPENED,
+    Kind.ACTION_CLOSED,
 }
 
 

@@ -67,6 +67,71 @@ class TestThePictureBoxPage:
         assert "Remove picture" in page
 
 
+class TestTheActionCardPage:
+    """Its props, its body subcomponent and its demos reach the gallery."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        # Read from the component's own <c-vars>, so a prop added there and
+        # nowhere else still has to appear here.
+        assert "boxed" in page
+        assert "body" in page
+
+    def test_the_page_names_the_body_subcomponent(self, reader):
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        assert "c-n26.action-card.body" in page
+
+    def test_all_three_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        # The titles come from the demo files; the rest is markup the demos
+        # rendered, because a directory the catalog cannot find yields
+        # "No examples yet" instead of an error.
+        assert "An action with figures" in page
+        assert "An action with none" in page
+        assert "Inside another box" in page
+        assert "Visit Trading Post" in page
+        assert "Complete action" in page
+
+    def test_an_action_with_no_figures_draws_no_tally(self, reader):
+        """A row of zeroes is worse than nothing: the founding counts
+        nothing yet, so it says nothing."""
+        page = reader.get("/n26/design/c/action-card/").content.decode()
+        start = page.index("An action with none")
+        assert "Remaining" not in page[start:]
+
+
+class TestTheActionsSquarePage:
+    """Its props, its menu subcomponent and all four states reach the
+    gallery drawn."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        assert "square" in page
+
+    def test_the_page_names_the_menu_subcomponent(self, reader):
+        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        assert "c-n26.actions-square.menu-post" in page
+
+    def test_all_four_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        assert "Nothing open" in page
+        assert "The founding open" in page
+        assert "A visit open" in page
+        assert "Both open" in page
+        # From the markup the demos rendered, not their titles.
+        assert "No action is open." in page
+        assert "Trading Post visit open" in page
+        assert "Complete action" in page
+
+    def test_the_start_row_is_a_post_not_a_link(self, reader):
+        """Starting an act must never be a link: a link is followed by
+        anything that follows links."""
+        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        start = page.index("Start the Found and equip gang action")
+        form = page.rindex("<form", 0, start)
+        assert 'method="post"' in page[form:start]
+
+
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 
@@ -333,6 +398,16 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/").content.decode()
         assert "The Ashen Choir" in page
         assert "Goliath (HoC)" in page
+
+    def test_the_gang_shell_draws_the_actions_square(self, reader):
+        """Whether the square reads as one of the grid's squares depends on
+        the stash and the cards beside it, which only the shell has."""
+        page = reader.get("/n26/design/shell/gang/").content.decode()
+        assert "Found and equip gang" in page
+        assert "Complete action" in page
+        # The stash card's own heading, not the wealth strip's figure of
+        # the same name, which sits further up the page.
+        assert page.index("Found and equip gang") < page.index(">Stash</span>")
 
     def test_the_new_gang_shell_offers_its_types(self, reader):
         page = reader.get("/n26/design/shell/new-gang/").content.decode()
