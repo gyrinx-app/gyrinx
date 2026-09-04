@@ -1762,22 +1762,14 @@ GROUPS: list[Group] = [
                 tag="c-n26.actions-square",
                 template="n26/actions_square/index.html",
                 summary="What a gang has open, and the way to start something.",
-                needs=(ALPINE, KIT_JS),
-                parts=(
-                    Part(
-                        "c-n26.actions-square.menu-post",
-                        "n26/actions_square/menu_post.html",
-                        "A menu row that posts rather than links.",
-                    ),
-                ),
                 notes=(
                     "Drawn as the first square of the gang sheet's grid, ahead "
                     "of the stash, and only for the owner. It is there whether "
                     "or not anything is open — a square that came and went "
-                    "would shift every card after it. The menu never opens "
-                    "without scripting, so every start control it holds is "
-                    "drawn in the body too: the founding one wherever that "
-                    "action is not open, whatever else the gang has going on."
+                    "would shift every card after it. The header holds the "
+                    "title alone, so it stays the height of the stash card's; "
+                    "the start control is a plain form in the body, drawn "
+                    "wherever the founding action is not open."
                 ),
             ),
             Component(

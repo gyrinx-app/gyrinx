@@ -2080,14 +2080,10 @@ def gang_sheet_context():
         # The Actions square's four states. The start row is offered only
         # where no founding action is open, which is what the empty
         # start_founding says.
-        "sample_square_empty": ActionsSquare(start_founding="#", visit_href="#"),
-        "sample_square_founding": ActionsSquare(founding=founding_open, visit_href="#"),
-        "sample_square_visit": ActionsSquare(
-            visit=a_visit, start_founding="#", visit_href="#"
-        ),
-        "sample_square_both": ActionsSquare(
-            founding=founding_open, visit=a_visit, visit_href="#"
-        ),
+        "sample_square_empty": ActionsSquare(start_founding="#"),
+        "sample_square_founding": ActionsSquare(founding=founding_open),
+        "sample_square_visit": ActionsSquare(visit=a_visit, start_founding="#"),
+        "sample_square_both": ActionsSquare(founding=founding_open, visit=a_visit),
         # Two tallies: the Visit Trading Post card's, and the one the
         # overspend confirmation draws under it. The second carries two
         # totals, which is what the component's per-row emphasis is for.

@@ -101,16 +101,15 @@ class TestTheActionCardPage:
 
 
 class TestTheActionsSquarePage:
-    """Its props, its menu subcomponent and all four states reach the
-    gallery drawn."""
+    """Its props and all four states reach the gallery drawn."""
 
     def test_the_page_documents_the_props_declared_in_the_template(self, reader):
         page = reader.get("/n26/design/c/actions-square/").content.decode()
         assert "square" in page
 
-    def test_the_page_names_the_menu_subcomponent(self, reader):
+    def test_the_open_action_is_badged(self, reader):
         page = reader.get("/n26/design/c/actions-square/").content.decode()
-        assert "c-n26.actions-square.menu-post" in page
+        assert "Current action" in page
 
     def test_all_four_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/actions-square/").content.decode()
