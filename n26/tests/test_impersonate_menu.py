@@ -31,7 +31,9 @@ def overseer(client):
 
 @pytest.fixture
 def player():
-    return User.objects.create_user("player")
+    """Not named "player": the shared ``owner`` fixture takes that username,
+    and a test asking for both would trip the unique constraint."""
+    return User.objects.create_user("gang-owner")
 
 
 @pytest.fixture
@@ -70,7 +72,7 @@ class TestWhoIsOffered:
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
         assert start_url(player) in body
-        assert "Impersonate player" in body
+        assert "Impersonate gang-owner" in body
 
     def test_your_own_gang_offers_nothing(self, client, overseer, make_gang):
         """You are already signed in as yourself."""
@@ -88,7 +90,7 @@ class TestWhoIsOffered:
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
 
         assert start_url(player) in body
-        assert "Impersonate player" in body
+        assert "Impersonate gang-owner" in body
 
     def test_a_page_about_nobody_offers_nothing(self, client, overseer):
         """The gangs index is a list, not somebody's page."""
@@ -119,8 +121,29 @@ class TestWhoIsOffered:
 
         assert "Impersonate" not in body
 
+    def test_a_reader_who_is_not_signed_in_is_offered_nothing(self, client, make_gang):
+        """A roster opens for whoever holds its address, so this path runs
+        with no user at all."""
+        gang = make_gang("The Ashen Choir")
+
+        response = client.get(reverse("n26-gang", args=[gang.pk]))
+
+        assert response.status_code == 200
+        assert "Impersonate" not in response.content.decode()
+
 
 class TestWhatItDoes:
+    def test_the_page_it_comes_back_to_is_the_one_you_were_on(
+        self, client, overseer, player, make_gang
+    ):
+        """The way back rides on the form, not on the address of the act."""
+        gang = make_gang("The Ashen Choir")
+        page = reverse("n26-gang", args=[gang.pk])
+
+        body = client.get(page).content.decode()
+
+        assert f'name="next" value="{page}"' in body
+
     def test_it_starts_the_overlay_and_comes_back_to_the_page(
         self, client, overseer, player, make_gang
     ):
@@ -131,18 +154,23 @@ class TestWhatItDoes:
 
         assert response.status_code == 200
         assert response.redirect_chain[-1][0] == page
-        body = response.content.decode()
-        assert "Impersonating" in body
-        assert "player" in body
+        assert "Impersonating" in response.content.decode()
 
     def test_nothing_is_offered_while_an_overlay_is_running(
         self, client, overseer, player, make_gang
     ):
-        """Starting a second one is refused, so offering it would be a lie."""
+        """Starting a second one is refused, so offering it would be a lie.
+
+        The account gone into is itself a superuser, so the staff group is
+        still drawn and the reader still passes every other check. What
+        withholds the row is the running overlay and nothing else.
+        """
+        deputy = User.objects.create_superuser("deputy", "deputy@example.com")
         gang = make_gang("The Ashen Choir")
         page = reverse("n26-gang", args=[gang.pk])
-        client.post(start_url(player), {"next": page})
+        client.post(start_url(deputy), {"next": page})
 
         body = client.get(page).content.decode()
 
-        assert "Impersonate player" not in body
+        assert "Staff only" in body
+        assert "Impersonate" not in body

@@ -57,14 +57,21 @@ def impersonation(request):
     that is somebody the viewer may impersonate — the account menu turns it
     into a way straight into that account. It is empty while an overlay is
     already active, because starting a second one is refused.
+
+    The subject is checked first so that every other page pays one ``getattr``:
+    only a page that named a subject goes on to resolve ``request.user``, which
+    on a request the middleware never reached — an error page, say — can raise
+    again on each access.
     """
     from gyrinx.impersonation import can_impersonate_target, page_subject
 
     is_impersonating = getattr(request, "is_impersonating", False)
     subject = page_subject(request)
     target = None
-    if not is_impersonating and can_impersonate_target(
-        getattr(request, "user", None), subject
+    if (
+        subject is not None
+        and not is_impersonating
+        and can_impersonate_target(getattr(request, "user", None), subject)
     ):
         target = subject
 

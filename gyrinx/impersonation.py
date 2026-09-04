@@ -1,4 +1,4 @@
-"""Admin impersonation: session keys and permission helpers.
+"""Admin impersonation: session keys, permission helpers, and the page subject.
 
 Impersonation is a per-request overlay. The admin stays authenticated — the
 session's ``_auth_user_id`` is unchanged — and the target user's id is stored in
