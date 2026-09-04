@@ -316,6 +316,22 @@ def visit_trading_post(gang, visitors=(), brought=None, actor=None):
         return op.visit_trading_post(visitors, brought=brought)
 
 
+def start_action(gang, kind, trade_points=None, actor=None):
+    """Start one of the gang's actions — founding it, a trip to the post."""
+    from n26.core.operations import operation
+
+    with operation(gang, actor=actor or gang.owner) as op:
+        return op.open_action(kind, trade_points=trade_points)
+
+
+def complete_action(gang, kind, actor=None):
+    """Finish whichever action of this kind the gang has open."""
+    from n26.core.operations import operation
+
+    with operation(gang, actor=actor or gang.owner) as op:
+        return op.close_action(gang.open_action(kind))
+
+
 def leave_trading_post(gang, actor=None):
     """Finish the action. Whatever it had left is lost."""
     from n26.core.operations import operation

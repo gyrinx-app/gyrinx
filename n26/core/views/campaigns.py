@@ -181,7 +181,7 @@ def campaign(request, pk):
 
     accepted = CampaignParticipant.State.ACCEPTED
 
-    found = _any_campaign_or_404(pk)
+    found = _any_campaign_or_404(request, pk)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
     # Only the acts that will be drawn are built; how many more there are is
@@ -366,7 +366,7 @@ def add_gang(request, pk):
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal, operation
 
-    found = _any_campaign_or_404(pk)
+    found = _any_campaign_or_404(request, pk)
     arbitrating = found.owner_id == getattr(request.user, "id", None)
     if not arbitrating and not _plays_in(found, request.user):
         raise Http404("No such campaign")
@@ -456,7 +456,7 @@ def remove_gang(request, pk, gang_pk):
     from n26.core.models import CampaignMembership
     from n26.core.operations import operation
 
-    found = _any_campaign_or_404(pk)
+    found = _any_campaign_or_404(request, pk)
     membership = get_object_or_404(
         CampaignMembership.objects.select_related("gang"),
         campaign=found,
