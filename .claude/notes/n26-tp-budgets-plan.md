@@ -294,7 +294,12 @@ Waves:
 
 Per PR, after the implementation agent finishes: one Opus `code-reviewer`
 agent, one Opus `copywriter` agent where user-facing strings changed, then
-the orchestrator's browser pass and gallery page check. Slice 7 also gets an
+the orchestrator's browser pass and gallery page check. **Then Tom checks
+before merge** (his ruling, 2026-09-04): the orchestrator sends the PR
+number, a one-line summary, a local URL on the agent's dev server and a
+short checklist, and waits for his go. Nothing merges on the orchestrator's
+own judgement. UI gets an earlier ping with screenshots as soon as it takes
+shape. Slice 7 also gets an
 Opus verification agent that forks the content mirror, runs the backfill at
 production volume and compares open actions before and after from outside
 the task.
