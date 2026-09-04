@@ -354,6 +354,23 @@ def _check_progression_counters():
     )
 
 
+def visit_contribution_counter():
+    """The standard visit-contribution counter, or None where the library
+    has none.
+
+    Pinned to the default pack, as the Trading Post is: names are unique
+    per pack, so a homebrew pack's counter of the same name must not
+    stand in for the standard one. The seed, its own completeness check
+    and every reader ask this one question, because two statements of
+    what counts as the row drift in silence.
+    """
+    from n26.library.models import Counter, get_default_pack
+
+    return Counter.objects.filter(
+        name__iexact=VISIT_CONTRIBUTION_COUNTER, pack=get_default_pack()
+    ).first()
+
+
 def _create_visit_contribution():
     """The visit counter, and one modifier per rank that raises it.
 
@@ -377,7 +394,7 @@ def _create_visit_contribution():
     )
     from n26.library.models import Counter, Subtype
 
-    counter = Counter.objects.filter(name__iexact=VISIT_CONTRIBUTION_COUNTER).first()
+    counter = visit_contribution_counter()
     if counter is None:
         counter = Counter.objects.create(name=VISIT_CONTRIBUTION_COUNTER, drawn=False)
     better = []
@@ -406,18 +423,19 @@ def _raises_visit_counter(subtype, counter):
 
 
 def _check_visit_contribution():
-    from n26.library.models import Counter, Subtype
+    """Asked exactly as the create asks it — the same counter lookup, the
+    same rank lookup, the same behaviour predicate — so a half-built
+    library reports what a second run would leave alone."""
+    from n26.library.models import Subtype
 
-    counter = Counter.objects.filter(name__iexact=VISIT_CONTRIBUTION_COUNTER).first()
+    counter = visit_contribution_counter()
     if counter is None:
         return 0, 1 + len(VISIT_CONTRIBUTIONS)
-    present = 1 + sum(
-        1
-        for subtype in Subtype.objects.filter(
-            name__in=[rank for rank, _ in VISIT_CONTRIBUTIONS]
-        )
-        if _raises_visit_counter(subtype, counter).exists()
-    )
+    present = 1
+    for rank, _ in VISIT_CONTRIBUTIONS:
+        subtype = Subtype.objects.filter(name__iexact=rank).first()
+        if subtype is not None and _raises_visit_counter(subtype, counter).exists():
+            present += 1
     return present, 1 + len(VISIT_CONTRIBUTIONS)
 
 

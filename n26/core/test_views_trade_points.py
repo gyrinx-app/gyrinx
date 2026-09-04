@@ -365,6 +365,60 @@ class TestWhoIsOffered:
         assert gang.starting_trade_points == 1
 
 
+class TestWhatThePageCosts:
+    """The page's own budget, pinned so it changes deliberately.
+
+    What a model adds is a counter reading, so drawing this page builds
+    the whole gang's cards and the modifier index behind them — much more
+    than the two queries the ranks used to take. That is a fixed price
+    for a gang, not a price per fighter, and the second reading below is
+    what says so: four more models, two of them ranked, and the same
+    number.
+    """
+
+    #: Session and the signed-in reader, the gang and its stash, the
+    #: roster read once for both the offer and the equip list, the gang's
+    #: rows and their hydration, the modifier index behind them, the open
+    #: visit's events, and the standard Trading Post the receipt links
+    #: to. None of it repeats per model.
+    BUDGET = 37
+
+    @pytest.fixture
+    def bigger(self, tester, gang, ranks, make_profile, make_statline):
+        """Four more models on the roster, two of them ranked — so the
+        second reading differs from the first in size alone, never in
+        which kinds of content are in play."""
+
+        def grow():
+            for name in ("Ain", "Bex", "Cor", "Dax"):
+                profile = make_profile(f"{name} entry", price=50)
+                make_statline(profile)
+                with operation(gang, actor=tester) as op:
+                    model = op.hire(profile, name)
+                    if name in ("Ain", "Bex"):
+                        op.assign(ranks["Champion"], miniature=model)
+
+        return grow
+
+    def test_it_holds_at_its_budget(self, client, tester, roster, gang, bigger):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        # The first visit warms whatever a signed-in request looks up
+        # once; the reading that counts is the ordinary second one.
+        client.get(page(gang))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(page(gang)).status_code == 200
+        assert len(few) == self.BUDGET, [q["sql"] for q in few.captured_queries]
+
+        bigger()
+
+        with CaptureQueriesContext(connection) as more:
+            assert client.get(page(gang)).status_code == 200
+        assert len(more) == self.BUDGET
+
+
 class TestALibraryWithNoVisitContribution:
     """The counter is what says what a model adds, so a library where it
     was never authored offers nobody — however many Leaders are on the

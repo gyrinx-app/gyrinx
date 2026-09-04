@@ -48,22 +48,6 @@ class Visitor:
         return str(self.miniature.pk)
 
 
-def _visit_counter():
-    """The standard visit-contribution counter, or None where the library
-    has none.
-
-    Pinned to the default pack, as the equipping screens pin the Trading
-    Post: names are unique per pack, so a homebrew pack's counter of the
-    same name must not stand in for the standard one.
-    """
-    from n26.library.models import Counter, get_default_pack
-    from n26.library.standard_content import VISIT_CONTRIBUTION_COUNTER
-
-    return Counter.objects.filter(
-        name=VISIT_CONTRIBUTION_COUNTER, pack=get_default_pack()
-    ).first()
-
-
 def _readings(gang, counter):
     """Each model's reading of this counter, and what raised it, by id.
 
@@ -121,7 +105,7 @@ def _raised_by(computed, counter):
     return named.pop() if len(named) == 1 else ""
 
 
-def visitors(gang, going=None):
+def visitors(gang, going=None, members=None):
     """The fighters who could add Trade Points, biggest figure first
     then by name.
 
@@ -130,19 +114,24 @@ def visitors(gang, going=None):
     always wants. The form itself starts with none ticked, and passes
     an empty set.
 
+    ``members`` is the gang's roster where the caller already holds it.
+    The page draws every fighter as well as the ones offered, and reading
+    the roster twice is a query for an answer already in hand.
+
     A model holding both ranks adds the better of the two, because the
     same fighter cannot perform the action twice. That is content, not
     arithmetic here: the modifier on the lesser rank is scoped away from
     models holding the better one, so the two never add up.
     """
     from n26.core.render import roster
+    from n26.library.standard_content import visit_contribution_counter
 
-    counter = _visit_counter()
+    counter = visit_contribution_counter()
     if counter is None:
         return []
     readings = _readings(gang, counter)
     offered = []
-    for member in roster(gang):
+    for member in roster(gang) if members is None else members:
         trade_points, raised_by = readings.get(member.pk, (0, ""))
         if trade_points <= 0:
             continue
@@ -270,9 +259,15 @@ class Receipt:
 
         In the order the visit wrote them, which is the order they were
         offered in: the bigger figure leads.
+
+        A bare figure stands in the record where several things raised
+        one fighter's contribution, and a figure is not a name to file
+        anybody under, so it is left out of the line.
         """
         counts = {}
         for one in self.contributors:
+            if not one.rank or one.rank.isdigit():
+                continue
             counts[one.rank] = counts.get(one.rank, 0) + 1
         return ", ".join(
             rank if count == 1 else f"{rank} × {count}"

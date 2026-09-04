@@ -555,44 +555,6 @@ class TestWhatARankAdds:
         assert receipt.summary == "Leader, Champion"
         assert_reconciled(gang)
 
-    def test_a_figure_two_things_raised_is_recorded_as_the_figure(
-        self, gang, ranks, hire_plain
-    ):
-        """The visit records one name against each model. Where two
-        things raised the reading no single name is true, so what goes on
-        the record is the figure."""
-        from n26.core.models import LedgerEvent
-        from n26.library.models import Counter
-        from n26.library.standard_content import VISIT_CONTRIBUTION_COUNTER
-        from n26.tests.sandbox.actions import (
-            create_rule,
-            ef_contributes_to_counter,
-            modifier,
-            targets_model,
-        )
-
-        counter = Counter.objects.get(name=VISIT_CONTRIBUTION_COUNTER)
-        connected = create_rule("Well connected")
-        modifier(
-            "Well connected adds 1 to a Trading Post visit",
-            targets_model(),
-            ef_contributes_to_counter(counter, 1),
-            carried_by=connected,
-        )
-        rasp = hire_plain("Rasp")
-        assign(ranks["Leader"], miniature=rasp)
-        assign(connected, miniature=rasp)
-
-        (one,) = visitors(gang)
-        assert (one.trade_points, one.rank) == (3, "3")
-
-        visit_trading_post(gang, [one])
-
-        (went,) = LedgerEvent.objects.filter(
-            gang=gang, kind=LedgerEvent.Kind.VISITED_TRADING_POST
-        )
-        assert went.note == "3"
-
     def test_the_figure_stays_a_fixed_number_of_queries(self, gang, ranks, hire_plain):
         """A whole gang is a fixed number of queries however many models
         are on it — the roster, the gang's own rows, and the modifiers
@@ -619,6 +581,116 @@ class TestWhatARankAdds:
             assert len(visitors(gang)) == 4
 
         assert len(more) == len(few)
+
+
+class TestAFigureInPlaceOfARank:
+    """A model whose contribution several things raised has no single
+    name to be recorded under, so the visit records the figure.
+
+    Nothing that reads the record aloud may then say the figure as if it
+    were a rank: "sent Rasp as 3 to the trading post" is not a sentence,
+    and "3" filed as a rank on the receipt says nothing about where the
+    Trade Points came from.
+    """
+
+    @pytest.fixture
+    def hire_plain(self, gang, make_profile, make_statline):
+        def make(name):
+            profile = make_profile(f"{name} entry", price=50)
+            make_statline(profile)
+            return hire_with_option(gang, profile, name)
+
+        return make
+
+    @pytest.fixture
+    def connected(self, ranks):
+        """A rule that raises the same counter as a rank does, so a model
+        holding both has two things behind its figure."""
+        from n26.library.standard_content import visit_contribution_counter
+        from n26.tests.sandbox.actions import (
+            create_rule,
+            ef_contributes_to_counter,
+            modifier,
+            targets_model,
+        )
+
+        rule = create_rule("Well connected")
+        modifier(
+            "Well connected adds 1 Trade Point to a Trading Post visit",
+            targets_model(),
+            ef_contributes_to_counter(visit_contribution_counter(), 1),
+            carried_by=rule,
+        )
+        return rule
+
+    def sentences(self, gang):
+        from n26.core import history
+
+        return ["".join(span.text for span in act.spans) for act in history.build(gang)]
+
+    def test_the_visit_records_the_figure(self, gang, ranks, connected, hire_plain):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+
+        (one,) = visitors(gang)
+        assert (one.trade_points, one.rank) == (3, "3")
+
+        visit_trading_post(gang, [one])
+
+        (went,) = LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.VISITED_TRADING_POST
+        )
+        assert went.note == "3"
+
+    def test_the_history_says_only_that_they_went(
+        self, gang, ranks, connected, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+        visit_trading_post(gang, visitors(gang))
+
+        (sent,) = [line for line in self.sentences(gang) if line.startswith("sent ")]
+
+        assert sent == "sent Rasp to the trading post"
+
+    def test_a_rank_still_leads_the_sentence(self, gang, ranks, hire_plain):
+        """The other half of the same rule: one thing raised the figure,
+        so the line names it."""
+        assign(ranks["Leader"], miniature=hire_plain("Rasp"))
+        visit_trading_post(gang, visitors(gang))
+
+        (sent,) = [line for line in self.sentences(gang) if line.startswith("sent ")]
+
+        assert sent == "sent Rasp as Leader to the trading post"
+
+    def test_the_receipt_leaves_the_figure_out_of_its_line(
+        self, gang, ranks, connected, hire_plain
+    ):
+        rasp = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=rasp)
+        assign(connected, miniature=rasp)
+        visit_trading_post(gang, visitors(gang))
+
+        gang.refresh_from_db()
+        receipt = receipt_for(gang)
+        assert receipt.available == 3
+        assert receipt.summary == ""
+
+    def test_the_ranks_beside_it_are_still_named(
+        self, gang, ranks, connected, hire_plain
+    ):
+        """One fighter with two things behind their figure does not take
+        the rest of the line with them."""
+        both = hire_plain("Rasp")
+        assign(ranks["Leader"], miniature=both)
+        assign(connected, miniature=both)
+        assign(ranks["Champion"], miniature=hire_plain("Kel"))
+        visit_trading_post(gang, visitors(gang))
+
+        gang.refresh_from_db()
+        assert receipt_for(gang).summary == "Champion"
 
 
 class TestWhatTheHistorySays:

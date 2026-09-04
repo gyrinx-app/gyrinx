@@ -979,7 +979,11 @@ def gang_trade_points(request, pk):
         )
         return redirect(at)
 
-    offered = visitors(gang, going=set())
+    # The roster is read once and handed to both readers of it: the page
+    # draws every fighter, and the offer is the few of them who add
+    # something.
+    members = roster(gang)
+    offered = visitors(gang, going=set(), members=members)
     receipt = receipt_for(gang)
     return render(
         request,
@@ -1021,7 +1025,7 @@ def gang_trade_points(request, pk):
             # Every fighter, not only those who performed the action:
             # what a visit added is the gang's, and it is spent on
             # whoever it was for. Who went is the ranks on the receipt.
-            "roster": roster(gang),
+            "roster": members,
             "offer": as_offer(offered),
             "edit_tabs": _edit_tabs(gang, "trade-points"),
         },
