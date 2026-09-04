@@ -176,6 +176,27 @@ class TestTheArticleFollowsTheName:
         ]
 
 
+class TestOneRankNamed:
+    """One rank named is one subject, and its verb agrees."""
+
+    def test_a_single_rank_reads_singular(self, escher, backstab, default_pack):
+        champion = create_subtype("Champion")
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "Champions only",
+                    targets_every_model(has_subtypes(champion)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Champion gains Backstab, while the gang holds this."
+        ]
+
+
 class TestARankLeftOut:
     """A row that names the ranks it does not reach reads "except", never
     as if it reached those ranks alone."""

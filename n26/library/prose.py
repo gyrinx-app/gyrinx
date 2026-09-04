@@ -683,7 +683,9 @@ def _narrowed(who, scope):
     subject, possessive, plural = who.subject, who.possessive, who.plural
     if said.named:
         subject = _and_then(said.named)
-        plural = True
+        # Names are said as authored and never inflected, so one name is
+        # one subject: "Champion gains", "Champion and Leader gain".
+        plural = len(said.named) != 1
     elif said.typed:
         # A Type is a possession every model has exactly one of, so the
         # narrowing reads as the model's own word — "every vehicle" —
