@@ -1904,9 +1904,10 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "A card among the fighters' cards, taking the roster grid's "
-                    "first slot, so moving something between a card and the stash "
-                    "is a move between two like things on one screen. Items are "
+                    "A card among the fighters' cards, taking a slot in the "
+                    "roster grid, so moving something between a card and the "
+                    "stash is a move between two like things on one screen. "
+                    "Items are "
                     "grouped by kind, run on and wrap rather than taking a row "
                     "each, with each rating against its own item and the total on "
                     "the header line. An empty stash still draws the card — a slot "

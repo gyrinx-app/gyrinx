@@ -218,6 +218,8 @@ class TestTheActionsSquare:
         # The stash card's own heading, not the wealth strip's figure of
         # the same name, which sits further up the page.
         assert body.index("Trading Post visit open") < body.index(">Stash</span>")
+        # Moved, not copied: one line on the page, not one per card.
+        assert body.count("Trading Post visit open") == 1
 
     def test_it_leads_the_grid_ahead_of_the_stash(self, client, tester, gang):
         client.force_login(tester)

@@ -30,7 +30,13 @@ Whoever draws this owns the gang. There is no reader-facing shape.
             <span class="min-w-0 flex-1 text-sm font-semibold text-ink-900 dark:text-ink-100">Actions</span>
             <c-ui.dropdown align="end">
                 <c-slot name="trigger">
-                    <c-ui.button size="xs" variant="default" aria-label="Start an action">
+                    {% comment %}
+                    Named as every other kebab here is. The menu is not only
+                    ways to start something — an open visit is managed from
+                    it — so a name promising that would be wrong half the
+                    time.
+                    {% endcomment %}
+                    <c-ui.button size="xs" variant="default" aria-label="More actions">
                         <span class="n26-icon-only gap-0.5">
                             <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
                             <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
