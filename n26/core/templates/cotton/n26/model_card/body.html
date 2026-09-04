@@ -7,10 +7,12 @@ draw the same thing.
 
   card — the n26.render.ModelCard.
   mode — as <c-n26.model-card> takes it; the mode-only regions read it.
-  htmx — passed to the counter controls, and set only by a screen holding the
-    card's host. Threaded rather than read from context: a control that
-    posts over htmx on a page with nowhere to put the answer would run the
-    act and change nothing on screen.
+  htmx — passed to the counter controls and to each piece of kit's menu,
+    and set only by a screen holding the card's host and the dialog host.
+    Threaded rather than read from context: a control that posts over htmx
+    on a page with nowhere to put the answer would run the act and change
+    nothing on screen, and a menu item that fetched its panel would land
+    it nowhere.
 
 A piece of kit with acts on it — the model's own page fills them in —
 carries one menu right beside its name, drawn by <c-n26.owned-actions>.
@@ -171,6 +173,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                             <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
                             <c-n26.owned-actions :sell="line.sell"
                                                  :more="line.more"
+                                                 :htmx="htmx"
                                                  layout="menu"
                                                  label="{{ line.name }}" />
                         </li>
@@ -286,6 +289,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                                 </span>
                                                 <c-n26.owned-actions :sell="profile.sell"
                                                                      :more="profile.more"
+                                                                     :htmx="htmx"
                                                                      layout="menu"
                                                                      label="{{ profile.name }}" />
                                             </span>
@@ -337,6 +341,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                                     </span>
                                                     <c-n26.owned-actions :sell="line.sell"
                                                                          :more="line.more"
+                                                                         :htmx="htmx"
                                                                          layout="menu"
                                                                          label="{{ line.name }}" />
                                                 </li>

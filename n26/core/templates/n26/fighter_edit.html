@@ -263,11 +263,20 @@ is named by the page's own heading directly below.
             {% endif %}
         </c-slot>
     </c-n26.view.model-edit>
-    {% if dialog %}
-        <c-n26.owned-dialog :dialog="dialog">
-            {% csrf_token %}
-        </c-n26.owned-dialog>
-    {% endif %}
+    {% comment %}
+    The host a kit menu's click swaps its confirmation into
+    (n26/includes/equip_panel.html), drawn with the panel the address
+    names so a plain visit and a reload show the same thing. The panel's
+    submit is an ordinary post: this page holds no row an update could
+    name, so the act draws the page again.
+    {% endcomment %}
+    <div id="n26-dialog-host">
+        {% if dialog %}
+            <c-n26.owned-dialog :dialog="dialog">
+                {% csrf_token %}
+            </c-n26.owned-dialog>
+        {% endif %}
+    </div>
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"
                       action="{% url 'n26-rename-fighter' renaming.pk %}?back=edit"

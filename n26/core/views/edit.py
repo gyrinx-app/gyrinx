@@ -372,6 +372,7 @@ def edit_fighter(request, pk):
         link_counters,
         link_possession_actions,
         owned_dialog,
+        panel_response,
     )
     from n26.core.views.skills import apply_ticks, link_skills, skills_offer
 
@@ -613,24 +614,11 @@ def edit_fighter(request, pk):
         answer["HX-Replace-Url"] = request.get_full_path()
         return answer
 
-    # Drawn from the reading already in hand. A card is a fact about one
-    # model — what it holds, what modifiers make of that — so the gang is
-    # asked for only what the gang alone can answer, which on this page is
-    # the roster tally below. The card's own build carries the gang's
-    # assignments already, so what the gang grants still reaches it.
-    card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card)
-    link_skills(card, among=sets)
-    # Only here. A counter is drawn wherever a card is; the model's own
-    # page is the one place it is moved, so this is the one place the
-    # lines are given addresses.
-    link_counters(card, back=request.get_full_path())
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.
     at = reverse("n26-edit-fighter", args=[miniature.pk])
     host = EquipHost.fighter(gang, own, miniature, at)
-    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
 
     renaming = _fighter_named(request, gang, "rename")
     # One question at a time: a URL naming a rename and a sale draws
@@ -649,6 +637,30 @@ def edit_fighter(request, pk):
                 ),
                 None,
             )
+        # A click on a kit menu with script running is answered with
+        # the panel alone, before the card and the rest of the page are
+        # drawn: the question is about one thing the model holds, and
+        # the reading in hand already says everything the panel needs.
+        # Only a click that named a panel — a page asked for as a whole
+        # is drawn whole however it was asked for. The panel's own
+        # submit stays an ordinary post, since this page holds no row
+        # an update could name, so the act draws the page again.
+        if (panel := panel_response(request, dialog, htmx=False)) is not None:
+            return panel
+
+    # Drawn from the reading already in hand. A card is a fact about one
+    # model — what it holds, what modifiers make of that — so the gang is
+    # asked for only what the gang alone can answer, which on this page is
+    # the roster tally below. The card's own build carries the gang's
+    # assignments already, so what the gang grants still reaches it.
+    card = build_model_card(miniature, card=own, computed=computed)
+    link_slots(gang, card)
+    link_skills(card, among=sets)
+    # Only here. A counter is drawn wherever a card is; the model's own
+    # page is the one place it is moved, so this is the one place the
+    # lines are given addresses.
+    link_counters(card, back=request.get_full_path())
+    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes"

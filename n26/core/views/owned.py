@@ -59,6 +59,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
+from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -258,6 +259,30 @@ def _panel(request, assignment, kind, at):
         # writes; a dialog is a form of its own and has to say it here.
         "section": request.GET.get("section", ""),
     }
+
+
+def panel_response(request, dialog, *, htmx=True):
+    """The confirmation panel alone, for an htmx GET that named one.
+
+    ``None`` for every other request, so a caller reads it as "not that
+    kind of click" and carries on rendering the screen.
+
+    ``HX-Replace-Url`` sets the address to the one that renders this
+    panel on a plain visit — so a reload draws it again and a link to it
+    works. Replaced rather than pushed: an open confirmation is not
+    somewhere to go back to, and the panel's own way out already stands
+    where the back button would.
+
+    ``htmx`` is whether the panel's own submit may post partially: only
+    a screen holding every element such an update names may say so.
+    """
+    if request.method != "GET" or not is_htmx(request):
+        return None
+    response = render(
+        request, "n26/includes/equip_panel.html", {"dialog": dialog, "htmx": htmx}
+    )
+    response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 def accessorise_dialogs(request, host: EquipHost):

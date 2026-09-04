@@ -1,0 +1,22 @@
+{% comment %}
+One item of an owned thing's more-menu. Expects `action` — an
+n26.core.listing.Action — and optionally `variant`.
+
+Every one of these opens a confirmation the server renders. On a screen that
+has opted into partial updates (`htmx` in context — see
+n26/includes/equip_hosts.html) the click fetches that panel alone and the
+response replaces the dialog host by id. Elsewhere, and without JavaScript, it
+is a plain link and the server serves the page with the panel open.
+
+Drawn twice rather than once with the attribute switched: a template tag
+inside a component's attribute list is not parsed and lands in the page as
+text. The label stays inside the tag on one line: a line break there is
+whitespace inside the item's own span.
+{% endcomment %}
+{# djlint:off #}
+{% if htmx %}
+    <c-ui.dropdown.item href="{{ action.target }}" variant="{{ variant|default:'' }}" hx-get="{{ action.target }}" hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+{% else %}
+    <c-ui.dropdown.item href="{{ action.target }}" variant="{{ variant|default:'' }}">{{ action.label }}</c-ui.dropdown.item>
+{% endif %}
+{# djlint:on #}
