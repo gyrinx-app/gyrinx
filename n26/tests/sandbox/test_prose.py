@@ -197,6 +197,32 @@ class TestOneRankNamed:
         ]
 
 
+class TestATypeAndARankLeftOut:
+    """Two things left out share one "except"."""
+
+    def test_neither_vehicles_nor_champions(
+        self, escher, backstab, vehicle_type, default_pack
+    ):
+        champion = create_subtype("Champion")
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "Neither",
+                    targets_every_model(
+                        is_profile_type(vehicle_type, negate=True),
+                        has_subtypes(champion, negate=True),
+                    ),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every model except vehicles and Champion gains Backstab, while the gang holds this."
+        ]
+
+
 class TestARankLeftOut:
     """A row that names the ranks it does not reach reads "except", never
     as if it reached those ranks alone."""

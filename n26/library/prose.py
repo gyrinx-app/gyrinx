@@ -693,7 +693,11 @@ def _narrowed(who, scope):
         # alongside are the more specific narrowing and win above.
         negate, types = said.typed[0]
         if negate:
-            subject = "every model except " + _and_then(f"{kind}s" for kind in types)
+            # A Type left out joins whatever else is left out, so one
+            # "except" carries them all: "every model except vehicles
+            # and Champion".
+            subject = "every model"
+            said.excepted[:0] = [f"{kind}s" for kind in types]
         else:
             subject = f"every {_and_then(types)}"
         plural = False
