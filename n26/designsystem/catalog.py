@@ -1498,11 +1498,12 @@ GROUPS: list[Group] = [
                 summary="A list of things to choose and unchoose one at a time.",
                 notes=(
                     "A flat list of options, one per row: the name, an "
-                    "optional muted remark, and a button. Options the choice "
-                    "already holds show a red Remove — and a green Add again, "
-                    "where the slot type allows repeats and there is room; "
-                    "the rest show a green Add. When the choice is full, only "
-                    "what it holds is "
+                    "optional muted remark, and a button drawn as a link, so "
+                    "a table of thirty rows is not a column of solid buttons. "
+                    "Options the choice already holds show a red Remove — and "
+                    "an Add again, where the slot type allows repeats and "
+                    "there is room; the rest show Add. When the choice is "
+                    "full, only what it holds is "
                     "listed. Plain submit buttons and no script: the page "
                     "wraps this in its own form, and only the clicked button "
                     "is sent, so the view knows which option to add or take "

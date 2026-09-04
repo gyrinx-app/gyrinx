@@ -1,9 +1,11 @@
 {% comment %}
-<c-ui.button> — overrides the kit's button to add a `success` variant.
+<c-ui.button> — overrides the kit's button to add `success` and `text-danger`.
 
 Colour carries meaning, which is why this is a variant and not a class at the
 call site: `success` brings something into existence, `danger` destroys
-something, `primary` does neither.
+something, `primary` does neither. `text-danger` is `danger` drawn as a link,
+for a destructive act that should not shout — a Remove beside every row of a
+long list.
 
 app.css gives solid buttons their inset shadow by matching background utility
 classes by name (`:is(.bg-accent, .bg-red-500, .bg-ink-100, .bg-green-700)`).
@@ -27,6 +29,7 @@ Pass `data-busy="off"` on the button or on its form to keep a control out of it.
         'danger': 'bg-red-500 text-white hover:bg-red-600 border border-transparent',
         'ghost': 'bg-transparent text-ink-800 dark:text-white hover:bg-ink-100 dark:hover:bg-ink-800 border border-transparent',
         'text': 'bg-transparent text-accent-text hover:underline border border-transparent',
+        'text-danger': 'bg-transparent text-red-600 hover:underline dark:text-red-400 border border-transparent',
     }"
     :outlined_variants="{
         'default': 'border border-ink-200 text-ink-800 hover:bg-ink-100 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800',
@@ -36,6 +39,7 @@ Pass `data-busy="off"` on the button or on its form to keep a control out of it.
         'danger': 'border border-red-500 text-red-500 hover:bg-red-500/10',
         'ghost': 'border border-ink-400 text-ink-600 hover:bg-ink-100 dark:border-ink-600 dark:text-ink-400 dark:hover:bg-ink-800',
         'text': 'text-accent-text hover:underline',
+        'text-danger': 'text-red-600 hover:underline dark:text-red-400',
     }"
     :size_classes="{
         'xs': 'text-xs py-1 px-2',
@@ -57,7 +61,7 @@ Pass `data-busy="off"` on the button or on its form to keep a control out of it.
     {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
     inline-block no-underline cursor-pointer whitespace-nowrap rounded-button
     {{ size_classes|get_item:size }}
-    {% if variant == 'text' %}!px-0{% endif %}
+    {% if variant == 'text' or variant == 'text-danger' %}!px-0{% endif %}
     font-medium transition text-center
     focus-ring
     active:opacity-100
@@ -69,7 +73,7 @@ Pass `data-busy="off"` on the button or on its form to keep a control out of it.
     {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
     cursor-pointer whitespace-nowrap rounded-button
     {{ size_classes|get_item:size }}
-    {% if variant == 'text' %}!px-0{% endif %}
+    {% if variant == 'text' or variant == 'text-danger' %}!px-0{% endif %}
     font-medium transition text-center
     focus-ring
     active:opacity-100

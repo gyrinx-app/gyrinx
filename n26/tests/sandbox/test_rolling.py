@@ -332,7 +332,8 @@ class TestThePickScreen:
         client.force_login(owner)
         page = client.get(address).content.decode()
         assert "Roll a D66" in page
-        assert "Rolled at the table? Enter the number." in page
+        assert "Rolled at the table? Enter the number" in page
+        assert "or add a result by hand" in page
         assert 'name="rolled"' in page
         assert 'min="11"' in page and 'max="66"' in page
 

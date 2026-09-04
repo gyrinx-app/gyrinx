@@ -13,19 +13,26 @@ buttons and no form of its own — the page owns the form and the token.
 {% endcomment %}
 <c-vars :table="None" class="" />
 
-<div {{ attrs }} class="flex flex-wrap items-end gap-x-6 gap-y-3 {{ class }}">
+{% comment %}
+The two ways sit side by side with a rule between them, and stack with an "or"
+rule on a narrow screen, so both read as alternatives rather than as a control
+and its help. The field has no visible label — the placeholder says what goes
+in it, and the aria-label says the same for a reader who cannot see it. The
+width sits on a wrapper: the kit's input does not declare `class`, so one
+passed to it would print a second class attribute and drop its styling.
+{% endcomment %}
+<div {{ attrs }} class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5 {{ class }}">
     <c-ui.button type="submit" name="act" value="roll" variant="primary">
         Roll a {{ table.dice_label }}
     </c-ui.button>
-    {% comment %}
-    The width sits on a wrapper: the kit's input does not declare `class`, so
-    one passed to it would print a second class attribute and drop its styling.
-    {% endcomment %}
-    <div class="flex items-end gap-2">
-        <div class="w-40">
-            <c-ui.input label="Rolled at the table? Enter the number."
-                        id="rolled-at-the-table" name="rolled" type="number"
-                        inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}" />
+    <c-n26.divider label="or" class="sm:hidden" />
+    <span class="hidden w-px self-stretch bg-box-border sm:block" aria-hidden="true"></span>
+    <div class="flex items-center gap-2">
+        <div class="w-56">
+            <c-ui.input id="rolled-at-the-table" name="rolled" type="number"
+                        inputmode="numeric" min="{{ table.lowest }}" max="{{ table.highest }}"
+                        placeholder="Your roll from the table"
+                        aria-label="Rolled at the table? Enter the number" />
         </div>
         <c-ui.button type="submit" name="act" value="enter" variant="default">Enter</c-ui.button>
     </div>
