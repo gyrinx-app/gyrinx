@@ -149,6 +149,13 @@ class CounterLine:
 
     name: str
     value: int
+    #: The half of ``value`` that is written down — what a tally moves
+    #: and what it floors at. Contributions make up the rest, and they
+    #: cannot be tallied away, so a control offering to take one off
+    #: asks this rather than the whole reading: a counter standing at 2
+    #: purely by contribution has nothing to take off, and offering it
+    #: would write a ledger event saying nothing happened.
+    tallied: int = 0
     assignment_id: str = ""
     href: str = ""
     back: str = ""
@@ -1448,8 +1455,9 @@ def card_to_model_card(
             # lines, and adding a figure to each would read as twice
             # what is due.
             thing_key = ModifierIndex.key(thing)
-            standing = _counter_value(
-                node, 0 if thing_key in counted else contributed.get(thing_key, 0)
+            tallied = _counter_value(node)
+            standing = tallied + (
+                0 if thing_key in counted else contributed.get(thing_key, 0)
             )
             counted.add(thing_key)
             is_xp = thing.name.casefold() == XP_COUNTER.casefold()
@@ -1457,6 +1465,7 @@ def card_to_model_card(
                 CounterLine(
                     name=node.name,
                     value=standing,
+                    tallied=tallied,
                     assignment_id=(
                         str(node.assignment.pk) if node.assignment is not None else ""
                     ),
@@ -1505,16 +1514,21 @@ def card_to_model_card(
             if thing_key in counted:
                 continue
             counted.add(thing_key)
+            standing = contributed[thing_key]
+            is_xp = contribution.counter.name.casefold() == XP_COUNTER.casefold()
             counters.append(
                 CounterLine(
                     name=str(contribution.counter),
-                    value=contributed[thing_key],
-                    is_xp=(
-                        contribution.counter.name.casefold() == XP_COUNTER.casefold()
-                    ),
+                    value=standing,
+                    is_xp=is_xp,
                     drawn=contribution.counter.drawn,
                 )
             )
+            if is_xp:
+                # The statline cell reads the counter, however the card
+                # comes by it: a contributed XP moves the cell exactly as
+                # a tallied one does.
+                counted_xp = standing
 
     return ModelCard(
         name=name,
@@ -1594,15 +1608,20 @@ def card_to_model_card(
     )
 
 
-def _counter_value(node, contributed=0):
-    """What a counter node stands at: the stored value — or, on a card
-    built from library alone, what the built-in says it opens at, which
-    is exactly what the hire will write — plus whatever modifiers
-    contribute, which is never written down and goes with its carrier."""
+def _counter_value(node):
+    """What a counter node has written down: the stored value — or, on a
+    card built from library alone, what the built-in says it opens at,
+    which is exactly what the hire will write.
+
+    Contributions are not part of this. They are worked out on every read
+    and never recorded, so a caller wanting the whole reading adds them
+    itself and keeps the two halves apart — a tally can only move what is
+    written down.
+    """
     held = getattr(node.assignment, "counter_value", None) if node.assignment else None
     if held is not None:
-        return held.value + contributed
-    return node.opens_at + contributed
+        return held.value
+    return node.opens_at
 
 
 def _weapon_changes(weapon_state):

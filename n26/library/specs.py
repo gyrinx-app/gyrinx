@@ -598,7 +598,10 @@ def _build_registry():
                 "modifier is held. Nothing is written down, so the "
                 "reading drops back when the item goes."
             ),
-            example=("A Leader adds 2 to the gang's Trade Points; a Champion adds 1."),
+            example=(
+                "On the Leader subtype: adds 2 to the fighter's Trading "
+                "Post visit contribution counter. On Champion: adds 1."
+            ),
         ),
         Spec(
             authoring.ef_offers_choice,

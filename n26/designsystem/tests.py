@@ -402,7 +402,12 @@ class TestCounterLinesInTheGallery:
         from n26.designsystem import sampledata
 
         lines = sampledata.model_card_editable().counter_lines
-        assert [line.name for line in lines] == ["XP", "Kill Count", "Glitch Count"]
+        assert [line.name for line in lines] == [
+            "XP",
+            "Kill Count",
+            "Glitch Count",
+            "Bounty",
+        ]
         assert all(line.href for line in lines)
 
     def test_the_editable_sample_offers_the_listing_acts_on_its_kit(self):

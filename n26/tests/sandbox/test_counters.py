@@ -925,6 +925,53 @@ class TestWhatAModifierContributes:
         # The stored half is untouched: nothing was written down.
         assert xp_row(yolanda).counter_value.value == 61
 
+    def test_a_contributed_xp_moves_the_statline_cell(self, gang, plain, xp):
+        """XP has a cell as well as a line, and the cell reads the
+        counter however the card comes by it. A fighter whose entry
+        carries no XP at all still shows the contributed figure."""
+        vex = hire_with_option(gang, plain, "Vex")
+        assign(self.carrier_adding(xp, 7, "Blooded"), miniature=vex)
+
+        card, _ = drawn(vex)
+        (line,) = [line for line in card.counters if line.name == "XP"]
+        assert (line.value, line.assignment_id) == (7, "")
+        assert (card.xp, card.xp_display) == (7, "7/\u2013")
+        # Nothing stored behind it: there is no XP assignment to tally.
+        assert not Assignment.objects.filter(miniature=vex, counter__name="XP").exists()
+
+    def test_a_contributed_reading_offers_no_way_to_take_one_off(
+        self, client, gang, plain, kills
+    ):
+        """A tally can only move what is written down, and it floors at
+        zero. A counter reading 4 purely because a rule contributes to it
+        has nothing to take off, and a minus there would write a ledger
+        event saying the value went from 0 to 0."""
+        vex = hire_with_option(gang, plain, "Vex")
+        counted = assign(kills, miniature=vex)
+        assign(self.carrier_adding(kills, 4, "Chosen"), miniature=vex)
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
+
+        # The reading is on the page, and so is the way to add to it.
+        assert "Add one to Kill Count" in page
+        assert "Take one off Kill Count" not in page
+        # Nothing written down behind the reading: the 4 is all contributed.
+        assert getattr(counted, "counter_value", None) is None
+
+    def test_a_tallied_reading_still_offers_it(self, client, gang, plain, kills):
+        """The contribution rides on top of a stored value here, so there
+        is something to take off after all."""
+        vex = hire_with_option(gang, plain, "Vex")
+        counted = assign(kills, miniature=vex)
+        tally(counted, +1)
+        assign(self.carrier_adding(kills, 4, "Chosen"), miniature=vex)
+        client.force_login(gang.owner)
+
+        page = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
+
+        assert "Take one off Kill Count" in page
+
     def test_two_carriers_add_up(self, gang, plain, budget):
         vex = hire_with_option(gang, plain, "Vex")
         assign(self.carrier_adding(budget, 4, "Chosen"), miniature=vex)
