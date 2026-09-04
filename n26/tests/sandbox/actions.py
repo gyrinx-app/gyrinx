@@ -52,6 +52,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     ef_allows_at_most,
     ef_changes_category,
     ef_changes_stat,
+    ef_contributes_to_counter,
     ef_offers_choice,
     ef_places,
     ef_places_choice,

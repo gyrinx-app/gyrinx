@@ -329,6 +329,7 @@ def _build_registry():
         Collection,
         CollectionEntry,
         CollectionSection,
+        ContributesToCounter,
         Counter,
         CounterAtLeast,
         DefaultAssignment,
@@ -586,6 +587,23 @@ def _build_registry():
             example="Eye Injury: −1 BS. A bionic eye cancels it out.",
         ),
         Spec(
+            authoring.ef_contributes_to_counter,
+            {
+                "counter": One(model=Counter, source=(ContributesToCounter, "counter")),
+                "amount": Int(source=(ContributesToCounter, "amount")),
+            },
+            label="Adds to a counter",
+            blurb=(
+                "Raises a counter's reading while the item carrying this "
+                "modifier is held. Nothing is written down, so the "
+                "reading drops back when the item goes."
+            ),
+            example=(
+                "On the Leader subtype: adds 2 to the fighter's Trading "
+                "Post visit contribution counter. On Champion: adds 1."
+            ),
+        ),
+        Spec(
             authoring.ef_offers_choice,
             {
                 "model": Choice(
@@ -795,6 +813,7 @@ def _build_registry():
             authoring.create_counter,
             {
                 "name": Text(source=(Counter, "name")),
+                "drawn": Bool(source=(Counter, "drawn")),
                 "qualifier": Text(source=(Counter, "qualifier")),
                 "library_author_help": Text(
                     source=(Counter, "library_author_help"), long=True

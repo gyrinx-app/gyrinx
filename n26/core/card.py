@@ -886,6 +886,7 @@ def build_modifier_index(assignables, max_depth=3):
         *(f"adds_assignable__{name}" for name in GRANTABLE_FIELDS),
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
+        "contributes_to_counter__counter",
     )
     #: Condition rows are reverse relations, so they cannot ride
     #: select_related — without these a scope's narrowing costs a query

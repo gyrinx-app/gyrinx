@@ -390,6 +390,20 @@ def _says_changes_stat(effect, parts):
     )
 
 
+@_renders("contributes_to_counter")
+def _says_contributes_to_counter(effect, parts):
+    who = parts.who
+    return (
+        f"{effect.amount} is added to {who.possessive} {effect.counter} "
+        f"reading{_while(who)}.",
+        (
+            "Worked out on every read, so the reading drops back when "
+            "the item carrying this modifier goes. Nothing is written "
+            "on the ledger."
+        ),
+    )
+
+
 @_renders("changes_category")
 def _says_changes_category(effect, parts):
     who = parts.who

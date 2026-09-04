@@ -1520,12 +1520,18 @@ def model_card():
         # exists only to be the control. model_card_editable() is the
         # card that carries the addresses.
         counters=[
-            CounterLine(name="XP", value=61, assignment_id="xp", is_xp=True),
-            CounterLine(name="Kill Count", value=3, assignment_id="kills"),
-            # At zero, so the editable card shows that the minus is not
-            # drawn: the value floors there and the control would offer
-            # nothing.
+            CounterLine(
+                name="XP", value=61, tallied=61, assignment_id="xp", is_xp=True
+            ),
+            CounterLine(name="Kill Count", value=3, tallied=3, assignment_id="kills"),
+            # Nothing tallied, so the editable card shows that the minus
+            # is not drawn: a tally floors at zero and the control would
+            # offer nothing.
             CounterLine(name="Glitch Count", value=0, assignment_id="glitch"),
+            # Assigned but never tallied, with a rule contributing 2 on
+            # top. It reads 2 and still draws no minus: a tally can only
+            # move the half that is written down, and that half is zero.
+            CounterLine(name="Bounty", value=2, assignment_id="bounty"),
         ],
         xp=61,
         xp_target=79,
@@ -1826,6 +1832,7 @@ class _Counter:
     """Stands in for library.Counter: something a CounterReading can name."""
 
     name: str
+    drawn: bool = True
 
     def __str__(self):
         return self.name

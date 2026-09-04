@@ -790,12 +790,13 @@ def add_weapon_profile(
     return profile
 
 
-def create_counter(name, qualifier="", library_author_help="", **kwargs):
+def create_counter(name, qualifier="", drawn=True, library_author_help="", **kwargs):
     from n26.library.models import Counter
 
     return Counter.objects.create(
         name=name,
         qualifier=qualifier,
+        drawn=drawn,
         library_author_help=library_author_help,
         **kwargs,
     )
@@ -1689,6 +1690,16 @@ def ef_changes_stat(stat, mode="worsen", amount=1):
     from n26.library.models import ChangesStat
 
     return ChangesStat.objects.create(stat=stat, mode=mode, amount=amount)
+
+
+def ef_contributes_to_counter(counter, amount=0):
+    """Adds to a counter's reading while the carrier is held —
+    ``ef_contributes_to_counter(visit_tp, 2)`` for the 2 Trade Points a
+    Leader brings to a Trading Post visit. Nothing is written down, so
+    the contribution goes when the carrier does."""
+    from n26.library.models import ContributesToCounter
+
+    return ContributesToCounter.objects.create(counter=counter, amount=amount)
 
 
 def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):

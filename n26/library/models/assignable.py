@@ -1008,6 +1008,15 @@ class Counter(Content, Assignable):
     #: in "Starting XP 61" — so that is what attaching one asks for.
     ATTACHMENT_ASKS = {"built-in": ("amount",)}
 
+    drawn = models.BooleanField(
+        default=True,
+        help_text=(
+            "Drawn on the model card and editable on the fighter page. "
+            "Turn off for a counter that is only there for conditions "
+            "to check."
+        ),
+    )
+
     class Meta:
         verbose_name = "counter"
         verbose_name_plural = "counters"
