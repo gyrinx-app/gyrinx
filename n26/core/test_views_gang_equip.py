@@ -452,6 +452,20 @@ class TestNothingSaysWhoMayUseIt:
         assert "Walker only" not in response.content.decode()
 
 
+class TestTheRail:
+    def test_it_says_where_a_clicked_tabs_page_will_land(
+        self, client, tester, gang, house_list
+    ):
+        """The same wait as a fighter's screen: on the catalogue, not the
+        tab."""
+        client.force_login(tester)
+        html = client.get(equip_url(gang)).content.decode()
+
+        assert 'data-busy-replaces="#equip-catalogue"' in html
+        assert 'id="equip-catalogue"' in html
+        assert "<template data-busy-wait>" in html
+
+
 class TestTheLibraryTab:
     """Everything a list could sell, for the thing no list carries."""
 

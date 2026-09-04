@@ -13,11 +13,16 @@
  * second activation of a control already busy.
  *
  * The state is one attribute, `data-busy="on"`, written here and drawn by the
- * design library's stylesheet (n26/designsystem/assets/app.css) — this file
- * holds no styling and reads none. A control that must never go busy carries
- * `data-busy="off"` from its call site; so does a form, which opts out
- * everything inside it. A plain link to a page the server has to build
- * carries `data-busy="link"` to be treated the way a button is.
+ * design library's stylesheet (n26/designsystem/assets/app.css). This file
+ * writes no other styling itself. The one exception is the inline
+ * `display: none` style: it hides a replaced element's contents while the
+ * page loads, and removes it again when the wait ends. A control that must
+ * never go busy carries `data-busy="off"` from its call site; so does a
+ * form, which opts out everything inside it. A plain link to a page the
+ * server has to build carries `data-busy="link"` to be treated the way a
+ * button is. Inside a container carrying `data-busy-replaces`, the same
+ * link shows the wait where the new page will land, instead of on the link
+ * itself.
  *
  * What is deliberately left alone: a button that only moves something on
  * screen — a tab, a filter, a disclosure — starts no work and never goes
@@ -132,6 +137,84 @@
         document
             .querySelectorAll("[data-busy-applied], [data-busy-disabled]")
             .forEach(release);
+        restoreReplaced();
+    }
+
+    /*
+     * A page whose arrival is shown where it will land.
+     *
+     * A rail of lists sits beside the catalogue it changes, and the reader
+     * is watching the catalogue, not the rail. A container carrying
+     * `data-busy-replaces="<selector>"` marks that spot. The clicked link
+     * takes on the container's current look at once — `is-current`, the
+     * marker the kit's navlist styles use. The target element's contents
+     * give way to the spinner in the container's own
+     * `<template data-busy-wait>` until the page arrives. The link still
+     * goes busy, so a second click is refused. Inside such a container,
+     * app.css leaves the link's label in place.
+     *
+     * Contents are hidden, not removed. They come back when the page is
+     * restored from the back/forward cache, which returns the page exactly
+     * as it was left.
+     */
+    function replaceBody(link) {
+        if (optedOut(link)) return;
+        var container = link.closest("[data-busy-replaces]");
+        if (!container) return;
+
+        /* The look and the announcement move together: a screen reader
+         * hears which tab is current, matching what a sighted reader sees. */
+        container.querySelectorAll("a.is-current").forEach(function (was) {
+            was.classList.remove("is-current");
+            was.removeAttribute("aria-current");
+            was.setAttribute("data-busy-was-current", "");
+        });
+        link.classList.add("is-current");
+        link.setAttribute("aria-current", "page");
+        link.setAttribute("data-busy-took-current", "");
+
+        var body = document.querySelector(
+            container.getAttribute("data-busy-replaces"),
+        );
+        var wait = container.querySelector("template[data-busy-wait]");
+        if (!body || !wait || !wait.content.firstElementChild) return;
+        if (body.hasAttribute("data-busy-replaced")) return;
+        Array.prototype.forEach.call(body.children, function (child) {
+            child.style.setProperty("display", "none");
+        });
+        var shown = wait.content.firstElementChild.cloneNode(true);
+        shown.setAttribute("data-busy-shown", "");
+        body.setAttribute("aria-busy", "true");
+        body.setAttribute("data-busy-replaced", "");
+        body.appendChild(shown);
+    }
+
+    function restoreReplaced() {
+        document
+            .querySelectorAll("[data-busy-replaced]")
+            .forEach(function (body) {
+                var shown = body.querySelector("[data-busy-shown]");
+                if (shown) shown.remove();
+                Array.prototype.forEach.call(body.children, function (child) {
+                    child.style.removeProperty("display");
+                });
+                body.removeAttribute("aria-busy");
+                body.removeAttribute("data-busy-replaced");
+            });
+        document
+            .querySelectorAll("[data-busy-took-current]")
+            .forEach(function (link) {
+                link.classList.remove("is-current");
+                link.removeAttribute("aria-current");
+                link.removeAttribute("data-busy-took-current");
+            });
+        document
+            .querySelectorAll("[data-busy-was-current]")
+            .forEach(function (link) {
+                link.classList.add("is-current");
+                link.setAttribute("aria-current", "page");
+                link.removeAttribute("data-busy-was-current");
+            });
     }
 
     /*
@@ -241,6 +324,7 @@
             return;
 
         markBusy(link);
+        replaceBody(link);
     });
 
     /*

@@ -305,6 +305,20 @@ def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
     assert "Catfall" not in response.content.decode()
 
 
+def test_the_rail_says_where_a_clicked_tabs_page_will_land(
+    client, tester, fighter, house_list
+):
+    """A tab is a whole render, so the wait is shown on the catalogue it
+    replaces, not on the tab. The rail names the catalogue, the catalogue
+    carries that name, and the rail holds the spinner to draw."""
+    client.force_login(tester)
+    html = client.get(equip_url(fighter)).content.decode()
+
+    assert 'data-busy-replaces="#equip-catalogue"' in html
+    assert 'id="equip-catalogue"' in html
+    assert "<template data-busy-wait>" in html
+
+
 def test_a_lone_list_is_still_a_choice_beside_the_library(
     client, tester, fighter, house_list
 ):

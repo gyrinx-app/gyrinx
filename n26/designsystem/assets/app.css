@@ -1362,3 +1362,19 @@ a[data-busy="on"] {
         transform: rotate(360deg);
     }
 }
+
+/* A link inside a rail beside the catalogue it changes, marked
+ * data-busy-replaces, keeps its label and draws no ring when it goes busy.
+ * The reader is watching the catalogue, not the link, which has already
+ * taken the rail's current look. The second click is still refused. */
+[data-busy-replaces] a[data-busy="on"] {
+    -webkit-text-fill-color: currentColor;
+}
+
+[data-busy-replaces] a[data-busy="on"] > * {
+    opacity: 1;
+}
+
+[data-busy-replaces] a[data-busy="on"]::after {
+    content: none;
+}
