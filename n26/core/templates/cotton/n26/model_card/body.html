@@ -202,13 +202,13 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                 {% comment %}
                 A choice of one is chosen; a choice of several has picks
                 added to it, and keeps its Add beside what it holds while
-                there is room. The Add is one size whether or not anything
-                is held yet, so the control does not shrink the moment a
-                pick lands.
+                there is room. Choose and Add are the same size, and Add
+                stays that size whether or not anything is held yet, so
+                the control does not shrink the moment a pick lands.
                 {% endcomment %}
                 {% if choice.takes_several and choice.is_resolved and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always" class="ms-2 text-xs">Add</c-n26.link>
                 {% elif choice.takes_several and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always" class="text-xs">Add</c-n26.link>
-                {% elif not choice.is_resolved and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
+                {% elif not choice.is_resolved and not choice.is_full %}<c-n26.link href="{{ choice.href }}" underline="always" class="text-xs">Choose</c-n26.link>{% endif %}
             </dd>
         {% endfor %}
 
