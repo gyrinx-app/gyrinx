@@ -15,33 +15,42 @@ and no form of its own: the page owns the form.
 <c-vars :roll="None" class="" />
 
 <section {{ attrs }}
-         class="flex flex-wrap items-center gap-4 rounded-box border border-box-border p-4 {{ class }}"
+         class="flex flex-col gap-4 rounded-box border border-box-border p-4 sm:flex-row sm:items-center {{ class }}"
          aria-live="polite">
-    {% if roll.faces %}
-        <span class="flex gap-2">
-            {% for face in roll.faces %}<c-n26.die value="{{ face }}" class="text-5xl" />{% endfor %}
-        </span>
-    {% else %}
-        <span class="flex size-12 shrink-0 items-center justify-center rounded-[18%] border border-ink-300 bg-white text-2xl font-semibold tabular-nums text-ink-900 dark:border-ink-600 dark:bg-ink-900 dark:text-ink-100"
-              aria-hidden="true">{{ roll.total }}</span>
-    {% endif %}
-    <span class="min-w-0 flex-1">
-        <span class="block text-lg font-semibold text-ink-900 dark:text-ink-100">
-            Rolled {{ roll.total }} <span class="font-normal text-muted">on a {{ roll.dice_label }}</span>
-        </span>
-        <span class="block text-muted">
-            {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another result.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}{{ name }}{% endfor %}.{% else %}This table has no result for {{ roll.total }}.{% endif %}
-            {% if roll.entered %}Rolled at the table and entered here.{% endif %}
+    {% comment %}
+    Two halves: what came up, and what to do about it. Side by side where
+    there is room; stacked on a narrow screen, where the words would otherwise
+    be squeezed into a column beside the buttons.
+    {% endcomment %}
+    <span class="flex min-w-0 flex-1 items-center gap-4">
+        {% if roll.faces %}
+            <span class="flex shrink-0 gap-2">
+                {% for face in roll.faces %}<c-n26.die value="{{ face }}" class="text-5xl" />{% endfor %}
+            </span>
+        {% else %}
+            <span class="flex size-12 shrink-0 items-center justify-center rounded-[18%] border border-ink-300 bg-white text-2xl font-semibold tabular-nums text-ink-900 dark:border-ink-600 dark:bg-ink-900 dark:text-ink-100"
+                  aria-hidden="true">{{ roll.total }}</span>
+        {% endif %}
+        <span class="min-w-0 flex-1">
+            <span class="block text-lg font-semibold text-ink-900 dark:text-ink-100">
+                Rolled {{ roll.total }} <span class="font-normal text-muted">on a {{ roll.dice_label }}</span>
+            </span>
+            <span class="block text-muted">
+                {% if roll.is_spent %}Already applied: {{ roll.applied }}. Roll again for another result.{% elif roll.landed %}{% if roll.threshold %}High enough for{% else %}Landed on{% endif %} {% for name in roll.landed %}{% if not forloop.first %}, {% endif %}{{ name }}{% endfor %}.{% else %}This table has no result for {{ roll.total }}.{% endif %}
+                {% if roll.entered %}Rolled at the table and entered here.{% endif %}
+            </span>
         </span>
     </span>
     {% comment %}
     The next step is the big one: Add what the roll landed on. Roll again is
     the quiet alternative beside it — the rules allow a re-roll only where
-    something grants one, and the record keeps both rolls either way.
+    something grants one, and the record keeps both rolls either way. On a
+    narrow screen the Add takes the width the row leaves it.
     {% endcomment %}
-    <span class="flex shrink-0 flex-wrap items-center gap-2">
+    <span class="flex shrink-0 items-center gap-2">
         {% if roll.add %}
             <c-ui.button type="submit" name="thing" value="{{ roll.add.key }}" variant="primary"
+                         class="flex-1 sm:flex-none"
                          aria-label="Add {{ roll.add.name }}">Add {{ roll.add.name }}</c-ui.button>
         {% endif %}
         <c-ui.button type="submit" name="act" value="roll" variant="default" size="sm">Roll again</c-ui.button>
