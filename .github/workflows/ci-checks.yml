@@ -19,21 +19,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
+      - uses: ./.github/actions/python-env
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
 
       - name: Cache npm dependencies
         uses: actions/cache@v6
@@ -42,17 +33,6 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-
-      # --locked installs exactly uv.lock and fails if it has drifted from
-      # pyproject.toml, so every install path is also the staleness check. That
-      # replaces the dedicated `uv lock --check` step this used to need.
-      - name: Install dependencies
-        run: uv sync --locked
-
-      - name: Write to .env file
-        run: |
-          echo "SECRET_KEY=test-secret" >> .env
-          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
 
       - name: Install Node dependencies
         run: npm ci
@@ -72,6 +52,11 @@ jobs:
         run: |
           source .venv/bin/activate && \
           npm run fmt-check
+
+      - name: Run Bandit security scan
+        run: |
+          source .venv/bin/activate && \
+          bandit -c pyproject.toml -r . --baseline bandit/bandit-baseline.json
 
       - name: Check for migration conflicts
         run: |

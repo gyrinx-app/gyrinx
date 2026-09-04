@@ -25,7 +25,7 @@ from n26.library.models import (
 )
 from n26.library.models.assignable import Assignable
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 def make_modifier(name):

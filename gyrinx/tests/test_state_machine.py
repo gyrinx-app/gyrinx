@@ -14,6 +14,8 @@ from gyrinx.state_machine import (
     StateMachine,
 )
 
+pytestmark = pytest.mark.core
+
 
 # Test model that uses StateMachine
 class StateMachineTestModel(Base):

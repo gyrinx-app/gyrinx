@@ -1,3 +1,4 @@
+import os
 from collections.abc import Callable
 
 import pytest
@@ -32,6 +33,40 @@ from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 from n23.models import FighterCategoryChoices
 
 User = get_user_model()
+
+
+# Filled by pytest_configure from GYRINX_CHANGED_TEST_PATHS.
+_CHANGED_TEST_PATHS = pytest.StashKey[tuple[bool, tuple[str, ...], frozenset[str]]]()
+
+
+def pytest_configure(config):
+    """Read the test paths the pull request touched.
+
+    The required CI job runs `pytest -m core`. scripts/changed_test_paths.py
+    lists the test files the change added or modified, plus the directories
+    whose conftest or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS
+    (one entry per line; directories end in "/"; "." means everything).
+    """
+    raw = os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
+    entries = [line.strip() for line in raw.splitlines() if line.strip()]
+    everything = "." in entries
+    directories = tuple(e for e in entries if e.endswith("/"))
+    files = frozenset(e for e in entries if not e.endswith("/") and e != ".")
+    config.stash[_CHANGED_TEST_PATHS] = (everything, directories, files)
+
+
+def pytest_itemcollected(item):
+    """Mark the tests a pull request touched as `core`, so `-m core` keeps them.
+
+    This runs per item during collection, before pytest applies `-m`; adding
+    the marker any later (pytest_collection_modifyitems) misses the cut.
+    """
+    everything, directories, files = item.config.stash[_CHANGED_TEST_PATHS]
+    if not (everything or directories or files):
+        return
+    rel = item.path.relative_to(item.config.rootpath).as_posix()
+    if everything or rel in files or rel.startswith(directories):
+        item.add_marker(pytest.mark.core)
 
 
 @pytest.fixture(scope="session", autouse=True)

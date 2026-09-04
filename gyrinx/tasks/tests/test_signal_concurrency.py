@@ -23,6 +23,8 @@ from django.utils import timezone
 from gyrinx.tasks.models import TaskExecution
 from gyrinx.tasks.signals import handle_task_finished, handle_task_started
 
+pytestmark = pytest.mark.core
+
 TRANSITIONS = TaskExecution.states.transition_model
 
 

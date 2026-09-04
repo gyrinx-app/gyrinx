@@ -33,7 +33,7 @@ from n26.tests.sandbox.actions import (
     sell,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 HIRE_PRICE = 55
 GUN_PRICE = 30

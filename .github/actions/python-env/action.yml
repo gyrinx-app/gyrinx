@@ -1,0 +1,58 @@
+name: Python environment
+description: >
+  Set up Python and uv, install the locked dependencies into .venv, write the
+  .env the settings need, and optionally tune a Postgres service container for
+  pytest-xdist. Shared by every job in test.yaml and ci-checks.yml.
+
+inputs:
+  postgres-container:
+    description: >
+      Id of the job's postgres service container. When set, raises
+      max_locks_per_transaction so parallel syncdb does not run out of shared
+      memory. Leave empty for jobs without a database.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+
+    - uses: astral-sh/setup-uv@v10.0.1
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    # --locked installs exactly uv.lock and fails if it has drifted from
+    # pyproject.toml, so the install is also the staleness check.
+    - name: Install dependencies
+      shell: bash
+      run: uv sync --locked
+
+    - name: Write to .env file
+      shell: bash
+      run: |
+        echo "SECRET_KEY=test-secret" >> .env
+        echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+
+    - name: Tune PostgreSQL for parallel test workloads
+      if: inputs.postgres-container != ''
+      # pytest-xdist with --nomigrations spins up many workers that each
+      # create all tables via syncdb; default max_locks_per_transaction
+      # (64) is too low and tests deadlock.  Mirrors the tuning in
+      # docker-compose.yml and scripts/setup_web.sh.
+      shell: bash
+      env:
+        PG_CONTAINER_ID: ${{ inputs.postgres-container }}
+      run: |
+        docker exec "$PG_CONTAINER_ID" \
+          psql -U postgres -c "ALTER SYSTEM SET max_locks_per_transaction = 256;"
+        docker restart "$PG_CONTAINER_ID"
+        for i in $(seq 1 30); do
+          pg_isready -h localhost -p 5432 -U postgres -q && exit 0
+          sleep 1
+        done
+        echo "PostgreSQL did not become ready after restart" >&2
+        exit 1

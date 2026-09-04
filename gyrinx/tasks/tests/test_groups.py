@@ -15,6 +15,8 @@ from django.utils import timezone
 from gyrinx.tasks.groups import enqueue_in_group, group_status
 from gyrinx.tasks.models import TaskExecution
 
+pytestmark = pytest.mark.core
+
 
 def _mk(task_id, group_key, *, status="READY", label=""):
     """Create a TaskExecution row directly, in a chosen state."""

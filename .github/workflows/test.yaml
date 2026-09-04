@@ -12,6 +12,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# The suite is split in two. `test` is the required check: the tests marked
+# `core` (fundamental behaviour, the critical flows, safety and performance
+# checks) plus every test the pull request itself touched. `test-full` runs
+# everything and reports, but does not block a merge. The fresh-database job
+# is required too, and is the only thing here that applies the migration
+# graph.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -34,47 +40,81 @@ jobs:
       DB_HOST: localhost
       DB_PORT: 5432
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
+      # The core suite must stay small to be worth having as the gate, and
+      # must not silently select nothing if the marker expression breaks.
+      CORE_SUITE_MIN: 300
+      CORE_SUITE_MAX: 1200
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          # scripts/changed_test_paths.py diffs against the base branch.
+          fetch-depth: 0
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
+      - uses: ./.github/actions/python-env
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          postgres-container: ${{ job.services.postgres.id }}
 
-      # --locked installs exactly uv.lock and fails if it has drifted from
-      # pyproject.toml, so the install is also the staleness check.
-      - name: Install dependencies
-        run: uv sync --locked
-
-      - name: Write to .env file
+      - name: Check the core suite is neither empty nor the whole suite
         run: |
-          echo "SECRET_KEY=test-secret" >> .env
-          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+          source .venv/bin/activate
+          count=$(pytest -m core --collect-only -q -n 0 | grep -c '::')
+          echo "core suite: $count tests (allowed $CORE_SUITE_MIN..$CORE_SUITE_MAX)"
+          if [ "$count" -lt "$CORE_SUITE_MIN" ] || [ "$count" -gt "$CORE_SUITE_MAX" ]; then
+            echo "::error::the core suite has $count tests; adjust the marks or the bounds in test.yaml" >&2
+            exit 1
+          fi
 
-      - name: Tune PostgreSQL for parallel test workloads
-        # pytest-xdist with --nomigrations spins up many workers that each
-        # create all tables via syncdb; default max_locks_per_transaction
-        # (64) is too low and tests deadlock.  Mirrors the tuning in
-        # docker-compose.yml and scripts/setup_web.sh.
+      - name: List the tests this pull request touched
+        if: github.event_name == 'pull_request'
         env:
-          PG_CONTAINER_ID: ${{ job.services.postgres.id }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          docker exec "$PG_CONTAINER_ID" \
-            psql -U postgres -c "ALTER SYSTEM SET max_locks_per_transaction = 256;"
-          docker restart "$PG_CONTAINER_ID"
-          for i in $(seq 1 30); do
-            pg_isready -h localhost -p 5432 -U postgres -q && exit 0
-            sleep 1
-          done
-          echo "PostgreSQL did not become ready after restart" >&2
-          exit 1
+          source .venv/bin/activate
+          scripts/changed_test_paths.py "origin/$BASE_REF" | tee changed-test-paths.txt
 
-      - name: Run tests in parallel
+      - name: Run the core suite and the changed tests
+        timeout-minutes: 30
+        # pyproject's `-n auto` counts physical cores, which on the 4-vCPU
+        # runner is 2. `-n logical` uses all 4; the later flag wins.
+        run: |
+          source .venv/bin/activate
+          export GYRINX_CHANGED_TEST_PATHS="$(cat changed-test-paths.txt 2>/dev/null || true)"
+          pytest -m core --durations=20 -v -n logical
+
+  test-full:
+    runs-on: ubuntu-latest
+    # A new push to the same pull request supersedes the run in flight. On
+    # main every push gets its own run, so a failure is never hidden.
+    concurrency:
+      group: test-full-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_NAME: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_CONFIG: '{"user":"postgres","password":"postgres"}'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/python-env
+        with:
+          postgres-container: ${{ job.services.postgres.id }}
+
+      - name: Run the full suite
         timeout-minutes: 60
         # pyproject's `-n auto` counts physical cores, which on the 4-vCPU
         # runner is 2. `-n logical` uses all 4; the later flag wins.
@@ -82,10 +122,9 @@ jobs:
           source .venv/bin/activate
           pytest --durations=20 -v -n logical
 
-      - name: Run Bandit security scan
-        run: |
-          source .venv/bin/activate && \
-          bandit -c pyproject.toml -r . --baseline bandit/bandit-baseline.json
+      # TODO: post to Slack when this fails on main. A pull request can merge
+      # with a red non-core test, so main needs a louder signal than a red
+      # tick on the commit list.
 
   # Applies the whole migration graph to an empty database, which nothing else
   # here does: pytest builds the schema straight from the models
@@ -120,23 +159,8 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Install dependencies
-        run: uv sync --locked
-
-      - name: Write to .env file
-        run: |
-          echo "SECRET_KEY=test-secret" >> .env
-          echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
+      - uses: ./.github/actions/python-env
 
       # A database of its own, so the run starts from genuinely nothing rather
       # than from whatever the service image left in `postgres`.

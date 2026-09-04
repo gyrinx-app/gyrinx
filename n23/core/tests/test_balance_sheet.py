@@ -57,6 +57,8 @@ from n23.core.models.list import (
 from n23.core.models.pack import CustomContentPackItem
 from n23.core.tasks import propagate_content_cost_change
 
+pytestmark = pytest.mark.core
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

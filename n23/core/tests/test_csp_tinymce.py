@@ -2,6 +2,8 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
+pytestmark = pytest.mark.core
+
 
 @pytest.mark.django_db
 @pytest.mark.skip

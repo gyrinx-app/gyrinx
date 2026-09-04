@@ -4,6 +4,8 @@ import pytest
 
 from n23.core.models import ListFighterAdvancement
 
+pytestmark = pytest.mark.core
+
 
 @pytest.mark.django_db
 def test_active_advancement_count_excludes_archived(

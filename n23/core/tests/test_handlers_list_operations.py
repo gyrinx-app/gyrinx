@@ -13,6 +13,8 @@ from n23.core.handlers.list import handle_list_creation
 from n23.core.models.action import ListActionType
 from n23.core.models.list import List, ListFighter
 
+pytestmark = pytest.mark.core
+
 
 @pytest.mark.django_db
 def test_handle_list_creation_with_stash(user, content_house):

@@ -13,6 +13,8 @@ from django.urls import reverse
 
 from gyrinx.tasks import TaskRoute
 
+pytestmark = pytest.mark.core
+
 
 @pytest.fixture
 def client():

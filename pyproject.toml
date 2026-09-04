@@ -113,9 +113,12 @@ required-version = ">=0.11.12"
 manage = "scripts.manage:main"
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib -p no:warnings -n auto --nomigrations"
+addopts = "--import-mode=importlib -p no:warnings -n auto --nomigrations --strict-markers"
 DJANGO_SETTINGS_MODULE = "gyrinx.settings_dev"
 python_files = "tests.py test_*.py *_tests.py"
+markers = [
+    "core: the required CI job runs these (pytest -m core); see docs/developing-gyrinx/testing.md",
+]
 
 [tool.setuptools.packages]
 find = {}

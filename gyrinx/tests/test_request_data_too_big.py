@@ -17,6 +17,8 @@ from django.test import RequestFactory, override_settings
 
 from gyrinx.middleware import RequestSizeExceptionMiddleware
 
+pytestmark = pytest.mark.core
+
 
 def test_request_size_exception_middleware_catches_exception():
     """

@@ -26,7 +26,7 @@ from n26.core.navigation import (
     places_switcher,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 @pytest.fixture
