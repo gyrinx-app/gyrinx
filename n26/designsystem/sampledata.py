@@ -51,6 +51,8 @@ from n26.core.render import (
     GangSheet,
     ModelCard,
     Provenance,
+    RollResult,
+    RollTable,
     StashLine,
     StatCell,
     Statline,
@@ -836,6 +838,33 @@ def context():
         # room left: the two states where its acts differ.
         "choice_picks_offer": choice_picks_offer(),
         "full_choice_picks_offer": choice_picks_offer(full=True),
+        # A roll table's controls, and a roll in its three states: landed,
+        # landed on nothing, and already applied.
+        "roll_table": RollTable(dice_label="D66", lowest=11, highest=66),
+        "roll_landed": RollResult(
+            key="roll-1",
+            total=24,
+            dice_label="D66",
+            faces=(2, 4),
+            landed=("Out Cold",),
+            add=Choosable(key="library.pickable:7", name="Out Cold", control="choose"),
+        ),
+        "roll_entered_threshold": RollResult(
+            key="roll-2",
+            total=8,
+            dice_label="2D6",
+            landed=("Toughness", "Leadership"),
+            entered=True,
+            threshold=True,
+        ),
+        "roll_spent": RollResult(
+            key="roll-3",
+            total=51,
+            dice_label="D66",
+            faces=(5, 1),
+            landed=("Eye Injury",),
+            applied="Eye Injury",
+        ),
         # The same list a fighter's edit page ticks: what they hold, and
         # the one thing a rule gives them that no click can clear.
         "tick_list_offer": tick_list_offer(),

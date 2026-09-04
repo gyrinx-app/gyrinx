@@ -282,6 +282,23 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
+    # The roll this pick came from, where a table was rolled for it: the
+    # ledger event that recorded the roll. A roll is applied once — one
+    # *standing* pick per roll, checked by the operation under the gang's
+    # lock — and a pick that was taken back frees its roll, so this is a
+    # plain key rather than a one-to-one: the removed pick keeps saying
+    # which roll it came from. Null on a pick made without rolling, and
+    # on everything that is not a pick. SET_NULL because the ledger is
+    # append-only and an event is never deleted in the ordinary run of
+    # things; the pick outliving its roll is survivable.
+    roll = models.ForeignKey(
+        "n26.LedgerEvent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="picks",
+    )
+
     # Which built-in membership this materialised, and for which carrier
     # — the profile's membership, the gang's founding, the bought mount's
     # own assignment. Null on everything that was not materialised from a

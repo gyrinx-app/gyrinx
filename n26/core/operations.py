@@ -216,6 +216,10 @@ class NotOnOffer(Refusal):
 #: campaign is asked about once rather than on every event it writes.
 _UNASKED = object()
 
+#: The note on a roll that was made at the table and entered, which is
+#: how the record tells one from a roll the page generated.
+ROLL_ENTERED = "Rolled at the table and entered here."
+
 
 def _movement_note(moved, reason):
     """A tally's note: what moved, then why, inside the column's width.
@@ -286,6 +290,7 @@ class Operation:
         note="",
         removes=False,
         kind=None,
+        roll=None,
     ):
         """Write one assignment: an assignable, a host, and a cause.
 
@@ -312,6 +317,11 @@ class Operation:
         spent is the sum over what points at it. ``spent_by`` is whose
         Trade Points those were, where the allowance was one model's own
         rather than the gang's.
+
+        ``roll`` is the ledger event recording the roll this pick came
+        from, where a table was rolled for it. It has to be a roll made
+        for the choice the pick settles, with no standing pick already
+        naming it; ``_choose_for_slot`` is where that is checked.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -326,6 +336,7 @@ class Operation:
             materialised_from=materialised_from,
             materialised_for=materialised_for,
             removes=removes,
+            roll=roll,
         )
         if list_price is None:
             list_price = paid + discount
@@ -1586,6 +1597,10 @@ class Operation:
                 slot = anchor.assignable
             if slot is not None:
                 return self._choose_for_slot(anchor, slot, chosen, **kwargs)
+        if kwargs.get("roll") is not None:
+            # Only a slot's table is rolled on; an offer has no dice, so a
+            # roll handed to one is a caller's mistake, not a refusal.
+            raise ValueError("Only a choice backed by a slot is rolled for.")
 
         asked = (
             [offer]
@@ -1643,7 +1658,7 @@ class Operation:
             **kwargs,
         )
 
-    def _choose_for_slot(self, anchor, slot, chosen, **kwargs):
+    def _choose_for_slot(self, anchor, slot, chosen, roll=None, **kwargs):
         """Settle one slot: write the pick, pointing back at what asked.
 
         The pick names both the assignment that asked and the slot it
@@ -1666,9 +1681,32 @@ class Operation:
         its pick belongs with the item rather than with the gang: a
         thing bought unassigned takes what was chosen for it along when
         somebody finally carries it.
+
+        ``roll`` is the event :meth:`roll` wrote, where the table was
+        rolled for this pick. It has to be a roll for this very choice
+        and one nothing has been picked for yet — a roll is applied
+        once, and the second click is refused in words rather than
+        writing a second pick. Which row the roll landed on is not
+        checked: the rules substitute results ("counts as Out Cold"),
+        and the record shows the roll beside whatever was picked.
         """
         from n26.library.models import Pickable, Slot
 
+        if roll is not None:
+            if roll.kind != LedgerEvent.Kind.ROLLED or roll.slot_id != slot.pk:
+                raise Refusal(
+                    f"That roll was not made for {slot.choice_label}. "
+                    "Roll again for this choice."
+                )
+            # One standing pick per roll. A pick taken back frees its
+            # roll, and the check runs under the gang's lock, so two
+            # clicks for one gang are read one after the other.
+            if Assignment.objects.filter(roll=roll, archived=False).exists():
+                raise Refusal(
+                    f"That roll of {roll.roll} has already been applied. "
+                    "Roll again for another result."
+                )
+            kwargs |= {"roll": roll}
         if not isinstance(chosen, Pickable) or chosen.slot_type_id != slot.slot_type_id:
             raise NotOnOffer(
                 anchor,
@@ -1690,6 +1728,20 @@ class Operation:
                     kwargs |= {"stash": stash}
                 else:
                     kwargs |= {"gang": anchor.gang or anchor.gang_root}
+        if roll is not None:
+            # A roll belongs to the card it was made on: this gang's, and
+            # the model the pick lands on (or no model, for the gang's
+            # own choice). Checked here as well as by the page, so no
+            # caller can hand one fighter's roll to another's pick.
+            gang = anchor.gang or anchor.gang_root
+            host = kwargs.get("miniature")
+            if roll.gang_id != gang.pk or roll.miniature_id != (
+                host.pk if host is not None else None
+            ):
+                raise Refusal(
+                    "That roll was made for a different card. "
+                    "Roll again for this choice."
+                )
         return self.assign(
             chosen,
             caused_by=anchor,
@@ -1880,6 +1932,47 @@ class Operation:
             paid=0,
             rating=price_of(thing).credits,
             reason=Reason.REWARD,
+            note=note,
+        )
+
+    def roll(self, slot, *, miniature=None, rolled=None, rng=None, note=""):
+        """Roll on a choice's table and put the roll on the record.
+
+        The roll is written the moment it is made, before anything is
+        picked for it and whether or not anything ever is: once the dice
+        are down the result stands, and a roll that was made and then
+        rolled again should read that way. The event is about the model
+        whose card the choice was on, or the gang for the gang's own
+        choices, and names the slot so the pick that follows can be
+        checked against it.
+
+        ``rolled`` is a roll made at the table and entered here rather
+        than generated; it goes on the record the same way, with the
+        note saying so, and has to be a roll the die can make. ``rng``
+        is for a test that wants the dice loaded.
+
+        A slot whose list is not a roll table has nothing to roll; no
+        page draws a control for one, so that is a caller's mistake
+        rather than a refusal.
+        """
+        from n26.library.models import Dice
+
+        picklist = slot.picklist
+        if not picklist.dice:
+            raise ValueError(f"{slot.choice_label} is not rolled for.")
+        dice = Dice(picklist.dice)
+        if rolled is None:
+            rolled = Dice.roll(dice, rng)
+        elif rolled not in Dice.rolls(dice):
+            raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
+        else:
+            note = note or ROLL_ENTERED
+        return self.event(
+            miniature,
+            LedgerEvent.Kind.ROLLED,
+            roll=rolled,
+            dice=dice.value,
+            slot=slot,
             note=note,
         )
 

@@ -491,6 +491,9 @@ class ChoosableGroup:
     #: already said which in its own heading, and repeating it over every
     #: group would be the same word down the page.
     caption: str = ""
+    #: True for the group a roll opened, where the roll opened several:
+    #: its controls draw as the page's main act, the rest as links.
+    lifted: bool = False
 
 
 @dataclass
@@ -518,6 +521,100 @@ class ChoiceOffer:
     @property
     def is_empty(self):
         return not any(group.options for group in self.groups)
+
+
+@dataclass(frozen=True)
+class RollTable:
+    """The die behind a choice, as the pick screen offers to roll it.
+
+    Drawn only where the slot's list names dice: the button that rolls,
+    and the field for a roll made at the table. ``lowest`` and
+    ``highest`` bound that field to what the die can make.
+    """
+
+    dice_label: str
+    lowest: int
+    highest: int
+
+
+@dataclass(frozen=True)
+class RollResult:
+    """A roll made for a choice, as the pick screen draws it.
+
+    Built from the ledger event that recorded the roll, so a reload or a
+    shared link draws the same result — nothing is rolled by drawing.
+    ``key`` is what a pick posts back so the pick names its roll;
+    ``faces`` are the dice where the total says which (a D66's two, a
+    D6's one) and empty where it does not.
+    """
+
+    key: str
+    total: int
+    dice_label: str
+    faces: tuple = ()
+    #: The names of the rows the roll landed on, in table order. Empty
+    #: for a roll no row claims.
+    landed: tuple = ()
+    #: True where the roll was made at the table and entered rather than
+    #: generated here.
+    entered: bool = False
+    #: What was picked for this roll already, where something was — a
+    #: roll is applied once, so the page then offers no pick against it.
+    applied: str = ""
+    #: True on a threshold table, where the roll opens every row at or
+    #: below it rather than the one it lands in.
+    threshold: bool = False
+    #: The one option the roll landed on, where it landed on exactly one
+    #: that may still be added — drawn as the panel's own Add, so the
+    #: next step is the biggest thing on the page. None where the roll
+    #: opened several (a threshold table), landed on nothing, or is spent;
+    #: the list below then carries the choice.
+    add: object = None
+
+    @property
+    def is_spent(self):
+        return bool(self.applied)
+
+
+def lift_landing(offer, landed, threshold=False):
+    """The same offer with the rows a roll landed on lifted to the top.
+
+    ``landed`` is the set of option keys the roll reached. Those rows come
+    first under a heading of their own and the rest of the table follows
+    under another, so a reader finds the result without scanning and
+    still sees every row — the rules substitute results, and the list
+    informs rather than polices. An offer nothing landed on is returned
+    as it was.
+    """
+    first, rest = [], []
+    for group in offer.groups:
+        for option in group.options:
+            (first if option.key in landed else rest).append(option)
+    if not first:
+        # Nothing on the list is where the roll landed — a full choice,
+        # or a roll no result claims. A heading over nothing says less
+        # than the list as it stands.
+        return offer
+    groups = [
+        ChoosableGroup(
+            name="Rolled high enough for" if threshold else "Landed on",
+            options=first,
+            lifted=True,
+        )
+    ]
+    if rest:
+        groups.append(
+            ChoosableGroup(
+                name="Above the roll" if threshold else "The rest of the table",
+                options=rest,
+            )
+        )
+    return ChoiceOffer(
+        label=offer.label,
+        chosen=offer.chosen,
+        groups=groups,
+        takes_several=offer.takes_several,
+    )
 
 
 @dataclass(frozen=True)

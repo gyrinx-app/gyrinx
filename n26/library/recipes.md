@@ -311,4 +311,13 @@ every card at once. Results players had already picked stay where they
 are, as plain lines the player can remove.
 
 The player's picker lists the results in roll order with the band first,
-so a player who rolled 24 finds "21-26" and adds Out Cold.
+and offers to roll. Clicking Roll rolls the die and writes the roll to
+the gang's history before anything is picked; the page comes back showing
+the dice and lifts the result the roll landed on to the top, with the
+rest of the table beneath it. A player who rolled at the table enters the
+number instead and gets the same page, with the record saying the roll
+was entered. Adding a result from that page ties the pick to the roll,
+and a roll is applied once — a second roll is a second line in the
+history, whether or not the first was used. The result the roll landed on
+is shown, never enforced: a rule that says a result counts as Out Cold is
+followed by adding Out Cold, and the history shows the roll beside it.

@@ -21,7 +21,7 @@ which of its offers. Everything the page needs is in the URL, so it is a
 link, it survives a reload, and it works with scripting off.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -143,6 +143,105 @@ def _pick_of(found, wanted):
     )
 
 
+def _roll_table(found):
+    """The die behind this choice, where its list names one — or None,
+    which draws no roll controls at all."""
+    from n26.core.render import RollTable
+    from n26.library.models import Dice
+
+    slot = found.slot.slot
+    if slot is None or not slot.picklist.dice or found.slot.is_full:
+        # A full choice takes no more picks, so a roll for it would be
+        # one the next Add refuses; the way to another is to take a
+        # pick back first.
+        return None
+    dice = Dice(slot.picklist.dice)
+    rolls = Dice.rolls(dice)
+    return RollTable(dice_label=dice.label, lowest=rolls[0], highest=rolls[-1])
+
+
+def _roll_at(key, gang, found, select_related=()):
+    """The roll a key names, or None for no key — a 404 for a key that
+    names no roll made for this very choice on this very card.
+
+    Scoped to the gang, the slot and the model whose card was clicked
+    (or to no model, for the gang's own choice). One Slot row serves
+    every fighter of the gang, so the slot alone would let a roll made
+    for one fighter be drawn on, and spent from, another's page.
+    """
+    from n26.core.models import LedgerEvent
+
+    if not key or found.slot.slot is None:
+        return None
+    try:
+        return get_object_or_404(
+            LedgerEvent.objects.select_related(*select_related),
+            pk=key,
+            gang=gang,
+            kind=LedgerEvent.Kind.ROLLED,
+            slot=found.slot.slot,
+            miniature=found.miniature,
+        )
+    except ValidationError:
+        raise Http404("No such roll") from None
+
+
+def _roll_named(request, gang, found):
+    """The roll the page was opened on, or None when it was opened plain.
+
+    The pick that spent the roll, where one has, comes back on the event
+    so the page can say so and stop offering it.
+    """
+    return _roll_at(request.GET.get("roll", ""), gang, found)
+
+
+def _roll_posted(request, gang, found):
+    """The roll a pick says it came from, or None for a pick made plain."""
+    return _roll_at(request.POST.get("roll", ""), gang, found)
+
+
+def _roll_result(event, found, offer):
+    """One roll, as the page draws it, and the keys of the rows it reached."""
+    from django.db.models import F
+
+    from n26.core.operations import ROLL_ENTERED
+    from n26.core.render import RollResult, option_key
+    from n26.library.models import Dice, RollSelects
+
+    picklist = found.slot.slot.picklist
+    # In the list's own roll order, so what the panel names reads in the
+    # order the list beneath it draws.
+    members = picklist.members.select_related("pickable").order_by(
+        F("roll_low").asc(nulls_last=True), "position", "pickable__name"
+    )
+    landed = picklist.landing(event.roll, members)
+    keys = {option_key(member.pickable) for member in landed}
+    named = {
+        option.key: option.name for group in offer.groups for option in group.options
+    }
+    # The standing pick this roll was spent on, where there is one. A pick
+    # taken back frees its roll, so an archived one does not count.
+    spent = event.picks.filter(archived=False).select_related("pickable").first()
+    # The die as the record holds it; a die the library no longer names
+    # reads as the table's, since the figure is what the page is about.
+    dice = Dice(picklist.dice)
+    try:
+        dice = Dice(event.dice) if event.dice else dice
+    except ValueError:
+        pass
+    result = RollResult(
+        key=str(event.pk),
+        total=event.roll,
+        dice_label=dice.label,
+        faces=Dice.faces(dice, event.roll),
+        landed=tuple(named.get(option_key(m.pickable), m.label) for m in landed),
+        entered=event.note == ROLL_ENTERED,
+        applied=str(spent.assignable) if spent is not None else "",
+        threshold=picklist.roll_selects == RollSelects.THRESHOLD,
+    )
+    return result, keys
+
+
 def _host(found):
     """Whose choice this is, when the carrier cannot say.
 
@@ -183,6 +282,14 @@ def choose(request, pk, slot):
     settle nothing, or a gang with no room in its budget. Either way the
     reader is told and lands back on the list, because a page that drew
     the button owes a reply rather than a traceback.
+
+    A choice whose list is a roll table is rolled for here too. A Roll
+    click writes the roll to the gang's history and comes back at
+    ``?roll=<event>``, which draws that roll and lifts the rows it landed
+    on; a pick posted from there names the roll, and a roll is applied
+    once. The roll is on the record from the moment it is made, whether
+    or not anything is ever picked for it — which is what makes a second
+    roll visible to whoever reads the history.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -192,10 +299,55 @@ def choose(request, pk, slot):
     found = _find_slot(gang, slot)
     offer = build_choice_offer(found.slot, found.computed)
     back = reverse("n26-gang", args=[gang.pk])
+    here = reverse("n26-choose", args=[gang.pk, slot])
+
+    if request.method == "POST" and request.POST.get("act") in {"roll", "enter"}:
+        # Rolling writes before anything is picked: the roll is on the
+        # record from this moment, and the page comes back at it. A roll
+        # made at the table and entered here goes the same way, with the
+        # record saying it was entered.
+        if found.slot.slot is None or not found.slot.slot.picklist.dice:
+            # No die behind this choice: no page drew a Roll for it.
+            raise Http404("Nothing to roll here")
+        rolled = None
+        if request.POST["act"] == "enter":
+            try:
+                rolled = int(request.POST.get("rolled", ""))
+            except ValueError:
+                messages.error(request, "Enter the number you rolled.")
+                return redirect(here)
+        try:
+            with operation(gang, actor=request.user) as op:
+                fresh = _find_slot(gang, slot)
+                if fresh.slot.is_full:
+                    # Filled while this page stood open: a roll now would
+                    # be one the next Add refuses, and a roll is on the
+                    # record for good.
+                    raise Refusal(
+                        f"{offer.label} holds all the picks it will take. "
+                        "Take one back before rolling."
+                    )
+                event = op.roll(
+                    fresh.slot.slot, miniature=fresh.miniature, rolled=rolled
+                )
+        except Refusal as refusal:
+            messages.error(request, str(refusal))
+            return redirect(here)
+        record(
+            request,
+            N26Noun.CHOICE,
+            EventVerb.UPDATE,
+            gang,
+            offer=offer.label,
+            action="roll",
+            entered=rolled is not None,
+        )
+        return redirect(f"{here}?roll={event.pk}")
 
     if request.method == "POST":
         dropped = request.POST.get("remove", "")
         wanted = dropped or request.POST.get("thing", "")
+        rolled_on = _roll_posted(request, gang, found)
         if wanted == NONE_KEY and not dropped:
             # The None row on an optional choice: nothing is written —
             # the standing pick, if any, is taken back, and the choice
@@ -210,7 +362,7 @@ def choose(request, pk, slot):
                 messages.error(
                     request, "That is not one of the things available to pick."
                 )
-                return redirect(request.path)
+                return redirect(here)
             with operation(gang, actor=request.user) as op:
                 for pick in _settled(_find_slot(gang, slot)):
                     op.remove(pick.assignment)
@@ -238,9 +390,9 @@ def choose(request, pk, slot):
             # asked to take back — a stale page either way, and the list
             # itself is the reply.
             messages.error(request, "That is not one of the things available to pick.")
-            return redirect(request.path)
+            return redirect(here)
         # A worked-at choice comes back to itself; a settled one leaves.
-        landing = request.path if offer.takes_several else back
+        landing = here if offer.takes_several else back
         try:
             with operation(gang, actor=request.user) as op:
                 # The page named the picks it drew, but it was drawn
@@ -287,11 +439,12 @@ def choose(request, pk, slot):
                         picked.thing,
                         slot=fresh.slot.slot,
                         offer=fresh.slot.offer,
+                        roll=rolled_on,
                         **_host(fresh),
                     )
         except Refusal as refusal:
             messages.error(request, str(refusal))
-            return redirect(request.path)
+            return redirect(here)
         # Which choice was made and with what. Changing your mind
         # records a second choice rather than editing the first: what a
         # player picked and then dropped is a thing worth being able to ask
@@ -316,6 +469,29 @@ def choose(request, pk, slot):
         messages.success(request, f"{said} {picked.name} — {offer.label}.")
         return redirect(landing)
 
+    from n26.core.render import lift_landing
+
+    roll = None
+    roll_table = _roll_table(found)
+    event = _roll_named(request, gang, found)
+    if event is not None:
+        roll, landed = _roll_result(event, found, offer)
+        addable = [
+            option
+            for group in offer.groups
+            for option in group.options
+            if option.key in landed and option.control in {"choose", "both"}
+        ]
+        if not roll.is_spent and len(addable) == 1 and len(landed) == 1:
+            # One result, still open, on a choice worked at a pick at a
+            # time: the panel carries the Add, and the list below stays
+            # the whole table, unlifted. A choice of one is settled by
+            # its radios, which post under the same name a panel button
+            # would, so that shape lifts the row instead.
+            roll = replace(roll, add=addable[0])
+        elif not roll.is_spent:
+            offer = lift_landing(offer, landed, threshold=roll.threshold)
+
     bearer = found.miniature.name if found.miniature is not None else gang.name
     return render(
         request,
@@ -324,6 +500,10 @@ def choose(request, pk, slot):
             "gang": gang,
             "miniature": found.miniature,
             "offer": offer,
+            # The die behind the choice, drawn as Roll controls — or, when
+            # the page was opened on a roll, that roll in their place.
+            "roll_table": roll_table if roll is None or roll.is_spent else None,
+            "roll": roll,
             "bearer": bearer,
             "back": back,
             # A choice worked at a pick at a time has no one act to end

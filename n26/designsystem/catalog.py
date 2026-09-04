@@ -1498,16 +1498,55 @@ GROUPS: list[Group] = [
                 summary="A list of things to choose and unchoose one at a time.",
                 notes=(
                     "A flat list of options, one per row: the name, an "
-                    "optional muted remark, and a button. Options the choice "
-                    "already holds show a red Remove — and a green Add again, "
-                    "where the slot type allows repeats and there is room; "
-                    "the rest show a green Add. When the choice is full, only "
-                    "what it holds is "
+                    "optional muted remark, and a button drawn as a link, so "
+                    "a table of thirty rows is not a column of solid buttons. "
+                    "Options the choice already holds show a red Remove — and "
+                    "an Add again, where the slot type allows repeats and "
+                    "there is room; the rest show Add. When the choice is "
+                    "full, only what it holds is "
                     "listed. Plain submit buttons and no script: the page "
                     "wraps this in its own form, and only the clicked button "
                     "is sent, so the view knows which option to add or take "
                     "back. Use c-n26.choice-offer for a single-pick choice; "
                     "use this where a choice holds several picks."
+                ),
+            ),
+            Component(
+                slug="roll-table",
+                tag="c-n26.roll-table",
+                template="n26/roll_table.html",
+                summary="The controls that roll on a choice's table.",
+                notes=(
+                    "Drawn on the pick screen above a list that is a roll "
+                    "table. Two ways to record one roll: a button that rolls "
+                    "the die here, and a field for a roll made at the table, "
+                    "with the die's range as its hint. Both post to "
+                    "the page, which writes the roll to the gang's history before "
+                    "anything is picked and comes back showing where it "
+                    "landed. Plain submit buttons and no form of its own."
+                ),
+            ),
+            Component(
+                slug="roll-result",
+                tag="c-n26.roll-result",
+                template="n26/roll_result.html",
+                summary="What a roll came to, above the table it was rolled on.",
+                parts=(
+                    Part(
+                        "c-n26.die",
+                        "n26/die.html",
+                        "One die face as pips, announced in words.",
+                    ),
+                ),
+                notes=(
+                    "Built from the ledger event that recorded the roll, so "
+                    "a reload draws the same result — nothing is rolled by "
+                    "drawing. Shows the dice where the total says which faces "
+                    "they showed (a D66's two, a D6's one) and the figure "
+                    "alone otherwise; says where it landed, that the table "
+                    "has no result for it, or that it has already been "
+                    "applied. Roll again lives here because this is where a "
+                    "reader deciding to roll again is looking."
                 ),
             ),
             Component(

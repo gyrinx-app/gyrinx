@@ -183,6 +183,7 @@ def _alive(gang):
 def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
+    _name_the_rolls(events, rows)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -229,6 +230,31 @@ def _rows_for(events):
     return {row.pk: row for row in fetched}
 
 
+def _name_the_rolls(events, rows):
+    """Put the slot on each roll event and the roll on each pick that
+    came from one — two reads, and only on histories holding a roll.
+
+    Joined here rather than on every event and every record, because a
+    roll is rare beside the run of purchases and grants, and the history
+    is read whole on every page.
+    """
+    from n26.library.models import Slot
+
+    rolled = [e for e in events if e.kind == Kind.ROLLED]
+    picks = [row for row in rows.values() if row.roll_id is not None]
+    if not rolled and not picks:
+        return
+    slots = Slot.objects.in_bulk({e.slot_id for e in rolled if e.slot_id})
+    for e in rolled:
+        e.slot = slots.get(e.slot_id)
+    by_pk = {e.pk: e for e in rolled}
+    missing = {row.roll_id for row in picks} - set(by_pk)
+    if missing:
+        by_pk |= LedgerEvent.objects.in_bulk(missing)
+    for row in picks:
+        row.roll = by_pk.get(row.roll_id)
+
+
 def _clusters(events):
     """Consecutive events sharing a mark, as one group each.
 
@@ -272,6 +298,23 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
             continue
+        if (
+            e.kind == Kind.GRANTED
+            and row is not None
+            and _roll_key(row.roll_id) in act_of
+        ):
+            # A pick made for a roll folds under the roll: "rolled 24"
+            # with "Out Cold" beneath it is one act however many
+            # requests it took. The roll's act is keyed apart from the
+            # records', so a pick whose roll is outside the window can
+            # never fold under some record's act instead. Same day only —
+            # a pick made days after its roll is its own act on its own
+            # day, and says which roll it came from in its own sentence.
+            home = act_of[_roll_key(row.roll_id)]
+            if home.when.date() == e.created.date():
+                home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
+                act_of.setdefault(row.pk, home)
+                continue
         ride = _rides(e, row)
         if (
             joined
@@ -323,6 +366,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                 local[row.pk] = act
                 if e.kind in {Kind.PURCHASED, Kind.ADDED, Kind.GRANTED}:
                     act_of.setdefault(row.pk, act)
+            elif e.kind == Kind.ROLLED:
+                act_of[_roll_key(e.pk)] = act
 
     # Ridden things come before their riders in the log, so a chain
     # settles in one pass: each rider finds its ride already mapped.
@@ -410,6 +455,12 @@ def _caught_up_acts(caught_up, sources, alive):
 #: types granted in the same act can find it the way a rider finds its
 #: ride. Never an assignment's key, which is what every other entry is.
 _THE_JOINING = object()
+
+
+def _roll_key(event_pk):
+    """How a roll's act is filed in ``act_of``, beside the records' own
+    keys and never mistakable for one."""
+    return ("roll", event_pk)
 
 
 def _rides(e, row):
@@ -577,9 +628,28 @@ def _tell(e, row, alive):
                     *_for(model, at, "to"),
                 ), category
             return (Span("added "), thing, *_for(model, at, "to")), category
+        case Kind.GRANTED if row is not None and row.roll_id is not None:
+            # A pick whose roll is not in the story — told further back
+            # than the page reaches, or not told at all.
+            rolled = f", rolled {row.roll.roll}" if row.roll else ""
+            return (
+                Span("gained "),
+                thing,
+                *_for(model, at, "on"),
+                Span(rolled),
+            ), category
         case Kind.GRANTED:
             # Only reached when what caused it is not in the story.
             return (Span("gained "), thing, *_for(model, at, "on")), category
+        case Kind.ROLLED:
+            # The choice it was for is on the event: what the pick that
+            # follows says its kind is, said here before there is a pick.
+            asked = f" — {e.slot.choice_label}" if e.slot is not None else ""
+            return (
+                Span(f"rolled {e.roll} on a {_dice_label(e.dice)}"),
+                *_for(model, at),
+                Span(asked),
+            ), "model" if model is not None else "gang"
         case Kind.TOOK_AWAY:
             return (
                 Span("took "),
@@ -773,6 +843,12 @@ def _points(figure, unspent=False):
     return f"{figure} {noun}s"
 
 
+def _dice_label(dice):
+    from n26.library.models import Dice
+
+    return Dice.label_for(dice)
+
+
 def _for(model, at, word="for"):
     """(" for ", {model}) with the name linked, or nothing where the
     act has no model."""
@@ -946,6 +1022,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         return
 
     rows = _rows_for(events)
+    _name_the_rolls(events, rows)
     sources = _comes_with_sources(events, rows)
     # Only the living have a page to link to, across every gang here.
     alive = set(

@@ -217,7 +217,7 @@ Fields of its own: a **slot type** and a **name**; and, where the list is a roll
 
 A set of pickables available in a slot. One slot type throughout, no headings and no prices — where a collection is a catalogue, this is a menu. One slot type may have several picklists, which is how a limited selection of the pickables is offered in certain situations: what a leader picks from and what a champion picks from could be two lists of one slot type. Not an assignable; a slot names it.
 
-A roll table is a picklist that names its dice and how a roll finds its entry — the one entry whose band contains the roll, or every entry at or below it. The die is a closed set — D3, D6, D66 or 2D6 — so every roll it can produce is known. A band is plain numbers even on a D66, where "31-46" spans rolls that can never come up. A lookup is only ever made for a roll that did. Nothing rolls: the bands are authored and the picks are chosen.
+A roll table is a picklist that names its dice and how a roll finds its entry — the one entry whose band contains the roll, or every entry at or below it. The die is a closed set — D3, D6, D66 or 2D6 — so every roll it can produce is known. A band is plain numbers even on a D66, where "31-46" spans rolls that can never come up. A lookup is only ever made for a roll that did. The bands are authored; the player's pick screen rolls the die, or takes a roll made at the table, and puts the roll in the gang's history before anything is picked for it. The pick that follows names its roll, and a roll is applied once. The entry the roll landed on is shown first, never enforced: the rules substitute results, and the record shows the roll beside whatever was picked.
 
 ### Slot
 

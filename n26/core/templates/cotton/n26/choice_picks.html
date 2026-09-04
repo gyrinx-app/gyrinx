@@ -7,7 +7,8 @@
 
 Draws the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws, for a
 choice that holds several picks. Each option is a row: the name, an optional
-muted remark, and a button. The offer says which button each option gets
+muted remark, and a button drawn as a link, so a table of thirty rows is not a
+column of thirty solid buttons. The offer says which each option gets
 (n26.render.Choosable.control): "remove" for what the choice holds, "choose"
 for what it does not; an option with neither control gets no button. A full
 choice lists only what it holds.
@@ -74,7 +75,7 @@ that holds one.
                                 <c-ui.button type="submit"
                                              name="remove"
                                              value="{{ option.key }}"
-                                             variant="danger"
+                                             variant="text-danger"
                                              size="sm"
                                              aria-label="Remove {{ option.name }}">Remove</c-ui.button>
                             {% endif %}
@@ -82,7 +83,7 @@ that holds one.
                                 <c-ui.button type="submit"
                                              name="{{ name }}"
                                              value="{{ option.key }}"
-                                             variant="success"
+                                             variant="{% if group.lifted %}primary{% else %}text{% endif %}"
                                              size="sm"
                                              aria-label="Add {{ option.name }}{% if option.control == "both" %} again{% endif %}">Add{% if option.control == "both" %} again{% endif %}</c-ui.button>
                             {% endif %}

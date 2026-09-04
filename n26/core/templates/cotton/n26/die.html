@@ -1,0 +1,32 @@
+{% comment %}
+<c-n26.die> — one die face, drawn as pips.
+
+    <c-n26.die value="4" />
+    <c-n26.die value="6" class="text-5xl" />
+
+A rounded square with the pips of a D6 face laid on a three-by-three grid. The
+face is announced as words, since a grid of dots says nothing to a reader who
+cannot see it. Sized in ems, so a text-size class on it scales the square, the
+pips and the gaps together — a percentage would measure the parent instead.
+
+  value — 1 to 6. Anything else draws an empty square.
+  class — a text size sets the die's size; text-5xl is a 48px die.
+{% endcomment %}
+<c-vars value=""
+        :pips="{
+            '1': '000010000',
+            '2': '001000100',
+            '3': '001010100',
+            '4': '101000101',
+            '5': '101010101',
+            '6': '101101101',
+        }"
+        class="" />
+<span {{ attrs }}
+      class="grid size-[1em] shrink-0 grid-cols-3 grid-rows-3 gap-[0.08em] rounded-[0.18em] border border-ink-300 bg-white p-[0.16em] shadow-sm dark:border-ink-600 dark:bg-ink-900 {{ class }}"
+      role="img"
+      aria-label="{% if value %}A die showing {{ value }}{% else %}A die, not yet rolled{% endif %}">
+    {% for pip in pips|get_item:value|default:"000000000" %}
+        <span class="size-full rounded-full {% if pip == '1' %}bg-ink-900 dark:bg-ink-100{% endif %}"></span>
+    {% endfor %}
+</span>
