@@ -217,6 +217,62 @@ class TestATypeNarrowsTheSubject:
         ]
 
 
+class TestAPickNarrowsTheSubject:
+    """A model that must hold a pick is said with the pick beside it —
+    the scope's own words, so the sentence and the name agree."""
+
+    @pytest.fixture
+    def legacies(self, default_pack):
+        from n26.library.authoring import (
+            add_picklist_member,
+            create_pickable,
+            create_picklist,
+            create_slot_type,
+        )
+
+        slot_type = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
+        table = create_picklist("Gang Legacies", slot_type)
+        cawdor = create_pickable("Cawdor", slot_type)
+        add_picklist_member(table, cawdor)
+        return cawdor
+
+    def test_a_grant_to_those_holding_a_pick_names_it(self, escher, legacies, backstab):
+        from n26.library.authoring import has_pickable
+
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "Cawdor legacy: Backstab",
+                    targets_every_model(has_pickable(legacies)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every fighter with Cawdor gains Backstab, while the gang holds this."
+        ]
+
+    def test_negated_it_says_without(self, escher, legacies, backstab):
+        from n26.library.authoring import has_pickable
+
+        attach_modifiers_to(
+            escher,
+            [
+                modifier(
+                    "No legacy: Backstab",
+                    targets_every_model(has_pickable(legacies, negate=True)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "Every fighter without Cawdor gains Backstab, while the gang holds this."
+        ]
+
+
 class TestTheMasterOfWhispers:
     """One power from a family, as a Primary pick — a rule doing three
     things, said as a paragraph.
@@ -1138,6 +1194,19 @@ class TestEveryEffectCanBeSaid:
             "n26/library/prose.py decorated @_renders(<the effect's column on "
             "Modifier>), returning the sentence and its hint — an effect "
             "nothing can say is one the reach column drops in silence."
+        )
+
+    def test_every_model_condition_kind_has_words_for_who_it_narrows(self):
+        from n26.library.models.modifier import TargetsMiniature
+
+        missing = sorted(set(TargetsMiniature.CONDITIONS) - set(prose.MODEL_NARROWINGS))
+
+        assert not missing, (
+            f"No words for the {', '.join(missing)} narrowing. Add it to "
+            "MODEL_NARROWINGS in n26/library/prose.py and pin the sentence "
+            "here — a condition the prose cannot say is one it drops in "
+            "silence, and the sentence then reaches more models than the "
+            "modifier does."
         )
 
     def test_every_scope_kind_has_words_for_who_it_reaches(self):

@@ -41,7 +41,7 @@ warn about. It never explains how the app is built and never argues the
 design.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from django.utils.text import capfirst
 
@@ -584,6 +584,47 @@ def _effect_field(modifier):
     return None
 
 
+@dataclass
+class _Narrowings:
+    """What a model scope's conditions have said, sorted by the shape
+    each takes in the sentence."""
+
+    #: Ranks or entries named outright: they replace the subject.
+    named: list = field(default_factory=list)
+    #: A Type narrowing, as ``(negated, lowercased type names)``.
+    typed: list = field(default_factory=list)
+    #: Picks the model must hold, as ``(negated, names)``.
+    holdings: list = field(default_factory=list)
+    #: Clauses about the moment rather than the model.
+    clauses: list = field(default_factory=list)
+
+
+#: How each condition a model scope can carry reaches the sentence, by
+#: the condition's related name on the scope. A kind missing here would
+#: be dropped without a word, so a test holds this to the scope's own
+#: ``CONDITIONS``; a weapon scope's conditions join the noun phrase in
+#: their own words instead.
+MODEL_NARROWINGS = {
+    "has_subtypes": lambda row, said: said.named.extend(
+        str(one) for one in row.subtypes.all()
+    ),
+    "is_profile": lambda row, said: said.named.extend(
+        str(one) for one in row.profiles.all()
+    ),
+    "is_profile_type": lambda row, said: (
+        (types := [str(one).lower() for one in row.profile_types.all()])
+        and said.typed.append((row.negate, types))
+    ),
+    "has_pickable": lambda row, said: (
+        (picks := [str(one) for one in row.pickables.all()])
+        and said.holdings.append((row.negate, picks))
+    ),
+    "counter_at_least": lambda row, said: said.clauses.append(
+        f"while their {row.counter} is {row.at_least} or more"
+    ),
+}
+
+
 def _narrowed(who, scope):
     """The subject once the scope's conditions have had their say.
 
@@ -600,42 +641,37 @@ def _narrowed(who, scope):
     """
     if not getattr(scope, "CONDITIONS", ()) or scope.pk is None:
         return who, ""
-    named, typed, clauses, of_weapons = [], [], [], []
+    said = _Narrowings()
+    of_weapons = []
     for related in scope.CONDITIONS:
+        say = MODEL_NARROWINGS.get(related)
         for row in getattr(scope, related).all():
-            if related == "has_subtypes":
-                named.extend(str(one) for one in row.subtypes.all())
-            elif related == "is_profile":
-                named.extend(str(one) for one in row.profiles.all())
-            elif related == "is_profile_type":
-                types = [str(one).lower() for one in row.profile_types.all()]
-                if types:
-                    typed.append((row.negate, types))
-            elif related == "counter_at_least":
-                clauses.append(f"while their {row.counter} is {row.at_least} or more")
+            if say is not None:
+                say(row, said)
             else:
                 of_weapons.append(str(row))
-    lead = " and ".join(clauses)
+    lead = " and ".join(said.clauses)
     weapons = " ".join([who.weapons, *of_weapons])
     subject, possessive, plural = who.subject, who.possessive, who.plural
-    if named:
-        subject = _and_then(named)
-        possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
-        weapons = " ".join([f"{possessive} weapons", *of_weapons])
+    if said.named:
+        subject = _and_then(said.named)
         plural = True
-    elif typed:
+    elif said.typed:
         # A Type is a possession every model has exactly one of, so the
         # narrowing reads as the model's own word — "every vehicle" —
         # in place of the gang-wide "every fighter". Ranks named
         # alongside are the more specific narrowing and win above.
-        negate, types = typed[0]
+        negate, types = said.typed[0]
         if negate:
             subject = "every model except " + _and_then(f"{kind}s" for kind in types)
         else:
             subject = f"every {_and_then(types)}"
-        possessive = f"{subject}'s"
-        weapons = " ".join([f"{possessive} weapons", *of_weapons])
         plural = False
+    for negate, picks in said.holdings:
+        subject = f"{subject} {'without' if negate else 'with'} {_and_then(picks)}"
+    if said.named or said.typed or said.holdings:
+        possessive = f"{subject}'" if subject.endswith("s") else f"{subject}'s"
+        weapons = " ".join([f"{possessive} weapons", *of_weapons])
     return (
         _Who(
             subject=subject,
