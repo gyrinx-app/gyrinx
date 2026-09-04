@@ -21,6 +21,14 @@ Use it as a context manager::
     with campaign_operation(campaign, actor=arbitrator) as act:
         act.rename("Dust Falls II")
         act.set_budget(1200)
+
+Founding is the one act that starts from a campaign not yet saved: it
+writes the campaign's own pack and additions type before the row itself,
+so a campaign never exists without them::
+
+    campaign = Campaign(name="Dust Falls", owner=arbitrator)
+    with campaign_operation(campaign, actor=arbitrator) as act:
+        act.found(n26_core)
 """
 
 from contextlib import contextmanager
@@ -70,6 +78,42 @@ class CampaignOperation:
     def created(self):
         """Record that the campaign was set up. Its first line."""
         return self.event(CampaignEvent.Kind.CREATED)
+
+    def found(self, campaign_type):
+        """Set the campaign up on a type, and give it its own pack.
+
+        What ``Operation.found`` is to a gang. The campaign is saved here
+        for the first time, with three things it never exists without: the
+        shared type it was founded on, a pack of its own that the
+        arbitrator owns, and an **additions** type created empty in that
+        pack. The pack and the additions are named for the campaign; the
+        pack's slug is keyed by the campaign's id, so two campaigns of one
+        name cannot collide on it. The pack is the arbitrator's own: what
+        they create for the campaign is theirs to edit, and a pack picker
+        offers the system pack alone, so none of it reaches anybody else.
+
+        Nothing is assigned to anybody yet. Joining is what puts the two
+        types on a gang (``Operation.join_campaign``), and the log's first
+        line names the type so a reader knows what the campaign was
+        founded on.
+        """
+        from n26.library.authoring import create_campaign_type, create_pack
+
+        campaign = self.campaign
+        if not campaign._state.adding:
+            raise ValueError(f"{campaign} has already been founded.")
+        pack = create_pack(
+            campaign.name,
+            slug=f"campaign-{str(campaign.pk).lower()}",
+            owner=campaign.owner,
+        )
+        additions = create_campaign_type(campaign.name, pack=pack)
+        campaign.campaign_type = campaign_type
+        campaign.pack = pack
+        campaign.additions = additions
+        campaign.save()
+        self.event(CampaignEvent.Kind.CREATED, note=campaign_type.name)
+        return campaign
 
     def rename(self, name):
         """Give the campaign a new name, and say so in its log.
@@ -291,7 +335,9 @@ def campaign_operation(campaign, actor=None):
     another and record a note naming a name that had already been replaced.
     """
     with transaction.atomic():
-        if campaign.pk is not None:
+        # A campaign being founded has a key already and no row yet, so
+        # there is nothing to lock and nothing to read back.
+        if not campaign._state.adding:
             Campaign.objects.select_for_update().filter(pk=campaign.pk).first()
             campaign.refresh_from_db()
         yield CampaignOperation(campaign, actor=actor)

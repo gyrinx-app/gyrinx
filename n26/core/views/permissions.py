@@ -138,7 +138,9 @@ def _any_campaign_or_404(pk):
 
     try:
         return get_object_or_404(
-            Campaign.objects.select_related("owner"),
+            Campaign.objects.select_related(
+                "owner", "campaign_type", "additions__built_ins"
+            ),
             pk=pk,
             archived=False,
         )

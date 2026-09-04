@@ -446,9 +446,14 @@ class Operation:
         counts against the budget is the gang's wealth — see
         :func:`over_budget` — and the screens that add a gang say so.
 
-        Nothing about the gang changes but where it plays. The event is the
-        gang's own, and names the campaign, so it reads in both histories from
-        one record.
+        Joining gives the gang the campaign's two types — the shared one it
+        was founded on and its own additions — as gang-hosted assignments,
+        granted, with their built-ins landing in the same breath: on N26
+        core a gang comes away holding a Settlement and a Reputation counter
+        at 0, each caused by the type's carrier. The membership points at
+        both carriers, so what the campaign gave can be found again. The
+        event is the gang's own, and names the campaign, so it reads in both
+        histories from one record.
         """
         from n26.core.models import CampaignMembership
 
@@ -464,10 +469,32 @@ class Operation:
 
         membership = CampaignMembership.objects.create(campaign=campaign, gang=gang)
         # Set before the event is written, so the event that records the
-        # joining names the campaign it joined.
+        # joining names the campaign it joined — and so the carriers and
+        # their built-ins, written next, name it too.
         self._campaign = campaign
         self.event(None, LedgerEvent.Kind.JOINED_CAMPAIGN)
+        membership.type_carrier = self._carry(campaign.campaign_type)
+        membership.additions_carrier = self._carry(campaign.additions)
+        membership.save(update_fields=["type_carrier", "additions_carrier", "modified"])
         return membership
+
+    def _carry(self, campaign_type):
+        """Put one campaign type on the gang, with what it brings.
+
+        The same shape as a founding — a free gang-hosted assignment whose
+        built-ins arrive caused by it — but granted rather than added:
+        the gang did not choose the type, the campaign did. Nothing is
+        priced, so the gang's rating is untouched.
+        """
+        carrier = self.assign(
+            campaign_type,
+            gang=self.gang,
+            paid=0,
+            reason=Reason.GRANTED,
+            kind=LedgerEvent.Kind.GRANTED,
+        )
+        self.reconcile_defaults(carrier, gang=self.gang)
+        return carrier
 
     def leave_campaign(self):
         """Take this operation's gang out of whatever campaign it is playing.

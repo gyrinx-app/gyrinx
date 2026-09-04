@@ -11,8 +11,8 @@ from django.contrib.auth.models import User
 
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history
-from n26.core.models import Campaign, LedgerEvent
-from n26.tests.sandbox.actions import found_gang
+from n26.core.models import LedgerEvent
+from n26.tests.sandbox.actions import found_campaign, found_gang
 
 pytestmark = pytest.mark.django_db
 
@@ -23,8 +23,12 @@ def arbitrator():
 
 
 @pytest.fixture
-def campaign(arbitrator):
-    return Campaign.objects.create(name="Dust Falls", owner=arbitrator, budget=1000)
+def campaign(arbitrator, campaign_type):
+    return found_campaign("Dust Falls", campaign_type, owner=arbitrator, budget=1000)
+
+
+#: The log's first line, which founding writes before any test here acts.
+FOUNDED = "set the campaign up on N26 core"
 
 
 @pytest.fixture
@@ -61,7 +65,7 @@ class TestRecordingABattle:
         with campaign_operation(campaign, actor=arbitrator) as act:
             act.record_battle(date(2026, 8, 3))
 
-        assert told(campaign) == ["recorded a battle fought on 3 August"]
+        assert told(campaign) == [FOUNDED, "recorded a battle fought on 3 August"]
 
     def test_no_gang_is_touched(self, campaign, arbitrator, gang):
         """Recording one says a thing happened. What it did to anybody is
@@ -91,6 +95,7 @@ class TestRemovingABattle:
             act.remove_battle(battle)
 
         assert told(campaign) == [
+            FOUNDED,
             "recorded a battle",
             "removed the battle of 2026-08-03",
         ]

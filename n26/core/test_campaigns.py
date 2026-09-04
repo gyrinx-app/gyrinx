@@ -12,6 +12,7 @@ from django.test.utils import CaptureQueriesContext
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history, campaign_history_size
 from n26.core.models import Campaign, CampaignEvent
+from n26.library.authoring import create_campaign_type, create_pack
 
 pytestmark = pytest.mark.django_db
 
@@ -21,9 +22,25 @@ def arbitrator():
     return User.objects.create_user("arbitrator")
 
 
+def make_campaign(name, owner, campaign_type, **kwargs):
+    """A campaign whose log is empty, so each test here reads only what it
+    wrote. Founding writes the log's first line itself and has its own
+    tests (sandbox/test_campaign_founding.py); this builds the row it
+    would build, without the line."""
+    pack = create_pack(name, slug=f"pack-{name.lower().replace(' ', '-')}", owner=owner)
+    return Campaign.objects.create(
+        name=name,
+        owner=owner,
+        campaign_type=campaign_type,
+        pack=pack,
+        additions=create_campaign_type(name, pack=pack),
+        **kwargs,
+    )
+
+
 @pytest.fixture
-def campaign(arbitrator):
-    return Campaign.objects.create(name="Dust Falls", owner=arbitrator, budget=1000)
+def campaign(arbitrator, campaign_type):
+    return make_campaign("Dust Falls", arbitrator, campaign_type, budget=1000)
 
 
 def kinds_of(campaign):
@@ -196,8 +213,10 @@ class TestHowTheLogReads:
 
 
 class TestTheLogIsOneCampaignsOwn:
-    def test_another_campaigns_acts_do_not_appear(self, campaign, arbitrator):
-        other = Campaign.objects.create(name="Sump City", owner=arbitrator)
+    def test_another_campaigns_acts_do_not_appear(
+        self, campaign, arbitrator, campaign_type
+    ):
+        other = make_campaign("Sump City", arbitrator, campaign_type)
         with campaign_operation(other, actor=arbitrator) as act:
             act.created()
         assert told(campaign) == []

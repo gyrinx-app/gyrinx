@@ -99,6 +99,21 @@ def gang_state(gang):
         "counters": sorted(
             (str(counter.name), str(counter.value)) for counter in sheet.counters
         ),
+        # What the campaign gave, which the sheet keeps apart from the gang's
+        # own rows and counters — so a conversion that broke a campaign
+        # carrier, or what it brought, would show here rather than nowhere.
+        "campaign": (
+            {
+                "name": sheet.campaign.name,
+                "lines": _names(sheet.campaign.lines),
+                "counters": sorted(
+                    (str(counter.name), str(counter.value))
+                    for counter in sheet.campaign.counters
+                ),
+            }
+            if sheet.campaign
+            else None
+        ),
         "stash": _rated(sheet.stash),
         "stash_rating": sheet.stash_rating,
         "notes": _remarks(sheet.remarks),

@@ -10,10 +10,10 @@ from django.db import IntegrityError, transaction
 
 from n26.core.campaigns import campaign_operation, over_budget
 from n26.core.history import build, campaign_history, campaign_history_size
-from n26.core.models import Campaign, CampaignMembership, Gang, LedgerEvent
+from n26.core.models import CampaignMembership, Gang, LedgerEvent
 from n26.core.operations import AlreadyInACampaign, operation
 from n26.library.authoring import create_wargear
-from n26.tests.sandbox.actions import assign, found_gang, hire
+from n26.tests.sandbox.actions import assign, found_campaign, found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
@@ -30,13 +30,17 @@ def gang(gang_type):
 
 
 @pytest.fixture
-def campaign(arbitrator):
-    return Campaign.objects.create(name="Dust Falls", owner=arbitrator, budget=1000)
+def campaign(arbitrator, campaign_type):
+    return found_campaign("Dust Falls", campaign_type, owner=arbitrator, budget=1000)
 
 
 @pytest.fixture
-def other_campaign(arbitrator):
-    return Campaign.objects.create(name="Sump City", owner=arbitrator)
+def other_campaign(arbitrator, campaign_type):
+    return found_campaign("Sump City", campaign_type, owner=arbitrator)
+
+
+#: The log's first line, which founding writes before any test here acts.
+FOUNDED = "set the campaign up on N26 core"
 
 
 def sentences(acts):
@@ -121,9 +125,13 @@ class TestWhatCountsAgainstTheBudget:
         hire(founded, make_profile("Escher Ganger"), "Yolanda", paid=55)
         return Gang.objects.get(pk=founded.pk)
 
+    @pytest.fixture(autouse=True)
+    def _type(self, campaign_type):
+        self.campaign_type = campaign_type
+
     def campaign_of(self, arbitrator, budget):
-        return Campaign.objects.create(
-            name=f"Budget {budget}", owner=arbitrator, budget=budget
+        return found_campaign(
+            f"Budget {budget}", self.campaign_type, owner=arbitrator, budget=budget
         )
 
     def test_a_gang_that_fits_is_not_over(self, gang, arbitrator):
@@ -257,25 +265,24 @@ class TestWhatTheCampaignSees:
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(other_campaign)
 
-        assert sentences(campaign_history(campaign)) == []
+        assert sentences(campaign_history(campaign)) == [FOUNDED]
 
     def test_the_two_sources_are_merged_in_time_order(self, gang, campaign, arbitrator):
-        with campaign_operation(campaign, actor=arbitrator) as act:
-            act.created()
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(campaign)
         with campaign_operation(campaign, actor=arbitrator) as act:
             act.set_budget(1200)
 
         assert sentences(campaign_history(campaign)) == [
-            "set the campaign up",
+            FOUNDED,
             "added the gang to Dust Falls",
             "set the gang budget to 1200¢",
         ]
 
     def test_the_size_counts_both_sources(self, gang, campaign, arbitrator):
-        with campaign_operation(campaign, actor=arbitrator) as act:
-            act.created()
+        """The founding line and the joining. The campaign types the
+        joining put on the gang ride that act rather than counting as
+        acts of their own, so the size says what the page would draw."""
         with operation(gang, actor=arbitrator) as op:
             op.join_campaign(campaign)
 
@@ -290,9 +297,6 @@ class TestWhatTheCampaignSees:
         assert act.gang_pk == str(gang.pk)
 
     def test_the_campaigns_own_acts_name_no_gang(self, campaign, arbitrator):
-        with campaign_operation(campaign, actor=arbitrator) as act:
-            act.created()
-
         (act_,) = campaign_history(campaign)
         assert act_.gang_name == ""
 
@@ -346,5 +350,5 @@ class TestTheCampaignsLogFoldsWhatTheGangsDoes:
             with operation(each, actor=arbitrator) as op:
                 op.hire(make_profile(role, price=25), f"Vex of {each.name}")
 
-        named = {act.gang_name for act in campaign_history(campaign)}
+        named = {act.gang_name for act in campaign_history(campaign) if act.gang_name}
         assert named == {"The Ashen Choir", "Rust Kings"}

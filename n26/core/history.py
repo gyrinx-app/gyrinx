@@ -215,6 +215,11 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     its own act, on its own day.
     """
     here = {e.assignment_id for e in cluster if e.assignment_id is not None}
+    # A campaign's types arrive on the gang in the act of joining it. They
+    # have no cause of their own to ride, so they ride the joining, and
+    # what they bring rides them: one act, "added the gang to Dust Falls",
+    # with the types and their built-ins beneath it.
+    joined = any(e.kind == Kind.JOINED_CAMPAIGN for e in cluster)
     standing = []
     waiting = []
     for e in cluster:
@@ -222,6 +227,15 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         if _machinery(e, row):
             continue
         ride = _rides(e, row)
+        if (
+            joined
+            and ride is None
+            and e.kind == Kind.GRANTED
+            and row is not None
+            and row.campaign_type_id is not None
+        ):
+            waiting.append((e, row, _THE_JOINING))
+            continue
         if ride is not None:
             if ride in here:
                 waiting.append((e, row, ride))
@@ -257,6 +271,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         for e, row in standing:
             act = _one_act(e, row, viewer, alive)
             acts.append(act)
+            if e.kind == Kind.JOINED_CAMPAIGN:
+                local[_THE_JOINING] = act
             if row is not None:
                 local[row.pk] = act
                 if e.kind in {Kind.PURCHASED, Kind.ADDED, Kind.GRANTED}:
@@ -342,6 +358,12 @@ def _caught_up_acts(caught_up, sources, alive):
                 ),
                 group,
             )
+
+
+#: The key under which a cluster's joining act is filed, so the campaign
+#: types granted in the same act can find it the way a rider finds its
+#: ride. Never an assignment's key, which is what every other entry is.
+_THE_JOINING = object()
 
 
 def _rides(e, row):
@@ -750,8 +772,21 @@ def campaign_history(campaign, viewer=None, limit=None):
 
 
 def campaign_history_size(campaign):
-    """How many acts the history holds, without building any of them."""
-    return campaign.events.count() + campaign.gang_events.count()
+    """How many acts the history holds, without building any of them.
+
+    Counted by record, less the records that never stand as acts of their
+    own: a grant riding what caused it, and a campaign type riding the
+    joining that put it on the gang. What is left is close to the number
+    of lines the full history draws, which is what a reader comparing
+    "and N earlier acts" against the page expects it to mean.
+    """
+    from django.db.models import Q
+
+    riders = Q(kind=Kind.GRANTED) & (
+        Q(assignment__caused_by__isnull=False)
+        | Q(assignment__campaign_type__isnull=False)
+    )
+    return campaign.events.count() + campaign.gang_events.exclude(riders).count()
 
 
 def _campaign_own_acts(campaign, viewer, limit=None):
@@ -841,6 +876,8 @@ def _tell_campaign(e):
     kinds = CampaignEvent.Kind
     match e.kind:
         case kinds.CREATED:
+            if e.note:
+                return (Span(f"set the campaign up on {e.note}"),), "campaign"
             return (Span("set the campaign up"),), "campaign"
         case kinds.RENAMED:
             was, _, now = e.note.rpartition(" → ")

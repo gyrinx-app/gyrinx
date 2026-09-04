@@ -18,7 +18,7 @@ from n26.core.models import (
 from n26.core.views.campaigns import LOG_ON_THE_PAGE
 from n26.flags import CAMPAIGNS
 from n26.library.authoring import create_wargear
-from n26.tests.sandbox.actions import assign, found_gang, hire
+from n26.tests.sandbox.actions import assign, found_campaign, found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
@@ -49,8 +49,19 @@ def arbitrator(client):
 
 
 @pytest.fixture
-def campaign(arbitrator):
-    return Campaign.objects.create(name="Dust Falls", owner=arbitrator, budget=1000)
+def campaign(arbitrator, campaign_type):
+    return found_campaign("Dust Falls", campaign_type, owner=arbitrator, budget=1000)
+
+
+def founding(campaign_type, **fields):
+    """A set-up form's POST, on the given type."""
+    return {
+        "name": "Dust Falls",
+        "budget": "1000",
+        "summary": "",
+        "campaign_type": str(campaign_type.pk),
+        **fields,
+    }
 
 
 def seat(campaign, user):
@@ -129,9 +140,9 @@ class TestTheDashboardTab:
     must not offer a way to an address that would answer them 404."""
 
     def test_a_reader_without_the_feature_sees_the_old_panel(
-        self, client, arbitrator, shut
+        self, client, arbitrator, campaign_type, shut
     ):
-        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        found_campaign("Dust Falls", campaign_type, owner=arbitrator)
         body = client.get("/n26/").content.decode()
 
         assert "/n26/campaigns/new/" not in body
@@ -139,19 +150,19 @@ class TestTheDashboardTab:
         assert "working hard on it" in body
 
     def test_a_reader_with_it_gets_their_campaigns(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        found_campaign("Dust Falls", campaign_type, owner=arbitrator)
         body = client.get("/n26/").content.decode()
 
         assert "Dust Falls" in body
         assert "/n26/campaigns/new/" in body
 
     def test_it_leaves_out_a_campaign_the_reader_has_no_place_in(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        Campaign.objects.create(
-            name="Not Yours", owner=User.objects.create_user("someone-else")
+        found_campaign(
+            "Not Yours", campaign_type, owner=User.objects.create_user("someone-else")
         )
         assert "Not Yours" not in client.get("/n26/").content.decode()
 
@@ -160,10 +171,10 @@ class TestSearchingTheList:
     """The same box the gangs list has, answered the same way."""
 
     def test_it_narrows_to_what_was_asked_for(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
-        Campaign.objects.create(name="Sump City Nights", owner=arbitrator)
+        found_campaign("Dust Falls", campaign_type, owner=arbitrator)
+        found_campaign("Sump City Nights", campaign_type, owner=arbitrator)
 
         body = client.get("/n26/campaigns/?q=dust").content.decode()
 
@@ -171,9 +182,9 @@ class TestSearchingTheList:
         assert "Sump City Nights" not in body
 
     def test_a_query_that_matches_nothing_says_so(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        found_campaign("Dust Falls", campaign_type, owner=arbitrator)
         assert "No campaigns match that" in (
             client.get("/n26/campaigns/?q=zzzz").content.decode()
         )
@@ -183,16 +194,20 @@ class TestALongList:
     """A paged list without a pager hides everything past the first page,
     and nothing on the page says so."""
 
+    @pytest.fixture(autouse=True)
+    def _type(self, campaign_type):
+        self.campaign_type = campaign_type
+
     def _many(self, arbitrator, count):
         from n26.core.views.campaigns import CAMPAIGNS_PER_PAGE
 
         return [
-            Campaign.objects.create(name=f"Campaign {n:03}", owner=arbitrator)
+            found_campaign(f"Campaign {n:03}", self.campaign_type, owner=arbitrator)
             for n in range(count)
         ], CAMPAIGNS_PER_PAGE
 
     def test_a_short_list_draws_no_pager(self, client, arbitrator, open_to_everyone):
-        Campaign.objects.create(name="Only One", owner=arbitrator)
+        found_campaign("Only One", self.campaign_type, owner=arbitrator)
         assert client.get("/n26/campaigns/").context["pages"] is None
 
     def test_a_long_list_can_be_turned(self, client, arbitrator, open_to_everyone):
@@ -220,17 +235,51 @@ class TestALongList:
 
 class TestSettingOneUp:
     def test_it_creates_a_campaign_and_lands_on_its_page(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        response = client.post(
-            "/n26/campaigns/new/",
-            {"name": "Dust Falls", "budget": "1000", "summary": ""},
-        )
+        response = client.post("/n26/campaigns/new/", founding(campaign_type))
         made = Campaign.objects.get(name="Dust Falls")
         assert made.owner == arbitrator
         assert made.budget == 1000
+        assert made.campaign_type == campaign_type
         assert response.status_code == 302
         assert response["Location"] == f"/n26/campaigns/{made.pk}/"
+
+    def test_founding_gives_it_a_pack_and_an_additions_type(
+        self, client, arbitrator, campaign_type, open_to_everyone
+    ):
+        """The pack is the arbitrator's own and the additions type sits
+        in it, empty, named for the campaign."""
+        client.post("/n26/campaigns/new/", founding(campaign_type))
+        made = Campaign.objects.get(name="Dust Falls")
+        assert made.pack.owner == arbitrator
+        assert made.additions.pack == made.pack
+        assert made.additions.name == "Dust Falls"
+        assert made.additions.built_ins is None
+
+    def test_the_form_offers_the_types_a_campaign_can_be_founded_on(
+        self, client, arbitrator, campaign_type, campaign, open_to_everyone
+    ):
+        """The system pack's types, and never a campaign's own additions,
+        which live in a pack somebody owns."""
+        body = client.get("/n26/campaigns/new/").content.decode()
+        assert f'value="{campaign_type.pk}"' in body
+        assert f'value="{campaign.additions.pk}"' not in body
+
+    def test_a_campaign_without_a_type_is_refused(
+        self, client, arbitrator, campaign_type, open_to_everyone
+    ):
+        response = client.post(
+            "/n26/campaigns/new/", {**founding(campaign_type), "campaign_type": ""}
+        )
+        assert response.status_code == 200
+        assert "Select a campaign type." in response.content.decode()
+        assert not Campaign.objects.exists()
+
+    def test_the_page_names_the_type(self, client, campaign, open_to_everyone):
+        body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assert "Campaign type" in body
+        assert "N26 core" in body
 
     def test_the_form_opens_with_a_thousand_credit_budget(
         self, client, arbitrator, open_to_everyone
@@ -244,16 +293,22 @@ class TestSettingOneUp:
         assert "Leave blank to set no budget." in body
 
     def test_a_blank_budget_means_no_limit_rather_than_zero(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
         """Blank is not a zero, and a campaign that read it as zero would
         refuse everybody. Clearing the default is how a table that has
         not agreed a limit says so."""
-        client.post("/n26/campaigns/new/", {"name": "Open House", "budget": ""})
+        client.post(
+            "/n26/campaigns/new/",
+            founding(campaign_type, name="Open House", budget=""),
+        )
         assert Campaign.objects.get(name="Open House").budget is None
 
-    def test_a_nameless_campaign_is_refused(self, client, arbitrator, open_to_everyone):
-        assert client.post("/n26/campaigns/new/", {"name": ""}).status_code == 200
+    def test_a_nameless_campaign_is_refused(
+        self, client, arbitrator, campaign_type, open_to_everyone
+    ):
+        response = client.post("/n26/campaigns/new/", founding(campaign_type, name=""))
+        assert response.status_code == 200
         assert not Campaign.objects.exists()
 
 
@@ -263,9 +318,9 @@ class TestSomebodyElsesCampaign:
     than 403 — the same way every other page holding player data does."""
 
     @pytest.fixture
-    def theirs(self):
-        return Campaign.objects.create(
-            name="Not Yours", owner=User.objects.create_user("someone-else")
+    def theirs(self, campaign_type):
+        return found_campaign(
+            "Not Yours", campaign_type, owner=User.objects.create_user("someone-else")
         )
 
     def test_it_is_readable(self, client, arbitrator, theirs, open_to_everyone):
@@ -332,12 +387,12 @@ class TestEditing:
         assert campaign.budget is None
 
     def test_an_unlimited_campaign_stays_blank_on_the_edit_form(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
         """The 1000 default is for a campaign being set up. Filling it in
         on edit would make a campaign that had no limit look as if it did."""
-        campaign = Campaign.objects.create(
-            name="Open House", owner=arbitrator, budget=None
+        campaign = found_campaign(
+            "Open House", campaign_type, owner=arbitrator, budget=None
         )
         response = client.get(f"/n26/campaigns/{campaign.pk}/edit/")
         assert response.context["form"]["budget"].value() is None
@@ -345,12 +400,12 @@ class TestEditing:
         assert 'value="1000"' not in response.content.decode()
 
     def test_a_zero_budget_stays_zero_on_the_edit_form(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
         """Nought is a figure, not an absence: `default` would draw the
         box empty and a save would clear the limit."""
-        campaign = Campaign.objects.create(
-            name="Broke House", owner=arbitrator, budget=0
+        campaign = found_campaign(
+            "Broke House", campaign_type, owner=arbitrator, budget=0
         )
         response = client.get(f"/n26/campaigns/{campaign.pk}/edit/")
         assert response.context["form"]["budget"].value() == 0
@@ -388,26 +443,26 @@ class TestTheLogOnTheCampaignsPage:
     def page(self, client, campaign):
         return client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
 
-    def test_a_fresh_campaign_says_its_log_is_empty(
-        self, client, arbitrator, open_to_everyone
+    def test_a_fresh_campaign_opens_with_its_founding_line(
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        made = Campaign.objects.create(name="Quiet Start", owner=arbitrator)
+        """No campaign has an empty log: founding writes the first line,
+        and it names the type the campaign runs on."""
+        made = found_campaign("Quiet Start", campaign_type, owner=arbitrator)
         drawn = self.page(client, made)
         assert "Log" in drawn
-        assert "Nothing yet." in drawn
+        assert "set the campaign up on N26 core" in drawn
+        assert "Nothing yet." not in drawn
 
     def test_setting_one_up_writes_its_first_line(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        client.post(
-            "/n26/campaigns/new/",
-            {"name": "Dust Falls", "budget": "1000", "summary": ""},
-        )
+        client.post("/n26/campaigns/new/", founding(campaign_type))
         made = Campaign.objects.get(name="Dust Falls")
         assert [event.kind for event in made.events.all()] == [
             CampaignEvent.Kind.CREATED
         ]
-        assert "set the campaign up" in self.page(client, made)
+        assert "set the campaign up on N26 core" in self.page(client, made)
 
     def test_editing_writes_what_changed_and_the_page_says_it(
         self, client, campaign, open_to_everyone
@@ -428,7 +483,9 @@ class TestTheLogOnTheCampaignsPage:
             f"/n26/campaigns/{campaign.pk}/edit/",
             {"name": campaign.name, "budget": "1000", "summary": campaign.summary},
         )
-        assert not campaign.events.exists()
+        assert [event.kind for event in campaign.events.all()] == [
+            CampaignEvent.Kind.CREATED
+        ]
 
     def test_the_arbitrator_reads_their_own_acts_as_their_own(
         self, client, campaign, open_to_everyone
@@ -450,7 +507,8 @@ class TestTheLogOnTheCampaignsPage:
             )
         drawn = self.page(client, campaign)
         assert drawn.count("renamed the campaign") == LOG_ON_THE_PAGE
-        assert "and 4 earlier acts" in drawn
+        # Fourteen renames and the founding line, ten of them drawn.
+        assert "and 5 earlier acts" in drawn
 
     def test_the_newest_act_is_drawn_first(self, client, campaign, open_to_everyone):
         client.post(
@@ -489,7 +547,8 @@ class TestTheLogOnTheCampaignsPage:
     ):
         client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         assert [event.kind for event in campaign.events.all()] == [
-            CampaignEvent.Kind.ARCHIVED
+            CampaignEvent.Kind.CREATED,
+            CampaignEvent.Kind.ARCHIVED,
         ]
 
 
@@ -553,9 +612,9 @@ class TestTheRollOfGangs:
         assert not CampaignMembership.objects.filter(gang=outsider).exists()
 
     def test_a_gang_already_playing_elsewhere_is_refused_in_words(
-        self, client, campaign, gang, arbitrator, open_to_everyone
+        self, client, campaign, gang, arbitrator, campaign_type, open_to_everyone
     ):
-        elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        elsewhere = found_campaign("Sump City", campaign_type, owner=arbitrator)
         # Seated there too: what is under test is the second join being
         # refused, not who the other campaign would have offered.
         seat(elsewhere, gang.owner)
@@ -569,25 +628,34 @@ class TestTheRollOfGangs:
         assert "already playing Sump City" in response.content.decode()
         assert CampaignMembership.objects.filter(gang=gang).count() == 1
 
-    def test_the_question_page_removes_nothing(
+    def test_joining_gives_the_gang_the_campaigns_types(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        """Both carriers, gang-hosted and granted, pointed at by the
+        membership so what the campaign gave can be found again."""
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        membership = CampaignMembership.objects.get(gang=gang)
+        assert membership.type_carrier.assignable == campaign.campaign_type
+        assert membership.additions_carrier.assignable == campaign.additions
+        assert membership.type_carrier.gang == gang
+
+    def test_the_page_offers_no_way_to_take_a_gang_out(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        """A gang that left would keep what the campaign gave it, so until
+        leaving returns everything the control is not drawn."""
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        assert f"/gangs/{gang.pk}/remove/" not in self.page(client, campaign)
+
+    def test_the_remove_address_refuses_in_words_and_changes_nothing(
         self, client, campaign, gang, open_to_everyone
     ):
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         address = f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/"
-        assert client.get(address).status_code == 200
-        assert CampaignMembership.objects.get(gang=gang).playing
-
-    def test_the_post_takes_the_gang_out(
-        self, client, campaign, gang, open_to_everyone
-    ):
-        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
-        client.post(f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/")
-
-        membership = CampaignMembership.objects.get(gang=gang)
-        assert not membership.playing
-        drawn = self.page(client, campaign)
-        assert "No gangs yet." in drawn
-        assert "took the gang out of Dust Falls" in drawn
+        for send in (client.get, client.post):
+            response = send(address, follow=True)
+            assert "cannot leave Dust Falls" in response.content.decode()
+            assert CampaignMembership.objects.get(gang=gang).playing
 
     def test_removing_a_gang_that_is_not_playing_answers_404(
         self, client, campaign, gang, open_to_everyone
@@ -600,10 +668,10 @@ class TestTheRollOfGangs:
         )
 
     def test_somebody_elses_campaign_takes_no_gangs(
-        self, client, gang, open_to_everyone
+        self, client, gang, campaign_type, open_to_everyone
     ):
-        theirs = Campaign.objects.create(
-            name="Not Yours", owner=User.objects.create_user("someone-else")
+        theirs = found_campaign(
+            "Not Yours", campaign_type, owner=User.objects.create_user("someone-else")
         )
         assert (
             client.post(
@@ -664,11 +732,11 @@ class TestBattlesOnTheCampaignsPage:
         assert "Nobody named" in self.page(client, campaign)
 
     def test_only_this_campaigns_gangs_are_offered(
-        self, client, campaign, gang, arbitrator, open_to_everyone
+        self, client, campaign, gang, arbitrator, campaign_type, open_to_everyone
     ):
         """A picker over every gang there is would let an arbitrator record a
         battle between gangs that were never in the campaign."""
-        elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        elsewhere = found_campaign("Sump City", campaign_type, owner=arbitrator)
         # Seating the owner is only how the gang gets into the other
         # campaign; what is under test is which gangs the battle picker
         # offers afterwards.
@@ -712,9 +780,9 @@ class TestBattlesOnTheCampaignsPage:
         assert "removed the battle of 2026-08-03" in drawn
 
     def test_another_campaigns_battle_is_not_reachable(
-        self, client, campaign, arbitrator, open_to_everyone
+        self, client, campaign, arbitrator, campaign_type, open_to_everyone
     ):
-        elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        elsewhere = found_campaign("Sump City", campaign_type, owner=arbitrator)
         client.post(
             f"/n26/campaigns/{elsewhere.pk}/battles/new/", {"date": "2026-08-03"}
         )
@@ -752,7 +820,6 @@ class TestTheCampaignInTheBar:
             f"/n26/campaigns/{campaign.pk}/edit/",
             f"/n26/campaigns/{campaign.pk}/archive/",
             f"/n26/campaigns/{campaign.pk}/gangs/add/",
-            f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/",
             f"/n26/campaigns/{campaign.pk}/battles/new/",
             f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/",
         ]
@@ -774,9 +841,9 @@ class TestTheCampaignInTheBar:
             assert f'href="/n26/campaigns/{campaign.pk}/"' in drawn, address
 
     def test_it_offers_the_readers_other_campaigns(
-        self, client, campaign, arbitrator, open_to_everyone
+        self, client, campaign, arbitrator, campaign_type, open_to_everyone
     ):
-        Campaign.objects.create(name="Sump City", owner=arbitrator)
+        found_campaign("Sump City", campaign_type, owner=arbitrator)
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert "Sump City" in drawn
 
@@ -858,10 +925,10 @@ class TestInvitingSomebody:
         assert not CampaignParticipant.objects.exists()
 
     def test_somebody_elses_campaign_takes_no_participants(
-        self, client, player, open_to_everyone
+        self, client, player, campaign_type, open_to_everyone
     ):
-        theirs = Campaign.objects.create(
-            name="Not Yours", owner=User.objects.create_user("someone-else")
+        theirs = found_campaign(
+            "Not Yours", campaign_type, owner=User.objects.create_user("someone-else")
         )
         assert client.get(self.add_page(theirs)).status_code == 404
         assert (
@@ -875,12 +942,12 @@ class TestInvitingSomebody:
 
 class TestAnsweringAnInvitation:
     @pytest.fixture
-    def theirs(self, arbitrator):
+    def theirs(self, arbitrator, campaign_type):
         """A campaign somebody else runs, so the reader is the one asked."""
         from n26.core.campaigns import campaign_operation
 
         owner = User.objects.create_user("kesh")
-        campaign = Campaign.objects.create(name="Sump Wars", owner=owner)
+        campaign = found_campaign("Sump Wars", campaign_type, owner=owner)
         with campaign_operation(campaign, actor=owner) as act:
             act.invite(arbitrator, message="You in?")
         return campaign
@@ -935,9 +1002,11 @@ class TestAnsweringAnInvitation:
         )
         assert response["Location"] == "/n26/campaigns/"
 
-    def test_somebody_never_asked_gets_404(self, client, arbitrator, open_to_everyone):
-        uninvited = Campaign.objects.create(
-            name="Elsewhere", owner=User.objects.create_user("stranger")
+    def test_somebody_never_asked_gets_404(
+        self, client, arbitrator, campaign_type, open_to_everyone
+    ):
+        uninvited = found_campaign(
+            "Elsewhere", campaign_type, owner=User.objects.create_user("stranger")
         )
         assert (
             client.post(
@@ -953,11 +1022,11 @@ class TestWhatAParticipantSees:
     who said yes has nothing left pointing at the campaign."""
 
     @pytest.fixture
-    def theirs(self, arbitrator):
+    def theirs(self, arbitrator, campaign_type):
         from n26.core.campaigns import campaign_operation
 
         owner = User.objects.create_user("kesh")
-        campaign = Campaign.objects.create(name="Sump Wars", owner=owner)
+        campaign = found_campaign("Sump Wars", campaign_type, owner=owner)
         with campaign_operation(campaign, actor=owner) as act:
             act.invite(arbitrator)
         return campaign
@@ -1040,13 +1109,13 @@ class TestAPlayerBringingTheirOwnGang:
     the arbitrator: their own gangs, and the budget as the way in."""
 
     @pytest.fixture
-    def theirs(self, arbitrator):
+    def theirs(self, arbitrator, campaign_type):
         """A campaign somebody else runs, which the reader has joined."""
         from n26.core.campaigns import campaign_operation
 
         owner = User.objects.create_user("kesh")
-        campaign = Campaign.objects.create(
-            name="Sump Wars", owner=owner, budget=100_000
+        campaign = found_campaign(
+            "Sump Wars", campaign_type, owner=owner, budget=100_000
         )
         with campaign_operation(campaign, actor=owner) as act:
             act.invite(arbitrator)
@@ -1114,12 +1183,18 @@ class TestAPlayerBringingTheirOwnGang:
         assert "/n26/gangs/new/" in drawn
 
     def test_a_gang_over_the_budget_joins_and_is_said_to_be_over(
-        self, client, arbitrator, gang_type, make_profile, open_to_everyone
+        self,
+        client,
+        arbitrator,
+        gang_type,
+        make_profile,
+        campaign_type,
+        open_to_everyone,
     ):
         from n26.core.campaigns import campaign_operation
 
         owner = User.objects.create_user("kesh")
-        tight = Campaign.objects.create(name="Shoestring", owner=owner, budget=0)
+        tight = found_campaign("Shoestring", campaign_type, owner=owner, budget=0)
         with campaign_operation(tight, actor=owner) as act:
             act.invite(arbitrator)
         with campaign_operation(tight, actor=arbitrator) as act:
@@ -1150,22 +1225,22 @@ class TestAPlayerBringingTheirOwnGang:
         assert "budget is 0¢" in over, over
 
     def test_somebody_with_no_place_at_the_table_gets_404(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
-        elsewhere = Campaign.objects.create(
-            name="Elsewhere", owner=User.objects.create_user("stranger")
+        elsewhere = found_campaign(
+            "Elsewhere", campaign_type, owner=User.objects.create_user("stranger")
         )
         assert (
             client.get(f"/n26/campaigns/{elsewhere.pk}/gangs/add/").status_code == 404
         )
 
     def test_an_invitation_still_waiting_is_not_a_place(
-        self, client, arbitrator, open_to_everyone
+        self, client, arbitrator, campaign_type, open_to_everyone
     ):
         from n26.core.campaigns import campaign_operation
 
         owner = User.objects.create_user("kesh")
-        campaign = Campaign.objects.create(name="Sump Wars", owner=owner)
+        campaign = found_campaign("Sump Wars", campaign_type, owner=owner)
         with campaign_operation(campaign, actor=owner) as act:
             act.invite(arbitrator)
         assert client.get(f"/n26/campaigns/{campaign.pk}/gangs/add/").status_code == 404
@@ -1205,31 +1280,22 @@ class TestAPlayerBringingTheirOwnGang:
         ):
             assert client.get(address).status_code == 404, address
 
-    def test_they_can_take_their_own_gang_back_out(
+    def test_they_cannot_take_their_own_gang_back_out_yet(
         self, client, theirs, mine, open_to_everyone
     ):
-        """A player who can put a gang in has to be able to take it out: a
-        gang plays one campaign at a time, so one left in the wrong place
-        can join nothing else."""
+        """Joining gave the gang the campaign's types and what they bring,
+        and leaving is not offered until it can return all of it: no
+        control is drawn, and the address refuses in words."""
         self.accept_and_bring(client, theirs, mine)
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         remove = f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/"
-        assert remove in drawn
+        assert remove not in drawn
 
-        assert client.get(remove).status_code == 200
-        client.post(remove)
-        assert not CampaignMembership.objects.filter(
+        response = client.post(remove, follow=True)
+        assert "cannot leave" in response.content.decode()
+        assert CampaignMembership.objects.filter(
             campaign=theirs, gang=mine, left__isnull=True
         ).exists()
-
-    def test_it_can_then_join_somewhere_else(
-        self, client, theirs, mine, open_to_everyone
-    ):
-        """Which is the whole point of being able to take it out."""
-        self.accept_and_bring(client, theirs, mine)
-        client.post(f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/")
-        response = client.get(f"/n26/campaigns/{theirs.pk}/gangs/add/")
-        assert [row["playing"] for row in response.context["gangs"]] == [False]
 
     def test_they_cannot_take_out_somebody_elses(
         self, client, theirs, mine, gang_type, arbitrator, open_to_everyone

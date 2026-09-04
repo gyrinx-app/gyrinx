@@ -37,6 +37,7 @@ from n26.core.images import MAX_PX, PORTRAIT
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
     AssignableLine,
+    CampaignBlock,
     ChoiceLine,
     ChoiceOffer,
     Choosable,
@@ -1925,11 +1926,33 @@ def gang_sheet():
 
     The awkward cases on purpose: a choice holding three things — the "list inside
     one control" the detail list exists for — an unresolved choice, a choice with
-    nowhere to send anyone, counters, and a stash holding something granted rather
-    than bought.
+    nowhere to send anyone, counters, a stash holding something granted rather
+    than bought, and what a campaign gave the gang, credited to the campaign type
+    that brought it.
     """
     return GangSheet(
         name="The Ashen Choir",
+        campaign=CampaignBlock(
+            name="Dust Falls",
+            campaign_id="dust-falls",
+            lines=[
+                AssignableLine(
+                    name="Settlement",
+                    provenance=Provenance(
+                        source="N26 core", source_kind="campaign type"
+                    ),
+                )
+            ],
+            counters=[
+                CounterLine(
+                    name="Reputation",
+                    value=3,
+                    provenance=Provenance(
+                        source="N26 core", source_kind="campaign type"
+                    ),
+                )
+            ],
+        ),
         gang_type="Escher (HoB)",
         rating=360,
         credits=1037,

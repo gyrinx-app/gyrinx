@@ -195,6 +195,27 @@ def found_gang(name, gang_type, owner=None, budget=None, actor=None, **kwargs):
     return gang
 
 
+def found_campaign(name, campaign_type, owner=None, actor=None, **kwargs):
+    """Found a campaign on a type: the row, its own pack and additions,
+    and the first line of its log — what the set-up screen does."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import Campaign
+
+    campaign = Campaign(name=name, owner=owner, **kwargs)
+    with campaign_operation(campaign, actor=actor or owner) as act:
+        act.found(campaign_type)
+    return campaign
+
+
+def join_campaign(gang, campaign, actor=None):
+    """Put a gang into a campaign, as the campaign's add-a-gang screen does:
+    both of the campaign's types land on the gang with their built-ins."""
+    from n26.core.operations import operation
+
+    with operation(gang, actor=actor or campaign.owner) as op:
+        return op.join_campaign(campaign)
+
+
 def hire(gang, profile, model_name, paid=0, actor=None, **kwargs):
     from n26.core.operations import operation
 

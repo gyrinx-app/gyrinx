@@ -117,29 +117,29 @@ def campaign_rows(listed, user):
 @requires_flag(CAMPAIGNS)
 @login_required
 def create_campaign(request):
-    """Set a campaign up. POST creates it and lands on its own page."""
-    from django.db import transaction
+    """Set a campaign up on a type. POST founds it and lands on its page.
 
+    Founding writes the campaign, its own pack and additions type, and the
+    line that opens its log in one operation: a log whose first entry is
+    missing cannot be filled in afterwards, because nothing here is ever
+    rewritten.
+    """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
-    from n26.core.forms import CampaignForm
+    from n26.core.forms import FoundCampaignForm
     from n26.core.models import Campaign
 
     if request.method == "POST":
-        form = CampaignForm(request.POST)
+        form = FoundCampaignForm(request.POST)
         if form.is_valid():
-            # The campaign and the line that opens its log are written
-            # together: a log whose first entry is missing cannot be filled
-            # in afterwards, because nothing here is ever rewritten.
-            with transaction.atomic():
-                campaign = Campaign.objects.create(
-                    name=form.cleaned_data["name"],
-                    budget=form.cleaned_data["budget"],
-                    summary=form.cleaned_data["summary"],
-                    owner=request.user,
-                )
-                with campaign_operation(campaign, actor=request.user) as act:
-                    act.created()
+            campaign = Campaign(
+                name=form.cleaned_data["name"],
+                budget=form.cleaned_data["budget"],
+                summary=form.cleaned_data["summary"],
+                owner=request.user,
+            )
+            with campaign_operation(campaign, actor=request.user) as act:
+                act.found(form.cleaned_data["campaign_type"])
             record(
                 request,
                 N26Noun.CAMPAIGN,
@@ -150,9 +150,13 @@ def create_campaign(request):
             messages.success(request, f"Set up {campaign.name}.")
             return redirect("n26-campaign", pk=campaign.pk)
     else:
-        form = CampaignForm()
+        form = FoundCampaignForm()
 
-    return render(request, "n26/create_campaign.html", {"form": form})
+    return render(
+        request,
+        "n26/create_campaign.html",
+        {"form": form, "campaign_types": form.campaign_type_choices()},
+    )
 
 
 @requires_flag(CAMPAIGNS)
@@ -199,8 +203,6 @@ def campaign(request, pk):
     for membership in playing:
         membership.wealth = membership.gang.wealth
         membership.over_budget = over_budget(found, membership.gang)
-        # The arbitrator may take any gang out; a player only their own.
-        membership.may_remove = yours or membership.gang.owner_id == reading
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the participants, and
     # whether this reader is one of them decides what it offers them.
@@ -224,8 +226,28 @@ def campaign(request, pk):
             "battles": battles,
             "acts": list(reversed(recent)),
             "more_acts": max(campaign_history_size(found) - len(recent), 0),
+            # What the arbitrator has added on top of the shared type, by
+            # name. Empty for a campaign nothing has been added to, which is
+            # every campaign at founding.
+            "additions": _additions_of(found),
         },
     )
+
+
+def _additions_of(campaign):
+    """The names of what this campaign's additions type gives every member
+    gang — its built-in members, in their order."""
+    from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
+
+    built_ins = campaign.additions.built_ins
+    if built_ins is None:
+        return []
+    members = (
+        built_ins.members.filter(archived=False)
+        .select_related(*DEFAULT_ASSIGNABLE_FIELDS)
+        .order_by("position")
+    )
+    return [str(member.assignable) for member in members]
 
 
 @requires_flag(CAMPAIGNS)
@@ -440,45 +462,44 @@ def add_gang(request, pk):
 @requires_flag(CAMPAIGNS)
 @login_required
 def remove_gang(request, pk, gang_pk):
-    """The question at its own address, then the act.
+    """Taking a gang out of a campaign, which is not offered.
 
-    GET asks and changes nothing; the POST from that page takes the gang out.
-    What the gang did while it was in the campaign stays in both histories —
-    leaving closes its membership rather than unwriting anything.
+    A gang that joins is given the campaign's types and everything they
+    bring, so leaving has to return all of it — the carriers, the
+    Settlement, the counters, every token the gang holds — and until it
+    does, a gang that left would keep what the campaign gave it. Nothing
+    on the campaign's page leads here, and a reader who reaches the address
+    anyway is told the same thing in words and sent back.
 
-    The arbitrator may take any gang out, and a player may take out their
-    own. A player who can put a gang in has to be able to take it back:
-    a gang plays one campaign at a time, so one left in the wrong campaign
-    is a gang that can join no other until somebody else acts.
+    The 404 rules are the ones the act will have: the gang must be playing
+    this campaign, and the reader must arbitrate it or own the gang. A gang
+    key that is not a key at all is a bad link, not a server error.
     """
+    from django.core.exceptions import ValidationError
     from django.http import Http404
 
     from n26.core.models import CampaignMembership
-    from n26.core.operations import operation
 
     found = _any_campaign_or_404(pk)
-    membership = get_object_or_404(
-        CampaignMembership.objects.select_related("gang"),
-        campaign=found,
-        gang__pk=gang_pk,
-        left__isnull=True,
-    )
+    try:
+        membership = get_object_or_404(
+            CampaignMembership.objects.select_related("gang"),
+            campaign=found,
+            gang__pk=gang_pk,
+            left__isnull=True,
+        )
+    except ValidationError:
+        raise Http404("No such gang in this campaign") from None
     reading = getattr(request.user, "id", None)
     if found.owner_id != reading and membership.gang.owner_id != reading:
         raise Http404("No such gang in this campaign")
 
-    if request.method == "POST":
-        name = membership.gang.name
-        with operation(membership.gang, actor=request.user) as op:
-            op.leave_campaign()
-        messages.success(request, f"{name} left {found.name}.")
-        return redirect("n26-campaign", pk=found.pk)
-
-    return render(
+    messages.error(
         request,
-        "n26/remove_gang_from_campaign.html",
-        {"campaign": found, "gang": membership.gang},
+        f"{membership.gang.name} cannot leave {found.name}. Taking a gang "
+        "out of a campaign is not available yet.",
     )
+    return redirect("n26-campaign", pk=found.pk)
 
 
 def _playing(campaign):

@@ -10,7 +10,8 @@ from django.contrib.auth.models import User
 from gyrinx.site.models import Notification
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history
-from n26.core.models import Campaign, CampaignParticipant
+from n26.core.models import CampaignParticipant
+from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = pytest.mark.django_db
 
@@ -26,8 +27,12 @@ def player():
 
 
 @pytest.fixture
-def campaign(arbitrator):
-    return Campaign.objects.create(name="Ashfall", owner=arbitrator, budget=1000)
+def campaign(arbitrator, campaign_type):
+    return found_campaign("Ashfall", campaign_type, owner=arbitrator, budget=1000)
+
+
+#: The log's first line, which founding writes before any test here acts.
+FOUNDED = "set the campaign up on N26 core"
 
 
 def told(campaign):
@@ -62,7 +67,7 @@ class TestAsking:
                 act.invite(player)
 
         assert CampaignParticipant.objects.count() == 1
-        assert told(campaign) == ["invited vex_ordo"]
+        assert told(campaign) == [FOUNDED, "invited vex_ordo"]
 
     def test_they_are_told(
         self, campaign, arbitrator, player, django_capture_on_commit_callbacks
@@ -163,6 +168,7 @@ class TestRemoving:
 
         assert not CampaignParticipant.objects.exists()
         assert told(campaign) == [
+            FOUNDED,
             "invited vex_ordo",
             "removed vex_ordo from the campaign",
         ]
