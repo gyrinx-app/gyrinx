@@ -76,9 +76,11 @@ jobs:
 
       - name: Run tests in parallel
         timeout-minutes: 60
+        # pyproject's `-n auto` counts physical cores, which on the 4-vCPU
+        # runner is 2. `-n logical` uses all 4; the later flag wins.
         run: |
           source .venv/bin/activate
-          pytest --durations=20 -v
+          pytest --durations=20 -v -n logical
 
       - name: Run Bandit security scan
         run: |
