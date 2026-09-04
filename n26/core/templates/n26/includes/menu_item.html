@@ -1,6 +1,7 @@
 {% comment %}
 One item of an owned thing's more-menu. Expects `action` — an
-n26.core.listing.Action — and optionally `variant`.
+n26.core.listing.Action — and `variant`, the kit item's own (empty for the
+default).
 
 Every one of these opens a confirmation the server renders. On a screen that
 has opted into partial updates (`htmx` in context — see
@@ -10,13 +11,17 @@ is a plain link and the server serves the page with the panel open.
 
 Drawn twice rather than once with the attribute switched: a template tag
 inside a component's attribute list is not parsed and lands in the page as
-text. The label stays inside the tag on one line: a line break there is
-whitespace inside the item's own span.
+text. The formatter is off for the two tags because the label must stay on
+the closing line: a line break there is whitespace inside the item's span.
 {% endcomment %}
 {# djlint:off #}
 {% if htmx %}
-    <c-ui.dropdown.item href="{{ action.target }}" variant="{{ variant|default:'' }}" hx-get="{{ action.target }}" hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+    <c-ui.dropdown.item href="{{ action.target }}"
+                        variant="{{ variant }}"
+                        hx-get="{{ action.target }}"
+                        hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
 {% else %}
-    <c-ui.dropdown.item href="{{ action.target }}" variant="{{ variant|default:'' }}">{{ action.label }}</c-ui.dropdown.item>
+    <c-ui.dropdown.item href="{{ action.target }}"
+                        variant="{{ variant }}">{{ action.label }}</c-ui.dropdown.item>
 {% endif %}
 {# djlint:on #}

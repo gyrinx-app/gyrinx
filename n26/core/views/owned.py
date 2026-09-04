@@ -274,7 +274,10 @@ def panel_response(request, dialog, *, htmx=True):
     where the back button would.
 
     ``htmx`` is whether the panel's own submit may post partially: only
-    a screen holding every element such an update names may say so.
+    a screen holding every element such an update names may say so. The
+    equip screens do; the model's own page holds no row an update could
+    name, so there the act is an ordinary post and the page is drawn
+    again.
     """
     if request.method != "GET" or not is_htmx(request):
         return None

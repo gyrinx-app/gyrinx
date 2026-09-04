@@ -1,7 +1,8 @@
 {% comment %}
 A weapon's name on the card, with the menu of what can happen to it —
 Add accessory, Sell and the rest. Expects `weapon` — an
-n26.render.WeaponLine.
+n26.render.WeaponLine — and reads `htmx` from the card's context, as the
+other kit menus on the card do.
 
 A name with nothing to click is the bare name, so a gang sheet and a
 print card keep the cell's own text baseline.
@@ -12,6 +13,7 @@ print card keep the cell's own text baseline.
         <c-n26.owned-actions :sell="weapon.sell"
                              :more="weapon.more"
                              :add="weapon.accessorise"
+                             :htmx="htmx"
                              layout="menu"
                              label="{{ weapon.name }}" />
     </span>

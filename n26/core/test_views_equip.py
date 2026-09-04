@@ -2125,6 +2125,16 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
 
         assert "clicked = true" in body
 
+    def test_the_panel_posts_partially_on_this_screen(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """The equip screen holds every element an update names, so the
+        panel's own submit goes the same way the click that opened it did."""
+        client.force_login(tester)
+        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert "hx-post" in body
+
     def test_asking_with_nothing_named_closes_whatever_was_open(
         self, client, tester, fighter, gun_list, owned_gun
     ):

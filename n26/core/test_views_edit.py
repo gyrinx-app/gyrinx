@@ -550,6 +550,25 @@ class TestKitActionsOnTheCard:
         assert f'hx-get="{edit_url(vex)}?sell={sword.pk}"' in body
         assert 'id="n26-dialog-host"' in body
 
+    def test_the_weapon_menu_fetches_its_panel_too(self, client, tester, vex, gun):
+        """A gun's name draws its own menu, through a different route
+        from the rest of the kit; it carries the same acts the same way."""
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+
+        assert f'hx-get="{edit_url(vex)}?accessorise={gun.pk}"' in body
+        assert f'hx-get="{edit_url(vex)}?sell={gun.pk}"' in body
+
+    def test_the_page_asked_for_whole_is_drawn_whole(self, client, tester, vex, sword):
+        """Only a click that named a panel gets the panel."""
+        client.force_login(tester)
+        body = client.get(
+            edit_url(vex), headers={"HX-Request": "true"}
+        ).content.decode()
+
+        assert "<html" in body
+        assert "Characteristics" in body
+
     def test_a_click_with_script_is_answered_with_the_panel_alone(
         self, client, tester, vex, sword
     ):
@@ -568,8 +587,7 @@ class TestKitActionsOnTheCard:
         assert "<dialog" in body
         assert reverse("n26-sell", args=[sword.pk]) in body
         assert "Characteristics" not in body
-        # This page holds no row an update could name, so the act itself
-        # is an ordinary post and the page is drawn again.
+        # The panel's own submit is not partial here (see panel_response).
         assert "hx-post" not in body
 
     def test_the_accessory_question_is_answered_the_same_way(

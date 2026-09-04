@@ -573,6 +573,40 @@ def edit_fighter(request, pk):
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
     computed = compute(own, index)
+
+    # The same acts the equip listing offers, pointed at this page so
+    # the confirmations open over it. A gang sheet and a print sheet
+    # never call this, and their cards stay names with nothing to click.
+    at = reverse("n26-edit-fighter", args=[miniature.pk])
+    host = EquipHost.fighter(gang, own, miniature, at)
+
+    renaming = _fighter_named(request, gang, "rename")
+    # One question at a time: a URL naming a rename and a sale draws
+    # the rename, because two open modals is not a state the page can
+    # mean. Accessorise is drawn per-weapon on the equip page; here
+    # there is one panel, the one the address names.
+    dialog = None
+    if not renaming and any(request.GET.get(kind) for kind in DIALOGS):
+        dialog = owned_dialog(request, host)
+        if dialog is None:
+            dialog = next(
+                (
+                    panel
+                    for panel in accessorise_dialogs(request, host)
+                    if panel["open"]
+                ),
+                None,
+            )
+        # A click on a kit menu with script running is answered with
+        # the panel alone: the question is about one thing the model
+        # holds, and the reading in hand already says everything the
+        # panel needs. Only a click that named a panel — a page asked
+        # for as a whole is drawn whole however it was asked for. This
+        # page holds no row an update could name, so the panel's own
+        # submit is not partial (see panel_response).
+        if (panel := panel_response(request, dialog, htmx=False)) is not None:
+            return panel
+
     # Asked once and used twice: the listing reads these collections, and
     # so does the card's Skills control.
     sets = model_collections()
@@ -613,40 +647,6 @@ def edit_fighter(request, pk):
         )
         answer["HX-Replace-Url"] = request.get_full_path()
         return answer
-
-    # The same acts the equip listing offers, pointed at this page so
-    # the confirmations open over it. A gang sheet and a print sheet
-    # never call this, and their cards stay names with nothing to click.
-    at = reverse("n26-edit-fighter", args=[miniature.pk])
-    host = EquipHost.fighter(gang, own, miniature, at)
-
-    renaming = _fighter_named(request, gang, "rename")
-    # One question at a time: a URL naming a rename and a sale draws
-    # the rename, because two open modals is not a state the page can
-    # mean. Accessorise is drawn per-weapon on the equip page; here
-    # there is one panel, the one the address names.
-    dialog = None
-    if not renaming and any(request.GET.get(kind) for kind in DIALOGS):
-        dialog = owned_dialog(request, host)
-        if dialog is None:
-            dialog = next(
-                (
-                    panel
-                    for panel in accessorise_dialogs(request, host)
-                    if panel["open"]
-                ),
-                None,
-            )
-        # A click on a kit menu with script running is answered with
-        # the panel alone, before the card and the rest of the page are
-        # drawn: the question is about one thing the model holds, and
-        # the reading in hand already says everything the panel needs.
-        # Only a click that named a panel — a page asked for as a whole
-        # is drawn whole however it was asked for. The panel's own
-        # submit stays an ordinary post, since this page holds no row
-        # an update could name, so the act draws the page again.
-        if (panel := panel_response(request, dialog, htmx=False)) is not None:
-            return panel
 
     # Drawn from the reading already in hand. A card is a fact about one
     # model — what it holds, what modifiers make of that — so the gang is

@@ -29,7 +29,7 @@ it lands in. A line with nothing to click draws nothing.
   label — the thing's name, for the chevron's accessible name.
   :htmx — as n26/includes/row_action.html: the click fetches the panel
     alone. Off by default; only a screen holding the update's hosts may
-    set it. Only buttons reads it.
+    set it. Both layouts read it.
 {% endcomment %}
 {% load listing %}
 <c-vars :sell="None" :more="None" :add="None" layout="buttons" label="" :htmx="False" class="" />
@@ -60,15 +60,15 @@ it lands in. A line with nothing to click draws nothing.
                     </c-ui.button>
                 </c-slot>
                 {% if add %}
-                    {% include "n26/includes/menu_item.html" with action=add %}
+                    {% include "n26/includes/menu_item.html" with action=add variant="" %}
                     {% if sell or more %}<c-ui.dropdown.separator />{% endif %}
                 {% endif %}
                 {% if sell %}
-                    {% include "n26/includes/menu_item.html" with action=sell %}
+                    {% include "n26/includes/menu_item.html" with action=sell variant="" %}
                 {% endif %}
                 {% for action in more %}
                     {% if action.tone|tone_variant != "danger" %}
-                        {% include "n26/includes/menu_item.html" with action=action %}
+                        {% include "n26/includes/menu_item.html" with action=action variant="" %}
                     {% endif %}
                 {% endfor %}
                 {% for action in more %}
@@ -106,12 +106,11 @@ it lands in. A line with nothing to click draws nothing.
                 Each of these opens a confirmation the server renders; on
                 a screen opted into partial updates (:htmx) the click
                 fetches the panel alone. Still a link underneath — see
-                n26/includes/row_action.html, including for why the
-                element is drawn twice rather than switching attributes.
+                n26/includes/menu_item.html.
                 {% endcomment %}
                 {% for action in more %}
                     {% if action.tone|tone_variant != "danger" %}
-                        {% include "n26/includes/menu_item.html" with action=action %}
+                        {% include "n26/includes/menu_item.html" with action=action variant="" %}
                     {% endif %}
                 {% endfor %}
                 {% for action in more %}
