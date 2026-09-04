@@ -104,11 +104,7 @@ def _asked_of_this_model(pick):
     nobody in particular.
     """
     asked = pick.chosen_for
-    if asked is None:
-        return False
-    if asked.miniature_root_id is not None:
-        return asked.miniature_root_id == pick.miniature_id
-    return False
+    return asked is not None and asked.miniature_root_id == pick.miniature_id
 
 
 def find(gang_id=None):
@@ -137,6 +133,12 @@ def find(gang_id=None):
                 f"pick {pick.pk} sits on a model that is not a member of the "
                 f"gang it is rooted in ({pick.gang_root_id}) — not the stray "
                 "pick this moves"
+            )
+            continue
+        if pick.chosen_for_id is None:
+            problems.append(
+                f"pick {pick.pk} names no choice it settles, so whose choice "
+                "it was cannot be read — not the stray pick this moves"
             )
             continue
         if not _asked_of_this_model(pick):

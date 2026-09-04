@@ -265,6 +265,16 @@ class TestFindingWhatSitsOnAModel:
         theirs.refresh_from_db()
         assert theirs.miniature == scum
 
+    def test_a_pick_that_names_no_choice_refuses_and_says_so(self, gang, astray):
+        Assignment.objects.filter(pk=astray.pk).update(chosen_for=None)
+
+        plan = find()
+
+        assert not plan.ok
+        assert any("names no choice it settles" in p for p in plan.problems)
+        with pytest.raises(Refused):
+            apply(plan)
+
 
 class TestMovingThePick:
     def test_the_pick_lands_on_the_gang_and_keeps_its_links(
