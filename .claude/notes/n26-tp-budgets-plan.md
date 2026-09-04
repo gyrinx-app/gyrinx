@@ -211,10 +211,12 @@ Each slice is one PR. Sizes are guesses.
    analytics. New gangs only; existing gangs wait for slice 7. No budgets
    yet. Tests: open on found, refuse a second open, close, reopen, history
    reads right, query counts on the gang page hold.
-2. **Visit onto Action** (medium). Section 5 without the column drop. Tests:
-   the four claims in `trading.py` still hold, `receipt_for` reads the
-   action, the migration turns an open visit into an open action and stamps
-   its purchases.
+2. **Visit onto Action** (medium). Section 5 without the column drop, plus
+   `LedgerEntry.action` and spend by action from section 2, since the
+   migration stamps purchases with it. Tests: the four claims in
+   `trading.py` still hold, `receipt_for` reads the action, spend by action
+   agrees with the timestamp window for a stamped visit, the migration
+   turns an open visit into an open action and stamps its purchases.
 3. **Computed counter contributions** (medium). `ContributesToCounter`,
    reading arithmetic, `Counter.drawn`, authoring support in `specs.py` and
    `authoring.py`. Tests: contribution with no stored value, contribution
@@ -225,8 +227,8 @@ Each slice is one PR. Sizes are guesses.
    `visitors` reads the counter, `TRADE_POINTS_FOR_RANK` deleted. Tests:
    promoted fighter counts, removed rank does not, both ranks use the
    higher.
-5. **Founding budgets** (large). `LedgerEntry.action`, spend by action,
-   `FOUNDING` terms, the equip screen tally and confirmation, the
+5. **Founding budgets** (large). Purchases record the founding action,
+   per-fighter spend by action, `FOUNDING` terms, the equip screen tally and confirmation, the
    per-fighter arithmetic. Tests: list line counts TP for a budgeted
    fighter and not for another, refund returns to the founding action,
    refund after close is not counted, reopen starts from zero, sale
@@ -258,6 +260,54 @@ Each slice is one PR. Sizes are guesses.
 Slices 3 and 4 can run in parallel with 1 and 2. Slice 5 needs 1 and 3.
 Slice 7 can be built any time after 1 but is run only when Tom says so.
 Slice 9 comes last.
+
+## Parallel work and sub-agents
+
+Every sub-agent is an Opus agent (`model: "opus"` on the Agent call), one
+slice per agent, each in its own worktree with its own `DB_NAME`. Launch
+implementation agents from the root checkout with `isolation: "worktree"`.
+Launched from inside a worktree, background agents share that worktree's
+index and collide (see the orchestration memory). The orchestrating session
+keeps the branch and PR bookkeeping, merges in order and rebases what is
+left.
+
+Dependencies:
+
+- 1 and 3 have no dependencies.
+- 2 needs 1. 4 needs 3. 7 needs 1. 9 needs 1 and reads better after 2.
+- 5 needs 2 and 3.
+- 6 needs 3 and 4 for the subtype modifiers, and 5 before the founding
+  figures mean anything on screen. Authoring can start on the content
+  mirror after 3.
+- 8 needs 2 deployed.
+
+Waves:
+
+| Wave | In parallel | Agents |
+|---|---|---|
+| A | 1 Action model and founding action; 3 computed counter contributions | 2 implementation agents |
+| B | 2 visit onto Action; 4 visit contribution as content; 7 backfill | 3 implementation agents |
+| C | 5 founding budgets; 9 gang header; 6 content on the mirror | 2 implementation agents, 1 content agent |
+| D | 8 column drop, after 2 is deployed | 1 implementation agent |
+
+Per PR, after the implementation agent finishes: one Opus `code-reviewer`
+agent, one Opus `copywriter` agent where user-facing strings changed, then
+the orchestrator's browser pass and gallery page check. Slice 7 also gets an
+Opus verification agent that forks the content mirror, runs the backfill at
+production volume and compares open actions before and after from outside
+the task.
+
+Files two waves touch at once, so expect rebases:
+
+- `n26/core/models/ledger.py` `LedgerEvent.Kind` and `LedgerEntry`: slices
+  1, 2.
+- `n26/core/operations.py`: slices 1, 2, 5.
+- `n26/core/effects.py`: slices 3, 5.
+- `n26/core/trading.py`: slices 2, 4.
+- `n26/core/migrations/`: slices 1, 2, 3, 5, 8 each add one. Two agents in
+  one wave both adding a migration means the second rebases and renumbers.
+  CI stays green on a PR that is behind main, so the orchestrator checks
+  for a migration conflict before every merge.
 
 ## Verification before shipping slice 5
 
