@@ -1,7 +1,7 @@
 # Recipes
 
 How to build specific rulebook setups out of the library's pieces. Each
-recipe is a set of steps to follow in the authoring pages: the things to
+recipe is a set of steps to follow in the authoring pages — the things to
 create, and how to join them. A recipe is added here once the way to
 author its setup is settled, so this page grows with the library.
 
@@ -19,11 +19,11 @@ chosen pickable.
 Use a **slot type** for this gang-level choice. Follow the same six steps
 as a Gang Legacy, and assign the slot to the gang.
 
-1. Create a **slot type** named "Variant": the slot type is the thing
-   being chosen. Give it a plural. Turn *allows repeats* off. Everything
-   below is built on its page.
-2. Add a **pickable** for each corruption: "Genestealer Cult Corrupted",
-   "Chaos Corrupted", "Malstrain Corrupted".
+1. Create a **slot type** named "Variant" — what is being chosen — and
+   give it a plural. Turn *allows repeats* off. Everything below is
+   built on its page.
+2. Add a **pickable** for each corruption — "Genestealer Cult
+   Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
 3. Add a **picklist** named "Variants" containing those three.
 4. Add a **slot** labelled "Variant", taking 0–1 (most gangs leave it
    empty), assigned to the gang.
@@ -44,7 +44,7 @@ Each effect is a modifier carried by the corruption's pickable: *gives*,
 items. Pickables are chosen rather than bought or hired, so built-in
 items would never be assigned.
 
-**New fighters to hire.** Create the profiles: Aberrant, Abominant,
+**New fighters to hire.** Create the profiles — Aberrant, Abominant,
 Helot Cult Witch, Chaos Spawn, Brood Scum. Create a collection listing
 them at their prices. On the pickable: targets the gang, *gives* the
 collection.
@@ -95,8 +95,8 @@ the sheet shows where they have gone past the book.
 
 **Losing the gang's own special rules.** This needs a small change to
 each gang type, made once, and then one step per corruption. On each
-gang type, create a **hidden** item named for it, such as "Escher gang
-rules", and put it in the gang type's built-in items. Move the house's
+gang type, create a **hidden** item named for it — "Escher gang
+rules" — and put it in the gang type's built-in items. Move the house's
 special rules onto it: one *gives* modifier per rule, targeting the
 gang. What the gang holds reaches its fighters, so a rule that improves
 their weapons or changes a characteristic works from there. Only a rule
@@ -120,17 +120,16 @@ A gang legacy is a choice a fighter makes once. Each pickable opens an
 equipment list to the fighter who picks it. The same six steps build any
 slot type. This one is written out because it uses all of them.
 
-1. Create a **slot type** named "Gang Legacy": the slot type is the
-   thing being chosen. Give it a plural, so a page can name several of
-   them. Set *allows repeats* to [whether one gang may hold the same
+1. Create a **slot type** named "Gang Legacy" — what is being chosen —
+   and give it a plural, so a page can name several of them. Set *allows repeats* to [whether one gang may hold the same
    legacy twice]. Everything below is built on its page.
 2. Add a **pickable** for each legacy: [the legacies the rules give].
 3. On each pickable's page, attach a **modifier**: targets the model,
    *gives* that legacy's equipment list. The list is an ordinary
    collection at its own prices, so a fighter who picks a legacy buys
-   from that list at that list's prices. [Anything else a legacy grants,
-   such as something scoped to a rank or something reaching the gang,
-   is a further modifier on the same pickable.]
+   from that list at that list's prices. [Anything else a legacy grants
+   — something scoped to a rank, something reaching the gang — is a
+   further modifier on the same pickable.]
 4. Add a **picklist** containing the pickables a fighter may pick from.
    Add more than one where [different fighters are offered different
    legacies]. A slot type may have as many picklists as it needs, and a
@@ -156,7 +155,7 @@ in and name a **starting pick** beside it. The player can change it
 afterwards the way they would change any pick.
 
 Two things this build cannot do yet. A gang cannot be given something
-because one of its fighters holds a legacy: a condition checks what a
+because one of its fighters holds a legacy — a condition checks what a
 model has, never what any model in the gang has. And a picklist cannot
 be limited to a particular moment. It is open whenever the fighter's
 equip page is.
@@ -168,7 +167,7 @@ without one: the Goliath equipment list has "Heavy rock saw (Forge-born
 only)", while the Genestealer Cult and Corpse Grinder lists offer the
 same saw to anyone. The restriction belongs to that one list's entry.
 
-1. List the item on the collection as usual: one entry, at the price
+1. List the item on the collection as usual — one entry, at the price
    the list charges.
 2. On that entry, set what the book names in the bracket: *offered to
    fighter entries* for "(Forge-born only)", or *offered to subtypes*
@@ -183,7 +182,7 @@ A restriction can go in three places:
 
 - **On the entry**, as above, when one list restricts one of its items.
 - **On the item**, when the restriction is true wherever the item is
-  listed: a saddle that only a mounted model can use, however many
+  listed — a saddle that only a mounted model can use, however many
   lists offer it. Set *usable by* on the item's own page, and every
   list that offers the item applies it.
 - **A whole list of its own**, when the book gives a rank its own list
@@ -198,15 +197,15 @@ seven characteristics, and a result of 1, 2–5 or 6 decides the number.
 The player rolls at the table and records the result as hire options.
 
 1. Give the profile the middle band (2–5) as its printed statline,
-   leaving the columns the book does not roll blank. The card shows a
+   leaving the columns the book does not roll blank — the card shows a
    dash for those.
-2. For each rolled characteristic, add an **option group** named for it,
-   such as "Warped Monstrosity: Strength", with three options: *rolled
-   2–5*, which changes nothing (the printed number stands), *rolled 1*,
-   and *rolled 6*.
-3. For the 1 and 6 options, create a **hidden** item, such as "Strength
-   rolled 6", carrying a modifier that targets the model and *changes a
-   stat*, set to that band's number. Put it in that option's set.
+2. For each rolled characteristic, add an **option group** named for it —
+   "Warped Monstrosity: Strength" — with three options: *rolled 2–5*,
+   which changes nothing (the printed number stands), *rolled 1*, and
+   *rolled 6*.
+3. For the 1 and 6 options, create a **hidden** item — "Strength rolled
+   6" — carrying a modifier that targets the model and *changes a stat*,
+   set to that band's number. Put it in that option's set.
 
 At hire the player picks what they rolled, group by group. Each changed
 cell on the card names what changed it. Nothing is enforced: a group
@@ -219,11 +218,11 @@ Wyrd are one build: a model has one power of the player's choice from a
 named family, and may select more powers from that family as if they
 were Primary skills.
 
-1. Create a **category** for the family, such as "Psychoteric Whispers",
-   under the Wyrd Powers section, and file every power in the family
+1. Create a **category** for the family — "Psychoteric Whispers" — under
+   the Wyrd Powers section, and file every power in the family
    there. A power with no category falls into the collection's default
    section, which no Primary offer can reach.
-2. Have one **collection**, "Skills & Powers", whose selectors include
+2. Have one **collection** — "Skills & Powers" — whose selectors include
    *every skill* and *every power*. Give it the sections the grades are
    written in terms of: Primary, Secondary, and one marked default for
    everything not placed. Using selectors rather than entries means a
@@ -232,8 +231,8 @@ were Primary skills.
    *puts a category into a section*, placing the family in **Primary
    (Skills & Powers)**; and *offers a choice* of **power** from
    **Primary (Skills & Powers)**. The carrier is a **rule** for
-   something a fighter entry always has (put the rule in the entry's
-   built-in items), a **subtype** for something bought or granted, or
+   something a fighter entry always has — put the rule in the entry's
+   built-in items — a **subtype** for something bought or granted, or
    the **fighter entry** itself.
 4. Leave the offer's label blank. A blank label reads "Primary power"
    and puts the choice in the card's **Powers** line, beside the powers
@@ -243,7 +242,7 @@ were Primary skills.
 The two modifiers work together, and placement comes first: the offer is
 limited to whatever is Primary *for this model*, and the placement is
 what puts the family there. **An offer with no placement behind it is a
-choice with no options.** The player clicks Choose and lands on an empty
+choice with no options** — the player clicks Choose and lands on an empty
 page. The reverse is a valid setup rather than a mistake: place the
 family and offer nothing, and the model may select powers from it at any
 time but is not given a first one.
@@ -262,7 +261,7 @@ rolls. The player rolls at the table and adds the result they rolled.
 
 1. On **Foundations**, create the **lasting effect tables**. One click
    creates all four tables in full: a slot type each with *allows
-   repeats* on (a second Eye Injury is a second Eye Injury), every
+   repeats* on — a second Eye Injury is a second Eye Injury — every
    result at its band, and a standing choice each. Each table's own
    page shows every roll covered. (Several results appear on more than
    one table at the same rolls. A pack has one pickable per name, so
@@ -273,9 +272,9 @@ rolls. The player rolls at the table and adds the result they rolled.
    damage results that worsen a characteristic, attach a **modifier**:
    targets the model, worsens that characteristic by one. On each of
    the ten Spyrer glitch results (rolls 51 to 64), attach two: one that
-   worsens the characteristic, and one that *moves a counter*, the
+   worsens the characteristic, and one that *moves a counter* — the
    Glitch Count, up by one. A result that changes no number needs
-   nothing. The card shows that the model has it, and the rest is
+   nothing — the card shows that the model has it, and the rest is
    played at the table.
 3. Put each table's choice on the gang types rather than on the
    entries. Create a **modifier**: targets *all models in the gang*,
@@ -283,7 +282,7 @@ rolls. The player rolls at the table and adds the result they rolled.
    Injury choice. Create a matching one for vehicles and Lasting Damage.
    Then on the gang types page, tick every gang type and attach both.
    Every fighter in every gang of those types has its empty line from
-   that moment, including gangs founded long ago, because nothing is
+   that moment — gangs founded long ago included, because nothing is
    written on any model. A gang type created later needs the same two
    modifiers attached.
 4. Spyre Hunters are the exception. On that gang type, remove the
@@ -299,7 +298,7 @@ rolls. The player rolls at the table and adds the result they rolled.
    a **hidden** item named "Delegation" carrying two modifiers, both
    targeting *the model carrying it*: one *takes something away*, the
    Lasting Injury choice; the other *gives* the Delegation Lasting
-   Injuries choice. Then build it into each delegation entry: the
+   Injuries choice. Then build it into each delegation entry — the
    fighters under the Allies gang type. A delegation model's card then
    shows a Delegation Lasting Injuries line and never a Lasting Injuries
    line, in any gang, and every gang type's own modifiers stay as they

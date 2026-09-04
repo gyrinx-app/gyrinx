@@ -5,7 +5,7 @@ in the library flows through one chain, and nothing skips a layer:
 
 ```
 models/          the content rows (Weapon, Skill, Profile, Collection, …)
-authoring.py     the verbs: the one API that writes content
+authoring.py     the verbs — the one API that writes content
 specs.py         each verb described as data (its fields, their types)
 forms.py         Django forms generated from the specs
 views.py         the staff authoring pages, driven by small registries
@@ -16,7 +16,7 @@ offers.py        what a kind declares about itself; forms derive the rest
 artwork.py       uploaded drawings: binds this edition's folder onto gyrinx.artwork
 ```
 
-Read `models/base.py` (107 lines) first. It states the app's governing
+Read `models/base.py` (107 lines) first — it states the app's governing
 philosophy. Then read `models/assignable.py` and `authoring.py`.
 
 ## The model rules
@@ -30,23 +30,23 @@ philosophy. Then read `models/assignable.py` and `authoring.py`.
   A new kind is: `class X(Content, Assignable[, UsableBy][, Optioned])`,
   a class-level `family = Family.…`, a `Meta` with verbose names and
   ordering, the standard constraints (unique per pack on lowercased
-  name + qualifier; exclusive items carry no trade-point price), and a
+  name + qualifier; exclusive items carry no trade-point price) — and a
   column on `n26.core`'s `Assignment` plus an entry in
   `ASSIGNABLE_FIELDS`. Without all of these the app fails at startup.
 - **Help text lives on the model field, nowhere else.** Specs reference
   it (`source=(Model, "field")`); forms read it through the spec. Model
-  docstrings are shown to authors on the authoring pages, so write them
+  docstrings are shown to authors on the authoring pages — write them
   as product copy: a plain definition first, detail after.
 - **No rules text, ever.** Names, annotations, and numbers only; the
   book's wording is copyrighted.
-- A `qualifier` is author-facing only. It tells two same-named things
+- A `qualifier` is author-facing only — it tells two same-named things
   apart in authoring screens and must never reach a player. A test
   enforces this.
 - Validation is layered on purpose: database constraints for
   exactly-one invariants; `clean()` for cross-row sense checks; form
   errors in words for anything an author can trip. `save()` is for
   canonicalising values only (it runs for importers too, which never
-  call `full_clean`), never for validation.
+  call `full_clean`) — never for validation.
 - Migrations are hand-edited and descriptively named. Prefer renames
   over drop-and-add so authored data survives. `default_pack_id` is
   referenced by name in migrations and must stay importable from
@@ -76,7 +76,7 @@ Adding a verb means touching, in order:
 1. The verb in `authoring.py` (naming: `create_*` for new things,
    `add_*` for parts of a thing, `ef_*`/`op_*` for effects,
    `targets_*` for scopes, predicates read as predicates).
-2. A `Spec` in `specs.py`. Discovering tests fail on a scope, effect,
+2. A `Spec` in `specs.py` — discovering tests fail on a scope, effect,
    or condition verb (`targets_*`, `ef_*`, `op_*`) without one. Give
    `create_*` and `add_*` verbs one too, even though no guard forces it.
 3. The registries in `views.py`: `LEAF_KINDS` if it gets a page (and
@@ -87,20 +87,19 @@ Adding a verb means touching, in order:
    to the rows belonging to one carrier, and it can only do so where the
    carrier is handed to the form. The detail view does that for its part
    forms. A spec reused anywhere else gets a picker over the whole table
-   and rejects the stray row only afterwards. Nothing catches this: the
+   and rejects the stray row only afterwards. Nothing catches this — the
    picker looks wired and is simply wide.
 
 Several parallel lists are deliberate extension points, each guarded by
 a check or a generated constraint (`ASSIGNABLE_FIELDS`, `SCOPE_FIELDS`,
 `EFFECT_FIELDS`, `OFFERABLE_KINDS`, `GRANTABLE_FIELDS`, …). Widening one
-is one line plus a migration plus deliberate thought. Never do it
-quietly.
+is one line plus a migration plus deliberate thought — never quietly.
 
 Kinds declare, forms derive: `ATTACHMENT_ASKS` and
 `SUGGESTED_BUILT_INS` sit on the model class and `offers.py` computes
-what a form shows. No form hardcodes a kind there (the inline-create
+what a form shows — no form hardcodes a kind there (the inline-create
 shortcut for rules and subtypes in `forms.py` is the one deliberate
-exception). Note: `ATTACHMENT_ASKS` replaces rather than merges, so a
+exception). Note: `ATTACHMENT_ASKS` replaces rather than merges — a
 kind that declares its own must restate the inherited asks it still
 wants. `takes_built_ins` is the third of these declarations: a kind that
 only ever arrives by being *chosen* sets it False, its pages offer no
@@ -113,18 +112,18 @@ built-ins attachment, and `add_built_in` rejects one.
 for building whole rulebook setups (a corrupted gang, a hired mercenary
 crew) out of the library's pieces.
 
-**When a rulebook setup's authoring flow is settled, whether designed
-here, agreed with the maintainer, or proven in a sandbox test, write the
+**When a rulebook setup's authoring flow is settled — designed here,
+agreed with the maintainer, or proven in a sandbox test — write the
 steps into that file.** The rules for what goes in it:
 
 - Author-facing language only: the things to create and how to join
-  them. No technical internals, no code, no model or field names. The
+  them. No technical internals, no code, no model or field names — the
   words are the authoring pages' own (slot type, pickable, collection,
   modifier, *gives*, *offers a choice*).
 - Clear and simple. Match the register of the modifier option cards in
-  `specs.py`: short, concrete, one game example beats a paragraph.
+  `specs.py` — short, concrete, one game example beats a paragraph.
 - A step that is not yet possible says so, in one sentence.
-- The maintainer reviews and edits this file directly. Keep it prose
+- The maintainer reviews and edits this file directly — keep it prose
   they would happily rewrite, never generated output.
 
 ## Core Concepts — what each kind is
@@ -133,7 +132,7 @@ steps into that file.** The rules for what goes in it:
 section, rendered staff-only at `/n26/authoring/docs/concepts/`; both
 pages are listed at `/n26/authoring/docs/`. It holds **fact-based specs
 of the kinds**: a short summary, the fields a kind has of its own, and
-its behaviour: how far it reaches and how it comes to be there.
+its behaviour — how far it reaches and how it comes to be there.
 
 It is maintained exactly as the cookbook is. The maintainer reviews and
 edits it directly, so keep it prose they would happily rewrite. Say what
@@ -145,19 +144,19 @@ a field or a behaviour, write that in.
 Three stages: read (CSV → dicts), plan (→ an `IngestPlan` of frozen
 rows plus problems; reads the database, never writes), perform (executes
 exactly the plan, through the authoring verbs, in one transaction).
-**The preview is the contract**: what `plan.preview()` shows is what
+**The preview is the contract** — what `plan.preview()` shows is what
 `perform()` does, changes included. Standing rules: resolve, never
 create, across sheets; built-ins are free; a missing seed row is a loud
 error, never quietly re-created.
 
-An upload is **held** between the stages: an `UploadedSheet` row per
+An upload is **held** between the stages — an `UploadedSheet` row per
 sheet per author, with the bytes in the site's storage. A file input
 cannot be filled back in by the server, so holding the file is what lets
 a preview be read, reloaded, and then imported without choosing the file
 again. The three acts are three pages, each named in the address:
 `/authoring/ingest/` shows what is held, `…/ingest/sheet/<sheet>/`
 takes one file, `…/ingest/preview/` plans and imports. **The plan is
-never held.** It is made again on the visit that shows it and again on
+never held** — it is made again on the visit that shows it and again on
 the post that imports it, because the contract is about the library as
 it stands, and an import redirects back to a fresh reading rather than
 rendering its own result.
@@ -172,13 +171,13 @@ is silent.
 A new planned kind means four tables. `perform()` rejects a plan
 naming a kind missing from any of them rather than skipping it:
 
-- `PERFORM_ORDER`: where it falls in dependency order.
-- `SHEET_FIELDS`: what these sheets claim to know about it, split into
+- `PERFORM_ORDER` — where it falls in dependency order.
+- `SHEET_FIELDS` — what these sheets claim to know about it, split into
   identity / updatable / ignored. The partition must cover every field
   the planner puts in `fields`; a test proves it. A kind with nothing
   updatable states the reason in `NEVER_UPDATED`.
-- `CREATORS`: how it is made, or a reason in `NEVER_CREATED`.
-- `UPDATERS`: how it is changed, for any kind with updatable fields.
+- `CREATORS` — how it is made, or a reason in `NEVER_CREATED`.
+- `UPDATERS` — how it is changed, for any kind with updatable fields.
 
 Each set has its own rule for a member the sheet no longer names, and
 the deciding question is whether the set is somewhere hand-authored
@@ -186,13 +185,13 @@ content lives: traits, a list's lines and a fighter's skill grid are
 replaced; built-in kit and restrictions are only added to, with a note
 saying what was kept. The one exception inside a built-ins set is the
 fighter's equipment list, which is access rather than kit and comes one
-at a time: naming a list replaces whichever the set held
+at a time — naming a list replaces whichever the set held
 (`REPLACED_BUILT_INS`). A blank cell still replaces nothing.
 
 ## Comments
 
 A comment states a constraint, an invariant, or a consequence the code
-cannot show, briefly and in plain words. It must make sense to a reader
+cannot show — briefly, in plain words. It must make sense to a reader
 who has never seen any earlier version of this code: no people, no
 tickets or PRs, no "graduated from", no "used to be", no "for now".
 Longer reasoning belongs in the module docstring or a `n26/design/`
