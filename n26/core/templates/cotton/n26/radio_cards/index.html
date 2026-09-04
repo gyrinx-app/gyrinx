@@ -49,8 +49,10 @@ whichever card the server says.
     {% comment %}
     auto-fill rather than a column count per breakpoint: how many cards fit a
     row follows from the one number saying how narrow a card may get.
+    min-w-0 on each child so a nowrap name cannot push the track wider than
+    the card; wrap is what lets a sentence stay inside that width.
     {% endcomment %}
-    <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax({{ min }}, 1fr));">
+    <div class="grid gap-3 [&>*]:min-w-0" style="grid-template-columns: repeat(auto-fill, minmax({{ min }}, 1fr));">
         {{ slot }}
     </div>
 

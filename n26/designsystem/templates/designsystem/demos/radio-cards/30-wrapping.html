@@ -1,0 +1,22 @@
+{# title: A sentence-long name wraps #}
+{# note: wrap lets a name that is a sentence run to several lines. The badge follows the last word rather than holding the line open. #}
+{# layout: col #}
+<c-n26.radio-cards label="Who it reaches" min="15rem">
+    <c-n26.radio-cards.card name="demo-scope"
+                            value="gang-and-models"
+                            label="The gang carrying it and all models"
+                            description="Affects the gang and all models, in a different way per effect. Use with care."
+                            :wrap="True"
+                            :checked="True">
+        <c-slot name="flair">
+            <c-ui.badge color="amber" size="sm">
+                Deprecated
+            </c-ui.badge>
+        </c-slot>
+    </c-n26.radio-cards.card>
+    <c-n26.radio-cards.card name="demo-scope"
+                            value="gang"
+                            label="The gang carrying it"
+                            description="Applied only to the gang; does not reach the models."
+                            :wrap="True" />
+</c-n26.radio-cards>

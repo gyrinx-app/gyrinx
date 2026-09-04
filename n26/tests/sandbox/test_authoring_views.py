@@ -4783,6 +4783,9 @@ class TestTheKindCards:
             fieldset = chunk.split("</fieldset>")[0]
             if 'name="scope_kind"' in fieldset or 'name="effect_kind"' in fieldset:
                 assert "truncate" not in fieldset
+                # wrap drops nowrap on the name plus its pill, so a long
+                # kind name and Deprecated stay inside the card.
+                assert "whitespace-nowrap" not in fieldset
 
     def test_the_cards_still_answer_to_the_selects_field_names(
         self, author, client, default_pack

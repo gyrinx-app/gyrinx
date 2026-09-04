@@ -23,6 +23,8 @@ not read as a question.
   description — the muted line under it. Optional.
   wrap — let the label and description run to several lines instead of
     truncating, for options whose detail is a sentence rather than a phrase.
+    The badge after the name wraps with the last word; it does not hold
+    the line open.
   example — a concrete case, revealed on hover or keyboard focus of the small
     icon after the description, and set as its title for touch. Optional.
   disabled — the option cannot be picked here: the radio is disabled and the
@@ -53,7 +55,7 @@ input inside it, so it is right before any script runs and without one. The
 accent border and tint match the kit's checkbox cards.
 {% endcomment %}
 <label {{ attrs }}
-       class="flex items-start gap-3 rounded-box border-2 border-ink-200 p-4
+       class="flex min-w-0 items-start gap-3 rounded-box border-2 border-ink-200 p-4
               transition-[background-color,border-color]
               {% if disabled %}cursor-not-allowed opacity-50{% else %}cursor-pointer hover:bg-ink-500/5{% endif %}
               has-[:checked]:border-accent has-[:checked]:bg-accent/5
@@ -70,7 +72,7 @@ accent border and tint match the kit's checkbox cards.
         same placement it has in a heading or a table cell. tone="current"
         because the card's title has already set its colour.
         {% endcomment %}
-        <span class="block {% if not wrap %}truncate{% endif %} text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current">{{ flair }}</c-n26.flair-link></span>
+        <span class="block {% if not wrap %}truncate{% endif %} text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current" :wrap="wrap">{{ flair }}</c-n26.flair-link></span>
         {% if disabled and reason %}
             <span class="block text-muted">{{ reason }}</span>
         {% elif description %}

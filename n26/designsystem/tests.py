@@ -85,10 +85,12 @@ class TestTheRadioCardsPage:
         page = reader.get("/n26/design/c/radio-cards/").content.decode()
         assert "One of these" in page
         assert "No badges, no detail, and a wider card" in page
+        assert "A sentence-long name wraps" in page
         # From the markup the demos rendered, not from their titles: a demo
         # directory the catalog cannot find yields "No examples yet" instead.
         assert 'name="demo-gang-type"' in page
         assert 'name="demo-purpose"' in page
+        assert 'name="demo-scope"' in page
 
 
 class TestTheTickListPage:
