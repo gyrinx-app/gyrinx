@@ -43,6 +43,22 @@ def trade_points_href(gang, user):
     return reverse("n26-gang-trade-points", args=[gang.pk])
 
 
+def may_see_actions_square(gang, user):
+    """Whether the gang page draws its Actions square for this reader.
+
+    The square is shown to staff who own the gang while the actions it
+    holds are still being built out. Everyone else reads the gang page
+    as it was before the square existed: the Trading Post visit line
+    stays on the stash card for every owner.
+    """
+    return bool(
+        user is not None
+        and user.is_authenticated
+        and user.is_staff
+        and gang.owner_id == user.pk
+    )
+
+
 def _own_gang_or_404(request, pk):
     """The gang, if it is the viewer's to act on.
 

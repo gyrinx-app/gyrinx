@@ -5,6 +5,7 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
@@ -13,6 +14,7 @@ from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
+    may_see_actions_square,
     trade_points_href,
 )
 
@@ -280,10 +282,11 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
-            # The gang's own actions, which are the owner's to perform: a
-            # reader who does not own it gets no square at all. One query
-            # for the whole page — the open founding action — since what a
-            # visit has left is already on the sheet.
+            # The gang's own actions, which are the owner's to perform.
+            # Drawn for staff owners only while the actions are built out;
+            # every other reader gets no square. One query for the whole
+            # page — the open founding action — since what a visit has
+            # left is already on the sheet.
             "actions_square": (
                 actions_square(
                     gang,
@@ -291,7 +294,7 @@ def gang_sheet(request, pk):
                     founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                 )
-                if yours
+                if may_see_actions_square(gang, request.user)
                 else None
             ),
             # Printing follows reading rather than owning, so a reader
@@ -1037,6 +1040,10 @@ def gang_founding_action(request, pk):
     from n26.core.operations import Refusal, operation
 
     gang = _own_gang_or_404(request, pk)
+    # The square that posts here is drawn for staff owners only while the
+    # action is built out, so the address is theirs alone too.
+    if not may_see_actions_square(gang, request.user):
+        raise Http404
     at = reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":
         return redirect(at)

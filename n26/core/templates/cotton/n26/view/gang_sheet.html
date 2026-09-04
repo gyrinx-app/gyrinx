@@ -21,6 +21,7 @@ opens with the Actions square, then the stash, then `members`.
     see <c-n26.actions-square>. Only the owner gets one.
   stash_empty — what to say when the stash is empty.
   stash_actions — a middot link after the Stash title (e.g. Equip).
+  stash_notice — a strip above the stash's contents; see <c-n26.stash>.
 {% endcomment %}
 {# The slots are declared: an undeclared slot name is not empty when nobody #}
 {# fills it — it resolves to the caller's own variable of that name. #}
@@ -42,6 +43,7 @@ opens with the Actions square, then the stash, then `members`.
     members=""
     stash_empty=""
     stash_actions=""
+    stash_notice=""
     class=""
 />
 
@@ -140,6 +142,7 @@ opens with the Actions square, then the stash, then `members`.
         <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
             {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
             {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
+            {% if stash_notice %}<c-slot name="notice">{{ stash_notice }}</c-slot>{% endif %}
         </c-n26.stash>
         {{ members }}
     </div>
