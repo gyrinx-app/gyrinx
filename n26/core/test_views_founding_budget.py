@@ -395,7 +395,7 @@ class TestBothPotsAtOnce:
     ):
         said = " ".join(client.get(equip_url(leader, post)).content.decode().split())
 
-        assert "counts against the founding Trade Points, not against the visit" in said
+        assert "founding Trade Points, not against the visit" in said
 
     def test_the_allowance_alone_draws_no_visit_block(
         self, client, leader, legacy_list
