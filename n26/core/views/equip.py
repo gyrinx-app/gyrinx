@@ -26,6 +26,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.template.defaultfilters import pluralize
 
+from n26.core.actions import founding_blocks_visit
 from n26.core.confirm import CONFIRM_FIELD, Confirmation
 from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
@@ -988,6 +989,16 @@ def equip(request, pk):
     # roster is deciding against both.
     roster = gang_roster(gang)
 
+    picker = picker_context(catalogue, view, gang, screen.budget)
+    tp_href = trade_points_href(gang, request.user)
+    # An allowance and an open visit at once: the rail says so, because a
+    # purchase here counts against the allowance and never against the
+    # visit, and two Trade Point figures with nothing between them is the
+    # kind of thing an owner reads the wrong way round. What the visit has
+    # left is read once, here.
+    visit_beside_founding = bool(
+        screen.budget is not None and tp_href and gang.visiting_trading_post
+    )
     return render(
         request,
         "n26/equip.html",
@@ -1003,7 +1014,7 @@ def equip(request, pk):
                 else ""
             ),
             "summary": summarise_roster(roster),
-            "trade_points_href": trade_points_href(gang, request.user),
+            "trade_points_href": tp_href,
             "collections": collections,
             "collection_tabs": tabs,
             "everything": everything,
@@ -1031,7 +1042,19 @@ def equip(request, pk):
             # founded, drawn beside the rail. Every line on the page
             # counts against it.
             "founding_budget": screen.budget,
-            **picker_context(catalogue, view, gang, screen.budget),
+            "visit_beside_founding": visit_beside_founding,
+            "visit_trade_points_left": (
+                gang.trade_points_left if visit_beside_founding else None
+            ),
+            # The way into a visit, shut while the founding stands open.
+            # Asked only where the note offering one is drawn, so a page
+            # that never mentions the post pays nothing to find out.
+            "founding_blocks_visit": (
+                founding_blocks_visit(gang, may_see_founding(gang, request.user))
+                if picker["post_is_shut"]
+                else False
+            ),
+            **picker,
         },
     )
 
@@ -1274,6 +1297,7 @@ def equip_gang(request, pk):
         catalogue = None
         browsing = ""
 
+    stash_picker = picker_context(catalogue, view, gang)
     return render(
         request,
         "n26/gang_equip.html",
@@ -1297,6 +1321,13 @@ def equip_gang(request, pk):
             "accessorise": accessorise_dialogs(request, host),
             "summary": summarise_roster(gang_roster(gang)),
             "trade_points_href": trade_points_href(gang, request.user),
-            **picker_context(catalogue, view, gang),
+            # As on a model's own screen: asked only where the note
+            # offering a visit is drawn.
+            "founding_blocks_visit": (
+                founding_blocks_visit(gang, may_see_founding(gang, request.user))
+                if stash_picker["post_is_shut"]
+                else False
+            ),
+            **stash_picker,
         },
     )

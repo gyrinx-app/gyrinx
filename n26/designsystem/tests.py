@@ -11,6 +11,10 @@ from django.contrib.auth import get_user_model
 
 pytestmark = pytest.mark.django_db
 
+#: The colour <c-n26.founding-mark> paints itself. One component draws the
+#: mark, so finding this on a page is finding the mark.
+MARK = "text-violet-600"
+
 
 @pytest.fixture
 def reader(client):
@@ -140,9 +144,60 @@ class TestTheActionsSquarePage:
         """Starting an act must never be a link: a link is followed by
         anything that follows links."""
         page = reader.get("/n26/design/c/actions-square/").content.decode()
-        start = page.index("Start the Found and equip gang action")
+        start = page.index("Equip the gang using founding Trade Points")
         form = page.rindex("<form", 0, start)
         assert 'method="post"' in page[form:start]
+
+
+class TestTheFoundingMarkPage:
+    """The one place the founding mark's drawing and colour are stated, and
+    the four places it is drawn."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/founding-mark/").content.decode()
+        assert "label" in page
+
+    def test_the_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/founding-mark/").content.decode()
+        assert "The mark" in page
+        assert "Sizes" in page
+        assert "Where it is drawn" in page
+        assert "Both blocks on an equip rail" in page
+        # From the markup the demos rendered, not their titles.
+        assert MARK in page
+        assert "Founding Trade Points" in page
+        assert "Trading Post visit" in page
+
+    def test_the_rail_demo_draws_the_real_blocks(self, reader):
+        """It includes the page's own partials, so a change to either
+        block shows here rather than drifting from a copy."""
+        page = reader.get("/n26/design/c/founding-mark/").content.decode()
+        assert "Available" in page
+        assert "Remaining" in page
+        assert "counts against the" in page
+        assert "Manage visit" in page
+
+
+class TestTheStashPage:
+    """The stash's notice slot, filled the way the gang sheet fills it."""
+
+    def test_the_visit_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        assert "The Trading Post line in the notice" in page
+        assert "A visit that cannot start yet" in page
+        assert "Trading Post visit open" in page
+        assert "Set up Trading Post visit" in page
+
+    def test_a_visit_that_cannot_start_is_drawn_dead_with_the_reason(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        label = page.index("Set up Trading Post visit")
+        control = page[page.rindex("<", 0, page.rindex("<", 0, label)) : label]
+        assert "disabled" in control
+        assert "You can have only one of these actions open at a time." in page
+
+    def test_the_old_wording_is_gone(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        assert "Set up TP visit" not in page
 
 
 class TestTheRadioCardsPage:

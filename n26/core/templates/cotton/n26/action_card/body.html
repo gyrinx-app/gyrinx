@@ -6,9 +6,12 @@ and unboxed shapes cannot come to draw different contents.
 
   :card — a n26.core.actions.ActionCard.
   button_size — the button's size; sm boxed, xs inside the Actions square.
+  help_size — the help sentence's type size, sm or xs. Both classes are
+    written out rather than built from the prop, because a class assembled
+    at render time is one the stylesheet build never sees.
   slot — drawn between the tally and the button.
 {% endcomment %}
-<c-vars :card="None" button_size="sm" />
+<c-vars :card="None" button_size="sm" help_size="sm" />
 
 <div class="space-y-4">
     {% if card.facts %}<c-n26.tally :facts="card.facts" />{% endif %}
@@ -28,7 +31,7 @@ and unboxed shapes cannot come to draw different contents.
                     {{ card.button_label }}
                 </span>
             </c-ui.button>
-            {% if card.help %}<p class="text-sm text-muted">{{ card.help }}</p>{% endif %}
+            {% if card.help %}<p class="{% if help_size == 'xs' %}text-xs{% else %}text-sm{% endif %} text-muted">{{ card.help }}</p>{% endif %}
         </div>
     </form>
 </div>

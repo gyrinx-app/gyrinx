@@ -11,6 +11,12 @@ on it anyway.
 
 Reads the sheet rather than the gang: what a visit has left is a ledger query,
 and the sheet has already asked.
+
+`founding_blocks_visit` shuts the way in while the gang is part-way through
+founding: a gang holds one action of each kind and the two are performed one
+at a time, so the button is drawn dead with a tooltip rather than leading to a
+page that would refuse. Worked out in the view, never here — an :attribute
+takes a variable and quietly evaluates an expression to nothing.
 {% endcomment %}
 {% if trade_points_href %}
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -25,9 +31,26 @@ and the sheet has already asked.
             </c-ui.button>
         {% else %}
             <span class="text-xs text-muted">Not tracking TP</span>
-            <c-ui.button size="xs" variant="primary" href="{{ trade_points_href }}">
-                Set up TP visit →
-            </c-ui.button>
+            {% comment %}
+            Subtle rather than primary while it is dead. The kit's disabled
+            styling is a small drop in opacity, and a primary variant keeps
+            its hover colour under a pointer whatever the disabled attribute
+            says — so painted primary the control still reads as live.
+            {% endcomment %}
+            {% if founding_blocks_visit %}
+                <c-ui.tooltip size="sm">
+                    <c-ui.button size="xs" variant="subtle" disabled>
+                        Set up Trading Post visit →
+                    </c-ui.button>
+                    <c-slot name="content">
+                        You can have only one of these actions open at a time. Complete Found and equip gang first.
+                    </c-slot>
+                </c-ui.tooltip>
+            {% else %}
+                <c-ui.button size="xs" variant="primary" href="{{ trade_points_href }}">
+                    Set up Trading Post visit →
+                </c-ui.button>
+            {% endif %}
         {% endif %}
     </div>
 {% endif %}

@@ -6,16 +6,43 @@ where a reader finds that out.
 Under the rail rather than over the rows, because it is a fact about the list
 you are on and not about anything in it. Wants `trade_points_href`, so it draws
 nothing for a reader who could not act on it anyway.
+
+`founding_blocks_visit` shuts the way in while the gang is part-way through
+founding, as it does on the stash card: a gang holds one action of each kind,
+so the button is drawn dead with a tooltip rather than leading to a page that
+would refuse. Worked out in the view, never here.
 {% endcomment %}
 {% if trade_points_href %}
     <div class="self-start rounded-box border border-box-border p-3">
         <p class="text-sm font-medium text-ink-900 dark:text-ink-100">Not tracking TP</p>
         <p class="mt-0.5 text-xs text-muted">Start a Trading Post visit to set up &amp; track TP.</p>
-        <c-ui.button size="xs"
-                     variant="primary"
-                     href="{{ trade_points_href }}"
-                     class="mt-2">
-            Set up TP visit →
-        </c-ui.button>
+        {% comment %}
+        The spacing sits on a wrapper: the kit's tooltip draws none of the
+        attributes it is passed, so a class given to it is silently dropped.
+
+        Subtle rather than primary while it is dead. The kit's disabled
+        styling is a small drop in opacity, and a primary variant keeps its
+        hover colour under a pointer whatever the disabled attribute says —
+        so painted primary the control still reads as live.
+        {% endcomment %}
+        {% if founding_blocks_visit %}
+            <div class="mt-2">
+                <c-ui.tooltip size="sm">
+                    <c-ui.button size="xs" variant="subtle" disabled>
+                        Set up Trading Post visit →
+                    </c-ui.button>
+                    <c-slot name="content">
+                        You can have only one of these actions open at a time. Complete Found and equip gang first.
+                    </c-slot>
+                </c-ui.tooltip>
+            </div>
+        {% else %}
+            <c-ui.button size="xs"
+                         variant="primary"
+                         href="{{ trade_points_href }}"
+                         class="mt-2">
+                Set up Trading Post visit →
+            </c-ui.button>
+        {% endif %}
     </div>
 {% endif %}

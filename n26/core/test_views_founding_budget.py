@@ -29,6 +29,18 @@ pytestmark = pytest.mark.django_db
 
 FOUNDING = Action.Kind.FOUNDING
 
+#: The colour <c-n26.founding-mark> paints itself. One component draws the
+#: mark, so finding this on a page is finding the mark; change it there and
+#: change it here.
+MARK = "text-violet-600"
+
+#: What an equip screen costs for a model with an allowance whose gang also
+#: has a visit open — the state that draws both blocks. Pinned as one
+#: structure's fixed budget: the gang's remaining Trade Points are read from
+#: the database on every ask by design, so a second reading would slip in
+#: without a number to notice it.
+EQUIP_WITH_BOTH_POTS = 57
+
 #: The Venator entries these tests hire, as ``(entry, the subtype naming
 #: its rank)``. A Hunter is a Specialist, which is how the gang list
 #: marks the rank; the allied entry is ranked Champion and filed under a
@@ -338,6 +350,81 @@ class TestWhatTheScreenSays:
         assert response.context["founding_budget"] is None
         assert "Founding Trade Points" not in response.content.decode()
 
+    def test_the_tally_carries_the_founding_mark(self, client, leader, legacy_list):
+        """The same mark the action carries on the gang page and the model
+        cards carry beside their figures, so one feature is read once."""
+        body = client.get(equip_url(leader, legacy_list)).content.decode()
+
+        heading = body.index("Founding Trade Points")
+        assert MARK in body[body.rindex("<p class=", 0, heading) : heading]
+
+
+class TestBothPotsAtOnce:
+    """A model with an allowance whose gang also has a visit open. The two
+    are separate allowances, and the rail says which one this page spends
+    rather than leaving two Trade Point figures to be read the wrong way
+    round."""
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    @pytest.fixture
+    def visiting(self, gang, tester):
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=6)
+        gang.refresh_from_db()
+        return gang
+
+    def test_both_blocks_are_drawn(self, client, leader, post, visiting):
+        response = client.get(equip_url(leader, post))
+        body = response.content.decode()
+
+        assert response.context["visit_beside_founding"] is True
+        assert response.context["visit_trade_points_left"] == 6
+        assert "Founding Trade Points" in body
+        assert "Trading Post visit" in body
+        assert "6 TP" in body
+        assert "Manage visit" in body
+
+    def test_the_visit_block_says_which_pot_this_page_spends(
+        self, client, leader, post, visiting
+    ):
+        said = " ".join(client.get(equip_url(leader, post)).content.decode().split())
+
+        assert "counts against the founding Trade Points, not against the visit" in said
+
+    def test_the_allowance_alone_draws_no_visit_block(
+        self, client, leader, legacy_list
+    ):
+        """No visit open, so there is no second pot to tell apart."""
+        response = client.get(equip_url(leader, legacy_list))
+
+        assert response.context["visit_beside_founding"] is False
+        assert "Trading Post visit" not in response.content.decode()
+
+    def test_the_post_being_shut_is_still_the_one_note_it_silences(
+        self, client, leader, post
+    ):
+        """An allowance and no visit: the model has somewhere for its Trade
+        Points to go, so nothing is said about the post."""
+        body = client.get(equip_url(leader, post)).content.decode()
+
+        assert "Not tracking TP" not in body
+        assert "Trading Post visit" not in body
+
+    def test_the_figure_is_read_once(
+        self, client, tester, leader, post, visiting, django_assert_num_queries
+    ):
+        """The block is built from what the view already worked out. Pinned
+        so a second reading of the gang's visit — one query each time, by
+        design — cannot creep in unnoticed."""
+        url = equip_url(leader, post)
+        assert client.get(url).status_code == 200
+
+        with django_assert_num_queries(EQUIP_WITH_BOTH_POTS):
+            assert client.get(url).status_code == 200
+
 
 class TestAnOwnerTheBudgetsDoNotReachYet:
     """While the founding budgets are being tested they reach staff owners
@@ -376,6 +463,84 @@ class TestAnOwnerTheBudgetsDoNotReachYet:
         assert entry.trade_points == 0
         assert entry.action is None
         assert entry.spent_by is None
+
+
+def visit_control(body):
+    """The markup of the control that offers a Trading Post visit."""
+    label = body.index("Set up Trading Post visit")
+    return body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
+
+
+class TestTheWayIntoAVisitFromTheRail:
+    """The Not tracking TP block offers to start a visit. While the gang is
+    part-way through founding there is nowhere for that offer to go — a
+    gang holds one action of each kind — so the button is drawn dead with
+    the reason beside it rather than leading to a page that refuses."""
+
+    def test_the_old_wording_is_gone(self, client, tester, ganger, post):
+        client.force_login(tester)
+
+        assert (
+            "Set up TP visit"
+            not in client.get(equip_url(ganger, post)).content.decode()
+        )
+
+    def test_a_staff_owner_gets_the_button_dead_and_the_reason(
+        self, client, tester, ganger, post
+    ):
+        client.force_login(tester)
+
+        response = client.get(equip_url(ganger, post))
+        body = response.content.decode()
+
+        assert response.context["founding_blocks_visit"] is True
+        assert "Not tracking TP" in body
+        assert "disabled" in visit_control(body)
+        assert "You can have only one of these actions open at a time." in body
+
+    def test_an_owner_the_founding_does_not_reach_keeps_the_way_in(
+        self, client, gang, ganger, post
+    ):
+        """Every gang carries an open founding action, and an owner the
+        feature has not reached is given no way to close one. Shutting the
+        button for them would take visits away with nothing in their
+        place."""
+        plain = User.objects.create_user("plain-owner")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+        client.force_login(plain)
+
+        response = client.get(equip_url(ganger, post))
+        body = response.content.decode()
+
+        assert response.context["founding_blocks_visit"] is False
+        assert "disabled" not in visit_control(body)
+        assert reverse("n26-gang-trade-points", args=[gang.pk]) in visit_control(body)
+        assert "You can have only one of these actions open at a time." not in body
+
+    def test_completing_the_founding_opens_the_way(
+        self, client, gang, tester, ganger, post
+    ):
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+        client.force_login(tester)
+
+        response = client.get(equip_url(ganger, post))
+
+        assert response.context["founding_blocks_visit"] is False
+        assert "disabled" not in visit_control(response.content.decode())
+
+    def test_a_screen_that_never_mentions_the_post_asks_nothing(
+        self, client, tester, ganger, legacy_list
+    ):
+        """The question costs the gang's open actions, so it is asked only
+        where the block that offers a visit is drawn."""
+        client.force_login(tester)
+
+        response = client.get(equip_url(ganger, legacy_list))
+
+        assert response.context["post_is_shut"] is False
+        assert response.context["founding_blocks_visit"] is False
 
 
 class TestGoingPastIt:

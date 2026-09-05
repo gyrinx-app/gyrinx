@@ -21,6 +21,14 @@ pytestmark = pytest.mark.django_db
 
 FOUNDING = Action.Kind.FOUNDING
 
+#: The colour <c-n26.founding-mark> paints itself. One component draws the
+#: mark, so finding this on a page is finding the mark; change it there and
+#: change it here.
+MARK = "text-violet-600"
+
+#: What the tooltip says where a visit cannot be started yet.
+ONE_AT_A_TIME = "You can have only one of these actions open at a time."
+
 
 @pytest.fixture
 def tester(db):
@@ -265,6 +273,42 @@ class TestTheSquareOnTheGangPage:
         assert "Click when you have finished hiring and equipping the gang." in body
         assert f'action="{act_page(gang)}"' in body
 
+    def test_the_action_is_marked(self, client, gang):
+        """The founding mark stands beside the title — the same mark the
+        model cards and the allowance block carry, so a reader meets one
+        feature rather than three unrelated screens."""
+        body = client.get(sheet(gang)).content.decode()
+        title = body.index("Found and equip gang")
+
+        assert MARK in body[body.rindex("<h3", 0, title) : title]
+
+    def test_the_title_is_followed_by_what_the_action_allows(self, client, gang):
+        body = client.get(sheet(gang)).content.decode()
+
+        assert (
+            "While this action is open, fighters with founding Trade Points can "
+            "spend them on their equipment lists and at the Trading Post." in body
+        )
+
+    def test_the_help_is_the_size_of_the_squares_other_prose(self, client, gang):
+        """Boxed on its own page the help is sm; in the square everything
+        else is xs and a lone sm sentence reads as a different voice."""
+        body = client.get(sheet(gang)).content.decode()
+        help_at = body.index("Click when you have finished")
+
+        assert "text-xs" in body[body.rindex("<p", 0, help_at) : help_at]
+
+    def test_the_start_button_names_what_it_lets_you_do(self, client, gang, tester):
+        """Nobody sets out to open an action; they set out to equip the
+        gang. The mark ties the control to the figures it brings."""
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+
+        body = client.get(sheet(gang)).content.decode()
+        label = body.index("Equip the gang using founding Trade Points")
+
+        assert MARK in body[body.rindex("<button", 0, label) : label]
+
     def test_the_open_action_is_badged_as_the_current_one(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
         assert "Current action" in body
@@ -285,7 +329,7 @@ class TestTheSquareOnTheGangPage:
         """A gang performs one of each action at a time, so a control that
         would be refused is a control that should not be there."""
         body = client.get(sheet(gang)).content.decode()
-        assert "Start the Found and equip gang action" not in body
+        assert "Equip the gang using founding Trade Points" not in body
 
     def test_a_completed_action_leaves_the_way_to_start_another(
         self, client, gang, tester
@@ -295,7 +339,7 @@ class TestTheSquareOnTheGangPage:
 
         body = client.get(sheet(gang)).content.decode()
         assert "No action is open." in body
-        assert "Start the Found and equip gang action" in body
+        assert "Equip the gang using founding Trade Points" in body
         assert "Complete action" not in body
 
     def test_the_start_row_posts_rather_than_links(self, client, gang, tester):
@@ -305,7 +349,7 @@ class TestTheSquareOnTheGangPage:
             op.close_action(gang.open_action(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
-        start = body.index("Start the Found and equip gang action")
+        start = body.index("Equip the gang using founding Trade Points")
         form = body.rindex("<form", 0, start)
         assert 'method="post"' in body[form:start]
         assert f'action="{act_page(gang)}"' in body[form:start]
@@ -348,7 +392,7 @@ class TestTheSquareOnTheGangPage:
         """Nothing offers an act that would be refused: one of each kind
         at a time, so the start button is not there."""
         body = client.get(sheet(gang)).content.decode()
-        assert "Start the Found and equip gang action" not in body
+        assert "Equip the gang using founding Trade Points" not in body
         assert 'value="start"' not in body
 
     def test_the_square_leads_the_grid(self, client, gang):
@@ -377,6 +421,50 @@ class TestTheSquareOnTheGangPage:
         assert 'value="start"' not in body
         assert "Nothing in the stash" in body
         assert gang.open_action(FOUNDING) is not None
+
+    def test_the_stash_card_cannot_start_a_visit_beside_it(self, client, gang):
+        """A gang holds one action of each kind. The stash card's way into
+        a Trading Post visit is drawn dead, with the reason, rather than
+        leading to a page that would refuse."""
+        body = client.get(sheet(gang)).content.decode()
+        label = body.index("Set up Trading Post visit")
+        control = body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
+
+        assert "disabled" in control
+        assert ONE_AT_A_TIME in body
+        assert "Set up TP visit" not in body
+
+    def test_completing_the_founding_opens_the_way_to_a_visit(
+        self, client, gang, tester
+    ):
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+
+        body = client.get(sheet(gang)).content.decode()
+        label = body.index("Set up Trading Post visit")
+        control = body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
+
+        assert "disabled" not in control
+        assert reverse("n26-gang-trade-points", args=[gang.pk]) in control
+        assert ONE_AT_A_TIME not in body
+
+    def test_an_owner_the_founding_does_not_reach_keeps_the_way_in(self, client, gang):
+        """Every gang carries an open founding action, and an owner the
+        feature has not reached is given no way to close one — so shutting
+        the button for them would take visits away with nothing offered in
+        their place."""
+        plain = User.objects.create_user("plain-player")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+        client.force_login(plain)
+
+        body = client.get(sheet(gang)).content.decode()
+        label = body.index("Set up Trading Post visit")
+        control = body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
+
+        assert "disabled" not in control
+        assert reverse("n26-gang-trade-points", args=[gang.pk]) in control
+        assert ONE_AT_A_TIME not in body
 
     def test_the_square_costs_the_page_nothing_per_fighter(
         self, client, gang, tester, make_profile, make_statline

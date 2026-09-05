@@ -1119,6 +1119,18 @@ class TestTheFigureOnTheGangPage:
     def test_the_hover_says_what_the_figure_is(self, client, gang, leader):
         assert self.HOVER.format("Rasp") in self.body(client, gang)
 
+    def test_the_figure_carries_the_founding_mark(self, client, gang, leader):
+        """The same mark the Found and equip gang action carries in the
+        Actions square and the allowance block carries on an equip
+        screen, so one feature is learnt once. Its colour is stated in
+        <c-n26.founding-mark> and nowhere else."""
+        body = self.body(client, gang)
+        figure = body.index(">5 TP<span")
+
+        assert (
+            "text-violet-600" in body[body.rindex("<span class=", 0, figure) : figure]
+        )
+
     def test_spending_moves_it(self, client, gang, leader, kit, legacy_list):
         buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
 
