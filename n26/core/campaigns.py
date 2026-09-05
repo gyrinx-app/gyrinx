@@ -188,9 +188,9 @@ class CampaignOperation:
         if user.pk == campaign.owner_id:
             raise Refusal(
                 f"You cannot invite {user.username}. They run {campaign.name}, "
-                "and an arbitrator cannot also be a participant."
+                "and an arbitrator cannot also be a player."
             )
-        participant, made = CampaignParticipant.objects.get_or_create(
+        player, made = CampaignParticipant.objects.get_or_create(
             campaign=campaign,
             user=user,
             defaults={
@@ -200,13 +200,13 @@ class CampaignOperation:
             },
         )
         if not made:
-            if participant.state == CampaignParticipant.State.ACCEPTED:
-                return participant
-            participant.state = CampaignParticipant.State.INVITED
-            participant.message = message
-            participant.invited_by = self.actor
-            participant.answered = None
-            participant.save(
+            if player.state == CampaignParticipant.State.ACCEPTED:
+                return player
+            player.state = CampaignParticipant.State.INVITED
+            player.message = message
+            player.invited_by = self.actor
+            player.answered = None
+            player.save(
                 update_fields=[
                     "state",
                     "message",
@@ -223,9 +223,9 @@ class CampaignOperation:
             subject=f"{asked_by} invited you to {campaign.name}",
             content=message,
             sender=self.actor,
-            about=participant,
+            about=player,
         )
-        return participant
+        return player
 
     def answer_invitation(self, user, accepted):
         """Record somebody's answer to their invitation.
@@ -238,16 +238,16 @@ class CampaignOperation:
         from n26.notifications import deliver
 
         campaign = self.campaign
-        participant = CampaignParticipant.objects.filter(
+        player = CampaignParticipant.objects.filter(
             campaign=campaign, user=user, state=CampaignParticipant.State.INVITED
         ).first()
-        if participant is None:
+        if player is None:
             return None
 
         states = CampaignParticipant.State
-        participant.state = states.ACCEPTED if accepted else states.DECLINED
-        participant.answered = _now()
-        participant.save(update_fields=["state", "answered", "modified"])
+        player.state = states.ACCEPTED if accepted else states.DECLINED
+        player.answered = _now()
+        player.save(update_fields=["state", "answered", "modified"])
 
         self.event(
             CampaignEvent.Kind.INVITE_ACCEPTED
@@ -260,11 +260,11 @@ class CampaignOperation:
             campaign.owner,
             subject=f"{user.username} {word} your invitation to {campaign.name}",
             sender=user,
-            about=participant,
+            about=player,
         )
-        return participant
+        return player
 
-    def remove_participant(self, participant):
+    def remove_player(self, player):
         """Take somebody out of the campaign.
 
         The row goes rather than being marked: a person who is not in a
@@ -272,9 +272,9 @@ class CampaignOperation:
         make them look like somebody who declined. What happened stays in
         the log, which is where it belongs.
         """
-        user = participant.user
-        participant.delete()
-        self.event(CampaignEvent.Kind.PARTICIPANT_REMOVED, about_user=user)
+        user = player.user
+        player.delete()
+        self.event(CampaignEvent.Kind.PLAYER_REMOVED, about_user=user)
 
     def record_battle(self, date, gangs=()):
         """Write down a battle that was fought, and who was in it.
@@ -301,33 +301,35 @@ class CampaignOperation:
         battle.delete()
 
     def add_asset(self, asset, name=""):
-        """Put one copy of a pooled asset into the pool, held by nobody.
+        """Add one of an asset to the campaign, held by nobody.
 
-        Only an asset of a pooled kind of this campaign's type or of its
-        additions. A held-one-each asset is every member gang's own, given
-        on joining, and has no pool to sit in; an asset of another type is
-        not one this campaign deals in — either arriving here is a caller's
-        mistake, not a choice a screen offers. Nothing changes for any
-        gang: a copy nobody holds is the campaign's own act, and only its
-        log carries it.
+        Only an asset of a Holding asset type of this campaign's type or of
+        its own additions. A possession is every member gang's own, given on
+        joining, and the campaign keeps none; an asset of another campaign
+        type is not one this campaign deals in — either arriving here is a
+        caller's mistake, not a choice a screen offers. Nothing changes for
+        any gang: an asset nobody holds is the campaign's own act, and only
+        its log carries it.
         """
-        if not asset.kind.is_pooled:
+        asset_type = asset.asset_type
+        if not asset_type.is_holding:
             raise ValueError(
-                f"{asset} is of the kind {asset.kind}, which every gang holds one "
-                "of. Only a pooled kind has copies to add."
+                f"{asset} is a {asset_type}, which every gang has its own of. "
+                "Only an asset type with Holding ownership can be added to a "
+                "campaign."
             )
-        if asset.kind.campaign_type_id not in (
+        if asset_type.campaign_type_id not in (
             self.campaign.campaign_type_id,
             self.campaign.additions_id,
         ):
             raise ValueError(
-                f"{asset} is of the kind {asset.kind}, which belongs to "
-                f"{asset.kind.campaign_type}, not to this campaign's type or "
-                "its additions."
+                f"{asset} is a {asset_type}, an asset type of "
+                f"{asset_type.campaign_type}, not of this campaign's type or "
+                "the campaign's own."
             )
-        # A shared kind may hold another campaign's own assets, written into
-        # that campaign's pack. Only this campaign's pack and the type's own
-        # are this campaign's to deal in.
+        # A shared asset type may hold another campaign's own assets, written
+        # into that campaign's pack. Only this campaign's pack and the type's
+        # own are this campaign's to deal in.
         if asset.pack_id not in (
             self.campaign.pack_id,
             self.campaign.campaign_type.pack_id,
@@ -336,151 +338,163 @@ class CampaignOperation:
                 f"{asset} is in the {asset.pack} pack, which is not this "
                 "campaign's own or its type's."
             )
-        token = CampaignAsset.objects.create(
+        campaign_asset = CampaignAsset.objects.create(
             campaign=self.campaign, asset=asset, name=(name or "").strip()
         )
-        self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(token))
-        return token
+        self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
+        return campaign_asset
 
-    def drop_asset(self, token):
-        """Take a copy nobody holds out of the pool.
+    def remove_asset(self, campaign_asset):
+        """Take an asset nobody holds out of the campaign.
 
-        A held copy is refused in words: dropping it would take the asset
-        off the holding gang with nothing in that gang's history saying
-        so. Taking it away first writes that line. A copy already gone
-        drops nothing and says nothing: the second of two clicks on one
-        button finds the first one's work done.
+        A held asset is refused in words: removing it would take the asset
+        off the holding gang with nothing in that gang's history saying so.
+        Unassigning it first writes that line. An asset already gone removes
+        nothing and says nothing: the second of two clicks on one button
+        finds the first one's work done.
         """
         from n26.core.operations import Refusal
 
-        token = _token_under_the_lock(token)
-        if token is None:
+        campaign_asset = _asset_under_the_lock(campaign_asset)
+        if campaign_asset is None:
             return None
-        if token.held:
+        if campaign_asset.held:
             raise Refusal(
-                f"You cannot drop {token} while {token.holder.gang.name} holds it. "
-                "Take it away first."
+                f"You cannot remove {campaign_asset} while "
+                f"{campaign_asset.holder.gang.name} holds it. Unassign it first."
             )
-        self.event(CampaignEvent.Kind.ASSET_DROPPED, note=str(token))
-        token.delete()
-        return token
+        self.event(CampaignEvent.Kind.ASSET_REMOVED, note=str(campaign_asset))
+        campaign_asset.delete()
+        return campaign_asset
 
-    def grant(self, token, membership):
-        """Give a copy in the pool to a gang playing this campaign.
+    def assign(self, campaign_asset, membership):
+        """Give an asset nobody holds to a gang playing this campaign.
 
-        The token changes hands under the campaign's line, and the gang's
+        The asset's holder is set under the campaign's line, and the gang's
         own line is taken inside it — campaign first, then gang, for every
         writer that takes both; a gang's own writes only reference the
-        campaign, which the campaign's lock strength leaves alone — so
-        two acts touching one token and one gang never wait on each other
-        in opposite orders. The gang's history gets a
-        journal-only event about the token: it holds the copy and never
-        owns it, so there is no entry, no price and nothing for the books
-        to fold. A copy another gang holds is refused in words, and one
-        this gang already holds is granted nothing twice.
+        campaign, which the campaign's lock strength leaves alone — so two
+        acts touching one asset and one gang never wait on each other in
+        opposite orders. The gang's history gets a journal-only GAINED event
+        about the asset: it holds the asset and never owns it, so there is
+        no ledger entry, no price and nothing for the books to fold. An
+        asset another gang holds is refused in words, and one this gang
+        already holds is assigned nothing twice.
         """
         from n26.core.operations import Refusal, operation
 
         if membership.campaign_id != self.campaign.pk or not membership.playing:
             raise ValueError(f"{membership} is not playing {self.campaign}.")
-        token = _token_under_the_lock(token)
-        if token is None:
+        campaign_asset = _asset_under_the_lock(campaign_asset)
+        if campaign_asset is None:
             return None
-        if token.campaign_id != self.campaign.pk:
-            raise ValueError(f"{token} is not in {self.campaign}'s pool.")
-        if token.held:
-            if token.holder_id == membership.pk:
-                return token
-            raise Refusal(
-                f"{token} is held by {token.holder.gang.name}. Take it away "
-                "from them first."
+        if campaign_asset.campaign_id != self.campaign.pk:
+            raise ValueError(
+                f"{campaign_asset} is not one of {self.campaign}'s assets."
             )
-        token.holder = membership
-        token.save(update_fields=["holder", "modified"])
+        if campaign_asset.held:
+            if campaign_asset.holder_id == membership.pk:
+                return campaign_asset
+            raise Refusal(
+                f"{campaign_asset} is held by {campaign_asset.holder.gang.name}. "
+                "Unassign it from them first."
+            )
+        campaign_asset.holder = membership
+        campaign_asset.save(update_fields=["holder", "modified"])
         with operation(membership.gang, actor=self.actor) as op:
-            op.event(token, LedgerEvent.Kind.GRANTED, note=str(token))
-        return token
+            op.event(campaign_asset, LedgerEvent.Kind.GAINED, note=str(campaign_asset))
+        return campaign_asset
 
-    def take_away(self, token):
-        """Take a copy back from the gang holding it, into the pool.
+    def unassign(self, campaign_asset, by_holder=None):
+        """Take an asset back from the gang holding it, so nobody holds it.
 
-        The same two lines in the same order as a grant, and the same
-        kind of record on the gang — one saying the copy went. A copy
-        nobody holds is left as it is, and the caller gets None back:
-        nothing happened, so nothing is written.
+        The same two lines in the same order as assigning, and the matching
+        record on the gang — a journal-only LOST event. An asset nobody
+        holds is left as it is, and the caller gets None back: nothing
+        happened, so nothing is written.
+
+        ``by_holder`` is the membership the caller was allowed to act for.
+        The holding gang's owner may hand an asset back, and the page that
+        let them read the holder before this line was taken; if another
+        gang holds it by now, the act is refused in words rather than done
+        to that gang's asset. The arbitrator passes nothing.
         """
         from n26.core.operations import operation
 
-        token = _token_under_the_lock(token)
-        if token is None or not token.held:
+        campaign_asset = _asset_under_the_lock(campaign_asset)
+        if campaign_asset is None or not campaign_asset.held:
             return None
-        holder = token.holder
-        token.holder = None
-        token.save(update_fields=["holder", "modified"])
+        _still_held_by(campaign_asset, by_holder)
+        holder = campaign_asset.holder
+        campaign_asset.holder = None
+        campaign_asset.save(update_fields=["holder", "modified"])
         with operation(holder.gang, actor=self.actor) as op:
-            op.event(token, LedgerEvent.Kind.TOOK_AWAY, note=str(token))
-        return token
+            op.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
+        return campaign_asset
 
-    def transfer(self, token, membership):
-        """Hand a held copy from the gang holding it to another gang
+    def transfer(self, campaign_asset, membership, by_holder=None):
+        """Hand a held asset from the gang holding it to another gang
         playing this campaign.
 
-        One change to the token under the campaign's line, then a record
-        on each gang inside it — the copy went from one, the copy came to
-        the other — in the order the gangs are named, so both histories
-        say what happened and neither says it twice. Each gang's record
-        is the same kind a grant or a taking away writes, since that is
-        what happened to each of them.
+        One change to the asset under the campaign's line, then a record on
+        each gang inside it — LOST on the one it left, GAINED on the one it
+        went to — in the order the gangs are named, so both histories say
+        what happened and neither says it twice. The two records share one
+        mark, which is how the campaign's log reads them as one act.
 
-        A copy nobody holds cannot be handed over: granting is the act
-        for that. A copy already held by the receiving gang is refused
+        An asset nobody holds cannot be handed over: assigning is the act
+        for that. An asset already held by the receiving gang is refused
         too, in words, since nothing would change hands.
         """
         from n26.core.operations import Refusal, operation
 
         if membership.campaign_id != self.campaign.pk or not membership.playing:
             raise ValueError(f"{membership} is not playing {self.campaign}.")
-        token = _token_under_the_lock(token)
-        if token is None:
+        campaign_asset = _asset_under_the_lock(campaign_asset)
+        if campaign_asset is None:
             return None
-        if token.campaign_id != self.campaign.pk:
-            raise ValueError(f"{token} is not one of {self.campaign}'s copies.")
-        if not token.held:
-            raise Refusal(
-                f"{token} is not held by any gang, so it cannot be handed over. "
-                "Assign it instead."
+        if campaign_asset.campaign_id != self.campaign.pk:
+            raise ValueError(
+                f"{campaign_asset} is not one of {self.campaign}'s assets."
             )
-        if token.holder_id == membership.pk:
-            raise Refusal(f"{membership.gang.name} already holds {token}.")
-        loser = token.holder
-        token.holder = membership
-        token.save(update_fields=["holder", "modified"])
-        with operation(loser.gang, actor=self.actor) as op:
-            op.event(token, LedgerEvent.Kind.TOOK_AWAY, note=str(token))
-        with operation(membership.gang, actor=self.actor) as op:
-            op.event(token, LedgerEvent.Kind.GRANTED, note=str(token))
-        return token
+        if not campaign_asset.held:
+            raise Refusal(
+                f"{campaign_asset} is not held by any gang, so it cannot be "
+                "handed over. Assign it instead."
+            )
+        if campaign_asset.holder_id == membership.pk:
+            raise Refusal(f"{membership.gang.name} already holds {campaign_asset}.")
+        _still_held_by(campaign_asset, by_holder)
+        loser = campaign_asset.holder
+        campaign_asset.holder = membership
+        campaign_asset.save(update_fields=["holder", "modified"])
+        mark = uuid4()
+        with operation(loser.gang, actor=self.actor, batch=mark) as op:
+            op.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
+        with operation(membership.gang, actor=self.actor, batch=mark) as op:
+            op.event(campaign_asset, LedgerEvent.Kind.GAINED, note=str(campaign_asset))
+        return campaign_asset
 
-    # --- The arbitrator's additions --------------------------------------
+    # --- What the arbitrator adds ------------------------------------------
     #
     # Everything below writes library content into the campaign's own pack
     # and onto its additions type, so it reaches member gangs by the path a
     # gang type's built-ins take. Nothing here touches the shared type.
 
-    def add_kind(self, label_singular, mode, label_plural=""):
-        """Declare a new class of asset for this campaign alone.
+    def add_asset_type(self, label_singular, ownership, label_plural=""):
+        """Declare a new asset type for this campaign alone.
 
-        The kind lands on the additions type, in the campaign's pack. A
-        label the campaign already uses — on the shared type or on the
+        The asset type lands on the additions type, in the campaign's pack.
+        A label the campaign already uses — on the shared type or on its own
         additions — is refused in words, because the page would print two
         headings that read the same.
         """
         from n26.core.operations import Refusal
-        from n26.library.authoring import add_asset_kind
-        from n26.library.models import AssetKind
+        from n26.library.authoring import add_asset_type
+        from n26.library.models import AssetType
 
         label_singular = (label_singular or "").strip()
-        taken = AssetKind.objects.filter(
+        taken = AssetType.objects.filter(
             campaign_type_id__in=(
                 self.campaign.campaign_type_id,
                 self.campaign.additions_id,
@@ -489,48 +503,48 @@ class CampaignOperation:
         ).exists()
         if taken:
             raise Refusal(
-                f"{self.campaign.name} already has a kind of asset called "
+                f"{self.campaign.name} already has an asset type called "
                 f"{label_singular}."
             )
-        kind = add_asset_kind(
+        asset_type = add_asset_type(
             self.campaign.additions,
             label_singular,
-            mode,
+            ownership,
             label_plural=(label_plural or "").strip(),
             pack=self.campaign.pack,
         )
-        self.event(CampaignEvent.Kind.KIND_ADDED, note=kind.label_singular)
-        return kind
+        self.event(CampaignEvent.Kind.ASSET_TYPE_ADDED, note=asset_type.label_singular)
+        return asset_type
 
-    def create_asset(self, kind, name, annotation="", income=0):
-        """Write a new asset under one of this campaign's kinds.
+    def create_asset(self, asset_type, name, annotation="", income=0):
+        """Write a new asset under one of this campaign's asset types.
 
-        The kind may be the shared type's or the additions': a campaign's
-        own Territory is as much a Territory as the book's. The asset
-        lands in the campaign's pack whichever kind it is under, so it
-        never reaches another campaign; a system kind pointing at nothing
-        of the arbitrator's is what keeps that direction clean. What
-        holding the asset does is not written here: it has a name, its
+        The asset type may be the shared type's or the campaign's own: a
+        campaign's own Territory is as much a Territory as the book's. The
+        asset lands in the campaign's pack whichever asset type it is under,
+        so it never reaches another campaign; a system asset type pointing
+        at nothing of the arbitrator's is what keeps that direction clean.
+        What holding the asset does is not written here: it has a name, its
         words and an income figure, and nothing else.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import create_asset
         from n26.library.models import Asset
 
-        if kind.campaign_type_id not in (
+        if asset_type.campaign_type_id not in (
             self.campaign.campaign_type_id,
             self.campaign.additions_id,
         ):
             raise ValueError(
-                f"{kind} belongs to {kind.campaign_type}, not to this "
-                "campaign's type or its additions."
+                f"{asset_type} is an asset type of {asset_type.campaign_type}, "
+                "not of this campaign's type or the campaign's own."
             )
         name = (name or "").strip()
         if Asset.objects.filter(pack=self.campaign.pack, name__iexact=name).exists():
             raise Refusal(f"{self.campaign.name} already has an asset called {name}.")
         asset = create_asset(
             name,
-            kind,
+            asset_type,
             annotation=(annotation or "").strip(),
             income=income or 0,
             pack=self.campaign.pack,
@@ -641,19 +655,32 @@ class CampaignOperation:
         return campaign
 
 
-def _token_under_the_lock(token):
-    """The token as it stands now that the campaign's line is held, or
-    None where it has gone.
+def _still_held_by(campaign_asset, membership_id):
+    """Refuse in words where the asset has left the gang the caller was
+    acting for since they read the page. ``None`` asks nothing: the
+    arbitrator may move any held asset whoever holds it now."""
+    from n26.core.operations import Refusal
 
-    Whoever clicked read the pool before this transaction began, and two
+    if membership_id is not None and campaign_asset.holder_id != membership_id:
+        raise Refusal(
+            f"{campaign_asset} is now held by {campaign_asset.holder.gang.name}, "
+            "so you cannot hand it over."
+        )
+
+
+def _asset_under_the_lock(campaign_asset):
+    """The campaign asset as it stands now that the campaign's line is held,
+    or None where it has gone.
+
+    Whoever clicked read the page before this transaction began, and two
     clicks on one button arrive together often enough. Every writer to a
-    token holds its campaign's line first, so a row read under that line
-    is the row as it is; the holder rides along because every decision
-    here asks who has it.
+    campaign asset holds its campaign's line first, so a row read under
+    that line is the row as it is; the holder rides along because every
+    decision here asks who has it.
     """
     return (
-        CampaignAsset.objects.select_related("holder__gang", "asset__kind")
-        .filter(pk=token.pk)
+        CampaignAsset.objects.select_related("holder__gang", "asset__asset_type")
+        .filter(pk=campaign_asset.pk)
         .first()
     )
 
@@ -684,7 +711,7 @@ def campaign_operation(campaign, actor=None):
     campaign, and inserting that reference takes the database's own share
     lock on the campaign row after the gang's line. A full lock here would
     sit on the other side of that — campaign then gang — and an arbitrator
-    granting a token while the gang's owner is buying something would
+    assigning an asset while the gang's owner is buying something would
     deadlock one of them. Nothing here ever changes the campaign's key, so
     the weaker lock loses nothing.
     """
@@ -708,11 +735,11 @@ class CampaignTypeSummary:
     of it is about, and what a gang that joins is given.
 
     Built here rather than in the template because each line is a
-    sentence composed from several rows — a kind's label and its mode, a
-    built-in member and its opening value, a modifier's scope and effect
-    — and the words belong with the facts they are made from.
+    sentence composed from several rows — an asset type's label and its
+    ownership, a built-in member and its opening value, a modifier's scope
+    and effect — and the words belong with the facts they are made from.
 
-    ``kinds`` is one sentence per asset kind, in the type's own order.
+    ``kinds`` is one sentence per asset type, in the type's own order.
     ``starts_with`` is one sentence for the whole built-in set, or empty
     where the type builds nothing in. ``rules`` is one sentence per
     campaign-wide modifier, in the words the authoring pages use.
@@ -730,14 +757,17 @@ class CampaignTypeSummary:
 def summarise_campaign_type(campaign_type, checked=False):
     """What founding a campaign on this type gives, in sentences.
 
-    Reads the type's kinds, its built-in members and its modifiers, each
+    Reads the type's asset types, its built-in members and its modifiers, each
     once. Three or four queries per type; the screen offers a handful.
     """
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
     from n26.library.prose import GANG, sentence_for
     from n26.library.references import reading_sentences
 
-    kinds = tuple(_kind_sentence(kind) for kind in campaign_type.asset_kinds.all())
+    kinds = tuple(
+        _asset_type_sentence(asset_type)
+        for asset_type in campaign_type.asset_types.all()
+    )
     members = campaign_type.built_in_members.select_related(
         *DEFAULT_ASSIGNABLE_FIELDS
     ).order_by("position")
@@ -758,12 +788,12 @@ def summarise_campaign_type(campaign_type, checked=False):
     )
 
 
-def _kind_sentence(kind):
-    """How assets of one kind behave, in one sentence: "one" rather than
+def _asset_type_sentence(asset_type):
+    """How assets of one type behave, in one sentence: "one" rather than
     an article, so the label needs no a/an."""
-    if kind.is_pooled:
-        return f"{kind.plural} change hands."
-    return f"Every gang gets one {kind.label_singular} and keeps it."
+    if asset_type.is_holding:
+        return f"One gang holds each {asset_type.label_singular} at a time."
+    return f"Every gang has its own {asset_type.label_singular} and keeps it."
 
 
 def _given(member):

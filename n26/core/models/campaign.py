@@ -44,7 +44,8 @@ class Campaign(Base, Owned, Archived):
     owns, and an **additions** type created empty in it. A gang that joins is
     assigned both types, so what the shared type gives every member and what
     the arbitrator adds for this campaign reach the gang by the same path a
-    gang type's built-ins do (design/campaign-assets.md).
+    gang type's built-ins do (design/campaign-assets.md). The additions type
+    is machinery: no page names it, and the authoring lists leave it out.
     """
 
     #: Named here rather than taken from ``Owned`` because the other edition
@@ -82,8 +83,8 @@ class Campaign(Base, Owned, Archived):
         help_text="The pack holding what the arbitrator creates for this campaign.",
     )
     #: A second campaign type, created empty in the pack at founding and
-    #: assigned to every member gang beside the shared one. The arbitrator's
-    #: additions land here, never on the shared type.
+    #: assigned to every member gang beside the shared one. What the
+    #: arbitrator adds lands here, never on the shared type.
     additions = models.OneToOneField(
         "library.CampaignType",
         on_delete=models.PROTECT,
@@ -148,19 +149,19 @@ class CampaignEvent(Base):
         ARCHIVED = "archived", "Archived"
         BATTLE_RECORDED = "battle_recorded", "Battle recorded"
         BATTLE_REMOVED = "battle_removed", "Battle removed"
-        INVITED = "invited", "Invited somebody"
+        INVITED = "invited", "Invited a player"
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
         INVITE_DECLINED = "invite_declined", "Invitation declined"
-        PARTICIPANT_REMOVED = "participant_removed", "Participant removed"
-        # The campaign's copies changing with no gang touched. A grant or
-        # a taking away changes a gang, and is that gang's ledger event
-        # instead.
-        ASSET_ADDED = "asset_added", "Asset copy added"
-        ASSET_DROPPED = "asset_dropped", "Asset copy dropped"
-        # The arbitrator's additions: content written into the campaign's
-        # own pack and onto its additions type. What a member gang then
-        # receives is that gang's ledger event, as every built-in is.
-        KIND_ADDED = "kind_added", "Asset kind added"
+        PLAYER_REMOVED = "player_removed", "Player removed"
+        # The campaign's assets changing with no gang touched. An asset
+        # assigned to a gang or unassigned from one changes the gang, and
+        # is that gang's ledger event instead.
+        ASSET_ADDED = "asset_added", "Asset added"
+        ASSET_REMOVED = "asset_removed", "Asset removed"
+        # Content the arbitrator wrote into the campaign's own pack and
+        # onto its additions type. What a member gang then receives is
+        # that gang's ledger event, as every built-in is.
+        ASSET_TYPE_ADDED = "asset_type_added", "Asset type added"
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"
@@ -277,7 +278,7 @@ class CampaignMembership(Base):
         blank=True,
         related_name="additions_carrier_of",
         help_text=(
-            "The gang's assignment of the campaign's additions type. What "
+            "The gang's assignment of the campaign's own campaign type. What "
             "the arbitrator adds to this campaign is caused by it."
         ),
     )
@@ -309,68 +310,74 @@ class CampaignMembership(Base):
 
 
 class CampaignAsset(Base):
-    """One copy of an asset that changes hands, kept by one campaign, and
-    who holds it.
+    """An asset from the campaign's point of view: one of the campaign's
+    own, kept by it, and who holds it.
 
-    Such an asset is a **holding**, not a possession. The campaign owns
-    the token; a gang only ever holds it, and the token says which gang
-    that is. Nothing is assigned to the gang, no ledger entry is written,
-    and the gang's rating never counts it — so granting, taking away and
-    handing over are one column changing under the campaign's own line,
-    with a journal-only event on each gang touched so both histories say
-    what happened (design/campaign-assets.md).
+    Only assets of a Holding asset type are recorded here. Such an asset is
+    a **holding**, not a possession: the campaign owns it, a gang only ever
+    holds it, and this row says which gang that is. Nothing is assigned to
+    the gang, no ledger entry is written, and the gang's rating never counts
+    it — so assigning, unassigning and handing over are one column changing
+    under the campaign's own line, with a journal-only event on each gang
+    touched so both histories say what happened
+    (design/campaign-assets.md).
 
-    ``holder`` is a membership rather than a gang so a token cannot point
-    at a gang that has left the campaign. ``name`` is an optional name for
-    this copy — "the Old Ruins by the sump" — drawn in place of the
-    asset's where it is set.
+    ``holder`` is a membership rather than a gang so a campaign asset cannot
+    point at a gang that has left the campaign. ``name`` is an optional
+    name for this asset in this campaign — "the Old Ruins by the sump" —
+    drawn in place of the library asset's where it is set.
 
     A holding contributes computed effects to its holder's card while it
-    is held, credited to the token. What a stored effect does at grant is
-    decided where grants are made, not here.
+    is held, credited to this row. What a stored effect does when an asset
+    is assigned is decided where assignments are made, not here.
     """
 
-    #: Where the effects engine finds a token's modifiers: on the asset it
-    #: is a copy of. A token carries none of its own.
+    #: Where the effects engine finds a campaign asset's modifiers: on the
+    #: library asset it stands for. A campaign asset carries none of its own.
     carries_modifiers_of = "asset"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
         on_delete=models.CASCADE,
-        related_name="pool",
+        related_name="campaign_assets",
     )
     asset = models.ForeignKey(
         "library.Asset",
         on_delete=models.PROTECT,
-        related_name="tokens",
-        help_text="The asset this is a copy of.",
+        related_name="campaign_assets",
+        help_text="Which asset in the library this is.",
     )
     #: Set to nothing when the membership goes, which is the only way a
-    #: token comes to point at nobody other than being taken away.
+    #: campaign asset comes to point at nobody other than being unassigned.
     holder = models.ForeignKey(
         "n26.CampaignMembership",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="held",
-        help_text="The gang holding this copy. Blank when nobody holds it.",
+        help_text="The gang holding this asset. Blank when nobody holds it.",
     )
     name = models.CharField(
         max_length=200,
         blank=True,
         default="",
-        help_text="A name for this copy. Leave blank to use the asset's name.",
+        help_text=(
+            "A name for this asset in this campaign. Leave blank to use the "
+            "asset's own name."
+        ),
     )
 
     class Meta:
         verbose_name = "campaign asset"
         verbose_name_plural = "campaign assets"
-        # Grouped by kind, as the campaign page's assets tables are, then
-        # by asset and by copy. The joins are paid once per campaign page,
-        # which reads every copy of the campaign at once.
-        ordering = ["asset__kind__position", "asset__name", "name", "created"]
+        # Grouped by asset type, as the campaign page's assets tables are,
+        # then by asset and by name. The joins are paid once per campaign
+        # page, which reads every asset of the campaign at once.
+        ordering = ["asset__asset_type__position", "asset__name", "name", "created"]
         indexes = [
-            models.Index(fields=["campaign", "holder"], name="campaign_asset_pool_idx"),
+            models.Index(
+                fields=["campaign", "holder"], name="campaign_asset_holder_idx"
+            ),
         ]
 
     def __str__(self):
@@ -378,14 +385,14 @@ class CampaignAsset(Base):
 
     @property
     def held(self):
-        """Whether a gang still playing holds this copy."""
+        """Whether a gang still playing holds this asset."""
         return self.holder is not None and self.holder.playing
 
     @property
-    def kind_label(self):
+    def type_label(self):
         """What sort of asset this is, in the campaign type's own word,
         lowercased for a sentence: "territory", "racket"."""
-        return self.asset.kind.label_singular.lower()
+        return self.asset.asset_type.label_singular.lower()
 
 
 class Battle(Base):
@@ -428,17 +435,17 @@ class Battle(Base):
 
 
 class CampaignParticipant(Base):
-    """One person the arbitrator has asked into a campaign, and their answer.
+    """One player the arbitrator has asked into a campaign, and their answer.
 
-    Being a participant is about the *person*, not their gangs: an invitation
+    Being a player is about the *person*, not their gangs: an invitation
     says somebody is at this table, and which gangs they bring is a separate
     question the campaign answers elsewhere. So there is one row per person
     per campaign, and inviting somebody who has already declined asks the same
     row again rather than starting a second conversation.
 
-    The arbitrator owns the campaign and is not a participant of it. Being
-    one grants membership and nothing else: what a participant may do is a
-    question their campaign's own screens answer.
+    The arbitrator owns the campaign and is not a player in it. Being one
+    grants membership and nothing else: what a player may do is a question
+    their campaign's own screens answer.
     """
 
     class State(models.TextChoices):
@@ -473,8 +480,8 @@ class CampaignParticipant(Base):
     answered = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name = "campaign participant"
-        verbose_name_plural = "campaign participants"
+        verbose_name = "player"
+        verbose_name_plural = "players"
         ordering = ["created"]
         constraints = [
             models.UniqueConstraint(

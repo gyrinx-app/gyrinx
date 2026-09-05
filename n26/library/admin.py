@@ -4,7 +4,7 @@ from django.contrib import admin
 from n26.library import artwork
 from n26.library.models import (
     Asset,
-    AssetKind,
+    AssetType,
     CampaignType,
     ContentPack,
     GangType,
@@ -68,10 +68,10 @@ class GangTypeAdmin(admin.ModelAdmin):
     list_select_related = ["pack"]
 
 
-class AssetKindInline(admin.TabularInline):
-    model = AssetKind
+class AssetTypeInline(admin.TabularInline):
+    model = AssetType
     extra = 1
-    fields = ["label_singular", "label_plural", "mode", "position"]
+    fields = ["label_singular", "label_plural", "ownership", "position"]
     ordering = ["position"]
 
 
@@ -80,16 +80,21 @@ class CampaignTypeAdmin(admin.ModelAdmin):
     list_display = ["name", "pack", "archived"]
     list_filter = ["pack", "archived"]
     search_fields = ["name"]
-    inlines = [AssetKindInline]
+    inlines = [AssetTypeInline]
     list_select_related = ["pack"]
 
 
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
-    list_display = ["name", "kind", "income", "pack", "archived"]
-    list_filter = ["pack", "kind__campaign_type", "kind__mode", "archived"]
+    list_display = ["name", "asset_type", "income", "pack", "archived"]
+    list_filter = [
+        "pack",
+        "asset_type__campaign_type",
+        "asset_type__ownership",
+        "archived",
+    ]
     search_fields = ["name", "qualifier"]
-    list_select_related = ["pack", "kind", "kind__campaign_type"]
+    list_select_related = ["pack", "asset_type", "asset_type__campaign_type"]
 
 
 @admin.register(Stat)

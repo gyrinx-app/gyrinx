@@ -248,12 +248,14 @@ class Operation:
     #: content bug, not a use case.
     MAX_STORED_EFFECT_DEPTH = 3
 
-    def __init__(self, gang, actor=None):
+    def __init__(self, gang, actor=None, batch=None):
         self.gang = gang
         self.actor = actor
         # Every event this operation writes carries the same mark, so
-        # the history can tell one act's records from its neighbours'.
-        self.batch = uuid4()
+        # the history can tell one act's records from its neighbours'. A
+        # caller writing one act across two gangs — an asset handed from
+        # one to the other — passes the mark in, so both halves share it.
+        self.batch = batch or uuid4()
         self._miniatures = {}
         self._effect_depth = 0
         self._campaign = _UNASKED
@@ -400,7 +402,7 @@ class Operation:
         """Append to the log. Nothing already written is ever altered.
 
         ``about`` is the assignment or the model the record concerns —
-        or a campaign's token the gang was granted or lost, or ``None``,
+        or a campaign's asset the gang gained or lost, or ``None``,
         for an act on the gang itself. Every event is pinned to its gang,
         so a gang's whole history is one query, in order: this
         operation's gang, or — opened without one — the gang at the top
@@ -2203,9 +2205,9 @@ def _hold(gang):
 
 
 @contextmanager
-def operation(gang, actor=None):
+def operation(gang, actor=None, batch=None):
     """One transaction; pinned numbers rewritten when it closes."""
-    op = Operation(gang, actor=actor)
+    op = Operation(gang, actor=actor, batch=batch)
     with transaction.atomic():
         if gang is not None and gang.pk is not None:
             _hold(gang)

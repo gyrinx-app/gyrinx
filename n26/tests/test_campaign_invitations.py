@@ -164,7 +164,7 @@ class TestRemoving:
         with campaign_operation(campaign, actor=arbitrator) as act:
             participant = act.invite(player)
         with campaign_operation(campaign, actor=arbitrator) as act:
-            act.remove_participant(participant)
+            act.remove_player(participant)
 
         assert not CampaignParticipant.objects.exists()
         assert told(campaign) == [

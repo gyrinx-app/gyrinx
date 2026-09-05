@@ -1,20 +1,20 @@
 {% extends "authoring/base.html" %}
 {% comment %}
-The question asked before an asset kind is taken off its campaign type,
+The question asked before an asset type is taken off its campaign type,
 at an address of its own. A page rather than a prompt: it survives a
 reload, Back is a real way out, and it works with scripting switched
 off. Nothing here changes anything — the form's POST is the act.
 
-While any asset is of the kind the act is refused, so the page lists
+While any asset is of the type the act is refused, so the page lists
 them: each is a way to the asset, where it can be deleted. An asset's
-kind is settled when it is made, so deleting is the only way clear.
+type is settled when it is made, so deleting is the only way clear.
 {% endcomment %}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
-    <c-n26.form-page action="{% url 'authoring-asset-kind-remove' thing.pk %}"
-                     title="Remove the {{ label }} asset kind?"
+    <c-n26.form-page action="{% url 'authoring-asset-type-remove' thing.pk %}"
+                     title="Remove the {{ label }} asset type?"
                      lead="Campaigns of the {{ campaign_type }} type will have no {{ thing.plural }}."
-                     submit_label="Remove asset kind"
+                     submit_label="Remove asset type"
                      submit_variant="danger"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
@@ -30,7 +30,7 @@ kind is settled when it is made, so deleting is the only way clear.
         </c-slot>
         {% csrf_token %}
         {% if assets %}
-            <c-ui.alert variant="warning" title="Assets are still of this kind">
+            <c-ui.alert variant="warning" title="Assets are still of this type">
                 You cannot remove it until you delete these assets:
                 <ul class="mt-2 list-disc pl-5">
                     {% for asset in assets %}
@@ -43,8 +43,8 @@ kind is settled when it is made, so deleting is the only way clear.
                 </ul>
             </c-ui.alert>
         {% else %}
-            <c-ui.alert variant="info" title="No assets are of this kind">
-                Removing it changes only which kinds of asset this campaign type has.
+            <c-ui.alert variant="info" title="No assets are of this type">
+                Removing it changes only which asset types this campaign type has.
             </c-ui.alert>
         {% endif %}
     </c-n26.form-page>

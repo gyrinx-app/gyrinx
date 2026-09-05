@@ -417,72 +417,74 @@ def create_assignment_set(miniature, name, assignments):
 
 
 def add_asset(campaign, asset, name="", actor=None):
-    """Add one copy of a pooled asset to a campaign, held by nobody."""
+    """Add an asset to a campaign, held by nobody."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
         return act.add_asset(asset, name=name)
 
 
-def grant_asset(token, gang, actor=None):
-    """Grant a copy to a gang playing the campaign, as the campaign
-    page's Grant does: campaign line first, then the gang's."""
+def assign_asset(campaign_asset, gang, actor=None):
+    """Assign an asset to a gang playing the campaign, as the campaign
+    page's Assign does: campaign line first, then the gang's."""
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
-    campaign = token.campaign
+    campaign = campaign_asset.campaign
     membership = CampaignMembership.objects.get(
         campaign=campaign, gang=gang, left__isnull=True
     )
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
-        return act.grant(token, membership)
+        return act.assign(campaign_asset, membership)
 
 
-def take_away_asset(token, actor=None):
-    """Take a copy back from the gang holding it."""
+def unassign_asset(campaign_asset, actor=None):
+    """Take an asset back from the gang holding it."""
     from n26.core.campaigns import campaign_operation
 
-    campaign = token.campaign
+    campaign = campaign_asset.campaign
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
-        return act.take_away(token)
+        return act.unassign(campaign_asset)
 
 
-def drop_asset(token, actor=None):
-    """Drop a copy nobody holds."""
+def remove_asset(campaign_asset, actor=None):
+    """Remove an asset nobody holds from its campaign."""
     from n26.core.campaigns import campaign_operation
 
-    campaign = token.campaign
+    campaign = campaign_asset.campaign
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
-        return act.drop_asset(token)
+        return act.remove_asset(campaign_asset)
 
 
-def transfer_asset(token, gang, actor=None):
-    """Hand a held copy to another gang playing the campaign."""
+def transfer_asset(campaign_asset, gang, actor=None):
+    """Hand a held asset to another gang playing the campaign."""
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
-    campaign = token.campaign
+    campaign = campaign_asset.campaign
     membership = CampaignMembership.objects.get(
         campaign=campaign, gang=gang, left__isnull=True
     )
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
-        return act.transfer(token, membership)
+        return act.transfer(campaign_asset, membership)
 
 
-def add_kind(campaign, label, mode="pooled", plural="", actor=None):
-    """Declare a kind of asset on the campaign's additions."""
+def add_campaign_asset_type(campaign, label, ownership="pooled", plural="", actor=None):
+    """Declare an asset type on the campaign's own campaign type."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
-        return act.add_kind(label, mode, label_plural=plural)
+        return act.add_asset_type(label, ownership, label_plural=plural)
 
 
-def create_campaign_asset(campaign, kind, name, annotation="", income=0, actor=None):
-    """Write an asset into the campaign's pack under one of its kinds."""
+def create_campaign_asset(
+    campaign, asset_type, name, annotation="", income=0, actor=None
+):
+    """Write an asset into the campaign's pack under one of its asset types."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
-        return act.create_asset(kind, name, annotation=annotation, income=income)
+        return act.create_asset(asset_type, name, annotation=annotation, income=income)
 
 
 def add_campaign_counter(campaign, name, opening=0, actor=None):

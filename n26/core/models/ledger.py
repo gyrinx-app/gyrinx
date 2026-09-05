@@ -217,9 +217,13 @@ class LedgerEvent(Base):
         # and ``dice`` say what came up; ``slot`` says what it was for.
         ROLLED = "rolled", "Rolled"
 
-    #: A campaign's pooled asset changing hands is journal-only too, kind
-    #: GRANTED or TOOK_AWAY: the gang holds the token and never owns it,
-    #: so there is no entry and nothing for reconcile to fold.
+        # A campaign's asset coming to the gang or leaving it. Journal-only:
+        # the gang holds the asset and never owns it, so there is no entry
+        # and nothing for reconcile to fold. GRANTED stays for what a
+        # campaign type gives at joining, which is an assignment.
+        GAINED = "gained", "Gained"
+        LOST = "lost", "Lost"
+
     assignment = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.CASCADE,
@@ -237,12 +241,12 @@ class LedgerEvent(Base):
         blank=True,
         related_name="ledger_events",
     )
-    #: The campaign's token a journal-only event is about, where it is
-    #: about one — a pooled asset granted to this gang or taken away from
-    #: it. Never set beside ``assignment`` or ``miniature``, for the same
-    #: reason those two are never set together. Set to nothing if the
-    #: token is dropped; the note keeps the name, so the
-    #: line still says what changed hands.
+    #: The campaign's asset a journal-only event is about, where it is about
+    #: one — a holding this gang gained or lost. Never set beside
+    #: ``assignment`` or ``miniature``, for the same reason those two are
+    #: never set together. Set to nothing if the asset is removed from the
+    #: campaign; the note keeps the name, so the line still says what the
+    #: gang gained or lost.
     campaign_asset = models.ForeignKey(
         "n26.CampaignAsset",
         on_delete=models.SET_NULL,
@@ -343,7 +347,7 @@ class LedgerEvent(Base):
     @property
     def about(self):
         """What the record concerns: the thing acquired, the model acted
-        on, the campaign's token that changed hands, or — none set — the
+        on, the campaign's asset gained or lost, or — none set — the
         gang itself."""
         if self.assignment_id is not None:
             return self.assignment.assignable

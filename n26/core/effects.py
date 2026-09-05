@@ -91,9 +91,9 @@ def kind_of(thing):
     if isinstance(thing, (Hidden, Slot, Pickable)):
         return ""
     if isinstance(thing, CampaignAsset):
-        # A campaign's token is named by what its campaign type calls the
-        # kind — "territory", "racket" — never by the table it sits in.
-        return thing.kind_label
+        # A campaign asset is named by what its campaign type calls the
+        # asset type — "territory", "racket" — never by the table it sits in.
+        return thing.type_label
     return str(thing._meta.verbose_name)
 
 
@@ -769,19 +769,19 @@ def compute(card, index):
             continue
         pending.extend(steps_for(node.assignable, False, 0, node=node))
 
-    # A campaign's tokens the gang holds are the second kind of carrier.
-    # A holding is written nowhere on the card — the gang holds the copy
+    # The campaign's assets the gang holds are the second kind of carrier.
+    # A holding is written nowhere on the card — the gang holds the asset
     # and never owns it — so it stands on no line and is worth nothing,
-    # and what its asset's modifiers do is credited to the token itself,
-    # named as its campaign type names the kind. On a member's card the
-    # tokens ride as the gang's guests, the way its assignments ride as
+    # and what its asset's modifiers do is credited to the campaign asset
+    # itself, named as its campaign type names the asset type. On a
+    # member's card the holdings ride as the gang's guests, the way its assignments ride as
     # broadcast: a scope aimed at every model reaches the fighter, one
     # aimed at the bearer reaches nobody, and a stored effect is never
     # said here.
     guest = getattr(card, "host_kind", MODEL) != GANG
-    for token in getattr(card, "holdings", ()):
-        seen.add(ModifierIndex.key(token))
-        pending.extend(steps_for(token, False, 0, echoed=guest))
+    for campaign_asset in getattr(card, "holdings", ()):
+        seen.add(ModifierIndex.key(campaign_asset))
+        pending.extend(steps_for(campaign_asset, False, 0, echoed=guest))
 
     # What the gang holds by grant is dealt on here too. The gang-hosted
     # assignments already ride the card; a thing the gang was *given* has

@@ -1,12 +1,12 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Granting one copy to a gang playing the campaign. The gangs
-offered are the campaign's own, so a copy cannot go to a gang that is not in
-it. Plain radios, as the battle form's boxes are, so the page posts with
-scripting off.
+Assigning one of the campaign's assets to a gang playing the campaign. The
+gangs offered are the campaign's own, so an asset cannot go to a gang that is
+not in it. Plain radios, as the battle form's boxes are, so the page posts
+with scripting off.
 {% endcomment %}
-{% block head_title %}Grant {{ token }}{% endblock head_title %}
+{% block head_title %}Assign {{ campaign_asset }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -15,11 +15,11 @@ scripting off.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-asset-grant' campaign.pk token.pk %}"
-                     title="Grant {{ token }}"
-                     lead="The gang holds the {{ token.kind_label }} until it is taken away. What the {{ token.kind_label }} gives the gang shows on the gang's sheet."
+    <c-n26.form-page action="{% url 'n26-campaign-asset-assign' campaign.pk campaign_asset.pk %}"
+                     title="Assign {{ campaign_asset }}"
+                     lead="The gang holds the {{ campaign_asset.type_label }} until it is unassigned. What the {{ campaign_asset.type_label }} gives the gang shows on the gang's sheet."
                      :form="form"
-                     submit_label="Grant"
+                     submit_label="Assign"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -31,7 +31,7 @@ scripting off.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Grant
+                    Assign
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
@@ -41,7 +41,7 @@ scripting off.
                         error="x"
                         :form="form"
                         name="membership"
-                        for="grant-gang">
+                        for="assign-gang">
                 {% if playing %}
                     <div class="flex flex-col gap-1.5">
                         {% for membership in playing %}

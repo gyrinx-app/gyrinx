@@ -173,15 +173,18 @@ def _describe_built_in(member):
     return _label_for(thing), notes
 
 
-def _describe_asset_kind(kind):
-    """One class of asset a campaign type has: what several are called
-    and how the kind behaves. Its assets are not counted here —
-    they are listed under it on the same page."""
-    return kind.label_singular, [kind.plural, kind.get_mode_display().lower()]
+def _describe_asset_type(asset_type):
+    """One asset type a campaign type has: what several are called and
+    its ownership. Its assets are not counted here — they are listed under
+    it on the same page."""
+    return asset_type.label_singular, [
+        asset_type.plural,
+        asset_type.get_ownership_display().lower(),
+    ]
 
 
 def _describe_asset(asset):
-    """One asset under its kind: the income figure its card prints, and
+    """One asset under its asset type: the income figure its card prints, and
     how many modifiers ride it — what those do is read on the asset's own
     page, which the name leads to.
 
@@ -381,37 +384,39 @@ DETAIL_KINDS = {
         "parts_hint": lambda parts: parts.select_related("stat"),
     },
     "campaign-type": {
-        "verb": "add_asset_kind",
-        "parts": "asset_kinds",
+        "verb": "add_asset_type",
+        "parts": "asset_types",
         "statline": False,
-        "describe": _describe_asset_kind,
+        "describe": _describe_asset_type,
         "parts_hint": lambda parts: parts.prefetch_related("assets__modifiers"),
-        "parts_label": "asset kinds",
-        "part_name": "asset kind",
+        "parts_label": "asset types",
+        "part_name": "asset type",
         "parts_description": (
-            "The kinds of asset a campaign of this type has — Territory, "
-            "Racket, Settlement. Each has a label a campaign page prints, and "
-            "a mode every asset of the kind follows. The assets themselves "
-            "are listed under their kind, and added there."
+            "The asset types a campaign of this type has — Territory, Racket, "
+            "Settlement. Each has a label a campaign page prints, and an "
+            "ownership that fixes how every asset of the type behaves. The "
+            "assets themselves are listed under their asset type, and added "
+            "there."
         ),
         "nothing_yet": (
-            "No asset kinds yet. Every asset belongs to a kind, so add one "
-            "before adding assets."
+            "No asset types yet. Every asset belongs to an asset type, so add "
+            "one before adding assets."
         ),
-        # An asset kind has no page of its own: its four fields are
+        # An asset type has no page of its own: its four fields are
         # edited in place, on the row that lists it.
         "editable": True,
-        # Under each kind, the assets of it, and the form that adds one
-        # more. An asset is one entry in the type's list, so it is made
-        # here rather than from the menu: the kind is the carrier its form
-        # is handed, and the asset joins the type's pack.
+        # Under each asset type, the assets of it, and the form that adds
+        # one more. An asset is one entry in the campaign type's list, so
+        # it is made here rather than from the menu: the asset type is the
+        # carrier its form is handed, and the asset joins the type's pack.
         "under_each": {
             "act": "add-asset",
             "verb": "create_asset",
             "parts": "assets",
             # The spec field the carrier answers, so the form does not ask
-            # it — the kind is settled by which block the author typed in.
-            "carrier_field": "kind",
+            # it — the asset type is settled by which block the author
+            # typed in.
+            "carrier_field": "asset_type",
             # What the form asks here. The rest of an asset's fields are
             # edited on its own page, which its name leads to.
             "fields": ("name", "annotation", "income"),
@@ -426,7 +431,7 @@ DETAIL_KINDS = {
         # Taking a kind off is refused while any asset is of it, and the
         # refusal needs a page: a row's control cannot say what stands
         # in the way.
-        "removes": "authoring-asset-kind-remove",
+        "removes": "authoring-asset-type-remove",
     },
     "picklist": {
         "verb": "add_picklist_member",
@@ -987,15 +992,17 @@ def _describe_gang_type(gang_type):
 
 def _describe_campaign_type(campaign_type):
     """A campaign type, as a listing needs to tell one from the next:
-    the kinds of asset it has and how many assets it hands out.
+    the asset types it has and how many assets it hands out.
 
-    Reads the kinds and their assets with ``.all()``, so a listing that
-    prefetched them describes every type without a query per row.
+    Reads the asset types and their assets with ``.all()``, so a listing
+    that prefetched them describes every type without a query per row.
     """
-    kinds = list(campaign_type.asset_kinds.all())
-    count = sum(len(kind.assets.all()) for kind in kinds)
+    asset_types = list(campaign_type.asset_types.all())
+    count = sum(len(asset_type.assets.all()) for asset_type in asset_types)
     notes = [
-        ", ".join(kind.plural for kind in kinds) if kinds else "no asset kinds yet"
+        ", ".join(asset_type.plural for asset_type in asset_types)
+        if asset_types
+        else "no asset types yet"
     ]
     if count == 0:
         notes.append("no assets yet")
@@ -1132,8 +1139,13 @@ LEAF_LISTING_HINTS = {
         "members"
     ),
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
-    # A campaign type says its kinds and counts the assets under them.
-    "campaign-type": lambda rows: rows.prefetch_related("asset_kinds__assets"),
+    # A campaign type says its asset types and counts the assets under
+    # them. A campaign's own campaign type — the one its arbitrator adds
+    # to — is left out: it is the campaign's machinery, not a type anybody
+    # founds on, and it wears the campaign's name.
+    "campaign-type": lambda rows: rows.filter(
+        additions_to__isnull=True
+    ).prefetch_related("asset_types__assets"),
 }
 
 
@@ -1206,10 +1218,7 @@ def _listed_beneath(kind, model):
     """The rows the menu prints under a kind, in the kind's own order."""
     if kind not in INDEX_LISTS:
         return []
-    rows = model.objects.all()
-    hint = LEAF_LISTING_HINTS.get(kind)
-    if hint is not None:
-        rows = hint(rows)
+    rows = _rows(model, kind)
     describe = LEAF_DESCRIBE.get(kind)
     return [
         {
@@ -1235,7 +1244,7 @@ def index(request):
                 "kind": kind,
                 "verbose_name": model._meta.verbose_name,
                 "summary": kind_summary(model),
-                "count": model.objects.count(),
+                "count": _rows(model, kind).count(),
                 "rows": _listed_beneath(kind, model),
             }
         )
@@ -1772,7 +1781,8 @@ DETAIL_PARENTS = {
     # the breadcrumb is where a reader learns it.
     "pickable": ("slot-type", "slot_type"),
     "slot": ("slot-type", "slot_type"),
-    # An asset is filed under the campaign type whose kind it is one of.
+    # An asset is filed under the campaign type whose asset type it is one
+    # of.
     "asset": ("campaign-type", "campaign_type"),
 }
 
@@ -3818,44 +3828,44 @@ def picklist_member_remove(request, pk):
 
 
 @staff_member_required
-def asset_kind_remove(request, pk):
-    """The question asked before an asset kind is taken off its campaign
+def asset_type_remove(request, pk):
+    """The question asked before an asset type is taken off its campaign
     type.
 
-    Refused in words while any asset is of the kind — each would be left
-    of no kind at all — so the page says up front how many stand in the
+    Refused in words while any asset is of the type — each would be left
+    of no type at all — so the page says up front how many stand in the
     way, and the act itself says so again if they are still there.
     """
     from n26.library import authoring
-    from n26.library.models import AssetKind
+    from n26.library.models import AssetType
 
-    kind = get_object_or_404(
-        AssetKind.objects.select_related("campaign_type").prefetch_related("assets"),
+    asset_type = get_object_or_404(
+        AssetType.objects.select_related("campaign_type").prefetch_related("assets"),
         pk=pk,
     )
-    campaign_type = kind.campaign_type
+    campaign_type = asset_type.campaign_type
     back = reverse("authoring-detail", args=["campaign-type", campaign_type.pk])
-    held = list(kind.assets.all())
+    held = list(asset_type.assets.all())
 
     if request.method == "POST":
-        said = kind.label_singular
+        said = asset_type.label_singular
         try:
             with transaction.atomic():
-                authoring.remove_asset_kind(kind)
+                authoring.remove_asset_type(asset_type)
         except ValidationError as refused:
             messages.error(request, " ".join(refused.messages))
             return redirect(request.path)
         messages.success(
-            request, f"Removed the {said} asset kind from {campaign_type}."
+            request, f"Removed the {said} asset type from {campaign_type}."
         )
         return redirect(back)
 
     return render(
         request,
-        "authoring/asset_kind_remove.html",
+        "authoring/asset_type_remove.html",
         {
-            "thing": kind,
-            "label": kind.label_singular,
+            "thing": asset_type,
+            "label": asset_type.label_singular,
             "campaign_type": campaign_type,
             "assets": [
                 {
@@ -4148,7 +4158,7 @@ def foundations(request):
                     "kind": kind,
                     "verbose_name": _model_for(specs()[verb])._meta.verbose_name,
                     "summary": kind_summary(_model_for(specs()[verb])),
-                    "count": _model_for(specs()[verb]).objects.count(),
+                    "count": _rows(_model_for(specs()[verb]), kind).count(),
                 }
                 for kind, verb in LEAF_KINDS.items()
                 if kind not in RETIRED_KINDS

@@ -7,7 +7,7 @@ table, what they hold, what has been fought.
         <c-slot name="arbitrator"><c-n26.user-link … /></c-slot>
         <c-slot name="actions">…Edit, ⋮…</c-slot>
         <c-slot name="gangs_actions"><c-ui.button …>Add gang</c-ui.button></c-slot>
-        <c-slot name="participants">…</c-slot>
+        <c-slot name="players">…</c-slot>
         <c-slot name="battles">…</c-slot>
         <c-slot name="log">…</c-slot>
     </c-n26.view.campaign-sheet>
@@ -16,13 +16,19 @@ The gang sheet's sibling, in the gang sheet's shape: a header naming the
 campaign with the type it was founded on under it, the headline figures where
 the gang sheet keeps its money, a strip of standing facts beside the page's
 controls, then the sections. The gangs table and the assets tables are drawn
-here from the sheet; the participants, the battles and the log arrive as
-slots, because each names addresses this component has no business knowing.
+here from the sheet; the players, the battles and the log arrive as slots,
+because each names addresses this component has no business knowing.
 
 The lead reads "Territory campaign · arbitrated by tom", so the type is said
 once, here, and nowhere else on the page. The budget is a fact a reader can
 click into where `edit_href` is given — the facts strip is a strip of
 controls, as on the gang sheet — and settled text otherwise.
+
+What the arbitrator adds to the campaign sits where it shows: the sheet's
+`add_asset_type_href` draws beside the Assets heading, and its
+`add_counter_href` and `add_label_href` beside the Gangs heading, since a
+counter or a label is a column of that table. Each is a control for the
+arbitrator alone, drawn only where the address is filled.
 
   :sheet — a n26.render.CampaignSheet.
   edit_href — where the campaign's own facts are changed. Empty draws the
@@ -31,19 +37,17 @@ controls, as on the gang sheet — and settled text otherwise.
     empty, the sheet's own `arbitrator` is drawn as text.
   breadcrumb, trailing — passed to <c-n26.page-header>.
   actions — the page's controls, beside the facts strip: Edit and the overflow.
-  gangs_actions, assets_actions, participants_actions, battles_actions — the
-    controls of each section, at the far end of its heading.
-  additions_actions — the controls of the Additions section, which is drawn
-    only when this is filled: the section is the arbitrator's own, and a
-    reader who may add nothing is not shown what somebody else may.
-  participants, battles, log — the contents of those three sections.
+  gangs_actions, assets_actions, players_actions, battles_actions — the
+    controls of each section, at the far end of its heading, drawn after the
+    sheet's own.
+  players, battles, log — the contents of those three sections.
   log_count — the log heading's count, e.g. "12 earlier acts not shown".
   log_href — where the whole log is read. Given, the Log heading carries a
     "Full log" link; empty, the count stands alone.
 {% endcomment %}
 {# Every slot is declared: an undeclared slot name is not empty when nobody #}
 {# fills it — it resolves to the caller's own variable of that name, and the #}
-{# page filling this calls its context `battles` and `participants` too. #}
+{# page filling this calls its context `battles` and `players` too. #}
 <c-vars
     :sheet="None"
     edit_href=""
@@ -53,10 +57,9 @@ controls, as on the gang sheet — and settled text otherwise.
     actions=""
     gangs_actions=""
     assets_actions=""
-    additions_actions=""
-    participants_actions=""
+    players_actions=""
     battles_actions=""
-    participants=""
+    players=""
     battles=""
     log=""
     log_count=""
@@ -121,16 +124,6 @@ controls, as on the gang sheet — and settled text otherwise.
                             {% if sheet.budget is None %}None set{% else %}{{ sheet.budget }}¢{% endif %}
                         </c-n26.detail-list.row>
                     {% endif %}
-                    {% comment %}
-                    What the arbitrator has added on top of the shared type,
-                    drawn only once there is something: every campaign starts
-                    with none, and a row saying so would be a row about nothing.
-                    {% endcomment %}
-                    {% if sheet.additions %}
-                        <c-n26.detail-list.row label="Additions" :editable="False">
-                            {% for name in sheet.additions %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-                        </c-n26.detail-list.row>
-                    {% endif %}
                 </c-n26.detail-list>
             </div>
             {% if actions.strip %}
@@ -150,8 +143,22 @@ controls, as on the gang sheet — and settled text otherwise.
         {% endif %}
     </div>
 
+    {% comment %}
+    A counter or a label the arbitrator adds is a column of this table, so
+    the controls that add one sit on its heading.
+    {% endcomment %}
     <c-n26.section id="gangs" title="Gangs" count="{{ sheet.gang_count }} gang{{ sheet.gang_count|pluralize }}">
-        {% if gangs_actions.strip %}<c-slot name="actions">{{ gangs_actions }}</c-slot>{% endif %}
+        {% if gangs_actions.strip or sheet.add_counter_href or sheet.add_label_href %}
+            <c-slot name="actions">
+                {% if sheet.add_counter_href %}
+                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_counter_href }}">Add counter</c-ui.button>
+                {% endif %}
+                {% if sheet.add_label_href %}
+                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_label_href }}">Add label</c-ui.button>
+                {% endif %}
+                {{ gangs_actions }}
+            </c-slot>
+        {% endif %}
         {% if sheet.gangs %}
             <c-n26.campaign-gangs :sheet="sheet" />
         {% else %}
@@ -160,11 +167,20 @@ controls, as on the gang sheet — and settled text otherwise.
     </c-n26.section>
 
     {% comment %}
-    One table per pooled kind, under one heading. A held-one-each kind has
-    no table here: every gang has one, and it is on the gang's row above.
+    One table per asset type whose ownership is Holding, under one heading.
+    A possession has no table here: every gang has its own, and it is on the
+    gang's row above. An asset type the arbitrator adds is one more table,
+    so the control that adds one sits on this heading.
     {% endcomment %}
-    <c-n26.section id="assets" title="Assets" count="{% if sheet.copies %}{{ sheet.copies_held }} held, {{ sheet.copies_unclaimed }} unclaimed{% endif %}">
-        {% if assets_actions.strip %}<c-slot name="actions">{{ assets_actions }}</c-slot>{% endif %}
+    <c-n26.section id="assets" title="Assets" count="{% if sheet.asset_count %}{{ sheet.assets_held }} held, {{ sheet.assets_unclaimed }} unclaimed{% endif %}">
+        {% if assets_actions.strip or sheet.add_asset_type_href %}
+            <c-slot name="actions">
+                {% if sheet.add_asset_type_href %}
+                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>
+                {% endif %}
+                {{ assets_actions }}
+            </c-slot>
+        {% endif %}
         {% if sheet.assets %}
             <div class="flex flex-col gap-6">
                 {% for table in sheet.assets %}
@@ -172,74 +188,18 @@ controls, as on the gang sheet — and settled text otherwise.
                 {% endfor %}
             </div>
         {% else %}
-            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no assets that change hands.</p>
+            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no asset types with Holding ownership.</p>
         {% endif %}
     </c-n26.section>
-
-    {% comment %}
-    What the arbitrator has written into the campaign's own pack, by sort,
-    with the way to add more of each. Drawn for the arbitrator alone: the
-    additions themselves show elsewhere on the page — as columns, tables and
-    the Additions fact above — so nobody else is missing a fact, only the
-    controls that are not theirs.
-    {% endcomment %}
-    {% if additions_actions.strip %}
-        <c-n26.section id="additions" title="Additions">
-            <c-slot name="actions">{{ additions_actions }}</c-slot>
-            {% if sheet.added.any %}
-                <c-ui.table>
-                    <thead>
-                        <tr>
-                            <th scope="col">Type</th>
-                            <th scope="col">Name</th>
-                            <th scope="col">Detail</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for line in sheet.added.kinds %}
-                            <tr>
-                                <td class="text-muted whitespace-nowrap">Kind of asset</td>
-                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
-                                <td class="text-sm">{{ line.detail }}</td>
-                            </tr>
-                        {% endfor %}
-                        {% for line in sheet.added.assets %}
-                            <tr>
-                                <td class="text-muted whitespace-nowrap">Asset</td>
-                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
-                                <td class="text-sm">{{ line.detail }}</td>
-                            </tr>
-                        {% endfor %}
-                        {% for line in sheet.added.counters %}
-                            <tr>
-                                <td class="text-muted whitespace-nowrap">Counter</td>
-                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
-                                <td class="text-sm">{{ line.detail }}</td>
-                            </tr>
-                        {% endfor %}
-                        {% for line in sheet.added.labels %}
-                            <tr>
-                                <td class="text-muted whitespace-nowrap">Label</td>
-                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
-                                <td class="text-sm">{{ line.detail }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </c-ui.table>
-            {% else %}
-                <p class="text-sm text-muted">Nothing added yet. What you add here reaches every gang in this campaign and no gang outside it.</p>
-            {% endif %}
-        </c-n26.section>
-    {% endif %}
 
     {% comment %}
     Side by side from xl, where both are short lists and a page that stacked
     them would spend a screen on two columns of names. Stacked below that.
     {% endcomment %}
     <div class="grid grid-cols-1 gap-8 xl:grid-cols-2">
-        <c-n26.section id="participants" title="Players">
-            {% if participants_actions.strip %}<c-slot name="actions">{{ participants_actions }}</c-slot>{% endif %}
-            {{ participants }}
+        <c-n26.section id="players" title="Players">
+            {% if players_actions.strip %}<c-slot name="actions">{{ players_actions }}</c-slot>{% endif %}
+            {{ players }}
         </c-n26.section>
         <c-n26.section id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} fought{% endif %}">
             {% if battles_actions.strip %}<c-slot name="actions">{{ battles_actions }}</c-slot>{% endif %}

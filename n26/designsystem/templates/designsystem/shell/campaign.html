@@ -64,23 +64,9 @@ be judged side by side.
                 Add gang
             </c-ui.button>
         </c-slot>
-        <c-slot name="participants_actions">
+        <c-slot name="players_actions">
             <c-ui.button size="sm" variant="primary" href="#">
                 Add players
-            </c-ui.button>
-        </c-slot>
-        <c-slot name="additions_actions">
-            <c-ui.button size="sm" variant="primary" href="#">
-                Add kind of asset
-            </c-ui.button>
-            <c-ui.button size="sm" variant="primary" href="#">
-                Create asset
-            </c-ui.button>
-            <c-ui.button size="sm" variant="primary" href="#">
-                Add counter
-            </c-ui.button>
-            <c-ui.button size="sm" variant="primary" href="#">
-                Add label
             </c-ui.button>
         </c-slot>
         <c-slot name="battles_actions">
@@ -88,7 +74,7 @@ be judged side by side.
                 Record battle
             </c-ui.button>
         </c-slot>
-        <c-slot name="participants">
+        <c-slot name="players">
             <c-ui.table>
                 <thead>
                     <tr>
@@ -97,11 +83,11 @@ be judged side by side.
                     </tr>
                 </thead>
                 <tbody>
-                    {% for participant in campaign_participants %}
+                    {% for player in campaign_players %}
                         <tr>
-                            <td class="font-semibold text-ink-900 dark:text-ink-100">{{ participant.username }}</td>
+                            <td class="font-semibold text-ink-900 dark:text-ink-100">{{ player.username }}</td>
                             <td class="text-right">
-                                {% if participant.state == 'accepted' %}
+                                {% if player.state == 'accepted' %}
                                     <c-ui.badge color="green" size="sm">
                                         Accepted
                                     </c-ui.badge>

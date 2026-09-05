@@ -181,8 +181,9 @@ class TestJoiningACampaign:
             for a in acts
             if "added the gang to Dust Falls" in "".join(s.text for s in a.spans)
         ]
+        # The campaign's own type rides the joining unnamed: it wears the
+        # campaign's name, and no page names it.
         assert sorted((sub.name, sub.kind) for sub in joined.subs) == [
-            ("Dust Falls", "campaign type"),
             ("Reputation", "counter"),
             ("Settlement", "asset"),
             ("Territory campaign", "campaign type"),
@@ -217,7 +218,7 @@ class TestTheGangSheet:
         assert block.name == "Dust Falls"
         assert [
             (
-                line.kind_label,
+                line.type_label,
                 line.name,
                 line.provenance.source,
                 line.provenance.source_kind,
@@ -366,7 +367,7 @@ class TestGivingExistingCampaignsTheirPacks:
         give_campaigns_their_packs(apps)
 
         block = render_gang(gang).campaign
-        assert [(line.kind_label, line.name) for line in block.lines] == [
+        assert [(line.type_label, line.name) for line in block.lines] == [
             ("Settlement", "Settlement")
         ]
         assert [(line.name, line.value) for line in block.counters] == [

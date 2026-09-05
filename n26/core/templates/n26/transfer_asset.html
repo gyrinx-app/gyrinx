@@ -1,15 +1,15 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Handing one held copy to another gang playing the campaign. The gangs
-offered are the campaign's own less the one holding the copy, so a copy
+Handing one held asset to another gang playing the campaign. The gangs
+offered are the campaign's own less the one holding the asset, so an asset
 cannot go to a gang that is not in it or back to the gang that has it. Plain
-radios, as the grant form's are, so the page posts with scripting off.
+radios, as the assign form's are, so the page posts with scripting off.
 
 The arbitrator transfers; the holding gang's owner hands over. The verb is
 the view's, because who is reading decides which act this is.
 {% endcomment %}
-{% block head_title %}{{ verb }} {{ token }}{% endblock head_title %}
+{% block head_title %}{{ verb }} {{ campaign_asset }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -18,9 +18,9 @@ the view's, because who is reading decides which act this is.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-asset-transfer' campaign.pk token.pk %}"
-                     title="{{ verb }} {{ token }}"
-                     lead="{{ token.holder.gang.name }} holds this {{ token.kind_label }}. The gang you select holds it from now on, and both gangs' histories record the change."
+    <c-n26.form-page action="{% url 'n26-campaign-asset-transfer' campaign.pk campaign_asset.pk %}"
+                     title="{{ verb }} {{ campaign_asset }}"
+                     lead="{{ campaign_asset.holder.gang.name }} holds this {{ campaign_asset.type_label }}. The gang you select holds it from now on, and both gangs' histories record the change."
                      :form="form"
                      submit_label="{{ verb }}"
                      cancel_url="{{ back }}">

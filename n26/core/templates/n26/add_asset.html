@@ -1,11 +1,11 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Adding one copy of an asset to the campaign, picked from what the campaign
-type and the arbitrator's additions offer. Only the pooled kinds are offered:
-a Settlement is every gang's own and has no copies to add. Reached from the
-Add beside one kind's table, the list is narrowed to that kind and the page
-says so in its title.
+Adding an asset to the campaign, picked from what the campaign type and the
+arbitrator's own additions offer. Only asset types whose ownership is Holding
+are offered: a Settlement is every gang's own and is never added here.
+Reached from the Add beside one asset type's table, the list is narrowed to
+that type and the page says so in its title.
 
 Native radios over a shared name, as the campaign type cards are, so the form
 posts with no script and a redisplay after a failed submit keeps the pick.
@@ -20,12 +20,12 @@ posts with no script and a redisplay after a failed submit keeps the pick.
 {% endblock %}
 {% block content %}
     {% comment %}
-    The kind rides the form's own address, so a failed submit comes back to
-    the same narrowed list rather than to every kind at once.
+    The asset type rides the form's own address, so a failed submit comes
+    back to the same narrowed list rather than to every type at once.
     {% endcomment %}
-    <c-n26.form-page action="{% url 'n26-campaign-add-asset' campaign.pk %}{% if kind %}?kind={{ kind.pk }}{% endif %}"
+    <c-n26.form-page action="{% url 'n26-campaign-add-asset' campaign.pk %}{% if asset_type %}?type={{ asset_type.pk }}{% endif %}"
                      title="Add {{ adding }}"
-                     lead="One copy. It stays unclaimed until you grant it to a gang."
+                     lead="It stays unclaimed until you assign it to a gang."
                      :form="form"
                      submit_label="Add"
                      cancel_url="{{ back }}">
@@ -44,10 +44,10 @@ posts with no script and a redisplay after a failed submit keeps the pick.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="{% if kind %}{{ kind.label_singular }}{% else %}Asset{% endif %}">
+        <c-n26.form-section title="{% if asset_type %}{{ asset_type.label_singular }}{% else %}Asset{% endif %}">
             {% if assets %}
-                <c-n26.radio-cards label="{% if kind %}{{ kind.label_singular }}{% else %}Asset{% endif %} *"
-                                   description="{% if kind %}The {{ kind.plural|lower }} this campaign deals in.{% else %}The assets that change hands in this campaign.{% endif %}"
+                <c-n26.radio-cards label="{% if asset_type %}{{ asset_type.label_singular }}{% else %}Asset{% endif %} *"
+                                   description="{% if asset_type %}The {{ asset_type.plural|lower }} this campaign deals in.{% else %}The assets this campaign deals in.{% endif %}"
                                    :form="form"
                                    name="asset">
                     {% for asset in assets %}
@@ -60,22 +60,22 @@ posts with no script and a redisplay after a failed submit keeps the pick.
                 </c-n26.radio-cards>
             {% else %}
                 <c-ui.alert variant="info" title="Nothing to add">
-                    {% if kind %}
-                        {{ campaign.campaign_type }} and this campaign's additions have no {{ kind.plural|lower }} yet.
+                    {% if asset_type %}
+                        This campaign has no {{ asset_type.plural|lower }} yet.
                     {% else %}
-                        {{ campaign.campaign_type }} and this campaign's additions have no assets that change hands yet.
+                        This campaign has no assets that one gang holds at a time yet.
                     {% endif %}
                 </c-ui.alert>
             {% endif %}
         </c-n26.form-section>
-        <c-n26.form-section title="This copy">
-            <c-ui.field label="Name for this copy"
-                        description="Optional. Leave blank to use the asset's name."
+        <c-n26.form-section title="In this campaign">
+            <c-ui.field label="Name in this campaign"
+                        description="Optional. Leave blank to use the asset's own name."
                         error="x"
                         :form="form"
                         name="name"
-                        for="copy-name">
-                <c-ui.input id="copy-name"
+                        for="asset-name">
+                <c-ui.input id="asset-name"
                             name="name"
                             autocomplete="off"
                             value="{{ form.name.value|default:'' }}" />

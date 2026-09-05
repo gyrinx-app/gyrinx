@@ -91,7 +91,7 @@ def addresses(campaign):
         f"/n26/campaigns/{campaign.pk}/edit/",
         f"/n26/campaigns/{campaign.pk}/archive/",
         f"/n26/campaigns/{campaign.pk}/gangs/add/",
-        f"/n26/campaigns/{campaign.pk}/participants/add/",
+        f"/n26/campaigns/{campaign.pk}/players/add/",
         f"/n26/campaigns/{campaign.pk}/battles/new/",
     ]
 
@@ -272,7 +272,7 @@ class TestSettingOneUp:
         self, client, arbitrator, default_pack, open_to_everyone
     ):
         """The picker reads as choosing a rulebook: the type's description,
-        how each kind of asset behaves, and what every gang starts with."""
+        how each asset type is owned, and what every gang starts with."""
         from django.apps import apps
 
         from n26.library.core_campaign import seed_core_campaign
@@ -282,8 +282,8 @@ class TestSettingOneUp:
         body = client.get("/n26/campaigns/new/").content.decode()
         assert "Territory campaign" in body
         assert "gangs fight for control of Territory" in body
-        assert "Every gang gets one Settlement and keeps it." in body
-        assert "Territories change hands." in body
+        assert "Every gang has its own Settlement and keeps it." in body
+        assert "One gang holds each Territory at a time." in body
         assert "Every gang starts with Reputation at 0 and one Settlement." in body
 
     def test_a_campaign_wide_rule_is_drawn_on_the_card(
@@ -382,7 +382,7 @@ class TestSomebodyElsesCampaign:
         for address in (
             f"/n26/campaigns/{theirs.pk}/edit/",
             f"/n26/campaigns/{theirs.pk}/archive/",
-            f"/n26/campaigns/{theirs.pk}/participants/add/",
+            f"/n26/campaigns/{theirs.pk}/players/add/",
             f"/n26/campaigns/{theirs.pk}/gangs/add/",
             f"/n26/campaigns/{theirs.pk}/battles/new/",
         ):
@@ -959,7 +959,7 @@ class TestInvitingSomebody:
         return User.objects.create_user("vex_ordo")
 
     def add_page(self, campaign, query=""):
-        address = f"/n26/campaigns/{campaign.pk}/participants/add/"
+        address = f"/n26/campaigns/{campaign.pk}/players/add/"
         return f"{address}?q={query}" if query else address
 
     def test_the_search_finds_by_part_of_a_name(
@@ -1198,7 +1198,7 @@ class TestWhatAParticipantSees:
     ):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert f"/n26/campaigns/{campaign.pk}/edit/" in drawn
-        assert f"/n26/campaigns/{campaign.pk}/participants/add/" in drawn
+        assert f"/n26/campaigns/{campaign.pk}/players/add/" in drawn
 
 
 class TestAPlayerBringingTheirOwnGang:
@@ -1359,7 +1359,7 @@ class TestAPlayerBringingTheirOwnGang:
         for address in (
             f"/n26/campaigns/{theirs.pk}/edit/",
             f"/n26/campaigns/{theirs.pk}/archive/",
-            f"/n26/campaigns/{theirs.pk}/participants/add/",
+            f"/n26/campaigns/{theirs.pk}/players/add/",
             f"/n26/campaigns/{theirs.pk}/battles/new/",
         ):
             assert address not in drawn, address
@@ -1372,7 +1372,7 @@ class TestAPlayerBringingTheirOwnGang:
         for address in (
             f"/n26/campaigns/{theirs.pk}/edit/",
             f"/n26/campaigns/{theirs.pk}/archive/",
-            f"/n26/campaigns/{theirs.pk}/participants/add/",
+            f"/n26/campaigns/{theirs.pk}/players/add/",
             f"/n26/campaigns/{theirs.pk}/battles/new/",
         ):
             assert client.get(address).status_code == 404, address
@@ -1563,7 +1563,7 @@ class TestNothingTypedIntoAnAddressIsAServerError:
 
     @pytest.fixture
     def gone(self, campaign):
-        return f"/n26/campaigns/{campaign.pk}/participants/add/"
+        return f"/n26/campaigns/{campaign.pk}/players/add/"
 
     def test_a_post_with_no_account_says_so(
         self, client, campaign, gone, open_to_everyone
@@ -1587,7 +1587,7 @@ class TestNothingTypedIntoAnAddressIsAServerError:
     def test_removing_a_participant_by_nonsense_is_a_404(
         self, client, campaign, open_to_everyone
     ):
-        address = f"/n26/campaigns/{campaign.pk}/participants/not-a-number/remove/"
+        address = f"/n26/campaigns/{campaign.pk}/players/not-a-number/remove/"
         assert client.get(address).status_code == 404
 
     def test_answering_at_a_malformed_campaign_is_a_404(
@@ -1607,11 +1607,11 @@ class TestTheArbitratorIsNotAParticipant:
         self, client, campaign, arbitrator, open_to_everyone
     ):
         response = client.post(
-            f"/n26/campaigns/{campaign.pk}/participants/add/",
+            f"/n26/campaigns/{campaign.pk}/players/add/",
             {"user": str(arbitrator.pk)},
             follow=True,
         )
-        assert "an arbitrator cannot also be a participant" in response.content.decode()
+        assert "an arbitrator cannot also be a player" in response.content.decode()
         assert not CampaignParticipant.objects.exists()
 
     def test_an_account_switched_off_is_not_invited(
@@ -1619,7 +1619,7 @@ class TestTheArbitratorIsNotAParticipant:
     ):
         gone = User.objects.create_user("retired", is_active=False)
         response = client.post(
-            f"/n26/campaigns/{campaign.pk}/participants/add/",
+            f"/n26/campaigns/{campaign.pk}/players/add/",
             {"user": str(gone.pk)},
             follow=True,
         )

@@ -5,18 +5,20 @@ a Settlement, one Territory is drawn for it at the start, each Territory
 held gives its holder a Boon, and the campaign runs Occupation, Downtime
 and Takeover before Triumphs are awarded. Reputation is a counter every
 campaign type in the books tracks, so it ships in the system pack. The
-Territory campaign type declares the two asset kinds that campaign deals
-in — a Settlement every gang holds, and Territories that change hands —
-with one Settlement asset under the Settlement kind, and gives every
-member gang Reputation at 0 and that Settlement through its built-ins.
-See design/campaign-assets.md.
+Territory campaign type declares the two asset types that campaign deals
+in — a Settlement every gang has its own of, and Territories one gang
+holds at a time — with one Settlement asset under the Settlement type, and
+gives every member gang Reputation at 0 and that Settlement through its
+built-ins. See design/campaign-assets.md.
 
 Everything is matched on its natural key and left alone if it is
 already there, so this can run against a database that has some of it,
 and running it twice changes nothing the second time. Names are matched
 without regard to case, because that is how the library's own
 uniqueness is stated. Written against whatever model classes it is
-handed, so a migration can run it on historical ones.
+handed, so a migration can run it on historical ones — including the
+classes from before the asset type model and its fields took their
+present names, which is why those are looked up rather than assumed.
 """
 
 from django.conf import settings
@@ -26,8 +28,10 @@ CAMPAIGN_TYPE = "Territory campaign"
 #: What the type was called before it took the rulebook's own subject as
 #: its name. ``rename_core_campaign`` moves a row under this name across.
 FORMER_NAME = "N26 core"
-#: ``(label, plural, mode, position)`` for each kind the core type has.
-ASSET_KINDS = (
+#: ``(label, plural, ownership, position)`` for each asset type the core
+#: type has. The ownership is the stored value, which is the same
+#: whichever name the field has on the class the seed is handed.
+ASSET_TYPES = (
     ("Settlement", "Settlements", "held-one-each", 0),
     ("Territory", "Territories", "pooled", 1),
 )
@@ -51,12 +55,27 @@ DESCRIPTION = (
 )
 #: What a content author reads on the authoring pages.
 LIBRARY_AUTHOR_HELP = (
-    "The campaign type from the core rulebook. Settlement is held one "
-    "each: every gang is given one when it joins and keeps it. Territory "
-    "changes hands. Add each Territory as an asset under that kind, with "
-    "its income figure and its Boons as modifiers. Reputation at 0 and the "
-    "Settlement are built in, so every gang that joins starts with both."
+    "The campaign type from the core rulebook. Settlement is a possession: "
+    "every gang has its own and keeps it. Territory is a holding: one gang "
+    "holds it at a time. Add each Territory as an asset under that asset "
+    "type, with its income figure and its Boons as modifiers. Reputation at "
+    "0 and the Settlement are built in, so every gang that joins starts with "
+    "both."
 )
+
+
+def _asset_type_model(apps):
+    """The asset type model, under whichever name the handed classes give it."""
+    try:
+        return apps.get_model("library", "AssetType")
+    except LookupError:
+        return apps.get_model("library", "AssetKind")
+
+
+def _field(model, *names):
+    """The first of ``names`` that is a field on ``model``."""
+    have = {field.name for field in model._meta.get_fields()}
+    return next(name for name in names if name in have)
 
 
 def seed_core_campaign(apps):
@@ -66,10 +85,12 @@ def seed_core_campaign(apps):
     ContentPack = apps.get_model("library", "ContentPack")
     Counter = apps.get_model("library", "Counter")
     CampaignType = apps.get_model("library", "CampaignType")
-    AssetKind = apps.get_model("library", "AssetKind")
+    AssetType = _asset_type_model(apps)
     Asset = apps.get_model("library", "Asset")
     DefaultAssignmentSet = apps.get_model("library", "DefaultAssignmentSet")
     DefaultAssignment = apps.get_model("library", "DefaultAssignment")
+    ownership_field = _field(AssetType, "ownership", "mode")
+    asset_type_field = _field(Asset, "asset_type", "kind")
 
     pack, _ = ContentPack.objects.get_or_create(
         slug=settings.DEFAULT_CONTENT_PACK_SLUG,
@@ -92,31 +113,33 @@ def seed_core_campaign(apps):
         campaign_type = CampaignType.objects.create(**fields)
         lines.append(f"created the {CAMPAIGN_TYPE} campaign type")
 
-    kinds = {}
-    for label, plural, mode, position in ASSET_KINDS:
-        kind = AssetKind.objects.filter(
+    asset_types = {}
+    for label, plural, ownership, position in ASSET_TYPES:
+        asset_type = AssetType.objects.filter(
             campaign_type=campaign_type, label_singular__iexact=label
         ).first()
-        if kind is None:
-            kind = AssetKind.objects.create(
+        if asset_type is None:
+            asset_type = AssetType.objects.create(
                 pack=pack,
                 campaign_type=campaign_type,
                 label_singular=label,
                 label_plural=plural,
-                mode=mode,
                 position=position,
+                **{ownership_field: ownership},
             )
-            lines.append(f"created the {label} asset kind")
-        kinds[label] = kind
+            lines.append(f"created the {label} asset type")
+        asset_types[label] = asset_type
 
     settlement = Asset.objects.filter(
         pack=pack, name__iexact=SETTLEMENT, qualifier=""
     ).first()
     if settlement is None:
         settlement = Asset.objects.create(
-            pack=pack, name=SETTLEMENT, kind=kinds[SETTLEMENT]
+            pack=pack, name=SETTLEMENT, **{asset_type_field: asset_types[SETTLEMENT]}
         )
-        lines.append(f"created the {SETTLEMENT} asset under the {SETTLEMENT} kind")
+        lines.append(
+            f"created the {SETTLEMENT} asset under the {SETTLEMENT} asset type"
+        )
 
     built_ins = campaign_type.built_ins
     if built_ins is None:
