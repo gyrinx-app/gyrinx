@@ -67,7 +67,7 @@ class Campaign(Base, Owned, Archived):
         related_name="campaigns",
         help_text=(
             "The campaign type this campaign was founded on. Every gang that "
-            "joins gets this type and everything that comes with it."
+            "joins is assigned this type and is given its built-ins."
         ),
     )
     #: The arbitrator's own pack, created at founding. Holds the additions
@@ -152,10 +152,11 @@ class CampaignEvent(Base):
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
         INVITE_DECLINED = "invite_declined", "Invitation declined"
         PARTICIPANT_REMOVED = "participant_removed", "Participant removed"
-        # The pool changing with no gang touched. A grant or a taking
-        # away changes a gang, and is that gang's ledger event instead.
-        ASSET_ADDED = "asset_added", "Asset added to the pool"
-        ASSET_DROPPED = "asset_dropped", "Asset dropped from the pool"
+        # The campaign's copies changing with no gang touched. A grant or
+        # a taking away changes a gang, and is that gang's ledger event
+        # instead.
+        ASSET_ADDED = "asset_added", "Asset copy added"
+        ASSET_DROPPED = "asset_dropped", "Asset copy dropped"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -301,9 +302,10 @@ class CampaignMembership(Base):
 
 
 class CampaignAsset(Base):
-    """One copy of a pooled asset in one campaign's pool, and who holds it.
+    """One copy of an asset that changes hands, kept by one campaign, and
+    who holds it.
 
-    A pooled asset is a **holding**, not a possession. The campaign owns
+    Such an asset is a **holding**, not a possession. The campaign owns
     the token; a gang only ever holds it, and the token says which gang
     that is. Nothing is assigned to the gang, no ledger entry is written,
     and the gang's rating never counts it — so granting, taking away and
@@ -356,9 +358,9 @@ class CampaignAsset(Base):
     class Meta:
         verbose_name = "campaign asset"
         verbose_name_plural = "campaign assets"
-        # Grouped by kind, as the pool page lists them, then by asset and
-        # by copy. The joins are paid on every read of a pool and nowhere
-        # else: nothing hot reads tokens in bulk.
+        # Grouped by kind, as the campaign's asset page lists them, then
+        # by asset and by copy. The joins are paid on every read of that
+        # page and nowhere else: nothing hot reads tokens in bulk.
         ordering = ["asset__kind__position", "asset__name", "name", "created"]
         indexes = [
             models.Index(fields=["campaign", "holder"], name="campaign_asset_pool_idx"),

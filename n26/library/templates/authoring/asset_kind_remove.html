@@ -13,7 +13,7 @@ kind is settled when it is made, so deleting is the only way clear.
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-asset-kind-remove' thing.pk %}"
                      title="Remove the {{ label }} asset kind?"
-                     lead="{{ campaign_type }} will no longer deal in {{ thing.plural }}."
+                     lead="Campaigns of the {{ campaign_type }} type will have no {{ thing.plural }}."
                      submit_label="Remove asset kind"
                      submit_variant="danger"
                      cancel_url="{{ back }}">
@@ -44,7 +44,7 @@ kind is settled when it is made, so deleting is the only way clear.
             </c-ui.alert>
         {% else %}
             <c-ui.alert variant="info" title="No assets are of this kind">
-                Removing it changes only what this campaign type deals in.
+                Removing it changes only which kinds of asset this campaign type has.
             </c-ui.alert>
         {% endif %}
     </c-n26.form-page>

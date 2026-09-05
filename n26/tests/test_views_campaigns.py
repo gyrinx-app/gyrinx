@@ -4,6 +4,8 @@ Here rather than beside the views because opening the flag means writing the
 site's own row, and only these tests may reach across to the platform.
 """
 
+from importlib import import_module
+
 import pytest
 from django.contrib.auth.models import Group, User
 
@@ -266,6 +268,48 @@ class TestSettingOneUp:
         assert f'value="{campaign_type.pk}"' in body
         assert f'value="{campaign.additions.pk}"' not in body
 
+    def test_each_card_says_what_founding_on_the_type_gives(
+        self, client, arbitrator, default_pack, open_to_everyone
+    ):
+        """The picker reads as choosing a rulebook: the type's description,
+        how each kind of asset behaves, and what every gang starts with."""
+        from django.apps import apps
+
+        from n26.library.core_campaign import seed_core_campaign
+
+        seed_core_campaign(apps)
+
+        body = client.get("/n26/campaigns/new/").content.decode()
+        assert "Territory campaign" in body
+        assert "gangs fight for control of Territory" in body
+        assert "Every gang gets one Settlement and keeps it." in body
+        assert "Territories change hands." in body
+        assert "Every gang starts with Reputation at 0 and one Settlement." in body
+
+    def test_a_campaign_wide_rule_is_drawn_on_the_card(
+        self, client, arbitrator, campaign_type, open_to_everyone
+    ):
+        """A modifier on the type reaches every member gang, so the card
+        says what it does in the words the authoring pages use. A type
+        with nothing built in says nothing about what a gang starts with."""
+        from n26.library.authoring import (
+            create_rule,
+            ef_adds,
+            modifier,
+            targets_gang,
+        )
+
+        modifier(
+            "Everyone is wanted",
+            targets_gang(),
+            ef_adds(create_rule("Wanted")),
+            attach_to=campaign_type,
+        )
+
+        body = client.get("/n26/campaigns/new/").content.decode()
+        assert "Wanted" in body
+        assert "Every gang starts with" not in body
+
     def test_a_campaign_without_a_type_is_refused(
         self, client, arbitrator, campaign_type, open_to_everyone
     ):
@@ -279,7 +323,7 @@ class TestSettingOneUp:
     def test_the_page_names_the_type(self, client, campaign, open_to_everyone):
         body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert "Campaign type" in body
-        assert "N26 core" in body
+        assert "Territory campaign" in body
 
     def test_the_form_opens_with_a_thousand_credit_budget(
         self, client, arbitrator, open_to_everyone
@@ -451,7 +495,7 @@ class TestTheLogOnTheCampaignsPage:
         made = found_campaign("Quiet Start", campaign_type, owner=arbitrator)
         drawn = self.page(client, made)
         assert "Log" in drawn
-        assert "set the campaign up on N26 core" in drawn
+        assert "set the campaign up on Territory campaign" in drawn
         assert "Nothing yet." not in drawn
 
     def test_setting_one_up_writes_its_first_line(
@@ -462,7 +506,7 @@ class TestTheLogOnTheCampaignsPage:
         assert [event.kind for event in made.events.all()] == [
             CampaignEvent.Kind.CREATED
         ]
-        assert "set the campaign up on N26 core" in self.page(client, made)
+        assert "set the campaign up on Territory campaign" in self.page(client, made)
 
     def test_editing_writes_what_changed_and_the_page_says_it(
         self, client, campaign, open_to_everyone
@@ -550,6 +594,56 @@ class TestTheLogOnTheCampaignsPage:
             CampaignEvent.Kind.CREATED,
             CampaignEvent.Kind.ARCHIVED,
         ]
+
+
+class TestTheFullLog:
+    """The campaign's page draws only its newest acts; the log page draws
+    them all, newest first, a screenful at a time, for whoever the
+    campaign's page opens for."""
+
+    def rename(self, client, campaign, times):
+        for number in range(1, times + 1):
+            client.post(
+                f"/n26/campaigns/{campaign.pk}/edit/",
+                {"name": f"Dust Falls {number}", "budget": "1000", "summary": ""},
+            )
+
+    def test_every_act_is_drawn(self, client, campaign, open_to_everyone):
+        self.rename(client, campaign, 14)
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/log/").content.decode()
+        assert drawn.count("renamed the campaign") == 14
+        assert "set the campaign up on Territory campaign" in drawn
+        assert "earlier act" not in drawn
+
+    def test_the_newest_act_is_drawn_first(self, client, campaign, open_to_everyone):
+        self.rename(client, campaign, 1)
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/log/").content.decode()
+        assert drawn.index("renamed the campaign") < drawn.index("set the campaign up")
+
+    def test_a_long_log_is_paged(self, client, campaign, open_to_everyone, monkeypatch):
+        """Every other parameter rides along, and the last page ends with
+        the founding line."""
+        # By module rather than by dotted path: the views package exports
+        # a ``campaigns`` view under the submodule's own name.
+        monkeypatch.setattr(
+            import_module("n26.core.views.campaigns"), "LOG_PER_PAGE", 5
+        )
+        self.rename(client, campaign, 14)
+        first = client.get(f"/n26/campaigns/{campaign.pk}/log/").content.decode()
+        assert first.count("renamed the campaign") == 5
+        assert "Page 1 of 3" in first
+        assert "15 entries" in first
+        last = client.get(f"/n26/campaigns/{campaign.pk}/log/?page=3").content.decode()
+        assert "set the campaign up on Territory campaign" in last
+
+    def test_it_opens_for_a_reader_who_does_not_arbitrate(
+        self, client, campaign, open_to_everyone
+    ):
+        client.force_login(User.objects.create_user("reader"))
+        assert client.get(f"/n26/campaigns/{campaign.pk}/log/").status_code == 200
+
+    def test_it_is_shut_with_the_feature(self, client, campaign, shut):
+        assert client.get(f"/n26/campaigns/{campaign.pk}/log/").status_code == 404
 
 
 class TestTheRollOfGangs:

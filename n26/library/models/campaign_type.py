@@ -11,16 +11,16 @@ design/campaign-assets.md.
 An **asset kind** is a row on the type with a label and a mode. The mode
 is on the kind rather than the asset because it is a whole class of
 asset that behaves one way: a Settlement is given to every gang on
-joining and never staked; a Territory is a token in the campaign's pool
+joining and never staked; a Territory is a token the campaign keeps,
 with one holder at a time.
 
 An **asset** is one entry in a campaign type's list of what it hands
 out, filed under one of the type's kinds — that is the whole of how it
 belongs to the type, and it is authored on the type's page. It is
 assignable so that a held-one-each asset can be a built-in member and
-so that either mode can carry modifiers for what holding it does. A
-pooled asset is never assigned; the campaign's token records who holds
-it.
+so that either mode can carry modifiers for what holding it does. An
+asset that changes hands is never assigned; the campaign's copy records
+who holds it.
 """
 
 from django.db import models
@@ -35,7 +35,7 @@ from n26.library.models.base import Content
 
 
 class CampaignType(Content, Assignable):
-    """A kind of campaign — Dominion, Law & Misrule — assigned to every
+    """A kind of campaign — Territory campaign, Dominion — assigned to every
     gang that joins a campaign founded on it.
 
     Assignable for the same reason a gang type is: joining a campaign is a
@@ -47,9 +47,24 @@ class CampaignType(Content, Assignable):
     It also declares its **asset kinds** — Territory, Racket, Settlement —
     and under each kind lists the **assets** a campaign of this type hands
     out. Its pricing fields stay at zero; nobody buys a campaign type.
+
+    The **description** is the one field here written for a player: the
+    arbitrator setting a campaign up reads it on the set-up screen. The
+    library author help stays for content authors, as on every other kind.
     """
 
     family = Family.GANG
+
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "What a campaign of this type is about, for the arbitrator "
+            "setting one up: what the gangs fight over, what each starts "
+            "with, how the campaign runs and how it ends. Shown on the "
+            "set-up screen. Use your own words, not the book's."
+        ),
+    )
 
     class Meta:
         verbose_name = "campaign type"
@@ -80,28 +95,29 @@ class CampaignType(Content, Assignable):
         return Asset.objects.filter(kind__campaign_type=self)
 
     def pooled_assets(self):
-        """The assets a campaign of this type can put copies of in its
-        pool: those of its pooled kinds. A held-one-each asset is every
-        member gang's own and has no pool to sit in."""
+        """The assets a campaign of this type can keep copies of: those of
+        its kinds that change hands. A held-one-each asset is every member
+        gang's own, and the campaign keeps no copies of it."""
         return self.assets.filter(kind__mode=AssetKind.Mode.POOLED)
 
 
 class AssetKind(Content):
-    """A class of asset a campaign type deals in — Territory, Racket,
+    """A class of asset a campaign type has — Territory, Racket,
     Settlement — with the label a campaign page prints and the mode that
     fixes how every asset of the kind behaves.
 
-    **Held one each** means every gang is given one when it joins and it
-    is never staked: a Settlement, a home territory. **Pooled** means the
-    campaign holds a pool of them and each one has one holder at a time:
-    a Territory, a Racket, a Relic.
+    **Held one each** means every gang is given one when it joins and
+    keeps it: a Settlement, a home territory. **Changes hands** means the
+    campaign keeps the copies and each copy has one holder at a time: a
+    Territory, a Racket, a Relic.
     """
 
     class Mode(models.TextChoices):
         #: Given to every gang on joining, never staked.
         HELD_ONE_EACH = "held-one-each", "Held one each"
-        #: A token in the campaign's pool, one holder at a time.
-        POOLED = "pooled", "Pooled"
+        #: A token the campaign keeps, with one holder at a time. The value
+        #: is what stored rows say and stays as it is.
+        POOLED = "pooled", "Changes hands"
 
     campaign_type = models.ForeignKey(
         CampaignType, on_delete=models.CASCADE, related_name="asset_kinds"
@@ -125,9 +141,9 @@ class AssetKind(Content):
         max_length=20,
         choices=Mode,
         help_text=(
-            "Held one each: every gang is given one when it joins, and it is "
-            "never staked. Pooled: the campaign holds a pool of them, and "
-            "each has one holder at a time."
+            "Held one each: every gang is given one when it joins and keeps "
+            "it. Changes hands: the campaign keeps the copies, and each copy "
+            "has one holder at a time."
         ),
     )
     position = models.PositiveIntegerField(
@@ -169,7 +185,7 @@ class AssetKind(Content):
 
 
 class Asset(Content, Assignable):
-    """One thing a campaign deals in — a Settlement, the Old Ruins
+    """One thing a campaign has — a Settlement, the Old Ruins
     territory, a Racket — of one asset kind.
 
     An asset is one entry in the list of what its campaign type hands
@@ -179,8 +195,8 @@ class Asset(Content, Assignable):
 
     Assignable so that an asset of a held-one-each kind can be built into
     its campaign type and arrive on every member gang, and so that an
-    asset of either kind can carry modifiers. A pooled asset is never
-    assigned: the campaign's token records who holds it.
+    asset of either kind can carry modifiers. An asset that changes hands
+    is never assigned: the campaign's copy records who holds it.
     """
 
     family = Family.BASE

@@ -373,11 +373,14 @@ class FoundCampaignForm(CampaignForm):
     # A campaign's own additions type lives in a pack the arbitrator owns
     # and is never offered here, or anywhere else.
     campaign_type = forms.ModelChoiceField(
-        queryset=CampaignType.objects.selectable().exclude(name__regex=r"^\s*$"),
+        queryset=CampaignType.objects.selectable()
+        .exclude(name__regex=r"^\s*$")
+        .select_related("built_ins")
+        .prefetch_related("asset_kinds"),
         label="Campaign type",
         help_text=(
-            "What the campaign runs on. Every gang that joins gets what the "
-            "type includes."
+            "The rules the campaign is played under. Each type sets what "
+            "the gangs fight over and what every gang starts with."
         ),
         error_messages={
             "invalid_choice": (
@@ -394,17 +397,16 @@ class FoundCampaignForm(CampaignForm):
         The same types the field validates against, said once, in the
         shape ``CreateGangForm.gang_type_choices`` uses: ``checked`` is
         worked out here so a redisplay after a failed submit keeps the
-        reader's pick. The line under the name is the type's own help,
-        which is the one thing the library says about a type to a reader.
+        reader's pick. Each card carries what founding on the type gives —
+        its description, its asset kinds, what every gang starts with, and
+        any campaign-wide rules — so the picker reads as choosing a
+        rulebook rather than a name.
         """
+        from n26.core.campaigns import summarise_campaign_type
+
         submitted = str(self["campaign_type"].value() or "")
         return [
-            {
-                "value": str(row.pk),
-                "label": str(row),
-                "description": row.library_author_help,
-                "checked": str(row.pk) == submitted,
-            }
+            summarise_campaign_type(row, checked=str(row.pk) == submitted)
             for row in self.fields["campaign_type"].queryset
         ]
 

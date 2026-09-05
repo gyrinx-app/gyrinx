@@ -27,7 +27,7 @@ field draws as a plain textarea and no editor ever appears.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-create-campaign' %}"
                      title="Set up a campaign"
-                     lead="What the campaign runs on, its name, and how much a gang should be worth."
+                     lead="The rules the campaign is played under, its name, and how much a gang should be worth."
                      :form="form"
                      submit_label="Set up campaign"
                      cancel_url="{% url 'n26-campaigns' %}">
@@ -50,18 +50,29 @@ field draws as a plain textarea and no editor ever appears.
         which the edit screen also draws. Native radios over a shared name,
         as the gang type cards are, so the form posts with no script and a
         redisplay after a failed submit keeps the reader's pick.
+
+        Each card carries the whole of what the type gives — its
+        description, its asset kinds, what every gang starts with, and any
+        campaign-wide rules — composed as sentences in Python. The card is a
+        label, so the lines are block spans rather than a list.
         {% endcomment %}
         <c-n26.form-section title="Campaign type">
             <c-n26.radio-cards label="Campaign type *"
-                               description="What the campaign runs on. Every gang that joins gets what the type includes."
+                               description="The rules the campaign is played under. Each type sets what the gangs fight over and what every gang starts with."
                                :form="form"
-                               name="campaign_type">
+                               name="campaign_type"
+                               min="24rem">
                 {% for type in campaign_types %}
                     <c-n26.radio-cards.card name="campaign_type"
-                                            value="{{ type.value }}"
-                                            label="{{ type.label }}"
+                                            value="{{ type.pk }}"
+                                            label="{{ type.name }}"
                                             description="{{ type.description }}"
-                                            :checked="type.checked" />
+                                            :checked="type.checked"
+                                            :wrap="True">
+                        {% for line in type.kinds %}<span class="block">{{ line }}</span>{% endfor %}
+                        {% if type.starts_with %}<span class="block">{{ type.starts_with }}</span>{% endif %}
+                        {% for rule in type.rules %}<span class="block">{{ rule }}</span>{% endfor %}
+                    </c-n26.radio-cards.card>
                 {% endfor %}
             </c-n26.radio-cards>
         </c-n26.form-section>

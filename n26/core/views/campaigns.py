@@ -32,6 +32,10 @@ BATTLES_ON_THE_PAGE = 10
 #: Enough to see what happened since last time without burying the page.
 LOG_ON_THE_PAGE = 10
 
+#: How many acts one screenful of the full log holds. The same as a gang's
+#: history page, which reads the same shape of act.
+LOG_PER_PAGE = 50
+
 
 @requires_flag(CAMPAIGNS)
 @login_required
@@ -239,6 +243,46 @@ def campaign(request, pk):
             "pool_size": pool_size,
             "pool_held": pool_held,
             "pool_unclaimed": pool_size - pool_held,
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def campaign_log(request, pk):
+    """The whole of a campaign's log, newest first, a screenful at a time.
+
+    The campaign's own page cuts its log to the most recent acts; this is
+    where the rest are read. It opens for whoever the campaign's page opens
+    for — the arbitrator and the people they sent the address to — because
+    the log is the same story the page tells, told in full. Nothing here
+    changes anything, so nobody is offered a control.
+
+    Paged, because a campaign played for a year has more acts than one
+    page wants, and every act is built before the page is cut: acts fold
+    what rode with them, so they cannot be counted or cut by row.
+    """
+    from n26.core.history import campaign_history
+    from n26.core.views.gangs import _pages
+    from n26.core.views.history import by_day
+
+    found = _any_campaign_or_404(request, pk)
+    acts = campaign_history(found, viewer=request.user)
+    total = len(acts)
+    # Newest first before paging, so page one is the latest screenful
+    # rather than the founding.
+    page = Paginator(list(reversed(acts)), LOG_PER_PAGE).get_page(
+        request.GET.get("page")
+    )
+
+    return render(
+        request,
+        "n26/campaign_log.html",
+        {
+            "campaign": found,
+            "days": by_day(page.object_list),
+            "total": total,
+            "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
         },
     )
 

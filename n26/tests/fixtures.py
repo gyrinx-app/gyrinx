@@ -89,11 +89,11 @@ def gang_type(db):
 @pytest.fixture
 def campaign_type(default_pack):
     """A bare campaign type in the system pack, for a campaign to be
-    founded on. Nothing built in: a suite that wants the N26 core shape —
+    founded on. Nothing built in: a suite that wants the Territory campaign shape —
     Reputation at 0, a Settlement — seeds it with ``seed_core_campaign``."""
     from n26.library.authoring import create_campaign_type
 
-    return create_campaign_type("N26 core")
+    return create_campaign_type("Territory campaign")
 
 
 #: The fixtures build exactly what the Foundations page creates — one

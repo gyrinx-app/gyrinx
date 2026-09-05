@@ -2,7 +2,7 @@
 additions; every gang playing one is given the two carriers with the
 type's built-ins landed.
 
-Campaigns written before types existed are put on the **N26 core** type,
+Campaigns written before types existed are put on the core campaign type,
 matched by name in the system pack without regard to case. It is the one
 type every install has, and the only thing a campaign could have been
 played as before there was a choice; an arbitrator who wants another

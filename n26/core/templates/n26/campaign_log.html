@@ -1,0 +1,121 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% load humanize %}
+{% comment %}
+The campaign's whole log — everything done in it, newest first, a
+screenful at a time. The campaign's own page draws only the newest acts
+and this is where the rest are read.
+
+One line per act, in plain words, with the gang it happened to beneath
+it where a gang was involved. The full timestamp rides on each time as a
+title, so hovering shows the exact time without spending a column on
+it. Nothing here changes anything, so there are no controls.
+{% endcomment %}
+{% block head_title %}Log of {{ campaign.name }}{% endblock head_title %}
+{% comment %}
+The bar names the campaign through the switcher, as the campaign's own
+page does: the name is a link back to it, and the chevron beside it
+offers the reader's other campaigns.
+{% endcomment %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <c-n26.page-header title="Log"
+                           lead="Everything done in {{ campaign.name }}, newest first.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="campaign.owner"
+                                         tone="current"
+                                         href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Log
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        {% if days %}
+            <ol class="flex flex-col gap-5">
+                {% for day in days %}
+                    <li>
+                        <h2 class="mb-1 border-b border-box-border pb-1 text-sm font-medium text-muted">
+                            {{ day.date|naturalday:"j F Y"|capfirst }}
+                        </h2>
+                        <ol>
+                            {% for act in day.acts %}
+                                <li class="flex gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                                    <time datetime="{{ act.when|date:'c' }}"
+                                          title="{{ act.when }}"
+                                          class="w-11 shrink-0 pt-px text-right text-sm tabular-nums text-muted">
+                                        {{ act.when|time:"H:i" }}
+                                    </time>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-base">
+                                            {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
+                                            {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
+                                        </p>
+                                        {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}
+                                        {% if act.note %}<p class="text-sm text-muted">{{ act.note }}</p>{% endif %}
+                                        {% if act.subs %}
+                                            <ul class="mt-0.5 text-sm text-muted">
+                                                {% for sub in act.subs %}
+                                                    <li>
+                                                        {{ sub.name }}
+                                                        {% if sub.detail %}<span class="opacity-75">— {{ sub.detail }}</span>{% endif %}
+                                                    </li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    </li>
+                {% endfor %}
+            </ol>
+        {% else %}
+            <p class="text-muted">Nothing recorded yet. Every change to the campaign is added here.</p>
+        {% endif %}
+        {% comment %}
+        The ends are drawn as two cases rather than one with a computed
+        `disabled`: a component attribute takes a variable, not an
+        expression, so `not pages.next` would evaluate to nothing and
+        the control would draw as a live link with nowhere to go.
+        {% endcomment %}
+        {% if pages %}
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <c-ui.pagination>
+                    {% if pages.previous %}
+                        <c-ui.pagination.prev href="{{ pages.previous }}" />
+                    {% else %}
+                        <c-ui.pagination.prev :disabled="True" />
+                    {% endif %}
+                    {% for number in pages.numbers %}
+                        {% if number.elided %}
+                            <c-ui.pagination.ellipsis />
+                        {% else %}
+                            <c-ui.pagination.item href="{{ number.href }}" :current="number.current">
+                                {{ number.label }}
+                            </c-ui.pagination.item>
+                        {% endif %}
+                    {% endfor %}
+                    {% if pages.next %}
+                        <c-ui.pagination.next href="{{ pages.next }}" />
+                    {% else %}
+                        <c-ui.pagination.next :disabled="True" />
+                    {% endif %}
+                </c-ui.pagination>
+                <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }} · {{ total }} entr{{ total|pluralize:"y,ies" }}</p>
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

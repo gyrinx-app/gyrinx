@@ -5,8 +5,8 @@ lists under each kind the assets of it, and — being assignable, as a
 gang type is — carries built-ins that every member gang gets. An asset
 is one entry in that list: it belongs to one kind, and so to one type,
 and is authored on the type's page under its kind; its income is a
-figure on the card and its boons ride it as modifiers. The N26 core type
-ships with Settlement held one each, Territory pooled, and Reputation at
+figure on the card and its boons ride it as modifiers. The Territory campaign type
+ships with Settlement held one each, Territory changing hands, and Reputation at
 0 built in. See design/campaign-assets.md.
 
 The same note settles one rule about packs: content in a pack nobody
@@ -32,7 +32,14 @@ from n26.library.authoring import (
     remove_asset_kind,
     targets_gang,
 )
-from n26.library.core_campaign import seed_core_campaign
+from n26.library.core_campaign import (
+    DESCRIPTION,
+    FORMER_BUILT_INS,
+    FORMER_NAME,
+    LIBRARY_AUTHOR_HELP,
+    rename_core_campaign,
+    seed_core_campaign,
+)
 from n26.library.forms import cross_pack_refusal
 from n26.library.models import (
     Asset,
@@ -176,7 +183,7 @@ class TestAuthoringACampaignType:
 
 
 class TestTheCoreCampaignType:
-    """What every install ships with: the N26 core type, its two kinds,
+    """What every install ships with: the Territory campaign type, its two kinds,
     a Settlement, and Reputation at 0 — created once, whatever the
     database already holds."""
 
@@ -185,7 +192,7 @@ class TestTheCoreCampaignType:
     ):
         lines = list(seed_core_campaign(apps))
 
-        core = CampaignType.objects.get(name="N26 core")
+        core = CampaignType.objects.get(name="Territory campaign")
         assert [
             (kind.label_singular, kind.plural, kind.mode)
             for kind in core.asset_kinds.all()
@@ -203,7 +210,7 @@ class TestTheCoreCampaignType:
             (reputation, 0),
             (settlement, 0),
         ]
-        assert core.built_ins.name == "N26 core built-ins"
+        assert core.built_ins.name == "Territory campaign built-ins"
         assert all(row.pack == default_pack for row in (core, settlement, reputation))
         # One line per row: the counter, the type, two kinds, the asset,
         # the set, and two members.
@@ -241,8 +248,83 @@ class TestTheCoreCampaignType:
         list(seed_core_campaign(apps))
 
         assert Counter.objects.filter(name__iexact="reputation").count() == 1
-        core = CampaignType.objects.get(name="N26 core")
+        core = CampaignType.objects.get(name="Territory campaign")
         assert core.built_in_members.filter(counter=existing).exists()
+
+    def test_it_gives_the_type_its_words_for_arbitrators_and_authors(
+        self, default_pack
+    ):
+        """The description is what the set-up screen's card draws; the
+        author help is what the authoring pages draw. Both are ours, about
+        the core rulebook's campaign, and never the book's own words."""
+        list(seed_core_campaign(apps))
+
+        core = CampaignType.objects.get(name="Territory campaign")
+        assert core.description == DESCRIPTION
+        assert core.library_author_help == LIBRARY_AUTHOR_HELP
+        assert "fight for control of Territory" in core.description
+        assert "Occupation, Downtime and Takeover" in core.description
+
+
+class TestRenamingTheCoreType:
+    """The type every install has was first created under a working name.
+    Renaming it moves the standing row across, built-ins set and all, so a
+    campaign founded on it keeps its type; a database that has already
+    been through this is left as it stands."""
+
+    def test_a_type_under_the_former_name_is_renamed_with_its_built_ins(
+        self, default_pack
+    ):
+        former = create_campaign_type(FORMER_NAME)
+        former.built_ins = DefaultAssignmentSet.objects.create(name=FORMER_BUILT_INS)
+        former.save()
+
+        lines = rename_core_campaign(apps)
+
+        former.refresh_from_db()
+        assert former.name == "Territory campaign"
+        assert former.built_ins.name == "Territory campaign built-ins"
+        assert former.description == DESCRIPTION
+        assert former.library_author_help == LIBRARY_AUTHOR_HELP
+        assert len(lines) == 3
+        assert rename_core_campaign(apps) == []
+
+    def test_a_type_already_renamed_keeps_an_authors_own_words(self, default_pack):
+        """Only a blank text is filled in: an author who has already
+        written the type's description keeps it across every run."""
+        theirs = create_campaign_type("Territory campaign", description="Ours.")
+
+        rename_core_campaign(apps)
+
+        theirs.refresh_from_db()
+        assert theirs.description == "Ours."
+        assert theirs.library_author_help == LIBRARY_AUTHOR_HELP
+
+    def test_the_built_ins_set_follows_a_type_already_renamed(self, default_pack):
+        """A type renamed by hand keeps a set under the former name; the
+        set is renamed on its own."""
+        renamed = create_campaign_type("Territory campaign")
+        renamed.built_ins = DefaultAssignmentSet.objects.create(name=FORMER_BUILT_INS)
+        renamed.save()
+
+        rename_core_campaign(apps)
+
+        renamed.built_ins.refresh_from_db()
+        assert renamed.built_ins.name == "Territory campaign built-ins"
+
+    def test_nothing_is_renamed_while_both_names_stand(self, default_pack):
+        """Two types cannot share the name, and which of the two is the
+        real one is a question for a person rather than a migration."""
+        create_campaign_type("Territory campaign")
+        former = create_campaign_type(FORMER_NAME)
+
+        rename_core_campaign(apps)
+
+        former.refresh_from_db()
+        assert former.name == FORMER_NAME
+
+    def test_a_database_with_no_system_pack_is_left_alone(self, db):
+        assert rename_core_campaign(apps) == []
 
 
 class TestTheAuthoringPages:
@@ -284,7 +366,7 @@ class TestTheAuthoringPages:
         territory = dominion["territory"]
         assert f'name="part-{territory.pk}-label_singular"' in body
         assert 'value="Territory"' in body
-        assert "Territories · pooled" in body
+        assert "Territories · changes hands" in body
         assert "No Territories yet." in body
         assert f'name="add-asset-{territory.pk}-name"' in body
         assert f'name="add-asset-{territory.pk}-income"' in body
