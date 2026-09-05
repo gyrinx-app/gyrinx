@@ -26,6 +26,7 @@ from django.db.models.functions import Lower
 from django.utils.text import capfirst
 
 from n26.core.constraints import exactly_one_of
+from n26.core.status import Status
 from n26.library.models.base import Content
 
 #: The kinds of thing a scope can select.
@@ -59,7 +60,7 @@ COMPUTED_EFFECT_FIELDS = (
 #: once by ``n26.operations`` when the carrier arrives, and never undone
 #: by its removal. Prefixed ``Op`` so the distinction is visible at the
 #: call site.
-STORED_EFFECT_FIELDS = ("op_adds_miniature", "op_changes_counter")
+STORED_EFFECT_FIELDS = ("op_adds_miniature", "op_changes_counter", "op_sets_status")
 
 #: Kinds an OffersChoice may name. Growing this is one line plus deliberate
 #: thought — clean() refuses anything else, and the boot check screams if a
@@ -1555,6 +1556,50 @@ class OpChangesCounter(models.Model):
         operation.tally(row, change, note=str(assignment.assignable))
 
 
+class OpSetsStatus(models.Model):
+    """Puts the bearer into a status — a Grievous Wound sends the fighter
+    into Recovery, Memorable Death kills them, Captured sets up a roll on
+    the Escape table.
+
+    A **stored** effect: a model's status is player-side state written
+    only by ``op.set_status``, one ledger event per change — so a result
+    that changes it writes once, when its pick lands, and the change is
+    on the ledger beside the roll and the pick. Taking the pick away
+    does not undo it: Clean House clears Recovery, the Doc treats a
+    Critical Injury, and a death is permanent.
+
+    Reaches the model carrying the pick and nothing else; a gang has no
+    status, so a gang-hosted carrier writes nothing.
+    """
+
+    is_stored = True
+
+    status = models.CharField(
+        max_length=12,
+        choices=Status,
+        help_text="The status the model is put into when this arrives.",
+    )
+
+    class Meta:
+        verbose_name = "sets status"
+        verbose_name_plural = "sets statuses"
+
+    def __str__(self):
+        return f"marks the model {Status(self.status).label}"
+
+    def accepts(self, target_kind):
+        return target_kind == MODEL
+
+    def perform(self, operation, assignment):
+        """Set the bearer's status, naming the carrier as the reason."""
+        miniature = assignment.miniature or assignment.miniature_root
+        if miniature is None:
+            return None
+        return operation.set_status(
+            miniature, self.status, note=str(assignment.assignable)
+        )
+
+
 class ChangesCategory(models.Model):
     """Re-files the bearer on the gang sheet: they sort under this
     category's heading rather than their entry's own.
@@ -1793,6 +1838,14 @@ class Modifier(Content):
         blank=True,
         related_name="modifier",
         verbose_name="changes counter",
+    )
+    op_sets_status = models.OneToOneField(
+        OpSetsStatus,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+        verbose_name="sets status",
     )
 
     class Meta:

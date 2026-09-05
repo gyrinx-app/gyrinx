@@ -1,6 +1,7 @@
 """Where a player lands, what they own, and founding one more."""
 
 import json
+from dataclasses import dataclass
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +11,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
+from n26.core.status import explains as status_explains
 from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
@@ -279,10 +281,12 @@ def gang_sheet(request, pk):
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
     renaming = None if leaving or not yours else _renaming(request, gang)
+    marking = None if leaving or renaming or not yours else _marking(request, gang)
     if (
         yours
         and not leaving
         and not renaming
+        and not marking
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
         host = EquipHost.stash(gang, card, at=at)
@@ -330,12 +334,77 @@ def gang_sheet(request, pk):
             "card_mode": "gang" if yours else "view",
             "renaming": renaming,
             "leaving": leaving,
+            "marking": marking,
             "dialog": dialog,
             # A gang founded without a budget never spent credits, so
             # there is nothing a refund could give back: its cards offer
             # Delete alone.
             "budgeted": gang.starting_credits is not None,
         },
+    )
+
+
+@dataclass(frozen=True)
+class Marking:
+    """The status question ``?status=`` opened: whose, what they are now,
+    and what a death would do with their kit."""
+
+    miniature: object
+    current: str
+    #: ``(value, label, what it means, checked)`` per status — checked
+    #: worked out here because a cotton ``:checked`` takes a variable and
+    #: not a comparison.
+    choices: tuple
+    #: True when the model carries kit money was paid for, so a death
+    #: has a stash to offer.
+    stashable: bool
+    #: Whether the kit is lost rather than stashed by default — a
+    #: Vehicle's, a Brute's, a Hanger-on's — and its opposite, for the
+    #: two radios.
+    kit_lost_by_default: bool
+    kit_stashed: bool
+
+
+def _marking(request, gang):
+    """The model ``?status=`` says is being marked, if it is on this roster."""
+    from n26.core.operations import refund_of
+    from n26.core.status import Status, label_for
+
+    miniature = _fighter_named(request, gang, "status")
+    if miniature is None:
+        return None
+    profile = miniature.membership.profile
+    vehicle = profile.profile_type.name == "Vehicle"
+    lost = vehicle or _kit_is_lost_on_death(profile)
+    return Marking(
+        miniature=miniature,
+        current=miniature.status,
+        choices=tuple(
+            (
+                value,
+                label_for(value, vehicle),
+                status_explains(value, vehicle),
+                value == miniature.status,
+            )
+            for value in Status.values
+        ),
+        stashable=any(refund_of(root)[1] > 0 for root in _kit_roots(miniature)),
+        kit_lost_by_default=lost,
+        kit_stashed=not lost,
+    )
+
+
+def _kit_is_lost_on_death(profile):
+    """Whether the rules delete this model's kit with it: a Brute's or a
+    Hanger-on's gear is deleted where a fighter's goes to the stash."""
+    from n26.library.models import Subtype
+
+    if profile.built_ins_id is None:
+        return False
+    return any(
+        isinstance(member.assignable, Subtype)
+        and member.assignable.name in {"Brute", "Hanger-on"}
+        for member in profile.built_ins.members.all()
     )
 
 
@@ -514,6 +583,84 @@ def _dismiss(request, pk, kind):
         )
     else:
         messages.success(request, f"Deleted {was}." + (stashed if moved else ""))
+    return redirect(sheet_url)
+
+
+@login_required
+def mark_fighter(request, pk):
+    """Put one model into a status by hand: the act behind the sheet's
+    ``?status=`` dialog.
+
+    Nothing is priced, but a status is part of the gang's story, so it
+    goes through an operation and the history says what changed. A
+    death asks once about the kit: ``kit=stash`` moves what money was
+    paid for to the stash, ``kit=lost`` removes it, and nothing leaves it
+    on the body. GET reopens the dialog instead of acting.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import Refusal, operation, refund_of
+    from n26.core.status import Status
+    from n26.core.views.permissions import _own_miniature_or_404
+
+    miniature = _own_miniature_or_404(request, pk)
+    gang = miniature.membership.gang
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    if request.method != "POST":
+        return redirect(f"{sheet_url}?status={miniature.pk}")
+    try:
+        status = Status(request.POST.get("status", ""))
+    except ValueError:
+        messages.error(request, "Select a status from the list.")
+        return redirect(f"{sheet_url}?status={miniature.pk}")
+    kit = request.POST.get("kit", "")
+    try:
+        with operation(gang, actor=request.user) as op:
+            if status == Status.DEAD and kit in {"stash", "lost"}:
+                for root in _kit_roots(miniature):
+                    if refund_of(root)[1] <= 0:
+                        continue
+                    if kit == "stash":
+                        op.move(root, gang.stash, note=f"{miniature.name} died")
+                    else:
+                        op.remove(root, note=f"lost with {miniature.name}")
+            op.set_status(miniature, status)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(sheet_url)
+    record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, status=status, kit=kit)
+    messages.success(request, f"{miniature.name} is now {status_label_for(miniature)}.")
+    return redirect(sheet_url)
+
+
+def status_label_for(miniature):
+    from n26.core.status import label_for
+
+    profile = miniature.membership.profile
+    return label_for(miniature.status, profile.profile_type.name == "Vehicle")
+
+
+@login_required
+def clean_house(request, pk):
+    """Clear In Recovery across the gang: the end of the cycle, by hand."""
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import operation
+
+    gang = _own_gang_or_404(request, pk)
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    if request.method != "POST":
+        return redirect(sheet_url)
+    with operation(gang, actor=request.user) as op:
+        cleared = op.clean_house()
+    record(request, N26Noun.GANG, EventVerb.UPDATE, gang, cleaned_house=len(cleared))
+    if cleared:
+        messages.success(
+            request,
+            f"Cleaned house: {len(cleared)} models are back from Recovery."
+            if len(cleared) > 1
+            else f"Cleaned house: {cleared[0].name} is back from Recovery.",
+        )
+    else:
+        messages.info(request, "No models were In Recovery.")
     return redirect(sheet_url)
 
 

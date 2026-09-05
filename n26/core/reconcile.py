@@ -50,6 +50,8 @@ def sum_rating(**root):
 
     ``sum_rating(gang_root=gang)`` or ``sum_rating(miniature_root=model)``.
     """
+    from n26.core.status import Status
+
     lookups = {f"assignment__{key}": value for key, value in root.items()}
     return (
         LedgerEntry.objects.filter(assignment__archived=False, **lookups)
@@ -57,6 +59,9 @@ def sum_rating(**root):
         # everything it was carrying — the assignments keep their pinned
         # roots, so they have to be filtered out here.
         .exclude(assignment__miniature_root__membership__archived=True)
+        # A dead model keeps its row and its card, and counts nothing:
+        # rating is what the gang can field.
+        .exclude(assignment__miniature_root__status=Status.DEAD)
         .aggregate(total=Sum("rating_contribution"))["total"]
         or 0
     )

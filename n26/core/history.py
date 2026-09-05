@@ -33,6 +33,7 @@ from n26.core.cloning import clone_event_details
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
 from n26.core.models.action import read_note
+from n26.core.operations import CLEAN_HOUSE
 
 Kind = LedgerEvent.Kind
 
@@ -373,7 +374,9 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                 if row is not None:
                     local[row.pk] = act
                     act_of.setdefault(row.pk, act)
-    if _one_edit_of_what_a_model_is(standing):
+    if _is_clean_house(standing):
+        acts.append(_clean_house_as_one(standing, viewer, alive))
+    elif _one_edit_of_what_a_model_is(standing):
         act = _edits_as_one(standing, viewer, alive)
         acts.append(act)
         for _, row in standing:
@@ -556,6 +559,35 @@ def _one_edit_of_what_a_model_is(standing):
     return len(models) == 1
 
 
+def _is_clean_house(standing):
+    """True when one operation's events are all Clean House clearing
+    Recovery — the shape ``Operation.clean_house`` writes."""
+    return len(standing) > 0 and all(
+        e.kind == Kind.STATUS_SET and e.note.endswith(f": {CLEAN_HOUSE}")
+        for e, _ in standing
+    )
+
+
+def _clean_house_as_one(standing, viewer, alive):
+    """Every model Clean House cleared, as one line with the names beneath."""
+    first, _ = standing[0]
+    subs = [
+        Sub(name=str(e.miniature) if e.miniature else "a model", note="out of Recovery")
+        for e, _ in standing
+    ]
+    models = "model" if len(subs) == 1 else "models"
+    return Act(
+        when=first.created,
+        actor=_actor(first, viewer),
+        spans=(
+            Span("cleaned house — "),
+            Span(f"{len(subs)} {models} back from Recovery"),
+        ),
+        subs=subs,
+        category="model",
+    )
+
+
 def _edits_as_one(standing, viewer, alive):
     """Several same-breath edits of what one model is, as one line."""
     first, first_row = standing[0]
@@ -719,6 +751,8 @@ def _tell(e, row, alive):
                 *_for(model, at, "on"),
                 *_movement(e.note),
             ), "model"
+        case Kind.STATUS_SET:
+            return _status_told(e, model, at), "model"
         case Kind.RENAMED:
             was, _, now = e.note.rpartition(" → ")
             # About no model, so about the gang: the same act one level up.
@@ -888,6 +922,35 @@ def _points(figure, unspent=False):
     return f"{figure} {noun}s"
 
 
+def _status_told(e, model, at):
+    """The sentence for a status change, from a note of "was → now" and,
+    after a colon, what did it."""
+    from n26.core.status import Status
+
+    movement, _, why = e.note.partition(":")
+    _, _, now = movement.partition(" → ")
+    now = now.strip()
+    why = why.strip()
+    because = (Span(f" — {why}"),) if why and why != CLEAN_HOUSE else ()
+    # Spans start lowercase with the verb: the actor's name goes in front.
+    match now:
+        case Status.RECOVERY:
+            return (Span("put "), at, Span(" into Recovery"), *because)
+        case Status.CRITICAL:
+            return (Span("marked "), at, Span(" as Critically Injured"), *because)
+        case Status.CAPTURED:
+            return (Span("marked "), at, Span(" as captured"), *because)
+        case Status.RANSOMED:
+            return (Span("marked "), at, Span(" as held for ransom"), *because)
+        case Status.DEAD:
+            return (Span("marked "), at, Span(" as dead"), *because)
+        case Status.ACTIVE if why == CLEAN_HOUSE:
+            return (Span("cleared Recovery for "), at)
+        case Status.ACTIVE:
+            return (Span("marked "), at, Span(" as active"), *because)
+    return (Span("changed the status of "), at)
+
+
 def _dice_label(dice):
     from n26.library.models import Dice
 
@@ -909,6 +972,7 @@ def _for(model, at, word="for"):
 #: bookkeeping on the page.
 _NOTE_IS_MACHINERY = {
     Kind.CLONED,
+    Kind.STATUS_SET,
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,
     Kind.TALLIED,

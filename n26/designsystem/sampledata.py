@@ -2102,6 +2102,28 @@ def model_card_written():
     return replace(model_card(), notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE)
 
 
+def model_card_in_recovery():
+    """The sample card with a status: In Recovery, badge and line under
+    the name, the way a card reads after a Grievous Wound."""
+    return replace(
+        model_card(),
+        status="recovery",
+        status_label="In Recovery",
+        status_note="Misses the rest of the cycle. Cleared by Clean House.",
+    )
+
+
+def model_card_dead():
+    """The sample card dead: greyed, badged, counting nothing."""
+    return replace(
+        model_card(),
+        rating=0,
+        status="dead",
+        status_label="Dead",
+        status_note="Adds nothing to the gang's rating.",
+    )
+
+
 def model_card_editable():
     """The sample card as the model's own page draws it: its counters
     carry addresses, so the lines grow their controls and XP joins them,
