@@ -2,18 +2,17 @@
 The answers a campaign is made of, shared by the set-up and edit screens so
 the two cannot drift into asking different questions.
 
-The budget is the one worth reading twice. It is how much a gang should be
-worth to join — its rating, its stash and the credits it has not spent — and
-it refuses nobody: a bigger gang joins and is marked as over it.
+The budget is the one worth reading twice. It is what a gang should be worth
+to join — its rating, its stash and the credits it has not spent — and it
+refuses nobody: a bigger gang joins and wears an Over budget badge on the
+campaign page.
 
-Blank is not zero — it means the campaign sets no budget at all. The 1000
-default lives on the unbound form, so it is only for set-up; edit supplies
-the stored value, including blank. The box uses default_if_none so a stored
-0 still draws as 0.
-
-Blank is not zero and is not the usual 1000 — it means the campaign sets no
+Blank is not zero and is not the usual 1000 — it means the campaign has no
 budget at all, and the placeholder says so, because a reader who leaves it
-empty expecting a default gets a campaign that says nothing about size.
+empty expecting a default gets a campaign that says nothing about size. The
+1000 default lives on the unbound form, so it is only for set-up; edit
+supplies the stored value, including blank. The box uses default_if_none so
+a stored 0 still draws as 0.
 {% endcomment %}
 <c-n26.form-section title="General">
     <c-ui.field label="Campaign name *"
@@ -27,7 +26,7 @@ empty expecting a default gets a campaign that says nothing about size.
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
     <c-ui.field label="Gang budget"
-                description="How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Leave blank to set no budget."
+                description="What a gang should be worth to join, counting its rating, stash and unspent credits. A gang worth more than this can still join, and is marked as over budget on the campaign page. Leave blank for no budget."
                 error="x"
                 :form="form"
                 name="budget"
@@ -51,5 +50,5 @@ a reader cannot see from here.
 <c-n26.form-section title="About this campaign">
     <c-n26.rich-text :field="form.summary"
                      label="Summary"
-                     description="Shown at the top of the campaign's page." />
+                     description="What this campaign is, and anything the players have agreed. Shown at the top of the campaign's page." />
 </c-n26.form-section>

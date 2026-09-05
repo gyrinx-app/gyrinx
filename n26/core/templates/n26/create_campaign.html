@@ -27,7 +27,7 @@ field draws as a plain textarea and no editor ever appears.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-create-campaign' %}"
                      title="Set up a campaign"
-                     lead="The rules the campaign is played under, its name, and how much a gang should be worth."
+                     lead="A run of linked battles between the gangs you invite. You can change everything here later except the campaign type."
                      :form="form"
                      submit_label="Set up campaign"
                      cancel_url="{% url 'n26-campaigns' %}">
@@ -55,10 +55,15 @@ field draws as a plain textarea and no editor ever appears.
         description, its asset types, what every gang starts with, and any
         campaign-wide rules — composed as sentences in Python. The card is a
         label, so the lines are block spans rather than a list.
+
+        The section carries no title, because the fieldset's own legend
+        already names the group and a heading above it would say the same
+        words twice. The legend is the half that has to stay: without it
+        the radios sit in a group nothing names.
         {% endcomment %}
-        <c-n26.form-section title="Campaign type">
+        <c-n26.form-section>
             <c-n26.radio-cards label="Campaign type *"
-                               description="The rules the campaign is played under. Each type sets what the gangs fight over and what every gang starts with."
+                               description="Which campaign from the rulebook you are running. Each card says what every gang starts with and what the gangs fight over."
                                :form="form"
                                name="campaign_type"
                                min="24rem">

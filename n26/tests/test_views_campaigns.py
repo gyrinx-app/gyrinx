@@ -340,7 +340,7 @@ class TestSettingOneUp:
         assert 'value="1000"' in body
         # The field still says what clearing it does, which is the one thing
         # a reader cannot see from a box that already holds a figure.
-        assert "Leave blank to set no budget." in body
+        assert "Leave blank for no budget." in body
 
     def test_a_blank_budget_means_no_limit_rather_than_zero(
         self, client, arbitrator, campaign_type, open_to_everyone
