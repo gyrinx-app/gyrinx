@@ -306,6 +306,17 @@ rolls. The player rolls at the table and adds the result they rolled.
    the same hidden item. An entry added to the Allies list later needs
    it built in too.
 
+6. What a result does to the model's standing is a modifier on the
+   result too, and Foundations attaches these for you: Grievous Wound
+   and the 51–56 injuries put the model **In Recovery**, Critical Injury
+   marks it **Critically Injured**, Memorable Death marks it **Dead**,
+   and Captured marks it **Captured** and gives it an **Escape** choice —
+   a D6 table of its own (Executed, Ransomed, Daring Escape), each result
+   setting the status in turn. The card wears the status under the
+   model's name; the owner can set it by hand from the card's menu, and
+   Clean House on the gang's menu clears every Recovery at the end of a
+   cycle. Taking a result off the card does not undo the status.
+
 Removing one of those modifiers from a gang type removes the line from
 every card at once. Results players had already picked stay where they
 are, as plain lines the player can remove.
