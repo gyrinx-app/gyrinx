@@ -60,6 +60,25 @@ Whoever draws this owns the gang. There is no reader-facing shape.
             <p class="text-xs text-muted">No action is open.</p>
         {% endif %}
         {% comment %}
+        The end of the cycle by hand. A form rather than a link, because
+        following it changes the roster; offered only while somebody is In
+        Recovery, because otherwise it does nothing.
+        {% endcomment %}
+        {% if square.clean_house %}
+            <form method="post"
+                  action="{{ square.clean_house }}"
+                  class="flex flex-wrap items-center justify-between gap-2 {% if square.anything_open %}border-t border-box-border pt-3{% endif %}">
+                {% csrf_token %}
+                <span class="text-xs text-muted">
+                    <span class="font-medium text-ink-900 dark:text-ink-100">{{ square.in_recovery }}</span>
+                    In Recovery until the cycle ends
+                </span>
+                <c-ui.button type="submit" size="xs" variant="default">
+                    Clean House
+                </c-ui.button>
+            </form>
+        {% endif %}
+        {% comment %}
         A plain form, drawn whenever the founding action is not open,
         whatever else the gang has going on. The button names what the
         owner gets rather than the state it puts the gang in, and carries

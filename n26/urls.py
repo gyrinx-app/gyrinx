@@ -183,6 +183,7 @@ urlpatterns = [
     ),
     path("fighters/<str:pk>/rename/", views.rename_fighter, name="n26-rename-fighter"),
     path("fighters/<str:pk>/status/", views.mark_fighter, name="n26-mark-fighter"),
+    path("fighters/<str:pk>/ransom/", views.pay_ransom, name="n26-pay-ransom"),
     path("gangs/<str:pk>/clean-house/", views.clean_house, name="n26-clean-house"),
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),

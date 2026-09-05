@@ -60,12 +60,19 @@ attribute back, leaving the reader the in-flow panel the server drew.
 `clicked` separates the two ways a panel opened. One this page opened is closed
 by putting the address back; one the server drew open can only be left by
 asking for a page without it.
+
+A redrawn panel leaves the page when it is dismissed. Left in place, closed,
+it shares its id with the next panel fetched into the same host, and htmx
+then settles that new element's attributes against the old one: the class
+Alpine set on promotion is written back to the in-flow one, and a modal that
+is open lands at the top left of the page.
 {% endcomment %}
 <dialog {% if open %}open{% endif %}
         id="{{ id }}"
         {% if modal %}x-data="{
             promoted: false,
             clicked: false,
+            redrawn: {% if redrawn %}true{% else %}false{% endif %},
             cancelUrl: '{{ cancel_url }}',
             promote(dialog) {
                 try {
@@ -95,6 +102,7 @@ asking for a page without it.
                 this.clicked = false;
                 this.promoted = false;
                 history.replaceState({}, '', this.cancelUrl);
+                if (this.redrawn) this.$el.remove();
             },
             leaving(event) {
                 if (!this.clicked) return;

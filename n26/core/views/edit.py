@@ -7,7 +7,12 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from n26.core.views.permissions import _own_miniature_or_404, trade_points_href
+from n26.core.views.permissions import (
+    _own_miniature_or_404,
+    may_mark_status,
+    status_href,
+    trade_points_href,
+)
 
 #: The kinds an owner edits by hand on this page: the assignable column
 #: each section writes, the input name its form posts, and the heading
@@ -309,6 +314,11 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
+            "status_href": (
+                status_href(gang, miniature, back="edit")
+                if may_mark_status(gang, request.user)
+                else ""
+            ),
         },
     )
     return with_toasts(request, response)
@@ -672,6 +682,7 @@ def edit_fighter(request, pk):
     # The header's far corner: the gang's figures and the roster tally,
     # the same numbers the equip face keeps there. One query.
     members = roster(gang)
+    may_mark = may_mark_status(gang, request.user)
     return render(
         request,
         "n26/fighter_edit.html",
@@ -681,6 +692,17 @@ def edit_fighter(request, pk):
             "card": card,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
+            # One reading of the flag, passed to both: the badge leads to
+            # whichever question the status wants, the menu item always to
+            # Mark as….
+            "status_href": (
+                status_href(gang, miniature, back="edit") if may_mark else ""
+            ),
+            "mark_href": (
+                status_href(gang, miniature, back="edit", ransom=False)
+                if may_mark
+                else ""
+            ),
             # A model brought by another is part of that model's purchase.
             # Copying the owner carries both across; the child has no
             # independent purchase to copy on its own.

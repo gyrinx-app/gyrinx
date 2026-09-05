@@ -24,6 +24,7 @@ from n26.core.render import render_gang
 from n26.core.status import Status
 from n26.library.models import Modifier, Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
     create_profile,
     create_weapon,
@@ -308,6 +309,12 @@ class TestTheHistoryTellsIt:
 
 
 class TestThePage:
+    @pytest.fixture(autouse=True)
+    def admitted(self, owner):
+        """Setting a status by hand reaches the owners the founding flag
+        admits, because Clean House is drawn in the Actions square."""
+        admit_to_founding(owner)
+
     @pytest.fixture
     def sheet(self, gang):
         return reverse("n26-gang", args=[gang.pk])
@@ -318,6 +325,50 @@ class TestThePage:
         client.force_login(owner)
         page = client.get(sheet).content.decode()
         assert "In Recovery" in page
+
+    def test_the_badge_on_the_edit_page_leads_to_the_dialog(
+        self, client, owner, gang, krago, sheet
+    ):
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.RECOVERY)
+        client.force_login(owner)
+        page = client.get(reverse("n26-edit-fighter", args=[krago.pk])).content.decode()
+        assert f'hx-get="{sheet}?status={krago.pk}&amp;back=edit"' in page
+        assert 'id="n26-status-dialog-host"' in page
+
+    def test_asked_over_htmx_the_dialog_comes_alone(
+        self, client, owner, gang, krago, sheet
+    ):
+        """The badge fetches the question; the sheet is not rebuilt, and
+        the address is corrected to the one that draws it on a visit."""
+        client.force_login(owner)
+        reply = client.get(f"{sheet}?status={krago.pk}", HTTP_HX_REQUEST="true")
+        page = reply.content.decode()
+        assert reply["HX-Replace-Url"] == f"{sheet}?status={krago.pk}"
+        host = page[page.index('id="n26-status-dialog-host"') :]
+        assert 'hx-swap-oob="true"' in host[: host.index(">")]
+        assert f"Mark {krago.name} as" in page
+        assert "<c-n26.view.gang-sheet" not in page and "Recent history" not in page
+
+    def test_asked_from_the_edit_page_the_act_lands_back_there(
+        self, client, owner, gang, krago, sheet
+    ):
+        client.force_login(owner)
+        edit = reverse("n26-edit-fighter", args=[krago.pk])
+        reply = client.get(
+            f"{sheet}?status={krago.pk}&back=edit", HTTP_HX_REQUEST="true"
+        )
+        assert "HX-Replace-Url" not in reply
+        assert (
+            f'cancel_url="{edit}"' in reply.content.decode()
+            or edit in reply.content.decode()
+        )
+        reply = client.post(
+            reverse("n26-mark-fighter", args=[krago.pk]) + "?back=edit",
+            {"status": "recovery"},
+        )
+        assert reply["Location"] == edit
+        assert Miniature.objects.get(pk=krago.pk).status == Status.RECOVERY
 
     def test_the_owner_marks_a_model_from_the_dialog(
         self, client, owner, gang, krago, sheet
@@ -365,7 +416,25 @@ class TestThePage:
             op.set_status(krago, Status.DEAD)
         client.force_login(owner)
         page = client.get(sheet).content.decode()
-        assert page.index("Nix") < page.index(">Dead<") < page.index("Krago")
+        # Krago is named in the square's history as well, so the card is
+        # looked for after the heading rather than by first mention.
+        heading = page.index(">Dead<")
+        assert page.index("Nix") < heading
+        assert "Krago" in page[heading:]
+
+    def test_clean_house_is_offered_in_the_actions_square(
+        self, client, owner, gang, krago
+    ):
+        """Clean House sits in the Actions square while anyone is In
+        Recovery, and nowhere else on the sheet."""
+        client.force_login(owner)
+        sheet = reverse("n26-gang", args=[gang.pk])
+        assert "Clean House" not in client.get(sheet).content.decode()
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.RECOVERY)
+        page = client.get(sheet).content.decode()
+        assert page.count("Clean House") == 1
+        assert "In Recovery until the cycle ends" in page
 
     def test_clean_house_from_the_sheet(self, client, owner, gang, krago, sheet):
         with operation(gang, actor=owner) as op:
@@ -374,6 +443,50 @@ class TestThePage:
         reply = client.post(reverse("n26-clean-house", args=[gang.pk]), follow=True)
         assert "back from Recovery" in reply.content.decode()
         assert fresh(krago).status == Status.ACTIVE
+
+    def test_an_active_model_offers_a_quiet_way_in(
+        self, client, owner, gang, krago, sheet
+    ):
+        """Active is not badged — the word is only news when it is not
+        Active — so the way to set it is a muted control by the others."""
+        client.force_login(owner)
+        page = client.get(sheet).content.decode()
+        assert f"?status={krago.pk}" in page
+        assert ">Active</a>" in page.replace("\n", "").replace("  ", "")
+
+    def test_the_status_is_words_alone_where_the_flag_is_shut(
+        self, client, gang, krago, make_user
+    ):
+        """An owner the founding flag does not admit reads every status
+        and is offered none of them: no link, no menu item, and the acts
+        themselves refuse."""
+        outsider = make_user("outsider", "password")
+        gang.owner = outsider
+        gang.save(update_fields=["owner"])
+        with operation(gang, actor=outsider) as op:
+            op.set_status(krago, Status.RECOVERY)
+        client.force_login(outsider)
+        sheet = reverse("n26-gang", args=[gang.pk])
+        page = client.get(sheet).content.decode()
+        assert "In Recovery" in page
+        assert f"?status={krago.pk}" not in page
+        edit = client.get(reverse("n26-edit-fighter", args=[krago.pk])).content.decode()
+        assert "Mark as" not in edit
+        assert client.get(f"{sheet}?status={krago.pk}").status_code == 200
+        assert (
+            "Mark Krago as"
+            not in client.get(f"{sheet}?status={krago.pk}").content.decode()
+        )
+        assert (
+            client.post(
+                reverse("n26-mark-fighter", args=[krago.pk]), {"status": "active"}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(reverse("n26-clean-house", args=[gang.pk])).status_code == 404
+        )
+        assert Miniature.objects.get(pk=krago.pk).status == Status.RECOVERY
 
     def test_a_stranger_cannot_mark_a_model(self, client, gang, krago):
         other = User.objects.create_user("stranger")

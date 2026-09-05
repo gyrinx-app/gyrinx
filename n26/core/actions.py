@@ -126,6 +126,11 @@ class ActionsSquare:
     history: tuple = ()
     start_founding: str = ""
     history_href: str = ""
+    #: How many models are In Recovery, and where Clean House posts —
+    #: the end of the cycle by hand, which clears every one of them.
+    #: Empty when nobody is In Recovery, and the square offers nothing.
+    in_recovery: int = 0
+    clean_house: str = ""
 
     @property
     def anything_open(self):
@@ -212,7 +217,9 @@ def history_lines(gang, viewer=None, limit=SNAPSHOT):
     )
 
 
-def actions_square(gang, sheet, *, founding_at, visit_at, history_at, viewer=None):
+def actions_square(
+    gang, sheet, *, founding_at, visit_at, history_at, clean_house_at="", viewer=None
+):
     """The gang page's Actions square: what is open, what has been done,
     and what may start.
 
@@ -227,10 +234,15 @@ def actions_square(gang, sheet, *, founding_at, visit_at, history_at, viewer=Non
     visit = None
     if sheet.visiting_trading_post:
         visit = VisitLine(trade_points_left=sheet.trade_points_left, href=visit_at)
+    from n26.core.status import Status
+
+    in_recovery = sum(1 for model in sheet.models if model.status == Status.RECOVERY)
     return ActionsSquare(
         founding=founding,
         visit=visit,
         history=history_lines(gang, viewer=viewer),
         start_founding="" if founding is not None else founding_at,
         history_href=history_at,
+        in_recovery=in_recovery,
+        clean_house=clean_house_at if in_recovery else "",
     )
