@@ -174,7 +174,7 @@ class TestTheFoundingMarkPage:
         page = reader.get("/n26/design/c/founding-mark/").content.decode()
         assert "Available" in page
         assert "Remaining" in page
-        assert "counts against the" in page
+        assert "not against the visit" in page
         assert "Manage visit" in page
 
 
