@@ -407,6 +407,14 @@ staleness, so you'll need a one-off `--create-db` run after changing a model.
 - CI gates pull requests on `pytest -m core` plus the tests the PR touched; the full suite
   runs but does not block. Mark a file `core` only for fundamental behaviour, a critical
   flow, or a safety/performance check. See `docs/developing-gyrinx/testing.md`.
+- **The Postgres cluster is shared by every agent on this machine.** Per-worktree `DB_NAME`
+  isolates data, not the cluster's lock table: two `-n auto` runs at once exhaust it and
+  *both* fail on every test with `out of shared memory`. Before a full run, check
+  `board who` — an agent with ⚙ has a run live — and use `pytest -n 4` while anyone else
+  is testing (the board's PreToolUse guard refuses a full run once while another is live).
+- A killed xdist run leaves `test_<DB_NAME>_gw<N>` databases behind; the next run then
+  fails on every test with `already exists` / `being accessed by other users`. List them
+  with `psql -l | grep test_` and drop them, or run `./scripts/cleanup-worktree-dbs.sh`.
 
 ### Frontend Development
 
