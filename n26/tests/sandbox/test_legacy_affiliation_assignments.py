@@ -205,6 +205,21 @@ def test_it_refuses_a_spare_without_one_current_converted_pick(legacy_world):
     assert any("one live pick" in problem for problem in plan.problems)
 
 
+def test_it_refuses_a_live_spare_with_an_unmeasured_name(legacy_world):
+    _, _, _, mutant, old_pick, _ = legacy_world
+    mutant.affiliation.name = "Aranthian"
+    mutant.affiliation.save(update_fields=["name"])
+    old_pick.pickable.name = "Aranthian"
+    old_pick.pickable.save(update_fields=["name"])
+
+    plan = find()
+
+    assert not plan.ok
+    assert any(
+        "not the measured live Mutant spare" in problem for problem in plan.problems
+    )
+
+
 def test_a_changed_plan_is_skipped_without_deleting_anything(legacy_world):
     _, none, *_ = legacy_world
     plan = find()
@@ -213,4 +228,19 @@ def test_a_changed_plan_is_skipped_without_deleting_anything(legacy_world):
     report = apply(plan)
 
     assert Assignment.objects.filter(pk=none.pk).exists()
-    assert any("changed since the plan was read" in line for line in report)
+    assert any("no longer pass the deletion safety checks" in line for line in report)
+
+
+def test_a_new_unsafe_assignment_after_preview_skips_the_gang(legacy_world):
+    _, _, spare_gang, mutant, *_ = legacy_world
+    plan = find(spare_gang.pk)
+    assign(
+        create_affiliation("Aranthian"),
+        gang=spare_gang,
+        caused_by=mutant.caused_by,
+    )
+
+    report = apply(plan)
+
+    assert Assignment.objects.filter(pk=mutant.pk).exists()
+    assert any("no longer pass the deletion safety checks" in line for line in report)

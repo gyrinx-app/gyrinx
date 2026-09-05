@@ -256,9 +256,11 @@ def find(gang_id=None):
         if not problem and assignment.affiliation.name == "None":
             classification = ARCHIVED_NONE
             problem = _archived_none_problem(assignment)
-        elif not problem:
+        elif not problem and assignment.affiliation.name == "Mutant":
             classification = LIVE_SPARE
             problem = _live_spare_problem(assignment)
+        elif not problem:
+            problem = "is not the measured live Mutant spare"
         if problem:
             problems.append(_problem(assignment, problem))
             continue
@@ -304,7 +306,13 @@ def _delete_one(gang_id, assignments):
         locked = list(
             Assignment.objects.select_for_update().filter(pk__in=ids).order_by("pk")
         )
-        standing = dict(find(gang_id).gangs)
+        current = find(gang_id)
+        standing = dict(current.gangs)
+        if current.problems:
+            return (
+                f"gang {gang_id}: skipped — its affiliation assignments no longer "
+                "pass the deletion safety checks: " + "; ".join(current.problems)
+            )
         if standing.get(gang_id) != assignments:
             return (
                 f"gang {gang_id}: skipped — its affiliation assignments changed "
