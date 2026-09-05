@@ -28,10 +28,11 @@ so a campaign never exists without them::
 
     campaign = Campaign(name="Dust Falls", owner=arbitrator)
     with campaign_operation(campaign, actor=arbitrator) as act:
-        act.found(n26_core)
+        act.found(territory_campaign)
 """
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from uuid import uuid4
 
 from django.db import transaction
@@ -479,3 +480,88 @@ def campaign_operation(campaign, actor=None):
             ).first()
             campaign.refresh_from_db()
         yield CampaignOperation(campaign, actor=actor)
+
+
+# --- What a type gives, for the screen that offers it ------------------------
+
+
+@dataclass(frozen=True)
+class CampaignTypeSummary:
+    """One campaign type as the set-up screen offers it: what a campaign
+    of it is about, and what a gang that joins is given.
+
+    Built here rather than in the template because each line is a
+    sentence composed from several rows — a kind's label and its mode, a
+    built-in member and its opening value, a modifier's scope and effect
+    — and the words belong with the facts they are made from.
+
+    ``kinds`` is one sentence per asset kind, in the type's own order.
+    ``starts_with`` is one sentence for the whole built-in set, or empty
+    where the type builds nothing in. ``rules`` is one sentence per
+    campaign-wide modifier, in the words the authoring pages use.
+    """
+
+    pk: str
+    name: str
+    description: str
+    kinds: tuple[str, ...] = ()
+    starts_with: str = ""
+    rules: tuple[str, ...] = ()
+    checked: bool = False
+
+
+def summarise_campaign_type(campaign_type, checked=False):
+    """What founding a campaign on this type gives, in sentences.
+
+    Reads the type's kinds, its built-in members and its modifiers, each
+    once. Three or four queries per type; the screen offers a handful.
+    """
+    from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
+    from n26.library.prose import GANG, sentence_for
+    from n26.library.references import reading_sentences
+
+    kinds = tuple(_kind_sentence(kind) for kind in campaign_type.asset_kinds.all())
+    members = campaign_type.built_in_members.select_related(
+        *DEFAULT_ASSIGNABLE_FIELDS
+    ).order_by("position")
+    given = [_given(member) for member in members]
+    starts_with = f"Every gang starts with {_and(given)}." if given else ""
+    rules = tuple(
+        sentence_for(modifier, GANG, thing=campaign_type).text
+        for modifier in reading_sentences(campaign_type.modifiers.all())
+    )
+    return CampaignTypeSummary(
+        pk=str(campaign_type.pk),
+        name=str(campaign_type),
+        description=campaign_type.description,
+        kinds=kinds,
+        starts_with=starts_with,
+        rules=rules,
+        checked=checked,
+    )
+
+
+def _kind_sentence(kind):
+    """How assets of one kind behave, in one sentence: "one" rather than
+    an article, so the label needs no a/an."""
+    if kind.is_pooled:
+        return f"{kind.plural} change hands."
+    return f"Every gang gets one {kind.label_singular} and keeps it."
+
+
+def _given(member):
+    """One built-in member as a gang receives it: a counter with its
+    opening value, an asset by the one, anything else by name."""
+    thing = member.assignable
+    if member.counter_id is not None:
+        return f"{thing} at {member.amount}"
+    if member.asset_id is not None:
+        return f"one {thing}"
+    return str(thing)
+
+
+def _and(words):
+    words = list(words)
+    if len(words) == 1:
+        return words[0]
+    return f"{', '.join(words[:-1])} and {words[-1]}"

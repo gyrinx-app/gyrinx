@@ -3,7 +3,7 @@
 A campaign is founded on a shared campaign type and owns, from that
 moment, a pack of its own with an empty additions type in it. A gang
 that joins is assigned both types, gang-hosted and granted, and the
-shared type's built-ins arrive caused by its carrier — on N26 core, a
+shared type's built-ins arrive caused by its carrier — on Territory campaign, a
 Settlement and a Reputation counter at 0. The gang sheet draws those
 under the campaign's name, credited to the type that brought them, and
 a staff edit to the shared type reaches every member gang by the same
@@ -48,11 +48,11 @@ def arbitrator():
 
 @pytest.fixture
 def core(default_pack):
-    """The N26 core type as it ships: Reputation at 0 and a Settlement
+    """The Territory campaign type as it ships: Reputation at 0 and a Settlement
     built in. The data migration that creates it never runs under the
     test settings, so the same code seeds it here."""
     seed_core_campaign(apps)
-    return CampaignType.objects.get(name="N26 core")
+    return CampaignType.objects.get(name="Territory campaign")
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ class TestFoundingACampaign:
     def test_the_log_opens_by_naming_the_type(self, campaign):
         assert [e.kind for e in campaign.events.all()] == [CampaignEvent.Kind.CREATED]
         assert sentences(campaign_history(campaign)) == [
-            "set the campaign up on N26 core"
+            "set the campaign up on Territory campaign"
         ]
 
     def test_a_campaign_is_founded_once(self, campaign, core, arbitrator):
@@ -183,16 +183,16 @@ class TestJoiningACampaign:
         ]
         assert sorted((sub.name, sub.kind) for sub in joined.subs) == [
             ("Dust Falls", "campaign type"),
-            ("N26 core", "campaign type"),
             ("Reputation", "counter"),
             ("Settlement", "asset"),
+            ("Territory campaign", "campaign type"),
         ]
         assert not any("gained" in line for line in sentences(acts))
 
     def test_the_campaigns_log_reads_the_same_act(self, membership, campaign):
         told = sentences(campaign_history(campaign))
         assert told == [
-            "set the campaign up on N26 core",
+            "set the campaign up on Territory campaign",
             "added the gang to Dust Falls",
         ]
 
@@ -223,10 +223,10 @@ class TestTheGangSheet:
                 line.provenance.source_kind,
             )
             for line in block.lines
-        ] == [("Settlement", "Settlement", "N26 core", "campaign type")]
+        ] == [("Settlement", "Settlement", "Territory campaign", "campaign type")]
         assert [
             (line.name, line.value, line.provenance.source) for line in block.counters
-        ] == [("Reputation", 0, "N26 core")]
+        ] == [("Reputation", 0, "Territory campaign")]
 
     def test_the_owner_can_tally_the_campaigns_counter_from_the_sheet(
         self, client, membership, gang
@@ -269,7 +269,7 @@ class TestTheGangSheet:
     def test_the_carriers_draw_no_line_among_the_gangs_own_rows(self, membership, gang):
         sheet = render_gang(gang)
         names = [row.name for row in sheet.rows]
-        assert "N26 core" not in names
+        assert "Territory campaign" not in names
         assert "Dust Falls" not in names
         assert "Settlement" not in names
 
@@ -282,7 +282,7 @@ class TestTheGangSheet:
         assert "Dust Falls" in body
         assert "Settlement" in body
         assert "Reputation" in body
-        assert "From N26 core (campaign type)" in body
+        assert "From Territory campaign (campaign type)" in body
 
 
 class TestEditingTheTypeReachesMemberGangs:

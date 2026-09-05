@@ -1118,6 +1118,7 @@ def _build_registry():
             {
                 "name": Text(source=(CampaignType, "name")),
                 "qualifier": Text(source=(CampaignType, "qualifier")),
+                "description": Text(source=(CampaignType, "description"), long=True),
                 "library_author_help": Text(
                     source=(CampaignType, "library_author_help"), long=True
                 ),

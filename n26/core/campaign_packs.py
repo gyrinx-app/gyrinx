@@ -6,8 +6,8 @@ type (``CampaignOperation.found``); a gang that joins is assigned both
 types, with the shared type's built-ins landing caused by its carrier
 (``Operation.join_campaign``). Campaigns and memberships written before
 either existed have none of it, and this fills the gap: each campaign
-missing a type is put on the **N26 core** type, the one type every
-install has and the only thing a campaign could have been played as
+missing a type is put on the **Territory campaign** type, the one type
+every install has and the only thing a campaign could have been played as
 before there was a choice; each missing a pack or an additions type is
 given one, named for the campaign as founding names them; and each open
 membership missing a carrier is given it, with the type's built-ins
@@ -26,9 +26,9 @@ What an operation does beyond writing rows is not done here: no stored
 effect runs, and a weapon lands without its free firing lines. Nor are
 two shapes of built-in followed: an extra firing line, which needs a gun
 to land on, and a built-in with built-ins of its own. None of these is
-in the N26 core type, whose built-ins are a counter and an asset. Each
-is reported rather than half-written, and the propagation pass catches
-up whatever it can.
+in the Territory campaign type, whose built-ins are a counter and an
+asset. Each is reported rather than half-written, and the propagation pass
+catches up whatever it can.
 
 Everything is matched on what already stands and left alone if it is
 there, so running this twice changes nothing the second time. Written
@@ -41,7 +41,11 @@ from uuid import uuid4
 from django.conf import settings
 
 from n26.core.models.ledger import Reason
-from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
+from n26.library.core_campaign import (
+    CAMPAIGN_TYPE,
+    FORMER_NAME,
+    seed_core_campaign,
+)
 from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
 #: ``LedgerEvent.Kind.GRANTED``, by value: the history's word for a thing
@@ -107,16 +111,19 @@ def give_campaigns_their_packs(apps):
 
 
 def _core_type(apps):
-    """The N26 core campaign type, created along with the rest of the core
-    campaign content if a database lacks it."""
+    """The Territory campaign type, created along with the rest of the
+    core campaign content if a database lacks it. A database still holding
+    the type under its former name is not given a second one."""
     CampaignType = apps.get_model("library", "CampaignType")
 
     def find():
-        return CampaignType.objects.filter(
-            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
-            name__iexact=CAMPAIGN_TYPE,
-            qualifier="",
-        ).first()
+        system = CampaignType.objects.filter(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, qualifier=""
+        )
+        return (
+            system.filter(name__iexact=CAMPAIGN_TYPE).first()
+            or system.filter(name__iexact=FORMER_NAME).first()
+        )
 
     core = find()
     if core is None:

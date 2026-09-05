@@ -92,7 +92,7 @@ def gang_history(request, pk):
         "n26/gang_history.html",
         {
             "gang": gang,
-            "days": _by_day(page.object_list),
+            "days": by_day(page.object_list),
             # What this screenful carries, and what the whole answer
             # holds, so the count can say "50 of 312".
             "shown": len(page.object_list),
@@ -107,8 +107,9 @@ def gang_history(request, pk):
     )
 
 
-def _by_day(acts):
-    """Already newest first: gathered under the local date each landed on."""
+def by_day(acts):
+    """Already newest first: gathered under the local date each landed on.
+    Shared with the campaign log, which reads the same shape of act."""
     days = []
     for act in acts:
         date = timezone.localtime(act.when).date()

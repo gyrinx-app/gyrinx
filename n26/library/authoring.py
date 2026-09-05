@@ -83,11 +83,14 @@ def create_gang_type(
 # --- Campaign types and assets ---------------------------------------------
 
 
-def create_campaign_type(name, qualifier="", library_author_help="", **kwargs):
+def create_campaign_type(
+    name, qualifier="", description="", library_author_help="", **kwargs
+):
     """A kind of campaign, for a campaign to be founded on. Its asset
     kinds are added afterwards with ``add_asset_kind``, and its assets
     under those with ``create_asset``. Stored stripped, as a gang type's
-    name is."""
+    name is. The description is for the arbitrator founding on the type;
+    the author help is for whoever builds content against it."""
     from n26.library.models import CampaignType
 
     name = (name or "").strip()
@@ -96,6 +99,7 @@ def create_campaign_type(name, qualifier="", library_author_help="", **kwargs):
     return CampaignType.objects.create(
         name=name,
         qualifier=qualifier,
+        description=description,
         library_author_help=library_author_help,
         **kwargs,
     )

@@ -33,6 +33,10 @@ not read as a question.
     description's place. A greyed option with no reason reads as broken.
   flair — a badge after the label, sized in em by <c-n26.flair-link>. Optional.
   meta — a slot at the far end of the header: a price, a count. Optional.
+  slot — lines of detail under the description, for an option that is a
+    set of rules rather than a name. Phrasing content only: the whole card
+    is a <label>, so write <span class="block"> lines, never a list.
+    Optional.
 {% endcomment %}
 <c-vars
     name=""
@@ -77,6 +81,9 @@ accent border and tint match the kit's checkbox cards.
             <span class="block text-muted">{{ reason }}</span>
         {% elif description %}
             <span class="block {% if not wrap %}truncate{% endif %} text-muted">{{ description }}</span>
+        {% endif %}
+        {% if slot.strip %}
+            <span class="mt-2 block border-t border-box-border pt-2 text-sm">{{ slot }}</span>
         {% endif %}
         {% if example and not disabled %}
             {% comment %}

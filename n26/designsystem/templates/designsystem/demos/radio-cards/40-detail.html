@@ -1,0 +1,22 @@
+{# title: Lines of detail under the description #}
+{# note: The body slot draws under the description, inside the label, for an option that is a set of rules rather than a name. Block spans, never a list: the whole card is a label. #}
+{# layout: col #}
+<c-n26.radio-cards label="Campaign type" min="24rem">
+    <c-n26.radio-cards.card name="demo-campaign-type"
+                            value="territory"
+                            label="Territory campaign"
+                            description="The core rulebook's campaign: gangs fight for control of Territory."
+                            :wrap="True"
+                            :checked="True">
+        <span class="block">Every gang gets one Settlement and keeps it.</span>
+        <span class="block">Territories change hands.</span>
+        <span class="block">Every gang starts with Reputation at 0 and one Settlement.</span>
+    </c-n26.radio-cards.card>
+    <c-n26.radio-cards.card name="demo-campaign-type"
+                            value="rackets"
+                            label="Law and Misrule"
+                            description="Gangs pick a side and fight over Rackets."
+                            :wrap="True">
+        <span class="block">Rackets change hands.</span>
+    </c-n26.radio-cards.card>
+</c-n26.radio-cards>

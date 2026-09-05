@@ -1985,7 +1985,7 @@ def gang_sheet():
                     kind_label="Settlement",
                     name="Settlement",
                     provenance=Provenance(
-                        source="N26 core", source_kind="campaign type"
+                        source="Territory campaign", source_kind="campaign type"
                     ),
                 )
             ],
@@ -2000,7 +2000,7 @@ def gang_sheet():
                     href="#",
                     back="#",
                     provenance=Provenance(
-                        source="N26 core", source_kind="campaign type"
+                        source="Territory campaign", source_kind="campaign type"
                     ),
                 )
             ],

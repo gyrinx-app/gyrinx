@@ -61,10 +61,10 @@ def player():
 
 @pytest.fixture
 def core(default_pack):
-    """The N26 core type as it ships: Reputation at 0, a Settlement built
+    """The Territory campaign type as it ships: Reputation at 0, a Settlement built
     in, and Territory as its pooled kind."""
     seed_core_campaign(apps)
-    return CampaignType.objects.get(name="N26 core")
+    return CampaignType.objects.get(name="Territory campaign")
 
 
 @pytest.fixture

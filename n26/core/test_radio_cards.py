@@ -66,3 +66,28 @@ class TestTheGridGivesEachCardRoomToShrink:
 
         assert "[&>*]:min-w-0" in html
         assert "min-w-0" in html
+
+
+class TestACardCanCarryLinesOfDetail:
+    """An option that is a set of rules needs more than one line under its
+    name. The body slot draws under the description, inside the label, so
+    a click on any line still selects the card."""
+
+    def test_the_body_is_drawn_after_the_description(self):
+        html = render(
+            '<c-n26.radio-cards.card name="type" value="1" '
+            'label="Territory campaign" description="Gangs fight for Territory." '
+            ':wrap="True">'
+            '<span class="block">Territories change hands.</span>'
+            "</c-n26.radio-cards.card>"
+        )
+
+        assert html.index("Gangs fight for Territory.") < html.index(
+            "Territories change hands."
+        )
+        assert html.index("Territories change hands.") < html.index("</label>")
+        assert "border-t" in html
+
+    def test_a_card_with_no_body_draws_no_divider(self):
+        html = render('<c-n26.radio-cards.card name="type" value="1" label="Escher" />')
+        assert "border-t" not in html

@@ -21,6 +21,7 @@ from n26.core.views.campaigns import (
     answer_invitation,
     archive_campaign,
     campaign,
+    campaign_log,
     campaign_pool,
     campaigns,
     create_campaign,
@@ -69,6 +70,7 @@ from n26.core.views.skills import skills
 __all__ = [
     "accessorise_assignment",
     "campaign",
+    "campaign_log",
     "campaigns",
     "changelog",
     "changelog_entry",

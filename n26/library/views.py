@@ -174,8 +174,8 @@ def _describe_built_in(member):
 
 
 def _describe_asset_kind(kind):
-    """One class of asset a campaign type deals in: what several are
-    called and how the kind behaves. Its assets are not counted here —
+    """One class of asset a campaign type has: what several are called
+    and how the kind behaves. Its assets are not counted here —
     they are listed under it on the same page."""
     return kind.label_singular, [kind.plural, kind.get_mode_display().lower()]
 
@@ -389,14 +389,14 @@ DETAIL_KINDS = {
         "parts_label": "asset kinds",
         "part_name": "asset kind",
         "parts_description": (
-            "The classes of asset a campaign of this type deals in — "
-            "Territory, Racket, Settlement. Each has a label a campaign page "
-            "prints, and a mode every asset of the kind follows. The assets "
-            "themselves are listed under their kind, and added there."
+            "The kinds of asset a campaign of this type has — Territory, "
+            "Racket, Settlement. Each has a label a campaign page prints, and "
+            "a mode every asset of the kind follows. The assets themselves "
+            "are listed under their kind, and added there."
         ),
         "nothing_yet": (
-            "No asset kinds yet. A campaign of this type has nothing to hand "
-            "out until it has one."
+            "No asset kinds yet. Every asset belongs to a kind, so add one "
+            "before adding assets."
         ),
         # An asset kind has no page of its own: its four fields are
         # edited in place, on the row that lists it.
@@ -987,7 +987,7 @@ def _describe_gang_type(gang_type):
 
 def _describe_campaign_type(campaign_type):
     """A campaign type, as a listing needs to tell one from the next:
-    the kinds of asset it deals in and how many assets it hands out.
+    the kinds of asset it has and how many assets it hands out.
 
     Reads the kinds and their assets with ``.all()``, so a listing that
     prefetched them describes every type without a query per row.
@@ -3838,14 +3838,16 @@ def asset_kind_remove(request, pk):
     held = list(kind.assets.all())
 
     if request.method == "POST":
-        said = kind.plural
+        said = kind.label_singular
         try:
             with transaction.atomic():
                 authoring.remove_asset_kind(kind)
         except ValidationError as refused:
             messages.error(request, " ".join(refused.messages))
             return redirect(request.path)
-        messages.success(request, f"{campaign_type} no longer deals in {said}.")
+        messages.success(
+            request, f"Removed the {said} asset kind from {campaign_type}."
+        )
         return redirect(back)
 
     return render(

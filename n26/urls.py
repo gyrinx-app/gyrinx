@@ -24,6 +24,8 @@ urlpatterns = [
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # After campaigns/new/, which would otherwise resolve "new" as an id.
     path("campaigns/<str:pk>/", views.campaign, name="n26-campaign"),
+    # The whole log; the campaign's page draws only the newest acts.
+    path("campaigns/<str:pk>/log/", views.campaign_log, name="n26-campaign-log"),
     path(
         "campaigns/<str:pk>/edit/",
         views.edit_campaign,

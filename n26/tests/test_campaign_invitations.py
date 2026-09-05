@@ -32,7 +32,7 @@ def campaign(arbitrator, campaign_type):
 
 
 #: The log's first line, which founding writes before any test here acts.
-FOUNDED = "set the campaign up on N26 core"
+FOUNDED = "set the campaign up on Territory campaign"
 
 
 def told(campaign):
