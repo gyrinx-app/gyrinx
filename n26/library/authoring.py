@@ -405,6 +405,40 @@ def revise(row, **fields):
     return row
 
 
+def stage(row):
+    """Hold a row back from players until it is put live.
+
+    Nothing about the row changes but who is offered it: every surface
+    where a player adds to a gang leaves it out, and whoever may see
+    staged content meets it there as players will once it is live
+    (``n26.library.staged``).
+    """
+    return revise(row, staged=True)
+
+
+def put_live(row):
+    """Release a staged row to players."""
+    return revise(row, staged=False)
+
+
+def put_everything_live():
+    """Release every staged row at once, in one transaction — so a new gang
+    type and the fighters and lists written for it reach players together
+    rather than in whatever order an author clicks. Returns how many rows
+    went live.
+    """
+    from django.utils import timezone
+
+    from n26.library.staged import content_kinds
+
+    now = timezone.now()
+    with transaction.atomic():
+        return sum(
+            model.objects.filter(staged=True).update(staged=False, modified=now)
+            for model in content_kinds()
+        )
+
+
 def set_traits(weapon_profile, traits):
     """The traits printed on a firing line, replaced.
 

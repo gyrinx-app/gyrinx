@@ -20,6 +20,36 @@ thing twice, a line apart.
             {% siblings_switcher kind thing as siblings_ %}
             <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
         </c-slot>
+        {% comment %}
+        Whether players see this yet, and the one click that changes it. A
+        badge and a button rather than a switch on the edit form: putting a
+        thing live is an act of its own, not a field saved along with a
+        price. Drawn only for kinds players are offered somewhere.
+        {% endcomment %}
+        {% if stageable %}
+            <c-slot name="actions">
+                <form method="post" class="flex items-center gap-3">
+                    {% csrf_token %}
+                    {% if thing.staged %}
+                        <c-ui.badge color="amber">
+                            Staged
+                        </c-ui.badge>
+                        <input type="hidden" name="act" value="put_live">
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Put live
+                        </c-ui.button>
+                    {% else %}
+                        <c-ui.badge color="green">
+                            Live
+                        </c-ui.badge>
+                        <input type="hidden" name="act" value="stage">
+                        <c-ui.button type="submit" variant="ghost" size="sm">
+                            Stage
+                        </c-ui.button>
+                    {% endif %}
+                </form>
+            </c-slot>
+        {% endif %}
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>

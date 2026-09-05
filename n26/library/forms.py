@@ -36,6 +36,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from n26.library import artwork
+from n26.library.models.base import Content
 from n26.library.specs import (
     Artwork,
     Bool,
@@ -88,6 +89,25 @@ NAME_ONLY_HELP = (
     'the annotation, so "Leash (3\\")" is Leash at 3" — the same row the '
     "importer would make."
 )
+
+
+class StagedForm(forms.Form):
+    """Whether a new row is held back from players — asked beside the
+    creating form rather than by it.
+
+    Not a spec field: staging is not part of what a thing *is*, and a verb
+    that took it would make every importer and every test say it. Starts
+    switched on, because content typed on these pages is the kind that is
+    checked before players meet it; the import page asks the same question
+    the same way round.
+    """
+
+    staged = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Staged",
+        help_text=Content._meta.get_field("staged").help_text,
+    )
 
 
 class PendingCreate:

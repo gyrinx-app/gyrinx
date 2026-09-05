@@ -85,6 +85,9 @@ class TestTraitRows:
             # prose about the rule, and never seen by a player — the
             # money-words suite guards that it cannot leak.
             "qualifier",
+            # Whether players are shown it yet — a switch, no prose. See
+            # n26/library/staged.py.
+            "staged",
             # The one deliberate prose field: authoring help for whoever
             # wields this while building other content, never the book's
             # wording — the field's own help_text carries that guardrail,

@@ -32,6 +32,14 @@ Inverting it means:
 Archived content behaves the same way, for the same reason: archiving a pack
 or an item is a soft delete by its owner and must not retract content from
 lists that already reference it.
+
+Staged content is the mirror image, and is read the same way. A staged row
+has not been put live yet: it is held back from every surface where a
+player adds to a gang, and it is nowhere else's business — a card, a sheet,
+a ledger line reads whatever it holds, staged or not. ``selectable()`` is
+where the gate is; who may see past it is decided by
+``n26.library.staged.sees_staged``, and a discovery surface passes that
+decision in as ``include_staged``.
 """
 
 from django.conf import settings
@@ -63,18 +71,34 @@ class ContentQuerySet(models.QuerySet):
         """Drop archived content, and content in archived packs."""
         return self.filter(archived=False, pack__archived=False)
 
-    def selectable(self, packs=()):
+    def live(self):
+        """Drop staged content — rows an author is still holding back.
+
+        The mirror of ``unarchived``: an archived row was live and has been
+        withdrawn from discovery, a staged row has not been put live yet.
+        Either way every existing reference to it goes on resolving.
+        """
+        return self.filter(staged=False)
+
+    def selectable(self, packs=(), *, include_staged=False):
         """Content a user may choose from: the default pack, plus ``packs``.
 
         This is the discovery-surface query — a picker, a search, a gallery.
         Archived content is excluded here because you should not be able to
         *newly* select it, which is a separate question from whether existing
         references to it still resolve (they do).
+
+        Staged content is excluded for the same reason, unless the reader
+        may see it (``n26.library.staged.sees_staged``): an author checking
+        their own work, or an account the staged-content flag has been
+        opened to, is shown the library as it will stand once everything
+        staged is live.
         """
-        return self.filter(
+        found = self.filter(
             models.Q(pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG)
             | models.Q(pack__in=packs)
         ).unarchived()
+        return found if include_staged else found.live()
 
     def with_pack(self):
         """``select_related`` the pack. Cheap, and avoids N+1 on ``__str__``."""
@@ -99,6 +123,21 @@ class Content(Base, Archived):
         default=default_pack_id,
         db_index=True,
         help_text="The pack this content belongs to. Defaults to N26.",
+    )
+
+    # Off by default so every path that writes content — the verbs, an
+    # import, a campaign making its own rows — makes live rows unless it
+    # says otherwise. The authoring pages are where the default is staged,
+    # because hand-authored content is the kind that is checked before it
+    # is shown.
+    staged = models.BooleanField(
+        default=False,
+        help_text=(
+            "Held back from players until an author puts it live. Not offered "
+            "where players add to a gang: creating a gang, hiring, equipment "
+            "lists, the Trading Post, skills and choices. Anything a gang "
+            "already holds stays as it is."
+        ),
     )
 
     objects = ContentManager()

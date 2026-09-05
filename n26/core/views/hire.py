@@ -34,6 +34,7 @@ from django.utils.text import slugify
 
 from n26.core.views.equip import PRICE_CEILING
 from n26.core.views.permissions import _own_gang_or_404, trade_points_href
+from n26.library.staged import sees_staged
 
 
 @dataclass(frozen=True)
@@ -94,13 +95,15 @@ def _scope_tabs(request, scope):
     ]
 
 
-def _hireable(gang, pk):
+def _hireable(gang, pk, *, include_staged=False):
     """The profile that ``pk`` names, if it can be hired at all.
 
     Any gang may hire any hireable profile — every one of them is
     legitimately on the all-profiles scope — so the check is
     hireability, not whose list it is: a pet still arrives behind its
-    collar, never off this screen.
+    collar, never off this screen. A staged profile is hireable only by
+    a reader the screen offered it to: a hidden row is still an id
+    somebody can type.
 
     A pk that is not a ULID at all raises out of the field's ``to_python``.
     The genuine buttons never send one, so it names nothing and the list is
@@ -109,12 +112,15 @@ def _hireable(gang, pk):
     from n26.library.models import Profile
 
     try:
-        return Profile.objects.filter(pk=pk, hireable=True).first()
+        found = Profile.objects.filter(pk=pk, hireable=True)
+        if not include_staged:
+            found = found.live()
+        return found.first()
     except ValidationError:
         return None
 
 
-def _offered(gang, raw, offers):
+def _offered(gang, raw, offers, *, include_staged=False):
     """What a click names: the profile, and the offer it was made under.
 
     A row's identity is ``<profile>`` on the gang's own list and
@@ -132,7 +138,7 @@ def _offered(gang, raw, offers):
     a click names an entry: the answer costs a gang card.
     """
     profile_pk, _, entry_pk = (raw or "").partition("-")
-    profile = _hireable(gang, profile_pk)
+    profile = _hireable(gang, profile_pk, include_staged=include_staged)
     if profile is None or not entry_pk:
         return profile, None
     entry = next(
@@ -320,7 +326,12 @@ def hire_card(request, pk, profile):
     from n26.library.models import CollectionEntry, Profile
 
     _own_gang_or_404(request, pk)
-    found = get_object_or_404(Profile, pk=profile)
+    # A staged profile's card is drawn for whoever the hire screen offered
+    # it to and nobody else — the same readers, decided the same way.
+    profiles = (
+        Profile.objects.all() if sees_staged(request.user) else Profile.objects.live()
+    )
+    found = get_object_or_404(profiles, pk=profile)
 
     option = None
     named = request.GET.getlist("option")
@@ -397,6 +408,10 @@ def hire_fighter(request, pk):
     from n26.core.render import roster, summarise_roster
 
     gang = _own_gang_or_404(request, pk)
+    # Whether this reader is offered staged fighters — asked once, and
+    # carried into every list this screen builds and every click it
+    # checks, so what was offered and what is accepted agree.
+    shown = sees_staged(request.user)
     scope = _scope(request)
     section = _section(request)
     # Where every step of the click lands: the list being browsed and the
@@ -416,13 +431,14 @@ def hire_fighter(request, pk):
         entry never build it at all.
         """
         return collection_offers(
-            [access.collection for access in gang_collections(gang)]
+            [access.collection for access in gang_collections(gang)],
+            include_staged=shown,
         )
 
     if request.method == "POST" and "profile" in request.POST:
         form = HireFighterForm(request.POST)
         key = request.POST["profile"]
-        profile, offer = _offered(gang, key, offers)
+        profile, offer = _offered(gang, key, offers, include_staged=shown)
         if profile is not None:
             picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
             if form.is_valid():
@@ -545,7 +561,7 @@ def hire_fighter(request, pk):
         # collection's row and the gang list's row for the same fighter are
         # two different clicks.
         key = request.POST.get("hire", "")
-        profile, offer = _offered(gang, key, offers)
+        profile, offer = _offered(gang, key, offers, include_staged=shown)
         if profile is not None:
             picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
             # The colon stays a colon: a query key is allowed one, and the
@@ -563,7 +579,7 @@ def hire_fighter(request, pk):
             return redirect(f"{request.path}?{query}")
     elif request.GET.get("hire"):
         key = request.GET["hire"]
-        profile, offer = _offered(gang, key, offers)
+        profile, offer = _offered(gang, key, offers, include_staged=shown)
         if profile is not None:
             dialog = _dialog(
                 request,
@@ -586,11 +602,15 @@ def hire_fighter(request, pk):
     # one being built into and shipped with the page.
     if scope == "supplementary":
         hire_list = section_hire_list(
-            build_entries(list(supplementary_profiles()), with_cards=False)
+            build_entries(
+                list(supplementary_profiles(include_staged=shown)), with_cards=False
+            )
         )
     elif scope == "all":
         hire_list = section_by_gang_type(
-            build_entries(list(hireable_profiles()), with_cards=False)
+            build_entries(
+                list(hireable_profiles(include_staged=shown)), with_cards=False
+            )
         )
     else:
         # The gang's own list, then a section for each collection it
@@ -599,7 +619,9 @@ def hire_fighter(request, pk):
         # founds with is what it is, and a corruption's roster is
         # something it took on.
         hire_list = [
-            *section_hire_list(build_hire_list(gang.gang_type, with_cards=False)),
+            *section_hire_list(
+                build_hire_list(gang.gang_type, with_cards=False, include_staged=shown)
+            ),
             *collection_sections(offers(), with_cards=False),
         ]
     _link_cards(gang, hire_list)

@@ -31,6 +31,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from n26.core.views.permissions import _own_gang_or_404
+from n26.library.staged import sees_staged
 
 
 @dataclass(frozen=True)
@@ -297,7 +298,12 @@ def choose(request, pk, slot):
 
     gang = _own_gang_or_404(request, pk)
     found = _find_slot(gang, slot)
-    offer = build_choice_offer(found.slot, found.computed)
+    # The list is built for this reader: staged picks are on it only for
+    # somebody who may see staged content, and the click below is checked
+    # against the same list.
+    offer = build_choice_offer(
+        found.slot, found.computed, include_staged=sees_staged(request.user)
+    )
     back = reverse("n26-gang", args=[gang.pk])
     here = reverse("n26-choose", args=[gang.pk, slot])
 

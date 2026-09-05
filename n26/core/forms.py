@@ -64,6 +64,15 @@ class CreateGangForm(forms.Form):
         help_text="Shown next to the gang's name wherever it is listed.",
     )
 
+    def __init__(self, *args, include_staged=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Staged types are offered to whoever may see staged content and
+        # to nobody else — narrowed here, on the field that validates the
+        # submission, for the same reason foundable is: a hidden card is
+        # still an id someone can type.
+        if not include_staged:
+            self.fields["gang_type"].queryset = self.fields["gang_type"].queryset.live()
+
     def gang_type_choices(self):
         """The cards the view draws for ``gang_type``, one per type.
 
@@ -379,6 +388,21 @@ class CampaignForm(forms.Form):
     )
 
 
+def _foundable_campaign_types(include_staged=False):
+    """The types anybody may found on: the system pack's, unarchived, live
+    unless the reader may see staged content, and never a campaign's own
+    type — that one lives in a pack the arbitrator owns and is filtered out
+    besides, so a system-pack row that came to be a campaign's own would
+    still stay off the list."""
+    return (
+        CampaignType.objects.selectable(include_staged=include_staged)
+        .filter(additions_to__isnull=True)
+        .exclude(name__regex=r"^\s*$")
+        .select_related("built_ins")
+        .prefetch_related("asset_types")
+    )
+
+
 class FoundCampaignForm(CampaignForm):
     """Setting a campaign up: the standing facts, and what it is founded on.
 
@@ -387,16 +411,8 @@ class FoundCampaignForm(CampaignForm):
     is the plain ``CampaignForm``, and the type is not on it.
     """
 
-    # Only the types anybody may found on: the system pack's, unarchived,
-    # and never a campaign's own type — that one lives in a pack the
-    # arbitrator owns and is filtered out besides, so a system-pack row
-    # that came to be a campaign's own would still stay off the list.
     campaign_type = forms.ModelChoiceField(
-        queryset=CampaignType.objects.selectable()
-        .filter(additions_to__isnull=True)
-        .exclude(name__regex=r"^\s*$")
-        .select_related("built_ins")
-        .prefetch_related("asset_types"),
+        queryset=_foundable_campaign_types(),
         label="Campaign type",
         help_text=("Use pre-built campaign setups to get started quickly."),
         error_messages={
@@ -407,6 +423,16 @@ class FoundCampaignForm(CampaignForm):
             "required": "Select a campaign type.",
         },
     )
+
+    def __init__(self, *args, include_staged=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The same narrowing as the cards, on the field that validates the
+        # submission: a staged type is founded on only by a reader it was
+        # offered to.
+        if include_staged:
+            self.fields["campaign_type"].queryset = _foundable_campaign_types(
+                include_staged=True
+            )
 
     def campaign_type_choices(self):
         """The cards the view draws for ``campaign_type``, one per type.

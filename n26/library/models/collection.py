@@ -129,7 +129,7 @@ def price_of(assignable, entry=None):
 TRADEABLE_PROFILES = "tradeable_profiles"
 
 
-def paid_profiles(with_trade_point_price=False):
+def paid_profiles(with_trade_point_price=False, *, include_staged=False):
     """A weapon's named, paid profiles — the lines a listing prints under
     the gun.
 
@@ -141,12 +141,17 @@ def paid_profiles(with_trade_point_price=False):
     ``with_trade_point_price`` narrows to what a trading trip deals in —
     membership at a Trading Post is having a TP price, and a sweep that
     said so means it of the ammo as well as of the gun.
+
+    Staged lines are left out unless ``include_staged``: a round an author
+    has not put live is not on the listing under a gun that is.
     """
     from n26.library.models.assignable import WeaponProfile
 
     found = WeaponProfile.objects.filter(price__gt=0).exclude(name="")
     if with_trade_point_price:
         found = found.filter(trade_point_price__isnull=False)
+    if not include_staged:
+        found = found.live()
     return found
 
 
@@ -460,13 +465,15 @@ class CollectionSelector(Content):
             return parts[0]
         return select.All(*parts)
 
-    def contents(self, include_exclusive=True):
+    def contents(self, include_exclusive=True, *, include_staged=False):
         """The swept-in items, as a queryset — the selector, compiled.
 
         ``include_exclusive`` belongs to the *browse*, not the row: a
         trading trip has no Exclusive items in its listing ("E" means
         equipment list only), while the same sweep browsed as a plain
-        list legitimately carries them.
+        list legitimately carries them. So does ``include_staged``: who
+        is looking decides whether staged items are swept in, and the
+        row says nothing about it.
 
         A TP-narrowed sweep over weapons also prefetches each weapon's
         paid, TP-priced profiles to ``tradeable_profiles`` — the ammo
@@ -502,12 +509,16 @@ class CollectionSelector(Content):
             found = found.prefetch_related(
                 Prefetch(
                     "profiles",
-                    queryset=paid_profiles(with_trade_point_price=True),
+                    queryset=paid_profiles(
+                        with_trade_point_price=True, include_staged=include_staged
+                    ),
                     to_attr=TRADEABLE_PROFILES,
                 )
             )
         if not include_exclusive:
             found = found.filter(is_exclusive=False)
+        if not include_staged:
+            found = found.live()
         return found
 
     def clean(self):

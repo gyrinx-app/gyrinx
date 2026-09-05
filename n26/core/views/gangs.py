@@ -571,9 +571,14 @@ def create_gang(request):
     from n26.core.forms import CreateGangForm
     from n26.core.models import Gang
     from n26.core.operations import operation
+    from n26.library.staged import sees_staged
 
+    # Staged gang types are on the cards for whoever may see staged content
+    # — an author checking a type before players meet it — and for nobody
+    # else.
+    shown = sees_staged(request.user)
     if request.method == "POST":
-        form = CreateGangForm(request.POST)
+        form = CreateGangForm(request.POST, include_staged=shown)
         if form.is_valid():
             budget = form.cleaned_data["starting_credits"]
             gang_type = form.cleaned_data["gang_type"]
@@ -605,7 +610,7 @@ def create_gang(request):
             # every gang they already have.
             return redirect("n26-gang", pk=gang.pk)
     else:
-        form = CreateGangForm()
+        form = CreateGangForm(include_staged=shown)
 
     return render(
         request,

@@ -8,6 +8,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from n26.core.views.permissions import _own_miniature_or_404, trade_points_href
+from n26.library.staged import sees_staged
 
 #: The kinds an owner edits by hand on this page: the assignable column
 #: each section writes, the input name its form posts, and the heading
@@ -42,7 +43,7 @@ class _EditState:
     fixed: set
 
 
-def _edit_state(own, computed, field):
+def _edit_state(own, computed, field, *, include_staged=False):
     """What the card currently says for one editable kind, keyed the way
     a tick list keys its options.
 
@@ -60,8 +61,9 @@ def _edit_state(own, computed, field):
 
     kind_class = Assignment._meta.get_field(field).related_model
     # The live library, as every player-facing offer reads it — an
-    # archived subtype is not a box to tick.
-    offered = list(kind_class.objects.selectable())
+    # archived subtype is not a box to tick, and neither is a staged one
+    # for a reader who may not see staged content.
+    offered = list(kind_class.objects.selectable(include_staged=include_staged))
     stored, own_adds, gang_held = {}, {}, set()
     for node in own.all_nodes():
         if node.suppressed or node.assignment is None:
@@ -107,7 +109,7 @@ def _edit_state(own, computed, field):
     )
 
 
-def _edits_offer(own, computed, field, heading):
+def _edits_offer(own, computed, field, heading, *, include_staged=False):
     """One section of the edits box: every thing of the kind, as options.
 
     A granted thing's box still clears — the owner's clearing becomes a
@@ -126,7 +128,7 @@ def _edits_offer(own, computed, field, heading):
     from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
     from n26.core.views.skills import _key
 
-    state = _edit_state(own, computed, field)
+    state = _edit_state(own, computed, field, include_staged=include_staged)
     current, rest = [], []
     for thing in state.offered:
         key = _key(thing)
@@ -217,7 +219,7 @@ def _skills_here(request, miniature):
     return here
 
 
-def _apply_edits(op, miniature, own, computed, field, ticked):
+def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=False):
     """Make what the card shows match what was ticked, and say what moved.
 
     The state is derived again here rather than trusted from the page,
@@ -230,7 +232,7 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
     from n26.core.models import Reason
     from n26.core.views.skills import _key
 
-    state = _edit_state(own, computed, field)
+    state = _edit_state(own, computed, field, include_staged=include_staged)
     added, taken, restored = [], [], []
     for thing in state.offered:
         key = _key(thing)
@@ -379,6 +381,9 @@ def edit_fighter(request, pk):
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
     profile = miniature.membership.profile
+    # Whether this reader is offered staged content, on every list this
+    # page draws and every save it checks against them.
+    shown = sees_staged(request.user)
     # A model with no entry behind it has no shape to set characteristics
     # to, so the section is simply not drawn for one.
     statline_class = statline_override_form_for(profile) if profile else None
@@ -406,6 +411,7 @@ def edit_fighter(request, pk):
                     own,
                     compute(own, index),
                     set(request.POST.getlist("skills")),
+                    include_staged=shown,
                 )
         except Refusal as refusal:
             messages.error(request, str(refusal))
@@ -446,6 +452,7 @@ def edit_fighter(request, pk):
                     compute(own, index),
                     field,
                     set(request.POST.getlist(request.POST["act"])),
+                    include_staged=shown,
                 )
         except Refusal as refusal:
             messages.error(request, str(refusal))
@@ -610,7 +617,7 @@ def edit_fighter(request, pk):
     # Asked once and used twice: the listing reads these collections, and
     # so does the card's Skills control.
     sets = model_collections()
-    skills = skills_offer(own, computed, sets)
+    skills = skills_offer(own, computed, sets, include_staged=shown)
     asked = request.GET.get("skills")
     # A model no placement names has nothing under the first heading, so
     # the box opens on the listing holding every set. An address naming a
@@ -663,10 +670,10 @@ def edit_fighter(request, pk):
     link_possession_actions(card, host, refunds=not gang.credits_unlimited)
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
-        own, computed, "subtype", "Subtypes"
+        own, computed, "subtype", "Subtypes", include_staged=shown
     )
     rule_edits, rule_more, rule_edits_dirty = _edits_offer(
-        own, computed, "rule", "Special rules"
+        own, computed, "rule", "Special rules", include_staged=shown
     )
 
     # The header's far corner: the gang's figures and the roster tally,

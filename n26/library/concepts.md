@@ -245,6 +245,18 @@ Where the slot type does not allow repeats, the picker marks the pickables alrea
 
 ---
 
+## Staged content
+
+Any kind a player is offered somewhere — gang types, campaign types, fighters, weapons, wargear, accessories, firing lines, skills, powers, subtypes, pickables, assets — can be **staged**: written, but not yet put live.
+
+A staged thing is held back from every place a player adds to a gang: the cards offered when creating a gang, the hire screen, equipment lists and the Trading Post, the skills and choices offered on a card. It is not hidden anywhere else. Once it is on a gang — an author's own test gang, or a live fighter whose built-ins bring it — it is drawn for everyone, because a roster is something players send each other and what it shows cannot depend on who is looking.
+
+Authors see staged content on those same surfaces exactly as players will once it is live, which is how new content is checked. The **staged-content** feature flag opens it to others: whoever is in its group, or every signed-in player. A release can be rehearsed with a group before everyone meets it.
+
+Where staging happens: the **Staged** switch beside every creating form (on by default), the **Stage** and **Put live** buttons on a thing's own page, the **Stage what this import creates** switch on the import page, and the **Staged content** page, which lists everything staged and can put it all live in one step.
+
+Staging holds back new things. It does not hold back changes: an edit to something already live is live straight away.
+
 ## Core types & concepts
 
 The types above share some underpinnings. This section explains them.

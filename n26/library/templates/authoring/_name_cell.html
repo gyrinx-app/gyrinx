@@ -20,4 +20,9 @@ only unlinked.
         {{ row.label }}
     {% endif %}
     {% if row.qualifier %}— {{ row.qualifier }}{% endif %}
+    {% if row.staged %}
+        <c-ui.badge color="amber" size="sm" class="ml-1">
+            Staged
+        </c-ui.badge>
+    {% endif %}
 </td>

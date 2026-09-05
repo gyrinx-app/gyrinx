@@ -696,7 +696,8 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        assert self.measure(client, edit_url(vex)) == 41
+        # One of these is the staged-content flag, read once for the page.
+        assert self.measure(client, edit_url(vex)) == 42
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

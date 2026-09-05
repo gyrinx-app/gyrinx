@@ -23,6 +23,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 __all__ = [
     "BUILT_IN_PROPAGATION",
     "CAMPAIGNS",
+    "STAGED_CONTENT",
     "enabled",
     "requires_flag",
     "switched_on",
@@ -35,4 +36,9 @@ CAMPAIGNS = "campaigns"
 #: edits still file their passes; nothing runs them until it opens.
 BUILT_IN_PROPAGATION = "built-in-propagation"
 
-register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION)
+#: Seeing content an author has staged but not yet put live, everywhere a
+#: player adds to a gang. Staff see it by right; this is how anyone else
+#: does, so a release can be rehearsed with a group before it is made.
+STAGED_CONTENT = "staged-content"
+
+register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, STAGED_CONTENT)
