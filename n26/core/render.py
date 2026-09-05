@@ -1002,7 +1002,10 @@ class CampaignGangLine:
     each value under its heading by position and never by name. A counter
     the gang does not carry reads ``None``, which is drawn as a dash: a
     blank cell in a column of numbers reads as a number that failed to
-    arrive.
+    arrive. A counter the gang does carry is the whole ``CounterLine``,
+    with the assignment behind it, so the table can offer the control
+    that moves it to a reader who may — the addresses are the view's to
+    fill, as on a card.
     """
 
     gang_id: str
@@ -1015,8 +1018,8 @@ class CampaignGangLine:
     colour: str = ""
     credits_unlimited: bool = False
     over_budget: bool = False
-    #: One reading per ``CampaignSheet.counter_columns``, or None.
-    counters: list[int | None] = field(default_factory=list)
+    #: One line per ``CampaignSheet.counter_columns``, or None.
+    counters: list[CounterLine | None] = field(default_factory=list)
     #: One list of names per ``CampaignSheet.asset_kinds``: what this gang
     #: has of that kind, possessions and holdings alike. Empty is a dash.
     assets: list[list[str]] = field(default_factory=list)
@@ -1066,6 +1069,10 @@ class CampaignAssetCopy:
     #: view fills them for the reader who may act and nobody else.
     grant_href: str = ""
     take_away_href: str = ""
+    transfer_href: str = ""
+    #: The transfer control's word. The arbitrator transfers the campaign's
+    #: copy; the holding gang's owner hands over something they hold.
+    transfer_label: str = "Transfer"
     drop_href: str = ""
 
 
@@ -1087,6 +1094,41 @@ class CampaignAssetTable:
     @property
     def unclaimed(self):
         return len(self.copies) - self.held
+
+
+@dataclass(frozen=True)
+class AdditionLine:
+    """One thing the arbitrator added to the campaign, as the additions
+    section lists it: what it is called and one line saying what it is —
+    a kind's mode, an asset's kind and income, a counter's opening value,
+    a label's options."""
+
+    name: str
+    detail: str = ""
+
+
+@dataclass
+class CampaignAdditions:
+    """What the arbitrator has added on top of the shared type, by sort.
+
+    Read off the additions type and the campaign's pack: the type's own
+    asset kinds, the assets written under any of the campaign's kinds,
+    and the additions' built-in members split by what they are. Where an
+    addition is asked for is the view's to fill, as every address is.
+    """
+
+    kinds: list[AdditionLine] = field(default_factory=list)
+    assets: list[AdditionLine] = field(default_factory=list)
+    counters: list[AdditionLine] = field(default_factory=list)
+    labels: list[AdditionLine] = field(default_factory=list)
+    add_kind_href: str = ""
+    add_asset_href: str = ""
+    add_counter_href: str = ""
+    add_label_href: str = ""
+
+    @property
+    def any(self):
+        return bool(self.kinds or self.assets or self.counters or self.labels)
 
 
 @dataclass
@@ -1119,6 +1161,8 @@ class CampaignSheet:
     summary: str = ""
     #: What the arbitrator has added on top of the shared type, by name.
     additions: list[str] = field(default_factory=list)
+    #: The same additions in full, for the arbitrator's own section.
+    added: CampaignAdditions = field(default_factory=CampaignAdditions)
     gangs: list[CampaignGangLine] = field(default_factory=list)
     counter_columns: list[str] = field(default_factory=list)
     asset_kinds: list[AssetKindColumn] = field(default_factory=list)
@@ -2606,12 +2650,21 @@ def render_campaign(campaign, viewer=None):
 
     names = {line.name for _, counters in parts.values() for line in counters}
     counter_columns = sorted(names, key=lambda name: (name != LEADING_COUNTER, name))
+    # Every counter the additions build in is a column, whether or not any
+    # gang carries it yet: a counter added a moment ago has not reached
+    # the gangs until the propagation pass runs, and a heading with dashes
+    # under it says so where a missing column would say nothing.
+    members = _addition_members(campaign)
+    added = _campaign_additions(campaign, kinds, members)
+    for line in added.counters:
+        if line.name not in names:
+            counter_columns.append(line.name)
 
     lines = []
     for membership in memberships:
         gang = membership.gang
         possessions, counters = parts[membership.pk]
-        readings_by_name = {line.name: line.value for line in counters}
+        readings_by_name = {line.name: line for line in counters}
         assets = [[] for _ in kinds]
         for node in possessions:
             slot = kind_slot.get(
@@ -2678,7 +2731,8 @@ def render_campaign(campaign, viewer=None):
         arbitrator=campaign.owner.username if campaign.owner_id else "",
         budget=campaign.budget,
         summary=campaign.summary,
-        additions=_additions_of(campaign),
+        additions=[str(member.assignable) for member in members],
+        added=added,
         gangs=lines,
         counter_columns=counter_columns,
         asset_kinds=[
@@ -2695,21 +2749,75 @@ def render_campaign(campaign, viewer=None):
     )
 
 
-def _additions_of(campaign):
-    """The names of what this campaign's additions type gives every member
-    gang — its built-in members, in their order. One query, and none for
-    a campaign nothing has been added to."""
+def _addition_members(campaign):
+    """The additions type's live built-in members, in their order, with
+    what each names along — what the arbitrator has given every member
+    gang. A slot member brings its picklist's options too, so a label can
+    list them. One query, none for a campaign nothing has been added to,
+    and two more where a slot is among them."""
+    from django.db.models import Prefetch
+
+    from n26.library.models import PicklistMember
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
     built_ins = campaign.additions.built_ins
     if built_ins is None:
         return []
-    members = (
+    return list(
         built_ins.members.filter(archived=False)
         .select_related(*DEFAULT_ASSIGNABLE_FIELDS)
+        .prefetch_related(
+            Prefetch(
+                "slot__picklist__members",
+                queryset=PicklistMember.objects.select_related("pickable").order_by(
+                    "position"
+                ),
+            )
+        )
         .order_by("position")
     )
-    return [str(member.assignable) for member in members]
+
+
+def _campaign_additions(campaign, kinds, members):
+    """Everything the arbitrator has added, sorted by what it is.
+
+    ``kinds`` are every kind the campaign deals in and ``members`` the
+    additions' built-ins, both already read; the additions' own kinds
+    are the ones on its type. The assets are the ones in the campaign's
+    pack, whichever of the campaign's kinds they sit under — an
+    arbitrator's Territory belongs here as much as their Racket. One
+    query, and it does not grow with the gangs.
+    """
+    from n26.library.models import Asset, AssetKind
+
+    added = CampaignAdditions()
+    for kind in kinds:
+        if kind.campaign_type_id == campaign.additions_id:
+            mode = AssetKind.Mode(kind.mode).label.lower()
+            added.kinds.append(AdditionLine(name=kind.label_singular, detail=mode))
+    assets = (
+        Asset.objects.filter(pack=campaign.pack_id).unarchived().select_related("kind")
+    )
+    for asset in assets:
+        detail = asset.kind.label_singular
+        if asset.income:
+            detail = f"{detail} · income {asset.income}¢"
+        added.assets.append(AdditionLine(name=str(asset), detail=detail))
+    for member in members:
+        if member.counter_id is not None:
+            added.counters.append(
+                AdditionLine(
+                    name=str(member.assignable), detail=f"opens at {member.amount}"
+                )
+            )
+        elif member.slot_id is not None:
+            options = ", ".join(
+                str(row.pickable) for row in member.slot.picklist.members.all()
+            )
+            added.labels.append(
+                AdditionLine(name=member.slot.choice_label, detail=options)
+            )
+    return added
 
 
 # --- The ledger ----------------------------------------------------------

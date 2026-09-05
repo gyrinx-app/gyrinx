@@ -18,6 +18,11 @@ Every empty value is an em dash, never a blank. A counter a gang does not
 carry and a kind of which it has nothing both read as "none" rather than as a
 cell that failed to fill.
 
+A counter cell carries the same controls a gang sheet draws beside a counter,
+and only where the line carries an address: the view fills one for the
+arbitrator on every gang, and for a gang's owner on their own. Everybody else
+reads the number alone.
+
 Scrolls sideways inside its own box, which the kit's table wrapper provides,
 so a campaign with several counters and kinds never widens the page.
 
@@ -64,9 +69,14 @@ so a campaign with several counters and kinds never widens the page.
                 <td class="text-right tabular-nums whitespace-nowrap">
                     {% if gang.credits_unlimited %}<span class="text-muted">&mdash;</span>{% else %}{{ gang.credits }}¢{% endif %}
                 </td>
-                {% for value in gang.counters %}
-                    <td class="text-right tabular-nums">
-                        {% if value is None %}<span class="text-muted">&mdash;</span>{% else %}{{ value }}{% endif %}
+                {% for line in gang.counters %}
+                    <td class="text-right tabular-nums whitespace-nowrap">
+                        {% if line is None %}
+                            <span class="text-muted">&mdash;</span>
+                        {% else %}
+                            {{ line.value }}
+                            {% if line.href %}<c-n26.counter-controls :counter="line" />{% endif %}
+                        {% endif %}
                     </td>
                 {% endfor %}
                 {% for names in gang.assets %}

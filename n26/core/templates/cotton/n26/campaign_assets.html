@@ -11,8 +11,8 @@ nobody holds says Unclaimed in muted text, a fact and not a control.
 The controls are whatever addresses the structure carries. Each leads to a
 page that asks; nothing here acts on a click. A reader whose structure
 carries no addresses sees a table with no controls, not a table of disabled
-ones — the view fills them for the arbitrator, and the take-away for the
-owner of the holding gang.
+ones — the view fills them for the arbitrator, and the take-away and the
+transfer for the owner of the holding gang, whose transfer reads "Hand over".
 
   :table — a n26.render.CampaignAssetTable.
 {% endcomment %}
@@ -68,20 +68,23 @@ owner of the holding gang.
                             {% endif %}
                         </td>
                         <td class="text-right whitespace-nowrap">
-                            {% if copy.take_away_href or copy.grant_href or copy.drop_href %}
+                            {% if copy.take_away_href or copy.transfer_href or copy.grant_href or copy.drop_href %}
                                 <div class="flex items-center justify-end gap-1">
+                                    {% if copy.transfer_href %}
+                                        <c-ui.button size="xs" variant="default" href="{{ copy.transfer_href }}">{{ copy.transfer_label }}</c-ui.button>
+                                    {% endif %}
                                     {% if copy.take_away_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ copy.take_away_href }}">Take away</c-ui.button>
+                                        <c-ui.button size="xs" variant="default" href="{{ copy.take_away_href }}">Unassign</c-ui.button>
                                     {% endif %}
                                     {% if copy.grant_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ copy.grant_href }}">Grant</c-ui.button>
+                                        <c-ui.button size="xs" variant="default" href="{{ copy.grant_href }}">Assign</c-ui.button>
                                     {% endif %}
                                     {% if copy.drop_href %}
                                         <c-ui.button size="xs"
                                                      variant="ghost"
                                                      href="{{ copy.drop_href }}"
-                                                     aria-label="Drop {{ copy.name }}"
-                                                     title="Drop this copy">
+                                                     aria-label="Remove {{ copy.name }}"
+                                                     title="Remove this asset">
                                             <span class="n26-icon-only">
                                                 <c-n26.icon name="x-mark" class="size-4" />
                                             </span>
@@ -97,7 +100,7 @@ owner of the holding gang.
     {% else %}
         <p class="text-sm text-muted">
             No {{ table.plural|lower }} yet.
-            {% if table.add_href %}Add one to grant it to a gang.{% endif %}
+            {% if table.add_href %}Add one to assign it to a gang.{% endif %}
         </p>
     {% endif %}
 </div>

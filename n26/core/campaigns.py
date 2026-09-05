@@ -325,6 +325,17 @@ class CampaignOperation:
                 f"{asset.kind.campaign_type}, not to this campaign's type or "
                 "its additions."
             )
+        # A shared kind may hold another campaign's own assets, written into
+        # that campaign's pack. Only this campaign's pack and the type's own
+        # are this campaign's to deal in.
+        if asset.pack_id not in (
+            self.campaign.pack_id,
+            self.campaign.campaign_type.pack_id,
+        ):
+            raise ValueError(
+                f"{asset} is in the {asset.pack} pack, which is not this "
+                "campaign's own or its type's."
+            )
         token = CampaignAsset.objects.create(
             campaign=self.campaign, asset=asset, name=(name or "").strip()
         )
@@ -409,6 +420,212 @@ class CampaignOperation:
         with operation(holder.gang, actor=self.actor) as op:
             op.event(token, LedgerEvent.Kind.TOOK_AWAY, note=str(token))
         return token
+
+    def transfer(self, token, membership):
+        """Hand a held copy from the gang holding it to another gang
+        playing this campaign.
+
+        One change to the token under the campaign's line, then a record
+        on each gang inside it — the copy went from one, the copy came to
+        the other — in the order the gangs are named, so both histories
+        say what happened and neither says it twice. Each gang's record
+        is the same kind a grant or a taking away writes, since that is
+        what happened to each of them.
+
+        A copy nobody holds cannot be handed over: granting is the act
+        for that. A copy already held by the receiving gang is refused
+        too, in words, since nothing would change hands.
+        """
+        from n26.core.operations import Refusal, operation
+
+        if membership.campaign_id != self.campaign.pk or not membership.playing:
+            raise ValueError(f"{membership} is not playing {self.campaign}.")
+        token = _token_under_the_lock(token)
+        if token is None:
+            return None
+        if token.campaign_id != self.campaign.pk:
+            raise ValueError(f"{token} is not one of {self.campaign}'s copies.")
+        if not token.held:
+            raise Refusal(
+                f"{token} is not held by any gang, so it cannot be handed over. "
+                "Assign it instead."
+            )
+        if token.holder_id == membership.pk:
+            raise Refusal(f"{membership.gang.name} already holds {token}.")
+        loser = token.holder
+        token.holder = membership
+        token.save(update_fields=["holder", "modified"])
+        with operation(loser.gang, actor=self.actor) as op:
+            op.event(token, LedgerEvent.Kind.TOOK_AWAY, note=str(token))
+        with operation(membership.gang, actor=self.actor) as op:
+            op.event(token, LedgerEvent.Kind.GRANTED, note=str(token))
+        return token
+
+    # --- The arbitrator's additions --------------------------------------
+    #
+    # Everything below writes library content into the campaign's own pack
+    # and onto its additions type, so it reaches member gangs by the path a
+    # gang type's built-ins take. Nothing here touches the shared type.
+
+    def add_kind(self, label_singular, mode, label_plural=""):
+        """Declare a new class of asset for this campaign alone.
+
+        The kind lands on the additions type, in the campaign's pack. A
+        label the campaign already uses — on the shared type or on the
+        additions — is refused in words, because the page would print two
+        headings that read the same.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.authoring import add_asset_kind
+        from n26.library.models import AssetKind
+
+        label_singular = (label_singular or "").strip()
+        taken = AssetKind.objects.filter(
+            campaign_type_id__in=(
+                self.campaign.campaign_type_id,
+                self.campaign.additions_id,
+            ),
+            label_singular__iexact=label_singular,
+        ).exists()
+        if taken:
+            raise Refusal(
+                f"{self.campaign.name} already has a kind of asset called "
+                f"{label_singular}."
+            )
+        kind = add_asset_kind(
+            self.campaign.additions,
+            label_singular,
+            mode,
+            label_plural=(label_plural or "").strip(),
+            pack=self.campaign.pack,
+        )
+        self.event(CampaignEvent.Kind.KIND_ADDED, note=kind.label_singular)
+        return kind
+
+    def create_asset(self, kind, name, annotation="", income=0):
+        """Write a new asset under one of this campaign's kinds.
+
+        The kind may be the shared type's or the additions': a campaign's
+        own Territory is as much a Territory as the book's. The asset
+        lands in the campaign's pack whichever kind it is under, so it
+        never reaches another campaign; a system kind pointing at nothing
+        of the arbitrator's is what keeps that direction clean. What
+        holding the asset does is not written here: it has a name, its
+        words and an income figure, and nothing else.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.authoring import create_asset
+        from n26.library.models import Asset
+
+        if kind.campaign_type_id not in (
+            self.campaign.campaign_type_id,
+            self.campaign.additions_id,
+        ):
+            raise ValueError(
+                f"{kind} belongs to {kind.campaign_type}, not to this "
+                "campaign's type or its additions."
+            )
+        name = (name or "").strip()
+        if Asset.objects.filter(pack=self.campaign.pack, name__iexact=name).exists():
+            raise Refusal(f"{self.campaign.name} already has an asset called {name}.")
+        asset = create_asset(
+            name,
+            kind,
+            annotation=(annotation or "").strip(),
+            income=income or 0,
+            pack=self.campaign.pack,
+        )
+        self.event(CampaignEvent.Kind.ASSET_CREATED, note=str(asset))
+        return asset
+
+    def add_counter(self, name, opening=0):
+        """Give every gang in the campaign a new counter, opening at a
+        value.
+
+        The counter is created in the campaign's pack and built into the
+        additions type at that amount. Gangs joining from now on receive
+        it as they join; gangs already playing receive it by the built-in
+        propagation pass that every built-in edit files, marked as caught
+        up. A name the pack already uses is refused in words, and so is
+        the name of a counter the shared type already gives every gang:
+        the gangs table keys its columns by what a counter is called, and
+        two counters reading alike would share one column.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.authoring import add_built_in, create_counter
+        from n26.library.models import Counter, DefaultAssignment
+
+        name = (name or "").strip()
+        taken = (
+            Counter.objects.filter(pack=self.campaign.pack, name__iexact=name).exists()
+            or DefaultAssignment.objects.filter(
+                default_set_id=self.campaign.campaign_type.built_ins_id,
+                archived=False,
+                counter__name__iexact=name,
+            ).exists()
+        )
+        if taken:
+            raise Refusal(f"{self.campaign.name} already has a counter called {name}.")
+        counter = create_counter(name, pack=self.campaign.pack)
+        add_built_in(
+            self.campaign.additions, counter, amount=opening, pack=self.campaign.pack
+        )
+        self.event(CampaignEvent.Kind.COUNTER_ADDED, note=f"{name} → {opening}")
+        return counter
+
+    def add_label(self, name, options):
+        """Ask every gang in the campaign one question, with a fixed set
+        of options — an Alignment, an Allegiance.
+
+        Four library rows in the campaign's pack: a slot type named for
+        the question, one pickable per option, a picklist holding them in
+        the order given, and a slot assigned to the gang built into the
+        additions type. The slot lands on member gangs as a counter does,
+        and each gang's owner picks on the gang sheet. Options are told
+        apart by the question's name in their qualifier, so two questions
+        may both offer "None". A name the pack already asks is refused in
+        words.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.authoring import (
+            add_built_in,
+            create_pickable,
+            create_picklist,
+            create_slot,
+            create_slot_type,
+        )
+        from n26.library.models import SlotType
+
+        name = (name or "").strip()
+        options = [option.strip() for option in options if option and option.strip()]
+        if not options:
+            raise ValueError("A label needs at least one option.")
+        pack = self.campaign.pack
+        if SlotType.objects.filter(pack=pack, name__iexact=name).exists():
+            raise Refusal(f"{self.campaign.name} already has a label called {name}.")
+        slot_type = create_slot_type(name, pack=pack, allows_repeats=False)
+        pickables = [
+            create_pickable(option, slot_type, qualifier=name, pack=pack)
+            for option in options
+        ]
+        picklist = create_picklist(
+            f"{name} options", slot_type, members=pickables, pack=pack
+        )
+        slot = create_slot(
+            name,
+            slot_type,
+            picklist,
+            label=name,
+            min_picks=1,
+            max_picks=1,
+            assigned_to="bearer",
+            pack=pack,
+        )
+        add_built_in(self.campaign.additions, slot, pack=pack)
+        self.event(
+            CampaignEvent.Kind.LABEL_ADDED, note=f"{name} → {', '.join(options)}"
+        )
+        return slot
 
     def archive(self):
         """Take the campaign off the arbitrator's list, and say so.

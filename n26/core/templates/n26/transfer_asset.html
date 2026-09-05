@@ -1,0 +1,67 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Handing one held copy to another gang playing the campaign. The gangs
+offered are the campaign's own less the one holding the copy, so a copy
+cannot go to a gang that is not in it or back to the gang that has it. Plain
+radios, as the grant form's are, so the page posts with scripting off.
+
+The arbitrator transfers; the holding gang's owner hands over. The verb is
+the view's, because who is reading decides which act this is.
+{% endcomment %}
+{% block head_title %}{{ verb }} {{ token }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-asset-transfer' campaign.pk token.pk %}"
+                     title="{{ verb }} {{ token }}"
+                     lead="{{ token.holder.gang.name }} holds this {{ token.kind_label }}. The gang you select holds it from now on, and both gangs' histories record the change."
+                     :form="form"
+                     submit_label="{{ verb }}"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ verb }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="Receiving gang">
+            <c-ui.field label="Gang *"
+                        error="x"
+                        :form="form"
+                        name="membership"
+                        for="transfer-gang">
+                {% if receiving %}
+                    <div class="flex flex-col gap-1.5">
+                        {% for membership in receiving %}
+                            <label class="flex items-center gap-2 text-base">
+                                <input type="radio"
+                                       name="membership"
+                                       value="{{ membership.pk }}"
+                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                {{ membership.gang.name }}
+                                <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-sm text-muted">No other gangs in this campaign yet.</p>
+                {% endif %}
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

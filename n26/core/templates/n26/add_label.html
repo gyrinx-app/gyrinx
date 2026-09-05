@@ -1,0 +1,68 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Asking every gang in the campaign one question with a fixed set of options —
+an Alignment, an Allegiance. The question and its options are written into
+the campaign's pack and built into its additions, so every gang's sheet asks
+it and each gang's owner picks there.
+{% endcomment %}
+{% block head_title %}Add a label to {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-add-label' campaign.pk %}"
+                     title="Add a label"
+                     lead="A choice every gang makes once, such as an Alignment. Each gang's owner picks one of the options on the gang sheet."
+                     :form="form"
+                     submit_label="Add label"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Add a label
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="The label">
+            <c-ui.field label="Name *"
+                        description='What the choice is called, e.g. "Alignment".'
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="label-name">
+                <c-ui.input id="label-name"
+                            name="name"
+                            autocomplete="off"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+            <c-ui.field label="Options *"
+                        description='One option per line, e.g. "Law Abiding" then "Outlaw".'
+                        error="x"
+                        :form="form"
+                        name="options"
+                        for="label-options">
+                {% comment %}
+                The bare textarea rather than the kit's wrapper: the wrapper
+                declares name as a prop of its own and never hands it to the
+                element, so a box drawn through it posts nothing.
+                {% endcomment %}
+                {# djlint:off #}
+                <c-ui.textarea.impl id="label-options" name="options" rows="4">{{ form.options.value|default:'' }}</c-ui.textarea.impl>
+                {# djlint:on #}
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

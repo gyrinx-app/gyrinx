@@ -33,6 +33,9 @@ controls, as on the gang sheet — and settled text otherwise.
   actions — the page's controls, beside the facts strip: Edit and the overflow.
   gangs_actions, assets_actions, participants_actions, battles_actions — the
     controls of each section, at the far end of its heading.
+  additions_actions — the controls of the Additions section, which is drawn
+    only when this is filled: the section is the arbitrator's own, and a
+    reader who may add nothing is not shown what somebody else may.
   participants, battles, log — the contents of those three sections.
   log_count — the log heading's count, e.g. "12 earlier acts not shown".
   log_href — where the whole log is read. Given, the Log heading carries a
@@ -50,6 +53,7 @@ controls, as on the gang sheet — and settled text otherwise.
     actions=""
     gangs_actions=""
     assets_actions=""
+    additions_actions=""
     participants_actions=""
     battles_actions=""
     participants=""
@@ -173,11 +177,67 @@ controls, as on the gang sheet — and settled text otherwise.
     </c-n26.section>
 
     {% comment %}
+    What the arbitrator has written into the campaign's own pack, by sort,
+    with the way to add more of each. Drawn for the arbitrator alone: the
+    additions themselves show elsewhere on the page — as columns, tables and
+    the Additions fact above — so nobody else is missing a fact, only the
+    controls that are not theirs.
+    {% endcomment %}
+    {% if additions_actions.strip %}
+        <c-n26.section id="additions" title="Additions">
+            <c-slot name="actions">{{ additions_actions }}</c-slot>
+            {% if sheet.added.any %}
+                <c-ui.table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Type</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for line in sheet.added.kinds %}
+                            <tr>
+                                <td class="text-muted whitespace-nowrap">Kind of asset</td>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
+                                <td class="text-sm">{{ line.detail }}</td>
+                            </tr>
+                        {% endfor %}
+                        {% for line in sheet.added.assets %}
+                            <tr>
+                                <td class="text-muted whitespace-nowrap">Asset</td>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
+                                <td class="text-sm">{{ line.detail }}</td>
+                            </tr>
+                        {% endfor %}
+                        {% for line in sheet.added.counters %}
+                            <tr>
+                                <td class="text-muted whitespace-nowrap">Counter</td>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
+                                <td class="text-sm">{{ line.detail }}</td>
+                            </tr>
+                        {% endfor %}
+                        {% for line in sheet.added.labels %}
+                            <tr>
+                                <td class="text-muted whitespace-nowrap">Label</td>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ line.name }}</td>
+                                <td class="text-sm">{{ line.detail }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <p class="text-sm text-muted">Nothing added yet. What you add here reaches every gang in this campaign and no gang outside it.</p>
+            {% endif %}
+        </c-n26.section>
+    {% endif %}
+
+    {% comment %}
     Side by side from xl, where both are short lists and a page that stacked
     them would spend a screen on two columns of names. Stacked below that.
     {% endcomment %}
     <div class="grid grid-cols-1 gap-8 xl:grid-cols-2">
-        <c-n26.section id="participants" title="Participants">
+        <c-n26.section id="participants" title="Players">
             {% if participants_actions.strip %}<c-slot name="actions">{{ participants_actions }}</c-slot>{% endif %}
             {{ participants }}
         </c-n26.section>

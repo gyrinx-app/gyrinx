@@ -214,6 +214,50 @@ def _own_campaign_or_404(request, pk):
         raise Http404("No such campaign") from None
 
 
+def _campaign_counter_or_404(request, pk):
+    """A campaign's counter on a gang playing a campaign this reader
+    arbitrates, live and in a live gang — or one of the reader's own
+    assignments, as ``_own_assignment_or_404`` finds it.
+
+    The one place somebody other than a gang's owner may change the
+    gang: the arbitrator moving a campaign counter — Reputation, Meat —
+    on any gang at their table. A counter is the campaign's where the
+    gang's carrier of the campaign's type or its additions caused it, and
+    only while that membership is open; the arbitrator has no say over
+    what a gang tracks for itself, nor over a gang that has left.
+    """
+    from django.db.models import Q
+
+    from n26.core.models import Assignment
+
+    try:
+        return _own_assignment_or_404(request, pk)
+    except Http404:
+        pass
+    carried = Q(
+        caused_by__type_carrier_of__campaign__owner=request.user,
+        caused_by__type_carrier_of__left__isnull=True,
+    ) | Q(
+        caused_by__additions_carrier_of__campaign__owner=request.user,
+        caused_by__additions_carrier_of__left__isnull=True,
+    )
+    try:
+        return get_object_or_404(
+            Assignment.objects.select_related(
+                "ledger_entry",
+                "gang_root__owner",
+                "gang_root__stash",
+                "miniature_root",
+            ).filter(carried),
+            pk=pk,
+            counter__isnull=False,
+            gang_root__archived=False,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such assignment") from None
+
+
 def _own_assignment_or_404(request, pk):
     """One of the viewer's own assignments, live and in a live gang.
 

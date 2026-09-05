@@ -154,7 +154,8 @@ question and Back closes it.
             {% csrf_token %}
             <input type="hidden" name="user" value="{{ asking.pk }}">
             <c-ui.field label="Message" for="invite-message">
-                <c-ui.textarea id="invite-message" name="message" rows="3" />
+                {# The bare textarea: the kit's wrapper keeps name for itself and the box would post nothing. #}
+                <c-ui.textarea.impl id="invite-message" name="message" rows="3" />
             </c-ui.field>
         </c-n26.dialog>
     {% endif %}

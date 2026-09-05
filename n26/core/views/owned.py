@@ -1208,13 +1208,19 @@ def tally_counter(request, pk):
     A step at a time. The rulebook's own acts move these by more — a
     Spyrer spends four Kill Count on Suit Evolution — and ``change``
     being signed and free is what lets one address serve both.
+
+    The gang's owner may move any of its counters; the arbitrator of the
+    campaign the gang is playing may move the campaign's — the one act on
+    a gang that is not its owner's, and the operation names the
+    arbitrator as the actor so the gang's history says who did it.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
     from n26.core.views.edit import render_card_update
+    from n26.core.views.permissions import _campaign_counter_or_404
     from n26.library.models import Counter
 
-    assignment = _own_assignment_or_404(request, pk)
+    assignment = _campaign_counter_or_404(request, pk)
     if not isinstance(assignment.assignable, Counter):
         raise Http404("Not a counter")
     gang = assignment.gang_root

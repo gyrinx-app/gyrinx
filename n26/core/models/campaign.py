@@ -157,6 +157,13 @@ class CampaignEvent(Base):
         # instead.
         ASSET_ADDED = "asset_added", "Asset copy added"
         ASSET_DROPPED = "asset_dropped", "Asset copy dropped"
+        # The arbitrator's additions: content written into the campaign's
+        # own pack and onto its additions type. What a member gang then
+        # receives is that gang's ledger event, as every built-in is.
+        KIND_ADDED = "kind_added", "Asset kind added"
+        ASSET_CREATED = "asset_created", "Asset created"
+        COUNTER_ADDED = "counter_added", "Counter added"
+        LABEL_ADDED = "label_added", "Label added"
 
     campaign = models.ForeignKey(
         "n26.Campaign",

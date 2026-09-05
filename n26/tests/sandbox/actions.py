@@ -454,3 +454,48 @@ def drop_asset(token, actor=None):
     campaign = token.campaign
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
         return act.drop_asset(token)
+
+
+def transfer_asset(token, gang, actor=None):
+    """Hand a held copy to another gang playing the campaign."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignMembership
+
+    campaign = token.campaign
+    membership = CampaignMembership.objects.get(
+        campaign=campaign, gang=gang, left__isnull=True
+    )
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.transfer(token, membership)
+
+
+def add_kind(campaign, label, mode="pooled", plural="", actor=None):
+    """Declare a kind of asset on the campaign's additions."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.add_kind(label, mode, label_plural=plural)
+
+
+def create_campaign_asset(campaign, kind, name, annotation="", income=0, actor=None):
+    """Write an asset into the campaign's pack under one of its kinds."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.create_asset(kind, name, annotation=annotation, income=income)
+
+
+def add_campaign_counter(campaign, name, opening=0, actor=None):
+    """Give every gang in the campaign a counter opening at a value."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.add_counter(name, opening=opening)
+
+
+def add_campaign_label(campaign, name, options, actor=None):
+    """Ask every gang in the campaign one question with fixed options."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.add_label(name, options)
