@@ -1,3 +1,4 @@
+import time
 from unittest.mock import Mock, patch
 
 import pytest
@@ -6,7 +7,7 @@ from django.db import DatabaseError, InterfaceError, OperationalError
 from django.test import RequestFactory
 
 from gyrinx.context_processors import site_banner
-from gyrinx.site.models import BANNER_CACHE_KEYS, Banner
+from gyrinx.site.models import BANNER_CACHE_KEYS, BANNER_CACHE_TIMEOUT, Banner
 
 
 @pytest.fixture
@@ -17,6 +18,27 @@ def request_factory():
 def clear_banner_cache():
     for key in BANNER_CACHE_KEYS.values():
         cache.delete(key)
+
+
+@pytest.mark.django_db
+class TestBannerCacheIsolation:
+    @pytest.fixture(scope="class", autouse=True)
+    def prior_banner_cache(self):
+        # Seed before function fixtures, as a previous banner test would.
+        for key in BANNER_CACHE_KEYS.values():
+            cache.set(key, False, BANNER_CACHE_TIMEOUT)
+
+    @pytest.mark.parametrize("path", ["/", "/n26/gangs/"])
+    def test_banner_expiry_cannot_add_a_query(
+        self, path, request_factory, django_assert_num_queries
+    ):
+        request = request_factory.get(path)
+        request.session = {}
+        after_expiry = time.time() + BANNER_CACHE_TIMEOUT + 1
+        with patch("django.core.cache.backends.locmem.time") as clock:
+            clock.time.return_value = after_expiry
+            with django_assert_num_queries(0):
+                assert site_banner(request) == {"banner": None}
 
 
 @pytest.mark.django_db
