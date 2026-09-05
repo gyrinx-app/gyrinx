@@ -10,7 +10,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0059_the_campaigns_vocabulary_gained_lost_and_players"),
+        ("n26", "0046_a_ledger_event_may_open_a_clone"),
     ]
 
     operations = [
