@@ -1490,3 +1490,151 @@ def test_template_lost_mid_form_still_shows_field_errors(
     assert "That template is no longer available" in content
     assert "This field is required." in content
     assert response.context["form"].errors
+
+
+# --- Template interstitial ---
+
+
+@pytest.mark.django_db
+def test_new_campaign_redirects_to_the_template_interstitial(
+    client, user, template_campaign
+):
+    """A bare GET goes to the template step first, like /lists/new does."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaigns-new-template")
+
+
+@pytest.mark.django_db
+def test_new_campaign_redirect_carries_a_typed_name(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new") + "?name=Hive+War")
+
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaigns-new-template") + "?name=Hive+War"
+
+
+@pytest.mark.django_db
+def test_new_campaign_skips_the_interstitial_when_there_are_no_templates(client, user):
+    """With nothing to offer, the detour would be a dead end."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new"))
+
+    assert response.status_code == 200
+    assert response.context["template_campaign"] is None
+
+
+@pytest.mark.django_db
+def test_skip_template_reaches_the_form(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new") + "?skip_template=1")
+
+    assert response.status_code == 200
+    assert response.context["template_campaign"] is None
+
+
+@pytest.mark.django_db
+def test_choosing_a_template_bypasses_the_interstitial(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+    )
+
+    assert response.status_code == 200
+    assert response.context["template_campaign"] == template_campaign
+
+
+@pytest.mark.django_db
+def test_start_from_scratch_link_does_not_bounce_back(client, user, template_campaign):
+    """The escape hatch must carry skip_template, or it loops to the interstitial."""
+    client.force_login(user)
+
+    interstitial = client.get(reverse("core:campaigns-new-template"))
+    skip_url = interstitial.context["skip_url"]
+
+    assert client.get(skip_url).status_code == 200
+
+
+@pytest.mark.django_db
+def test_posting_is_never_bounced_to_the_interstitial(client, user, template_campaign):
+    """The skip branch posts with no query string; the guard is GET-only."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new"),
+        {"name": "Posted Bare", "summary": "", "narrative": "", "budget": 1500},
+    )
+
+    campaign = Campaign.objects.get(name="Posted Bare")
+    assert not campaign.asset_types.exists()
+
+
+@pytest.mark.django_db
+def test_interstitial_offers_each_template_with_its_contents(
+    client, user, template_campaign
+):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template"))
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    assert [c.id for c in response.context["template_campaigns"]] == [
+        template_campaign.id
+    ]
+    assert template_campaign.name in content
+    # The contents summary is why this page exists rather than a list of names.
+    assert "Territories (1)" in content
+    assert "Meat" in content
+
+
+@pytest.mark.django_db
+def test_interstitial_use_link_starts_the_form_on_that_template(
+    client, user, template_campaign
+):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template"))
+    use_url = response.context["template_campaigns"][0].use_url
+
+    followed = client.get(use_url)
+    assert followed.status_code == 200
+    assert followed.context["template_campaign"] == template_campaign
+
+
+@pytest.mark.django_db
+def test_interstitial_threads_a_name_onto_every_link(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template") + "?name=Hive+War")
+
+    assert "name=Hive+War" in response.context["skip_url"]
+    assert "name=Hive+War" in response.context["template_campaigns"][0].use_url
+    carried = client.get(response.context["skip_url"])
+    assert carried.context["form"]["name"].value() == "Hive War"
+
+
+@pytest.mark.django_db
+def test_interstitial_hides_archived_templates(client, user, template_campaign):
+    template_campaign.archived = True
+    template_campaign.save()
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template"))
+
+    assert list(response.context["template_campaigns"]) == []
+
+
+@pytest.mark.django_db
+def test_interstitial_requires_login(client):
+    response = client.get(reverse("core:campaigns-new-template"))
+
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url

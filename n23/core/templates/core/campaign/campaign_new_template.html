@@ -1,0 +1,70 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Start from a template?
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaigns' as campaigns_url %}
+    <c-breadcrumb>
+        <c-breadcrumb.user :user="request.user" />
+        <c-breadcrumb.item href="{{ campaigns_url }}">
+            Campaigns
+        </c-breadcrumb.item>
+        <c-breadcrumb.item>
+            New
+        </c-breadcrumb.item>
+    </c-breadcrumb>
+    <div class="col-12 col-xl-8 px-0 vstack gap-3">
+        <h1 class="h3">Start from a template?</h1>
+        <c-box>
+            <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+                <i class="bi-file-earmark fs-5 d-none d-sm-block" aria-hidden="true"></i>
+                <div>
+                    <div class="fw-medium">Empty campaign</div>
+                    <div class="text-secondary fs-7">Add your own assets, resources and attributes once it exists.</div>
+                </div>
+                <c-btn variant="primary"
+                       class="ms-sm-auto flex-shrink-0"
+                       href="{{ skip_url }}">
+                    Start from scratch <i class="bi-arrow-right"></i>
+                </c-btn>
+            </div>
+        </c-box>
+        <div class="d-flex align-items-center gap-3">
+            <hr class="flex-grow-1">
+            <span class="text-secondary fs-7">Or use a template</span>
+            <hr class="flex-grow-1">
+        </div>
+        <div class="vstack gap-2">
+            {% for campaign in template_campaigns %}
+                <c-box>
+                    <div class="d-flex flex-column flex-sm-row align-items-sm-start gap-3">
+                        <div class="flex-grow-1 overflow-hidden">
+                            <h2 class="h5 mb-1">{{ campaign.name }}</h2>
+                            {% if campaign.summary %}
+                                <div class="text-secondary">{{ campaign.summary|striptags|truncatewords:30 }}</div>
+                            {% endif %}
+                            {% if campaign.contents %}
+                                <div class="text-secondary fs-7 mt-2 vstack gap-1">
+                                    {% for group in campaign.contents %}
+                                        <div>
+                                            <span class="caps-label">{{ group.label }}</span>
+                                            {{ group.names|join:", " }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <c-btn variant="primary"
+                               size="sm"
+                               class="flex-shrink-0"
+                               href="{{ campaign.use_url }}">
+                            Use this <i class="bi-arrow-right"></i>
+                        </c-btn>
+                    </div>
+                </c-box>
+            {% empty %}
+                <div class="text-secondary fs-7">No templates yet.</div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock content %}
