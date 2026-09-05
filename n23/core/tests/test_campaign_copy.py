@@ -1714,20 +1714,24 @@ def test_a_template_row_is_badged_as_one(client, user, template_campaign):
 
 
 @pytest.mark.django_db
-def test_the_templates_block_comes_before_the_search_bar(
+def test_the_templates_column_sorts_above_the_search_below_xl(
     client, user, template_campaign
 ):
-    """It is a sibling of the filter and the list, not nested in the pinned column.
+    """Templates are a sibling column of the one holding the search and the list.
 
-    That position is what lets it collapse to one line above the search on a
-    narrow screen instead of pushing the campaign list down.
+    Source order puts the search column first so it leads at xl; the flex
+    `order` utilities are what lift templates above it once the page stacks.
+    Asserting the classes is the only reachable proxy — the rest is pure CSS.
     """
     client.force_login(user)
 
     content = client.get(reverse("core:campaigns")).content.decode()
 
-    assert content.index('id="campaign-templates"') < content.index('name="q"'), (
-        "the templates block must render before the search field"
+    search_col = content.index("col-12 col-xl-8 order-2 order-xl-1")
+    templates_col = content.index("col-12 col-xl-4 order-1 order-xl-2")
+    assert search_col < templates_col, (
+        "the search and list column must come first in source, with the "
+        "templates column ordered above it below xl"
     )
 
 
