@@ -201,8 +201,13 @@ def _roll_posted(request, gang, found):
     return _roll_at(request.POST.get("roll", ""), gang, found)
 
 
-def _roll_result(event, found, offer):
-    """One roll, as the page draws it, and the keys of the rows it reached."""
+def _roll_result(event, found, offer, *, include_staged=False):
+    """One roll, as the page draws it, and the keys of the rows it reached.
+
+    A staged line, or a line naming a staged pickable, is not on the table
+    for a reader who may not see staged content — the roll lands on
+    nothing there rather than on a name they were never offered.
+    """
     from django.db.models import F
 
     from n26.core.operations import ROLL_ENTERED
@@ -215,6 +220,8 @@ def _roll_result(event, found, offer):
     members = picklist.members.select_related("pickable").order_by(
         F("roll_low").asc(nulls_last=True), "position", "pickable__name"
     )
+    if not include_staged:
+        members = members.filter(staged=False, pickable__staged=False)
     landed = picklist.landing(event.roll, members)
     keys = {option_key(member.pickable) for member in landed}
     named = {
@@ -299,11 +306,10 @@ def choose(request, pk, slot):
     gang = _own_gang_or_404(request, pk)
     found = _find_slot(gang, slot)
     # The list is built for this reader: staged picks are on it only for
-    # somebody who may see staged content, and the click below is checked
-    # against the same list.
-    offer = build_choice_offer(
-        found.slot, found.computed, include_staged=sees_staged(request.user)
-    )
+    # somebody who may see staged content, and the click below and the
+    # roll panel are read against the same list.
+    shown = sees_staged(request.user)
+    offer = build_choice_offer(found.slot, found.computed, include_staged=shown)
     back = reverse("n26-gang", args=[gang.pk])
     here = reverse("n26-choose", args=[gang.pk, slot])
 
@@ -481,7 +487,7 @@ def choose(request, pk, slot):
     roll_table = _roll_table(found)
     event = _roll_named(request, gang, found)
     if event is not None:
-        roll, landed = _roll_result(event, found, offer)
+        roll, landed = _roll_result(event, found, offer, include_staged=shown)
         addable = [
             option
             for group in offer.groups

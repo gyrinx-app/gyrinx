@@ -112,7 +112,7 @@ def _hireable(gang, pk, *, include_staged=False):
     from n26.library.models import Profile
 
     try:
-        found = Profile.objects.filter(pk=pk, hireable=True)
+        found = Profile.objects.filter(pk=pk, hireable=True).unarchived()
         if not include_staged:
             found = found.live()
         return found.first()
@@ -326,11 +326,12 @@ def hire_card(request, pk, profile):
     from n26.library.models import CollectionEntry, Profile
 
     _own_gang_or_404(request, pk)
-    # A staged profile's card is drawn for whoever the hire screen offered
-    # it to and nobody else — the same readers, decided the same way.
-    profiles = (
-        Profile.objects.all() if sees_staged(request.user) else Profile.objects.live()
-    )
+    # A card is drawn for the profiles the hire screen offers this reader
+    # and nobody else — the same readers, decided the same way: never an
+    # archived one, and a staged one only for a reader who may see it.
+    profiles = Profile.objects.unarchived()
+    if not sees_staged(request.user):
+        profiles = profiles.live()
     found = get_object_or_404(profiles, pk=profile)
 
     option = None

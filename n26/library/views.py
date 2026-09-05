@@ -43,7 +43,7 @@ from n26.library.references import reading_sentences as _reading_sentences
 from n26.library.references import references_to
 from n26.library.sheets import INGEST_SHEETS, SHEET_LABELS, SHEET_NAMES
 from n26.library.specs import specs
-from n26.library.staged import stageable, staged_count, staged_rows
+from n26.library.staged import stageable, staged_count, staged_counts, staged_rows
 
 #: What each sheet holds, by the planner's name for it — the sentence a
 #: sheet's own upload page leads with.
@@ -1938,7 +1938,9 @@ def detail(request, kind, pk):
     act = request.POST.get("act", "")
     # Before the modifier acts, which take any act they do not recognise.
     if request.method == "POST" and act in STAGING_ACTS and stageable(model):
-        return _staging_action(request, kind, thing, act)
+        return _staging_action(
+            request, thing, act, reverse("authoring-detail", args=[kind, pk])
+        )
 
     def adds_elsewhere(one):
         """Where this section's parts are added, or nothing — a route
@@ -2341,8 +2343,12 @@ def _add_under_part(request, kind, thing, sections):
 STAGING_ACTS = ("stage", "put_live")
 
 
-def _staging_action(request, kind, thing, act):
-    """Hold a row back from players, or release it — one click on its page."""
+def _staging_action(request, thing, act, back):
+    """Hold a row back from players, or release it — one click on its page.
+
+    ``back`` is the page the click came from: a kind's own detail page, or
+    a firing line's, which has an address of its own.
+    """
     from n26.library import authoring
 
     if act == "stage":
@@ -2353,7 +2359,7 @@ def _staging_action(request, kind, thing, act):
     else:
         authoring.put_live(thing)
         messages.success(request, f"{thing} is live.")
-    return redirect("authoring-detail", kind=kind, pk=thing.pk)
+    return redirect(back)
 
 
 @staff_member_required
@@ -2378,7 +2384,16 @@ def staged(request):
             raise Http404("No such kind") from None
         if not issubclass(model, Content):
             raise Http404("No such kind")
-        row = get_object_or_404(model, pk=request.POST.get("pk", ""))
+        # Only a staged row: this page lists staged rows and nothing else,
+        # so a live one named here is a stale page. A pk that is not a ULID
+        # raises out of the field rather than failing to match, and is the
+        # same bad link.
+        try:
+            row = get_object_or_404(
+                model.objects.filter(staged=True), pk=request.POST.get("pk", "")
+            )
+        except ValidationError:
+            raise Http404("No such row") from None
         authoring.put_live(row)
         messages.success(request, f"{row} is live.")
         return redirect("authoring-staged")
@@ -2427,8 +2442,8 @@ def staged_put_live(request):
         return redirect("authoring-staged")
 
     groups = [
-        {"kind_name_plural": str(model._meta.verbose_name_plural), "count": len(rows)}
-        for model, rows in staged_rows()
+        {"kind_name_plural": str(model._meta.verbose_name_plural), "count": count}
+        for model, count in staged_counts()
     ]
     return render(
         request,
@@ -2537,6 +2552,13 @@ def weapon_profile(request, pk):
     edit_class = generate_form(spec)
     statline_class = _statline_editor_for(profile)
 
+    if request.method == "POST" and request.POST.get("act", "") in STAGING_ACTS:
+        return _staging_action(
+            request,
+            profile,
+            request.POST["act"],
+            reverse("authoring-weapon-profile", args=[pk]),
+        )
     if request.method == "POST":
         edit_form = edit_class.opened_on(profile, request.POST, request.FILES)
         statline_edit = (
@@ -2567,6 +2589,7 @@ def weapon_profile(request, pk):
             # its own, and the weapon is where its reader came from.
             "kind": "weapon",
             "thing": profile,
+            "stageable": stageable(WeaponProfile),
             "label": _label_for(profile),
             "weapon": profile.weapon,
             "weapons_plural": str(profile.weapon._meta.verbose_name_plural),
@@ -2607,21 +2630,39 @@ def weapon_profile_add(request, pk):
     if request.method == "POST":
         form = form_class(request.POST, request.FILES, carrier=weapon)
         statline_form = statline_class(request.POST) if statline_class else None
-        if form.is_valid() and (statline_form is None or statline_form.is_valid()):
+        held = StagedForm(request.POST)
+        if (
+            form.is_valid()
+            and (statline_form is None or statline_form.is_valid())
+            and held.is_valid()
+        ):
+            from n26.library import authoring
+
+            staged = held.cleaned_data["staged"]
             try:
                 with transaction.atomic():
                     profile = spec.verb(weapon, **form.verb_data())
                     if statline_form is not None:
                         statline_form.save(profile)
+                    if staged:
+                        authoring.stage(profile)
             except IntegrityError as refused:
                 _refuse_the_line(form, spec, refused)
             else:
                 said, _ = _describe_weapon_profile(profile)
-                messages.success(request, f"Added {said}.")
+                if staged:
+                    messages.success(
+                        request,
+                        f"Added {said}. It is staged: players do not see it until "
+                        f"you put it live.",
+                    )
+                else:
+                    messages.success(request, f"Added {said}.")
                 return redirect(back)
     else:
         form = form_class(carrier=weapon)
         statline_form = statline_class() if statline_class else None
+        held = StagedForm()
 
     return render(
         request,
@@ -2636,6 +2677,7 @@ def weapon_profile_add(request, pk):
             "verbose_name_plural": str(WeaponProfile._meta.verbose_name_plural),
             "part_help": kind_help(WeaponProfile),
             "form": form,
+            "staged_form": held,
             "statline_cells": statline_form.cells() if statline_form else None,
             "back": back,
         },

@@ -522,9 +522,11 @@ def hireable_profiles(gang_type=None, *, include_staged=False):
     )
     # A profile that is not hireable is not a secret — its card still
     # previews wherever it is granted — it just is not for sale here:
-    # a pet arrives behind its collar, not off the hire screen. A staged
-    # one is not for sale to anyone who may not see staged content.
-    found = Profile.objects.filter(hireable=True)
+    # a pet arrives behind its collar, not off the hire screen. An archived
+    # one is off the screen too, as archived content is off every
+    # discovery surface, and a staged one is not for sale to anyone who
+    # may not see staged content.
+    found = Profile.objects.filter(hireable=True).unarchived()
     if not include_staged:
         found = found.live()
     if gang_type is not None:

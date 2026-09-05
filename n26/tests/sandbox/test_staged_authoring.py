@@ -19,7 +19,7 @@ from n26.library.authoring import (
     create_weapon,
     stage,
 )
-from n26.library.models import GangType, Weapon
+from n26.library.models import GangType, Weapon, WeaponProfile
 
 pytestmark = pytest.mark.django_db
 
@@ -124,6 +124,45 @@ class TestARowsOwnPage:
         assert 'value="stage"' not in body
 
 
+class TestAFiringLinesOwnPages:
+    """A firing line is added and corrected on pages of its own, so the
+    switch and the buttons are there too."""
+
+    @pytest.fixture
+    def lasgun(self, default_pack):
+        return create_weapon("Lasgun")
+
+    def test_adding_a_line_offers_the_switch_and_stages_the_line(
+        self, client, author, lasgun
+    ):
+        url = f"/n26/authoring/weapons/{lasgun.pk}/add-profile/"
+        assert 'name="staged"' in client.get(url).content.decode()
+
+        response = client.post(
+            url, {"name": "Hotshot", "price": "5", "staged": "on"}, follow=True
+        )
+
+        line = WeaponProfile.objects.get(weapon=lasgun, name="Hotshot")
+        assert line.staged is True
+        assert "It is staged" in response.content.decode()
+
+    def test_a_lines_own_page_puts_it_live_and_stages_it_again(
+        self, client, author, lasgun
+    ):
+        from n26.library.authoring import add_weapon_profile
+
+        line = stage(add_weapon_profile(lasgun, name="Hotshot", price=5))
+        url = f"/n26/authoring/weapon-profiles/{line.pk}/"
+        body = client.get(url).content.decode()
+        assert badges(body) == ["Staged"]
+        assert 'value="put_live"' in body
+
+        client.post(url, {"act": "put_live"})
+        assert WeaponProfile.objects.get(pk=line.pk).staged is False
+        client.post(url, {"act": "stage"})
+        assert WeaponProfile.objects.get(pk=line.pk).staged is True
+
+
 class TestTheListing:
     def test_a_staged_row_is_badged_and_found_by_the_word(
         self, client, author, default_pack
@@ -187,6 +226,15 @@ class TestTheStagedContentPage:
             ).status_code
             == 404
         )
+
+    def test_a_pk_that_names_nothing_staged_is_refused(self, client, author, held):
+        """A bad link and a live row read the same: this page lists staged
+        rows and nothing else, so neither is a row it can put live."""
+        for pk in ("x", str(held["lasgun"].pk)):
+            response = client.post(
+                STAGED_URL, {"act": "put_live", "model": "weapon", "pk": pk}
+            )
+            assert response.status_code == 404, pk
 
     def test_with_nothing_staged_it_says_so(self, client, author, default_pack):
         create_weapon("Lasgun")

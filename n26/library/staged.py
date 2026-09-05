@@ -81,15 +81,29 @@ def stageable_kinds():
 
     Read off the places that offer them rather than listed again here: the
     types a gang or a campaign is founded on, what a collection may list,
-    what a choice may offer, what a picklist holds, and the assets a
-    campaign hands out. A kind that becomes offerable becomes stageable
-    with nothing to remember. Everything else — a category, a modifier, a
-    statline — is reached through one of these and needs no gate of its
-    own.
+    what a choice may offer, what a picklist holds, what a model's edit
+    page offers to tick, and the assets a campaign hands out. A kind that
+    becomes offerable becomes stageable with nothing to remember.
+
+    The lines that do the offering count too — a collection's entries and a
+    picklist's members. A line is what puts a live thing in front of a
+    player, so a new line on a live list is held back the way a new thing
+    is, and an import stages the lines it writes along with the things.
+
+    Everything else — a category, a modifier, a statline — is reached
+    through one of these and needs no gate of its own.
     """
     from django.apps import apps
 
-    from n26.library.models import Asset, CampaignType, GangType, PicklistMember
+    from n26.core.models import Assignment
+    from n26.core.views.edit import EDITABLE_KINDS
+    from n26.library.models import (
+        Asset,
+        CampaignType,
+        CollectionEntry,
+        GangType,
+        PicklistMember,
+    )
     from n26.library.models.collection import entryable_kinds
     from n26.library.models.modifier import OFFERABLE_KINDS
 
@@ -97,9 +111,15 @@ def stageable_kinds():
         GangType,
         CampaignType,
         Asset,
+        CollectionEntry,
+        PicklistMember,
         PicklistMember._meta.get_field("pickable").related_model,
         *entryable_kinds().values(),
         *(apps.get_model("library", name) for name in OFFERABLE_KINDS),
+        *(
+            Assignment._meta.get_field(field).related_model
+            for field in EDITABLE_KINDS.values()
+        ),
     }
     return frozenset(kinds)
 
@@ -109,10 +129,22 @@ def stageable(model) -> bool:
     return model in stageable_kinds()
 
 
+def staged_counts():
+    """How many rows are staged, kind by kind — what the page that puts
+    everything live says before the click. One count per kind, and only
+    the kinds with something staged."""
+    found = []
+    for model in content_kinds():
+        count = model.objects.filter(staged=True).count()
+        if count:
+            found.append((model, count))
+    return found
+
+
 def staged_count():
     """How many rows are staged across the library — the figure the index
-    shows beside its link. One count per kind."""
-    return sum(model.objects.filter(staged=True).count() for model in content_kinds())
+    shows beside its link."""
+    return sum(count for _model, count in staged_counts())
 
 
 def staged_rows():

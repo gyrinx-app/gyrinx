@@ -604,6 +604,27 @@ def test_another_gang_types_profile_hires_but_an_unhireable_one_never_does(
     assert client.get(dialog_url(gang, collared)).context["dialog"] is None
 
 
+def test_an_archived_profile_is_neither_offered_nor_hired(
+    client, tester, gang, make_profile, make_statline
+):
+    """Archiving is an author's soft delete: a gang that has the fighter keeps
+    them, and no gang is offered them again — on the list, in the dialog,
+    or by typing the id."""
+    gone = make_profile("Forgotten Juve", price=10)
+    make_statline(gone)
+    gone.archive()
+
+    client.force_login(tester)
+    assert "Forgotten Juve" not in client.get(hire_url(gang)).content.decode()
+    assert client.get(dialog_url(gang, gone)).context["dialog"] is None
+    refused = client.post(hire_url(gang), {"profile": str(gone.pk), "name": "Ghost"})
+    assert refused.status_code == 200
+    assert not Miniature.objects.filter(membership__gang=gang).exists()
+    assert (
+        client.get(reverse("n26-hire-card", args=[gang.pk, gone.pk])).status_code == 404
+    )
+
+
 def test_a_profile_that_is_not_a_ulid_draws_no_dialog(client, tester, gang, ganger):
     """A pk that is not a ULID at all reaches the field's to_python; the
     genuine buttons never send one, so it names nothing."""

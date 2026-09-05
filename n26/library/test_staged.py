@@ -21,10 +21,13 @@ from n26.library.authoring import (
 from n26.library.models import (
     Category,
     Collection,
+    CollectionEntry,
     GangType,
     Modifier,
     Pickable,
+    PicklistMember,
     Profile,
+    Rule,
     Skill,
     Trait,
     Weapon,
@@ -136,6 +139,13 @@ class TestWhichKindsCanBeStaged:
     def test_the_kinds_players_are_offered(self):
         kinds = stageable_kinds()
         assert {GangType, Profile, Weapon, WeaponProfile, Skill, Pickable} <= kinds
+        # Offered to tick on a model's own page.
+        assert Rule in kinds
+
+    def test_the_lines_that_offer_a_thing_count_too(self):
+        """A new line on a live list is what puts a live thing in front of a
+        player, so an import holds the lines back along with the things."""
+        assert {CollectionEntry, PicklistMember} <= stageable_kinds()
 
     def test_not_the_kinds_reached_only_through_them(self):
         assert not stageable(Category)

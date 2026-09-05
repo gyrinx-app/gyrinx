@@ -21,7 +21,7 @@ from n26.core.render import build_choice_offer, render_gang
 from n26.core.views.choose import _find_slot, link_slots
 from n26.flags import STAGED_CONTENT
 from n26.library.authoring import put_everything_live, stage
-from n26.library.models import Category, Collection, Profile, Weapon
+from n26.library.models import Category, Collection, CollectionEntry, Profile, Weapon
 from n26.tests.sandbox.actions import (
     add_picklist_member,
     assign,
@@ -479,6 +479,70 @@ class TestChoosing:
         assert "Van Saar" in client.get(href).content.decode()
 
 
+# --- Rolling ------------------------------------------------------------------
+
+
+class TestRollingOnATable:
+    """A roll lands only on lines the reader may see: a player's roll onto
+    a staged result reads as no result, not as a name they were never
+    offered."""
+
+    @pytest.fixture
+    def injuries(self, default_pack):
+        from n26.library.models import Picklist, Slot
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        table = Picklist.objects.get(name="Lasting Injury Table")
+        out_cold = next(
+            member.pickable
+            for member in table.members.select_related("pickable")
+            if member.pickable.name == "Out Cold"
+        )
+        stage(out_cold)
+        return {"table": table, "slot": Slot.objects.get(name="Lasting Injury")}
+
+    def roll_page(self, client, gang, fighter, injuries):
+        """Enter a 24 at the fighter's injury table and open the page on it."""
+        from n26.core.card import build_card, build_modifier_index
+        from n26.core.effects import compute
+        from n26.core.models import LedgerEvent
+
+        assign(injuries["slot"], miniature=fighter)
+        card = build_card(fighter)
+        computed = compute(
+            card, build_modifier_index([n.assignable for n in card.all_nodes()])
+        )
+        slot = next(
+            line
+            for line in computed.choices
+            if line.slot is not None and line.slot.picklist_id == injuries["table"].pk
+        )
+        key = f"{fighter.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
+        address = reverse("n26-choose", args=[gang.pk, key])
+        client.post(address, {"act": "enter", "rolled": "24"})
+        event = LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).latest(
+            "created"
+        )
+        return client.get(f"{address}?roll={event.pk}").content.decode()
+
+    def test_a_players_roll_onto_a_staged_result_names_nothing(
+        self, client, player, players_gang, injuries
+    ):
+        gang, fighter = players_gang
+        client.force_login(player)
+        page = self.roll_page(client, gang, fighter, injuries)
+        assert "Out Cold" not in page
+        assert "This table has no result for 24." in page
+
+    def test_an_authors_roll_lands_on_it(self, client, author, authors_gang, injuries):
+        gang, fighter = authors_gang
+        client.force_login(author)
+        page = self.roll_page(client, gang, fighter, injuries)
+        assert "Landed on" in page
+        assert "Out Cold" in page
+
+
 # --- Releasing ----------------------------------------------------------------
 
 
@@ -538,6 +602,9 @@ class TestAnImportCanHoldBackWhatItMakes:
         assert result.staged is True
         assert Profile.objects.exists() and not Profile.objects.live().exists()
         assert Weapon.objects.exists() and not Weapon.objects.live().exists()
+        # The lines that offer the gear are held back with it.
+        assert CollectionEntry.objects.exists()
+        assert not CollectionEntry.objects.live().exists()
         # Reached only through the fighters and the gear: nothing to hold back.
         assert Collection.objects.exists()
         assert not Collection.objects.filter(staged=True).exists()
