@@ -611,7 +611,6 @@ class TestTheQueryBudget:
         # No Visit Trading Post action is open here, which is a column read
         # and no query: what a visit has left is only asked of the ledger
         # where there is a visit to ask about.
-        # One of these is the staged-content flag, read once for the page.
         assert self.measure(client, equip_url(gang, house_list)) == 38
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):
@@ -626,7 +625,6 @@ class TestTheQueryBudget:
         # nothing to test a restriction against — and the browse of each
         # list held, which prices the library's lines. Plus the drawer's
         # one question about whether campaigns are open.
-        # One of these is the staged-content flag, read once for the page.
         assert self.measure(client, equip_url(gang, scope="all")) == 43
 
     def test_the_library_costs_the_same_however_much_it_holds(

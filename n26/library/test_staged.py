@@ -125,7 +125,7 @@ class TestWhoSeesStagedContent:
         assert sees_staged(AnonymousUser()) is False
 
     def test_the_flag_is_read_once_per_user(self, django_assert_num_queries):
-        """A screen asks several times; the second time costs nothing."""
+        """A screen asks several times; the second time is free."""
         player = User.objects.create_user("player")
         sees_staged(player)
         with django_assert_num_queries(0):

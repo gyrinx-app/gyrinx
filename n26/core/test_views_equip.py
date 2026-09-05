@@ -2553,7 +2553,6 @@ class TestTheLibraryTabsQueryBudget:
         # lists — and a browse of each list held, which is what prices
         # the library's lines. A fixed number per list, never one per
         # item.
-        # One of these is the staged-content flag, read once for the page.
         assert self.measure(client, f"{equip_url(fighter)}?list=all") == 53
 
     def test_it_costs_the_same_however_much_it_holds(

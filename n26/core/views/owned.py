@@ -312,11 +312,7 @@ def accessorise_dialogs(request, host: EquipHost):
     if not weapons:
         return []
 
-    # A request with nobody on it — a bare one built to draw the panels —
-    # is read as a stranger's, and a stranger sees no staged content.
-    catalogue = accessory_catalogue(
-        include_staged=sees_staged(getattr(request, "user", None))
-    )
+    catalogue = accessory_catalogue(include_staged=sees_staged(request.user))
     dialogs = []
     for node in weapons:
         pk = str(node.assignment.pk)

@@ -12,7 +12,7 @@ from django.db import migrations
 # Written out rather than imported: a migration must stay frozen, and the
 # slug is read by code that will go on changing. Nothing looks the group up
 # by name — which group the allowlist reads is a foreign key chosen on the
-# admin page — so renaming it there costs nothing.
+# admin page — so renaming it there is free.
 SLUG = "staged-content"
 GROUP_NAME = "N26 Staged content"
 

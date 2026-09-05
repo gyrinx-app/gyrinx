@@ -416,7 +416,7 @@ class FoundCampaignForm(CampaignForm):
     """
 
     campaign_type = forms.ModelChoiceField(
-        queryset=_foundable_campaign_types(),
+        queryset=_foundable_campaign_types(include_staged=True),
         label="Campaign type",
         help_text=("Use pre-built campaign setups to get started quickly."),
         error_messages={
@@ -432,11 +432,12 @@ class FoundCampaignForm(CampaignForm):
         super().__init__(*args, **kwargs)
         # The same narrowing as the cards, on the field that validates the
         # submission: a staged type is founded on only by a reader it was
-        # offered to.
-        if include_staged:
-            self.fields["campaign_type"].queryset = _foundable_campaign_types(
-                include_staged=True
-            )
+        # offered to. Narrowed here, as the gang type is, so the two forms
+        # read the same way round.
+        if not include_staged:
+            self.fields["campaign_type"].queryset = self.fields[
+                "campaign_type"
+            ].queryset.live()
 
     def campaign_type_choices(self):
         """The cards the view draws for ``campaign_type``, one per type.

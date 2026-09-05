@@ -442,9 +442,7 @@ class TestSkills:
 
 
 class TestChoosing:
-    def test_a_staged_pick_is_offered_to_authors_only(
-        self, client, player, author, players_gang, authors_gang
-    ):
+    def test_a_staged_pick_is_offered_to_authors_only(self, players_gang, authors_gang):
         _, theirs = legacy_offer(players_gang[0], include_staged=False)
         assert theirs == {"Cawdor"}
         _, ours = legacy_offer(authors_gang[0], include_staged=True)
@@ -477,6 +475,230 @@ class TestChoosing:
         href, _ = legacy_offer(authors_gang[0], include_staged=True)
         client.force_login(author)
         assert "Van Saar" in client.get(href).content.decode()
+
+
+# --- The edit boxes, the accessory dialog, ammo lines ------------------------------
+
+
+class TestTheModelsEditPage:
+    """The Special rules box offers every rule the library has — every live
+    one. A staged rule is on it for authors alone, and a save naming it
+    from a player assigns nothing."""
+
+    @pytest.fixture
+    def rules(self, default_pack):
+        from n26.tests.sandbox.actions import create_rule
+
+        return {
+            "live": create_rule("Group Activation"),
+            "staged": stage(create_rule("Gang Fighter")),
+        }
+
+    def test_a_player_is_not_offered_the_staged_rule(
+        self, client, player, players_gang, rules
+    ):
+        gang, fighter = players_gang
+        client.force_login(player)
+        url = reverse("n26-edit-fighter", args=[fighter.pk])
+        body = client.get(url).content.decode()
+        assert "Group Activation" in body
+        assert "Gang Fighter" not in body
+
+        client.post(url, {"act": "rules", "rules": [key_of(rules["staged"])]})
+
+        assert not Assignment.objects.filter(rule=rules["staged"]).exists()
+
+    def test_an_author_is_offered_it_and_ticks_it(
+        self, client, author, authors_gang, rules
+    ):
+        gang, fighter = authors_gang
+        client.force_login(author)
+        url = reverse("n26-edit-fighter", args=[fighter.pk])
+        assert "Gang Fighter" in client.get(url).content.decode()
+
+        client.post(url, {"act": "rules", "rules": [key_of(rules["staged"])]})
+
+        assert Assignment.objects.filter(
+            rule=rules["staged"], miniature_root=fighter
+        ).exists()
+
+
+class TestTheAccessoryDialog:
+    """What may be bolted onto a gun is offered from a dialog on the equip
+    screen and checked again on the click."""
+
+    @pytest.fixture
+    def sights(self, default_pack):
+        from n26.tests.sandbox.actions import create_weapon_accessory
+
+        return {
+            "live": create_weapon_accessory("Telescopic sight", price=25),
+            "staged": stage(create_weapon_accessory("Infra-sight", price=30)),
+        }
+
+    def armed(self, gang_and_fighter, gear):
+        gang, fighter = gang_and_fighter
+        return give_weapon(fighter, gear["lasgun"], paid=15)
+
+    def test_a_player_is_not_offered_the_staged_sight(
+        self, client, player, players_gang, gear, sights
+    ):
+        gun = self.armed(players_gang, gear)
+        client.force_login(player)
+        body = client.get(equip_url(players_gang[1], "all")).content.decode()
+        assert "Telescopic sight" in body
+        assert "Infra-sight" not in body
+
+        client.post(
+            reverse("n26-accessorise", args=[gun.pk]),
+            {"accessory": str(sights["staged"].pk)},
+        )
+
+        assert not Assignment.objects.filter(weapon_accessory=sights["staged"]).exists()
+
+    def test_an_author_is_offered_it_and_fits_it(
+        self, client, author, authors_gang, gear, sights
+    ):
+        gun = self.armed(authors_gang, gear)
+        client.force_login(author)
+        assert (
+            "Infra-sight"
+            in client.get(equip_url(authors_gang[1], "all")).content.decode()
+        )
+
+        client.post(
+            reverse("n26-accessorise", args=[gun.pk]),
+            {"accessory": str(sights["staged"].pk)},
+        )
+
+        assert Assignment.objects.filter(weapon_accessory=sights["staged"]).exists()
+
+
+class TestAmmoLines:
+    """A gun's paid rounds are listed under it at the Trading Post; a staged
+    round is under it for authors alone."""
+
+    @pytest.fixture
+    def hotshot(self, gear):
+        from n26.library.authoring import add_weapon_profile
+
+        return stage(
+            add_weapon_profile(
+                gear["lasgun"], name="Hotshot", price=5, trade_point_price=2
+            )
+        )
+
+    def test_a_player_does_not_see_the_staged_round(
+        self, client, player, players_gang, trading_post, hotshot
+    ):
+        client.force_login(player)
+        body = client.get(equip_url(players_gang[1], trading_post.pk)).content.decode()
+        assert "Lasgun" in body
+        assert "Hotshot" not in body
+
+    def test_an_author_does(self, client, author, authors_gang, trading_post, hotshot):
+        client.force_login(author)
+        body = client.get(equip_url(authors_gang[1], trading_post.pk)).content.decode()
+        assert "Hotshot" in body
+
+
+# --- Campaigns ----------------------------------------------------------------
+
+
+class TestCampaigns:
+    """The types a campaign is set up on, and the assets one hands out, are
+    offered on the same terms as everything else."""
+
+    @pytest.fixture
+    def campaigns_open(self, db):
+        from n26.flags import CAMPAIGNS
+
+        FeatureFlag.objects.create(
+            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+        )
+
+    @pytest.fixture
+    def types(self, default_pack, campaigns_open):
+        from n26.library.authoring import create_campaign_type
+
+        return {
+            "live": create_campaign_type("Territory campaign"),
+            "staged": stage(create_campaign_type("Dominion")),
+        }
+
+    def founding(self, campaign_type):
+        return {
+            "name": "Dust Falls",
+            "budget": "1000",
+            "summary": "",
+            "campaign_type": str(campaign_type.pk),
+        }
+
+    def test_a_player_is_not_offered_the_staged_type(self, client, player, types):
+        from n26.core.models import Campaign
+
+        client.force_login(player)
+        body = client.get(reverse("n26-create-campaign")).content.decode()
+        assert "Territory campaign" in body
+        assert "Dominion" not in body
+
+        response = client.post(
+            reverse("n26-create-campaign"), self.founding(types["staged"])
+        )
+
+        assert response.status_code == 200
+        assert not Campaign.objects.filter(name="Dust Falls").exists()
+
+    def test_an_author_is_offered_it_and_founds_on_it(self, client, author, types):
+        from n26.core.models import Campaign
+
+        client.force_login(author)
+        assert "Dominion" in client.get(reverse("n26-create-campaign")).content.decode()
+
+        response = client.post(
+            reverse("n26-create-campaign"), self.founding(types["staged"])
+        )
+
+        assert response.status_code == 302
+        assert Campaign.objects.get(name="Dust Falls").campaign_type == types["staged"]
+
+    @pytest.fixture
+    def territories(self, types):
+        from n26.library.authoring import add_asset_type, create_asset
+
+        territory = add_asset_type(types["live"], "Territory", "pooled")
+        return {
+            "type": territory,
+            "live": create_asset("Old Ruins", territory),
+            "staged": stage(create_asset("Sump Hole", territory)),
+        }
+
+    def test_a_staged_asset_is_offered_to_authors_only(
+        self, client, player, author, types, territories
+    ):
+        from n26.core.models import CampaignAsset
+        from n26.tests.sandbox.actions import found_campaign
+
+        theirs = found_campaign("Dust Falls", types["live"], owner=player, budget=1000)
+        ours = found_campaign(
+            "Dust Falls Too", types["live"], owner=author, budget=1000
+        )
+
+        client.force_login(player)
+        url = reverse("n26-campaign-add-asset", args=[theirs.pk])
+        body = client.get(url).content.decode()
+        assert "Old Ruins" in body
+        assert "Sump Hole" not in body
+        client.post(url, {"asset": str(territories["staged"].pk), "name": ""})
+        assert not CampaignAsset.objects.filter(asset=territories["staged"]).exists()
+
+        client.force_login(author)
+        url = reverse("n26-campaign-add-asset", args=[ours.pk])
+        assert "Sump Hole" in client.get(url).content.decode()
+        client.post(url, {"asset": str(territories["staged"].pk), "name": ""})
+        assert CampaignAsset.objects.filter(
+            asset=territories["staged"], campaign=ours
+        ).exists()
 
 
 # --- Rolling ------------------------------------------------------------------

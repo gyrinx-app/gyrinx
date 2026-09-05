@@ -421,6 +421,26 @@ def put_live(row):
     return revise(row, staged=False)
 
 
+def stage_all(rows):
+    """Hold back several rows at once — what an import does with everything
+    it made. One write per kind, and the rows in hand are marked too, so a
+    caller reading them back sees what was written.
+    """
+    from collections import defaultdict
+
+    from django.utils import timezone
+
+    by_model = defaultdict(list)
+    for row in rows:
+        row.staged = True
+        by_model[type(row)].append(row.pk)
+    now = timezone.now()
+    with transaction.atomic():
+        for model, pks in by_model.items():
+            model.objects.filter(pk__in=pks).update(staged=True, modified=now)
+    return rows
+
+
 def put_everything_live():
     """Release every staged row at once, in one transaction — so a new gang
     type and the fighters and lists written for it reach players together

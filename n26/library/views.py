@@ -1433,7 +1433,8 @@ def leaf(request, kind):
                 # only remember the qualifier, or a word from the help,
                 # finds the row by typing that.
                 "search": " ".join(
-                    [
+                    part
+                    for part in [
                         naming["label"],
                         naming["qualifier"],
                         *notes,
@@ -1441,6 +1442,7 @@ def leaf(request, kind):
                         # Typing the word finds every staged row of the kind.
                         "staged" if naming["staged"] else "",
                     ]
+                    if part
                 ).lower(),
             }
         )

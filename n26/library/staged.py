@@ -32,6 +32,8 @@ everyone is a rehearsal with a way back; putting the rows live is the
 release.
 """
 
+from functools import cache
+
 from n26 import flags
 
 #: Where the flag's reading is kept on the user for the rest of the request.
@@ -61,9 +63,11 @@ def sees_staged(user) -> bool:
     return kept
 
 
+@cache
 def content_kinds():
     """Every concrete kind built on ``Content``, in the order an author reads
-    them — the tables that carry a ``staged`` column."""
+    them — the tables that carry a ``staged`` column. Fixed once the app has
+    started, so it is worked out once."""
     from django.apps import apps
 
     from n26.library.models import Content
@@ -73,7 +77,7 @@ def content_kinds():
         for model in apps.get_app_config("library").get_models()
         if issubclass(model, Content)
     ]
-    return sorted(found, key=lambda model: str(model._meta.verbose_name_plural))
+    return tuple(sorted(found, key=lambda model: str(model._meta.verbose_name_plural)))
 
 
 def stageable_kinds():
@@ -154,9 +158,16 @@ def staged_rows():
     other way is never invisible to the people who can put it live. A kind
     with nothing staged is left out. One query per kind, however many rows.
     """
+    from n26.library.references import forward_relations
+
     found = []
     for model in content_kinds():
-        rows = list(model.objects.filter(staged=True))
+        # Each row is named and described on the page, and a line names the
+        # list and the thing it joins — loaded with the row, so a page of a
+        # hundred staged lines costs the same handful of queries as one.
+        rows = list(
+            model.objects.filter(staged=True).select_related(*forward_relations(model))
+        )
         if rows:
             found.append((model, rows))
     return found

@@ -2502,19 +2502,17 @@ def _stage_created(result):
     which may have been live for years — is left alone: what was made is
     what is staged.
     """
+    from n26.library import authoring
     from n26.library.staged import stageable_kinds
 
     stageable = stageable_kinds()
-    by_model = {}
-    for key, row in result.created.items():
-        kind = key.split(":", 1)[0]
-        model = type(row)
-        if model not in stageable or model.__name__ != kind:
-            continue
-        row.staged = True
-        by_model.setdefault(model, []).append(row.pk)
-    for model, pks in by_model.items():
-        model.objects.filter(pk__in=pks).update(staged=True)
+    authoring.stage_all(
+        [
+            row
+            for key, row in result.created.items()
+            if type(row) in stageable and type(row).__name__ == key.split(":", 1)[0]
+        ]
+    )
 
 
 class _Performer:
