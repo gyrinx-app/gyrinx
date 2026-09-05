@@ -29,6 +29,21 @@ pytestmark = pytest.mark.django_db
 
 FOUNDING = Action.Kind.FOUNDING
 
+#: The colour <c-n26.founding-mark> paints itself. One component draws the
+#: mark, so finding this on a page is finding the mark; change it there and
+#: change it here.
+MARK = "text-violet-600"
+
+#: Trade Points summed off the log. Both readings a screen showing two pots
+#: makes are this sum; what tells them apart is what they join to.
+SPEND = 'SUM("n26_ledgerevent"."trade_points_delta")'
+
+#: The gang's open Visit Trading Post spend: joined to the action and
+#: narrowed to the one still open. The model's founding spend narrows on the
+#: buyer instead and never mentions this, so counting these tells a page
+#: asking the visit twice from a page asking it once.
+VISIT_SPEND = '"n26_action"."closed_id" IS NULL'
+
 #: The Venator entries these tests hire, as ``(entry, the subtype naming
 #: its rank)``. A Hunter is a Specialist, which is how the gang list
 #: marks the rank; the allied entry is ranked Champion and filed under a
@@ -338,6 +353,95 @@ class TestWhatTheScreenSays:
         assert response.context["founding_budget"] is None
         assert "Founding Trade Points" not in response.content.decode()
 
+    def test_the_tally_carries_the_founding_mark(self, client, leader, legacy_list):
+        """The same mark the action carries on the gang page and the model
+        cards carry beside their figures, so one feature is read once."""
+        body = client.get(equip_url(leader, legacy_list)).content.decode()
+
+        heading = body.index("Founding Trade Points")
+        assert MARK in body[body.rindex("<p class=", 0, heading) : heading]
+
+
+class TestBothPotsAtOnce:
+    """A model with an allowance whose gang also has a visit open. The two
+    are separate allowances, and the rail says which one this page spends
+    rather than leaving two Trade Point figures to be read the wrong way
+    round."""
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    @pytest.fixture
+    def visiting(self, gang, tester):
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=6)
+        gang.refresh_from_db()
+        return gang
+
+    def test_both_blocks_are_drawn(self, client, leader, post, visiting):
+        response = client.get(equip_url(leader, post))
+        body = response.content.decode()
+
+        assert response.context["visit_beside_founding"] is True
+        assert response.context["visit_trade_points_left"] == 6
+        assert "Founding Trade Points" in body
+        assert "Trading Post visit" in body
+        assert "6 TP" in body
+        assert "Manage visit" in body
+
+    def test_the_visit_block_says_which_pot_this_page_spends(
+        self, client, leader, post, visiting
+    ):
+        said = " ".join(client.get(equip_url(leader, post)).content.decode().split())
+
+        assert "counts against the founding Trade Points, not against the visit" in said
+
+    def test_the_allowance_alone_draws_no_visit_block(
+        self, client, leader, legacy_list
+    ):
+        """No visit open, so there is no second pot to tell apart."""
+        response = client.get(equip_url(leader, legacy_list))
+
+        assert response.context["visit_beside_founding"] is False
+        assert "Trading Post visit" not in response.content.decode()
+
+    def test_the_post_being_shut_is_still_the_one_note_it_silences(
+        self, client, leader, post
+    ):
+        """An allowance and no visit: the model has somewhere for its Trade
+        Points to go, so nothing is said about the post."""
+        body = client.get(equip_url(leader, post)).content.decode()
+
+        assert "Not tracking TP" not in body
+        assert "Trading Post visit" not in body
+
+    def test_the_block_costs_one_reading_of_the_visit_and_no_more(
+        self, client, leader, post, visiting
+    ):
+        """Two readings of what the visit has spent: the figure strip's,
+        and the one the view works out for this block. The gang
+        deliberately never caches that sum, so each ask is a query — a
+        third would mean the block had gone and asked for itself instead
+        of drawing what the view handed it.
+
+        Counted by what is asked rather than by a page total, so an
+        unrelated change to the equip screen fails elsewhere and this
+        keeps saying what it is about.
+        """
+        asked = queries_for(client, equip_url(leader, post))
+
+        visit_reads = [sql for sql in asked if SPEND in sql and VISIT_SPEND in sql]
+        assert len(visit_reads) == 2
+
+    def test_the_model_spend_is_still_asked_once(self, client, leader, post, visiting):
+        """The allowance's own sum narrows on the buyer and never joins the
+        open visit, so the second pot has not quietly doubled it."""
+        asked = queries_for(client, equip_url(leader, post))
+
+        own = [sql for sql in asked if SPEND in sql and VISIT_SPEND not in sql]
+        assert len(own) == 1
+
 
 class TestAnOwnerTheBudgetsDoNotReachYet:
     """While the founding budgets are being tested they reach staff owners
@@ -376,6 +480,115 @@ class TestAnOwnerTheBudgetsDoNotReachYet:
         assert entry.trade_points == 0
         assert entry.action is None
         assert entry.spent_by is None
+
+
+def queries_for(client, url):
+    """Every query a page makes, measured after one warm request — the
+    first request of a session writes its own row."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    assert client.get(url).status_code == 200
+    with CaptureQueriesContext(connection) as captured:
+        assert client.get(url).status_code == 200
+    return [query["sql"] for query in captured.captured_queries]
+
+
+def visit_control(body):
+    """The markup of the control that offers a Trading Post visit."""
+    label = body.index("Set up Trading Post visit")
+    return body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
+
+
+class TestTheWayIntoAVisitFromTheRail:
+    """The Not tracking TP block offers to start a visit. While the gang is
+    part-way through founding there is nowhere for that offer to go — a
+    gang holds one action of each kind — so the button is drawn dead with
+    the reason beside it rather than leading to a page that refuses."""
+
+    def test_the_old_wording_is_gone(self, client, tester, ganger, post):
+        client.force_login(tester)
+
+        assert (
+            "Set up TP visit"
+            not in client.get(equip_url(ganger, post)).content.decode()
+        )
+
+    def test_a_staff_owner_gets_the_button_dead_and_the_reason(
+        self, client, tester, ganger, post
+    ):
+        client.force_login(tester)
+
+        response = client.get(equip_url(ganger, post))
+        body = response.content.decode()
+
+        assert response.context["founding_blocks_visit"] is True
+        assert "Not tracking TP" in body
+        assert "disabled" in visit_control(body)
+        assert "You can have only one of these actions open at a time." in body
+
+    def test_the_dead_button_lets_the_pointer_reach_its_tooltip(
+        self, client, tester, ganger, post
+    ):
+        """A disabled control emits no mouse events, so left bare it would
+        be the pointer's target and the tooltip around it would never
+        open. The button is drawn inert inside a span, and the span is
+        what the pointer hits. The tooltip's own words are in the page
+        either way, so nothing else here can catch this."""
+        client.force_login(tester)
+
+        control = visit_control(client.get(equip_url(ganger, post)).content.decode())
+
+        assert "pointer-events-none" in control
+        assert control.lstrip().startswith("<span")
+        assert "cursor-not-allowed" in control
+        # The reason again, off screen: a tooltip that only opens
+        # under a pointer leaves everybody else a dead button.
+        assert 'aria-describedby="n26-visit-shut-rail"' in control
+
+    def test_an_owner_the_founding_does_not_reach_keeps_the_way_in(
+        self, client, gang, ganger, post
+    ):
+        """Every gang carries an open founding action, and an owner the
+        feature has not reached is given no way to close one. Shutting the
+        button for them would take visits away with nothing in their
+        place."""
+        plain = User.objects.create_user("plain-owner")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+        client.force_login(plain)
+
+        response = client.get(equip_url(ganger, post))
+        body = response.content.decode()
+
+        assert response.context["founding_blocks_visit"] is False
+        assert "disabled" not in visit_control(body)
+        assert reverse("n26-gang-trade-points", args=[gang.pk]) in visit_control(body)
+        assert "You can have only one of these actions open at a time." not in body
+
+    def test_completing_the_founding_opens_the_way(
+        self, client, gang, tester, ganger, post
+    ):
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+        client.force_login(tester)
+
+        response = client.get(equip_url(ganger, post))
+
+        assert response.context["founding_blocks_visit"] is False
+        assert "disabled" not in visit_control(response.content.decode())
+
+    def test_a_screen_that_never_mentions_the_post_asks_nothing(
+        self, client, tester, ganger, legacy_list
+    ):
+        """The question costs the gang's open actions, so it is asked only
+        where the block that offers a visit is drawn."""
+        client.force_login(tester)
+
+        response = client.get(equip_url(ganger, legacy_list))
+
+        assert response.context["post_is_shut"] is False
+        assert response.context["founding_blocks_visit"] is False
 
 
 class TestGoingPastIt:
@@ -468,19 +681,9 @@ class TestTheQueryBudget:
     #: mistaken for it. Named by its pack's slug, which is the join that
     #: tells it from the counters a card's modifiers bring along.
     COUNTER = '"library_contentpack"'
-    #: What this model has spent under the founding action.
-    SPEND = 'SUM("n26_ledgerevent"."trade_points_delta")'
 
     def asked(self, client, url):
-        """Every query the page makes, measured after one warm request —
-        the first request of a session writes its own row."""
-        from django.db import connection
-        from django.test.utils import CaptureQueriesContext
-
-        assert client.get(url).status_code == 200
-        with CaptureQueriesContext(connection) as captured:
-            assert client.get(url).status_code == 200
-        return [query["sql"] for query in captured.captured_queries]
+        return queries_for(client, url)
 
     def reads_actions(self, asked):
         return [sql for sql in asked if sql.startswith(self.ACTIONS)]
@@ -491,7 +694,7 @@ class TestTheQueryBudget:
         ]
 
     def reads_spend(self, asked):
-        return [sql for sql in asked if self.SPEND in sql]
+        return [sql for sql in asked if SPEND in sql]
 
     def test_a_model_with_no_allowance_asks_none_of_them(
         self, client, tester, ganger, legacy_list

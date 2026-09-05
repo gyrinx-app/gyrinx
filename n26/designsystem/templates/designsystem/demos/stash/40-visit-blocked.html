@@ -1,0 +1,9 @@
+{# title: A visit that cannot start yet #}
+{# note: With the Found and equip gang action open the button is drawn dead, and the tooltip says why: a gang holds one action of each kind. Whoever the founding does not reach reads the live button instead, so nobody is left with no way to visit the post. #}
+{% with trade_points_href="#" sheet=sample_sheet_no_visit founding_blocks_visit=True %}
+    <c-n26.stash :lines="gang.stash" :total="gang.stash_rating">
+        <c-slot name="notice">
+            {% include "n26/includes/stash_trading_post.html" %}
+        </c-slot>
+    </c-n26.stash>
+{% endwith %}

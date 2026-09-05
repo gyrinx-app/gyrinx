@@ -1829,6 +1829,22 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="founding-mark",
+                tag="c-n26.founding-mark",
+                template="n26/founding_mark.html",
+                summary="The mark that ties the founding action to its Trade Points.",
+                notes=(
+                    "The drawing and the colour are stated in the component "
+                    "and nowhere else, so the mark is swapped in one file. It "
+                    "is drawn beside the Found and equip gang action, beside a "
+                    "model card's founding Trade Points, on the allowance "
+                    "block of an equip screen and inside the button that "
+                    "starts the action. Its colour is neither the accent a "
+                    "primary control takes nor the green a completing button "
+                    "takes, so it is never read as a control."
+                ),
+            ),
+            Component(
                 slug="wealth",
                 tag="c-n26.wealth",
                 template="n26/wealth/index.html",

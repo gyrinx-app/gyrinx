@@ -147,14 +147,24 @@ takes a typed figure over the ticks.
                 Two whole tags, never one with a conditional attribute
                 inside it: a template tag among a component's attributes
                 reaches the page as text, and the button draws live while
-                looking shut. The shut one is wrapped because a disabled
-                button emits no mouse events for a tooltip to use.
+                looking shut. The shut one is wrapped, and made
+                pointer-events-none, because a disabled button emits no
+                mouse events for a tooltip to use — bare, it is the
+                pointer's target and the tooltip never opens. It is drawn
+                subtle rather than primary, as every other dead control
+                here is: the kit's disabled styling is a small drop in
+                opacity, and a primary keeps its hover colour whatever the
+                disabled attribute says.
                 {% endcomment %}
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                     {% if visit_open %}
                         <c-ui.tooltip size="sm">
                             <span class="inline-block cursor-not-allowed">
-                                <c-ui.button type="submit" size="sm" variant="primary" disabled>
+                                <c-ui.button type="submit"
+                                             size="sm"
+                                             variant="subtle"
+                                             class="pointer-events-none"
+                                             disabled>
                                     Start TP visit
                                 </c-ui.button>
                             </span>

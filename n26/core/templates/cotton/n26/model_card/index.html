@@ -7,8 +7,10 @@ they carry.
 Draws a n26.render.ModelCard (n26/core/render.py) and computes nothing; the
 figure beside the name is the model's pinned rating, with what it has left of
 its founding Trade Points ahead of it where its books grant any and the gang
-is still being founded. card.collections and card.effects are on the
-structure and deliberately not drawn.
+is still being founded. That figure carries <c-n26.founding-mark>, the same
+mark the Found and equip gang action carries on the gang page.
+card.collections and card.effects are on the structure and deliberately not
+drawn.
 
 mode decides how much of the card is clickable: gang keeps the controls to the
 actions slot, edit brings out the choice buttons and a menu on each piece of
@@ -76,7 +78,10 @@ control by the actions opens it.
                     {% if card.founding_budget %}
                         <c-n26.model-card.mode when="gang edit">
                             <c-ui.tooltip size="sm">
-                                <span class="text-muted">{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
+                                <span class="inline-flex items-center gap-1 text-muted">
+                                    <c-n26.founding-mark class="size-3.5" />
+                                    <span>{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
+                                </span>
                                 <c-slot name="content">Trade Points {{ card.name }} can spend while the Found and equip gang action is open</c-slot>
                             </c-ui.tooltip>
                             <span aria-hidden="true" class="text-muted">·</span>

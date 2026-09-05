@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from n26.core.actions import (
+    FOUNDING_ABOUT,
     FOUNDING_HELP,
     VISIT_HELP,
     ActionsSquare,
@@ -2133,6 +2134,7 @@ def model_card_editable():
 
 def gang_sheet_context():
     """What the gang sheet view needs."""
+    from n26.core.founding import FoundingBudget
     from n26.core.models import Action
     from n26.core.render import RosterGroup, RosterLine, RosterSummary
 
@@ -2164,7 +2166,13 @@ def gang_sheet_context():
         Fact("Spent", "1"),
         Fact("Remaining", "3", ruled=True, strong=True),
     )
-    founding_open = open_card(Action.Kind.FOUNDING, "#", help=FOUNDING_HELP)
+    founding_open = open_card(
+        Action.Kind.FOUNDING,
+        "#",
+        help=FOUNDING_HELP,
+        about=FOUNDING_ABOUT,
+        marked=True,
+    )
     a_visit = VisitLine(trade_points_left=3, href="#")
     # Fixed times, counted back from when the page is drawn, so the
     # relative times the square prints read as a story rather than as
@@ -2207,6 +2215,17 @@ def gang_sheet_context():
         # A gang nothing has been done to yet. The square says so rather
         # than drawing a heading over nothing.
         "sample_square_no_history": ActionsSquare(start_founding="#", history_href="#"),
+        # The two blocks an equip screen's rail draws for a model
+        # part-way through the founding: its own allowance, and the
+        # gang's open visit beside it. Real structures, so the tally is
+        # the arithmetic the screen does rather than a copy of it.
+        "sample_founding_budget": FoundingBudget(action=None, granted=5, spent=2),
+        "sample_founding_model": {"name": "Yolanda Kray"},
+        # A gang with no visit open, so the stash card offers to start
+        # one. The sheet above is mid-trip and shows the other state.
+        "sample_sheet_no_visit": replace(
+            sheet, visiting_trading_post=False, trade_points_left=None
+        ),
         # Two tallies: the Visit Trading Post card's, and the one the
         # overspend confirmation draws under it. The second carries two
         # totals, which is what the component's per-row emphasis is for.

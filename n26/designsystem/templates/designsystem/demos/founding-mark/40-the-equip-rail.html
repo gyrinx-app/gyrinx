@@ -1,0 +1,9 @@
+{# title: Both blocks on an equip rail #}
+{# note: The real page includes, rendered here. A model with an allowance and a gang with a visit open are two pots at once, so the rail draws both and the second says which one this page spends. #}
+{# layout: col #}
+{% with founding_budget=sample_founding_budget miniature=sample_founding_model visit_trade_points_left=3 trade_points_href="#" %}
+    <div class="flex w-44 flex-col gap-4">
+        {% include "n26/includes/founding_budget.html" %}
+        {% include "n26/includes/visit_open.html" %}
+    </div>
+{% endwith %}

@@ -130,8 +130,18 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 {% if everything %}
                     {% include "n26/includes/unrestricted_note.html" %}
                 {% endif %}
+                {% comment %}
+                An allowance and an open visit are two pots at once, so both
+                blocks are drawn and the second says which one this page
+                spends. The post-is-shut note is the one thing an allowance
+                still silences: a model with Trade Points of its own has
+                somewhere for them to go.
+                {% endcomment %}
                 {% if founding_budget %}
                     {% include "n26/includes/founding_budget.html" %}
+                {% endif %}
+                {% if visit_beside_founding %}
+                    {% include "n26/includes/visit_open.html" %}
                 {% elif post_is_shut %}
                     {% include "n26/includes/not_tracking_tp.html" %}
                 {% endif %}

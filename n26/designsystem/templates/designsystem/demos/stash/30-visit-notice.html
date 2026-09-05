@@ -1,0 +1,9 @@
+{# title: The Trading Post line in the notice #}
+{# note: The gang sheet fills the notice slot with n26/includes/stash_trading_post.html, rendered here. A visit open says what it has left and leads to it. #}
+{% with trade_points_href="#" sheet=gang %}
+    <c-n26.stash :lines="gang.stash" :total="gang.stash_rating">
+        <c-slot name="notice">
+            {% include "n26/includes/stash_trading_post.html" %}
+        </c-slot>
+    </c-n26.stash>
+{% endwith %}

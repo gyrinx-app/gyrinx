@@ -26,6 +26,14 @@ COMPLETE = "Complete action"
 #: What the owner is waiting for before they complete the founding.
 FOUNDING_HELP = "Click when you have finished hiring and equipping the gang."
 
+#: What being part-way through the founding lets an owner do, under the
+#: title. The help beside the button says when to finish; this says what
+#: finishing takes away, which is the half a reader needs before they do.
+FOUNDING_ABOUT = (
+    "While this action is open, fighters with founding Trade Points can spend "
+    "them on their equipment lists and at the Trading Post."
+)
+
 #: The same, for a trip to the trading post — where the book also has
 #: something to say about what completing it takes away.
 VISIT_HELP = (
@@ -48,14 +56,24 @@ class ActionCard:
 
     ``act`` is what the button posts, so one field says which control was
     clicked and the card carries the value for the act it offers.
+
+    ``about`` is a sentence under the title saying what the action lets its
+    owner do while it stands open — the other half of ``help``, which says
+    when to end it. An action with nothing to explain carries none.
+
+    ``marked`` says the founding mark is drawn beside the title: the same
+    shape that stands beside every founding Trade Point figure, so a reader
+    meets one feature rather than four unrelated screens.
     """
 
     title: str
     action: str
     help: str = ""
+    about: str = ""
     facts: tuple = ()
     button_label: str = COMPLETE
     act: str = "finish"
+    marked: bool = False
 
 
 @dataclass(frozen=True)
@@ -114,10 +132,17 @@ class ActionsSquare:
         return self.founding is not None or self.visit is not None
 
 
-def open_card(kind, at, *, help="", facts=()):
+def open_card(kind, at, *, help="", about="", facts=(), marked=False):
     """One open action's card. The name comes from the kind, so a screen
     cannot call an action something the ledger does not."""
-    return ActionCard(title=kind.label, action=at, help=help, facts=facts)
+    return ActionCard(
+        title=kind.label,
+        action=at,
+        help=help,
+        about=about,
+        facts=facts,
+        marked=marked,
+    )
 
 
 def founding_card(gang, at):
@@ -131,7 +156,28 @@ def founding_card(gang, at):
     kind = Action.Kind.FOUNDING
     if gang.open_action(kind) is None:
         return None
-    return open_card(kind, at, help=FOUNDING_HELP)
+    return open_card(kind, at, help=FOUNDING_HELP, about=FOUNDING_ABOUT, marked=True)
+
+
+def founding_blocks_visit(gang, seen):
+    """Whether the way into a Trading Post visit is shut for now.
+
+    A gang holds one action of each kind and performs them one at a
+    time, so a control that would start a visit beside an open founding
+    is a control that would be refused. It is drawn dead with a reason
+    rather than led to a page that says no.
+
+    ``seen`` is whether the founding reaches this reader at all. Every
+    gang carries an open founding action, and a reader the feature has
+    not opened to is given no way to close one — shutting the button for
+    them would take visits away with nothing offered in its place.
+
+    Reads the gang's open actions, which a screen drawing this has
+    normally asked for already.
+    """
+    from n26.core.models import Action
+
+    return bool(seen and gang.open_action(Action.Kind.FOUNDING) is not None)
 
 
 def visit_card(receipt, at):

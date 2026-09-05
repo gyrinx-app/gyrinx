@@ -246,7 +246,7 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
-    from n26.core.actions import actions_square
+    from n26.core.actions import actions_square, founding_blocks_visit
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
@@ -295,6 +295,12 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
+            # Whether the stash card's way into a visit is shut for now.
+            # Free where the square below was drawn: that read which
+            # actions the gang has open, and the gang holds the reading.
+            "founding_blocks_visit": founding_blocks_visit(
+                gang, may_see_founding(gang, request.user)
+            ),
             # The gang's own actions, which are the owner's to perform.
             # Drawn for staff owners only while the actions are built out;
             # every other reader gets no square. A fixed handful of

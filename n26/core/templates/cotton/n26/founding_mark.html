@@ -1,0 +1,26 @@
+{% comment %}
+<c-n26.founding-mark> — the mark that ties the Found and equip gang action to
+the Trade Points it hands out.
+
+    <c-n26.founding-mark />
+    <c-n26.founding-mark class="size-3.5" />
+
+Drawn beside the action on the gang page, beside a model card's founding Trade
+Points, on the allowance block of an equip screen and inside the button that
+starts the action. One shape in four places, so a reader who has met it once
+reads the rest as the same feature.
+
+The drawing and the colour are stated in this file and nowhere else: change
+the icon name and the two colour classes below and every place the mark
+appears follows. The colour is deliberately neither the accent a primary
+control is painted in nor the green a completing button is painted in, so the
+mark is never taken for a control.
+
+  class — size classes for the drawing. size-4 by default.
+  label — accessible name. Omit beside words that already say it.
+{% endcomment %}
+<c-vars class="size-4" label="" />
+
+<span class="inline-flex shrink-0 items-center text-violet-600 dark:text-violet-400">
+    <c-n26.icon name="flag" class="{{ class }}" label="{{ label }}" stroke_width="2" />
+</span>

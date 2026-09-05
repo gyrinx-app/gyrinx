@@ -61,14 +61,20 @@ Whoever draws this owns the gang. There is no reader-facing shape.
         {% endif %}
         {% comment %}
         A plain form, drawn whenever the founding action is not open,
-        whatever else the gang has going on.
+        whatever else the gang has going on. The button names what the
+        owner gets rather than the state it puts the gang in, and carries
+        the founding mark, so the control and the figures it brings out
+        read as one feature.
         {% endcomment %}
         {% if square.start_founding %}
             <form method="post" action="{{ square.start_founding }}">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="start">
                 <c-ui.button type="submit" size="xs" variant="default">
-                    Start the Found and equip gang action
+                    <span class="flex items-center gap-1.5">
+                        <c-n26.founding-mark class="size-4" />
+                        Equip the gang using founding Trade Points
+                    </span>
                 </c-ui.button>
             </form>
         {% endif %}

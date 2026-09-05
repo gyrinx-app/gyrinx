@@ -6,16 +6,62 @@ where a reader finds that out.
 Under the rail rather than over the rows, because it is a fact about the list
 you are on and not about anything in it. Wants `trade_points_href`, so it draws
 nothing for a reader who could not act on it anyway.
+
+`founding_blocks_visit` shuts the way in while the gang is part-way through
+founding, as it does on the stash card: a gang holds one action of each kind,
+so the button is drawn dead with a tooltip rather than leading to a page that
+would refuse. Worked out in the view, never here.
 {% endcomment %}
 {% if trade_points_href %}
     <div class="self-start rounded-box border border-box-border p-3">
         <p class="text-sm font-medium text-ink-900 dark:text-ink-100">Not tracking TP</p>
         <p class="mt-0.5 text-xs text-muted">Start a Trading Post visit to set up &amp; track TP.</p>
-        <c-ui.button size="xs"
-                     variant="primary"
-                     href="{{ trade_points_href }}"
-                     class="mt-2">
-            Set up TP visit →
-        </c-ui.button>
+        {% comment %}
+        The spacing sits on a wrapper: the kit's tooltip draws none of the
+        attributes it is passed, so a class given to it is silently dropped.
+
+        Subtle rather than primary while it is dead. The kit's disabled
+        styling is a small drop in opacity, and a primary variant keeps its
+        hover colour under a pointer whatever the disabled attribute says —
+        so painted primary the control still reads as live.
+
+        The dead button is wrapped and made pointer-events-none, as the
+        Trade Points page wraps its own: a disabled control emits no mouse
+        events, so left bare it is the pointer's target and the tooltip
+        around it never opens.
+
+        The reason is written once and drawn twice: the kit's tooltip opens
+        on a pointer and gives its content no id, so a reader who is not
+        using one would get a dead button and no reason at all. The second
+        copy is the button's description, off screen.
+        {% endcomment %}
+        {% if founding_blocks_visit %}
+            {% with reason="You can have only one of these actions open at a time. Complete Found and equip gang first." %}
+                <div class="mt-2">
+                    <c-ui.tooltip size="sm">
+                        <span class="inline-block cursor-not-allowed">
+                            <c-ui.button size="xs"
+                                         variant="subtle"
+                                         class="pointer-events-none"
+                                         aria-describedby="n26-visit-shut-rail"
+                                         disabled>
+                                Set up Trading Post visit →
+                            </c-ui.button>
+                        </span>
+                        <c-slot name="content">
+                            {{ reason }}
+                        </c-slot>
+                    </c-ui.tooltip>
+                    <span id="n26-visit-shut-rail" class="sr-only">{{ reason }}</span>
+                </div>
+            {% endwith %}
+        {% else %}
+            <c-ui.button size="xs"
+                         variant="primary"
+                         href="{{ trade_points_href }}"
+                         class="mt-2">
+                Set up Trading Post visit →
+            </c-ui.button>
+        {% endif %}
     </div>
 {% endif %}

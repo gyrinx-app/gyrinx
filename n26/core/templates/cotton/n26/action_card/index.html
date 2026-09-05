@@ -17,6 +17,9 @@ has started, so the way to start one belongs to whatever holds the card.
 The button posts `act` to the card's own address; nothing here is a link,
 because following one must never start or end an action.
 
+The founding mark, the sentence under the title and the tally are all read off
+the card, so a caller cannot draw one action's identity onto another.
+
   :card — a n26.core.actions.ActionCard.
   :boxed — False draws the contents with no card and a plainer title.
   body — drawn between the tally and the button, for what one action has that
@@ -29,7 +32,11 @@ because following one must never start or end an action.
     <c-ui.card class="{{ class }}">
         <c-slot name="header">
             <p class="text-xs font-semibold uppercase tracking-wide text-muted">Action</p>
-            <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">{{ card.title }}</h2>
+            <h2 class="flex items-center gap-2 text-lg font-semibold text-ink-900 dark:text-ink-100">
+                {% if card.marked %}<c-n26.founding-mark class="size-5" />{% endif %}
+                {{ card.title }}
+            </h2>
+            {% if card.about %}<p class="mt-1 text-sm text-muted">{{ card.about }}</p>{% endif %}
         </c-slot>
         <c-n26.action-card.body :card="card">{{ body }}</c-n26.action-card.body>
     </c-ui.card>
@@ -37,13 +44,19 @@ because following one must never start or end an action.
     {% comment %}
     Unboxed, the title carries a badge saying this is the action in
     progress, and the button is the small size the square's other
-    controls use, so the square reads as one set.
+    controls use, so the square reads as one set. The sentence under it
+    is the same size as the help by the button: both are prose about the
+    action rather than part of the title.
     {% endcomment %}
     <div class="{{ class }}">
-        <div class="mb-2 flex flex-wrap items-center gap-2">
-            <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-100">{{ card.title }}</h3>
+        <div class="mb-1 flex flex-wrap items-center gap-2">
+            <h3 class="flex items-center gap-1.5 text-sm font-semibold text-ink-900 dark:text-ink-100">
+                {% if card.marked %}<c-n26.founding-mark class="size-4" />{% endif %}
+                {{ card.title }}
+            </h3>
             <c-ui.badge color="ink" size="sm">Current action</c-ui.badge>
         </div>
-        <c-n26.action-card.body :card="card" button_size="xs">{{ body }}</c-n26.action-card.body>
+        {% if card.about %}<p class="mb-2 text-xs text-muted">{{ card.about }}</p>{% endif %}
+        <c-n26.action-card.body :card="card" button_size="xs" help_size="xs">{{ body }}</c-n26.action-card.body>
     </div>
 {% endif %}
