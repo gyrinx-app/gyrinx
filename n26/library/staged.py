@@ -34,8 +34,8 @@ release.
 
 from n26 import flags
 
-#: Where the flag's answer is kept on the user for the rest of the request.
-_ANSWERED = "_sees_staged"
+#: Where the flag's reading is kept on the user for the rest of the request.
+_KEPT_ON_USER = "_sees_staged"
 
 
 def sees_staged(user) -> bool:
@@ -54,11 +54,11 @@ def sees_staged(user) -> bool:
         return False
     if user.is_staff:
         return True
-    answered = getattr(user, _ANSWERED, None)
-    if answered is None:
-        answered = flags.enabled(flags.STAGED_CONTENT, user)
-        setattr(user, _ANSWERED, answered)
-    return answered
+    kept = getattr(user, _KEPT_ON_USER, None)
+    if kept is None:
+        kept = flags.enabled(flags.STAGED_CONTENT, user)
+        setattr(user, _KEPT_ON_USER, kept)
+    return kept
 
 
 def content_kinds():
