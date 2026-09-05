@@ -282,11 +282,17 @@ def gang_sheet(request, pk):
     leaving = _leaving(request, gang) if yours else None
     renaming = None if leaving or not yours else _renaming(request, gang)
     marking = None if leaving or renaming or not yours else _marking(request, gang)
+    ransoming = (
+        None
+        if leaving or renaming or marking or not yours
+        else _ransoming(request, gang)
+    )
     if (
         yours
         and not leaving
         and not renaming
         and not marking
+        and not ransoming
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
         host = EquipHost.stash(gang, card, at=at)
@@ -335,6 +341,7 @@ def gang_sheet(request, pk):
             "renaming": renaming,
             "leaving": leaving,
             "marking": marking,
+            "ransoming": ransoming,
             "dialog": dialog,
             # A gang founded without a budget never spent credits, so
             # there is nothing a refund could give back: its cards offer
@@ -391,6 +398,60 @@ def _marking(request, gang):
         stashable=any(refund_of(root)[1] > 0 for root in _kit_roots(miniature)),
         kit_lost_by_default=lost,
         kit_stashed=not lost,
+    )
+
+
+@dataclass(frozen=True)
+class Ransoming:
+    """The ransom question ``?ransom=`` opened: whose, who could be paid,
+    and what the gang has to pay with."""
+
+    miniature: object
+    #: ``(pk, name)`` for each other gang in the campaign; empty for a
+    #: gang playing none, who can still pay somebody not on Gyrinx.
+    payees: tuple
+    #: What the gang has left, or None where it spends freely.
+    credits: object
+    #: The D6 × 10 figures, for the radio.
+    amounts: tuple = tuple(range(10, 70, 10))
+
+
+def _payees(gang):
+    """``(pk, name)`` for each other gang in this gang's campaign — the
+    only gangs a ransom may be paid to. A gang playing no campaign has
+    none, and pays somebody not on Gyrinx."""
+    from n26.core.models import CampaignMembership
+
+    membership = (
+        CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+        .select_related("campaign")
+        .first()
+    )
+    if membership is None:
+        return ()
+    return tuple(
+        (str(other.gang_id), other.gang.name)
+        for other in CampaignMembership.objects.filter(
+            campaign=membership.campaign, left__isnull=True
+        )
+        .exclude(gang=gang)
+        .select_related("gang")
+        .order_by("gang__name")
+    )
+
+
+def _ransoming(request, gang):
+    """The model ``?ransom=`` says is being paid for, if it is on this
+    roster and held for ransom."""
+    from n26.core.status import Status
+
+    miniature = _fighter_named(request, gang, "ransom")
+    if miniature is None or miniature.status != Status.RANSOMED:
+        return None
+    return Ransoming(
+        miniature=miniature,
+        payees=_payees(gang),
+        credits=None if gang.credits_unlimited else gang.credits,
     )
 
 
@@ -637,6 +698,74 @@ def status_label_for(miniature):
 
     profile = miniature.membership.profile
     return label_for(miniature.status, profile.profile_type.name == "Vehicle")
+
+
+@login_required
+def pay_ransom(request, pk):
+    """Settle a ransom: pay it and the model comes back into Recovery, or
+    say it could not be paid and the model dies, kit to the stash.
+
+    The payment is a transfer to the gang named, or to nobody the app
+    knows; either way the credits leave and the history says why. A
+    payment the gang cannot afford is refused whole and the model stays
+    held for ransom — the owner then chooses the other button.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import Gang
+    from n26.core.operations import Refusal, operation, refund_of
+    from n26.core.status import Status
+    from n26.core.views.permissions import _own_miniature_or_404
+
+    miniature = _own_miniature_or_404(request, pk)
+    gang = miniature.membership.gang
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    if request.method != "POST":
+        return redirect(f"{sheet_url}?ransom={miniature.pk}")
+    if miniature.status != Status.RANSOMED:
+        messages.error(request, f"{miniature.name} is not held for ransom.")
+        return redirect(sheet_url)
+
+    outcome = request.POST.get("outcome", "")
+    try:
+        with operation(gang, actor=request.user) as op:
+            if outcome == "paid":
+                # Only what the dialog offered: a figure off the D6 × 10
+                # table, and a gang from the same campaign — a stranger's
+                # ledger is not this owner's to write to.
+                try:
+                    credits = int(request.POST.get("credits", ""))
+                except ValueError:
+                    credits = None
+                if credits not in Ransoming.amounts:
+                    raise Refusal("Select what the ransom came to.")
+                to = None
+                payee = request.POST.get("to", "")
+                if payee:
+                    if payee not in {pk for pk, _ in _payees(gang)}:
+                        raise Refusal("Select who was paid from the list.")
+                    to = Gang.objects.get(pk=payee)
+                op.transfer(
+                    to, credits, note=f"ransom for {miniature.name}", about=miniature
+                )
+                op.set_status(miniature, Status.RECOVERY, note="Ransom paid")
+            elif outcome == "unpaid":
+                for root in _kit_roots(miniature):
+                    if refund_of(root)[1] > 0:
+                        op.move(root, gang.stash, note=f"{miniature.name} died")
+                op.set_status(miniature, Status.DEAD, note="Ransom not paid")
+            else:
+                raise Refusal("Say whether the ransom was paid.")
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(f"{sheet_url}?ransom={miniature.pk}")
+    record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, ransom=outcome)
+    if outcome == "paid":
+        messages.success(
+            request, f"Ransom paid. {miniature.name} is back, In Recovery."
+        )
+    else:
+        messages.success(request, f"{miniature.name} is now Dead.")
+    return redirect(sheet_url)
 
 
 @login_required

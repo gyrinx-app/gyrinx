@@ -268,11 +268,7 @@ that said it twice would be spending the width the name needs.
         </c-slot>
         <c-slot name="members">
             {% for member in sheet.models %}
-                <c-n26.model-card :card="member"
-                                  mode="{{ card_mode }}"
-                                  notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
-                                  lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
-                                  status_href="{% if yours %}?status={{ member.id }}{% endif %}">
+                <c-n26.model-card :card="member" mode="{{ card_mode }}" notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" status_href="{% if yours %}{% if member.status == 'ransomed' %}?ransom={{ member.id }}{% else %}?status={{ member.id }}{% endif %}{% endif %}">
                     {% if yours %}
                         <c-slot name="actions">
                             <c-ui.button size="xs" variant="ghost" href="{% url 'n26-equip' member.id %}">
@@ -416,6 +412,56 @@ that said it twice would be spending the width the name needs.
                                             description="Nothing moves." />
                 </c-n26.radio-cards>
             {% endif %}
+        </c-n26.dialog>
+    {% endif %}
+    {% comment %}
+    The ransom dialog, when the URL names a model held for ransom. The
+    rules' D6 × 10 as a row of figures, who gets paid from the campaign's
+    other gangs — or nobody the app knows — and the two ways out: Pay, or
+    Could not pay, which the rules make a death with the kit to the stash.
+    {% endcomment %}
+    {% if ransoming %}
+        <c-n26.dialog title="Pay the ransom for {{ ransoming.miniature.name }}"
+                      action="{% url 'n26-pay-ransom' ransoming.miniature.pk %}"
+                      cancel_url="{% url 'n26-gang' gang.pk %}"
+                      submit_label="">
+            <c-slot name="lead">
+                D6 × 10 credits to the gang that captured them. Paid, they come
+                back In Recovery.{% if ransoming.credits is not None %} The gang has {{ ransoming.credits }}¢.{% endif %}
+            </c-slot>
+            {% csrf_token %}
+            <c-n26.radio-cards label="The ransom" name="credits">
+                {% for amount in ransoming.amounts %}
+                    <c-n26.radio-cards.card name="credits" value="{{ amount }}" label="{{ amount }}¢" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            <c-n26.radio-cards label="Paid to" name="to">
+                {% for pk, name in ransoming.payees %}
+                    <c-n26.radio-cards.card name="to" value="{{ pk }}" label="{{ name }}" />
+                {% endfor %}
+                <c-n26.radio-cards.card name="to"
+                                        value=""
+                                        label="A gang not on Gyrinx"
+                                        description="The credits leave; nobody here receives them."
+                                        :checked="True" />
+            </c-n26.radio-cards>
+            {% comment %}
+            Two acts and no default submit: paying and failing to pay are
+            both endings, so each is its own button and the form has no
+            other way to go.
+            {% endcomment %}
+            <c-slot name="actions">
+                <c-ui.button type="submit"
+                             name="outcome"
+                             value="unpaid"
+                             variant="danger"
+                             size="md">
+                    Could not pay — they die
+                </c-ui.button>
+                <c-ui.button type="submit" name="outcome" value="paid" variant="success" size="md">
+                    Pay
+                </c-ui.button>
+            </c-slot>
         </c-n26.dialog>
     {% endif %}
     {% if renaming %}

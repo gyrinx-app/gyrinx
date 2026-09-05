@@ -51,7 +51,10 @@ underlying spec.
 - The ledger is append-only, and folding an entry's events must
   reproduce the entry — `reconcile.check_entry` checks exactly that.
   Journal-only events stand outside the fold by construction: no entry,
-  no deltas. Every event is pinned to its gang at write.
+  no deltas. The one standalone event that moves money is a transfer
+  between gangs (`Kind.TRANSFERRED`, `Operation.transfer`): it has no
+  entry, and `reconcile.total_spent` reads its delta off the gang
+  directly. Every event is pinned to its gang at write.
 
 ## Reading player data
 
