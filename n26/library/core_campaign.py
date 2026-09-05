@@ -3,9 +3,9 @@
 Reputation is a counter every campaign type in the books tracks, so it
 ships in the system pack. The N26 core type declares the two asset kinds
 the core rules deal in — a Settlement every gang holds, and Territories
-held one at a time from a pool — and gives every member gang Reputation
-at 0 and a Settlement through its built-ins. See
-design/campaign-assets.md.
+held one at a time from a pool — with one Settlement asset under the
+Settlement kind, and gives every member gang Reputation at 0 and that
+Settlement through its built-ins. See design/campaign-assets.md.
 
 Everything is matched on its natural key and left alone if it is
 already there, so this can run against a database that has some of it,
@@ -85,10 +85,7 @@ def seed_core_campaign(apps):
         settlement = Asset.objects.create(
             pack=pack, name=SETTLEMENT, kind=kinds[SETTLEMENT]
         )
-        lines.append(f"created the {SETTLEMENT} asset")
-    if not campaign_type.assets.filter(pk=settlement.pk).exists():
-        campaign_type.assets.add(settlement)
-        lines.append(f"offered {SETTLEMENT} from {CAMPAIGN_TYPE}")
+        lines.append(f"created the {SETTLEMENT} asset under the {SETTLEMENT} kind")
 
     built_ins = campaign_type.built_ins
     if built_ins is None:

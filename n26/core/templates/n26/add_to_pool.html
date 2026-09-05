@@ -19,7 +19,7 @@ posts with no script and a redisplay after a failed submit keeps the pick.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-pool-add' campaign.pk %}"
                      title="Add to the pool"
-                     lead="One copy of an asset from the campaign's catalogue. Nobody holds it until you grant it."
+                     lead="One copy of an asset the campaign deals in. Nobody holds it until you grant it."
                      :form="form"
                      submit_label="Add to pool"
                      cancel_url="{% url 'n26-campaign-pool' campaign.pk %}">
@@ -42,7 +42,7 @@ posts with no script and a redisplay after a failed submit keeps the pick.
         <c-n26.form-section title="Asset">
             {% if assets %}
                 <c-n26.radio-cards label="Asset *"
-                                   description="The pooled assets this campaign offers."
+                                   description="The pooled assets of this campaign's type and its additions."
                                    :form="form"
                                    name="asset">
                     {% for asset in assets %}
@@ -55,7 +55,7 @@ posts with no script and a redisplay after a failed submit keeps the pick.
                 </c-n26.radio-cards>
             {% else %}
                 <c-ui.alert variant="info" title="Nothing to add">
-                    {{ campaign.campaign_type }} offers no pooled assets yet.
+                    {{ campaign.campaign_type }} and this campaign's additions have no pooled assets yet.
                 </c-ui.alert>
             {% endif %}
         </c-n26.form-section>

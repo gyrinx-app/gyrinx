@@ -2,10 +2,11 @@
 
 A **campaign type** is to a campaign what a gang type is to a gang: the
 authored thing it is founded on. It holds a built-in set (what every
-member gang gets), campaign-wide modifiers, its **asset kinds**, and the
-**assets** it offers (the catalogue). Shared types live in the system
-pack; an arbitrator's additions to one campaign live in that campaign's
-own pack as a second type layered on top. See design/campaign-assets.md.
+member gang gets), campaign-wide modifiers, and its **asset kinds**, each
+of which lists the **assets** of that kind. Shared types live in the
+system pack; an arbitrator's additions to one campaign live in that
+campaign's own pack as a second type layered on top. See
+design/campaign-assets.md.
 
 An **asset kind** is a row on the type with a label and a mode. The mode
 is on the kind rather than the asset because it is a whole class of
@@ -13,10 +14,13 @@ asset that behaves one way: a Settlement is given to every gang on
 joining and never staked; a Territory is a token in the campaign's pool
 with one holder at a time.
 
-An **asset** is one thing of one kind. It is assignable so that a
-held-one-each asset can be a built-in member and so that either mode
-can carry modifiers for what holding it does. A pooled asset is never
-assigned; the campaign's token records who holds it.
+An **asset** is one entry in a campaign type's list of what it hands
+out, filed under one of the type's kinds — that is the whole of how it
+belongs to the type, and it is authored on the type's page. It is
+assignable so that a held-one-each asset can be a built-in member and
+so that either mode can carry modifiers for what holding it does. A
+pooled asset is never assigned; the campaign's token records who holds
+it.
 """
 
 from django.db import models
@@ -41,21 +45,11 @@ class CampaignType(Content, Assignable):
     every member's card can find.
 
     It also declares its **asset kinds** — Territory, Racket, Settlement —
-    and lists the **assets** it offers. Its pricing fields stay at zero;
-    nobody buys a campaign type.
+    and under each kind lists the **assets** a campaign of this type hands
+    out. Its pricing fields stay at zero; nobody buys a campaign type.
     """
 
     family = Family.GANG
-
-    assets = models.ManyToManyField(
-        "library.Asset",
-        blank=True,
-        related_name="offered_by",
-        help_text=(
-            "The assets a campaign of this type can hand out. An asset can "
-            "be offered by several campaign types."
-        ),
-    )
 
     class Meta:
         verbose_name = "campaign type"
@@ -73,6 +67,23 @@ class CampaignType(Content, Assignable):
 
     def __str__(self):
         return self.name
+
+    @property
+    def assets(self):
+        """Every asset this type hands out: the assets of its kinds.
+
+        An asset belongs to one kind and the kind to one type, so this is
+        the whole relationship — there is no list on the type to keep in
+        step with it. Archived assets are included, as a plain read is;
+        a surface offering new copies narrows with ``unarchived()``.
+        """
+        return Asset.objects.filter(kind__campaign_type=self)
+
+    def pooled_assets(self):
+        """The assets a campaign of this type can put copies of in its
+        pool: those of its pooled kinds. A held-one-each asset is every
+        member gang's own and has no pool to sit in."""
+        return self.assets.filter(kind__mode=AssetKind.Mode.POOLED)
 
 
 class AssetKind(Content):
@@ -161,8 +172,10 @@ class Asset(Content, Assignable):
     """One thing a campaign deals in — a Settlement, the Old Ruins
     territory, a Racket — of one asset kind.
 
-    Its **income** is a figure drawn on the card; nothing collects it.
-    What holding it does for the holder rides it as ordinary modifiers.
+    An asset is one entry in the list of what its campaign type hands
+    out, and is added on that type's page under its kind. Its **income**
+    is a figure drawn on the card; nothing collects it. What holding it
+    does for the holder rides it as ordinary modifiers.
 
     Assignable so that an asset of a held-one-each kind can be built into
     its campaign type and arrive on every member gang, and so that an
@@ -176,7 +189,10 @@ class Asset(Content, Assignable):
         AssetKind,
         on_delete=models.PROTECT,
         related_name="assets",
-        help_text="Which asset kind this is. A kind belongs to one campaign type.",
+        help_text=(
+            "Which kind this asset is one of. Settled when the asset is made "
+            "on its campaign type's page, and never changed afterwards."
+        ),
     )
     income = models.PositiveIntegerField(
         default=0,

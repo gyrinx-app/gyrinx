@@ -302,16 +302,27 @@ class CampaignOperation:
     def add_asset(self, asset, name=""):
         """Put one copy of a pooled asset into the pool, held by nobody.
 
-        Only an asset of a pooled kind. A held-one-each asset is every
-        member gang's own, given on joining, and has no pool to sit in —
-        so one arriving here is a caller's mistake, not a choice a screen
-        offers. Nothing changes for any gang: a copy nobody holds is the
-        campaign's own act, and only its log carries it.
+        Only an asset of a pooled kind of this campaign's type or of its
+        additions. A held-one-each asset is every member gang's own, given
+        on joining, and has no pool to sit in; an asset of another type is
+        not one this campaign deals in — either arriving here is a caller's
+        mistake, not a choice a screen offers. Nothing changes for any
+        gang: a copy nobody holds is the campaign's own act, and only its
+        log carries it.
         """
         if not asset.kind.is_pooled:
             raise ValueError(
                 f"{asset} is of the kind {asset.kind}, which every gang holds one "
                 "of. Only a pooled kind has copies to add."
+            )
+        if asset.kind.campaign_type_id not in (
+            self.campaign.campaign_type_id,
+            self.campaign.additions_id,
+        ):
+            raise ValueError(
+                f"{asset} is of the kind {asset.kind}, which belongs to "
+                f"{asset.kind.campaign_type}, not to this campaign's type or "
+                "its additions."
             )
         token = CampaignAsset.objects.create(
             campaign=self.campaign, asset=asset, name=(name or "").strip()

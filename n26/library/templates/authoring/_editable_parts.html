@@ -5,28 +5,36 @@ no page of their own. Each form names its part in `part` and says in
 which form was clicked. Removing stays a page of its own, as it is for
 every part, because what the act reaches cannot be read off the row.
 
-Takes `section`, whose parts each carry an `edit_form`.
+A part may hold things of its own — the assets of an asset kind — which
+are listed and added under it, in the same box but outside its form,
+because a form cannot hold another form.
+
+Takes `section`, whose parts each carry an `edit_form` and maybe `under`.
 {% endcomment %}
 <div class="space-y-4">
     {% for part in section.parts %}
-        <form method="post"
-              class="rounded-box border border-box-border p-4"
-              id="part-{{ part.pk }}">
-            {% csrf_token %}
-            <input type="hidden" name="act" value="edit-part">
-            <input type="hidden" name="part" value="{{ part.pk }}">
-            <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <span class="font-medium">{{ part.label }}</span>
-                <span class="text-sm text-muted">{{ part.notes|join:" · " }}</span>
-            </div>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">{% include "authoring/_form.html" with form=part.edit_form %}</div>
-            <c-n26.form-actions submit_label="Save" size="sm" class="mt-4">
-                {% if part.remove_url %}
-                    <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
-                        Remove
-                    </c-ui.button>
-                {% endif %}
-            </c-n26.form-actions>
-        </form>
+        <div class="rounded-box border border-box-border p-4"
+             id="part-{{ part.pk }}">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="edit-part">
+                <input type="hidden" name="part" value="{{ part.pk }}">
+                <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <span class="font-medium">{{ part.label }}</span>
+                    <span class="text-sm text-muted">{{ part.notes|join:" · " }}</span>
+                </div>
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">{% include "authoring/_form.html" with form=part.edit_form %}</div>
+                <c-n26.form-actions submit_label="Save" size="sm" class="mt-4">
+                    {% if part.remove_url %}
+                        <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                            Remove
+                        </c-ui.button>
+                    {% endif %}
+                </c-n26.form-actions>
+            </form>
+            {% if part.under %}
+                {% include "authoring/_under_part.html" with under=part.under %}
+            {% endif %}
+        </div>
     {% endfor %}
 </div>

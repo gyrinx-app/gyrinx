@@ -86,6 +86,17 @@ LEAF_KINDS = {
 RETIRED_KINDS = frozenset({"affiliation"})
 
 
+#: Kinds made on another kind's page rather than from the menu. An asset
+#: is one entry in a campaign type's list of what it hands out, filed
+#: under one of the type's kinds, so it is added there, under that kind;
+#: a menu entry, a listing and a create page of its own would offer the
+#: same thing a second way, from a page that cannot say which kind. Each
+#: row keeps a page of its own — reached from the parent's — for its
+#: modifiers and the rest of its fields, and its breadcrumb runs through
+#: the parent's kind rather than a listing it does not have.
+NESTED_KINDS = frozenset({"asset"})
+
+
 #: Kinds whose page is a place you come back to: the thing, and the
 #: parts you add to it over time. ``kind -> the verb that adds a part``.
 def _describe_weapon_profile(profile):
@@ -164,19 +175,28 @@ def _describe_built_in(member):
 
 def _describe_asset_kind(kind):
     """One class of asset a campaign type deals in: what several are
-    called, how the kind behaves, and how many assets are of it — the
-    count being what an author has to clear before the kind can go.
+    called and how the kind behaves. Its assets are not counted here —
+    they are listed under it on the same page."""
+    return kind.label_singular, [kind.plural, kind.get_mode_display().lower()]
 
-    Reads the assets with ``.all()``, so a page that prefetched them
-    describes every kind of a type without a query per row.
+
+def _describe_asset(asset):
+    """One asset under its kind: the income figure its card prints, and
+    how many modifiers ride it — what those do is read on the asset's own
+    page, which the name leads to.
+
+    Reads the modifiers with ``.all()``, so a page that prefetched them
+    describes every asset of a type without a query per row.
     """
-    count = len(kind.assets.all())
-    notes = [kind.plural, kind.get_mode_display().lower()]
+    notes = []
+    if asset.income:
+        notes.append(f"income {asset.income}cr")
+    count = len(asset.modifiers.all())
     if count == 0:
-        notes.append("no assets yet")
+        notes.append("no modifiers")
     else:
-        notes.append(f"{count} asset" if count == 1 else f"{count} assets")
-    return kind.label_singular, notes
+        notes.append(f"{count} modifier" if count == 1 else f"{count} modifiers")
+    return _label_for(asset), notes
 
 
 def _describe_picklist_member(member):
@@ -365,13 +385,14 @@ DETAIL_KINDS = {
         "parts": "asset_kinds",
         "statline": False,
         "describe": _describe_asset_kind,
-        "parts_hint": lambda parts: parts.prefetch_related("assets"),
+        "parts_hint": lambda parts: parts.prefetch_related("assets__modifiers"),
         "parts_label": "asset kinds",
         "part_name": "asset kind",
         "parts_description": (
             "The classes of asset a campaign of this type deals in — "
             "Territory, Racket, Settlement. Each has a label a campaign page "
-            "prints, and a mode every asset of the kind follows."
+            "prints, and a mode every asset of the kind follows. The assets "
+            "themselves are listed under their kind, and added there."
         ),
         "nothing_yet": (
             "No asset kinds yet. A campaign of this type has nothing to hand "
@@ -380,6 +401,28 @@ DETAIL_KINDS = {
         # An asset kind has no page of its own: its four fields are
         # edited in place, on the row that lists it.
         "editable": True,
+        # Under each kind, the assets of it, and the form that adds one
+        # more. An asset is one entry in the type's list, so it is made
+        # here rather than from the menu: the kind is the carrier its form
+        # is handed, and the asset joins the type's pack.
+        "under_each": {
+            "act": "add-asset",
+            "verb": "create_asset",
+            "parts": "assets",
+            # The spec field the carrier answers, so the form does not ask
+            # it — the kind is settled by which block the author typed in.
+            "carrier_field": "kind",
+            # What the form asks here. The rest of an asset's fields are
+            # edited on its own page, which its name leads to.
+            "fields": ("name", "annotation", "income"),
+            "describe": _describe_asset,
+            "opens": lambda asset: reverse(
+                "authoring-detail", args=["asset", asset.pk]
+            ),
+            "parts_label": lambda kind: kind.plural,
+            "part_name": lambda kind: kind.label_singular,
+            "nothing_yet": lambda kind: f"No {kind.plural} yet.",
+        },
         # Taking a kind off is refused while any asset is of it, and the
         # refusal needs a page: a row's control cannot say what stands
         # in the way.
@@ -944,29 +987,20 @@ def _describe_gang_type(gang_type):
 
 def _describe_campaign_type(campaign_type):
     """A campaign type, as a listing needs to tell one from the next:
-    the kinds of asset it deals in and how many assets it offers.
+    the kinds of asset it deals in and how many assets it hands out.
 
-    Reads both sets with ``.all()``, so a listing that prefetched them
-    describes every type without a query per row.
+    Reads the kinds and their assets with ``.all()``, so a listing that
+    prefetched them describes every type without a query per row.
     """
-    kinds = [kind.plural for kind in campaign_type.asset_kinds.all()]
-    count = len(campaign_type.assets.all())
-    notes = [", ".join(kinds) if kinds else "no asset kinds yet"]
+    kinds = list(campaign_type.asset_kinds.all())
+    count = sum(len(kind.assets.all()) for kind in kinds)
+    notes = [
+        ", ".join(kind.plural for kind in kinds) if kinds else "no asset kinds yet"
+    ]
     if count == 0:
-        notes.append("offers no assets yet")
+        notes.append("no assets yet")
     else:
-        notes.append(
-            f"offers {count} asset" if count == 1 else f"offers {count} assets"
-        )
-    return notes
-
-
-def _describe_asset(asset):
-    """An asset: which kind of which campaign type it is, and the income
-    figure its card prints."""
-    notes = [f"{asset.kind} ({asset.kind.campaign_type})"]
-    if asset.income:
-        notes.append(f"income {asset.income}cr")
+        notes.append(f"{count} asset" if count == 1 else f"{count} assets")
     return notes
 
 
@@ -1056,7 +1090,6 @@ LEAF_DESCRIBE = {
     "profile": _describe_profile,
     "gang-type": _describe_gang_type,
     "campaign-type": _describe_campaign_type,
-    "asset": _describe_asset,
     "slot-type": _describe_slot_type,
     "pickable": _describe_pickable,
     "picklist": _describe_picklist,
@@ -1099,10 +1132,8 @@ LEAF_LISTING_HINTS = {
         "members"
     ),
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
-    # A campaign type says its kinds and counts its catalogue; an asset
-    # says which kind of which type it is.
-    "campaign-type": lambda rows: rows.prefetch_related("asset_kinds", "assets"),
-    "asset": lambda rows: rows.select_related("kind__campaign_type"),
+    # A campaign type says its kinds and counts the assets under them.
+    "campaign-type": lambda rows: rows.prefetch_related("asset_kinds__assets"),
 }
 
 
@@ -1196,7 +1227,7 @@ def index(request):
     qualities, the kit, the gang-scale picks."""
     grouped = {family: [] for family in Family}
     for kind, verb_name in LEAF_KINDS.items():
-        if kind in RETIRED_KINDS:
+        if kind in RETIRED_KINDS or kind in NESTED_KINDS:
             continue
         model = _model_for(specs()[verb_name])
         grouped[model.family].append(
@@ -1342,6 +1373,8 @@ def leaf(request, kind):
     author checks content against, so it holds no form — making one is
     a button, and changing one is the row itself.
     """
+    if kind in NESTED_KINDS:
+        raise Http404(f"{kind!r} is listed on its parent's page, not on its own")
     spec = _spec_for(kind)
     model = _model_for(spec)
     describe = LEAF_DESCRIBE.get(kind, _describe_row)
@@ -1500,7 +1533,7 @@ def _selected(rows, pks):
 @staff_member_required
 def create(request, kind):
     """The form that makes one more of a leaf kind, on its own page."""
-    if kind in RETIRED_KINDS:
+    if kind in RETIRED_KINDS or kind in NESTED_KINDS:
         raise Http404(f"No authoring page for {kind!r}")
     spec = _spec_for(kind)
     model = _model_for(spec)
@@ -1760,12 +1793,20 @@ DETAIL_RELATED = {
 
 
 def _parent_of(kind, thing):
-    """The thing this one is filed under, for the bar that says so."""
+    """The thing this one is filed under, for the bar that says so — and
+    the parent kind's plural, which a kind with no listing of its own
+    puts in its breadcrumb where its own listing would go."""
     filed_under = DETAIL_PARENTS.get(kind)
     if filed_under is None:
         return None
     parent_kind, attribute = filed_under
-    return {"kind": parent_kind, "thing": getattr(thing, attribute)}
+    return {
+        "kind": parent_kind,
+        "thing": getattr(thing, attribute),
+        "verbose_name_plural": _model_for(
+            _spec_for(parent_kind)
+        )._meta.verbose_name_plural,
+    }
 
 
 def _related_sections(kind, thing):
@@ -1844,11 +1885,12 @@ def detail(request, kind, pk):
         ),
         None,
     )
+    under_act = _under_act(sections)
     if (
         request.method == "POST"
         and act
         and with_modifiers
-        and act not in ("edit", "edit-part")
+        and act not in ("edit", "edit-part", under_act)
         and posted_to is None
     ):
         response, composer = _modifier_action(request, kind, thing, act)
@@ -1861,6 +1903,15 @@ def detail(request, kind, pk):
     edited = None
     if request.method == "POST" and act == "edit-part":
         response, edited = _edit_part(request, kind, thing, sections)
+        if response is not None:
+            return response
+
+    # A thing added under one part posts its own form back here too,
+    # naming the part it goes under. Refused, the bound form takes the
+    # place of that part's add form.
+    added = None
+    if request.method == "POST" and under_act and act == under_act:
+        response, added = _add_under_part(request, kind, thing, sections)
         if response is not None:
             return response
 
@@ -1887,9 +1938,10 @@ def detail(request, kind, pk):
                 edit_form.add_error(None, refused)
             except IntegrityError:
                 named = spec.identity
+                noun = model._meta.verbose_name
                 edit_form.add_error(
                     named,
-                    f"A {model._meta.verbose_name} named "
+                    f"{_article_for(noun).capitalize()} {noun} named "
                     f"“{edit_form.cleaned_data[named]}” already exists in this pack.",
                 )
             else:
@@ -1963,6 +2015,10 @@ def detail(request, kind, pk):
                         # A part edited in place carries its own form; the
                         # one just refused keeps the form it was refused on.
                         "edit_form": _part_edit_form(section, part_spec, part, edited),
+                        # The things filed under this part, and the form
+                        # that adds one more — for a kind whose parts hold
+                        # things of their own.
+                        "under": _under_part(section, part, added),
                     },
                 )
             )
@@ -2031,6 +2087,7 @@ def detail(request, kind, pk):
             "kind": kind,
             "thing": thing,
             "parent": _parent_of(kind, thing),
+            "nested": kind in NESTED_KINDS,
             "related_sections": _related_sections(kind, thing),
             "prose": said,
             "verbose_name": model._meta.verbose_name,
@@ -2096,6 +2153,112 @@ def _edit_part(request, kind, thing, sections):
         else:
             said, _ = section["describe"](part)
             messages.success(request, f"Saved {said}.")
+            return redirect("authoring-detail", kind=kind, pk=thing.pk), None
+    return None, (str(part.pk), form)
+
+
+def _under_act(sections):
+    """The act a form adding a thing under one of these sections' parts
+    posts, or blank where no section holds things under its parts."""
+    section = next((one for one in sections if one.get("under_each")), None)
+    return section["under_each"]["act"] if section else ""
+
+
+def _under_form(under, carrier, data=None):
+    """The form that adds one thing under ``carrier``: the spec-generated
+    create form for that kind, asking only what the block asks.
+
+    The carrier fills one spec field itself, so that field is taken off
+    rather than offered as a picker with one possible value, and the
+    fields the block does not ask are left to the thing's own page.
+    Prefixed by the carrier, because a page draws one of these per part
+    and two forms naming a field alike would post as one another.
+    """
+    spec = specs()[under["verb"]]
+    form = generate_form(spec)(
+        data, carrier=carrier, prefix=f"{under['act']}-{carrier.pk}"
+    )
+    for name in list(form.fields):
+        if name not in under["fields"]:
+            form.fields.pop(name)
+    return form
+
+
+def _under_part(section, part, added):
+    """What one part holds under it, drawn: the rows, each leading to its
+    own page, and the form that adds one more — the one just refused,
+    where this is the part it was refused under, else a fresh one.
+    Nothing for a section whose parts hold nothing."""
+    under = section.get("under_each")
+    if under is None:
+        return None
+
+    def worded(value):
+        return value(part) if callable(value) else value
+
+    rows = []
+    for row in getattr(part, under["parts"]).all():
+        label, notes = under["describe"](row)
+        rows.append(
+            {
+                "pk": row.pk,
+                "label": label,
+                "notes": notes,
+                "href": _opens_url(under["opens"], row),
+            }
+        )
+    if added is not None and added[0] == str(part.pk):
+        form = added[1]
+    else:
+        form = _under_form(under, part)
+    # No article before the name: the name is a label an author typed,
+    # and the a/an rule only holds for the app's own words. The carrier's
+    # pk rides along so the partial that draws this needs nothing else.
+    return {
+        "act": under["act"],
+        "part_pk": part.pk,
+        "rows": rows,
+        "form": form,
+        "parts_label": worded(under["parts_label"]),
+        "part_name": str(worded(under["part_name"])),
+        "nothing_yet": worded(under["nothing_yet"]),
+    }
+
+
+def _add_under_part(request, kind, thing, sections):
+    """Write one thing under one of ``thing``'s parts.
+
+    Returns ``(response, refused)`` as ``_edit_part`` does: a redirect
+    when the thing was made, or ``(None, (part pk, bound form))`` when
+    it was refused and the page should redraw with the form's errors in
+    place. A post naming a part this thing does not have is a mistyped
+    address rather than an author's mistake.
+    """
+    section = next((one for one in sections if one.get("under_each")), None)
+    if section is None:
+        raise Http404("Nothing on this page holds things under its parts")
+    under = section["under_each"]
+    spec = specs()[under["verb"]]
+    part = get_object_or_404(
+        getattr(thing, section["parts"]).all(), pk=request.POST.get("part", "")
+    )
+    form = _under_form(under, part, request.POST)
+    if form.is_valid():
+        try:
+            with transaction.atomic():
+                made = spec.verb(**{under["carrier_field"]: part}, **form.verb_data())
+        except ValidationError as refused:
+            form.add_error(None, refused)
+        except IntegrityError:
+            named = spec.identity
+            noun = spec.creates._meta.verbose_name
+            form.add_error(
+                named,
+                f"{_article_for(noun).capitalize()} {noun} named "
+                f"“{form.cleaned_data[named]}” already exists in this pack.",
+            )
+        else:
+            messages.success(request, f"Added {made} under {part}.")
             return redirect("authoring-detail", kind=kind, pk=thing.pk), None
     return None, (str(part.pk), form)
 
@@ -2661,9 +2824,16 @@ def thing_delete(request, kind, pk):
     model = _model_for(spec)
     thing = get_object_or_404(model, pk=pk)
     back = reverse("authoring-detail", args=[kind, pk])
+    # Read before the delete: a kind with no listing of its own goes back
+    # to the page it was made on, and the row is what names that page.
+    parent = _parent_of(kind, thing) if kind in NESTED_KINDS else None
 
     if request.method == "POST":
         if _deleting(request, thing):
+            if parent is not None:
+                return redirect(
+                    "authoring-detail", kind=parent["kind"], pk=parent["thing"].pk
+                )
             return redirect("authoring-leaf", kind=kind)
         return redirect(request.path)
 

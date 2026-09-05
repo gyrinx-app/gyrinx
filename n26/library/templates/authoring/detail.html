@@ -23,9 +23,20 @@ thing twice, a line apart.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
-                    {{ verbose_name_plural|capfirst }}
-                </c-ui.breadcrumbs.item>
+                {% comment %}
+                A kind made on its parent's page has no listing of its
+                own, so the trail runs through the parent's kind instead:
+                Content library, Campaign types, the type, the asset.
+                {% endcomment %}
+                {% if nested %}
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' parent.kind %}">
+                        {{ parent.verbose_name_plural|capfirst }}
+                    </c-ui.breadcrumbs.item>
+                {% else %}
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
+                        {{ verbose_name_plural|capfirst }}
+                    </c-ui.breadcrumbs.item>
+                {% endif %}
                 {% comment %}
                 A kind filed under another names it here, which is the
                 only place some pages name it at all: a field settled

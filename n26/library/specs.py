@@ -248,8 +248,9 @@ class Spec:
     deprecated: bool = False
     #: Whether the verb writes its row into the pack of the carrier it is
     #: handed, rather than the default pack. A part that is part of its
-    #: carrier — an asset kind of a campaign type — says so, and the form
-    #: checking what the row may reference judges by that pack.
+    #: carrier — an asset kind of a campaign type, an asset of a kind —
+    #: says so, and the form checking what the row may reference judges
+    #: by that pack.
     joins_carrier_pack: bool = False
 
     @property
@@ -1110,16 +1111,12 @@ def _build_registry():
             },
         ),
         # The campaign surface: the type a campaign is founded on, the
-        # kinds of asset it deals in, and the assets themselves.
+        # kinds of asset it deals in, and under each kind the assets
+        # themselves.
         Spec(
             authoring.create_campaign_type,
             {
                 "name": Text(source=(CampaignType, "name")),
-                "assets": Many(
-                    model=Asset,
-                    source=(CampaignType, "assets"),
-                    replaced_by=authoring.set_assets,
-                ),
                 "qualifier": Text(source=(CampaignType, "qualifier")),
                 "library_author_help": Text(
                     source=(CampaignType, "library_author_help"), long=True
@@ -1138,18 +1135,22 @@ def _build_registry():
             identity="label_singular",
             joins_carrier_pack=True,
         ),
+        # An asset is made on its campaign type's page, under one of the
+        # type's kinds: the kind is the carrier the form is handed, fixed
+        # from then on, and the asset joins the type's pack.
         Spec(
             authoring.create_asset,
             {
                 "name": Text(source=(Asset, "name")),
                 "annotation": Text(source=(Asset, "annotation")),
-                "kind": One(model=AssetKind, source=(Asset, "kind")),
+                "kind": One(model=AssetKind, source=(Asset, "kind"), fixed=True),
                 "income": Int(source=(Asset, "income")),
                 "qualifier": Text(source=(Asset, "qualifier")),
                 "library_author_help": Text(
                     source=(Asset, "library_author_help"), long=True
                 ),
             },
+            joins_carrier_pack=True,
         ),
         Spec(
             authoring.create_profile,

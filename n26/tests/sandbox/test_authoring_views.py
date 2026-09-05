@@ -22,7 +22,7 @@ import pytest
 from django.contrib.auth.models import User
 
 from n26.library.specs import specs
-from n26.library.views import LEAF_KINDS, RETIRED_KINDS
+from n26.library.views import LEAF_KINDS, NESTED_KINDS, RETIRED_KINDS
 
 pytestmark = pytest.mark.django_db
 
@@ -81,20 +81,26 @@ class TestTheMenuIsBackedBySpecs:
                 f"model the verb makes."
             )
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    @pytest.mark.parametrize(
+        "kind", sorted(k for k in LEAF_KINDS if k not in NESTED_KINDS), ids=str
+    )
     def test_every_leaf_page_renders(self, kind, author, client, default_pack):
         response = client.get(f"/n26/authoring/{kind}/")
         assert response.status_code == 200
 
     @pytest.mark.parametrize(
-        "kind", sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS), ids=str
+        "kind",
+        sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS | NESTED_KINDS),
+        ids=str,
     )
     def test_every_kind_has_a_create_page(self, kind, author, client, default_pack):
         response = client.get(f"/n26/authoring/{kind}/new/")
         assert response.status_code == 200
 
     @pytest.mark.parametrize(
-        "kind", sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS), ids=str
+        "kind",
+        sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS | NESTED_KINDS),
+        ids=str,
     )
     def test_no_switch_is_handed_a_value_javascript_cannot_read(
         self, kind, author, client, default_pack
@@ -107,7 +113,9 @@ class TestTheMenuIsBackedBySpecs:
         assert "switchInput(false, none)" not in body
         assert "switchInput(false, None)" not in body
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    @pytest.mark.parametrize(
+        "kind", sorted(k for k in LEAF_KINDS if k not in NESTED_KINDS), ids=str
+    )
     def test_every_leaf_page_renders_with_rows_in_it(
         self, kind, author, client, default_pack
     ):
