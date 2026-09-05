@@ -20,7 +20,7 @@
                 <i class="bi-file-earmark fs-5 d-none d-sm-block" aria-hidden="true"></i>
                 <div>
                     <div class="fw-medium">Empty campaign</div>
-                    <div class="text-secondary fs-7">Add your own assets, resources and attributes once it exists.</div>
+                    <div class="text-secondary fs-7">Add your own assets, resources and attributes after you create it.</div>
                 </div>
                 <c-btn variant="primary"
                        class="ms-sm-auto flex-shrink-0"
@@ -58,12 +58,12 @@
                                size="sm"
                                class="flex-shrink-0"
                                href="{{ campaign.use_url }}">
-                            Use this <i class="bi-arrow-right"></i>
+                            Use this template <i class="bi-arrow-right"></i>
                         </c-btn>
                     </div>
                 </c-box>
             {% empty %}
-                <div class="text-secondary fs-7">No templates yet.</div>
+                <div class="text-secondary fs-7">No campaign templates yet.</div>
             {% endfor %}
         </div>
     </div>
