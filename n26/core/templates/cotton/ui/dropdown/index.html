@@ -26,6 +26,7 @@ Every other prop is the kit's, unchanged.
               scroll box, for a caller that scrolls something inside it.
               Two nested overflow-y-auto boxes hand a touch gesture to
               the page on a phone.
+  scriptless  Keep the menu visible without JavaScript and hide its trigger.
 {% endcomment %}
 <c-vars
   position="bottom"
@@ -37,6 +38,7 @@ Every other prop is the kit's, unchanged.
   :collapsible="False"
   strategy="absolute"
   overflow="auto"
+  :scriptless="False"
 />
 
 <div
@@ -44,6 +46,7 @@ Every other prop is the kit's, unchanged.
   x-init="position = '{{ position }}'; align = '{{ align }}'; offset = {{ offset }}; responsive = {{ auto_position|lower }}; collapsible = {{ collapsible|lower }} || !!$root.closest('[data-dropdown-collapse]');{% if strategy == 'fixed' %} positionDropdown = () => window.n26PositionMenu($refs.trigger, $refs.content, { position, align, offset, flip: responsive, collapsible });{% endif %} $watch('dropdownMenu', value => { if (value) positionDropdown() })"
   x-bind="root"
   @dropdown-close="close()"
+  {% if scriptless %}data-dropdown-scriptless{% endif %}
   {{ attrs }}
   class="relative inline-block">
 
@@ -97,3 +100,11 @@ Every other prop is the kit's, unchanged.
     {{ slot }}
   </div>
 </div>
+{% if scriptless %}
+  <noscript>
+    <style>
+      [data-dropdown-scriptless] > [x-ref="trigger"] { display: none !important; }
+      [data-dropdown-scriptless] > [x-ref="content"][x-cloak] { display: block !important; }
+    </style>
+  </noscript>
+{% endif %}

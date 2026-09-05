@@ -153,7 +153,7 @@ that said it twice would be spending the width the name needs.
                                  href="{% url 'n26-print-setup' gang.pk %}">
                         Print
                     </c-ui.button>
-                    <c-ui.dropdown>
+                    <c-ui.dropdown :scriptless="True">
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">
                                 <span class="n26-icon-only gap-0.5">
@@ -193,7 +193,7 @@ that said it twice would be spending the width the name needs.
                                  href="{% url 'n26-print-setup' gang.pk %}">
                         Print
                     </c-ui.button>
-                    <c-ui.dropdown>
+                    <c-ui.dropdown :scriptless="True">
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">
                                 <span class="n26-icon-only gap-0.5">

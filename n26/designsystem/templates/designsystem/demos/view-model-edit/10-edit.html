@@ -11,7 +11,7 @@
         <c-n26.gang-figures :gang="gang" :summary="sample_roster_summary" />
     </c-slot>
     <c-slot name="tab_actions">
-        <c-ui.dropdown align="end">
+        <c-ui.dropdown align="end" :scriptless="True">
             <c-slot name="trigger">
                 <c-ui.button size="sm" variant="default" aria-label="More actions">
                     <span class="n26-icon-only gap-0.5">
