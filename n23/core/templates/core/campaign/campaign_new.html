@@ -10,9 +10,13 @@
         <h1 class="h3">Create a new Campaign</h1>
         {% if template_campaign %}
             <c-box class="vstack gap-2">
-                <div>
-                    <i class="bi-stars" aria-hidden="true"></i>
-                    Based on <a href="{% url 'core:campaign' template_campaign.id %}" class="linked">{{ template_campaign.name }}</a>
+                <div class="d-flex align-items-start gap-2">
+                    <div class="flex-grow-1">
+                        <i class="bi-stars" aria-hidden="true"></i>
+                        Based on <a href="{% url 'core:campaign' template_campaign.id %}" class="linked">{{ template_campaign.name }}</a>
+                    </div>
+                    <a href="{{ change_template_url }}"
+                       class="linked-secondary fs-7 flex-shrink-0">Change template</a>
                 </div>
                 {% if template_contents %}
                     <div class="fs-7 text-secondary vstack gap-1">
@@ -24,12 +28,13 @@
                         {% endfor %}
                     </div>
                 {% endif %}
-                <div class="fs-7">
-                    <a href="{% url 'core:campaigns-new' %}" class="linked-secondary">Start from scratch instead</a>
-                </div>
             </c-box>
+        {% elif has_template_campaigns %}
+            <div class="fs-7">
+                <a href="{{ change_template_url }}" class="linked">Start from a template instead</a>
+            </div>
         {% endif %}
-        <form action="{% url 'core:campaigns-new' %}{% if template_campaign %}?template={{ template_campaign.id }}{% endif %}"
+        <form action="{% url 'core:campaigns-new' %}?{% if template_campaign %}template={{ template_campaign.id }}{% else %}skip_template=1{% endif %}"
               method="post"
               class="vstack gap-3">
             {% csrf_token %}

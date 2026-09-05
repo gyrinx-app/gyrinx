@@ -10,7 +10,13 @@ Expects `campaign` in context.{% endcomment %}
             <div>
                 <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}" class="linked">{{ campaign.owner }}</a>{% user_badge campaign.owner %}
             </div>
-            {% if not campaign.archived %}
+            {% if campaign.template %}
+                <div>
+                    <c-badge variant="info">
+                        Template
+                    </c-badge>
+                </div>
+            {% elif not campaign.archived %}
                 <div>{% include "core/campaign/includes/status.html" with campaign=campaign %}</div>
             {% endif %}
             <div class="text-secondary fs-7" title="Stars">

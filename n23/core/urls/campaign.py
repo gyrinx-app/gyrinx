@@ -20,6 +20,11 @@ from ..views.campaign import views as campaign_views
 patterns = [
     path("campaigns/", campaign_views.Campaigns.as_view(), name="campaigns"),
     path("campaigns/new/", campaign_crud.new_campaign, name="campaigns-new"),
+    path(
+        "campaigns/new/template",
+        campaign_crud.new_campaign_template,
+        name="campaigns-new-template",
+    ),
     path("campaign/<id>", campaign_views.CampaignDetailView.as_view(), name="campaign"),
     path("campaign/<id>/edit/", campaign_crud.edit_campaign, name="campaign-edit"),
     path(

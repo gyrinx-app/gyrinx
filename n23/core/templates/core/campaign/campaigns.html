@@ -15,25 +15,66 @@
                 {% endif %}
             </p>
         </div>
-        <div class="grid">
-            {% url 'core:campaigns' as action %}
-            {% include "core/includes/campaigns_filter.html" with action=action status_choices=status_choices show_sort=True %}
-        </div>
+        {% comment %}
+            The search and the campaign list share one column; templates and pins
+            are its sibling column, so at xl they sit right-aligned beside the
+            list and below xl `order-1` lifts them above the search. The templates
+            block collapses to its header on that stacked layout to keep the list
+            within reach — `d-xl-block` beats `.collapse`'s display:none, so at xl
+            it is always open and the toggle is hidden.
+        {% endcomment %}
         <div class="row g-4">
             <div class="col-12 col-xl-8 order-2 order-xl-1 vstack gap-4">
-                {% for campaign in campaigns %}
-                    {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
-                {% empty %}
-                    <div class="py-2">No campaigns available.</div>
-                {% endfor %}
-                {% include "core/includes/pagination.html" %}
-            </div>
-            {% if pinned_campaigns %}
-                <div class="col-12 col-xl-4 order-1 order-xl-2 vstack gap-4">
-                    <div class="caps-label">Pinned</div>
-                    {% for campaign in pinned_campaigns %}
+                <div class="grid">
+                    {% url 'core:campaigns' as action %}
+                    {% include "core/includes/campaigns_filter.html" with action=action status_choices=status_choices show_sort=True %}
+                </div>
+                <div class="vstack gap-4">
+                    {% for campaign in campaigns %}
                         {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
+                    {% empty %}
+                        <div class="py-2">No campaigns available.</div>
                     {% endfor %}
+                    {% include "core/includes/pagination.html" %}
+                </div>
+            </div>
+            {% if template_campaigns or pinned_campaigns %}
+                <div class="col-12 col-xl-4 order-1 order-xl-2 vstack gap-4">
+                    {% if template_campaigns %}
+                        <div>
+                            <c-btn variant="link"
+                                   type="button"
+                                   class="d-xl-none w-100 p-0 text-start text-decoration-none d-flex align-items-center"
+                                   data-bs-toggle="collapse"
+                                   data-bs-target="#campaign-templates"
+                                   aria-expanded="false"
+                                   aria-controls="campaign-templates">
+                                <span class="caps-label">Start with a template <i class="bi-arrow-right" aria-hidden="true"></i></span>
+                                <i class="bi-chevron-down ms-auto"
+                                   data-gy-collapse-icon="campaign-templates"
+                                   aria-hidden="true"></i>
+                            </c-btn>
+                            <div class="d-none d-xl-block caps-label">
+                                Start with a template <i class="bi-arrow-right" aria-hidden="true"></i>
+                            </div>
+                            <div class="collapse d-xl-block" id="campaign-templates">
+                                <div class="text-secondary fs-7 mt-1">Each one comes with assets and resources already set up.</div>
+                                <div class="vstack gap-3 mt-3">
+                                    {% for campaign in template_campaigns %}
+                                        {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if pinned_campaigns %}
+                        <div class="vstack gap-4">
+                            <div class="caps-label">Pinned</div>
+                            {% for campaign in pinned_campaigns %}
+                                {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
             {% endif %}
         </div>

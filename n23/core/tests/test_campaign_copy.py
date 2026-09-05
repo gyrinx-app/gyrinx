@@ -1490,3 +1490,276 @@ def test_template_lost_mid_form_still_shows_field_errors(
     assert "That template is no longer available" in content
     assert "This field is required." in content
     assert response.context["form"].errors
+
+
+# --- Template interstitial ---
+
+
+@pytest.mark.django_db
+def test_new_campaign_redirects_to_the_template_interstitial(
+    client, user, template_campaign
+):
+    """A bare GET goes to the template step first, like /lists/new does."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaigns-new-template")
+
+
+@pytest.mark.django_db
+def test_new_campaign_redirect_carries_a_typed_name(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new") + "?name=Hive+War")
+
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaigns-new-template") + "?name=Hive+War"
+
+
+@pytest.mark.django_db
+def test_new_campaign_skips_the_interstitial_when_there_are_no_templates(client, user):
+    """With nothing to offer, the detour would be a dead end."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new"))
+
+    assert response.status_code == 200
+    assert response.context["template_campaign"] is None
+
+
+@pytest.mark.django_db
+def test_skip_template_reaches_the_form(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new") + "?skip_template=1")
+
+    assert response.status_code == 200
+    assert response.context["template_campaign"] is None
+
+
+@pytest.mark.django_db
+def test_choosing_a_template_bypasses_the_interstitial(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+    )
+
+    assert response.status_code == 200
+    assert response.context["template_campaign"] == template_campaign
+
+
+@pytest.mark.django_db
+def test_start_from_scratch_link_does_not_bounce_back(client, user, template_campaign):
+    """The escape hatch must carry skip_template, or it loops to the interstitial."""
+    client.force_login(user)
+
+    interstitial = client.get(reverse("core:campaigns-new-template"))
+    skip_url = interstitial.context["skip_url"]
+
+    assert client.get(skip_url).status_code == 200
+
+
+@pytest.mark.django_db
+def test_posting_is_never_bounced_to_the_interstitial(client, user, template_campaign):
+    """The skip branch posts with no query string; the guard is GET-only."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new"),
+        {"name": "Posted Bare", "summary": "", "narrative": "", "budget": 1500},
+    )
+
+    campaign = Campaign.objects.get(name="Posted Bare")
+    assert not campaign.asset_types.exists()
+
+
+@pytest.mark.django_db
+def test_interstitial_offers_each_template_with_its_contents(
+    client, user, template_campaign
+):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template"))
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    assert [c.id for c in response.context["template_campaigns"]] == [
+        template_campaign.id
+    ]
+    assert template_campaign.name in content
+    # The contents summary is why this page exists rather than a list of names.
+    assert "Territories (1)" in content
+    assert "Meat" in content
+
+
+@pytest.mark.django_db
+def test_interstitial_use_link_starts_the_form_on_that_template(
+    client, user, template_campaign
+):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template"))
+    use_url = response.context["template_campaigns"][0].use_url
+
+    followed = client.get(use_url)
+    assert followed.status_code == 200
+    assert followed.context["template_campaign"] == template_campaign
+
+
+@pytest.mark.django_db
+def test_interstitial_threads_a_name_onto_every_link(client, user, template_campaign):
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template") + "?name=Hive+War")
+
+    assert "name=Hive+War" in response.context["skip_url"]
+    assert "name=Hive+War" in response.context["template_campaigns"][0].use_url
+    carried = client.get(response.context["skip_url"])
+    assert carried.context["form"]["name"].value() == "Hive War"
+
+
+@pytest.mark.django_db
+def test_interstitial_hides_archived_templates(client, user, template_campaign):
+    template_campaign.archived = True
+    template_campaign.save()
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns-new-template"))
+
+    assert list(response.context["template_campaigns"]) == []
+
+
+# --- Templates on the campaigns index ---
+
+
+@pytest.mark.django_db
+def test_campaigns_index_lists_templates(client, user, template_campaign):
+    """Templates are non-public, so the visibility filter never reaches them."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns"))
+
+    assert [c.id for c in response.context["template_campaigns"]] == [
+        template_campaign.id
+    ]
+    assert template_campaign.name in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_campaigns_index_lists_templates_for_anonymous_visitors(
+    client, template_campaign
+):
+    """Signed out too — the templates are curated content, not anyone's game."""
+    response = client.get(reverse("core:campaigns"))
+
+    assert [c.id for c in response.context["template_campaigns"]] == [
+        template_campaign.id
+    ]
+
+
+@pytest.mark.django_db
+def test_campaigns_index_hides_archived_templates(client, user, template_campaign):
+    template_campaign.archived = True
+    template_campaign.save()
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns"))
+
+    assert list(response.context["template_campaigns"]) == []
+
+
+@pytest.mark.django_db
+def test_a_public_template_is_not_listed_twice_on_the_page(
+    client, user, template_campaign
+):
+    """The sidebar is a template's one home, whatever its public flag says.
+
+    Campaign.public defaults to True, so a template created without thinking
+    about it would otherwise show in both the browse list and the sidebar.
+    """
+    assert template_campaign.public
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns") + "?my=0")
+
+    assert template_campaign.id not in [c.id for c in response.context["campaigns"]]
+    assert template_campaign.id in [
+        c.id for c in response.context["template_campaigns"]
+    ]
+
+
+@pytest.mark.django_db
+def test_the_owner_still_sees_their_own_template_in_their_list(
+    client, user, template_campaign
+):
+    """Excluding templates from browse must not hide one from whoever owns it."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns") + "?my=1")
+
+    assert template_campaign.id in [c.id for c in response.context["campaigns"]]
+
+
+@pytest.mark.django_db
+def test_a_template_row_is_badged_as_one(client, user, template_campaign):
+    """Otherwise a template is indistinguishable from a campaign someone plays."""
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert "text-bg-info" in content
+
+
+@pytest.mark.django_db
+def test_the_templates_column_sorts_above_the_search_below_xl(
+    client, user, template_campaign
+):
+    """Templates are a sibling column of the one holding the search and the list.
+
+    Source order puts the search column first so it leads at xl; the flex
+    `order` utilities are what lift templates above it once the page stacks.
+    Asserting the classes is the only reachable proxy — the rest is pure CSS.
+    """
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    search_col = content.index("col-12 col-xl-8 order-2 order-xl-1")
+    templates_col = content.index("col-12 col-xl-4 order-1 order-xl-2")
+    assert search_col < templates_col, (
+        "the search and list column must come first in source, with the "
+        "templates column ordered above it below xl"
+    )
+
+
+@pytest.mark.django_db
+def test_the_templates_block_has_a_collapse_toggle(client, user, template_campaign):
+    """The toggle is hidden by CSS at xl; the markup is always there."""
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert 'data-bs-target="#campaign-templates"' in content
+    assert 'data-gy-collapse-icon="campaign-templates"' in content
+
+
+@pytest.mark.django_db
+def test_no_templates_means_no_block_at_all(client, user, make_campaign):
+    """An empty block above the search would be pure noise."""
+    make_campaign("An Ordinary Campaign")
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert 'id="campaign-templates"' not in content
+
+
+@pytest.mark.django_db
+def test_interstitial_requires_login(client):
+    response = client.get(reverse("core:campaigns-new-template"))
+
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url

@@ -47,13 +47,18 @@ class Campaigns(generic.ListView):
                 # Show campaigns where user is owner
                 queryset = queryset.filter(owner=self.request.user)
             else:
-                # Show public campaigns plus private campaigns the user participates in
-                queryset = queryset.filter(
-                    Q(public=True) | Q(lists__owner=self.request.user)
-                ).distinct()
+                # Show public campaigns plus private campaigns the user participates in.
+                # Templates are listed in their own sidebar block instead — a public
+                # one would otherwise appear twice on the same page. The owner branch
+                # above keeps them, so whoever owns a template still sees it.
+                queryset = (
+                    queryset.filter(Q(public=True) | Q(lists__owner=self.request.user))
+                    .exclude(template=True)
+                    .distinct()
+                )
         else:
             # For unauthenticated users, only show public campaigns
-            queryset = queryset.filter(public=True)
+            queryset = queryset.filter(public=True).exclude(template=True)
 
         # Apply "Participating only" filter
         show_participating = self.request.GET.get("participating", "0")
@@ -122,6 +127,18 @@ class Campaigns(generic.ListView):
             )
         else:
             context["pinned_campaigns"] = []
+
+        # Template campaigns for the sidebar. They are non-public, so the
+        # visibility filter above never reaches them and nothing else on the
+        # site links to one — this is the only place they are listed.
+        # Mirrors the main queryset so the shared row partial renders identically.
+        context["template_campaigns"] = (
+            Campaign.objects.filter(template=True, archived=False)
+            .select_related("owner", "owner__profile")
+            .prefetch_related("lists", "owner__badge_grants")
+            .annotate(star_count=Count("starred_by", distinct=True))
+            .order_by("name")
+        )
 
         return context
 
