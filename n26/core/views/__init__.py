@@ -39,6 +39,7 @@ from n26.core.views.campaigns import (
 )
 from n26.core.views.changelog import changelog, changelog_entry
 from n26.core.views.choose import choose
+from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.edit import edit_fighter
 from n26.core.views.equip import equip, equip_gang
 from n26.core.views.gangs import (
@@ -79,6 +80,8 @@ __all__ = [
     "changelog",
     "changelog_entry",
     "choose",
+    "clone_fighter",
+    "clone_gang",
     "create_campaign",
     "create_gang",
     "dashboard",

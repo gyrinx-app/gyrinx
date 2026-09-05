@@ -73,7 +73,7 @@ a page and its chrome is not visible in either one alone.
                 <c-ui.button size="sm"
                              variant="default"
                              href="{% url 'designsystem:shell_print' %}">Print</c-ui.button>
-                <c-ui.dropdown>
+                <c-ui.dropdown :scriptless="True">
                     <c-slot name="trigger">
                         <c-ui.button size="sm" variant="default" aria-label="More actions">
                             <span class="n26-icon-only gap-0.5">
@@ -82,6 +82,9 @@ a page and its chrome is not visible in either one alone.
                             </span>
                         </c-ui.button>
                     </c-slot>
+                    <c-ui.dropdown.item href="#">
+                        Clone gang
+                    </c-ui.dropdown.item>
                     <c-ui.dropdown.item variant="danger" href="#">
                         Delete gang
                     </c-ui.dropdown.item>

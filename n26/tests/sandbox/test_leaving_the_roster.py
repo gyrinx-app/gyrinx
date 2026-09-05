@@ -1,6 +1,6 @@
 """A fighter leaving the roster: deleted, or refunded, kit stashed or not.
 
-The gang sheet's card offers two ways out — Delete keeps the money spent,
+The model's edit menu offers two ways out — Delete keeps the money spent,
 Refund returns what was actually *paid* — and each dialog offers the same
 alternative disposal: the kit money was paid for moves to the stash first,
 where every line keeps its pinned rating because a move never re-prices.
@@ -75,11 +75,21 @@ def roster(gang):
 class TestTheDialogs:
     """Open is a server state, and the dialog quotes its own arithmetic."""
 
-    def test_the_card_offers_both_ways_out(self, client, owner, gang, armed):
+    def test_the_edit_menu_offers_both_ways_out(self, client, owner, gang, armed):
+        client.force_login(owner)
+        body = client.get(reverse("n26-edit-fighter", args=[armed.pk])).content.decode()
+        gang_url = reverse("n26-gang", args=[gang.pk])
+        assert f'href="{gang_url}?refund={armed.pk}"' in body
+        assert f'href="{gang_url}?delete={armed.pk}"' in body
+
+    def test_the_card_links_to_edit_without_leaving_controls(
+        self, client, owner, gang, armed
+    ):
         client.force_login(owner)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-        assert f"?refund={armed.pk}" in body
-        assert f"?delete={armed.pk}" in body
+        assert reverse("n26-edit-fighter", args=[armed.pk]) in body
+        assert f"?refund={armed.pk}" not in body
+        assert f"?delete={armed.pk}" not in body
 
     def test_the_refund_dialog_quotes_paid_not_worth(self, client, owner, gang, armed):
         """85¢ paid across fighter and gun; the free knife adds nothing.
@@ -175,7 +185,7 @@ class TestRefunding:
 
 class TestAGangWithNoBudget:
     """A gang founded without a budget never spent credits, so there is
-    nothing a refund could give back: its cards offer Delete alone, and
+    nothing a refund could give back: its edit menu offers Delete alone, and
     a refund asked for anyway is answered as the deletion it is."""
 
     @pytest.fixture
@@ -184,9 +194,9 @@ class TestAGangWithNoBudget:
         gang.save(update_fields=["starting_credits"])
         return gang
 
-    def test_the_card_offers_no_refund(self, client, owner, unbudgeted, armed):
+    def test_the_edit_menu_offers_no_refund(self, client, owner, unbudgeted, armed):
         client.force_login(owner)
-        body = client.get(reverse("n26-gang", args=[unbudgeted.pk])).content.decode()
+        body = client.get(reverse("n26-edit-fighter", args=[armed.pk])).content.decode()
         assert f"?delete={armed.pk}" in body
         assert f"?refund={armed.pk}" not in body
 

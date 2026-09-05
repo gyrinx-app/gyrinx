@@ -10,7 +10,9 @@ being placed the ordinary way and is cut off at the table's edges again.
 from pathlib import Path
 
 from django.contrib.staticfiles import finders
+from django.template import Context, Template
 from django.template.loader import get_template
+from django_cotton.compiler_regex import CottonCompiler
 
 MENU_JS = "n26/menu-position.js"
 
@@ -69,6 +71,31 @@ class TestTheComponentAndTheScriptAgree:
         assert 'overflow="auto"' in source
         assert "overflow == 'hidden'" in source
         assert "overflow-y-auto overflow-x-hidden" in source
+
+
+class TestScriptlessMenus:
+    def test_an_opted_in_menu_reveals_its_links_without_duplicating_them(self):
+        html = Template(
+            CottonCompiler().process(
+                '<c-ui.dropdown trigger_text="Actions" :scriptless="True">'
+                '<c-ui.dropdown.item href="/clone/">Clone</c-ui.dropdown.item>'
+                "</c-ui.dropdown>"
+            )
+        ).render(Context({}))
+        assert "data-dropdown-scriptless" in html
+        fallback = html.split("<noscript>")[1].split("</noscript>")[0]
+        assert '[x-ref="trigger"] { display: none !important; }' in fallback
+        assert '[x-ref="content"][x-cloak] { display: block !important; }' in fallback
+        assert html.count('href="/clone/"') == 1
+
+    def test_other_menus_keep_their_existing_behaviour(self):
+        html = Template(
+            CottonCompiler().process(
+                '<c-ui.dropdown trigger_text="Actions">Menu</c-ui.dropdown>'
+            )
+        ).render(Context({}))
+        assert "data-dropdown-scriptless" not in html
+        assert "<noscript>" not in html
 
 
 class TestTheCardMenuAsksForIt:
