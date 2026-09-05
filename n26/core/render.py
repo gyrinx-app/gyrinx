@@ -10,7 +10,7 @@ number of queries regardless of how many models or how much kit — see
 ``render_gang`` and the assertions in ``tests/sandbox/test_render.py``.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from django.utils.text import capfirst
 
@@ -593,6 +593,12 @@ def lift_landing(offer, landed, threshold=False):
     for group in offer.groups:
         for option in group.options:
             (first if option.key in landed else rest).append(option)
+    if not offer.takes_several and len(first) == 1:
+        # One pick, one landing: the radio opens on the result the roll
+        # landed on, so Save is the Add. Every other option, the None row
+        # included, opens clear.
+        first = [replace(first[0], is_current=True)]
+        rest = [replace(option, is_current=False) for option in rest]
     if not first:
         # Nothing on the list is where the roll landed — a full choice,
         # or a roll no result claims. A heading over nothing says less
