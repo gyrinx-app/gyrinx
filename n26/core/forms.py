@@ -388,7 +388,7 @@ class FoundCampaignForm(CampaignForm):
         label="Campaign type",
         help_text=(
             "Which campaign from the rulebook you are running. Each card "
-            "says what every gang starts with and what the gangs fight over."
+            "lists what every gang starts with and what the gangs fight over."
         ),
         error_messages={
             "invalid_choice": (
