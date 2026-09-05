@@ -318,6 +318,26 @@ def shell_gang(request):
 
 
 @staff_member_required
+def shell_campaign(request):
+    """One campaign's page, in the shell — the gang shell's sibling.
+
+    Whether the campaign sheet reads as the gang sheet's sibling can only be
+    judged with the same nav over both, which is what this page is for. No
+    message pushed in, for the reason the gang shell pushes none.
+    """
+    return render(
+        request,
+        "designsystem/shell/campaign.html",
+        {
+            "banner": _SHELL_BANNER,
+            **sampledata.nav_context(),
+            **sampledata.campaign_sheet_context(),
+            **sampledata.dashboard_context(),
+        },
+    )
+
+
+@staff_member_required
 def shell_print(request):
     """Printing a gang, from inside the application.
 

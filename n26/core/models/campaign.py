@@ -358,9 +358,9 @@ class CampaignAsset(Base):
     class Meta:
         verbose_name = "campaign asset"
         verbose_name_plural = "campaign assets"
-        # Grouped by kind, as the campaign's asset page lists them, then
-        # by asset and by copy. The joins are paid on every read of that
-        # page and nowhere else: nothing hot reads tokens in bulk.
+        # Grouped by kind, as the campaign page's assets tables are, then
+        # by asset and by copy. The joins are paid once per campaign page,
+        # which reads every copy of the campaign at once.
         ordering = ["asset__kind__position", "asset__name", "name", "created"]
         indexes = [
             models.Index(fields=["campaign", "holder"], name="campaign_asset_pool_idx"),

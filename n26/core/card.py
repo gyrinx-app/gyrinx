@@ -553,7 +553,7 @@ def gang_rows(gang):
 
 
 def held_tokens(gang):
-    """The campaign's tokens this gang holds, in the pool's order — one
+    """The campaign's tokens this gang holds, in the campaign's order — one
     query, with the asset and its kind along, so what a token is called
     and what kind it is are read off it without another.
 
@@ -771,6 +771,44 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
         for miniature_id, rows in grouped.items()
     }
     return card
+
+
+def build_gang_cards(gangs, holdings):
+    """Every gang's own card at once — the gang-hosted rows and nothing
+    else, in a fixed number of queries however many gangs.
+
+    What a campaign page asks of each gang is what the gang itself holds:
+    its counters and their readings, and what the campaign gave it. None
+    of that is on a member's card, so the members are not fetched — one
+    assignment query covers every gang, one hydration pass covers every
+    row, and ``compute`` runs on each card off one shared index.
+
+    ``holdings`` are the campaign's tokens, keyed by gang id, read by the
+    caller in one query for the whole campaign. A gang with none gets an
+    empty list, which is a card holding nothing rather than a card with
+    nothing looked up.
+    """
+    by_gang = {gang.pk: gang for gang in gangs}
+    if not by_gang:
+        return {}
+    rows = _flat_rows(
+        gang_root__in=list(by_gang),
+        miniature_root__isnull=True,
+        stash_root__isnull=True,
+    )
+    hydrate_rows(rows)
+    theirs = {pk: [] for pk in by_gang}
+    for row in rows:
+        theirs[row.gang_root_id].append(row)
+    return {
+        pk: GangCard(
+            gang=gang,
+            roots=_forest(theirs[pk]),
+            shared_rows=theirs[pk],
+            holdings=list(holdings.get(pk, ())),
+        )
+        for pk, gang in by_gang.items()
+    }
 
 
 def build_card_from_profile(profile, option=None, base=None):

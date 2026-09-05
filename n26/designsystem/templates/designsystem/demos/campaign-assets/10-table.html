@@ -1,0 +1,6 @@
+{# title: One kind's copies #}
+{# note: Every copy of a kind, with its income, its boons in the author's own words, and who holds it. A copy with a name of its own shows the asset it is a copy of under that name. The controls are the arbitrator's: Take away on a held copy, Grant and Drop on an unclaimed one. #}
+{# layout: full #}
+{% for table in campaign_sheet.assets %}
+    <c-n26.campaign-assets :table="table" />
+{% endfor %}

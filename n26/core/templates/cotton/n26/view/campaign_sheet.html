@@ -1,0 +1,198 @@
+{% comment %}
+<c-n26.view.campaign-sheet> — a campaign, whole: who runs it, who is at the
+table, what they hold, what has been fought.
+
+    <c-n26.view.campaign-sheet :sheet="sheet" edit_href="/n26/campaigns/1/edit/">
+        <c-slot name="breadcrumb">…</c-slot>
+        <c-slot name="arbitrator"><c-n26.user-link … /></c-slot>
+        <c-slot name="actions">…Edit, ⋮…</c-slot>
+        <c-slot name="gangs_actions"><c-ui.button …>Add gang</c-ui.button></c-slot>
+        <c-slot name="participants">…</c-slot>
+        <c-slot name="battles">…</c-slot>
+        <c-slot name="log">…</c-slot>
+    </c-n26.view.campaign-sheet>
+
+The gang sheet's sibling, in the gang sheet's shape: a header naming the
+campaign with the type it was founded on under it, the headline figures where
+the gang sheet keeps its money, a strip of standing facts beside the page's
+controls, then the sections. The gangs table and the assets tables are drawn
+here from the sheet; the participants, the battles and the log arrive as
+slots, because each names addresses this component has no business knowing.
+
+The lead reads "Territory campaign · arbitrated by tom", so the type is said
+once, here, and nowhere else on the page. The budget is a fact a reader can
+click into where `edit_href` is given — the facts strip is a strip of
+controls, as on the gang sheet — and settled text otherwise.
+
+  :sheet — a n26.render.CampaignSheet.
+  edit_href — where the campaign's own facts are changed. Empty draws the
+    budget as a settled fact; give it to the arbitrator alone.
+  arbitrator — the arbitrator's name as markup, for a badge after it. Left
+    empty, the sheet's own `arbitrator` is drawn as text.
+  breadcrumb, trailing — passed to <c-n26.page-header>.
+  actions — the page's controls, beside the facts strip: Edit and the overflow.
+  gangs_actions, assets_actions, participants_actions, battles_actions — the
+    controls of each section, at the far end of its heading.
+  participants, battles, log — the contents of those three sections.
+  log_count — the log heading's count, e.g. "12 earlier acts not shown".
+  log_href — where the whole log is read. Given, the Log heading carries a
+    "Full log" link; empty, the count stands alone.
+{% endcomment %}
+{# Every slot is declared: an undeclared slot name is not empty when nobody #}
+{# fills it — it resolves to the caller's own variable of that name, and the #}
+{# page filling this calls its context `battles` and `participants` too. #}
+<c-vars
+    :sheet="None"
+    edit_href=""
+    arbitrator=""
+    breadcrumb=""
+    trailing=""
+    actions=""
+    gangs_actions=""
+    assets_actions=""
+    participants_actions=""
+    battles_actions=""
+    participants=""
+    battles=""
+    log=""
+    log_count=""
+    log_href=""
+    class=""
+/>
+{% load richtext %}
+
+<div class="flex flex-col gap-8 {{ class }}">
+    <div class="flex flex-col gap-4">
+        <c-n26.page-header title="{{ sheet.name }}">
+            {% if breadcrumb.strip %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
+            {% if trailing.strip %}<c-slot name="trailing">{{ trailing }}</c-slot>{% endif %}
+            {% comment %}
+            The type where the gang sheet puts the gang's, then who runs the
+            campaign: the two facts a reader wants before anything else on the
+            page. The type is said here and in no strip or table below.
+            {% endcomment %}
+            <c-slot name="lead">
+                {% comment %}
+                The type's description, where the library has one, sits
+                behind its name: the name is the fact a reader scans for,
+                and what the type means is read on hover or tap.
+                {% endcomment %}
+                {% if sheet.campaign_type_description %}
+                    <c-ui.tooltip size="sm">
+                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ sheet.campaign_type }}</span>
+                        <c-slot name="content">{{ sheet.campaign_type_description }}</c-slot>
+                    </c-ui.tooltip>
+                {% else %}
+                    <span>{{ sheet.campaign_type }}</span>
+                {% endif %}
+                <span class="mx-1.5 text-ink-400" aria-hidden="true">·</span>
+                <span>arbitrated by {% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</span>
+            </c-slot>
+            {% comment %}
+            Filled even where there is nothing else to put in it: a wrapper
+            drawing this header usually has an `actions` slot of its own, and
+            an unfilled slot here would draw that one up beside the title.
+            {% endcomment %}
+            <c-slot name="actions">
+                <c-n26.campaign-figures :sheet="sheet" />
+            </c-slot>
+        </c-n26.page-header>
+
+        {% comment %}
+        The gang sheet's second row: the standing facts on the left, the
+        page's controls on the right, wrapping under each other on a phone.
+        The budget is a control where the reader may change it and a fact
+        where they may not — a settled fact is padded to a control's inset,
+        so the two sit level.
+        {% endcomment %}
+        <div class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
+            <div class="min-w-0 max-w-full">
+                <c-n26.detail-list>
+                    {% if edit_href %}
+                        <c-n26.detail-list.row label="Gang budget" href="{{ edit_href }}">
+                            {% if sheet.budget is None %}None set{% else %}{{ sheet.budget }}¢{% endif %}
+                        </c-n26.detail-list.row>
+                    {% else %}
+                        <c-n26.detail-list.row label="Gang budget" :editable="False">
+                            {% if sheet.budget is None %}None set{% else %}{{ sheet.budget }}¢{% endif %}
+                        </c-n26.detail-list.row>
+                    {% endif %}
+                    {% comment %}
+                    What the arbitrator has added on top of the shared type,
+                    drawn only once there is something: every campaign starts
+                    with none, and a row saying so would be a row about nothing.
+                    {% endcomment %}
+                    {% if sheet.additions %}
+                        <c-n26.detail-list.row label="Additions" :editable="False">
+                            {% for name in sheet.additions %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                        </c-n26.detail-list.row>
+                    {% endif %}
+                </c-n26.detail-list>
+            </div>
+            {% if actions.strip %}
+                <div class="flex flex-wrap items-center justify-end gap-2 md:ml-auto md:shrink-0">{{ actions }}</div>
+            {% endif %}
+        </div>
+
+        {% comment %}
+        The arbitrator's own words, so the editor's markup is drawn rather
+        than escaped — sanitised on the way out by the richtext tag, which is
+        why a tightened allowlist reaches what was already saved.
+        {% endcomment %}
+        {% if sheet.summary %}
+            <c-n26.prose>
+                {{ sheet.summary|safe_rich_text }}
+            </c-n26.prose>
+        {% endif %}
+    </div>
+
+    <c-n26.section id="gangs" title="Gangs" count="{{ sheet.gang_count }} gang{{ sheet.gang_count|pluralize }}">
+        {% if gangs_actions.strip %}<c-slot name="actions">{{ gangs_actions }}</c-slot>{% endif %}
+        {% if sheet.gangs %}
+            <c-n26.campaign-gangs :sheet="sheet" />
+        {% else %}
+            <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+        {% endif %}
+    </c-n26.section>
+
+    {% comment %}
+    One table per pooled kind, under one heading. A held-one-each kind has
+    no table here: every gang has one, and it is on the gang's row above.
+    {% endcomment %}
+    <c-n26.section id="assets" title="Assets" count="{% if sheet.copies %}{{ sheet.copies_held }} held, {{ sheet.copies_unclaimed }} unclaimed{% endif %}">
+        {% if assets_actions.strip %}<c-slot name="actions">{{ assets_actions }}</c-slot>{% endif %}
+        {% if sheet.assets %}
+            <div class="flex flex-col gap-6">
+                {% for table in sheet.assets %}
+                    <c-n26.campaign-assets :table="table" />
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no assets that change hands.</p>
+        {% endif %}
+    </c-n26.section>
+
+    {% comment %}
+    Side by side from xl, where both are short lists and a page that stacked
+    them would spend a screen on two columns of names. Stacked below that.
+    {% endcomment %}
+    <div class="grid grid-cols-1 gap-8 xl:grid-cols-2">
+        <c-n26.section id="participants" title="Participants">
+            {% if participants_actions.strip %}<c-slot name="actions">{{ participants_actions }}</c-slot>{% endif %}
+            {{ participants }}
+        </c-n26.section>
+        <c-n26.section id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} fought{% endif %}">
+            {% if battles_actions.strip %}<c-slot name="actions">{{ battles_actions }}</c-slot>{% endif %}
+            {{ battles }}
+        </c-n26.section>
+    </div>
+
+    <c-n26.section id="log" title="Log" count="{{ log_count }}">
+        {% if log_href %}
+            <c-slot name="actions">
+                <c-ui.button size="sm" variant="default" href="{{ log_href }}">Full log</c-ui.button>
+            </c-slot>
+        {% endif %}
+        {{ log }}
+    </c-n26.section>
+</div>

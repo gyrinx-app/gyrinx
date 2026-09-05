@@ -1,14 +1,16 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Putting one copy of an asset into the campaign's pool, picked from what the
-campaign type and the arbitrator's additions offer. Only the pooled kinds are
-offered: a Settlement is every gang's own and has no pool to sit in.
+Adding one copy of an asset to the campaign, picked from what the campaign
+type and the arbitrator's additions offer. Only the pooled kinds are offered:
+a Settlement is every gang's own and has no copies to add. Reached from the
+Add beside one kind's table, the list is narrowed to that kind and the page
+says so in its title.
 
 Native radios over a shared name, as the campaign type cards are, so the form
 posts with no script and a redisplay after a failed submit keeps the pick.
 {% endcomment %}
-{% block head_title %}Add to the pool of {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}Add {{ adding }} to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -17,12 +19,16 @@ posts with no script and a redisplay after a failed submit keeps the pick.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-pool-add' campaign.pk %}"
-                     title="Add to the pool"
-                     lead="One copy of an asset the campaign deals in. Nobody holds it until you grant it."
+    {% comment %}
+    The kind rides the form's own address, so a failed submit comes back to
+    the same narrowed list rather than to every kind at once.
+    {% endcomment %}
+    <c-n26.form-page action="{% url 'n26-campaign-add-asset' campaign.pk %}{% if kind %}?kind={{ kind.pk }}{% endif %}"
+                     title="Add {{ adding }}"
+                     lead="One copy. It stays unclaimed until you grant it to a gang."
                      :form="form"
-                     submit_label="Add to pool"
-                     cancel_url="{% url 'n26-campaign-pool' campaign.pk %}">
+                     submit_label="Add"
+                     cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -32,17 +38,16 @@ posts with no script and a redisplay after a failed submit keeps the pick.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-campaign-pool' campaign.pk %}">Pool</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Add
+                    Add {{ adding }}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="Asset">
+        <c-n26.form-section title="{% if kind %}{{ kind.label_singular }}{% else %}Asset{% endif %}">
             {% if assets %}
-                <c-n26.radio-cards label="Asset *"
-                                   description="The pooled assets of this campaign's type and its additions."
+                <c-n26.radio-cards label="{% if kind %}{{ kind.label_singular }}{% else %}Asset{% endif %} *"
+                                   description="{% if kind %}The {{ kind.plural|lower }} this campaign deals in.{% else %}The assets that change hands in this campaign.{% endif %}"
                                    :form="form"
                                    name="asset">
                     {% for asset in assets %}
@@ -55,7 +60,11 @@ posts with no script and a redisplay after a failed submit keeps the pick.
                 </c-n26.radio-cards>
             {% else %}
                 <c-ui.alert variant="info" title="Nothing to add">
-                    {{ campaign.campaign_type }} and this campaign's additions have no pooled assets yet.
+                    {% if kind %}
+                        {{ campaign.campaign_type }} and this campaign's additions have no {{ kind.plural|lower }} yet.
+                    {% else %}
+                        {{ campaign.campaign_type }} and this campaign's additions have no assets that change hands yet.
+                    {% endif %}
                 </c-ui.alert>
             {% endif %}
         </c-n26.form-section>

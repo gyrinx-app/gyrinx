@@ -865,7 +865,7 @@ class CampaignAssetLine:
     campaign, and the block is already drawn under the campaign's name.
     ``campaign_asset_id`` is the campaign's token, set on a holding and
     empty on a possession, so a renderer can tell the two apart and link
-    a holding to the pool it belongs to.
+    a holding to the campaign's assets.
     """
 
     kind_label: str
@@ -904,12 +904,12 @@ class CampaignBlock:
     counters: list[CounterLine] = field(default_factory=list)
     holdings: list[CampaignAssetLine] = field(default_factory=list)
     #: Where the campaign's name and its holdings lead — the campaign
-    #: page and its pool — filled in by whoever knows both the URL space
-    #: and who may open them, as a counter's own href is. Empty draws
-    #: plain text, which is what a reader outside the campaigns feature
-    #: gets: the pages behind these answer them with a 404.
+    #: page, and its assets section — filled in by whoever knows both the
+    #: URL space and who may open them, as a counter's own href is. Empty
+    #: draws plain text, which is what a reader outside the campaigns
+    #: feature gets: the page behind these answers them with a 404.
     href: str = ""
-    pool_href: str = ""
+    assets_href: str = ""
 
 
 @dataclass
@@ -990,6 +990,160 @@ class GangSheet:
         one list and not another.
         """
         return self.choices
+
+
+@dataclass
+class CampaignGangLine:
+    """One gang at the campaign's table, as the gangs table draws it.
+
+    The money figures are the gang's pinned totals, read off its row. The
+    counters and the assets are the campaign's, in the order the sheet's
+    ``counter_columns`` and ``asset_kinds`` name them, so a renderer lays
+    each value under its heading by position and never by name. A counter
+    the gang does not carry reads ``None``, which is drawn as a dash: a
+    blank cell in a column of numbers reads as a number that failed to
+    arrive.
+    """
+
+    gang_id: str
+    name: str
+    gang_type: str
+    owner: str
+    rating: int
+    credits: int
+    wealth: int
+    colour: str = ""
+    credits_unlimited: bool = False
+    over_budget: bool = False
+    #: One reading per ``CampaignSheet.counter_columns``, or None.
+    counters: list[int | None] = field(default_factory=list)
+    #: One list of names per ``CampaignSheet.asset_kinds``: what this gang
+    #: has of that kind, possessions and holdings alike. Empty is a dash.
+    assets: list[list[str]] = field(default_factory=list)
+    #: The gang's own page. Filled by whoever knows the URL space.
+    href: str = ""
+    #: Whether the reader owns this gang — what decides which of the
+    #: table's controls are theirs.
+    yours: bool = False
+
+
+@dataclass(frozen=True)
+class AssetKindColumn:
+    """One class of asset the campaign deals in, as a heading."""
+
+    kind_id: str
+    label: str
+    plural: str
+    pooled: bool
+
+
+@dataclass
+class CampaignAssetCopy:
+    """One copy of a pooled asset in the campaign, as the assets table
+    draws it: what it is called, what it does, and who holds it.
+
+    ``name`` is the copy's own name where the arbitrator gave it one,
+    else the asset's; ``asset_name`` is the asset's own only where the
+    two differ, so a renamed copy still says what it is a copy of.
+    ``boons`` are the asset's modifiers as sentences, the authoring
+    page's own words for what holding the asset does.
+    """
+
+    copy_id: str
+    name: str
+    asset_name: str = ""
+    income: int = 0
+    boons: list[str] = field(default_factory=list)
+    held: bool = False
+    holder: str = ""
+    holder_gang_id: str = ""
+    #: The holding gang's own page. Filled by whoever knows the URL space.
+    holder_href: str = ""
+    #: Whether the reader owns the holding gang, which is what lets them
+    #: hand the copy back.
+    holder_yours: bool = False
+    #: Where each act on this copy is asked. Empty is no control: the
+    #: view fills them for the reader who may act and nobody else.
+    grant_href: str = ""
+    take_away_href: str = ""
+    drop_href: str = ""
+
+
+@dataclass
+class CampaignAssetTable:
+    """Every copy of one pooled kind, under the kind's plural label."""
+
+    kind_id: str
+    label: str
+    plural: str
+    copies: list[CampaignAssetCopy] = field(default_factory=list)
+    #: Where a copy of this kind is added. Empty for a reader who may not.
+    add_href: str = ""
+
+    @property
+    def held(self):
+        return sum(1 for copy in self.copies if copy.held)
+
+    @property
+    def unclaimed(self):
+        return len(self.copies) - self.held
+
+
+@dataclass
+class CampaignSheet:
+    """The whole campaign, derived — the gang sheet's sibling.
+
+    Built by ``render_campaign`` in a fixed number of queries however many
+    gangs are at the table. Tests that care what the campaign *is*
+    assert on this; the template draws it.
+
+    ``counter_columns`` are the campaign's counters in the order the
+    gangs table shows them: Reputation first, then the rest by name. A
+    counter is the campaign's where a member gang's card credits it to
+    the campaign — which every counter the type or the additions build in
+    is. ``asset_kinds`` are every kind the campaign deals in, the shared
+    type's first, then the additions', each in its authored position;
+    ``assets`` are the pooled ones among them with their copies.
+    """
+
+    name: str
+    campaign_id: str
+    campaign_type: str
+    arbitrator: str
+    #: What the type is, in the library's own words, where the author
+    #: wrote any. Drawn behind the type's name rather than beside it: the
+    #: name is the fact, the description is what it means.
+    campaign_type_description: str = ""
+    budget: int | None = None
+    #: The arbitrator's own words, as editor HTML — sanitised where drawn.
+    summary: str = ""
+    #: What the arbitrator has added on top of the shared type, by name.
+    additions: list[str] = field(default_factory=list)
+    gangs: list[CampaignGangLine] = field(default_factory=list)
+    counter_columns: list[str] = field(default_factory=list)
+    asset_kinds: list[AssetKindColumn] = field(default_factory=list)
+    assets: list[CampaignAssetTable] = field(default_factory=list)
+    battles_fought: int = 0
+
+    @property
+    def gang_count(self):
+        return len(self.gangs)
+
+    @property
+    def copies(self):
+        return sum(len(table.copies) for table in self.assets)
+
+    @property
+    def copies_held(self):
+        return sum(table.held for table in self.assets)
+
+    @property
+    def copies_unclaimed(self):
+        return self.copies - self.copies_held
+
+    @property
+    def gangs_over_budget(self):
+        return sum(1 for line in self.gangs if line.over_budget)
 
 
 def apply_changes(stat, raw, changes):
@@ -1991,24 +2145,17 @@ def _asset_kind_labels(assets):
     )
 
 
-def _campaign_block(gang_card, membership, keys, readings):
-    """What the campaign gave, credited to its carriers.
+def _campaign_parts(gang_card, membership, keys, readings):
+    """What the campaign gave, sorted into possessions and counters.
 
     ``readings`` are every counter reading on the gang's card; the ones
-    the campaign brought are taken out of it, so the sheet draws each
+    the campaign brought are taken out of it, so a sheet draws each
     counter once. The carriers themselves draw no line: a campaign type is
-    the source of the block, not something in it.
-
-    Each possession draws a row labelled with what sort of thing it is,
-    which for an asset is its kind's own word and for anything else is
-    the kind's name. The holdings take the same shape, so the block reads
-    as one run of "what this gang has from the campaign" whether the
-    gang owns the thing or only holds it.
+    the source of the block, not something in it. No queries — the
+    campaign page runs this once per gang off cards already in hand.
     """
-    from n26.library.models import Asset, Counter
+    from n26.library.models import Counter
 
-    if membership is None:
-        return None
     carriers = {membership.type_carrier_id, membership.additions_carrier_id}
     provenance_of = _provenance_within(gang_card)
     possessions = []
@@ -2037,24 +2184,47 @@ def _campaign_block(gang_card, membership, keys, readings):
         if isinstance(node.assignable, DRAWS_NO_LINE):
             continue
         possessions.append(node)
+    return possessions, [line for line in counters if line.drawn]
+
+
+def _possession_lines(possessions, labels, provenance_of):
+    """Each possession as a row labelled with what sort of thing it is —
+    for an asset its kind's own word, for anything else the kind's name."""
+    return [
+        CampaignAssetLine(
+            kind_label=labels.get(
+                node.assignable.pk, capfirst(kind_of(node.assignable))
+            ),
+            name=node.name,
+            income=getattr(node.assignable, "income", 0),
+            provenance=provenance_of(node),
+        )
+        for node in possessions
+    ]
+
+
+def _campaign_block(gang_card, membership, keys, readings):
+    """What the campaign gave, credited to its carriers.
+
+    Each possession draws a row labelled with what sort of thing it is,
+    which for an asset is its kind's own word and for anything else is
+    the kind's name. The holdings take the same shape, so the block reads
+    as one run of "what this gang has from the campaign" whether the
+    gang owns the thing or only holds it.
+    """
+    from n26.library.models import Asset
+
+    if membership is None:
+        return None
+    possessions, counters = _campaign_parts(gang_card, membership, keys, readings)
     labels = _asset_kind_labels(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
-        lines=[
-            CampaignAssetLine(
-                kind_label=labels.get(
-                    node.assignable.pk, capfirst(kind_of(node.assignable))
-                ),
-                name=node.name,
-                income=getattr(node.assignable, "income", 0),
-                provenance=provenance_of(node),
-            )
-            for node in possessions
-        ],
-        counters=[line for line in counters if line.drawn],
+        lines=_possession_lines(possessions, labels, _provenance_within(gang_card)),
+        counters=counters,
         holdings=[
             CampaignAssetLine(
                 kind_label=token.asset.kind.label_singular,
@@ -2339,6 +2509,207 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
         ],
         summary=summarise_roster(models, recategorised),
     )
+
+
+#: The counter every campaign type in the books tracks, so it leads the
+#: gangs table wherever it appears. Matched by name, which is how the
+#: system pack names it.
+LEADING_COUNTER = "Reputation"
+
+
+def render_campaign(campaign, viewer=None):
+    """A whole campaign sheet. A fixed number of queries, whatever its size.
+
+    Every gang at the table is read at once: one query for the gang-hosted
+    assignments of all of them, one hydration pass, one modifier index,
+    then a query-free compute per gang — so a campaign of twelve gangs
+    costs what a campaign of one does. The campaign's copies ride one
+    query with their assets' modifiers along, since the assets table says
+    what each does in words.
+
+    ``viewer`` decides which gangs and holdings are the reader's own; the
+    addresses of the controls that follow from that are the view's to
+    fill, because they belong to the URL space and to who may open them.
+    """
+    from django.db.models import Prefetch
+
+    from n26.core.campaigns import over_budget
+    from n26.core.card import build_gang_cards, build_modifier_index, carriers
+    from n26.core.effects import compute, counter_readings
+    from n26.core.models import CampaignMembership
+    from n26.library.models import Asset, AssetKind, Modifier
+    from n26.library.prose import GANG as GANG_CARRIAGE
+    from n26.library.prose import sentence_for
+    from n26.library.references import reading_sentences
+
+    reading = getattr(viewer, "id", None)
+    memberships = list(
+        CampaignMembership.objects.filter(campaign=campaign, left__isnull=True)
+        .select_related("gang", "gang__gang_type", "gang__owner", "gang__stash")
+        .order_by("gang__name")
+    )
+    by_membership = {membership.pk: membership for membership in memberships}
+
+    # The shared type's kinds first, then the additions', each in its
+    # authored position: the arbitrator's own columns follow the book's.
+    kinds = sorted(
+        AssetKind.objects.filter(
+            campaign_type_id__in=(campaign.campaign_type_id, campaign.additions_id)
+        ),
+        key=lambda kind: (
+            kind.campaign_type_id != campaign.campaign_type_id,
+            kind.position,
+            kind.label_singular,
+        ),
+    )
+    kind_slot = {kind.pk: index for index, kind in enumerate(kinds)}
+
+    # Every copy, with what its asset does along. A copy whose holder has
+    # left the campaign is nobody's, whatever its column says.
+    copies = list(
+        campaign.pool.select_related("asset__kind").prefetch_related(
+            Prefetch(
+                "asset__modifiers", queryset=reading_sentences(Modifier.objects.all())
+            )
+        )
+    )
+    holdings = {}
+    for copy in copies:
+        holder = by_membership.get(copy.holder_id)
+        if holder is not None:
+            holdings.setdefault(holder.gang_id, []).append(copy)
+
+    gangs = [membership.gang for membership in memberships]
+    cards = build_gang_cards(gangs, holdings)
+    index = build_modifier_index(carriers(*cards.values()))
+
+    parts = {}
+    for membership in memberships:
+        card = cards[membership.gang_id]
+        computed = compute(card, index)
+        readings = counter_readings(card, computed)
+        keys = _campaign_keys(card, membership)
+        parts[membership.pk] = _campaign_parts(card, membership, keys, readings)
+
+    # Which kind each possessed asset is of, for the whole table at once.
+    possessed = {
+        node.assignable.pk
+        for possessions, _ in parts.values()
+        for node in possessions
+        if isinstance(node.assignable, Asset)
+    }
+    kind_of_asset = (
+        dict(Asset.objects.filter(pk__in=possessed).values_list("pk", "kind_id"))
+        if possessed
+        else {}
+    )
+
+    names = {line.name for _, counters in parts.values() for line in counters}
+    counter_columns = sorted(names, key=lambda name: (name != LEADING_COUNTER, name))
+
+    lines = []
+    for membership in memberships:
+        gang = membership.gang
+        possessions, counters = parts[membership.pk]
+        readings_by_name = {line.name: line.value for line in counters}
+        assets = [[] for _ in kinds]
+        for node in possessions:
+            slot = kind_slot.get(
+                kind_of_asset.get(getattr(node.assignable, "pk", None))
+            )
+            if slot is not None:
+                assets[slot].append(node.name)
+        for copy in holdings.get(gang.pk, ()):
+            slot = kind_slot.get(copy.asset.kind_id)
+            if slot is not None:
+                assets[slot].append(str(copy))
+        lines.append(
+            CampaignGangLine(
+                gang_id=str(gang.pk),
+                name=gang.name,
+                gang_type=gang.gang_type.name,
+                owner=gang.owner.username if gang.owner_id else "",
+                rating=gang.rating,
+                credits=gang.credits,
+                credits_unlimited=gang.credits_unlimited,
+                wealth=gang.wealth,
+                colour=gang.colour,
+                over_budget=over_budget(campaign, gang),
+                counters=[readings_by_name.get(name) for name in counter_columns],
+                assets=assets,
+                yours=gang.owner_id == reading,
+            )
+        )
+
+    tables = {
+        kind.pk: CampaignAssetTable(
+            kind_id=str(kind.pk), label=kind.label_singular, plural=kind.plural
+        )
+        for kind in kinds
+        if kind.is_pooled
+    }
+    for copy in copies:
+        table = tables.get(copy.asset.kind_id)
+        if table is None:
+            continue
+        holder = by_membership.get(copy.holder_id)
+        table.copies.append(
+            CampaignAssetCopy(
+                copy_id=str(copy.pk),
+                name=str(copy),
+                asset_name=copy.asset.name if copy.name else "",
+                income=copy.asset.income,
+                boons=[
+                    sentence_for(modifier, carriage=GANG_CARRIAGE).text
+                    for modifier in copy.asset.modifiers.all()
+                ],
+                held=holder is not None,
+                holder=holder.gang.name if holder else "",
+                holder_gang_id=str(holder.gang_id) if holder else "",
+                holder_yours=holder is not None and holder.gang.owner_id == reading,
+            )
+        )
+
+    return CampaignSheet(
+        name=campaign.name,
+        campaign_id=str(campaign.pk),
+        campaign_type=campaign.campaign_type.name,
+        campaign_type_description=campaign.campaign_type.description,
+        arbitrator=campaign.owner.username if campaign.owner_id else "",
+        budget=campaign.budget,
+        summary=campaign.summary,
+        additions=_additions_of(campaign),
+        gangs=lines,
+        counter_columns=counter_columns,
+        asset_kinds=[
+            AssetKindColumn(
+                kind_id=str(kind.pk),
+                label=kind.label_singular,
+                plural=kind.plural,
+                pooled=kind.is_pooled,
+            )
+            for kind in kinds
+        ],
+        assets=list(tables.values()),
+        battles_fought=campaign.battles.count(),
+    )
+
+
+def _additions_of(campaign):
+    """The names of what this campaign's additions type gives every member
+    gang — its built-in members, in their order. One query, and none for
+    a campaign nothing has been added to."""
+    from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
+
+    built_ins = campaign.additions.built_ins
+    if built_ins is None:
+        return []
+    members = (
+        built_ins.members.filter(archived=False)
+        .select_related(*DEFAULT_ASSIGNABLE_FIELDS)
+        .order_by("position")
+    )
+    return [str(member.assignable) for member in members]
 
 
 # --- The ledger ----------------------------------------------------------

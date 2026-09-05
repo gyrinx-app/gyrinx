@@ -71,27 +71,26 @@ urlpatterns = [
         views.remove_battle,
         name="n26-campaign-remove-battle",
     ),
-    # The campaign's pool of assets: every copy, who holds it, and the
-    # acts on one copy. Adding and dropping are the arbitrator's; taking
-    # away is also the holding gang's owner's.
-    path("campaigns/<str:pk>/pool/", views.campaign_pool, name="n26-campaign-pool"),
+    # The campaign's assets are listed on its own page; these are the acts
+    # on one copy. Adding and dropping are the arbitrator's; taking away
+    # is also the holding gang's owner's.
     path(
-        "campaigns/<str:pk>/pool/add/",
-        views.add_to_pool,
-        name="n26-campaign-pool-add",
+        "campaigns/<str:pk>/assets/add/",
+        views.add_asset,
+        name="n26-campaign-add-asset",
     ),
     path(
-        "campaigns/<str:pk>/pool/<str:token_pk>/grant/",
+        "campaigns/<str:pk>/assets/<str:token_pk>/grant/",
         views.grant_asset,
         name="n26-campaign-asset-grant",
     ),
     path(
-        "campaigns/<str:pk>/pool/<str:token_pk>/take-away/",
+        "campaigns/<str:pk>/assets/<str:token_pk>/take-away/",
         views.take_away_asset,
         name="n26-campaign-asset-take-away",
     ),
     path(
-        "campaigns/<str:pk>/pool/<str:token_pk>/drop/",
+        "campaigns/<str:pk>/assets/<str:token_pk>/drop/",
         views.drop_asset,
         name="n26-campaign-asset-drop",
     ),

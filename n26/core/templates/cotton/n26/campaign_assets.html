@@ -1,0 +1,103 @@
+{% comment %}
+<c-n26.campaign-assets> — every copy of one kind of asset, as a table.
+
+    <c-n26.campaign-assets :table="table" />
+
+One table per pooled kind, headed by the kind's own plural — Territories,
+Rackets — with what each copy is called, what it brings in, what holding it
+does, and who holds it. The holder is a link to the gang's sheet; a copy
+nobody holds says Unclaimed in muted text, a fact and not a control.
+
+The controls are whatever addresses the structure carries. Each leads to a
+page that asks; nothing here acts on a click. A reader whose structure
+carries no addresses sees a table with no controls, not a table of disabled
+ones — the view fills them for the arbitrator, and the take-away for the
+owner of the holding gang.
+
+  :table — a n26.render.CampaignAssetTable.
+{% endcomment %}
+<c-vars :table="None" class="" />
+
+<div class="flex flex-col gap-2 {{ class }}">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 class="text-base font-semibold text-ink-900 dark:text-ink-100">
+            {{ table.plural }}
+            {% if table.copies %}
+                <span class="ml-1 text-sm font-normal text-muted">{{ table.held }} held, {{ table.unclaimed }} unclaimed</span>
+            {% endif %}
+        </h3>
+        {% if table.add_href %}
+            <c-ui.button size="xs" variant="default" href="{{ table.add_href }}">Add {{ table.label|lower }}</c-ui.button>
+        {% endif %}
+    </div>
+    {% if table.copies %}
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">{{ table.label }}</th>
+                    <th scope="col" class="text-right">Income</th>
+                    <th scope="col">Boons</th>
+                    <th scope="col">Held by</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for copy in table.copies %}
+                    <tr>
+                        <td class="min-w-40">
+                            <span class="font-semibold text-ink-900 dark:text-ink-100">{{ copy.name }}</span>
+                            {% if copy.asset_name %}<span class="block text-xs text-muted">{{ copy.asset_name }}</span>{% endif %}
+                        </td>
+                        <td class="text-right tabular-nums whitespace-nowrap">
+                            {% if copy.income %}{{ copy.income }}¢{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                        </td>
+                        <td class="min-w-48 max-w-md text-xs">
+                            {% if copy.boons %}
+                                <ul class="flex flex-col gap-0.5">
+                                    {% for boon in copy.boons %}<li>{{ boon }}</li>{% endfor %}
+                                </ul>
+                            {% else %}
+                                <span class="text-muted">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap">
+                            {% if copy.held %}
+                                <c-n26.link href="{{ copy.holder_href }}">{{ copy.holder }}</c-n26.link>
+                            {% else %}
+                                <span class="text-muted">Unclaimed</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right whitespace-nowrap">
+                            {% if copy.take_away_href or copy.grant_href or copy.drop_href %}
+                                <div class="flex items-center justify-end gap-1">
+                                    {% if copy.take_away_href %}
+                                        <c-ui.button size="xs" variant="default" href="{{ copy.take_away_href }}">Take away</c-ui.button>
+                                    {% endif %}
+                                    {% if copy.grant_href %}
+                                        <c-ui.button size="xs" variant="default" href="{{ copy.grant_href }}">Grant</c-ui.button>
+                                    {% endif %}
+                                    {% if copy.drop_href %}
+                                        <c-ui.button size="xs"
+                                                     variant="ghost"
+                                                     href="{{ copy.drop_href }}"
+                                                     aria-label="Drop {{ copy.name }}"
+                                                     title="Drop this copy">
+                                            <span class="n26-icon-only">
+                                                <c-n26.icon name="x-mark" class="size-4" />
+                                            </span>
+                                        </c-ui.button>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    {% else %}
+        <p class="text-sm text-muted">
+            No {{ table.plural|lower }} yet.
+            {% if table.add_href %}Add one to grant it to a gang.{% endif %}
+        </p>
+    {% endif %}
+</div>

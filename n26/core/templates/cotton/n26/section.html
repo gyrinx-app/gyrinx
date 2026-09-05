@@ -1,0 +1,35 @@
+{% comment %}
+<c-n26.section> — a titled part of a page, with its count and its controls.
+
+    <c-n26.section id="gangs" title="Gangs" count="3 gangs">
+        <c-slot name="actions"><c-ui.button size="sm" variant="primary" href="…">Add gang</c-ui.button></c-slot>
+        …a table, a list…
+    </c-n26.section>
+
+One heading scale for every section of a detail page, decided here: the same
+h2 <c-n26.form-section> gives a form's groups, so a campaign's Gangs and a
+form's General read as the same rank of thing. The count sits after the title
+in muted text and is part of the heading, so a reader scanning headings reads
+"Gangs, 3 gangs" and does not have to find the number elsewhere.
+
+The heading row wraps: the controls drop under the title on a phone rather
+than squeezing it. `id` lands on the <section>, so an address ending in
+#gangs opens the page at this heading.
+
+  title — the heading. There should be exactly one per section.
+  count — a short fact after the title: "3 gangs", "2 held, 1 unclaimed".
+  actions — controls for the section as a whole, drawn at the far end.
+  id — the anchor.
+{% endcomment %}
+<c-vars title="" count="" actions="" id="" class="" />
+
+<section {% if id %}id="{{ id }}"{% endif %} class="flex flex-col gap-3 {{ class }}">
+    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">
+            {{ title }}
+            {% if count %}<span class="ml-1 text-sm font-normal text-muted">{{ count }}</span>{% endif %}
+        </h2>
+        {% if actions.strip %}<div class="flex flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
+    </div>
+    {{ slot }}
+</section>

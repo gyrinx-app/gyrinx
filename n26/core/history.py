@@ -788,8 +788,8 @@ def _tell(e, row, alive):
 def _about_a_holding(e):
     """Whether this record is a campaign's token changing hands.
 
-    Named by the token where it still stands. A token dropped from the
-    pool since leaves the record naming none — and a grant or a taking
+    Named by the token where it still stands. A token dropped since
+    leaves the record naming none — and a grant or a taking
     away about no assignment can only ever have been a token's, since
     every other grant has a record behind it.
     """
@@ -801,7 +801,7 @@ def _about_a_holding(e):
 def _tell_holding(e):
     """A campaign's token granted to the gang or taken away from it.
 
-    The token is linked to the pool it belongs to while it stands. One
+    The token is linked to the campaign's assets while it stands. One
     dropped since is named from the note, which kept the name for exactly
     this: the line still says what changed hands. Which gang goes unsaid,
     as for joining — the gang's own history is already about it, and the
@@ -809,7 +809,10 @@ def _tell_holding(e):
     """
     token = e.campaign_asset
     if token is not None:
-        name = Span(str(token), reverse("n26-campaign-pool", args=[token.campaign_id]))
+        name = Span(
+            str(token),
+            reverse("n26-campaign", args=[token.campaign_id]) + "#assets",
+        )
         kind = f"the {token.kind_label} "
     else:
         name = Span(e.note or "an asset")
@@ -967,7 +970,7 @@ def campaign_history_size(campaign):
     own: a grant riding what caused it, and a campaign type riding the
     joining that put it on the gang. What is left is close to the number
     of lines the full history draws, which is what a reader comparing
-    "and N earlier acts" against the page expects it to mean.
+    "N earlier acts not shown" against the page expects it to mean.
     """
     from django.db.models import Q
 
@@ -1116,9 +1119,9 @@ def _tell_campaign(e):
         case kinds.ASSET_ADDED:
             # The note is the copy's name at the time. A copy since dropped
             # is still named, which is what a log is for.
-            what = e.note or "an asset"
-            return (Span(f"added {what} to the pool"),), "campaign"
+            what = f"the asset {e.note}" if e.note else "an asset"
+            return (Span(f"added {what}"),), "campaign"
         case kinds.ASSET_DROPPED:
-            what = e.note or "an asset"
-            return (Span(f"dropped {what} from the pool"),), "campaign"
+            what = f"the asset {e.note}" if e.note else "an asset"
+            return (Span(f"dropped {what}"),), "campaign"
     return (Span("changed the campaign"),), "campaign"

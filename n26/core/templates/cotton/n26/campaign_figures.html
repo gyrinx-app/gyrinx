@@ -1,0 +1,27 @@
+{% comment %}
+<c-n26.campaign-figures> — the campaign's headline numbers, as a figure strip.
+
+    <c-n26.campaign-figures :sheet="sheet" />
+
+The gang sheet's wealth strip, for a campaign: how many gangs are at the
+table, how many asset copies are held and how many are waiting, and how many
+battles have been fought. The same cells <c-n26.wealth> is built from, so the
+two pages carry one strip in one place.
+
+None of these is money, so no cell carries a unit. The strip scrolls rather
+than wraps for the reason the wealth strip does: a strip whose last figure
+drops onto a second line stops reading as a strip.
+
+  :sheet — a n26.render.CampaignSheet.
+  class — passed to the scroll container.
+{% endcomment %}
+<c-vars :sheet="None" class="" />
+
+<div class="overflow-x-auto {{ class }}">
+    <dl class="flex w-max items-stretch">
+        <c-n26.wealth.figure short="Gangs" full="Gangs at the table" unit="" :value="sheet.gang_count" />
+        <c-n26.wealth.figure short="Held" full="Asset copies held by a gang" unit="" :value="sheet.copies_held" />
+        <c-n26.wealth.figure short="Unclaimed" full="Asset copies nobody holds" unit="" :value="sheet.copies_unclaimed" />
+        <c-n26.wealth.figure short="Battles" full="Battles fought" unit="" :value="sheet.battles_fought" />
+    </dl>
+</div>

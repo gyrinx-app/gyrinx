@@ -14,15 +14,14 @@ what makes it a move rather than a change.
 
 from n26.core.views.api import preview_view
 from n26.core.views.campaigns import (
+    add_asset,
     add_battle,
     add_gang,
     add_participant,
-    add_to_pool,
     answer_invitation,
     archive_campaign,
     campaign,
     campaign_log,
-    campaign_pool,
     campaigns,
     create_campaign,
     drop_asset,
@@ -82,8 +81,7 @@ __all__ = [
     "add_participant",
     "answer_invitation",
     "add_gang",
-    "add_to_pool",
-    "campaign_pool",
+    "add_asset",
     "drop_asset",
     "grant_asset",
     "take_away_asset",
