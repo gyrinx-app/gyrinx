@@ -22,8 +22,9 @@ component must leave that root reachable. The kit writes offsets of its own on
 open, scroll and resize and they are wrong for a fixed box; those listeners are
 dropped and replaced, so a scroll that started inside the panel is not treated
 as the switcher leaving the window. Rewriting position:fixed mid-gesture
-cancels the list's own scroll on a phone. The panel itself is not a scroll
-box — overflow=hidden on the dropdown — so only the list of rows scrolls.
+can interrupt scrolling. The dropdown is the only scroll container; its
+search field stays pinned while the destinations scroll underneath it.
+Its height follows the visible viewport, including the on-screen keyboard.
 
 Focus lands in the filter box and never leaves it: Down and Up move a
 highlight, Enter clicks the highlighted row, Escape clears the filter before it
@@ -84,7 +85,6 @@ aria-activedescendant so the tinted row and the spoken one agree.
             </c-ui.button>
         {% endif %}
         <c-ui.dropdown align="{{ align }}"
-                       overflow="hidden"
                        min_width="min({{ min_width }}, calc(100vw - 1rem))">
             <c-slot name="trigger">
                 {% comment %}
@@ -135,6 +135,8 @@ aria-activedescendant so the tinted row and the spoken one agree.
                      gutter: 8,
                      tries: 0,
                      refit: null,
+                     touchY: null,
+                     touchX: null,
                      {% if hotkey %}chord: null,{% endif %}
                      register(el, facets) {
                          const row = { id: this.$id('n26-switcher') + '-option-' + this.items.length, el, ...facets };
@@ -198,6 +200,25 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          const panel = this.$el.parentElement;
                          return !!(panel && node instanceof Node && panel.contains(node));
                      },
+                     // Keep native scrolling within the panel. At either
+                     // end, iOS can otherwise pan the page behind it.
+                     startTouch(event) {
+                         this.touchY = event.touches.length === 1 ? event.touches[0].clientY : null;
+                         this.touchX = event.touches.length === 1 ? event.touches[0].clientX : null;
+                     },
+                     containTouch(event) {
+                         if (this.touchY === null || event.touches.length !== 1) return;
+                         const touch = event.touches[0];
+                         const dy = touch.clientY - this.touchY;
+                         const dx = touch.clientX - this.touchX;
+                         this.touchY = touch.clientY;
+                         this.touchX = touch.clientX;
+                         if (Math.abs(dx) > Math.abs(dy)) return;
+                         const panel = this.$el.parentElement;
+                         const atTop = panel.scrollTop <= 0;
+                         const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+                         if ((dy > 0 && atTop) || (dy < 0 && atBottom)) event.preventDefault();
+                     },
                      fit() {
                          const panel = this.$el.parentElement;
                          // A panel still opening has no width to measure, and
@@ -219,8 +240,11 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          }
                          this.tries = 0;
                          const gap = 4;
-                         const room = document.documentElement.clientWidth;
-                         const drop = document.documentElement.clientHeight;
+                         const viewport = window.visualViewport;
+                         const left = viewport ? viewport.offsetLeft : 0;
+                         const top = viewport ? viewport.offsetTop : 0;
+                         const room = viewport ? viewport.width : document.documentElement.clientWidth;
+                         const drop = viewport ? viewport.height : document.documentElement.clientHeight;
                          const anchor = panel.closest('[data-quick-switcher]').getBoundingClientRect();
                          // Fixed, so the window is the panel's containing
                          // block: the width it is offered does not depend on
@@ -232,6 +256,9 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          // does not, and the difference is exactly a panel at
                          // full cap poking out by a scrollbar.
                          panel.style.maxWidth = room - 2 * this.gutter + 'px';
+                         // A minimum beats a maximum, including when pinch
+                         // zoom makes the visual viewport narrower.
+                         panel.style.minWidth = 'min(var(--dd-min), ' + (room - 2 * this.gutter) + 'px)';
                          panel.style.right = 'auto';
                          panel.style.bottom = 'auto';
                          panel.style.transform = '';
@@ -239,25 +266,31 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          // window offers all the room the clamp could ever
                          // leave it, so the width read is the content's own
                          // and not an artefact of the previous placement.
-                         panel.style.left = this.gutter + 'px';
+                         panel.style.left = left + this.gutter + 'px';
                          panel.style.top = '0px';
                          const width = panel.offsetWidth;
                          const at = '{{ align }}' === 'end' ? anchor.right - width : anchor.left;
-                         panel.style.left = Math.max(this.gutter, Math.min(at, room - this.gutter - width)) + 'px';
-                         // Below the switcher, unless only above has the room.
+                         panel.style.left = Math.max(left + this.gutter, Math.min(at, left + room - this.gutter - width)) + 'px';
+                         // One scrollport, capped to the larger side of the
+                         // trigger. The keyboard shrinks the visual viewport
+                         // without changing documentElement.clientHeight.
+                         const below = Math.max(0, top + drop - this.gutter - anchor.bottom - gap);
+                         const above = Math.max(0, anchor.top - gap - top - this.gutter);
+                         const preferredHeight = 21.25 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+                         const opensAbove = below < Math.min(panel.scrollHeight, preferredHeight) && above > below;
+                         const available = Math.min(drop - 2 * this.gutter, opensAbove ? above : below);
+                         panel.style.maxHeight = Math.max(0, Math.min(preferredHeight, available)) + 'px';
+                         panel.style.scrollPaddingTop = this.$refs.filterHeader.offsetHeight + 'px';
                          const height = panel.offsetHeight;
-                         const below = drop - anchor.bottom - gap;
-                         const above = anchor.top - gap;
-                         panel.style.top = (height > below && above > below
-                             ? Math.max(this.gutter, anchor.top - gap - height)
-                             : anchor.bottom + gap) + 'px';
+                         const y = opensAbove ? anchor.top - gap - height : anchor.bottom + gap;
+                         panel.style.top = Math.max(top + this.gutter, Math.min(y, top + drop - this.gutter - height)) + 'px';
                          panel.style.visibility = '';
                      },
                      init() {
                          this.$watch('dropdownMenu', open => {
                              this.query = '';
                              this.active = '';
-                             if (open) this.$nextTick(() => { this.$refs.filter.focus(); this.fit(); });
+                             if (open) this.$nextTick(() => { this.$refs.filter.focus({ preventScroll: true }); this.fit(); });
                          });
                          // A highlight the query has just hidden would send
                          // Enter to a row nobody can see.
@@ -282,6 +315,8 @@ aria-activedescendant so the tinted row and the spoken one agree.
                              window.removeEventListener('scroll', kit, true);
                              window.removeEventListener('resize', kit);
                          }
+                         window.visualViewport?.addEventListener('resize', this.refit);
+                         window.visualViewport?.addEventListener('scroll', this.refit);
                          window.addEventListener('resize', this.refit);
                          window.addEventListener('scroll', this.refit, true);
                          {% if hotkey %}
@@ -303,6 +338,8 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          {% endif %}
                      },
                      destroy() {
+                         window.visualViewport?.removeEventListener('resize', this.refit);
+                         window.visualViewport?.removeEventListener('scroll', this.refit);
                          window.removeEventListener('resize', this.refit);
                          window.removeEventListener('scroll', this.refit, true);
                          {% if hotkey %}
@@ -310,6 +347,10 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          {% endif %}
                      },
                  }"
+                 @touchstart.passive="startTouch($event)"
+                 @touchmove="containTouch($event)"
+                 @touchend="touchY = null; touchX = null"
+                 @touchcancel="touchY = null; touchX = null"
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
                 {% comment %}
                 The filter box owns the arrow keys and never gives focus up:
@@ -319,7 +360,7 @@ aria-activedescendant so the tinted row and the spoken one agree.
                 outside the box, so the box has to say which list it is naming
                 a row in.
                 {% endcomment %}
-                <div class="border-b border-box-border p-2">
+                <div x-ref="filterHeader" class="sticky top-0 z-10 border-b border-box-border bg-white p-2 dark:bg-ink-900">
                     <c-ui.input type="search"
                                 size="sm"
                                 placeholder="{{ placeholder }}"
@@ -341,11 +382,7 @@ aria-activedescendant so the tinted row and the spoken one agree.
                 the overflow it leaves in the panel, so a list that fits gains
                 a scrollbar and one pixel of scroll.
                 {% endcomment %}
-                {% comment %}
-                overscroll-contain: reaching either end of this list must
-                not hand the gesture to the page underneath.
-                {% endcomment %}
-                <div :id="$id('n26-switcher') + '-list'" class="max-h-72 overflow-y-auto overscroll-contain">{{ slot }}</div>
+                <div :id="$id('n26-switcher') + '-list'">{{ slot }}</div>
                 {% comment %}
                 x-cloak, so a reader with no script never sees a line about a
                 filter they do not have.

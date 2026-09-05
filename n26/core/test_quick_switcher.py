@@ -1,10 +1,7 @@
-"""What the quick switcher must put in the HTML, whatever else it draws.
+"""Quick-switcher markup and event wiring.
 
-No database: a component is a template and a set of props, and everything
-claimed here is decided before a request exists. The assertions are substrings
-that can only be there if the behaviour worked — a destination that is a real
-link, a current row that says so without relying on the tick, and a chevron
-that has a name of its own when there is nothing beside it to borrow one from.
+Render the real Cotton component and check the HTML it supplies. These
+checks do not exercise browser layout or native touch scrolling.
 """
 
 import re
@@ -216,22 +213,38 @@ class TestStayingOnTheScreen:
         assert "window.removeEventListener('scroll', kit, true)" in html
         assert "window.removeEventListener('resize', kit)" in html
 
-    def test_the_panel_is_not_a_second_scroll_box(self):
-        """The list of rows is the scroller. A second overflow-y-auto on
-        the dropdown around it hands a touch gesture to the page."""
-        # The noscript strip also hides overflow as a box; the kit panel
-        # is the half that must not be a second scroll container.
-        panel = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>").split(
-            "<noscript>"
-        )[0]
-        assert "max-h-[calc(100vh-4rem)]" in panel
-        assert "overflow-hidden" in panel
-        assert "overflow-y-auto overflow-x-hidden" not in panel
-        assert "overscroll-contain" in panel
-
-    def test_reaching_the_end_of_the_list_does_not_scroll_the_page(self):
+    def test_the_dropdown_is_the_only_scroll_container(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
-        assert "max-h-72 overflow-y-auto overscroll-contain" in html
+        menu = html.split("<noscript>")[0]
+        assert "overflow-y-auto overflow-x-hidden" in menu
+        assert "max-h-72" not in menu
+        assert "sticky top-0" in menu
+        assert "scrollPaddingTop" in menu
+        assert 'x-ref="filterHeader"' in menu
+
+    def test_touch_boundaries_are_contained_without_disabling_native_scrolling(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert '@touchstart.passive="startTouch($event)"' in html
+        assert '@touchmove="containTouch($event)"' in html
+        assert '@touchcancel="touchY = null; touchX = null"' in html
+        assert "event.touches.length !== 1" in html
+        assert "event.preventDefault()" in html
+        assert "overscroll-contain" in html
+
+    def test_the_menu_fits_the_visible_viewport_when_the_keyboard_opens(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert "viewport.height" in html
+        assert "viewport.offsetTop" in html
+        assert "panel.style.maxHeight" in html
+        for event in ("resize", "scroll"):
+            assert (
+                f"window.visualViewport?.addEventListener('{event}', this.refit)"
+                in html
+            )
+            assert (
+                f"window.visualViewport?.removeEventListener('{event}', this.refit)"
+                in html
+            )
 
     def test_the_scriptless_strip_gives_up_its_width_rather_than_overflow(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
@@ -303,7 +316,7 @@ class TestMovingThroughItFromTheKeyboard:
         highlight moved to is often below the fold of it."""
         html = panel()
         assert "rows[to].el.scrollIntoView({ block: 'nearest' });" in html
-        assert "max-h-72 overflow-y-auto" in html
+        assert "overflow-y-auto overflow-x-hidden" in html
 
     def test_enter_presses_the_highlighted_row_s_own_link(self):
         """The same path the pointer takes: the panel's click handler closes

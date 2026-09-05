@@ -72,10 +72,6 @@ def django_test_settings():
         "django.contrib.staticfiles.storage.StaticFilesStorage"
     )
 
-    # This prevents the banner query being fired in tests
-    for key in BANNER_CACHE_KEYS.values():
-        cache.set(key, False, None)
-
     # Optimize test performance
     # Disable DEBUG to avoid query tracking overhead
     settings.DEBUG = False
@@ -101,21 +97,33 @@ def django_test_settings():
 
 
 @pytest.fixture(autouse=True)
+def suppress_site_banner_queries():
+    """Keep banner queries out of unrelated tests, regardless of worker history.
+
+    Banner tests invalidate these entries and replace them with expiring
+    values. Reset them before each test so an expiry cannot add a query
+    halfway through a page's query-budget check. Tests of banners can still
+    invalidate the entries themselves.
+    """
+    for key in BANNER_CACHE_KEYS.values():
+        cache.set(key, False, None)
+
+
+@pytest.fixture(autouse=True)
 def clear_content_page_ref_cache():
     """Empty the per-title page-ref cache before every test.
 
     ``ContentPageRef.find_similar`` caches one entry per title in a process-local
     ``LocMemCache``, and it sits in the fighter-card render path. Nothing else
-    clears it — every other autouse fixture here is session-scoped — so its
-    contents at test start depend on which tests ran earlier *in the same xdist
-    worker*, and it keeps filling while a test runs.
+    clears it, so its contents at test start depend on which tests ran earlier
+    *in the same xdist worker*, and it keeps filling while a test runs.
 
     That makes query counts depend on worker history and on how many renders have
     already happened, which is what made the relative query-count tests in
     test_crew.py flaky on CI but not locally (#2114).
 
     Only this cache is cleared. The ``default`` cache deliberately holds the
-    ``BANNER_CACHE_KEYS`` entries from ``django_test_settings`` so the banner
+    ``BANNER_CACHE_KEYS`` entries from ``suppress_site_banner_queries`` so the banner
     query stays out of every test's count; clearing that here would put the
     query back.
     """
