@@ -185,6 +185,31 @@ class TestATypeAnAuthorHasTurnedOff:
         assert f'value="{shut.pk}"' not in body
         assert "Brutes" not in body
 
+    def test_an_archived_type_is_not_offered_either(self, client, tester, undrawn):
+        """Archiving is an author's soft delete: it takes nothing back from
+        a gang that already has the type, and it stops offering the type to
+        a new one — the same narrowing as the foundable switch, and the
+        same refusal if the id is typed."""
+        gone = GangType.objects.create(name="Corpse Grinder Cults")
+        gone.archive()
+        client.force_login(tester)
+        body = client.get(reverse("n26-create-gang")).content.decode()
+        assert f'value="{undrawn.pk}"' in body
+        assert "Corpse Grinder Cults" not in body
+
+        response = client.post(
+            reverse("n26-create-gang"),
+            {
+                "name": "Meat Market",
+                "gang_type": str(gone.pk),
+                "starting_credits": "",
+                "colour": "",
+            },
+        )
+
+        assert response.status_code == 200
+        assert not Gang.objects.filter(name="Meat Market").exists()
+
     def test_posting_its_id_founds_nothing(self, client, tester, undrawn, shut):
         """A card that is not drawn is still an id someone can type, so
         the refusal has to be in the form and not only in the grid."""

@@ -29,12 +29,14 @@ class CreateGangForm(forms.Form):
         label="Gang name",
         help_text="You can change this later.",
     )
-    # Narrowed to the types an author has left foundable, and narrowed here
-    # rather than where the cards are built, so the field that validates the
-    # submission and the grid that offers it read the same types. A type turned
-    # off is refused on POST too — a hidden card is still an id someone can
-    # type. Only this screen narrows: a gang founded before a type was turned
-    # off still names it everywhere it is drawn.
+    # Narrowed to the types an author has left foundable and has not
+    # archived, and narrowed here rather than where the cards are built, so
+    # the field that validates the submission and the grid that offers it
+    # read the same types. A type turned off or archived is refused on POST
+    # too — a hidden card is still an id someone can type. Only this screen
+    # narrows: a gang founded before a type was turned off still names it
+    # everywhere it is drawn, exactly as archiving retracts nothing a gang
+    # already holds.
     gang_type = forms.ModelChoiceField(
         # Nameless is narrowed away as well as unfoundable. A type whose
         # name is empty — or only whitespace, which draws the same — is an
@@ -42,7 +44,9 @@ class CreateGangForm(forms.Form):
         # could give. The verb refuses to author one
         # (n26.library.authoring.create_gang_type); a row already in a pack
         # is what this excludes.
-        queryset=GangType.objects.filter(foundable=True).exclude(name__regex=r"^\s*$"),
+        queryset=GangType.objects.filter(foundable=True)
+        .unarchived()
+        .exclude(name__regex=r"^\s*$"),
         label="Gang type",
         help_text=(
             "What the gang is. It decides who you can hire and what they can carry."
