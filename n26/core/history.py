@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from django.urls import reverse
 
 from n26.core.campaigns import NO_CEILING
+from n26.core.cloning import clone_event_details
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
 from n26.core.models.action import read_note
@@ -291,6 +292,20 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     — one that arrives without its cause (a choice settled later) is
     its own act, on its own day.
     """
+    # Each clone writes its openings before its standalone event. Group by
+    # that boundary so companions stay included and later moves of copied
+    # kit cannot change which clone's totals the history recovers.
+    clone_totals = {}
+    clone_credits = clone_rating = 0
+    for event in cluster:
+        if event.kind != Kind.CLONED:
+            continue
+        if event.assignment_id is not None:
+            clone_credits += event.credits_delta
+            clone_rating += event.rating_delta
+        else:
+            clone_totals[event.pk] = (clone_credits, clone_rating)
+            clone_credits = clone_rating = 0
     here = {e.assignment_id for e in cluster if e.assignment_id is not None}
     # A campaign's types arrive on the gang in the act of joining it. They
     # have no cause of their own to ride, so they ride the joining, and
@@ -368,6 +383,14 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     else:
         for e, row in standing:
             act = _one_act(e, row, viewer, alive)
+            if e.kind == Kind.CLONED and e.miniature_id is not None:
+                _, credits, rating = clone_event_details(e.note)
+                if credits is None:
+                    credits, rating = clone_totals[e.pk]
+                act.credits = -credits
+                act.rating = rating
+                if act.credits:
+                    act.category = "money"
             acts.append(act)
             if e.kind == Kind.JOINED_CAMPAIGN:
                 local[_THE_JOINING] = act
@@ -502,6 +525,8 @@ def _machinery(e, row):
     """
     if row is None:
         return False
+    if e.kind == Kind.CLONED:
+        return True
     if row.hidden_id is not None:
         return True
     if row.weapon_profile_id is None:
@@ -705,6 +730,13 @@ def _tell(e, row, alive):
             if was:
                 return (Span(f"renamed {was} to "), Span(now, at.href)), whose
             return (Span("renamed "), at), whose
+        case Kind.CLONED:
+            source, _, _ = clone_event_details(e.note)
+            if model is not None:
+                return (Span(f"cloned {source or 'another model'} as "), at), "model"
+            if source:
+                return (Span(f"cloned the gang from {source}"),), "gang"
+            return (Span("cloned the gang"),), "gang"
         case Kind.JOINED_CAMPAIGN | Kind.LEFT_CAMPAIGN:
             # The arbitrator is the actor, so the verb is theirs: a gang
             # does not join itself, and "joined" would read as the person who
@@ -876,6 +908,7 @@ def _for(model, at, word="for"):
 #: has already said all of them, and printing the note under it puts
 #: bookkeeping on the page.
 _NOTE_IS_MACHINERY = {
+    Kind.CLONED,
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,
     Kind.TALLIED,
@@ -994,7 +1027,10 @@ def campaign_history_size(campaign):
     )
     return (
         campaign.events.count()
-        + campaign.gang_events.exclude(riders).exclude(handed_over).count()
+        + campaign.gang_events.exclude(riders)
+        .exclude(handed_over)
+        .exclude(kind=Kind.CLONED, assignment__isnull=False)
+        .count()
     )
 
 
@@ -1027,8 +1063,20 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     """
     from n26.core.models import LedgerEvent, Miniature
 
-    events = LedgerEvent.objects.filter(campaign=campaign).select_related(
-        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__asset_type"
+    events = (
+        LedgerEvent.objects.filter(campaign=campaign)
+        # A clone's assignment-level openings are ledger machinery. Its one
+        # standalone event already holds the visible act and its totals, so
+        # letting the openings consume a page would make one large clone hide
+        # the acts immediately before it.
+        .exclude(kind=LedgerEvent.Kind.CLONED, assignment__isnull=False)
+        .select_related(
+            "miniature",
+            "actor",
+            "gang",
+            "campaign",
+            "campaign_asset__asset__asset_type",
+        )
     )
     events = (
         events.order_by("-created", "-id")[:limit]

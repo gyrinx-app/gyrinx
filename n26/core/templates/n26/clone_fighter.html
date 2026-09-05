@@ -1,0 +1,54 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Copying one model inside its gang. The owner names the copy; the operation
+takes its profile, equipment and standing state from the source.
+
+The model's edit page is both the way in and the way out: Cancel returns to
+the source, and a completed clone opens the new model there.
+{% endcomment %}
+{% block head_title %}Clone {{ source.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-clone-fighter' source.pk %}"
+                     title="Clone {{ source.name }}"
+                     lead="The new model will have the same equipment and current state. The gang will pay the same amount for the copy."
+                     :form="form"
+                     submit_label="Clone model"
+                     cancel_url="{% url 'n26-edit-fighter' source.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-edit-fighter' source.pk %}">{{ source.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Clone
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="New model">
+            <c-ui.field label="Model name *"
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="model-name">
+                <c-ui.input id="model-name"
+                            name="name"
+                            maxlength="200"
+                            required
+                            autocomplete="off"
+                            autofocus="autofocus"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

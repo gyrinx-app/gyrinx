@@ -681,6 +681,10 @@ def edit_fighter(request, pk):
             "card": card,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
+            # A model brought by another is part of that model's purchase.
+            # Copying the owner carries both across; the child has no
+            # independent purchase to copy on its own.
+            "may_clone": miniature.membership.caused_by_id is None,
             # The role beside the name: the rank the profile is filed
             # under, which is what a reader checking "which of my models
             # is this" wants said once at the top. The bare name — the

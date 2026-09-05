@@ -1,10 +1,10 @@
-"""A roster somebody else owns: the same gang, nothing to click.
+"""A roster somebody else owns: the same gang, without owner controls.
 
 A gang sheet is shareable — the address one player sends another shows
 that gang to whoever opens it, signed in or not. What the reader owns is
-what decides whether the page carries controls, and nothing about the
-gang itself is withheld: the rating, the credits, the stash and every
-card read the same for a stranger as for the owner.
+what decides whether the page carries controls that change it. A signed-in
+reader may print what they can see or clone it into a new gang of their own;
+nothing about the source itself is withheld or made editable.
 """
 
 import pytest
@@ -117,14 +117,12 @@ class TestNothingIsWithheld:
             assert said in theirs and said in mine
 
 
-class TestNothingToClick:
-    """Every control on the sheet leads somewhere only the owner may go,
-    so a reader who does not own it gets none of them — not a disabled
-    one, which is a control saying no, but nothing at all.
+class TestNoSourceControls:
+    """Controls that change the shared gang belong to its owner.
 
-    Printing is the one exception, and has its own class in
-    ``TestPuttingItOnPaper``: it is not an act on the gang, only the
-    reader's own copy of what they are already reading."""
+    A signed-in reader's Print and Clone controls have their own class below:
+    both act on something of the reader's rather than changing this gang.
+    """
 
     def test_the_gang_level_controls_are_the_owners_alone(
         self, client, owner, gang, at
@@ -144,7 +142,7 @@ class TestNothingToClick:
 
         assert "/fighters/" in mine
         assert "/fighters/" not in theirs
-        assert "?delete=" in mine
+        assert "/edit/" in mine
         assert "?delete=" not in theirs
 
     def test_no_way_through_to_a_screen_that_would_refuse_them(
@@ -164,13 +162,14 @@ class TestNothingToClick:
             assert reverse("n26-gang-history", args=[gang.pk]) not in body
 
 
-class TestPuttingItOnPaper:
-    """The one thing a reader who does not own the gang may do with it.
+class TestAReadersOwnActions:
+    """What a reader may do without changing the shared gang.
 
     Players print rosters for each other — not everyone has a printer —
     and the paper carries nothing the sheet has not already shown, so
-    printing follows reading rather than owning. Signing in is where the
-    line falls instead: a visitor may read a gang, a player may print one.
+    printing follows reading rather than owning. Cloning likewise writes a
+    new gang owned by the reader and leaves this one alone. Signing in is
+    where the line falls: a visitor may read; a player may print or clone.
     """
 
     def test_a_signed_in_stranger_is_offered_print(self, client, stranger, gang, at):
@@ -178,8 +177,18 @@ class TestPuttingItOnPaper:
 
         assert reverse("n26-print-setup", args=[gang.pk]) in read(client, at)
 
-    def test_a_visitor_who_has_not_signed_in_is_not(self, client, gang, at):
-        assert reverse("n26-print-setup", args=[gang.pk]) not in read(client, at)
+    def test_a_signed_in_stranger_is_offered_clone(self, client, stranger, gang, at):
+        client.force_login(stranger)
+        url = reverse("n26-clone-gang", args=[gang.pk])
+
+        assert url in read(client, at)
+        assert client.get(url).status_code == 200
+
+    def test_a_visitor_who_has_not_signed_in_gets_neither(self, client, gang, at):
+        body = read(client, at)
+
+        assert reverse("n26-print-setup", args=[gang.pk]) not in body
+        assert reverse("n26-clone-gang", args=[gang.pk]) not in body
 
     def test_the_control_leads_somewhere_that_opens_for_them(
         self, client, stranger, gang
@@ -193,14 +202,15 @@ class TestPuttingItOnPaper:
         assert paper.status_code == 200
         assert "Vex" in paper.content.decode()
 
-    def test_printing_is_all_it_buys_them(self, client, stranger, gang, at):
-        """The Print control is an exception to the rule in
-        ``TestNothingToClick``, not a crack in it: the acts on the gang
-        are still the owner's."""
+    def test_signing_in_still_adds_no_source_editing_controls(
+        self, client, stranger, gang, at
+    ):
         client.force_login(stranger)
         body = read(client, at)
 
-        for control in ("Hire Fighters", "Buy Equipment", "More actions"):
+        assert "Print" in body
+        assert "Clone gang" in body
+        for control in ("Hire Fighters", "Buy Equipment", "History", "Delete gang"):
             assert control not in body
 
 

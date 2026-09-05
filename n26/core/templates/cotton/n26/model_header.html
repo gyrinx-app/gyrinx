@@ -21,6 +21,7 @@ screen can invent a strip of its own.
   breadcrumb — the trail above the name; the pages build it.
   actions — the header's far end: the gang's figures and the roster tally, in
     the corner the gang sheet keeps its wealth strip in.
+  tab_actions — controls at the right-hand end of the tab strip.
 {% endcomment %}
 <c-vars
     :miniature="None"
@@ -29,6 +30,7 @@ screen can invent a strip of its own.
     switcher=""
     breadcrumb=""
     actions=""
+    tab_actions=""
     class=""
 />
 {% load navigation %}
@@ -46,5 +48,12 @@ screen can invent a strip of its own.
         {% endif %}
     </c-n26.page-header>
     {% model_screen_tabs miniature active as screen_tabs_ %}
-    <c-n26.tab-links label="This model's screens" :tabs="screen_tabs_" />
+    <div class="flex items-stretch">
+        <c-n26.tab-links label="This model's screens" :tabs="screen_tabs_" class="min-w-0 flex-1" />
+        {% if tab_actions.strip %}
+            <div class="flex shrink-0 items-end pl-2">
+                {{ tab_actions }}
+            </div>
+        {% endif %}
+    </div>
 </div>

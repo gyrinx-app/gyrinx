@@ -28,6 +28,7 @@ Use it as a context manager::
 """
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from uuid import uuid4
 
 from django.db import transaction
@@ -45,6 +46,15 @@ from n26.core.models import (
 #: The least a sale ever returns. Half of a knife is nothing, and nobody
 #: hands a knife over for nothing.
 MINIMUM_PROCEEDS = 5
+
+
+@dataclass(frozen=True)
+class _CloneResult:
+    """Destination assignments and models made from a clone plan."""
+
+    primary: Miniature | None
+    assignments: dict
+    miniatures: dict
 
 
 def proceeds_for(rating):
@@ -1032,6 +1042,340 @@ class Operation:
         return proceeds
 
     # --- composites ------------------------------------------------------
+
+    def clone_miniature(self, source, *, name=None):
+        """Copy one model's standing state into this operation's gang.
+
+        A clone is a snapshot, not another performance of the acquisitions
+        that built the source.  The low-level copier therefore writes fresh
+        assignments and ledger openings without running stored effects again.
+        """
+        from n26.core.cloning import (
+            clone_event_note,
+            clone_name,
+            plan_miniature_clone,
+        )
+
+        if source.membership.gang_id != self.gang.pk:
+            raise ValueError("A model can only be cloned within its own gang.")
+        source = (
+            Miniature.objects.select_related(
+                "membership__gang",
+                "membership__caused_by__miniature_root__membership",
+            )
+            .filter(
+                pk=source.pk,
+                membership__gang=self.gang,
+                membership__archived=False,
+                membership__gang__archived=False,
+            )
+            .first()
+        )
+        if source is None:
+            raise Refusal("That model can no longer be cloned.")
+        plan = plan_miniature_clone(source)
+        source = plan.primary
+        if source is None:
+            raise ValueError("A model clone plan needs a primary model.")
+        if source.membership.caused_by_id is not None:
+            owner = source.owned_by
+            next_step = (
+                f"Clone {owner.name} to include both models."
+                if owner is not None and not owner.membership.archived
+                else "Clone the gang to include this model."
+            )
+            raise Refusal(f"{source.name} cannot be cloned on its own. {next_step}")
+        result = self._materialise_clone_plan(
+            plan,
+            primary_name=name or clone_name(source.name),
+        )
+        clone = result.primary
+        if clone is None:
+            raise ValueError("A model clone plan did not create its primary model.")
+        # Assignment-level openings keep every copied ledger entry
+        # reconcilable. The journal-only record's note carries presentation
+        # totals so a paged history need not pull the whole snapshot merely to
+        # tell this one visible act; they are not deltas and cannot be counted
+        # as a second movement of money.
+        self.event(
+            clone,
+            LedgerEvent.Kind.CLONED,
+            note=clone_event_note(
+                source.name,
+                credits=plan.copied_spend,
+                rating=plan.copied_rating,
+            ),
+        )
+        return clone
+
+    def _materialise_clone_plan(self, plan, *, primary_name=None):
+        """Write a read-side clone plan without replaying stored effects."""
+        from n26.core.models import (
+            AssignmentSet,
+            ChosenProfileOption,
+            CounterValue,
+            PrintConfig,
+            StatOverride,
+        )
+
+        assignment_map = {}
+        miniature_map = {}
+        memberships = {model.membership_id for model in plan.miniatures}
+        planned = {assignment.pk for assignment in plan.assignments}
+        preserving_external_anchors = plan.source_gang.pk == self.gang.pk
+
+        # Memberships are gang-hosted, so they can be written before the
+        # models that point back at them.  That is the same two-step shape as
+        # hire(), with the destination identity new at every level.
+        for source in plan.assignments:
+            if source.pk in memberships:
+                assignment_map[source.pk] = self._clone_assignment_shell(
+                    source,
+                    gang=self.gang,
+                )
+
+        for source in plan.miniatures:
+            membership = assignment_map.get(source.membership_id)
+            if membership is None:
+                raise ValueError("A cloned model needs its membership assignment.")
+            name = (
+                primary_name
+                if plan.primary is not None and source.pk == plan.primary.pk
+                else source.name
+            )
+            clone = Miniature.objects.create(
+                name=name,
+                owner=self.gang.owner,
+                xp=source.xp,
+                xp_target=source.xp_target,
+                notes=source.notes,
+                lore=source.lore,
+                image=source.image.name,
+                membership=membership,
+            )
+            miniature_map[source.pk] = clone
+            membership.miniature_root = clone
+            membership.save(update_fields=["miniature_root", "modified"])
+            self.touched(clone)
+
+        pending = [
+            assignment
+            for assignment in plan.assignments
+            if assignment.pk not in assignment_map
+        ]
+        while pending:
+            waiting = []
+            made = 0
+            for source in pending:
+                if source.pk in plan.guards:
+                    carrier = assignment_map.get(source.materialised_for_id)
+                    if carrier is None:
+                        waiting.append(source)
+                        continue
+                    if carrier.miniature_root_id is not None:
+                        host = {"miniature": carrier.miniature_root}
+                    elif carrier.stash_root_id is not None:
+                        host = {"stash": self.gang.stash}
+                    else:
+                        host = {"gang": self.gang}
+                elif source.parent_id is not None:
+                    parent = self._clone_link(
+                        source.parent,
+                        assignment_map,
+                        preserve_external=preserving_external_anchors,
+                    )
+                    if parent is None:
+                        if source.parent_id in planned:
+                            waiting.append(source)
+                            continue
+                        raise ValueError(
+                            "A cloned assignment points to a parent outside its graph."
+                        )
+                    host = {"parent": parent}
+                elif source.miniature_id is not None:
+                    miniature = miniature_map.get(source.miniature_id)
+                    if miniature is None:
+                        raise ValueError(
+                            "A cloned assignment has no cloned model host."
+                        )
+                    host = {"miniature": miniature}
+                elif source.stash_id is not None:
+                    stash = getattr(self.gang, "stash", None)
+                    if stash is None:
+                        raise ValueError("A cloned stash assignment needs a stash.")
+                    host = {"stash": stash}
+                else:
+                    host = {"gang": self.gang}
+                assignment_map[source.pk] = self._clone_assignment_shell(
+                    source,
+                    archived=source.archived or source.pk in plan.guards,
+                    **host,
+                )
+                made += 1
+            if waiting and not made:
+                raise ValueError(
+                    "A cloned assignment points to a host outside its graph."
+                )
+            pending = waiting
+
+        for source in plan.assignments:
+            clone = assignment_map[source.pk]
+            is_guard = source.pk in plan.guards
+            clone.caused_by = self._clone_link(
+                source.caused_by,
+                assignment_map,
+                preserve_external=preserving_external_anchors and not is_guard,
+            )
+            clone.chosen_for = self._clone_link(
+                source.chosen_for,
+                assignment_map,
+                preserve_external=preserving_external_anchors and not is_guard,
+            )
+            materialised_for = assignment_map.get(source.materialised_for_id)
+            if materialised_for is not None:
+                clone.materialised_from_id = source.materialised_from_id
+                clone.materialised_for = materialised_for
+            if not is_guard and source.miniature_root_id in miniature_map:
+                clone.miniature_root = miniature_map[source.miniature_root_id]
+            clone.save()
+            self._clone_ledger(source, clone, neutral=source.pk in plan.neutral)
+
+            role = getattr(source, "profile_role", None)
+            if role is not None:
+                ProfileRole.objects.create(assignment=clone, role=role.role)
+            ChosenProfileOption.objects.bulk_create(
+                [
+                    ChosenProfileOption(
+                        assignment=clone,
+                        default_set=option.default_set,
+                    )
+                    for option in source.chosen_options.all()
+                ]
+            )
+            counter = getattr(source, "counter_value", None)
+            if counter is not None:
+                CounterValue.objects.create(assignment=clone, value=counter.value)
+
+        for source in plan.miniatures:
+            clone = miniature_map[source.pk]
+            StatOverride.objects.bulk_create(
+                [
+                    StatOverride(
+                        miniature=clone,
+                        statline_type_stat=override.statline_type_stat,
+                        value=override.value,
+                    )
+                    for override in source.stat_overrides.all()
+                ]
+            )
+            for source_set in source.assignment_sets.all():
+                cloned_set = AssignmentSet.objects.create(
+                    miniature=clone,
+                    name=source_set.name,
+                )
+                cloned_set.assignments.set(
+                    assignment_map[assignment.pk]
+                    for assignment in source_set.assignments.all()
+                    if assignment.pk in assignment_map
+                )
+
+        for source_config in plan.print_configs:
+            config = PrintConfig.objects.create(
+                gang=self.gang,
+                name=source_config.name,
+                include_header=source_config.include_header,
+                include_stash=source_config.include_stash,
+                include_notes=source_config.include_notes,
+            )
+            config.miniatures.set(
+                miniature_map[miniature.pk]
+                for miniature in source_config.miniatures.all()
+                if miniature.pk in miniature_map
+            )
+            config.assignments.set(
+                assignment_map[assignment.pk]
+                for assignment in source_config.assignments.all()
+                if assignment.pk in assignment_map
+            )
+
+        return _CloneResult(
+            primary=miniature_map.get(getattr(plan.primary, "pk", None)),
+            assignments=assignment_map,
+            miniatures=miniature_map,
+        )
+
+    def _clone_link(self, source, assignment_map, *, preserve_external):
+        """Map a graph link, retaining a live gang-wide anchor in place."""
+        if source is None:
+            return None
+        if mapped := assignment_map.get(source.pk):
+            return mapped
+        if (
+            preserve_external
+            and source.gang_root_id == self.gang.pk
+            and source.miniature_root_id is None
+            and source.stash_root_id is None
+            and not source.archived
+        ):
+            return source
+        return None
+
+    def _clone_assignment_shell(self, source, *, archived=None, **host):
+        """Write identity, assignable and host; graph links follow later."""
+        from n26.core.models.assignment import ASSIGNABLE_FIELDS
+
+        is_archived = source.archived if archived is None else archived
+        assignable = {
+            f"{field}_id": getattr(source, f"{field}_id")
+            for field in ASSIGNABLE_FIELDS
+            if getattr(source, f"{field}_id") is not None
+        }
+        return Assignment.objects.create(
+            **assignable,
+            **host,
+            chosen_for_slot_id=source.chosen_for_slot_id,
+            chosen_for_offer_id=source.chosen_for_offer_id,
+            removes=source.removes,
+            archived=is_archived,
+            archived_at=_now() if is_archived else None,
+        )
+
+    def _clone_ledger(self, source, clone, *, neutral=False):
+        """Give a cloned assignment one fresh opening that reconciles."""
+        entry = getattr(source, "ledger_entry", None)
+        values = (
+            {
+                "list_price": 0 if neutral else entry.list_price,
+                "discount": 0 if neutral else entry.discount,
+                "paid": 0 if neutral else entry.paid,
+                # A clone buys a standing snapshot for the same credits. Trade
+                # Points belonged to the source's visit, not this acquisition.
+                "trade_points": 0,
+                "rating_contribution": 0 if neutral else entry.rating_contribution,
+                "reason": entry.reason,
+                "bought_from_id": entry.bought_from_id,
+                "note": entry.note,
+            }
+            if entry is not None
+            else {
+                "list_price": 0,
+                "discount": 0,
+                "paid": 0,
+                "trade_points": 0,
+                "rating_contribution": 0,
+                "reason": Reason.FREE,
+                "bought_from_id": None,
+                "note": "",
+            }
+        )
+        LedgerEntry.objects.create(assignment=clone, **values)
+        self.event(
+            clone,
+            LedgerEvent.Kind.CLONED,
+            credits_delta=values["paid"],
+            trade_points_delta=values["trade_points"],
+            rating_delta=values["rating_contribution"],
+        )
 
     def hire(self, profile, model_name, paid=None, owner=None, option=None, **kwargs):
         """Hire a model: a gang-hosted assignment naming a profile.
@@ -2202,6 +2546,50 @@ def _hold(gang):
     from n26.core.models import Gang
 
     Gang.objects.select_for_update().filter(pk=gang.pk).first()
+
+
+def clone_gang(source, *, name, owner, actor=None):
+    """Create an independent snapshot of one live gang.
+
+    The source is locked while its plan is read.  A clone carries current
+    possessions and current cash, not the source's past acts, campaign, or an
+    open Visit Trading Post action.
+    """
+    from n26.core.cloning import clone_event_note, plan_gang_clone
+    from n26.core.models import Action, Gang, Stash
+
+    with transaction.atomic():
+        source = (
+            Gang.objects.select_for_update()
+            .filter(pk=source.pk, archived=False)
+            .first()
+        )
+        if source is None:
+            raise Refusal("That gang can no longer be cloned.")
+        plan = plan_gang_clone(source)
+        remaining = source.recompute_credits()
+        opening_budget = (
+            None if source.starting_credits is None else remaining + plan.copied_spend
+        )
+        clone = Gang.objects.create(
+            name=name,
+            gang_type=source.gang_type,
+            owner=owner,
+            starting_credits=opening_budget,
+            credits=opening_budget or 0,
+            colour=source.colour,
+            notes=source.notes,
+            lore=source.lore,
+            image=source.image.name,
+        )
+        Stash.objects.create(gang=clone)
+        with operation(clone, actor=actor) as op:
+            result = op._materialise_clone_plan(plan)
+            clone.founding = result.assignments.get(source.founding_id)
+            clone.save(update_fields=["founding", "modified"])
+            op.event(None, LedgerEvent.Kind.CLONED, note=clone_event_note(source.name))
+            op.open_action(Action.Kind.FOUNDING)
+        return clone
 
 
 @contextmanager
