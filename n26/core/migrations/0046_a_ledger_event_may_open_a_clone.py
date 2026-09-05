@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0055_the_gang_stops_keeping_a_copy_of_the_visits_figure"),
+        ("n26", "0059_the_campaigns_vocabulary_gained_lost_and_players"),
     ]
 
     operations = [
@@ -41,6 +41,9 @@ class Migration(migrations.Migration):
                     ("action_closed", "Action completed"),
                     ("joined_campaign", "Joined a campaign"),
                     ("left_campaign", "Left a campaign"),
+                    ("rolled", "Rolled"),
+                    ("gained", "Gained"),
+                    ("lost", "Lost"),
                 ],
                 max_length=20,
             ),

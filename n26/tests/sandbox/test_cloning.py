@@ -8,7 +8,6 @@ from n26.core.models import (
     Action,
     Assignment,
     AssignmentSet,
-    Campaign,
     CampaignMembership,
     CounterValue,
     Gang,
@@ -39,6 +38,7 @@ from n26.tests.sandbox.actions import (
     create_wargear,
     create_weapon,
     ef_adds,
+    found_campaign,
     found_gang,
     give_weapon,
     hire_with_option,
@@ -249,11 +249,13 @@ class TestCloningAMiniature:
         assert clone_act.trade_points == 0
         assert_reconciled(gang)
 
+    @pytest.mark.parametrize("encoded_note", [True, False, "mixed"])
     def test_two_clones_in_one_operation_keep_their_own_history_totals(
         self,
         gang,
         make_profile,
         owner,
+        encoded_note,
     ):
         scout = hire_with_option(
             gang,
@@ -289,6 +291,17 @@ class TestCloningAMiniature:
             scout_clone = op.clone_miniature(scout, name="Wisp | Ash II")
             champion_clone = op.clone_miniature(champion, name="Pyre II")
         clone_batch = op.batch
+
+        if encoded_note is not True:
+            for source, clone in ((scout, scout_clone), (champion, champion_clone)):
+                if encoded_note == "mixed" and source == scout:
+                    continue
+                LedgerEvent.objects.filter(
+                    batch=clone_batch,
+                    kind=LedgerEvent.Kind.CLONED,
+                    assignment__isnull=True,
+                    miniature=clone,
+                ).update(note=source.name)
 
         acts = {
             "".join(span.text for span in act.spans): act
@@ -507,9 +520,11 @@ class TestCloningAMiniature:
         gang,
         ganger_profile,
         owner,
+        campaign_type,
     ):
-        campaign = Campaign.objects.create(
-            name="Dust Falls",
+        campaign = found_campaign(
+            "Dust Falls",
+            campaign_type,
             owner=owner,
             budget=500,
         )
@@ -1016,12 +1031,14 @@ class TestCloningAMiniature:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    @pytest.mark.parametrize("encoded_note", [True, False])
     def test_the_model_that_brought_a_pet_is_cloned_with_the_pet(
         self,
         gang,
         ganger_profile,
         make_profile,
         owner,
+        encoded_note,
     ):
         fighter = hire_with_option(
             gang,
@@ -1051,6 +1068,26 @@ class TestCloningAMiniature:
 
         with operation(gang, actor=owner) as op:
             clone = op.clone_miniature(fighter, name="Handler II")
+
+        event = LedgerEvent.objects.get(
+            batch=op.batch,
+            kind=LedgerEvent.Kind.CLONED,
+            assignment__isnull=True,
+            miniature=clone,
+        )
+        _, expected_credits, expected_rating = clone_event_details(event.note)
+        if not encoded_note:
+            LedgerEvent.objects.filter(pk=event.pk).update(note=fighter.name)
+        clone_act = next(
+            act
+            for act in build(gang, viewer=owner)
+            if "".join(span.text for span in act.spans)
+            == "cloned Handler as Handler II"
+        )
+        assert (clone_act.credits, clone_act.rating) == (
+            -expected_credits,
+            expected_rating,
+        )
 
         cloned_wargear = Assignment.objects.get(
             miniature_root=clone,
@@ -1296,6 +1333,7 @@ class TestCloningAGang:
         gang_type,
         ganger_profile,
         owner,
+        campaign_type,
     ):
         source = found_gang(
             "The Ember Court",
@@ -1331,8 +1369,9 @@ class TestCloningAGang:
             actor=owner,
         )
         remove(discarded_assignment, actor=owner)
-        campaign = Campaign.objects.create(
-            name="Ash Wastes Run",
+        campaign = found_campaign(
+            "Ash Wastes Run",
+            campaign_type,
             owner=owner,
             budget=500,
         )

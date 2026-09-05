@@ -292,11 +292,20 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     — one that arrives without its cause (a choice settled later) is
     its own act, on its own day.
     """
-    clone_openings = [
-        event
-        for event in cluster
-        if event.kind == Kind.CLONED and event.assignment_id is not None
-    ]
+    # Each clone writes its openings before its standalone event. Group by
+    # that boundary so companions stay included and later moves of copied
+    # kit cannot change which clone's totals the history recovers.
+    clone_totals = {}
+    clone_credits = clone_rating = 0
+    for event in cluster:
+        if event.kind != Kind.CLONED:
+            continue
+        if event.assignment_id is not None:
+            clone_credits += event.credits_delta
+            clone_rating += event.rating_delta
+        else:
+            clone_totals[event.pk] = (clone_credits, clone_rating)
+            clone_credits = clone_rating = 0
     here = {e.assignment_id for e in cluster if e.assignment_id is not None}
     # A campaign's types arrive on the gang in the act of joining it. They
     # have no cause of their own to ride, so they ride the joining, and
@@ -377,8 +386,7 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             if e.kind == Kind.CLONED and e.miniature_id is not None:
                 _, credits, rating = clone_event_details(e.note)
                 if credits is None:
-                    credits = sum(opening.credits_delta for opening in clone_openings)
-                    rating = sum(opening.rating_delta for opening in clone_openings)
+                    credits, rating = clone_totals[e.pk]
                 act.credits = -credits
                 act.rating = rating
                 if act.credits:
@@ -1063,7 +1071,11 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         # the acts immediately before it.
         .exclude(kind=LedgerEvent.Kind.CLONED, assignment__isnull=False)
         .select_related(
-            "miniature", "actor", "gang", "campaign", "campaign_asset__asset__asset_type"
+            "miniature",
+            "actor",
+            "gang",
+            "campaign",
+            "campaign_asset__asset__asset_type",
         )
     )
     events = (
