@@ -12,6 +12,11 @@ one choice "which trees does this gang have", and the dialog is where the three
 become three. The control is bordered rather than a ghost button, since a value
 that only looks clickable when pointed at never looks clickable on a phone.
 
+The kit button is whitespace-nowrap. A list of pickables is still that one
+control, so the value wraps inside it — whitespace-normal! beats the kit class,
+and min-w-0 on the row and the dd is what lets the flex item shrink below the
+unbroken string. Without both, the sheet grows sideways past the viewport.
+
   value — used when the default slot is empty. Tested with `slot.strip`,
     because a row written across several lines has a default slot holding the
     newlines between its named ones, and Django counts whitespace as truthy —
@@ -41,25 +46,25 @@ a variable of that name would turn every row into a dialog trigger.
     class=""
 />
 
-<div class="flex items-baseline gap-1.5 {{ class }}">
-    <dt class="whitespace-nowrap text-xs text-muted">{{ label }}</dt>
-    <dd class="text-xs">
+<div class="flex min-w-0 max-w-full items-baseline gap-1.5 {{ class }}">
+    <dt class="shrink-0 whitespace-nowrap text-xs text-muted">{{ label }}</dt>
+    <dd class="min-w-0 text-xs">
         {% if not editable %}
             {# Padded to the button's own inset, so a settled fact sits level with #}
             {# the values that can be changed. #}
-            <span class="inline-block px-2 py-1 text-ink-900 dark:text-ink-100">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</span>
+            <span class="inline-block max-w-full px-2 py-1 text-ink-900 dark:text-ink-100">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</span>
         {% elif dialog %}
             {# The dialog wraps its trigger, so the button has to be inside it. #}
             <c-ui.dialog size="sm">
                 <c-slot name="trigger">
-                    <c-ui.button size="xs" variant="default">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+                    <c-ui.button size="xs" variant="default" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
                 </c-slot>
                 {% if dialog_header %}<c-slot name="header">{{ dialog_header }}</c-slot>{% endif %}
                 {{ dialog }}
                 {% if dialog_footer %}<c-slot name="footer">{{ dialog_footer }}</c-slot>{% endif %}
             </c-ui.dialog>
         {% else %}
-            <c-ui.button size="xs" variant="default" href="{{ href }}">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+            <c-ui.button size="xs" variant="default" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
         {% endif %}
     </dd>
 </div>

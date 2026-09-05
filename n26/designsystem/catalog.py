@@ -1908,8 +1908,10 @@ GROUPS: list[Group] = [
                     "questions. The rhythm belongs to the container, so hiding a "
                     "row behind a permission check cannot leave a gap. Flex wrap "
                     "rather than a grid, which would align every value to the "
-                    "widest label on the sheet. The control keeps its border "
-                    "rather than going ghost, which on a phone would look "
+                    "widest label on the sheet. A long chosen list wraps inside "
+                    "the control: the kit button is nowrap, and without the "
+                    "override the sheet grows sideways. The control keeps its "
+                    "border rather than going ghost, which on a phone would look "
                     "clickable to nobody."
                 ),
             ),
