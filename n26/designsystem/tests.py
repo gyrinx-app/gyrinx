@@ -626,7 +626,7 @@ class TestTheModelCardsTooltips:
         assert 'role="tooltip"' in page
         assert "From Leader" in page
         assert "Rating, including weapons and wargear" in page
-        assert "can spend while the Found and equip gang action is open" in page
+        assert "has left to spend while the Found and equip gang action is open" in page
 
     def test_both_kinds_of_open_choice_draw_their_way_in(self, reader):
         """The sample carries an open one-pick choice and a several-pick
