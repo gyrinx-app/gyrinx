@@ -88,7 +88,9 @@ def venators(library):
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player")
+    # Staff, because the founding budgets reach staff owners only while
+    # they are being tested; the non-staff owner has a class of their own.
+    return User.objects.create_user("player", is_staff=True)
 
 
 @pytest.fixture
@@ -335,6 +337,45 @@ class TestWhatTheScreenSays:
 
         assert response.context["founding_budget"] is None
         assert "Founding Trade Points" not in response.content.decode()
+
+
+class TestAnOwnerTheBudgetsDoNotReachYet:
+    """While the founding budgets are being tested they reach staff owners
+    only, the same readers as the Actions square that completes the
+    founding. Every other owner's screens are read exactly as they were
+    before budgets existed: no tally, list lines counting nothing, the
+    post-is-shut note in its old place, and a purchase naming no action."""
+
+    @pytest.fixture(autouse=True)
+    def signed_in_as_a_plain_owner(self, client, gang):
+        plain = User.objects.create_user("plain-owner")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+        client.force_login(plain)
+
+    def test_the_tally_is_not_drawn(self, client, leader, legacy_list):
+        response = client.get(equip_url(leader, legacy_list))
+
+        assert response.context["founding_budget"] is None
+        assert "Founding Trade Points" not in response.content.decode()
+
+    def test_the_post_is_still_said_to_be_shut(self, client, leader, post):
+        response = client.get(equip_url(leader, post))
+
+        assert response.context["post_is_shut"] is True
+        assert "Not tracking TP" in response.content.decode()
+
+    def test_a_list_purchase_counts_nothing_and_names_no_action(
+        self, client, gang, leader, legacy_list
+    ):
+        client.post(
+            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
+        )
+
+        entry = bought(gang, "Flak plate").ledger_entry
+        assert entry.trade_points == 0
+        assert entry.action is None
+        assert entry.spent_by is None
 
 
 class TestGoingPastIt:

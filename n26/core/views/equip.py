@@ -35,6 +35,7 @@ from n26.core.views.htmx import is_htmx, no_update, with_toasts
 from n26.core.views.permissions import (
     _own_gang_or_404,
     _own_miniature_or_404,
+    may_see_founding,
     trade_points_href,
 )
 
@@ -410,7 +411,7 @@ class Screen:
         return EquipHost.stash(self.gang, self.card, at=at)
 
 
-def _screen(gang, miniature=None, list_param=""):
+def _screen(gang, miniature=None, list_param="", budgets=True):
     """What an equip screen shows: card, collections, chosen list, view.
 
     ``miniature`` names whose screen this is; without one it is the
@@ -457,8 +458,9 @@ def _screen(gang, miniature=None, list_param=""):
         # screen against it, which the books call a combined figure — so
         # the terms are the founding ones and not each collection's. A
         # model without one is read exactly as it was before allowances
-        # existed, down to the queries.
-        budget = budget_for(gang, miniature, computed)
+        # existed, down to the queries — as is every model for a reader
+        # the feature does not reach (``budgets`` False).
+        budget = budget_for(gang, miniature, computed) if budgets else None
         terms = FOUNDING if budget is not None else None
         collections = buyable_lists(
             access.collection
@@ -552,7 +554,12 @@ def render_update(
     from n26.core.owned import possessions
     from n26.core.views.owned import accessorise_dialogs
 
-    screen = _screen(gang, miniature=miniature, list_param=list_param)
+    screen = _screen(
+        gang,
+        miniature=miniature,
+        list_param=list_param,
+        budgets=may_see_founding(gang, request.user),
+    )
     host = screen.host(at)
     held = possessions(host)
     refunds = not gang.credits_unlimited
@@ -856,7 +863,12 @@ def equip(request, pk):
 
     wanted = request.GET.get("list", "")
     everything = wanted == ALL_SCOPE
-    screen = _screen(gang, miniature=miniature, list_param=wanted)
+    screen = _screen(
+        gang,
+        miniature=miniature,
+        list_param=wanted,
+        budgets=may_see_founding(gang, request.user),
+    )
     collections, chosen, view = screen.collections, screen.chosen, screen.view
 
     # Which of the picker's section tabs the reader was on — client state
