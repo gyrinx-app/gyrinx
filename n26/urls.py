@@ -94,6 +94,35 @@ urlpatterns = [
         views.drop_asset,
         name="n26-campaign-asset-drop",
     ),
+    # Handing a held copy to another gang: the arbitrator's, and the
+    # holding gang's owner's.
+    path(
+        "campaigns/<str:pk>/assets/<str:token_pk>/transfer/",
+        views.transfer_asset,
+        name="n26-campaign-asset-transfer",
+    ),
+    # The arbitrator's additions: content written into the campaign's own
+    # pack and onto its additions type. One page per kind of thing.
+    path(
+        "campaigns/<str:pk>/additions/kind/",
+        views.add_kind,
+        name="n26-campaign-add-kind",
+    ),
+    path(
+        "campaigns/<str:pk>/additions/asset/",
+        views.new_asset,
+        name="n26-campaign-new-asset",
+    ),
+    path(
+        "campaigns/<str:pk>/additions/counter/",
+        views.add_counter,
+        name="n26-campaign-add-counter",
+    ),
+    path(
+        "campaigns/<str:pk>/additions/label/",
+        views.add_label,
+        name="n26-campaign-add-label",
+    ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
     # After gangs/new/, which would otherwise resolve "new" as an id.

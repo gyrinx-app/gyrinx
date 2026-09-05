@@ -16,7 +16,10 @@ from n26.core.views.api import preview_view
 from n26.core.views.campaigns import (
     add_asset,
     add_battle,
+    add_counter,
     add_gang,
+    add_kind,
+    add_label,
     add_participant,
     answer_invitation,
     archive_campaign,
@@ -27,10 +30,12 @@ from n26.core.views.campaigns import (
     drop_asset,
     edit_campaign,
     grant_asset,
+    new_asset,
     remove_battle,
     remove_gang,
     remove_participant,
     take_away_asset,
+    transfer_asset,
 )
 from n26.core.views.changelog import changelog, changelog_entry
 from n26.core.views.choose import choose
@@ -82,9 +87,14 @@ __all__ = [
     "answer_invitation",
     "add_gang",
     "add_asset",
+    "add_counter",
+    "add_kind",
+    "add_label",
     "drop_asset",
     "grant_asset",
+    "new_asset",
     "take_away_asset",
+    "transfer_asset",
     "archive_campaign",
     "delete_fighter",
     "delete_gang",

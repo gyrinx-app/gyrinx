@@ -9,7 +9,7 @@ gang types are the library's own.
 from django import forms
 
 from n26.core.widgets import RichText
-from n26.library.models import CampaignType, GangType
+from n26.library.models import AssetKind, CampaignType, GangType
 
 
 class CreateGangForm(forms.Form):
@@ -510,3 +510,124 @@ class GrantAssetForm(forms.Form):
     def __init__(self, *args, playing, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["membership"].queryset = playing
+
+
+# --- The arbitrator's additions ----------------------------------------------
+#
+# Small forms for the campaign page's own section: each writes one kind of
+# thing into the campaign's pack through ``CampaignOperation``. None of them
+# asks what an asset does — an asset here has a name, its words and an
+# income figure, and nothing else.
+
+
+class AddAssetKindForm(forms.Form):
+    """A new class of asset for one campaign: its label and how it behaves."""
+
+    label_singular = forms.CharField(
+        max_length=200,
+        label="Label",
+        help_text='What one of these is called, e.g. "Racket".',
+    )
+    label_plural = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Plural label",
+        help_text=(
+            'What several of them are called, e.g. "Rackets". Leave blank '
+            "and an s is added."
+        ),
+    )
+    mode = forms.ChoiceField(
+        choices=AssetKind.Mode.choices,
+        initial=AssetKind.Mode.POOLED,
+        label="How it behaves",
+        widget=forms.RadioSelect,
+        error_messages={"required": "Say how assets of this kind behave."},
+    )
+
+
+class NewAssetForm(forms.Form):
+    """A new asset under one of the campaign's kinds.
+
+    ``kinds`` are the kinds the campaign deals in — the shared type's and
+    the additions' — and have no default for the reason every picker here
+    has none: a queryset built without one would accept any kind at all.
+    """
+
+    kind = forms.ModelChoiceField(
+        queryset=None,
+        label="Kind",
+        error_messages={
+            "invalid_choice": "That is not a kind of asset this campaign deals in.",
+            "required": "Select a kind.",
+        },
+    )
+    name = forms.CharField(max_length=200, label="Name")
+    annotation = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Annotation",
+        help_text="Optional. Shown in brackets after the name.",
+    )
+    income = forms.IntegerField(
+        required=False,
+        min_value=0,
+        initial=0,
+        label="Income",
+        help_text=(
+            "Credits this asset brings its holder each cycle. Shown, never collected."
+        ),
+    )
+
+    def __init__(self, *args, kinds, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["kind"].queryset = kinds
+
+
+class AddCounterForm(forms.Form):
+    """A counter every gang in the campaign tracks, and where it opens."""
+
+    name = forms.CharField(
+        max_length=200,
+        label="Name",
+        help_text='e.g. "Meat".',
+    )
+    opening = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        label="Opening value",
+        help_text="What every gang starts at.",
+    )
+
+
+class AddLabelForm(forms.Form):
+    """A question every gang settles by picking one option."""
+
+    name = forms.CharField(
+        max_length=200,
+        label="Name",
+        help_text='What the choice is called, e.g. "Alignment".',
+    )
+    options = forms.CharField(
+        label="Options",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text='One option per line, e.g. "Law Abiding" then "Outlaw".',
+    )
+
+    def clean_options(self):
+        """The options as a list: blank lines dropped, each one stripped,
+        and no two the same however they are cased — the library keeps
+        them apart by name, and a player picking between two options
+        that read alike has nothing to go on."""
+        lines = [line.strip() for line in self.cleaned_data["options"].splitlines()]
+        options = [line for line in lines if line]
+        if not options:
+            raise forms.ValidationError("Give at least one option, one per line.")
+        seen = set()
+        for option in options:
+            if option.casefold() in seen:
+                raise forms.ValidationError(f"{option} is listed twice.")
+            seen.add(option.casefold())
+        if any(len(option) > 200 for option in options):
+            raise forms.ValidationError("An option can be at most 200 characters.")
+        return options

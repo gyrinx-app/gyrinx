@@ -1,0 +1,75 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Declaring a new kind of asset for one campaign. The kind lands on the
+campaign's own additions, so the shared type is untouched and no other
+campaign sees it. Native radios for the mode, as the campaign type cards
+are, so the form posts with no script and a redisplay keeps the pick.
+{% endcomment %}
+{% block head_title %}Add a kind of asset to {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-add-kind' campaign.pk %}"
+                     title="Add a kind of asset"
+                     lead="A kind of asset this campaign deals in, such as Rackets. Add the assets themselves afterwards."
+                     :form="form"
+                     submit_label="Add kind"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Add a kind of asset
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="The kind">
+            <c-ui.field label="Label *"
+                        description='What one of these is called, e.g. "Racket".'
+                        error="x"
+                        :form="form"
+                        name="label_singular"
+                        for="kind-label">
+                <c-ui.input id="kind-label"
+                            name="label_singular"
+                            autocomplete="off"
+                            value="{{ form.label_singular.value|default:'' }}" />
+            </c-ui.field>
+            <c-ui.field label="Plural label"
+                        description='What several of them are called, e.g. "Rackets". Leave blank and an s is added.'
+                        error="x"
+                        :form="form"
+                        name="label_plural"
+                        for="kind-plural">
+                <c-ui.input id="kind-plural"
+                            name="label_plural"
+                            autocomplete="off"
+                            value="{{ form.label_plural.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-section title="How it behaves">
+            <c-n26.radio-cards label="How it behaves *" :form="form" name="mode">
+                {% for mode in modes %}
+                    <c-n26.radio-cards.card name="mode"
+                                            value="{{ mode.value }}"
+                                            label="{{ mode.label }}"
+                                            description="{{ mode.description }}"
+                                            :checked="mode.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

@@ -1,0 +1,66 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Giving every gang in the campaign a new counter. The counter is written into
+the campaign's pack and built into its additions at the opening value, so
+gangs joining from now on start there and gangs already playing catch up
+within moments.
+{% endcomment %}
+{% block head_title %}Add a counter to {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-add-counter' campaign.pk %}"
+                     title="Add a counter"
+                     lead="A number every gang in the campaign tracks, such as Meat. Each gang's owner moves it on the gang sheet, and you can move it from the campaign page."
+                     :form="form"
+                     submit_label="Add counter"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Add a counter
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="The counter">
+            <c-ui.field label="Name *"
+                        description='e.g. "Meat".'
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="counter-name">
+                <c-ui.input id="counter-name"
+                            name="name"
+                            autocomplete="off"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+            <c-ui.field label="Opening value *"
+                        description="What every gang starts at."
+                        error="x"
+                        :form="form"
+                        name="opening"
+                        for="counter-opening">
+                <c-ui.input id="counter-opening"
+                            name="opening"
+                            type="number"
+                            min="0"
+                            inputmode="numeric"
+                            value="{{ form.opening.value|default_if_none:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

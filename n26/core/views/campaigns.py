@@ -197,8 +197,24 @@ def campaign(request, pk):
     sheet = render_campaign(found, viewer=request.user)
     # The addresses are the view's to fill: the structure says who may act,
     # and only here is it known where each act is asked.
+    here = reverse("n26-campaign", args=[found.pk])
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
+        # The arbitrator may move a campaign counter on any gang at the
+        # table, and a gang's owner their own — the same act the gang sheet
+        # offers, posted from here and landing back here.
+        if yours or line.yours:
+            for counter in line.counters:
+                if counter is not None and counter.assignment_id:
+                    counter.href = reverse("n26-tally", args=[counter.assignment_id])
+                    counter.back = here + "#gangs"
+    if yours:
+        sheet.added.add_kind_href = reverse("n26-campaign-add-kind", args=[found.pk])
+        sheet.added.add_asset_href = reverse("n26-campaign-new-asset", args=[found.pk])
+        sheet.added.add_counter_href = reverse(
+            "n26-campaign-add-counter", args=[found.pk]
+        )
+        sheet.added.add_label_href = reverse("n26-campaign-add-label", args=[found.pk])
     for table in sheet.assets:
         if yours:
             table.add_href = (
@@ -212,6 +228,10 @@ def campaign(request, pk):
                 copy.take_away_href = reverse(
                     "n26-campaign-asset-take-away", args=[found.pk, copy.copy_id]
                 )
+                copy.transfer_href = reverse(
+                    "n26-campaign-asset-transfer", args=[found.pk, copy.copy_id]
+                )
+                copy.transfer_label = "Transfer" if yours else "Hand over"
             if not copy.held and yours:
                 copy.grant_href = reverse(
                     "n26-campaign-asset-grant", args=[found.pk, copy.copy_id]
@@ -608,13 +628,17 @@ def _pooled_assets(campaign):
     kinds of its type and of its additions.
 
     A held-one-each asset is every member gang's own, given on joining,
-    and has no copies to add. Archived assets are left out here, where a
-    new copy would be made — archiving hides a thing from new grants and
-    takes nothing back from a campaign that already holds a copy.
+    and has no copies to add. Only the assets this campaign may see: the
+    system pack's, the shared type's pack's and the campaign's own — an
+    asset another campaign's arbitrator wrote under the same shared kind
+    sits in that campaign's pack and is nobody else's to offer. Archived
+    assets are left out here, where a new copy would be made — archiving
+    hides a thing from new grants and takes nothing back from a campaign
+    that already holds a copy.
     """
     return (
         (campaign.campaign_type.pooled_assets() | campaign.additions.pooled_assets())
-        .unarchived()
+        .selectable([campaign.pack_id, campaign.campaign_type.pack_id])
         .select_related("kind")
         .order_by("kind__position", "kind__label_singular", "name")
     )
@@ -833,6 +857,79 @@ def take_away_asset(request, pk, token_pk):
 
 @requires_flag(CAMPAIGNS)
 @login_required
+def transfer_asset(request, pk, token_pk):
+    """Hand a held copy to another gang playing the campaign.
+
+    The arbitrator may move any held copy; the owner of the gang holding
+    it may hand it over. Anybody else is told there is nothing here. The
+    gangs offered are the campaign's own less the one holding the copy,
+    and the same list decides what the POST will accept.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import GrantAssetForm
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import Refusal
+
+    found = _any_campaign_or_404(request, pk)
+    token = _token_or_404(found, token_pk)
+    reading = getattr(request.user, "id", None)
+    arbitrating = found.owner_id == reading
+    if not arbitrating and not _holding_owner(token, request.user):
+        raise Http404("No such asset in this campaign")
+    # A stale link to a copy nobody holds any more: nothing to hand over.
+    if not token.held:
+        messages.error(request, f"{token} is not held by any gang.")
+        return redirect(_assets_anchor(found))
+    receiving = (
+        CampaignMembership.objects.filter(campaign=found, left__isnull=True)
+        .exclude(pk=token.holder_id)
+        .select_related("gang", "gang__gang_type")
+        .order_by("gang__name")
+    )
+
+    if request.method == "POST":
+        form = GrantAssetForm(request.POST, playing=receiving)
+        if form.is_valid():
+            membership = form.cleaned_data["membership"]
+            holder = token.holder.gang.name
+            try:
+                with campaign_operation(found, actor=request.user) as act:
+                    moved = act.transfer(token, membership)
+            except Refusal as refused:
+                messages.error(request, str(refused))
+            else:
+                if moved is None:
+                    messages.error(request, f"{token} was already removed.")
+                else:
+                    messages.success(
+                        request,
+                        f"{token} went from {holder} to {membership.gang.name}.",
+                    )
+            return redirect(_assets_anchor(found))
+    else:
+        form = GrantAssetForm(playing=receiving)
+
+    return render(
+        request,
+        "n26/transfer_asset.html",
+        {
+            "form": form,
+            "campaign": found,
+            "token": token,
+            "receiving": receiving,
+            # The arbitrator transfers; the holding gang's owner hands over.
+            # Two words for one act, because the owner is giving something
+            # of their own away and the arbitrator is moving the campaign's.
+            "verb": "Transfer" if arbitrating else "Hand over",
+            "back": _assets_anchor(found),
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
 def drop_asset(request, pk, token_pk):
     """The question at its own address, then the act."""
     from n26.core.campaigns import campaign_operation
@@ -860,6 +957,200 @@ def drop_asset(request, pk, token_pk):
         "n26/drop_asset.html",
         {"campaign": found, "token": token, "back": _assets_anchor(found)},
     )
+
+
+# --- The arbitrator's additions ----------------------------------------------
+#
+# Four small pages, one per kind of thing the arbitrator may write into the
+# campaign's pack: a kind of asset, an asset, a counter, a label. Each is the
+# arbitrator's alone, posts to its own address, and lands back on the
+# campaign page's additions section. The full authoring pages are never
+# opened to an arbitrator; what these ask is the whole of what they may
+# write, and none of them asks what an asset does.
+
+
+def _additions_anchor(campaign):
+    """The campaign page, opened at its additions section."""
+    from django.urls import reverse
+
+    return reverse("n26-campaign", args=[campaign.pk]) + "#additions"
+
+
+def _campaign_kinds(campaign):
+    """Every kind the campaign deals in — the shared type's and the
+    additions' — the shared type's first, each in its authored order."""
+    from django.db.models import Case, IntegerField, When
+
+    from n26.library.models import AssetKind
+
+    return (
+        AssetKind.objects.filter(
+            campaign_type_id__in=(campaign.campaign_type_id, campaign.additions_id)
+        )
+        .annotate(
+            own=Case(
+                When(campaign_type_id=campaign.campaign_type_id, then=0),
+                default=1,
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("own", "position", "label_singular")
+    )
+
+
+def _addition_page(request, campaign, form, template, act, **context):
+    """Run one addition through the campaign's line and reply to the reader.
+
+    ``act`` performs the write against a ``CampaignOperation`` given the
+    form's clean data; a refusal in words lands on the form as an error
+    beside the fields rather than as a message on the next page, since the
+    reader is still on the form and can fix it.
+    """
+    from n26.core.campaigns import campaign_operation
+    from n26.core.operations import Refusal
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            with campaign_operation(campaign, actor=request.user) as op:
+                said = act(op, form.cleaned_data)
+        except Refusal as refused:
+            form.add_error(None, str(refused))
+        else:
+            messages.success(request, said)
+            return redirect(_additions_anchor(campaign))
+    return render(
+        request,
+        template,
+        {
+            "form": form,
+            "campaign": campaign,
+            "back": _additions_anchor(campaign),
+            **context,
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_kind(request, pk):
+    """Declare a new kind of asset for this campaign alone."""
+    from n26.core.forms import AddAssetKindForm
+    from n26.library.models import AssetKind
+
+    found = _own_campaign_or_404(request, pk)
+    form = AddAssetKindForm(request.POST or None)
+
+    def act(op, data):
+        kind = op.add_kind(
+            data["label_singular"], data["mode"], label_plural=data["label_plural"]
+        )
+        return f"Added the kind of asset {kind.label_singular}."
+
+    submitted = str(form["mode"].value() or "")
+    # Drawn as cards, the mode that changes hands first: it is the one an
+    # arbitrator adding a kind nearly always means.
+    modes = (
+        (
+            AssetKind.Mode.POOLED,
+            "The campaign's own assets. One gang holds each at a time.",
+        ),
+        (
+            AssetKind.Mode.HELD_ONE_EACH,
+            "Every gang gets one when it joins and keeps it.",
+        ),
+    )
+    return _addition_page(
+        request,
+        found,
+        form,
+        "n26/add_asset_kind.html",
+        act,
+        modes=[
+            {
+                "value": mode.value,
+                "label": mode.label,
+                "description": description,
+                "checked": mode.value == submitted,
+            }
+            for mode, description in modes
+        ],
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def new_asset(request, pk):
+    """Write a new asset under one of the campaign's kinds.
+
+    ``?kind=`` picks the kind in advance, which is how a link beside one
+    kind's table reaches here; the reader may still change it.
+    """
+    from n26.core.forms import NewAssetForm
+
+    found = _own_campaign_or_404(request, pk)
+    kinds = list(_campaign_kinds(found))
+    form = NewAssetForm(request.POST or None, kinds=_campaign_kinds(found))
+
+    def act(op, data):
+        asset = op.create_asset(
+            data["kind"],
+            data["name"],
+            annotation=data["annotation"],
+            income=data["income"],
+        )
+        return f"Created {asset}."
+
+    picked = str(form["kind"].value() or request.GET.get("kind", ""))
+    return _addition_page(
+        request,
+        found,
+        form,
+        "n26/new_asset.html",
+        act,
+        kinds=[
+            {
+                "value": str(kind.pk),
+                "label": kind.label_singular,
+                "description": (
+                    f"{kind.campaign_type} · {kind.get_mode_display().lower()}"
+                ),
+                "checked": str(kind.pk) == picked,
+            }
+            for kind in kinds
+        ],
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_counter(request, pk):
+    """Give every gang in the campaign a counter, opening at a value."""
+    from n26.core.forms import AddCounterForm
+
+    found = _own_campaign_or_404(request, pk)
+    form = AddCounterForm(request.POST or None)
+
+    def act(op, data):
+        counter = op.add_counter(data["name"], opening=data["opening"])
+        return f"Added the counter {counter}. Every gang starts at {data['opening']}."
+
+    return _addition_page(request, found, form, "n26/add_counter.html", act)
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_label(request, pk):
+    """Ask every gang in the campaign one question with fixed options."""
+    from n26.core.forms import AddLabelForm
+
+    found = _own_campaign_or_404(request, pk)
+    form = AddLabelForm(request.POST or None)
+
+    def act(op, data):
+        slot = op.add_label(data["name"], data["options"])
+        return f"Added the label {slot.choice_label}. Every gang picks one option."
+
+    return _addition_page(request, found, form, "n26/add_label.html", act)
 
 
 def invitations_for(user):

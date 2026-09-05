@@ -39,8 +39,10 @@ from n26.core.hire import (
 from n26.core.images import MAX_PX, PORTRAIT
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
+    AdditionLine,
     AssetKindColumn,
     AssignableLine,
+    CampaignAdditions,
     CampaignAssetCopy,
     CampaignAssetLine,
     CampaignAssetTable,
@@ -2274,7 +2276,17 @@ def campaign_sheet():
             "hands after every battle; the arbitrator settles ties at the "
             "table.</p>"
         ),
-        additions=["Meat"],
+        additions=["Meat", "Alignment"],
+        added=CampaignAdditions(
+            kinds=[AdditionLine(name="Racket", detail="changes hands")],
+            assets=[AdditionLine(name="Protection", detail="Racket · income 10¢")],
+            counters=[AdditionLine(name="Meat", detail="opens at 3")],
+            labels=[AdditionLine(name="Alignment", detail="Law Abiding, Outlaw")],
+            add_kind_href="#",
+            add_asset_href="#",
+            add_counter_href="#",
+            add_label_href="#",
+        ),
         counter_columns=["Reputation", "Meat"],
         asset_kinds=CAMPAIGN_KINDS,
         gangs=[
@@ -2288,7 +2300,24 @@ def campaign_sheet():
                 wealth=1275,
                 colour="orange",
                 over_budget=True,
-                counters=[4, 2],
+                counters=[
+                    CounterLine(
+                        name="Reputation",
+                        value=4,
+                        tallied=4,
+                        assignment_id="gravebolt-reputation",
+                        href="#",
+                        back="#",
+                    ),
+                    CounterLine(
+                        name="Meat",
+                        value=2,
+                        tallied=2,
+                        assignment_id="gravebolt-meat",
+                        href="#",
+                        back="#",
+                    ),
+                ],
                 assets=[["Settlement"], ["Toll Crossing"], []],
                 href="#",
             ),
@@ -2301,7 +2330,17 @@ def campaign_sheet():
                 credits=210,
                 wealth=1150,
                 colour="teal",
-                counters=[1, None],
+                counters=[
+                    CounterLine(
+                        name="Reputation",
+                        value=1,
+                        tallied=1,
+                        assignment_id="pit-reputation",
+                        href="#",
+                        back="#",
+                    ),
+                    None,
+                ],
                 assets=[["Settlement"], [], []],
                 href="#",
             ),
@@ -2314,7 +2353,24 @@ def campaign_sheet():
                 credits=160,
                 wealth=1197,
                 colour="violet",
-                counters=[3, 0],
+                counters=[
+                    CounterLine(
+                        name="Reputation",
+                        value=3,
+                        tallied=3,
+                        assignment_id="choir-reputation",
+                        href="#",
+                        back="#",
+                    ),
+                    CounterLine(
+                        name="Meat",
+                        value=0,
+                        tallied=0,
+                        assignment_id="choir-meat",
+                        href="#",
+                        back="#",
+                    ),
+                ],
                 assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"], []],
                 href="#",
                 yours=True,
@@ -2341,6 +2397,7 @@ def campaign_sheet():
                         holder_href="#",
                         holder_yours=True,
                         take_away_href="#",
+                        transfer_href="#",
                     ),
                     CampaignAssetCopy(
                         copy_id="old-ruins-sump",

@@ -1124,4 +1124,28 @@ def _tell_campaign(e):
         case kinds.ASSET_DROPPED:
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"dropped {what}"),), "campaign"
+        case kinds.KIND_ADDED:
+            what = f"the kind of asset {e.note}" if e.note else "a kind of asset"
+            return (Span(f"added {what}"),), "campaign"
+        case kinds.ASSET_CREATED:
+            what = f"the asset {e.note}" if e.note else "an asset"
+            return (Span(f"created {what}"),), "campaign"
+        case kinds.COUNTER_ADDED:
+            # The note holds the name and the opening value, as a budget
+            # note holds its two figures.
+            name, _, opening = e.note.rpartition(" → ")
+            if name:
+                return (
+                    Span(f"added the counter {name}, opening at {opening}"),
+                ), "campaign"
+            return (Span("added a counter"),), "campaign"
+        case kinds.LABEL_ADDED:
+            name, _, options = e.note.partition(" → ")
+            if options:
+                return (
+                    Span(f"added the label {name}, with the options {options}"),
+                ), "campaign"
+            if name:
+                return (Span(f"added the label {name}"),), "campaign"
+            return (Span("added a label"),), "campaign"
     return (Span("changed the campaign"),), "campaign"

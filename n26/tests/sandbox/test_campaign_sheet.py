@@ -34,6 +34,8 @@ from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import CampaignType, Counter
 from n26.tests.sandbox.actions import (
     add_asset,
+    add_campaign_counter,
+    add_campaign_label,
     found_campaign,
     found_gang,
     grant_asset,
@@ -118,6 +120,13 @@ def line_named(sheet, name):
     return next(line for line in sheet.gangs if line.name == name)
 
 
+def readings(line):
+    """The counter values down one gang's row, None where the gang does
+    not carry the counter: the lines carry the assignment behind each
+    reading too, which these tests are not about."""
+    return [counter.value if counter is not None else None for counter in line.counters]
+
+
 class TestTheGangsTable:
     """One line per gang playing, sorted by name, carrying the gang's own
     money and the campaign's counters and assets by column."""
@@ -147,7 +156,7 @@ class TestTheGangsTable:
         sheet = render_campaign(campaign)
 
         assert sheet.counter_columns == ["Reputation", "Meat"]
-        assert line_named(sheet, "Late").counters == [0, 2]
+        assert readings(line_named(sheet, "Late")) == [0, 2]
 
     def test_a_held_territory_counts_in_the_reading(self, campaign, gangs, old_ruins):
         """The same reading the gang sheet shows: stored value plus what a
@@ -159,8 +168,8 @@ class TestTheGangsTable:
 
         sheet = render_campaign(campaign)
 
-        assert line_named(sheet, "The Ashen Choir").counters == [3]
-        assert line_named(sheet, "The Rust Kings").counters == [0]
+        assert readings(line_named(sheet, "The Ashen Choir")) == [3]
+        assert readings(line_named(sheet, "The Rust Kings")) == [0]
 
     def test_a_gang_without_the_counter_reads_none(self, campaign, gangs):
         """A dash, never a blank: a gang whose card lacks the counter says
@@ -171,8 +180,8 @@ class TestTheGangsTable:
             gang_root=gangs[2], counter__name="Reputation"
         ).update(archived=True)
         sheet = render_campaign(campaign)
-        assert line_named(sheet, "Pit of Teeth").counters == [None]
-        assert line_named(sheet, "The Ashen Choir").counters == [0]
+        assert readings(line_named(sheet, "Pit of Teeth")) == [None]
+        assert readings(line_named(sheet, "The Ashen Choir")) == [0]
 
     def test_assets_sit_under_their_kind_column(
         self, campaign, gangs, old_ruins, toll_crossing, protection
@@ -302,11 +311,23 @@ class TestTheQueryBudget:
         assert again == few
 
     def test_the_page_costs_a_fixed_number_of_queries(
-        self, client, campaign, gangs, old_ruins, arbitrator
+        self, client, campaign, gang_type, old_ruins, arbitrator
     ):
         FeatureFlag.objects.create(
             slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
         )
+        # The arbitrator's additions draw a section of their own, a counter
+        # column with a control in every cell, and a label with its options.
+        # Added before any gang joins, so every gang measured carries the
+        # same kinds: the first card carrying a slot pays that kind's
+        # hydration once, which is the price of the kind and not of a gang.
+        add_campaign_counter(campaign, "Meat", opening=3)
+        add_campaign_label(campaign, "Alignment", ["Law Abiding", "Outlaw"])
+        gangs = []
+        for name in ("The Rust Kings", "The Ashen Choir", "Pit of Teeth"):
+            gang = found_gang(name, gang_type, owner=User.objects.create_user(name))
+            join_campaign(gang, campaign)
+            gangs.append(gang)
         grant_asset(add_asset(campaign, old_ruins), gangs[0])
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk])
@@ -330,4 +351,6 @@ class TestTheQueryBudget:
             body = client.get(address).content.decode()
 
         assert "More 2" in body
+        assert 'id="additions"' in body
+        assert body.count("Add one to Meat") == 6
         assert len(more_queries.captured_queries) == len(few.captured_queries)

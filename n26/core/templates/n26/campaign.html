@@ -112,12 +112,33 @@ reader's other campaigns — the same pattern a gang's screens use.
                 </c-ui.button>
             </c-slot>
         {% endif %}
+        {% comment %}
+        The arbitrator's own section: four ways to write into the campaign's
+        pack. Each is a page that asks; the section is drawn only when these
+        are filled, so nobody else sees it.
+        {% endcomment %}
+        {% if yours %}
+            <c-slot name="additions_actions">
+                <c-ui.button size="sm" variant="primary" href="{{ sheet.added.add_kind_href }}">
+                    Add kind of asset
+                </c-ui.button>
+                <c-ui.button size="sm" variant="primary" href="{{ sheet.added.add_asset_href }}">
+                    Create asset
+                </c-ui.button>
+                <c-ui.button size="sm" variant="primary" href="{{ sheet.added.add_counter_href }}">
+                    Add counter
+                </c-ui.button>
+                <c-ui.button size="sm" variant="primary" href="{{ sheet.added.add_label_href }}">
+                    Add label
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
         {% if yours %}
             <c-slot name="participants_actions">
                 <c-ui.button size="sm"
                              variant="primary"
                              href="{% url 'n26-campaign-add-participant' campaign.pk %}">
-                    Add participants
+                    Add players
                 </c-ui.button>
             </c-slot>
             <c-slot name="battles_actions">
