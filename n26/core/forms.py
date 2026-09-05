@@ -398,10 +398,7 @@ class FoundCampaignForm(CampaignForm):
         .select_related("built_ins")
         .prefetch_related("asset_types"),
         label="Campaign type",
-        help_text=(
-            "Which campaign from the rulebook you are running. Each card "
-            "lists what every gang starts with and what the gangs fight over."
-        ),
+        help_text=("Use pre-built campaign setups to get started quickly."),
         error_messages={
             "invalid_choice": (
                 "That is not a campaign type you can found on. Select one of "

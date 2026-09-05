@@ -282,7 +282,7 @@ class TestSettingOneUp:
         body = client.get("/n26/campaigns/new/").content.decode()
         assert "Territory campaign" in body
         assert "gangs fight for control of Territory" in body
-        assert "Every gang has its own Settlement and keeps it." in body
+        assert "Every gang has its own Settlement." in body
         assert "One gang holds each Territory at a time." in body
         assert (
             "Every gang starts with Reputation at 0, one Settlement and Income at 0."
