@@ -81,14 +81,18 @@ def total_spent(gang):
 
     Includes events on archived assignments — removing something is not a
     refund. A refund and a sale each append an event of their own, so both
-    show here as spend coming back.
+    show here as spend coming back. A transfer between gangs has no
+    assignment at all and sits on the gang itself: the one standalone
+    event that moves money, read here with the rest.
     """
+    from django.db.models import Q
+
     from n26.core.models import LedgerEvent
 
     return (
-        LedgerEvent.objects.filter(assignment__gang_root=gang).aggregate(
-            total=Sum("credits_delta")
-        )["total"]
+        LedgerEvent.objects.filter(
+            Q(assignment__gang_root=gang) | Q(assignment__isnull=True, gang=gang)
+        ).aggregate(total=Sum("credits_delta"))["total"]
         or 0
     )
 

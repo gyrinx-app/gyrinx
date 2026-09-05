@@ -39,7 +39,14 @@ Kind = LedgerEvent.Kind
 
 #: The kinds that concern money. "Amended" is here because re-choosing
 #: how a thing is built can change what it charges.
-MONEY = {Kind.PURCHASED, Kind.REFUNDED, Kind.SOLD, Kind.REPRICED, Kind.AMENDED}
+MONEY = {
+    Kind.PURCHASED,
+    Kind.REFUNDED,
+    Kind.SOLD,
+    Kind.REPRICED,
+    Kind.AMENDED,
+    Kind.TRANSFERRED,
+}
 
 #: The kinds that are a campaign's asset coming to the gang or leaving
 #: it. Nothing else is ever written with them, so a record of either kind
@@ -165,7 +172,11 @@ def _events(gang, window=None):
     """The gang's events, oldest first — all of them, or the last
     ``window`` of them read back to front and turned round."""
     rows = gang.ledger_events.select_related(
-        "miniature", "actor", "campaign", "campaign_asset__asset__asset_type"
+        "miniature",
+        "actor",
+        "campaign",
+        "campaign_asset__asset__asset_type",
+        "counterpart",
     )
     if window is None:
         return list(rows.order_by("created", "id"))
@@ -753,6 +764,16 @@ def _tell(e, row, alive):
             ), "model"
         case Kind.STATUS_SET:
             return _status_told(e, model, at), "model"
+        case Kind.TRANSFERRED:
+            # Positive left this gang, negative arrived. The counterpart
+            # is named plain: a gang's history is about this gang, and the
+            # other one has its own page.
+            other = e.counterpart.name if e.counterpart else "another gang"
+            figure = f"{abs(e.credits_delta)}¢"
+            because = (Span(f" — {e.note}"),) if e.note else ()
+            if e.credits_delta > 0:
+                return (Span(f"paid {figure} to {other}"), *because), "money"
+            return (Span(f"received {figure} from {other}"), *because), "money"
         case Kind.RENAMED:
             was, _, now = e.note.rpartition(" → ")
             # About no model, so about the gang: the same act one level up.
@@ -973,6 +994,7 @@ def _for(model, at, word="for"):
 _NOTE_IS_MACHINERY = {
     Kind.CLONED,
     Kind.STATUS_SET,
+    Kind.TRANSFERRED,
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,
     Kind.TALLIED,
@@ -1140,6 +1162,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
             "gang",
             "campaign",
             "campaign_asset__asset__asset_type",
+            "counterpart",
         )
     )
     events = (

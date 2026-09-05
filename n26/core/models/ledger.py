@@ -20,6 +20,12 @@ summary figures in its machine-readable note so a paged history can tell the
 whole act from one record. Together the events are the gang's history, and
 every one is pinned to its gang so the whole story reads in one query, in
 order.
+
+One standalone event does move money: a **transfer** between gangs — a
+ransom paid to the captor. It buys nothing, so there is no entry for it
+to fold into; its credits delta is read straight off the event by the
+credits recompute, which sums the gang's events with and without an
+assignment alike.
 """
 
 from django.db import models
@@ -215,6 +221,13 @@ class LedgerEvent(Base):
         JOINED_CAMPAIGN = "joined_campaign", "Joined a campaign"
         LEFT_CAMPAIGN = "left_campaign", "Left a campaign"
 
+        # Credits moving between two gangs — a ransom paid to the captor.
+        # The one standalone kind that carries a credits delta: positive
+        # on the gang that paid (spend), negative on the gang that
+        # received (credits in). ``counterpart`` names the other gang,
+        # where it is a gang the app knows; the note says why.
+        TRANSFERRED = "transferred", "Credits transferred"
+
         # A model's status changing — into Recovery, Critically Injured,
         # Captured, Dead, or back to Active. Journal-only: nothing is
         # priced, though a death changes what the rating sums to, and
@@ -330,6 +343,16 @@ class LedgerEvent(Base):
     #: the roll still happened.
     slot = models.ForeignKey(
         "library.Slot",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    #: The other gang in a transfer — who was paid, or who paid. Empty
+    #: where the credits left for somebody the app does not know, and
+    #: set to nothing if that gang goes: the payment still happened.
+    counterpart = models.ForeignKey(
+        "n26.Gang",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

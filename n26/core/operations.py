@@ -600,6 +600,46 @@ class Operation:
         )
         return miniature
 
+    def transfer(self, to, credits, note="", about=None):
+        """Pay another gang: credits leave this one and arrive at ``to``.
+
+        Two events, one on each gang, each naming the other as its
+        counterpart and carrying the same note. This gang's carries the
+        spend as a positive delta, and its ``settle`` refuses the whole
+        act if the credits would go below zero — the rules' "or the model
+        dies" is then the caller's next question. The other gang's event
+        is written in an operation of its own, inside this transaction,
+        so its numbers are repinned too; a gang with no budget records
+        the receipt and counts nothing, as it counts nothing for what it
+        spends.
+
+        ``to`` may be None for a payment to somebody the app does not
+        know — a gang at the table that is not on Gyrinx. The credits
+        still leave. ``about`` is the model the payment concerned, where
+        it concerned one.
+        """
+        if credits <= 0:
+            raise Refusal("A transfer has to move at least one credit.")
+        if to is not None and to.pk == self.gang.pk:
+            raise Refusal("A gang cannot pay itself.")
+        paid = self.event(
+            about,
+            LedgerEvent.Kind.TRANSFERRED,
+            credits_delta=credits,
+            counterpart=to,
+            note=note,
+        )
+        if to is not None:
+            with operation(to, actor=self.actor) as theirs:
+                theirs.event(
+                    None,
+                    LedgerEvent.Kind.TRANSFERRED,
+                    credits_delta=-credits,
+                    counterpart=self.gang,
+                    note=note,
+                )
+        return paid
+
     def clean_house(self):
         """The end of the cycle: every model In Recovery is Active again.
 

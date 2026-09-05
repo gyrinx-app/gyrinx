@@ -75,6 +75,11 @@ is named by the page's own heading directly below.
                         </span>
                     </c-ui.button>
                 </c-slot>
+                {% if miniature.status == "ransomed" %}
+                    <c-ui.dropdown.item href="{% url 'n26-gang' gang.pk %}?ransom={{ miniature.pk }}">
+                        Pay ransom…
+                    </c-ui.dropdown.item>
+                {% endif %}
                 <c-ui.dropdown.item href="{% url 'n26-gang' gang.pk %}?status={{ miniature.pk }}">
                     Mark as…
                 </c-ui.dropdown.item>
