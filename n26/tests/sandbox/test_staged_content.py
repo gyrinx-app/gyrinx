@@ -450,6 +450,21 @@ class TestChoosing:
         _, ours = legacy_offer(authors_gang[0], include_staged=True)
         assert ours == {"Cawdor", "Van Saar"}
 
+    def test_a_staged_line_on_the_picklist_is_held_back_too(
+        self, players_gang, authors_gang, legacy
+    ):
+        """A picklist line and the pickable it names are staged apart: a
+        live pickable a staged line offers is off the list for a player,
+        exactly as a staged entry is off its collection."""
+        from n26.library.models import PicklistMember
+
+        stage(PicklistMember.objects.get(pickable=legacy["cawdor"]))
+
+        _, theirs = legacy_offer(players_gang[0], include_staged=False)
+        assert theirs == set()
+        _, ours = legacy_offer(authors_gang[0], include_staged=True)
+        assert ours == {"Cawdor", "Van Saar"}
+
     def test_the_pick_screen_reads_the_same_way(
         self, client, player, author, players_gang, authors_gang
     ):

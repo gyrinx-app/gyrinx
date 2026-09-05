@@ -855,7 +855,10 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     if slot.slot is not None:
         members = slot.slot.picklist.members.select_related("pickable")
         if not include_staged:
-            members = members.filter(pickable__staged=False)
+            # The line and the pickable it names are held back separately:
+            # a staged pickable is off every list, a staged line is off
+            # this one, the way a staged entry is off its collection.
+            members = members.filter(staged=False, pickable__staged=False)
         if slot.slot.picklist.dice:
             # A roll table is read by the roll, so its picker comes in
             # roll order — a player who rolled 24 scans for the band
