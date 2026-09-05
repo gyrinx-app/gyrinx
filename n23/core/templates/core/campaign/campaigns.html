@@ -28,12 +28,25 @@
                 {% endfor %}
                 {% include "core/includes/pagination.html" %}
             </div>
-            {% if pinned_campaigns %}
+            {% if pinned_campaigns or template_campaigns %}
                 <div class="col-12 col-xl-4 order-1 order-xl-2 vstack gap-4">
-                    <div class="caps-label">Pinned</div>
-                    {% for campaign in pinned_campaigns %}
-                        {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
-                    {% endfor %}
+                    {% if pinned_campaigns %}
+                        <div class="caps-label">Pinned</div>
+                        {% for campaign in pinned_campaigns %}
+                            {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if template_campaigns %}
+                        <div class="vstack gap-4">
+                            <div>
+                                <div class="caps-label">Templates</div>
+                                <div class="text-secondary fs-7">Start a campaign with assets and resources already set up.</div>
+                            </div>
+                            {% for campaign in template_campaigns %}
+                                {% include "core/campaign/includes/campaign_row.html" with campaign=campaign %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
             {% endif %}
         </div>

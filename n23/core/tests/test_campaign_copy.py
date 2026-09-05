@@ -1632,6 +1632,87 @@ def test_interstitial_hides_archived_templates(client, user, template_campaign):
     assert list(response.context["template_campaigns"]) == []
 
 
+# --- Templates on the campaigns index ---
+
+
+@pytest.mark.django_db
+def test_campaigns_index_lists_templates(client, user, template_campaign):
+    """Templates are non-public, so the visibility filter never reaches them."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns"))
+
+    assert [c.id for c in response.context["template_campaigns"]] == [
+        template_campaign.id
+    ]
+    assert template_campaign.name in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_campaigns_index_lists_templates_for_anonymous_visitors(
+    client, template_campaign
+):
+    """Signed out too — the templates are curated content, not anyone's game."""
+    response = client.get(reverse("core:campaigns"))
+
+    assert [c.id for c in response.context["template_campaigns"]] == [
+        template_campaign.id
+    ]
+
+
+@pytest.mark.django_db
+def test_campaigns_index_hides_archived_templates(client, user, template_campaign):
+    template_campaign.archived = True
+    template_campaign.save()
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns"))
+
+    assert list(response.context["template_campaigns"]) == []
+
+
+@pytest.mark.django_db
+def test_a_public_template_is_not_listed_twice_on_the_page(
+    client, user, template_campaign
+):
+    """The sidebar is a template's one home, whatever its public flag says.
+
+    Campaign.public defaults to True, so a template created without thinking
+    about it would otherwise show in both the browse list and the sidebar.
+    """
+    assert template_campaign.public
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns") + "?my=0")
+
+    assert template_campaign.id not in [c.id for c in response.context["campaigns"]]
+    assert template_campaign.id in [
+        c.id for c in response.context["template_campaigns"]
+    ]
+
+
+@pytest.mark.django_db
+def test_the_owner_still_sees_their_own_template_in_their_list(
+    client, user, template_campaign
+):
+    """Excluding templates from browse must not hide one from whoever owns it."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaigns") + "?my=1")
+
+    assert template_campaign.id in [c.id for c in response.context["campaigns"]]
+
+
+@pytest.mark.django_db
+def test_a_template_row_is_badged_as_one(client, user, template_campaign):
+    """Otherwise a template is indistinguishable from a campaign someone plays."""
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert "text-bg-info" in content
+
+
 @pytest.mark.django_db
 def test_interstitial_requires_login(client):
     response = client.get(reverse("core:campaigns-new-template"))
