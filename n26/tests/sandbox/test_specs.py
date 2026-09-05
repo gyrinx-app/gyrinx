@@ -159,6 +159,28 @@ class TestHelpIsSourcedNeverWritten:
             if getattr(kind, "source", None) is not None
         ]
 
+    def test_a_field_with_no_column_carries_its_own_words_and_its_verb(self):
+        """A parameter that is no column of the thing has no field to read
+        help off, so it states its words itself — and names the verb that
+        writes it back, or an edit would drop it in silence."""
+        from n26.library.specs import Choice, Conditions, Union
+
+        checked = 0
+        for spec_name, spec in specs().items():
+            for field_name, kind in spec.fields.items():
+                # A choice over a fixed set of options names no column
+                # either, and its words are the options' own.
+                if isinstance(kind, (Union, Conditions, Choice)):
+                    continue
+                if kind.source is not None:
+                    continue
+                assert kind.help_text and kind.written_by is not None, (
+                    f"{spec_name}.{field_name} names no column: give it help_text "
+                    f"and the verb that writes it (written_by)."
+                )
+                checked += 1
+        assert checked >= 1  # the guard is guarding something
+
     def test_every_sourced_help_is_literally_the_model_fields_words(self):
         checked = 0
         for spec_name, field_name, kind in self.all_sourced_fields():

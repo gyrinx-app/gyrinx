@@ -86,7 +86,7 @@ class CampaignTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
-    list_display = ["name", "asset_type", "income", "pack", "archived"]
+    list_display = ["name", "asset_type", "pack", "archived"]
     list_filter = [
         "pack",
         "asset_type__campaign_type",

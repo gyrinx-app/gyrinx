@@ -9,6 +9,7 @@ gang types are the library's own.
 from django import forms
 
 from n26.core.widgets import RichText
+from n26.library.income import INCOME_HELP
 from n26.library.models import AssetType, CampaignType, GangType
 
 
@@ -518,8 +519,9 @@ class AssignAssetForm(forms.Form):
 #
 # Small forms for the arbitrator's own controls on the campaign page: each
 # writes one kind of thing into the campaign's pack through
-# ``CampaignOperation``. None of them asks what an asset does — an asset
-# here has a name, its words and an income figure, and nothing else.
+# ``CampaignOperation``. None of them asks what an asset does beyond its
+# income — an asset here has a name, its words and that figure, and
+# nothing else.
 
 
 class AddAssetTypeForm(forms.Form):
@@ -577,9 +579,7 @@ class NewAssetForm(forms.Form):
         min_value=0,
         initial=0,
         label="Income",
-        help_text=(
-            "Credits this asset brings its holder each cycle. Shown, never collected."
-        ),
+        help_text=INCOME_HELP,
     )
 
     def __init__(self, *args, asset_types, **kwargs):

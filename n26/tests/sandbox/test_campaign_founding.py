@@ -151,6 +151,7 @@ class TestJoiningACampaign:
 
     def test_the_types_built_ins_arrive_caused_by_its_carrier(self, membership):
         assert caused_by(membership.type_carrier) == [
+            ("Income", 0),
             ("Reputation", 0),
             ("Settlement", None),
         ]
@@ -184,6 +185,7 @@ class TestJoiningACampaign:
         # The campaign's own type rides the joining unnamed: it wears the
         # campaign's name, and no page names it.
         assert sorted((sub.name, sub.kind) for sub in joined.subs) == [
+            ("Income", "counter"),
             ("Reputation", "counter"),
             ("Settlement", "asset"),
             ("Territory campaign", "campaign type"),
@@ -227,7 +229,10 @@ class TestTheGangSheet:
         ] == [("Settlement", "Settlement", "Territory campaign", "campaign type")]
         assert [
             (line.name, line.value, line.provenance.source) for line in block.counters
-        ] == [("Reputation", 0, "Territory campaign")]
+        ] == [
+            ("Reputation", 0, "Territory campaign"),
+            ("Income", 0, "Territory campaign"),
+        ]
 
     def test_the_owner_can_tally_the_campaigns_counter_from_the_sheet(
         self, client, membership, gang
@@ -235,14 +240,20 @@ class TestTheGangSheet:
         client.force_login(gang.owner)
         at = reverse("n26-gang", args=[gang.pk])
         assert "Add one to Reputation" in client.get(at).content.decode()
-        (reputation,) = render_gang(gang).campaign.counters
+        (reputation,) = [
+            line
+            for line in render_gang(gang).campaign.counters
+            if line.name == "Reputation"
+        ]
 
         client.post(
             reverse("n26-tally", args=[reputation.assignment_id]),
             {"change": 1, "back": at},
         )
 
-        assert [line.value for line in render_gang(gang).campaign.counters] == [1]
+        assert [
+            (line.name, line.value) for line in render_gang(gang).campaign.counters
+        ] == [("Reputation", 1), ("Income", 0)]
 
     def test_a_reader_who_does_not_own_the_gang_gets_no_tally_control(
         self, client, membership, gang
@@ -306,6 +317,7 @@ class TestEditingTheTypeReachesMemberGangs:
         task_queue.deliver_all()
 
         assert caused_by(membership.type_carrier) == [
+            ("Income", 0),
             ("Meat", 2),
             ("Reputation", 0),
             ("Settlement", None),
@@ -333,6 +345,7 @@ class TestTheLeaveRoute:
         assert "cannot leave Dust Falls" in response.content.decode()
         assert CampaignMembership.objects.get(gang=gang).playing
         assert caused_by(membership.type_carrier) == [
+            ("Income", 0),
             ("Reputation", 0),
             ("Settlement", None),
         ]
@@ -354,6 +367,7 @@ class TestGivingExistingCampaignsTheirPacks:
         assert membership.additions_carrier.assignable == campaign.additions
         assert membership.type_carrier.ledger_entry.reason == Reason.GRANTED
         assert caused_by(membership.type_carrier) == [
+            ("Income", 0),
             ("Reputation", 0),
             ("Settlement", None),
         ]
@@ -371,10 +385,11 @@ class TestGivingExistingCampaignsTheirPacks:
             ("Settlement", "Settlement")
         ]
         assert [(line.name, line.value) for line in block.counters] == [
-            ("Reputation", 0)
+            ("Reputation", 0),
+            ("Income", 0),
         ]
         granted = LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.GRANTED)
-        assert granted.count() == 4
+        assert granted.count() == 5
         assert {e.campaign for e in granted} == {campaign}
 
     def test_a_campaign_joined_the_new_way_is_left_alone(self, membership, gang):

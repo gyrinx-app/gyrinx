@@ -639,11 +639,19 @@ class GeneratedForm(forms.Form):
         """
         from n26.library.authoring import revise
 
-        columns, sets = {}, {}
+        columns, sets, verbs = {}, {}, {}
         for name in self.spec.fields:
             if name not in self.fields:
                 continue
             value = self.cleaned_data.get(name)
+            written_by = getattr(self.spec.fields[name], "written_by", None)
+            if written_by is not None:
+                # No column to write: the verb that owns the parameter
+                # writes it, after the row's own columns are saved. An
+                # empty box says nothing here as it does below.
+                if value is not None:
+                    verbs[written_by] = value
+                continue
             column = thing._meta.get_field(name)
             if column.many_to_many:
                 sets[name] = value
@@ -674,6 +682,8 @@ class GeneratedForm(forms.Form):
             owned.setdefault(replace, {})[name] = value or ()
         for replace, values in owned.items():
             replace(thing, **values)
+        for write, value in verbs.items():
+            write(thing, value)
         return thing
 
 

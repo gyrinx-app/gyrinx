@@ -284,7 +284,10 @@ class TestSettingOneUp:
         assert "gangs fight for control of Territory" in body
         assert "Every gang has its own Settlement and keeps it." in body
         assert "One gang holds each Territory at a time." in body
-        assert "Every gang starts with Reputation at 0 and one Settlement." in body
+        assert (
+            "Every gang starts with Reputation at 0, one Settlement and Income at 0."
+            in body
+        )
 
     def test_a_campaign_wide_rule_is_drawn_on_the_card(
         self, client, arbitrator, campaign_type, open_to_everyone

@@ -389,7 +389,10 @@ class TestAnAsset:
         assert made.asset_type == territory
         assert made.income == 15
         assert str(made) == "Sump Hole (flooded)"
-        assert not made.modifiers.exists()
+        # Its income is its one modifier, in the campaign's pack with it.
+        assert [(m.name, m.pack) for m in made.modifiers.all()] == [
+            ("Sump Hole: income", campaign.pack)
+        ]
         assert sentences(campaign_history(campaign))[-1] == (
             "created the asset Sump Hole (flooded)"
         )
@@ -519,7 +522,7 @@ class TestACounter:
         add_campaign_counter(campaign, "Meat", opening=3)
         late = found_gang("Late", gang_type, owner=User.objects.create_user("late"))
         join_campaign(late, campaign)
-        assert readings(late) == {"Reputation": 0, "Meat": 3}
+        assert readings(late) == {"Reputation": 0, "Income": 0, "Meat": 3}
 
     def test_gangs_already_playing_catch_up(
         self, campaign, gang, rival, propagating, task_queue
@@ -528,8 +531,8 @@ class TestACounter:
             add_campaign_counter(campaign, "Meat", opening=3)
         task_queue.deliver_all()
 
-        assert readings(gang) == {"Reputation": 0, "Meat": 3}
-        assert readings(rival) == {"Reputation": 0, "Meat": 3}
+        assert readings(gang) == {"Reputation": 0, "Income": 0, "Meat": 3}
+        assert readings(rival) == {"Reputation": 0, "Income": 0, "Meat": 3}
         caught_up = LedgerEvent.objects.filter(
             gang=gang, kind=LedgerEvent.Kind.CAUGHT_UP
         )
@@ -544,14 +547,14 @@ class TestACounter:
         with task_queue.capture():
             add_campaign_counter(campaign, "Meat", opening=3)
         sheet = render_campaign(campaign)
-        assert sheet.counter_columns == ["Reputation", "Meat"]
+        assert sheet.counter_columns == ["Reputation", "Income", "Meat"]
         (line,) = sheet.gangs
-        assert [c.value if c else None for c in line.counters] == [0, None]
+        assert [c.value if c else None for c in line.counters] == [0, 0, None]
 
         task_queue.deliver_all()
 
         (line,) = render_campaign(campaign).gangs
-        assert [c.value if c else None for c in line.counters] == [0, 3]
+        assert [c.value if c else None for c in line.counters] == [0, 0, 3]
 
     def test_a_name_the_pack_already_uses_is_refused(self, campaign):
         add_campaign_counter(campaign, "Meat")

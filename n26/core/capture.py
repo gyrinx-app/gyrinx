@@ -28,7 +28,7 @@ def _assets(lines):
     """What the campaign gave, each with the label it is drawn under and
     the income printed beside it."""
     return sorted(
-        (str(line.kind_label), str(line.name), str(line.income)) for line in lines
+        (str(line.type_label), str(line.name), str(line.income)) for line in lines
     )
 
 

@@ -189,8 +189,10 @@ class Asset(Content, Assignable):
 
     An asset is one entry in the list of what its campaign type hands
     out, and is added on that campaign type's page under its asset type.
-    Its **income** is a figure drawn on the card; nothing collects it.
-    What having it does for the gang rides it as ordinary modifiers.
+    What having it does for the gang rides it as ordinary modifiers. Its
+    **income** is one of them: a contribution to the system Income counter
+    (``n26.library.income``), so a gang's Income reads as the sum of what
+    it holds. Nothing collects that reading yet.
 
     Assignable so that a possession can be built into its campaign type
     and arrive on every member gang, and so that an asset of either
@@ -208,13 +210,6 @@ class Asset(Content, Assignable):
         help_text=(
             "Which asset type this asset is one of. Settled when the asset is "
             "made on its campaign type's page, and never changed afterwards."
-        ),
-    )
-    income = models.PositiveIntegerField(
-        default=0,
-        help_text=(
-            "Credits this asset brings its holder each cycle, as printed on "
-            "the card. Shown, never collected."
         ),
     )
 
@@ -236,3 +231,13 @@ class Asset(Content, Assignable):
     def campaign_type(self):
         """The campaign type whose asset type this belongs to."""
         return self.asset_type.campaign_type
+
+    @property
+    def income(self):
+        """What this brings its holder each cycle, read off its Income
+        contribution. A query unless the modifiers are prefetched; a page
+        listing many assets reads them through ``income.income_of`` with
+        the modifiers it already holds."""
+        from n26.library.income import income_of
+
+        return income_of(self)

@@ -173,6 +173,19 @@ def _describe_built_in(member):
     return _label_for(thing), notes
 
 
+def _asset_type_parts(parts):
+    """Each asset type's assets, with what describing one reads — its
+    modifiers and, among them, its Income contribution — loaded along."""
+    from django.db.models import Prefetch
+
+    from n26.library.income import with_income
+    from n26.library.models import Asset
+
+    return parts.prefetch_related(
+        Prefetch("assets", queryset=with_income(Asset.objects.all()))
+    )
+
+
 def _describe_asset_type(asset_type):
     """One asset type a campaign type has: what several are called and
     its ownership. Its assets are not counted here — they are listed under
@@ -184,19 +197,25 @@ def _describe_asset_type(asset_type):
 
 
 def _describe_asset(asset):
-    """One asset under its asset type: the income figure its card prints, and
-    how many modifiers ride it — what those do is read on the asset's own
-    page, which the name leads to.
+    """One asset under its asset type: its income, and how many modifiers
+    ride it besides — what those do is read on the asset's own page,
+    which the name leads to. The income is a modifier too, and is not
+    counted twice.
 
     Reads the modifiers with ``.all()``, so a page that prefetched them
     describes every asset of a type without a query per row.
     """
+    from n26.library.income import boons_of, income_of
+
     notes = []
-    if asset.income:
-        notes.append(f"income {asset.income}cr")
-    count = len(asset.modifiers.all())
+    income = income_of(asset)
+    if income:
+        notes.append(f"income {income}cr")
+    count = len(boons_of(asset))
     if count == 0:
-        notes.append("no modifiers")
+        # The income is itself a modifier, listed on the asset's own page,
+        # so an asset with one is not said to have none.
+        notes.append("no other modifiers" if income else "no modifiers")
     else:
         notes.append(f"{count} modifier" if count == 1 else f"{count} modifiers")
     return _label_for(asset), notes
@@ -388,7 +407,7 @@ DETAIL_KINDS = {
         "parts": "asset_types",
         "statline": False,
         "describe": _describe_asset_type,
-        "parts_hint": lambda parts: parts.prefetch_related("assets__modifiers"),
+        "parts_hint": _asset_type_parts,
         "parts_label": "asset types",
         "part_name": "asset type",
         "parts_description": (

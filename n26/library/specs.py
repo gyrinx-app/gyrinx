@@ -32,12 +32,25 @@ from dataclasses import field as dataclass_field
 #
 # Each describes one parameter. ``source`` is the (model, field name)
 # whose help_text and choices the form will show — never a place to
-# write new words.
+# write new words. A parameter that is no column of the thing — an
+# asset's income, which the verb writes as a modifier — has no field to
+# read them off, so it carries its own ``help_text`` and ``verbose_name``
+# and names the verb that writes it back (``written_by``).
 
 
 @dataclass(frozen=True)
 class _Sourced:
     source: tuple = None
+    #: The verb that writes this parameter onto a row that already
+    #: exists, ``written_by(row, value)``, for a parameter that is no
+    #: column of the row. An edit form routes the value there instead of
+    #: writing a column; ``_initial_from`` still reads it off the row, so
+    #: the row must answer to the name — a property is enough.
+    written_by: object = None
+    #: The words a sourceless parameter shows — the form has no model
+    #: field to read them off. Empty where ``source`` is set.
+    help_text: str = ""
+    verbose_name: str = ""
     #: Asked when the thing is made and never again. Some answers are
     #: what the thing *is* rather than something about it — a choice's
     #: slot type decides which pickables could ever settle it, so
@@ -50,9 +63,10 @@ class _Sourced:
 
     @property
     def help(self):
-        """The model field's own words, resolved on read."""
+        """The model field's own words, resolved on read — or the
+        parameter's own, where it has no field."""
         if self.source is None:
-            return ""
+            return self.help_text
         model, field_name = self.source
         return str(model._meta.get_field(field_name).help_text)
 
@@ -81,7 +95,7 @@ class _Sourced:
         derivation says the same thing and this stays out of the way.
         """
         if self.source is None:
-            return None
+            return self.verbose_name or None
         model, field_name = self.source
         stated = str(model._meta.get_field(field_name).verbose_name)
         return None if stated == field_name.replace("_", " ") else stated
@@ -326,6 +340,7 @@ def use_lists(model):
 
 def _build_registry():
     from n26.library import authoring
+    from n26.library.income import INCOME_HELP
     from n26.library.models import (
         Affiliation,
         AllowsAtMost,
@@ -1147,7 +1162,13 @@ def _build_registry():
                 "asset_type": One(
                     model=AssetType, source=(Asset, "asset_type"), fixed=True
                 ),
-                "income": Int(source=(Asset, "income")),
+                # Not a column: the verb writes the figure as the asset's
+                # Income contribution, and an edit goes the same way.
+                "income": Int(
+                    written_by=authoring.set_income,
+                    help_text=INCOME_HELP,
+                    verbose_name="Income",
+                ),
                 "qualifier": Text(source=(Asset, "qualifier")),
                 "library_author_help": Text(
                     source=(Asset, "library_author_help"), long=True

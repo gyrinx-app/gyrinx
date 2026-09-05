@@ -524,8 +524,9 @@ class CampaignOperation:
         asset lands in the campaign's pack whichever asset type it is under,
         so it never reaches another campaign; a system asset type pointing
         at nothing of the arbitrator's is what keeps that direction clean.
-        What holding the asset does is not written here: it has a name, its
-        words and an income figure, and nothing else.
+        What holding the asset does is not written here beyond its income,
+        which lands as the asset's Income contribution: it has a name, its
+        words and that figure, and nothing else.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import create_asset
