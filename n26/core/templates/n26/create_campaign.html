@@ -27,7 +27,7 @@ field draws as a plain textarea and no editor ever appears.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-create-campaign' %}"
                      title="Set up a campaign"
-                     lead="A run of linked battles between the gangs you invite. You can change everything here later except the campaign type."
+                     lead="Easily track campaign battles, resources like Reputation, owned assets like Territories, and actions taken by players."
                      :form="form"
                      submit_label="Set up campaign"
                      cancel_url="{% url 'n26-campaigns' %}">
@@ -63,7 +63,7 @@ field draws as a plain textarea and no editor ever appears.
         {% endcomment %}
         <c-n26.form-section>
             <c-n26.radio-cards label="Campaign type *"
-                               description="Which campaign from the rulebook you are running. Each card lists what every gang starts with and what the gangs fight over."
+                               description="Use pre-built campaign setups to get started quickly."
                                :form="form"
                                name="campaign_type"
                                min="24rem">

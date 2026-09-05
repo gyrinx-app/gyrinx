@@ -60,7 +60,7 @@ DESCRIPTION = (
 #: What a content author reads on the authoring pages.
 LIBRARY_AUTHOR_HELP = (
     "The campaign type from the core rulebook. Settlement is a possession: "
-    "every gang has its own and keeps it. Territory is a holding: one gang "
+    "every gang has its own. Territory is a holding: one gang "
     "holds it at a time. Add each Territory as an asset under that asset "
     "type, with its income in the Income box and its Boons as modifiers. "
     "Reputation at 0, Income at 0 and the Settlement are built in, so every "

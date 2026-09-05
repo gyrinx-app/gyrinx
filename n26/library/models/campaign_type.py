@@ -107,13 +107,13 @@ class AssetType(Content):
     Settlement — with the label a campaign page prints and the ownership
     that fixes how every asset of the type behaves.
 
-    **Possession** means every gang has its own and keeps it: a
+    **Possession** means every gang has its own: a
     Settlement, a home territory. **Holding** means one gang holds it at a
     time, and it can change hands: a Territory, a Racket, a Relic.
     """
 
     class Ownership(models.TextChoices):
-        #: Every gang has its own and keeps it.
+        #: Every gang has its own.
         POSSESSION = "held-one-each", "Possession"
         #: One gang holds it at a time, and it can change hands.
         HOLDING = "pooled", "Holding"
@@ -141,7 +141,7 @@ class AssetType(Content):
         choices=Ownership,
         verbose_name="Ownership",
         help_text=(
-            "Possession: every gang has its own and keeps it. Holding: one "
+            "Possession: every gang has its own. Holding: one "
             "gang holds it at a time, and it can change hands."
         ),
     )

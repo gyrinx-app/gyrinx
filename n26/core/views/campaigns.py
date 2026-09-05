@@ -1101,7 +1101,7 @@ def add_asset_type(request, pk):
         ),
         (
             AssetType.Ownership.POSSESSION,
-            "Every gang has its own and keeps it.",
+            "Every gang has its own.",
         ),
     )
     return _addition_page(

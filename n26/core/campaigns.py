@@ -794,7 +794,7 @@ def _asset_type_sentence(asset_type):
     an article, so the label needs no a/an."""
     if asset_type.is_holding:
         return f"One gang holds each {asset_type.label_singular} at a time."
-    return f"Every gang has its own {asset_type.label_singular} and keeps it."
+    return f"Every gang has its own {asset_type.label_singular}."
 
 
 def _given(member):
