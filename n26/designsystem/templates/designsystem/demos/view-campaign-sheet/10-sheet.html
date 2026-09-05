@@ -1,0 +1,136 @@
+{# title: A campaign, whole #}
+{# note: The gang sheet's sibling: the name with the type it was founded on and who runs it, the headline figures where the gang sheet keeps its money, the facts strip beside the controls, then the gangs table, the assets by kind, the people and the battles side by side, and the log. Narrow the window: the tables scroll in their own boxes and the two short sections stack. #}
+{# layout: full #}
+<c-n26.view.campaign-sheet :sheet="campaign_sheet"
+                           edit_href="#"
+                           log_count="12 earlier acts not shown"
+                           log_href="#">
+    <c-slot name="breadcrumb">
+        <c-ui.breadcrumbs>
+            <c-ui.breadcrumbs.item href="#">
+                {{ gang_owner }}
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item href="#">
+                Campaigns
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item :current="True">
+                {{ campaign_sheet.name }}
+            </c-ui.breadcrumbs.item>
+        </c-ui.breadcrumbs>
+    </c-slot>
+    <c-slot name="actions">
+        <c-n26.button-group>
+            <c-ui.button size="sm" variant="default" href="#">
+                Edit
+            </c-ui.button>
+            <c-ui.dropdown>
+                <c-slot name="trigger">
+                    <c-ui.button size="sm" variant="default" aria-label="More actions">
+                        <span class="n26-icon-only gap-0.5">
+                            <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                <c-ui.dropdown.item href="#">
+                    Archive campaign
+                </c-ui.dropdown.item>
+            </c-ui.dropdown>
+        </c-n26.button-group>
+    </c-slot>
+    <c-slot name="gangs_actions">
+        <c-ui.button size="sm" variant="primary" href="#">
+            Add gang
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="participants_actions">
+        <c-ui.button size="sm" variant="primary" href="#">
+            Add participants
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="battles_actions">
+        <c-ui.button size="sm" variant="primary" href="#">
+            Record battle
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="participants">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">Player</th>
+                    <th scope="col" class="text-right">Invitation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="font-semibold text-ink-900 dark:text-ink-100">marta</td>
+                    <td class="text-right">
+                        <c-ui.badge color="green" size="sm">
+                            Accepted
+                        </c-ui.badge>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="font-semibold text-ink-900 dark:text-ink-100">ossian</td>
+                    <td class="text-right">
+                        <c-ui.badge color="green" size="sm">
+                            Accepted
+                        </c-ui.badge>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="font-semibold text-ink-900 dark:text-ink-100">vey</td>
+                    <td class="text-right">
+                        <c-ui.badge color="orange" size="sm">
+                            Invited
+                        </c-ui.badge>
+                    </td>
+                </tr>
+            </tbody>
+        </c-ui.table>
+    </c-slot>
+    <c-slot name="battles">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Gangs</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="tabular-nums whitespace-nowrap">4 Sep 2026</td>
+                    <td>Gravebolt Kin, The Ashen Choir</td>
+                </tr>
+                <tr>
+                    <td class="tabular-nums whitespace-nowrap">28 Aug 2026</td>
+                    <td>Pit of Teeth, The Ashen Choir</td>
+                </tr>
+            </tbody>
+        </c-ui.table>
+    </c-slot>
+    <c-slot name="log">
+        <ol class="flex flex-col">
+            <li class="flex gap-3 border-b border-box-border/50 py-2">
+                <span class="w-24 shrink-0 text-right text-sm tabular-nums text-muted">5 Sep 09:12</span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-base"><span class="font-medium">{{ gang_owner }}</span> granted the territory Old Ruins to the gang</p>
+                    <p class="text-sm text-muted">The Ashen Choir</p>
+                </div>
+            </li>
+            <li class="flex gap-3 border-b border-box-border/50 py-2">
+                <span class="w-24 shrink-0 text-right text-sm tabular-nums text-muted">5 Sep 08:44</span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-base"><span class="font-medium">marta</span> hired Brakk, a Ganger</p>
+                    <p class="text-sm text-muted">Gravebolt Kin</p>
+                </div>
+            </li>
+            <li class="flex gap-3 py-2">
+                <span class="w-24 shrink-0 text-right text-sm tabular-nums text-muted">4 Sep 21:30</span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-base"><span class="font-medium">{{ gang_owner }}</span> recorded a battle fought on 4 September</p>
+                </div>
+            </li>
+        </ol>
+    </c-slot>
+</c-n26.view.campaign-sheet>

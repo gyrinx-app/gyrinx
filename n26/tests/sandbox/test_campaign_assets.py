@@ -1,8 +1,8 @@
-"""A campaign's pool of assets: tokens, who holds them, and what holding
+"""A campaign's assets: tokens, who holds them, and what holding
 one does for the gang.
 
 A pooled asset is a holding, not a possession. The campaign owns one token
-per copy in its pool; the token says which gang holds it. The gang never
+per copy; the token says which gang holds it. The gang never
 owns it — no assignment, no ledger entry, nothing on its rating — and a
 grant or a taking away is the token changing hands under the campaign's
 line plus a journal-only event on the gang. While held, the token is a
@@ -36,7 +36,7 @@ from n26.library.authoring import (
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import Asset, CampaignType, Counter
 from n26.tests.sandbox.actions import (
-    add_to_pool,
+    add_asset,
     drop_asset,
     found_campaign,
     found_gang,
@@ -111,11 +111,11 @@ def rival(gang_type, campaign):
 
 @pytest.fixture
 def tokens(campaign, old_ruins):
-    """Two copies of Old Ruins in the pool, the second with a name of
+    """Two copies of Old Ruins, the second with a name of
     its own."""
     return [
-        add_to_pool(campaign, old_ruins),
-        add_to_pool(campaign, old_ruins, name="Old Ruins by the sump"),
+        add_asset(campaign, old_ruins),
+        add_asset(campaign, old_ruins, name="Old Ruins by the sump"),
     ]
 
 
@@ -128,11 +128,11 @@ def reputation(gang):
     return next(line.value for line in block.counters if line.name == "Reputation")
 
 
-class TestThePool:
+class TestTheCopies:
     """Adding and dropping copies are the campaign's own acts: no gang is
     touched, and only the campaign's log records them."""
 
-    def test_two_copies_sit_in_the_pool_unclaimed(self, tokens, campaign):
+    def test_two_copies_sit_unclaimed(self, tokens, campaign):
         pool = list(campaign.pool.all())
         assert [str(token) for token in pool] == ["Old Ruins", "Old Ruins by the sump"]
         assert all(token.holder is None and not token.held for token in pool)
@@ -140,15 +140,15 @@ class TestThePool:
 
     def test_the_log_says_what_was_added(self, tokens, campaign):
         assert sentences(campaign_history(campaign))[-2:] == [
-            "added Old Ruins to the pool",
-            "added Old Ruins by the sump to the pool",
+            "added the asset Old Ruins",
+            "added the asset Old Ruins by the sump",
         ]
         assert LedgerEvent.objects.filter(campaign=campaign).count() == 0
 
-    def test_a_held_one_each_asset_has_no_pool_to_sit_in(self, campaign, core):
+    def test_a_held_one_each_asset_has_no_copies_to_add(self, campaign, core):
         settlement = Asset.objects.get(name="Settlement")
         with pytest.raises(ValueError, match="every gang holds one"):
-            add_to_pool(campaign, settlement)
+            add_asset(campaign, settlement)
 
     def test_an_unclaimed_copy_can_be_dropped(self, tokens, campaign):
         drop_asset(tokens[1])
@@ -158,7 +158,7 @@ class TestThePool:
             == "Old Ruins by the sump"
         )
         assert sentences(campaign_history(campaign))[-1] == (
-            "dropped Old Ruins by the sump from the pool"
+            "dropped the asset Old Ruins by the sump"
         )
 
     def test_a_held_copy_is_not_dropped(self, tokens, gang, campaign):
@@ -168,7 +168,7 @@ class TestThePool:
         assert campaign.pool.count() == 2
 
     def test_archiving_the_asset_retracts_nothing(self, tokens, gang, old_ruins):
-        """A pool lists what it holds whether or not the library still
+        """The campaign lists every copy whether or not the library still
         offers the asset: archiving hides it from new grants only."""
         grant_asset(tokens[0], gang)
         old_ruins.archive()
@@ -216,9 +216,9 @@ class TestGrantingAndTakingAway:
         assert sentences(acts)[-1] == "granted the territory Old Ruins to the gang"
         assert acts[-1].gang_name == "The Ashen Choir"
         assert acts[-1].actor == "arbitrator"
-        # The token's name leads to the pool it belongs to.
-        assert acts[-1].spans[1].href == reverse(
-            "n26-campaign-pool", args=[campaign.pk]
+        # The token's name leads to the campaign's assets.
+        assert acts[-1].spans[1].href == (
+            reverse("n26-campaign", args=[campaign.pk]) + "#assets"
         )
 
     def test_a_copy_another_gang_holds_is_refused(self, tokens, gang, rival):
@@ -345,9 +345,10 @@ class TestWhatHoldingDoes:
         assert "Salvage" in body
 
 
-class TestThePoolPages:
-    """The pool page lists every copy with its holder; the acts are the
-    arbitrator's, and the holding gang's owner may hand a copy back."""
+class TestTheAssetsOnTheCampaignPage:
+    """The campaign page lists every copy under its kind with its holder;
+    the acts are the arbitrator's, and the holding gang's owner may hand a
+    copy back."""
 
     @pytest.fixture(autouse=True)
     def open_to_everyone(self):
@@ -355,53 +356,89 @@ class TestThePoolPages:
             slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
         )
 
-    def test_the_gang_sheet_links_the_campaign_and_the_pool(
+    def test_the_gang_sheet_links_the_campaign_and_its_assets(
         self, client, tokens, gang, campaign
     ):
         """A reader inside the campaigns feature gets the way through to
-        the campaign and to the pool a holding belongs to."""
+        the campaign and to the assets section a holding belongs to."""
         grant_asset(tokens[0], gang)
         client.force_login(gang.owner)
 
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
         assert reverse("n26-campaign", args=[campaign.pk]) in body
-        assert reverse("n26-campaign-pool", args=[campaign.pk]) in body
+        assert reverse("n26-campaign", args=[campaign.pk]) + "#assets" in body
 
-    def test_the_pool_lists_held_and_unclaimed_by_kind(
+    def test_the_page_lists_held_and_unclaimed_by_kind(
         self, client, tokens, gang, campaign, arbitrator
     ):
         grant_asset(tokens[0], gang)
         client.force_login(arbitrator)
-        body = client.get(reverse("n26-campaign-pool", args=[campaign.pk])).content
+        body = client.get(reverse("n26-campaign", args=[campaign.pk])).content
         body = body.decode()
         assert "Territories" in body
         assert "The Ashen Choir" in body
         assert "Unclaimed" in body
         assert "Old Ruins by the sump" in body
-        assert "income 30¢" in body
-        assert "Take away" in body
-        assert "Grant" in body
+        assert "30¢" in body
+        assert (
+            reverse("n26-campaign-asset-take-away", args=[campaign.pk, tokens[0].pk])
+            in body
+        )
+        assert (
+            reverse("n26-campaign-asset-grant", args=[campaign.pk, tokens[1].pk])
+            in body
+        )
+        assert "Add territory" in body
+        assert "1 held, 1 unclaimed" in body
 
-    def test_a_player_reads_the_pool_without_the_controls(
+    def test_a_player_reads_the_assets_without_the_controls(
         self, client, tokens, gang, campaign, player
     ):
         client.force_login(player)
-        body = client.get(reverse("n26-campaign-pool", args=[campaign.pk])).content
+        body = client.get(reverse("n26-campaign", args=[campaign.pk])).content
         body = body.decode()
         assert "Unclaimed" in body
-        assert "Grant" not in body
-        assert "Add to pool" not in body
+        assert (
+            reverse("n26-campaign-asset-grant", args=[campaign.pk, tokens[1].pk])
+            not in body
+        )
+        assert "Add territory" not in body
 
     def test_the_arbitrator_adds_a_copy(self, client, campaign, old_ruins, arbitrator):
         client.force_login(arbitrator)
         response = client.post(
-            reverse("n26-campaign-pool-add", args=[campaign.pk]),
+            reverse("n26-campaign-add-asset", args=[campaign.pk]),
             {"asset": str(old_ruins.pk), "name": "Old Ruins by the sump"},
             follow=True,
         )
-        assert "Added Old Ruins by the sump to the pool." in response.content.decode()
+        assert "Added Old Ruins by the sump." in response.content.decode()
         assert campaign.pool.count() == 1
+
+    def test_the_add_beside_a_kind_offers_that_kind_alone(
+        self, client, campaign, old_ruins, arbitrator
+    ):
+        """The Add beside the Territories table narrows the form to
+        territories, and says so; a kind that is not one of the campaign's
+        pooled kinds is ignored rather than refused."""
+        from n26.library.authoring import add_asset_kind, create_campaign_type
+
+        racket = add_asset_kind(campaign.additions, "Racket", "pooled")
+        create_asset("Protection", racket)
+        client.force_login(arbitrator)
+        address = reverse("n26-campaign-add-asset", args=[campaign.pk])
+
+        body = client.get(f"{address}?kind={old_ruins.kind_id}").content.decode()
+        assert "Add a territory" in body
+        assert "Old Ruins" in body
+        assert "Protection" not in body
+
+        other = create_campaign_type("Law & Misrule")
+        turf = add_asset_kind(other, "Turf", "pooled")
+        body = client.get(f"{address}?kind={turf.pk}").content.decode()
+        assert "Add an asset" in body
+        assert "Old Ruins" in body
+        assert "Protection" in body
 
     def test_a_settlement_is_not_on_offer(
         self, client, campaign, old_ruins, arbitrator
@@ -409,7 +446,7 @@ class TestThePoolPages:
         settlement = Asset.objects.get(name="Settlement")
         client.force_login(arbitrator)
         response = client.post(
-            reverse("n26-campaign-pool-add", args=[campaign.pk]),
+            reverse("n26-campaign-add-asset", args=[campaign.pk]),
             {"asset": str(settlement.pk), "name": ""},
         )
         body = response.content.decode()
@@ -433,7 +470,7 @@ class TestThePoolPages:
         client.force_login(arbitrator)
 
         body = client.get(
-            reverse("n26-campaign-pool-add", args=[campaign.pk])
+            reverse("n26-campaign-add-asset", args=[campaign.pk])
         ).content.decode()
 
         assert "Old Ruins" in body
@@ -444,16 +481,14 @@ class TestThePoolPages:
         assert protection.pack == campaign.pack
         assert elsewhere.kind.campaign_type == other
 
-    def test_an_asset_of_another_type_cannot_be_added_to_the_pool(
-        self, campaign, old_ruins
-    ):
+    def test_an_asset_of_another_type_cannot_be_added(self, campaign, old_ruins):
         from n26.library.authoring import add_asset_kind, create_campaign_type
 
         other = create_campaign_type("Law & Misrule")
         elsewhere = create_asset("Turf", add_asset_kind(other, "Turf", "pooled"))
 
         with pytest.raises(ValueError, match="not to this campaign's type"):
-            add_to_pool(campaign, elsewhere)
+            add_asset(campaign, elsewhere)
         assert campaign.pool.count() == 0
 
     def test_the_arbitrator_grants_a_copy(
@@ -504,10 +539,27 @@ class TestThePoolPages:
         assert "Take it away first." in response.content.decode()
         assert campaign.pool.count() == 2
 
-    def test_the_campaign_page_leads_to_the_pool(self, client, tokens, gang, campaign):
-        grant_asset(tokens[0], gang)
-        client.force_login(campaign.owner)
-        body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-        assert "2 assets in the pool" in body
-        assert "1 held, 1 unclaimed" in body
-        assert reverse("n26-campaign-pool", args=[campaign.pk]) in body
+    def test_every_act_lands_back_on_the_assets_section(
+        self, client, tokens, gang, campaign, arbitrator
+    ):
+        """Grant, take away and drop all return to the campaign page opened
+        at its assets, since that is where the copies are listed."""
+        client.force_login(arbitrator)
+        membership = gang.campaign_memberships.get(left__isnull=True)
+        back = reverse("n26-campaign", args=[campaign.pk]) + "#assets"
+
+        granted = client.post(
+            reverse("n26-campaign-asset-grant", args=[campaign.pk, tokens[0].pk]),
+            {"membership": str(membership.pk)},
+        )
+        assert granted["Location"] == back
+        taken = client.post(
+            reverse("n26-campaign-asset-take-away", args=[campaign.pk, tokens[0].pk])
+        )
+        assert taken["Location"] == back
+        dropped = client.post(
+            reverse("n26-campaign-asset-drop", args=[campaign.pk, tokens[1].pk]),
+            follow=True,
+        )
+        assert "Dropped Old Ruins by the sump." in dropped.content.decode()
+        assert campaign.pool.count() == 1

@@ -321,9 +321,12 @@ class TestSettingOneUp:
         assert not Campaign.objects.exists()
 
     def test_the_page_names_the_type(self, client, campaign, open_to_everyone):
+        """The type it was founded on leads the header, beside who runs
+        it, and has no row of its own in the facts strip."""
         body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
-        assert "Campaign type" in body
         assert "Territory campaign" in body
+        assert "arbitrated by" in body
+        assert "Campaign type" not in body
 
     def test_the_form_opens_with_a_thousand_credit_budget(
         self, client, arbitrator, open_to_everyone
@@ -496,7 +499,7 @@ class TestTheLogOnTheCampaignsPage:
         drawn = self.page(client, made)
         assert "Log" in drawn
         assert "set the campaign up on Territory campaign" in drawn
-        assert "Nothing yet." not in drawn
+        assert "Nothing in the log yet." not in drawn
 
     def test_setting_one_up_writes_its_first_line(
         self, client, arbitrator, campaign_type, open_to_everyone
@@ -552,7 +555,7 @@ class TestTheLogOnTheCampaignsPage:
         drawn = self.page(client, campaign)
         assert drawn.count("renamed the campaign") == LOG_ON_THE_PAGE
         # Fourteen renames and the founding line, ten of them drawn.
-        assert "and 5 earlier acts" in drawn
+        assert "5 earlier acts not shown" in drawn
 
     def test_the_newest_act_is_drawn_first(self, client, campaign, open_to_everyone):
         client.post(
@@ -663,7 +666,7 @@ class TestTheRollOfGangs:
     ):
         drawn = self.page(client, campaign)
         assert "Gangs" in drawn
-        assert "No gangs yet." in drawn
+        assert "No gangs in this campaign yet." in drawn
 
     def test_a_gang_is_added_by_its_key(self, client, campaign, gang, open_to_everyone):
         response = client.post(
@@ -823,7 +826,7 @@ class TestBattlesOnTheCampaignsPage:
         client.post(
             f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
         )
-        assert "Nobody named" in self.page(client, campaign)
+        assert "No gangs named" in self.page(client, campaign)
 
     def test_only_this_campaigns_gangs_are_offered(
         self, client, campaign, gang, arbitrator, campaign_type, open_to_everyone
@@ -1549,7 +1552,7 @@ class TestTheArbitratorsOwnAddGangScreen:
         ).exists()
 
         response = client.get(f"/n26/campaigns/{campaign.pk}/")
-        assert [row.over_budget for row in response.context["playing"]] == [True]
+        assert [line.over_budget for line in response.context["sheet"].gangs] == [True]
         assert "Over budget" in response.content.decode()
 
 

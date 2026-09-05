@@ -1316,6 +1316,19 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="section",
+                tag="c-n26.section",
+                template="n26/section.html",
+                summary="A titled part of a page, with its count and its controls.",
+                notes=(
+                    "One heading scale for every section of a detail page — the "
+                    "same h2 c-n26.form-section gives a form's groups. The count "
+                    "is inside the heading, so it is read out with the title. "
+                    "`id` lands on the section, so an address ending in #gangs "
+                    "opens the page there."
+                ),
+            ),
+            Component(
                 slug="about",
                 tag="c-n26.about",
                 template="n26/about/index.html",
@@ -1945,11 +1958,54 @@ GROUPS: list[Group] = [
                     "gang's own facts, under a heading naming the campaign. An "
                     "asset's row is labelled with the campaign type's word for "
                     "its class, and its value is this one's name, whether the "
-                    "gang owns it or only holds it; a holding links to the pool "
+                    "gang owns it or only holds it; a holding links to the campaign's assets "
                     "because it can change hands. The tally controls beside a "
                     "counter are drawn only where the line carries an address, "
                     "which n26.core.views.owned.link_counters sets for the "
                     "gang's owner alone."
+                ),
+            ),
+            Component(
+                slug="campaign-figures",
+                tag="c-n26.campaign-figures",
+                template="n26/campaign_figures.html",
+                summary="The campaign's headline numbers, as a figure strip.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Built from c-n26.wealth.figure, so the campaign page and "
+                    "the gang sheet carry one strip in one place. No cell has a "
+                    "unit: none of these is money. Takes the whole sheet, and "
+                    "reads the gang count off its own property — a :value "
+                    "attribute takes a variable, never a filter."
+                ),
+            ),
+            Component(
+                slug="campaign-gangs",
+                tag="c-n26.campaign-gangs",
+                template="n26/campaign_gangs.html",
+                summary="Every gang at the campaign's table, as one table.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "A real table over c-ui.table, which wraps it in its own "
+                    "scroll box. The columns are the sheet's own: one per "
+                    "campaign counter, then one per asset kind, laid out by "
+                    "position, so a value lands under its heading by index. "
+                    "Every empty value is an em dash. Each gang's href must be "
+                    "filled by the view; the component reverses no addresses."
+                ),
+            ),
+            Component(
+                slug="campaign-assets",
+                tag="c-n26.campaign-assets",
+                template="n26/campaign_assets.html",
+                summary="Every copy of one kind of asset, as a table.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "One call per pooled kind. The controls are whatever "
+                    "addresses the structure carries — grant, take away, drop "
+                    "and add — so a reader who may not act sees no controls "
+                    "rather than disabled ones; n26.core.views.campaigns fills "
+                    "them for the arbitrator and the holding gang's owner."
                 ),
             ),
             Component(
@@ -2484,6 +2540,24 @@ GROUPS: list[Group] = [
                     "the name because the mark before a title is inside the h1 and "
                     "is read out as part of the page's name, which a control must "
                     "not be."
+                ),
+            ),
+            Component(
+                slug="view-campaign-sheet",
+                tag="c-n26.view.campaign-sheet",
+                template="n26/view/campaign_sheet.html",
+                summary="A campaign, whole: who runs it, who plays, what they hold.",
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "The gang sheet's sibling, in its shape: header with the "
+                    "type and the arbitrator as the lead and the headline "
+                    "figures in the corner, the facts strip beside the page's "
+                    "controls, then the sections at one heading scale. The "
+                    "gangs table and the assets tables are drawn from the "
+                    "sheet; participants, battles and the log arrive as slots "
+                    "because each names addresses. Every slot is declared: the "
+                    "page filling this calls its context `battles` and "
+                    "`participants` too, and an undeclared slot would draw those."
                 ),
             ),
             Component(

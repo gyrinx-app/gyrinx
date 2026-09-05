@@ -183,34 +183,46 @@ def campaign(request, pk):
     is a campaign, not its history, and a log that grew without bound would
     push everything else off the bottom.
     """
-    from n26.core.campaigns import over_budget
+    from django.urls import reverse
+
     from n26.core.history import campaign_history, campaign_history_size
-    from n26.core.models import CampaignMembership, CampaignParticipant
+    from n26.core.models import CampaignParticipant
+    from n26.core.render import render_campaign
 
     accepted = CampaignParticipant.State.ACCEPTED
 
     found = _any_campaign_or_404(request, pk)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
-    pool_size = found.pool.count()
-    pool_held = found.pool.filter(
-        holder__isnull=False, holder__left__isnull=True
-    ).count()
+    sheet = render_campaign(found, viewer=request.user)
+    # The addresses are the view's to fill: the structure says who may act,
+    # and only here is it known where each act is asked.
+    for line in sheet.gangs:
+        line.href = reverse("n26-gang", args=[line.gang_id])
+    for table in sheet.assets:
+        if yours:
+            table.add_href = (
+                reverse("n26-campaign-add-asset", args=[found.pk])
+                + f"?kind={table.kind_id}"
+            )
+        for copy in table.copies:
+            if copy.held:
+                copy.holder_href = reverse("n26-gang", args=[copy.holder_gang_id])
+            if copy.held and (yours or copy.holder_yours):
+                copy.take_away_href = reverse(
+                    "n26-campaign-asset-take-away", args=[found.pk, copy.copy_id]
+                )
+            if not copy.held and yours:
+                copy.grant_href = reverse(
+                    "n26-campaign-asset-grant", args=[found.pk, copy.copy_id]
+                )
+                copy.drop_href = reverse(
+                    "n26-campaign-asset-drop", args=[found.pk, copy.copy_id]
+                )
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
     recent = campaign_history(found, viewer=request.user, limit=LOG_ON_THE_PAGE)
-    playing = list(
-        CampaignMembership.objects.filter(campaign=found, left__isnull=True)
-        .select_related("gang", "gang__gang_type", "gang__owner", "gang__stash")
-        .order_by("gang__name")
-    )
-    # Read now rather than at the moment of joining: a gang that has grown
-    # past the campaign's ceiling since is as much worth saying as one that
-    # arrived over it, and neither is anything the page stops.
-    for membership in playing:
-        membership.wealth = membership.gang.wealth
-        membership.over_budget = over_budget(found, membership.gang)
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the participants, and
     # whether this reader is one of them decides what it offers them.
@@ -225,24 +237,16 @@ def campaign(request, pk):
         "n26/campaign.html",
         {
             "campaign": found,
+            "sheet": sheet,
             "yours": yours,
+            "log_href": reverse("n26-campaign-log", args=[found.pk]),
             # A player at the table brings their own gangs; the arbitrator
             # brings anybody's. Both reach the same screen.
             "may_add_gang": yours or at_the_table,
             "participants": participants,
-            "playing": playing,
             "battles": battles,
             "acts": list(reversed(recent)),
             "more_acts": max(campaign_history_size(found) - len(recent), 0),
-            # What the arbitrator has added on top of the shared type, by
-            # name. Empty for a campaign nothing has been added to, which is
-            # every campaign at founding.
-            "additions": _additions_of(found),
-            # How big the pool is and how much of it is held, for the line
-            # that leads to it. Held means the holding gang is still playing.
-            "pool_size": pool_size,
-            "pool_held": pool_held,
-            "pool_unclaimed": pool_size - pool_held,
         },
     )
 
@@ -285,22 +289,6 @@ def campaign_log(request, pk):
             "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
         },
     )
-
-
-def _additions_of(campaign):
-    """The names of what this campaign's additions type gives every member
-    gang — its built-in members, in their order."""
-    from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
-
-    built_ins = campaign.additions.built_ins
-    if built_ins is None:
-        return []
-    members = (
-        built_ins.members.filter(archived=False)
-        .select_related(*DEFAULT_ASSIGNABLE_FIELDS)
-        .order_by("position")
-    )
-    return [str(member.assignable) for member in members]
 
 
 @requires_flag(CAMPAIGNS)
@@ -616,13 +604,13 @@ def remove_battle(request, pk, battle_pk):
 
 
 def _pooled_assets(campaign):
-    """The assets this campaign can put copies of in its pool: those of
-    the pooled kinds of its type and of its additions.
+    """The assets this campaign can add copies of: those of the pooled
+    kinds of its type and of its additions.
 
     A held-one-each asset is every member gang's own, given on joining,
-    and has no pool to sit in. Archived assets are left out here, where a
+    and has no copies to add. Archived assets are left out here, where a
     new copy would be made — archiving hides a thing from new grants and
-    takes nothing back from a pool that already holds it.
+    takes nothing back from a campaign that already holds a copy.
     """
     return (
         (campaign.campaign_type.pooled_assets() | campaign.additions.pooled_assets())
@@ -632,8 +620,16 @@ def _pooled_assets(campaign):
     )
 
 
+def _assets_anchor(campaign):
+    """The campaign page, opened at its assets section — where every act
+    on a copy lands afterwards, since the copies are listed there."""
+    from django.urls import reverse
+
+    return reverse("n26-campaign", args=[campaign.pk]) + "#assets"
+
+
 def _token_or_404(campaign, token_pk):
-    """One copy in this campaign's pool, with its asset and holder along.
+    """One copy of the campaign's assets, with its asset and holder along.
 
     A key that is not a key at all is a bad link, not a server error.
     """
@@ -657,87 +653,76 @@ def _holding_owner(token, user):
     return token.held and token.holder.gang.owner_id == getattr(user, "id", None)
 
 
-@requires_flag(CAMPAIGNS)
-@login_required
-def campaign_pool(request, pk):
-    """Every copy in the campaign's pool, by kind, with who holds each.
-
-    Read by whoever reads the campaign: which territories are held and
-    which are unclaimed is table knowledge. The controls are the
-    arbitrator's, bar one — the owner of a holding gang may hand a copy
-    back — and a reader with none sees a list.
-
-    Archived assets are not filtered out. Archiving an asset hides it from
-    new grants and takes nothing back: a copy already in the pool stays,
-    held or not, until the arbitrator drops it.
+def _kind_asked_for(campaign, value):
+    """The asset kind named by ``?kind=``, where it is one of this
+    campaign's pooled kinds; otherwise None, and the form offers every
+    kind. A stray value is a plain link to the unscoped form, not an
+    error: nothing on the page writes one, and nothing is lost by
+    ignoring it.
     """
-    found = _any_campaign_or_404(request, pk)
-    reading = getattr(request.user, "id", None)
-    yours = found.owner_id == reading
-    tokens = found.pool.select_related("asset__kind", "holder__gang")
+    from django.core.exceptions import ValidationError
 
-    groups = []
-    by_kind = {}
-    for token in tokens:
-        kind = token.asset.kind
-        group = by_kind.get(kind.pk)
-        if group is None:
-            group = {"label": kind.plural, "tokens": []}
-            by_kind[kind.pk] = group
-            groups.append(group)
-        held = token.held
-        group["tokens"].append(
-            {
-                "pk": str(token.pk),
-                "name": str(token),
-                # Said where the copy has a name of its own, so a reader
-                # knows what it is a copy of.
-                "asset": token.asset.name if token.name else "",
-                "income": token.asset.income,
-                "held": held,
-                "holder": token.holder.gang.name if held else "",
-                "holder_pk": str(token.holder.gang_id) if held else "",
-                "may_take_away": held
-                and (yours or _holding_owner(token, request.user)),
-            }
-        )
+    from n26.library.models import AssetKind
 
-    return render(
-        request,
-        "n26/campaign_pool.html",
-        {"campaign": found, "yours": yours, "groups": groups},
-    )
+    if not value:
+        return None
+    try:
+        return AssetKind.objects.filter(
+            pk=value,
+            mode=AssetKind.Mode.POOLED,
+            campaign_type_id__in=(campaign.campaign_type_id, campaign.additions_id),
+        ).first()
+    except ValidationError, ValueError:
+        return None
 
 
 @requires_flag(CAMPAIGNS)
 @login_required
-def add_to_pool(request, pk):
-    """Put one copy of an asset the campaign deals in into the pool."""
+def add_asset(request, pk):
+    """Add one copy of an asset the campaign deals in, held by nobody.
+
+    ``?kind=`` narrows the assets offered to one kind, which is how the
+    Add beside each kind's table reaches here: an arbitrator adding a
+    territory is not choosing between territories and rackets. The kind
+    rides the form's address too, so a failed submit redisplays the same
+    narrowed list.
+    """
     from n26.core.campaigns import campaign_operation
-    from n26.core.forms import AddToPoolForm
+    from n26.core.forms import AddAssetForm
 
     found = _own_campaign_or_404(request, pk)
+    kind = _kind_asked_for(found, request.GET.get("kind"))
     offered = _pooled_assets(found)
+    if kind is not None:
+        offered = offered.filter(kind=kind)
 
     if request.method == "POST":
-        form = AddToPoolForm(request.POST, offered=offered)
+        form = AddAssetForm(request.POST, offered=offered)
         if form.is_valid():
             with campaign_operation(found, actor=request.user) as act:
                 token = act.add_asset(
                     form.cleaned_data["asset"], name=form.cleaned_data["name"]
                 )
-            messages.success(request, f"Added {token} to the pool.")
-            return redirect("n26-campaign-pool", pk=found.pk)
+            messages.success(request, f"Added {token}.")
+            return redirect(_assets_anchor(found))
     else:
-        form = AddToPoolForm(offered=offered)
+        form = AddAssetForm(offered=offered)
 
     submitted = str(form["asset"].value() or "")
+    # The kind's own word for what is being added, with its article, for
+    # the title: "Add a territory", "Add an asset". The article follows the
+    # word's first letter, since a kind's label is the author's to choose.
+    noun = kind.label_singular.lower() if kind else "asset"
+    article = "an" if noun[:1] in "aeiou" else "a"
     return render(
         request,
-        "n26/add_to_pool.html",
+        "n26/add_asset.html",
         {
             "form": form,
             "campaign": found,
+            "kind": kind,
+            "adding": f"{article} {noun}",
+            "back": _assets_anchor(found),
             # Drawn as cards, one per asset, with the kind and income under
             # the name; a redisplay after a failed submit keeps the pick.
             "assets": [
@@ -785,21 +770,25 @@ def grant_asset(request, pk, token_pk):
                 messages.error(request, str(refused))
             else:
                 if granted is None:
-                    messages.error(
-                        request, f"{token} was already dropped from the pool."
-                    )
+                    messages.error(request, f"{token} was already dropped.")
                 else:
                     messages.success(
                         request, f"Granted {token} to {membership.gang.name}."
                     )
-            return redirect("n26-campaign-pool", pk=found.pk)
+            return redirect(_assets_anchor(found))
     else:
         form = GrantAssetForm(playing=playing)
 
     return render(
         request,
         "n26/grant_asset.html",
-        {"form": form, "campaign": found, "token": token, "playing": playing},
+        {
+            "form": form,
+            "campaign": found,
+            "token": token,
+            "playing": playing,
+            "back": _assets_anchor(found),
+        },
     )
 
 
@@ -820,10 +809,10 @@ def take_away_asset(request, pk, token_pk):
     reading = getattr(request.user, "id", None)
     if found.owner_id != reading and not _holding_owner(token, request.user):
         raise Http404("No such asset in this campaign")
-    # A stale link to a copy already back in the pool: nothing to ask.
+    # A stale link to a copy nobody holds any more: nothing to ask.
     if not token.held:
         messages.error(request, f"{token} is not held by any gang.")
-        return redirect("n26-campaign-pool", pk=found.pk)
+        return redirect(_assets_anchor(found))
 
     if request.method == "POST":
         holder = token.holder.gang.name
@@ -833,12 +822,12 @@ def take_away_asset(request, pk, token_pk):
             messages.error(request, f"{token} is not held by any gang.")
         else:
             messages.success(request, f"Took {token} away from {holder}.")
-        return redirect("n26-campaign-pool", pk=found.pk)
+        return redirect(_assets_anchor(found))
 
     return render(
         request,
         "n26/take_away_asset.html",
-        {"campaign": found, "token": token},
+        {"campaign": found, "token": token, "back": _assets_anchor(found)},
     )
 
 
@@ -861,15 +850,15 @@ def drop_asset(request, pk, token_pk):
             messages.error(request, str(refused))
         else:
             if dropped is None:
-                messages.error(request, f"{name} was already dropped from the pool.")
+                messages.error(request, f"{name} was already dropped.")
             else:
-                messages.success(request, f"Dropped {name} from the pool.")
-        return redirect("n26-campaign-pool", pk=found.pk)
+                messages.success(request, f"Dropped {name}.")
+        return redirect(_assets_anchor(found))
 
     return render(
         request,
         "n26/drop_asset.html",
-        {"campaign": found, "token": token},
+        {"campaign": found, "token": token, "back": _assets_anchor(found)},
     )
 
 

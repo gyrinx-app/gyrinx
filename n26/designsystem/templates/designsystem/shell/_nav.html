@@ -18,7 +18,8 @@ set of links.
 {% if %}, so "1" is on and "" is off; and a conditional inside a quoted value is
 the form Cotton is reliable with, where one emitting a whole attribute is not.
 
-Takes `here` — "home", "new-gang", "gang", "hire", "shop" (the equip screen) or "print".
+Takes `here` — "home", "new-gang", "gang", "campaign", "hire", "shop" (the equip
+screen) or "print".
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'designsystem:shell_home' %}"
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
@@ -26,6 +27,8 @@ Takes `here` — "home", "new-gang", "gang", "hire", "shop" (the equip screen) o
                   current="{% if here == 'new-gang' %}1{% endif %}">Create a gang</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'designsystem:shell_gang' %}"
                   current="{% if here == 'gang' %}1{% endif %}">Gang</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_campaign' %}"
+                  current="{% if here == 'campaign' %}1{% endif %}">Campaign</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'designsystem:shell_hire' %}"
                   current="{% if here == 'hire' %}1{% endif %}">Hire</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'designsystem:shell_shop' %}"

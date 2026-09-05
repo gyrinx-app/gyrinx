@@ -443,6 +443,19 @@ class TestTheShellStillDraws:
         # the same name, which sits further up the page.
         assert page.index("Found and equip gang") < page.index(">Stash</span>")
 
+    def test_the_campaign_shell_draws_the_tables(self, reader):
+        """The gangs table and an assets table both fill from the sample
+        sheet, and every slot the view declares is drawn from the page
+        rather than from a context variable of the same name."""
+        page = reader.get("/n26/design/shell/campaign/").content.decode()
+        assert "Territory campaign" in page
+        assert "Gravebolt Kin" in page
+        assert "Old Ruins by the sump" in page
+        assert "Reputation" in page
+        assert "Unclaimed" in page
+        assert "Record battle" in page
+        assert "granted the territory" in page
+
     def test_the_new_gang_shell_offers_its_types(self, reader):
         page = reader.get("/n26/design/shell/new-gang/").content.decode()
         assert 'name="gang_type"' in page

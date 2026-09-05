@@ -416,8 +416,8 @@ def create_assignment_set(miniature, name, assignments):
     return selection
 
 
-def add_to_pool(campaign, asset, name="", actor=None):
-    """Put one copy of a pooled asset into a campaign's pool, unclaimed."""
+def add_asset(campaign, asset, name="", actor=None):
+    """Add one copy of a pooled asset to a campaign, held by nobody."""
     from n26.core.campaigns import campaign_operation
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
@@ -425,8 +425,8 @@ def add_to_pool(campaign, asset, name="", actor=None):
 
 
 def grant_asset(token, gang, actor=None):
-    """Grant a copy in the pool to a gang playing the campaign, as the
-    pool page's Grant does: campaign line first, then the gang's."""
+    """Grant a copy to a gang playing the campaign, as the campaign
+    page's Grant does: campaign line first, then the gang's."""
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
@@ -439,7 +439,7 @@ def grant_asset(token, gang, actor=None):
 
 
 def take_away_asset(token, actor=None):
-    """Take a copy back from the gang holding it, into the pool."""
+    """Take a copy back from the gang holding it."""
     from n26.core.campaigns import campaign_operation
 
     campaign = token.campaign
@@ -448,7 +448,7 @@ def take_away_asset(token, actor=None):
 
 
 def drop_asset(token, actor=None):
-    """Drop an unclaimed copy from the pool."""
+    """Drop a copy nobody holds."""
     from n26.core.campaigns import campaign_operation
 
     campaign = token.campaign

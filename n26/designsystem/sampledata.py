@@ -39,9 +39,14 @@ from n26.core.hire import (
 from n26.core.images import MAX_PX, PORTRAIT
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
+    AssetKindColumn,
     AssignableLine,
+    CampaignAssetCopy,
     CampaignAssetLine,
+    CampaignAssetTable,
     CampaignBlock,
+    CampaignGangLine,
+    CampaignSheet,
     ChoiceLine,
     ChoiceOffer,
     Choosable,
@@ -817,6 +822,7 @@ def context():
     return {
         "houses": HOUSES,
         "gang_owner": OWNER,
+        "campaign_sheet": campaign_sheet(),
         "sample_miniature": sample_miniature(),
         "sample_roster_summary": roster_summary(),
         # Every demo that draws a gang type's badge needs the artwork as a
@@ -1979,7 +1985,7 @@ def gang_sheet():
             # feature. Empty is the other state: the name and the holding
             # draw as text.
             href="#",
-            pool_href="#",
+            assets_href="#",
             lines=[
                 CampaignAssetLine(
                     kind_label="Settlement",
@@ -2224,6 +2230,229 @@ def gang_sheet_context():
             for name, profile, rating in members
         ],
         "gang_owner": OWNER,
+    }
+
+
+# --------------------------------------------------------------------- campaign
+
+#: The sample campaign's kinds, the shared type's first: a Settlement every
+#: gang holds, then the two kinds that change hands — Territories from the
+#: type and a Racket the arbitrator added.
+CAMPAIGN_KINDS = [
+    AssetKindColumn(
+        kind_id="settlement", label="Settlement", plural="Settlements", pooled=False
+    ),
+    AssetKindColumn(
+        kind_id="territory", label="Territory", plural="Territories", pooled=True
+    ),
+    AssetKindColumn(kind_id="racket", label="Racket", plural="Rackets", pooled=True),
+]
+
+
+def campaign_sheet():
+    """One campaign, with enough going on to exercise the sheet.
+
+    Three gangs of different types, one of them over the budget; two
+    campaign counters, one of which a gang lacks so the dash is drawn;
+    territories held and unclaimed, one with a name of its own; a racket
+    nobody holds yet. Every address is "#" — the gallery has no campaign
+    behind it — which is also the state the controls take for the
+    arbitrator, so the table is seen with its buttons on.
+    """
+    return CampaignSheet(
+        name="Dust Falls",
+        campaign_id="dust-falls",
+        campaign_type="Territory campaign",
+        campaign_type_description=(
+            "Gangs fight over territories, each bringing income and a boon to "
+            "the gang holding it."
+        ),
+        arbitrator=OWNER,
+        budget=1250,
+        summary=(
+            "<p>Six weeks of raids over the eastern sumps. Territories change "
+            "hands after every battle; the arbitrator settles ties at the "
+            "table.</p>"
+        ),
+        additions=["Meat"],
+        counter_columns=["Reputation", "Meat"],
+        asset_kinds=CAMPAIGN_KINDS,
+        gangs=[
+            CampaignGangLine(
+                gang_id="gravebolt-kin",
+                name="Gravebolt Kin",
+                gang_type="Goliath (HoC)",
+                owner="marta",
+                rating=1180,
+                credits=95,
+                wealth=1275,
+                colour="orange",
+                over_budget=True,
+                counters=[4, 2],
+                assets=[["Settlement"], ["Toll Crossing"], []],
+                href="#",
+            ),
+            CampaignGangLine(
+                gang_id="pit-of-teeth",
+                name="Pit of Teeth",
+                gang_type="Cawdor (HoF)",
+                owner="ossian",
+                rating=940,
+                credits=210,
+                wealth=1150,
+                colour="teal",
+                counters=[1, None],
+                assets=[["Settlement"], [], []],
+                href="#",
+            ),
+            CampaignGangLine(
+                gang_id="the-ashen-choir",
+                name="The Ashen Choir",
+                gang_type="Escher (HoB)",
+                owner=OWNER,
+                rating=1037,
+                credits=160,
+                wealth=1197,
+                colour="violet",
+                counters=[3, 0],
+                assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"], []],
+                href="#",
+                yours=True,
+            ),
+        ],
+        assets=[
+            CampaignAssetTable(
+                kind_id="territory",
+                label="Territory",
+                plural="Territories",
+                add_href="#",
+                copies=[
+                    CampaignAssetCopy(
+                        copy_id="old-ruins",
+                        name="Old Ruins",
+                        income=30,
+                        boons=[
+                            "Adds 1 to the gang's Reputation.",
+                            "The gang gets the Salvage rule.",
+                        ],
+                        held=True,
+                        holder="The Ashen Choir",
+                        holder_gang_id="the-ashen-choir",
+                        holder_href="#",
+                        holder_yours=True,
+                        take_away_href="#",
+                    ),
+                    CampaignAssetCopy(
+                        copy_id="old-ruins-sump",
+                        name="Old Ruins by the sump",
+                        asset_name="Old Ruins",
+                        income=30,
+                        boons=[
+                            "Adds 1 to the gang's Reputation.",
+                            "The gang gets the Salvage rule.",
+                        ],
+                        held=True,
+                        holder="The Ashen Choir",
+                        holder_gang_id="the-ashen-choir",
+                        holder_href="#",
+                        holder_yours=True,
+                        take_away_href="#",
+                    ),
+                    CampaignAssetCopy(
+                        copy_id="toll-crossing",
+                        name="Toll Crossing",
+                        income=20,
+                        held=True,
+                        holder="Gravebolt Kin",
+                        holder_gang_id="gravebolt-kin",
+                        holder_href="#",
+                        take_away_href="#",
+                    ),
+                    CampaignAssetCopy(
+                        copy_id="collapsed-dome",
+                        name="Collapsed Dome",
+                        income=10,
+                        grant_href="#",
+                        drop_href="#",
+                    ),
+                ],
+            ),
+            CampaignAssetTable(
+                kind_id="racket",
+                label="Racket",
+                plural="Rackets",
+                add_href="#",
+                copies=[
+                    CampaignAssetCopy(
+                        copy_id="protection",
+                        name="Protection",
+                        boons=["Adds 1 to the gang's Meat."],
+                        grant_href="#",
+                        drop_href="#",
+                    ),
+                ],
+            ),
+        ],
+        battles_fought=7,
+    )
+
+
+def campaign_sheet_context():
+    """What the campaign page and its shell draw beside the sheet."""
+    from n26.core.history import Act, Span
+    from n26.core.navigation import Switcher, SwitcherItem
+
+    now = timezone.now()
+    acts = [
+        Act(
+            when=now - timedelta(minutes=minutes),
+            actor=actor,
+            spans=tuple(Span(text) for text in spans),
+            category="campaign",
+            gang_name=gang_name,
+        )
+        for minutes, actor, spans, gang_name in (
+            (
+                12,
+                OWNER,
+                ("granted the territory ", "Old Ruins", " to the gang"),
+                "The Ashen Choir",
+            ),
+            (40, "marta", ("hired Brakk, a Ganger",), "Gravebolt Kin"),
+            (95, OWNER, ("recorded a battle fought on 4 September",), ""),
+            (3 * 60, OWNER, ("added the asset Collapsed Dome",), ""),
+            (26 * 60, "ossian", ("accepted the invitation",), ""),
+            (27 * 60, OWNER, ("invited ossian",), ""),
+            (48 * 60, OWNER, ("set the campaign up on Territory campaign",), ""),
+        )
+    ]
+    return {
+        "campaign_sheet": campaign_sheet(),
+        "campaign_acts": acts,
+        "campaign_participants": [
+            {"username": "marta", "state": "accepted"},
+            {"username": "ossian", "state": "accepted"},
+            {"username": "vey", "state": "invited"},
+        ],
+        "campaign_battles": [
+            {
+                "date": now - timedelta(days=1),
+                "gangs": "Gravebolt Kin, The Ashen Choir",
+            },
+            {"date": now - timedelta(days=8), "gangs": "Pit of Teeth, The Ashen Choir"},
+        ],
+        "campaign_switcher": Switcher(
+            label="Dust Falls",
+            href="#dust-falls",
+            heading="Your campaigns",
+            menu_label="Switch to another campaign",
+            placeholder="Search campaigns",
+            empty="No campaigns match",
+            items=(
+                SwitcherItem(label="Dust Falls", href="#dust-falls", current=True),
+                SwitcherItem(label="The Long Descent", href="#the-long-descent"),
+            ),
+        ),
     }
 
 

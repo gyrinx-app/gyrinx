@@ -1,24 +1,20 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% load richtext %}
 {% comment %}
 One campaign, to whoever opens it.
 
 The arbitrator sends the address round and everybody at the table reads the
-same page. Every control on it is the arbitrator's, and a reader who is not one
-gets none of them — not a disabled button, which is a control saying no, but
-nothing at all. What is left is the whole of the campaign: its facts, its
-people, its gangs, its battles and its log.
+same page. Every control on it is the arbitrator's, bar one — the owner of a
+gang holding a copy may hand it back — and a reader who is not one gets none
+of them: not a disabled button, which is a control saying no, but nothing at
+all. What is left is the whole of the campaign: its facts, its gangs and what
+they hold, its assets, its people, its battles and its log.
 
-The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
-carries its own — each a small fact that is also something to change.
-
-Five sections, in the order a reader wants them: the summary says what this
-campaign is, the participants say who is at the table, the roll says which
-gangs are playing, the battles say what has been fought, and the log says what
-has been done since. Battles and the log both
-read newest first and stop after the most recent few, because this is a
-campaign's page rather than its history.
+The design system's campaign sheet over real rows, as the gang sheet is over
+a gang's. The gallery's shell version (designsystem/shell/campaign.html) is
+this page with sample data; what was judged there is what ships here, so the
+two should be edited together. The sheet itself is built by
+n26.core.render.render_campaign; this page adds the addresses.
 {% endcomment %}
 {% block head_title %}{{ campaign.name }}{% endblock head_title %}
 {% comment %}
@@ -34,276 +30,189 @@ reader's other campaigns — the same pattern a gang's screens use.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <div class="flex flex-col gap-8">
-        <c-n26.page-header title="{{ campaign.name }}">
-            <c-slot name="breadcrumb">
-                <c-ui.breadcrumbs>
-                    <c-ui.breadcrumbs.item>
-                        <c-n26.user-link :user="campaign.owner"
-                                         tone="current"
-                                         href="{% url 'n26-dashboard' %}" />
-                    </c-ui.breadcrumbs.item>
-                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
-                    <c-ui.breadcrumbs.item :current="True">
-                        {{ campaign.name }}
-                    </c-ui.breadcrumbs.item>
-                </c-ui.breadcrumbs>
+    <c-n26.view.campaign-sheet :sheet="sheet"
+                               edit_href="{% if yours %}{% url 'n26-edit-campaign' campaign.pk %}{% endif %}"
+                               log_count="{% if more_acts %}{{ more_acts }} earlier act{{ more_acts|pluralize }} not shown{% endif %}"
+                               log_href="{{ log_href }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ campaign.name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="arbitrator">
+            <c-n26.user-link :user="campaign.owner"
+                             tone="current"
+                             href="{% url 'n26-dashboard' %}" />
+        </c-slot>
+        {% comment %}
+        The reader's other campaigns, beside the name of this one — the same
+        rows the bar offers, off the same memo. Named differently from the
+        bar's, because two controls announced identically tell a reader who
+        cannot see where they sit nothing about either.
+        {% endcomment %}
+        {% if yours %}
+            <c-slot name="trailing">
+                {% campaign_switcher campaign named=False menu_label="Your other campaigns" as heading_campaigns_ %}
+                <c-n26.quick-switcher.of :switcher="heading_campaigns_" hotkey="r" />
             </c-slot>
-            {% if yours %}
-                {% comment %}
-                Archiving sits behind the second click rather than beside
-                Edit: it is the one control here that takes the campaign
-                away, and a page's own actions should read as the things
-                you came to do.
-                {% endcomment %}
-                <c-slot name="actions">
-                    <c-n26.button-group>
+            {% comment %}
+            Archiving sits behind the second click rather than beside Edit:
+            it is the one control here that takes the campaign away, and a
+            page's own actions should read as the things you came to do.
+            Default rather than primary, as on the gang sheet: blue is the
+            page's one creative act, and editing what is already here is
+            not it.
+            {% endcomment %}
+            <c-slot name="actions">
+                <c-n26.button-group>
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 href="{% url 'n26-edit-campaign' campaign.pk %}">
+                        Edit
+                    </c-ui.button>
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm" variant="default" aria-label="More actions">
+                                <span class="n26-icon-only gap-0.5">
+                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
                         {% comment %}
-                        Default rather than primary, as on the gang sheet:
-                        blue is the page's one creative act, and editing what
-                        is already here is not it.
+                        A page that asks, not the act: following this link
+                        archives nothing, and the POST it leads to is the
+                        only thing that does.
                         {% endcomment %}
-                        <c-ui.button size="sm"
-                                     variant="default"
-                                     href="{% url 'n26-edit-campaign' campaign.pk %}">
-                            Edit
-                        </c-ui.button>
-                        <c-ui.dropdown>
-                            <c-slot name="trigger">
-                                <c-ui.button size="sm" variant="default" aria-label="More actions">
-                                    <span class="n26-icon-only gap-0.5">
-                                        <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                    </span>
-                                </c-ui.button>
-                            </c-slot>
-                            {% comment %}
-                            A page that asks, not the act: following this
-                            link archives nothing, and the POST it leads to
-                            is the only thing that does.
-                            {% endcomment %}
-                            <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
-                                Archive campaign
-                            </c-ui.dropdown.item>
-                        </c-ui.dropdown>
-                    </c-n26.button-group>
-                </c-slot>
-            {% endif %}
-        </c-n26.page-header>
-        <c-n26.detail-list>
-            <c-n26.detail-list.row label="Gang budget">
-                {% if campaign.budget is None %}
-                    None set
-                {% else %}
-                    {{ campaign.budget }}¢
-                {% endif %}
-            </c-n26.detail-list.row>
-            {% comment %}
-            Settled at founding: what every gang that joins is given comes
-            from the type, and the assignments that gave it exist from the
-            first join on, so there is nothing here to click.
-            {% endcomment %}
-            <c-n26.detail-list.row label="Campaign type"
-                                   value="{{ campaign.campaign_type }}"
-                                   :editable="False" />
-            {% comment %}
-            What the arbitrator has added for this campaign alone, drawn
-            only once there is something: every campaign starts with none,
-            and a row saying so would be a row about nothing.
-            {% endcomment %}
-            {% if additions %}
-                <c-n26.detail-list.row label="Additions" :editable="False">
-                    {% for name in additions %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-                </c-n26.detail-list.row>
-            {% endif %}
-        </c-n26.detail-list>
-        {% if campaign.summary %}
-            {% comment %}
-            The arbitrator's own words, so the editor's markup is drawn rather
-            than escaped — sanitised on the way out by the richtext tag, which
-            is why a tightened allowlist reaches what was already saved.
-            {% endcomment %}
-            <c-n26.prose>
-                {{ campaign.summary|safe_rich_text }}
-            </c-n26.prose>
+                        <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
+                            Archive campaign
+                        </c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </c-n26.button-group>
+            </c-slot>
         {% endif %}
         {% comment %}
-        The people, above the gangs: a campaign is a table of players first,
-        and which gangs they bring is the next question rather than the first.
+        A player at the table brings their own gangs; the arbitrator brings
+        anybody's. Both reach the same screen.
         {% endcomment %}
-        <section class="flex flex-col gap-2">
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-medium text-muted">Participants</h2>
-                {% if yours %}
-                    <c-ui.button size="sm"
-                                 variant="primary"
-                                 href="{% url 'n26-campaign-add-participant' campaign.pk %}">
-                        Add participants
-                    </c-ui.button>
-                {% endif %}
-            </div>
+        {% if may_add_gang %}
+            <c-slot name="gangs_actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-gang' campaign.pk %}">
+                    Add gang
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        {% if yours %}
+            <c-slot name="participants_actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-participant' campaign.pk %}">
+                    Add participants
+                </c-ui.button>
+            </c-slot>
+            <c-slot name="battles_actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-battle' campaign.pk %}">
+                    Record battle
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        <c-slot name="participants">
             {% if participants %}
-                <ul class="flex flex-col">
-                    {% for participant in participants %}
-                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                            <span class="min-w-0 flex-1 text-base">{{ participant.user.username }}</span>
-                            {% if participant.state == 'accepted' %}
-                                <c-ui.badge color="green" size="sm">
-                                    Accepted
-                                </c-ui.badge>
-                            {% elif participant.state == 'declined' %}
-                                <c-ui.badge color="ink" size="sm">
-                                    Declined
-                                </c-ui.badge>
-                            {% else %}
-                                <c-ui.badge color="orange" size="sm">
-                                    Invited
-                                </c-ui.badge>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
+                <c-ui.table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Player</th>
+                            <th scope="col" class="text-right">Invitation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for participant in participants %}
+                            <tr>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ participant.user.username }}</td>
+                                <td class="text-right">
+                                    {% if participant.state == 'accepted' %}
+                                        <c-ui.badge color="green" size="sm">
+                                            Accepted
+                                        </c-ui.badge>
+                                    {% elif participant.state == 'declined' %}
+                                        <c-ui.badge color="ink" size="sm">
+                                            Declined
+                                        </c-ui.badge>
+                                    {% else %}
+                                        <c-ui.badge color="orange" size="sm">
+                                            Invited
+                                        </c-ui.badge>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
             {% else %}
-                <p class="text-sm text-muted">Nobody yet.</p>
+                <p class="text-sm text-muted">No players yet.</p>
             {% endif %}
-        </section>
-        {% comment %}
-        Every gang playing, and the way to add another. A gang's name leads to
-        its own sheet, which opens for anybody holding the address — the roll
-        is a list of links, not a claim on anybody's roster.
-        {% endcomment %}
-        <section class="flex flex-col gap-2">
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-medium text-muted">Gangs</h2>
-                {% if may_add_gang %}
-                    <c-ui.button size="sm"
-                                 variant="primary"
-                                 href="{% url 'n26-campaign-add-gang' campaign.pk %}">
-                        Add gang
-                    </c-ui.button>
-                {% endif %}
-            </div>
-            {% if playing %}
-                <ul class="flex flex-col">
-                    {% for membership in playing %}
-                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                            <div class="min-w-0 flex-1">
-                                <c-n26.link href="{% url 'n26-gang' membership.gang.pk %}">{{ membership.gang.name }}</c-n26.link>
-                                <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
-                            </div>
-                            {% comment %}
-                            A gang bigger than the campaign's budget is
-                            marked and nothing else. The budget stops
-                            nobody joining; it says what size the table
-                            agreed on.
-                            {% endcomment %}
-                            {% comment %}
-                            Amber rather than orange: orange is what an
-                            invitation still waiting wears further up this
-                            page, and one colour cannot mean two things on
-                            one screen.
-                            {% endcomment %}
-                            {% comment %}
-                            Wrapped rather than given a class: the badge
-                            declares none, so one passed in is written before
-                            its own and the browser keeps the first, dropping
-                            every style it came with.
-                            {% endcomment %}
-                            {% if membership.over_budget %}
-                                <span class="shrink-0">
-                                    <c-ui.badge color="amber" size="sm">
-                                        Over budget
-                                    </c-ui.badge>
-                                </span>
-                            {% endif %}
-                            {% comment %}
-                            Wealth, which is what the mark beside it is
-                            measured against — rating, stash and unspent
-                            credits, the same figure the gang's own sheet
-                            gives that name.
-                            {% endcomment %}
-                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.wealth }}¢</span>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="text-sm text-muted">No gangs yet.</p>
-            {% endif %}
-        </section>
-        {% comment %}
-        The pool has a page of its own: a campaign played for a season holds
-        more copies than this page wants. What sits here is the way in and
-        the two figures a reader checks most — how many, and how many held.
-        {% endcomment %}
-        <section class="flex flex-col gap-2">
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-medium text-muted">Pool</h2>
-                {% if yours %}
-                    <c-ui.button size="sm"
-                                 variant="primary"
-                                 href="{% url 'n26-campaign-pool-add' campaign.pk %}">
-                        Add to pool
-                    </c-ui.button>
-                {% endif %}
-            </div>
-            {% if pool_size %}
-                <p class="text-base">
-                    <c-n26.link href="{% url 'n26-campaign-pool' campaign.pk %}">{{ pool_size }} asset{{ pool_size|pluralize }} in the pool</c-n26.link>
-                    <span class="text-sm text-muted">{{ pool_held }} held, {{ pool_unclaimed }} unclaimed</span>
-                </p>
-            {% else %}
-                <p class="text-sm text-muted">Nothing in the pool yet.</p>
-            {% endif %}
-        </section>
+        </c-slot>
         {% comment %}
         What has been fought, newest first. A battle carries only its date and
         who was in it — what it did to a gang is on that gang, which is why
         there is nothing here to click through to.
         {% endcomment %}
-        <section class="flex flex-col gap-2">
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="text-sm font-medium text-muted">Battles</h2>
-                {% if yours %}
-                    <c-ui.button size="sm"
-                                 variant="primary"
-                                 href="{% url 'n26-campaign-add-battle' campaign.pk %}">
-                        Record battle
-                    </c-ui.button>
-                {% endif %}
-            </div>
+        <c-slot name="battles">
             {% if battles %}
-                <ul class="flex flex-col">
-                    {% for battle in battles %}
-                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                            <span class="w-28 shrink-0 text-sm tabular-nums whitespace-nowrap">{{ battle.date|date:"j M Y" }}</span>
-                            <span class="min-w-0 flex-1 text-sm text-muted">
-                                {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}Nobody named{% endfor %}
-                            </span>
-                            {% if yours %}
-                                <c-ui.button size="sm"
-                                             variant="ghost"
-                                             href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
-                                             aria-label="Remove the battle of {{ battle.date|date:'j F Y' }}"
-                                             title="Remove this battle">
-                                    <span class="n26-icon-only">
-                                        <c-n26.icon name="x-mark" class="size-4" />
-                                    </span>
-                                </c-ui.button>
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
+                <c-ui.table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Gangs</th>
+                            {% if yours %}<th scope="col"><span class="sr-only">Actions</span></th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for battle in battles %}
+                            <tr>
+                                <td class="tabular-nums whitespace-nowrap">{{ battle.date|date:"j M Y" }}</td>
+                                <td>
+                                    {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}<span class="text-muted">No gangs named</span>{% endfor %}
+                                </td>
+                                {% if yours %}
+                                    <td class="text-right">
+                                        <c-ui.button size="xs"
+                                                     variant="ghost"
+                                                     href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                                                     aria-label="Remove the battle of {{ battle.date|date:'j F Y' }}"
+                                                     title="Remove this battle">
+                                            <span class="n26-icon-only">
+                                                <c-n26.icon name="x-mark" class="size-4" />
+                                            </span>
+                                        </c-ui.button>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
             {% else %}
                 <p class="text-sm text-muted">No battles yet.</p>
             {% endif %}
-        </section>
+        </c-slot>
         {% comment %}
         Cut to the most recent acts, with a count of what is not drawn: a
         campaign played for a year would otherwise push its own facts off
         the bottom of the page.
         {% endcomment %}
-        <section class="flex flex-col gap-2">
-            <h2 class="text-sm font-medium text-muted">Log</h2>
+        <c-slot name="log">
             {% if acts %}
                 <ol class="flex flex-col">
                     {% for act in acts %}
@@ -323,12 +232,9 @@ reader's other campaigns — the same pattern a gang's screens use.
                         </li>
                     {% endfor %}
                 </ol>
-                {% if more_acts %}
-                    <p class="text-sm text-muted">and {{ more_acts }} earlier act{{ more_acts|pluralize }}</p>
-                {% endif %}
             {% else %}
-                <p class="text-sm text-muted">Nothing yet.</p>
+                <p class="text-sm text-muted">Nothing in the log yet.</p>
             {% endif %}
-        </section>
-    </div>
+        </c-slot>
+    </c-n26.view.campaign-sheet>
 {% endblock content %}

@@ -241,7 +241,7 @@ class LedgerEvent(Base):
     #: about one — a pooled asset granted to this gang or taken away from
     #: it. Never set beside ``assignment`` or ``miniature``, for the same
     #: reason those two are never set together. Set to nothing if the
-    #: token is dropped from the pool; the note keeps the name, so the
+    #: token is dropped; the note keeps the name, so the
     #: line still says what changed hands.
     campaign_asset = models.ForeignKey(
         "n26.CampaignAsset",

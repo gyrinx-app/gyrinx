@@ -68,7 +68,7 @@ def link_campaign(block, user):
     if user is None or not user.is_authenticated or not enabled(CAMPAIGNS, user):
         return
     block.href = reverse("n26-campaign", args=[block.campaign_id])
-    block.pool_href = reverse("n26-campaign-pool", args=[block.campaign_id])
+    block.assets_href = block.href + "#assets"
 
 
 def may_see_founding(gang, user):

@@ -1,0 +1,84 @@
+{% comment %}
+<c-n26.campaign-gangs> — every gang at the campaign's table, as one table.
+
+    <c-n26.campaign-gangs :sheet="sheet" />
+
+A real table, because what a reader does here is compare gangs down a column:
+whose rating is highest, who holds which territories, where Reputation stands.
+The columns are the sheet's own — one per campaign counter, then one per asset
+kind — laid out by position, so the component names nothing the campaign type
+did not.
+
+The gang cell carries the name, and under it the type and whose gang it is: a
+campaign's table holds several people's gangs, and a row that did not say
+whose would send the reader to the sheet to find out. The name is a link to
+the gang's sheet, which opens for anybody holding the address.
+
+Every empty value is an em dash, never a blank. A counter a gang does not
+carry and a kind of which it has nothing both read as "none" rather than as a
+cell that failed to fill.
+
+Scrolls sideways inside its own box, which the kit's table wrapper provides,
+so a campaign with several counters and kinds never widens the page.
+
+  :sheet — a n26.render.CampaignSheet. Each gang's `href` should already be
+    filled; a gang with none draws as plain text.
+{% endcomment %}
+<c-vars :sheet="None" class="" />
+
+<c-ui.table class="{{ class }}">
+    <thead>
+        <tr>
+            <th scope="col">Gang</th>
+            <th scope="col" class="text-right">Rating</th>
+            <th scope="col" class="text-right">Credits</th>
+            {% for name in sheet.counter_columns %}<th scope="col" class="text-right">{{ name }}</th>{% endfor %}
+            {% for kind in sheet.asset_kinds %}<th scope="col">{{ kind.plural }}</th>{% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for gang in sheet.gangs %}
+            <tr>
+                <td class="min-w-48">
+                    <div class="flex flex-col">
+                        <span class="font-semibold text-ink-900 dark:text-ink-100">
+                            <c-n26.link href="{{ gang.href }}" tone="current">
+                                <c-slot name="leading"><c-n26.color-swatch color="{{ gang.colour }}" /></c-slot>
+                                {{ gang.name }}
+                            </c-n26.link>
+                            {% comment %}
+                            Amber rather than orange: orange is what an
+                            invitation still waiting wears on the same page,
+                            and one colour cannot mean two things on one screen.
+                            {% endcomment %}
+                            {% if gang.over_budget %}
+                                <span class="ml-1 inline-block align-middle">
+                                    <c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>
+                                </span>
+                            {% endif %}
+                        </span>
+                        <span class="text-xs text-muted">{{ gang.gang_type }} · {{ gang.owner }}</span>
+                    </div>
+                </td>
+                <td class="text-right tabular-nums whitespace-nowrap">{{ gang.rating }}¢</td>
+                <td class="text-right tabular-nums whitespace-nowrap">
+                    {% if gang.credits_unlimited %}<span class="text-muted">&mdash;</span>{% else %}{{ gang.credits }}¢{% endif %}
+                </td>
+                {% for value in gang.counters %}
+                    <td class="text-right tabular-nums">
+                        {% if value is None %}<span class="text-muted">&mdash;</span>{% else %}{{ value }}{% endif %}
+                    </td>
+                {% endfor %}
+                {% for names in gang.assets %}
+                    <td>
+                        {% if names %}
+                            {% for name in names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                        {% else %}
+                            <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</c-ui.table>

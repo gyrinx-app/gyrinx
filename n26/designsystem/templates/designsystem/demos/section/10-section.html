@@ -1,0 +1,11 @@
+{# title: A titled section with its count and a control #}
+{# note: The count is part of the heading, so a reader scanning headings reads "Gangs, 3 gangs". Narrow the window: the button drops under the title rather than squeezing it. #}
+{# layout: col #}
+<c-n26.section id="demo-gangs" title="Gangs" count="3 gangs">
+    <c-slot name="actions">
+        <c-ui.button size="sm" variant="primary" href="#">
+            Add gang
+        </c-ui.button>
+    </c-slot>
+    <p class="text-sm text-muted">The section's contents — a table, a list — sit here.</p>
+</c-n26.section>

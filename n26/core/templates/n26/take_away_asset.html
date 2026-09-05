@@ -18,7 +18,7 @@ POST is the act.
                      title="Take {{ token }} away from {{ token.holder.gang.name }}?"
                      submit_label="Take away"
                      submit_variant="danger"
-                     cancel_url="{% url 'n26-campaign-pool' campaign.pk %}">
+                     cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -28,14 +28,13 @@ POST is the act.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-campaign-pool' campaign.pk %}">Pool</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Take away
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-ui.alert variant="warning" title="The copy goes back to the pool">
+        <c-ui.alert variant="warning" title="The copy becomes unclaimed">
             {{ token.holder.gang.name }} stops holding this {{ token.kind_label }}.
             Anything the {{ token.kind_label }} gave the gang stops as well. The
             gang's history and the campaign's log both record it, and the copy

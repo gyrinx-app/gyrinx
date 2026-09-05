@@ -22,6 +22,7 @@ urlpatterns = [
     path("shell/", views.shell_home, name="shell_home"),
     path("shell/new-gang/", views.shell_new_gang, name="shell_new_gang"),
     path("shell/gang/", views.shell_gang, name="shell_gang"),
+    path("shell/campaign/", views.shell_campaign, name="shell_campaign"),
     path("shell/hire/", views.shell_hire, name="shell_hire"),
     path("shell/shop/", views.shell_shop, name="shell_shop"),
     path("shell/print/", views.shell_print, name="shell_print"),

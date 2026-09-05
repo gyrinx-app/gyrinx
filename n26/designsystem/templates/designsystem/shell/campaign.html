@@ -1,0 +1,156 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+A campaign's page, in the shell it will live in.
+
+The view has its own preview at /design/view/view-campaign-sheet/, which
+answers "does this fit a phone". This answers a different question: what the
+page looks like under a nav, above a footer, with a banner over the lot and
+the campaign switcher in the bar — the gang shell's sibling, so the two can
+be judged side by side.
+{% endcomment %}
+{% block head_title %}{{ campaign_sheet.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'designsystem/shell/_nav.html' with here='campaign' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.campaign-sheet :sheet="campaign_sheet"
+                               edit_href="#"
+                               log_count="12 earlier acts not shown"
+                               log_href="#">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">{{ dashboard_username }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="#">
+                    Campaigns
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ campaign_sheet.name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="arbitrator">
+            <c-n26.flair-link text="{{ dashboard_username }}"
+                              href="{% url 'designsystem:shell_home' %}"
+                              tone="current"
+                              label="Gyrinx staff">
+                <c-n26.flair.staff />
+            </c-n26.flair-link>
+        </c-slot>
+        <c-slot name="actions">
+            <c-n26.button-group>
+                <c-ui.button size="sm" variant="default" href="#">
+                    Edit
+                </c-ui.button>
+                <c-ui.dropdown>
+                    <c-slot name="trigger">
+                        <c-ui.button size="sm" variant="default" aria-label="More actions">
+                            <span class="n26-icon-only gap-0.5">
+                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                            </span>
+                        </c-ui.button>
+                    </c-slot>
+                    <c-ui.dropdown.item href="#">
+                        Archive campaign
+                    </c-ui.dropdown.item>
+                </c-ui.dropdown>
+            </c-n26.button-group>
+        </c-slot>
+        <c-slot name="gangs_actions">
+            <c-ui.button size="sm" variant="primary" href="#">
+                Add gang
+            </c-ui.button>
+        </c-slot>
+        <c-slot name="participants_actions">
+            <c-ui.button size="sm" variant="primary" href="#">
+                Add participants
+            </c-ui.button>
+        </c-slot>
+        <c-slot name="battles_actions">
+            <c-ui.button size="sm" variant="primary" href="#">
+                Record battle
+            </c-ui.button>
+        </c-slot>
+        <c-slot name="participants">
+            <c-ui.table>
+                <thead>
+                    <tr>
+                        <th scope="col">Player</th>
+                        <th scope="col" class="text-right">Invitation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for participant in campaign_participants %}
+                        <tr>
+                            <td class="font-semibold text-ink-900 dark:text-ink-100">{{ participant.username }}</td>
+                            <td class="text-right">
+                                {% if participant.state == 'accepted' %}
+                                    <c-ui.badge color="green" size="sm">
+                                        Accepted
+                                    </c-ui.badge>
+                                {% else %}
+                                    <c-ui.badge color="orange" size="sm">
+                                        Invited
+                                    </c-ui.badge>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-slot>
+        <c-slot name="battles">
+            <c-ui.table>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Gangs</th>
+                        <th scope="col"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for battle in campaign_battles %}
+                        <tr>
+                            <td class="tabular-nums whitespace-nowrap">{{ battle.date|date:"j M Y" }}</td>
+                            <td>{{ battle.gangs }}</td>
+                            <td class="text-right">
+                                <c-ui.button size="xs"
+                                             variant="ghost"
+                                             href="#"
+                                             aria-label="Remove this battle"
+                                             title="Remove this battle">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="x-mark" class="size-4" />
+                                    </span>
+                                </c-ui.button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-slot>
+        <c-slot name="log">
+            <ol class="flex flex-col">
+                {% for act in campaign_acts %}
+                    <li class="flex gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                        <time datetime="{{ act.when|date:'c' }}"
+                              title="{{ act.when }}"
+                              class="w-24 shrink-0 pt-px text-right text-sm tabular-nums whitespace-nowrap text-muted">
+                            {{ act.when|date:"j M H:i" }}
+                        </time>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-base">
+                                {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
+                                {% for span in act.spans %}{{ span.text }}{% endfor %}
+                            </p>
+                            {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+            </ol>
+        </c-slot>
+    </c-n26.view.campaign-sheet>
+{% endblock content %}

@@ -465,14 +465,14 @@ class BattleForm(forms.Form):
         self.fields["gangs"].queryset = playing
 
 
-class AddToPoolForm(forms.Form):
-    """One copy of a pooled asset, to put into a campaign's pool.
+class AddAssetForm(forms.Form):
+    """One copy of a pooled asset, to add to a campaign.
 
     The assets offered are the ones the campaign deals in — those of the
     pooled kinds of its type and of its additions — so the form cannot
-    put a Settlement in the pool or an asset of another type. ``offered``
-    has no default for the same reason a gang picker has none: a queryset
-    built without one would accept anything.
+    add a Settlement or an asset of another type. ``offered`` has no
+    default for the same reason a gang picker has none: a queryset built
+    without one would accept anything.
     """
 
     asset = forms.ModelChoiceField(
