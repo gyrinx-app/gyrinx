@@ -24,18 +24,37 @@ would refuse. Worked out in the view, never here.
         styling is a small drop in opacity, and a primary variant keeps its
         hover colour under a pointer whatever the disabled attribute says —
         so painted primary the control still reads as live.
+
+        The dead button is wrapped and made pointer-events-none, as the
+        Trade Points page wraps its own: a disabled control emits no mouse
+        events, so left bare it is the pointer's target and the tooltip
+        around it never opens.
+
+        The reason is written once and drawn twice: the kit's tooltip opens
+        on a pointer and gives its content no id, so a reader who is not
+        using one would get a dead button and no reason at all. The second
+        copy is the button's description, off screen.
         {% endcomment %}
         {% if founding_blocks_visit %}
-            <div class="mt-2">
-                <c-ui.tooltip size="sm">
-                    <c-ui.button size="xs" variant="subtle" disabled>
-                        Set up Trading Post visit →
-                    </c-ui.button>
-                    <c-slot name="content">
-                        You can have only one of these actions open at a time. Complete Found and equip gang first.
-                    </c-slot>
-                </c-ui.tooltip>
-            </div>
+            {% with reason="You can have only one of these actions open at a time. Complete Found and equip gang first." %}
+                <div class="mt-2">
+                    <c-ui.tooltip size="sm">
+                        <span class="inline-block cursor-not-allowed">
+                            <c-ui.button size="xs"
+                                         variant="subtle"
+                                         class="pointer-events-none"
+                                         aria-describedby="n26-visit-shut-rail"
+                                         disabled>
+                                Set up Trading Post visit →
+                            </c-ui.button>
+                        </span>
+                        <c-slot name="content">
+                            {{ reason }}
+                        </c-slot>
+                    </c-ui.tooltip>
+                    <span id="n26-visit-shut-rail" class="sr-only">{{ reason }}</span>
+                </div>
+            {% endwith %}
         {% else %}
             <c-ui.button size="xs"
                          variant="primary"

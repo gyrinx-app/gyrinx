@@ -34,12 +34,15 @@ FOUNDING = Action.Kind.FOUNDING
 #: change it here.
 MARK = "text-violet-600"
 
-#: What an equip screen costs for a model with an allowance whose gang also
-#: has a visit open — the state that draws both blocks. Pinned as one
-#: structure's fixed budget: the gang's remaining Trade Points are read from
-#: the database on every ask by design, so a second reading would slip in
-#: without a number to notice it.
-EQUIP_WITH_BOTH_POTS = 57
+#: Trade Points summed off the log. Both readings a screen showing two pots
+#: makes are this sum; what tells them apart is what they join to.
+SPEND = 'SUM("n26_ledgerevent"."trade_points_delta")'
+
+#: The gang's open Visit Trading Post spend: joined to the action and
+#: narrowed to the one still open. The model's founding spend narrows on the
+#: buyer instead and never mentions this, so counting these tells a page
+#: asking the visit twice from a page asking it once.
+VISIT_SPEND = '"n26_action"."closed_id" IS NULL'
 
 #: The Venator entries these tests hire, as ``(entry, the subtype naming
 #: its rank)``. A Hunter is a Specialist, which is how the gang list
@@ -413,17 +416,31 @@ class TestBothPotsAtOnce:
         assert "Not tracking TP" not in body
         assert "Trading Post visit" not in body
 
-    def test_the_figure_is_read_once(
-        self, client, tester, leader, post, visiting, django_assert_num_queries
+    def test_the_block_costs_one_reading_of_the_visit_and_no_more(
+        self, client, leader, post, visiting
     ):
-        """The block is built from what the view already worked out. Pinned
-        so a second reading of the gang's visit — one query each time, by
-        design — cannot creep in unnoticed."""
-        url = equip_url(leader, post)
-        assert client.get(url).status_code == 200
+        """Two readings of what the visit has spent: the figure strip's,
+        and the one the view works out for this block. The gang
+        deliberately never caches that sum, so each ask is a query — a
+        third would mean the block had gone and asked for itself instead
+        of drawing what the view handed it.
 
-        with django_assert_num_queries(EQUIP_WITH_BOTH_POTS):
-            assert client.get(url).status_code == 200
+        Counted by what is asked rather than by a page total, so an
+        unrelated change to the equip screen fails elsewhere and this
+        keeps saying what it is about.
+        """
+        asked = queries_for(client, equip_url(leader, post))
+
+        visit_reads = [sql for sql in asked if SPEND in sql and VISIT_SPEND in sql]
+        assert len(visit_reads) == 2
+
+    def test_the_model_spend_is_still_asked_once(self, client, leader, post, visiting):
+        """The allowance's own sum narrows on the buyer and never joins the
+        open visit, so the second pot has not quietly doubled it."""
+        asked = queries_for(client, equip_url(leader, post))
+
+        own = [sql for sql in asked if SPEND in sql and VISIT_SPEND not in sql]
+        assert len(own) == 1
 
 
 class TestAnOwnerTheBudgetsDoNotReachYet:
@@ -465,6 +482,18 @@ class TestAnOwnerTheBudgetsDoNotReachYet:
         assert entry.spent_by is None
 
 
+def queries_for(client, url):
+    """Every query a page makes, measured after one warm request — the
+    first request of a session writes its own row."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    assert client.get(url).status_code == 200
+    with CaptureQueriesContext(connection) as captured:
+        assert client.get(url).status_code == 200
+    return [query["sql"] for query in captured.captured_queries]
+
+
 def visit_control(body):
     """The markup of the control that offers a Trading Post visit."""
     label = body.index("Set up Trading Post visit")
@@ -497,6 +526,25 @@ class TestTheWayIntoAVisitFromTheRail:
         assert "Not tracking TP" in body
         assert "disabled" in visit_control(body)
         assert "You can have only one of these actions open at a time." in body
+
+    def test_the_dead_button_lets_the_pointer_reach_its_tooltip(
+        self, client, tester, ganger, post
+    ):
+        """A disabled control emits no mouse events, so left bare it would
+        be the pointer's target and the tooltip around it would never
+        open. The button is drawn inert inside a span, and the span is
+        what the pointer hits. The tooltip's own words are in the page
+        either way, so nothing else here can catch this."""
+        client.force_login(tester)
+
+        control = visit_control(client.get(equip_url(ganger, post)).content.decode())
+
+        assert "pointer-events-none" in control
+        assert control.lstrip().startswith("<span")
+        assert "cursor-not-allowed" in control
+        # The reason again, off screen: a tooltip that only opens
+        # under a pointer leaves everybody else a dead button.
+        assert 'aria-describedby="n26-visit-shut-rail"' in control
 
     def test_an_owner_the_founding_does_not_reach_keeps_the_way_in(
         self, client, gang, ganger, post
@@ -633,19 +681,9 @@ class TestTheQueryBudget:
     #: mistaken for it. Named by its pack's slug, which is the join that
     #: tells it from the counters a card's modifiers bring along.
     COUNTER = '"library_contentpack"'
-    #: What this model has spent under the founding action.
-    SPEND = 'SUM("n26_ledgerevent"."trade_points_delta")'
 
     def asked(self, client, url):
-        """Every query the page makes, measured after one warm request —
-        the first request of a session writes its own row."""
-        from django.db import connection
-        from django.test.utils import CaptureQueriesContext
-
-        assert client.get(url).status_code == 200
-        with CaptureQueriesContext(connection) as captured:
-            assert client.get(url).status_code == 200
-        return [query["sql"] for query in captured.captured_queries]
+        return queries_for(client, url)
 
     def reads_actions(self, asked):
         return [sql for sql in asked if sql.startswith(self.ACTIONS)]
@@ -656,7 +694,7 @@ class TestTheQueryBudget:
         ]
 
     def reads_spend(self, asked):
-        return [sql for sql in asked if self.SPEND in sql]
+        return [sql for sql in asked if SPEND in sql]
 
     def test_a_model_with_no_allowance_asks_none_of_them(
         self, client, tester, ganger, legacy_list

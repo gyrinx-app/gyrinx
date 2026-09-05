@@ -434,6 +434,23 @@ class TestTheSquareOnTheGangPage:
         assert ONE_AT_A_TIME in body
         assert "Set up TP visit" not in body
 
+    def test_the_dead_button_lets_the_pointer_reach_its_tooltip(self, client, gang):
+        """A disabled control emits no mouse events, so left bare it would
+        be the pointer's target and the tooltip around it would never
+        open. The button is drawn inert inside a span, and the span is
+        what the pointer hits. The tooltip's own words are in the page
+        either way, so nothing else here can catch this."""
+        body = client.get(sheet(gang)).content.decode()
+        label = body.index("Set up Trading Post visit")
+        control = body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
+
+        assert "pointer-events-none" in control
+        assert control.lstrip().startswith("<span")
+        assert "cursor-not-allowed" in control
+        # The reason again, off screen: a tooltip that only opens
+        # under a pointer leaves everybody else a dead button.
+        assert 'aria-describedby="n26-visit-shut-stash"' in control
+
     def test_completing_the_founding_opens_the_way_to_a_visit(
         self, client, gang, tester
     ):
