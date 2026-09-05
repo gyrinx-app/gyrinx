@@ -215,6 +215,14 @@ class LedgerEvent(Base):
         JOINED_CAMPAIGN = "joined_campaign", "Joined a campaign"
         LEFT_CAMPAIGN = "left_campaign", "Left a campaign"
 
+        # A model's status changing — into Recovery, Critically Injured,
+        # Captured, Dead, or back to Active. Journal-only: nothing is
+        # priced, though a death changes what the rating sums to, and
+        # ``settle`` repins it. The note holds "was → now", and after a
+        # colon what did it — the result whose effect set it, or "Clean
+        # House", or nothing for the owner's own hand.
+        STATUS_SET = "status_set", "Status set"
+
         # A roll on a roll table, put on the record the moment it is
         # made — before anything is picked for it, and whether or not
         # anything ever is. The pick that follows names this event, so

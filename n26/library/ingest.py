@@ -3078,6 +3078,7 @@ def _imported(pack=None):
         SKILLS_SECTION,
         TRADING_POST_COLLECTION,
         VEHICLE_SUBTYPES,
+        lasting_effect_status_modifiers,
         visit_contribution_counter,
     )
 
@@ -3102,6 +3103,9 @@ def _imported(pack=None):
     visit_counter = visit_contribution_counter()
     if visit_counter is not None:
         spared = Q(contributes_to_counter__counter=visit_counter)
+    # The lasting-effect tables' own status effects are standard content
+    # too, and they hold nothing an import made.
+    spared |= lasting_effect_status_modifiers()
     doomed = list(
         Modifier.objects.filter(**scope).exclude(spared).values_list("pk", flat=True)
     )

@@ -22,6 +22,9 @@ from n26.core.effects import (
     kind_of,
     limit_notes,
 )
+from n26.core.status import Status
+from n26.core.status import explains as status_explains
+from n26.core.status import label_for as status_label
 from n26.library.models import (
     EMPTY_VALUE,
     Counter,
@@ -654,6 +657,14 @@ class ModelCard:
     #: subtypes. None of the three can be worked out from another.
     profile_name: str = ""
     profile_type: str | None = None
+    #: Where the model stands between battles — a ``Status`` value, or
+    #: empty for a card depicting nobody in particular. ``status_label``
+    #: is the word the badge says and ``status_note`` the line under it,
+    #: both already turned for a vehicle ("Critically Damaged"); the
+    #: renderer draws them and decides nothing.
+    status: str = ""
+    status_label: str = ""
+    status_note: str = ""
     subtypes: list[AssignableLine] = field(default_factory=list)
     weapons: list[WeaponLine] = field(default_factory=list)
     skills: list[AssignableLine] = field(default_factory=list)
@@ -979,6 +990,10 @@ class GangSheet:
     #: members the cards are built from, so a sheet's count and its cards
     #: cannot disagree and asking for it costs no query.
     summary: RosterSummary | None = None
+    #: The dead, kept apart from ``models``: they stay on the roster and
+    #: keep their cards, but they are drawn under their own heading at
+    #: the end and count nothing towards the rating or the tally.
+    dead: list[ModelCard] = field(default_factory=list)
 
     @property
     def questions(self):
@@ -1645,6 +1660,7 @@ def build_model_card(
         stat_overrides=card.stat_overrides,
         trade_points_left=budget.remaining if budget is not None else None,
         founding_budget=budget is not None,
+        status=miniature.status,
     )
 
 
@@ -1663,6 +1679,7 @@ def card_to_model_card(
     image_url="",
     trade_points_left=None,
     founding_budget=False,
+    status="",
 ):
     """Turn a card into the structure a renderer draws.
 
@@ -1929,13 +1946,25 @@ def card_to_model_card(
                 # a tallied one does.
                 counted_xp = standing
 
+    vehicle = primary is not None and primary.profile_type.name == "Vehicle"
     return ModelCard(
         name=name,
         id=id,
         notes=notes,
         lore=lore,
         image_url=image_url,
-        rating=card.full_rating,
+        # A dead model's kit is still drawn, but the model is worth
+        # nothing to the gang now, and the figure says so.
+        rating=0 if status == Status.DEAD else card.full_rating,
+        status=status,
+        status_label=(
+            status_label(status, vehicle) if status and status != Status.ACTIVE else ""
+        ),
+        status_note=(
+            status_explains(status, vehicle)
+            if status and status != Status.ACTIVE
+            else ""
+        ),
         # ``str`` rather than ``.name``: every other line on a card
         # reads a thing this way, so an annotation shows here as it
         # would anywhere else. Never the qualifier — that is authoring's.
@@ -2561,8 +2590,21 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
                 budget=budgets.get(str(model.pk)),
             )
             for model in models
+            if model.status != Status.DEAD
         ],
-        summary=summarise_roster(models, recategorised),
+        dead=[
+            build_model_card(
+                model,
+                card=cards.get(model.pk),
+                computed=computed.get(model.pk),
+            )
+            for model in models
+            if model.status == Status.DEAD
+        ],
+        summary=summarise_roster(
+            [model for model in models if model.status != Status.DEAD],
+            recategorised,
+        ),
     )
 
 

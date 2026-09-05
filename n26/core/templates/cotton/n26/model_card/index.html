@@ -28,8 +28,9 @@ A stored model's card is three tabs: the rules' card, then Lore and Notes —
 the two sections a player writes rather than earns, read off the structure
 and sanitised here. notes_href and lore_href say where their Edit goes;
 without one the panel is read-only, which is what a reader who does not own
-the gang gets. The model's picture never sits on the card's face — a small
-control by the actions opens it.
+the gang gets. status_href is where the status badge leads — the owner's Mark
+as dialog — and empty draws the badge as words. The model's picture never sits
+on the card's face — a small control by the actions opens it.
 {% endcomment %}
 {% load richtext %}
 <c-vars
@@ -38,12 +39,13 @@ control by the actions opens it.
     :htmx="False"
     notes_href=""
     lore_href=""
+    status_href=""
     actions=""
     name_action=""
     class=""
 />
 
-<c-ui.card padding="none" class="{{ class }}">
+<c-ui.card padding="none" class="{% if card.status == 'dead' %}opacity-60 {% endif %}{{ class }}">
     {% comment %}
     The header band is drawn here rather than in the kit's card header slot,
     which hardcodes px-6 where every row below is px-4.
@@ -62,6 +64,19 @@ control by the actions opens it.
                 </div>
                 {% if card.profile_name and card.profile_name != card.name %}
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
+                {% endif %}
+                {% comment %}
+                Where the model stands between battles, where that is
+                anything but Active. The badge says the word; the line
+                under it says what it means for the model. Colour follows
+                how bad it is: Recovery amber, Critical or Captured red,
+                Dead plain.
+                {% endcomment %}
+                {% if card.status_label %}
+                    <div class="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                        <c-ui.badge size="sm" href="{{ status_href }}" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                        {% if card.status_note %}<span class="text-muted">{{ card.status_note }}</span>{% endif %}
+                    </div>
                 {% endif %}
             </div>
 

@@ -175,6 +175,22 @@ that said it twice would be spending the width the name needs.
                             Clone gang
                         </c-ui.dropdown.item>
                         {% comment %}
+                        The end of the cycle by hand: every model In Recovery
+                        is Active again. A form rather than a link, because
+                        following it changes the roster.
+                        {% endcomment %}
+                        <form method="post"
+                              action="{% url 'n26-clean-house' gang.pk %}"
+                              class="px-1">
+                            {% csrf_token %}
+                            <c-ui.button type="submit"
+                                         variant="ghost"
+                                         size="sm"
+                                         class="w-full !justify-start !px-3 !font-normal">
+                                Clean House
+                            </c-ui.button>
+                        </form>
+                        {% comment %}
                     A page that asks, not the act: following this link deletes
                     nothing, and the POST it leads to is the only thing that
                     does. Behind the second click because it cannot be undone.
@@ -255,7 +271,8 @@ that said it twice would be spending the width the name needs.
                 <c-n26.model-card :card="member"
                                   mode="{{ card_mode }}"
                                   notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
-                                  lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}">
+                                  lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                  status_href="{% if yours %}?status={{ member.id }}{% endif %}">
                     {% if yours %}
                         <c-slot name="actions">
                             <c-ui.button size="xs" variant="ghost" href="{% url 'n26-equip' member.id %}">
@@ -270,6 +287,32 @@ that said it twice would be spending the width the name needs.
                     {% endif %}
                 </c-n26.model-card>
             {% endfor %}
+            {% comment %}
+            The dead stay on the roster and keep their cards, drawn under
+            their own heading at the end and counting nothing. Their
+            badge leads to Mark as — a table mistake is undone by hand —
+            and Edit to the page that carries the ways off the roster.
+            {% endcomment %}
+            {% if sheet.dead %}
+                <c-n26.divider label="Dead" class="col-span-full py-2" />
+                {% for member in sheet.dead %}
+                    <c-n26.model-card :card="member"
+                                      mode="view"
+                                      notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                      lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                      status_href="{% if yours %}?status={{ member.id }}{% endif %}">
+                        {% if yours %}
+                            <c-slot name="actions">
+                                <c-ui.button size="xs"
+                                             variant="ghost"
+                                             href="{% url 'n26-edit-fighter' member.id %}">
+                                    Edit
+                                </c-ui.button>
+                            </c-slot>
+                        {% endif %}
+                    </c-n26.model-card>
+                {% endfor %}
+            {% endif %}
         </c-slot>
     </c-n26.view.gang-sheet>
     {% comment %}
@@ -327,6 +370,53 @@ that said it twice would be spending the width the name needs.
                 {% endif %}
             </c-n26.dialog>
         {% endif %}
+    {% endif %}
+    {% comment %}
+    The status dialog, when the URL names a member. One radio per status,
+    the current one checked; a death asks once what to do with the kit,
+    defaulting the way the rules do — a fighter's to the stash, a
+    Vehicle's, Brute's or Hanger-on's lost.
+    {% endcomment %}
+    {% if marking %}
+        <c-n26.dialog title="Mark {{ marking.miniature.name }} as…"
+                      action="{% url 'n26-mark-fighter' marking.miniature.pk %}"
+                      cancel_url="{% url 'n26-gang' gang.pk %}"
+                      submit_label="Save">
+            <c-slot name="lead">
+                Where they stand between battles. Adding a result usually
+                sets this. Set it by hand here.
+            </c-slot>
+            {% csrf_token %}
+            <c-n26.radio-cards label="Status" name="status">
+                {% for value, label, explains, checked in marking.choices %}
+                    <c-n26.radio-cards.card name="status"
+                                            value="{{ value }}"
+                                            label="{{ label }}"
+                                            description="{{ explains }}"
+                                            :checked="checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            {% if marking.stashable %}
+                <c-n26.radio-cards label="If they died, their kit"
+                                   description="Applies only when the status is Dead. Covers the kit you paid for; built-in kit stays with the model."
+                                   name="kit">
+                    <c-n26.radio-cards.card name="kit"
+                                            value="stash"
+                                            label="Goes to the stash"
+                                            description="The rules' default for a fighter."
+                                            :checked="marking.kit_stashed" />
+                    <c-n26.radio-cards.card name="kit"
+                                            value="lost"
+                                            label="Is lost"
+                                            description="The rules' default for a Vehicle, a Brute or a Hanger-on."
+                                            :checked="marking.kit_lost_by_default" />
+                    <c-n26.radio-cards.card name="kit"
+                                            value=""
+                                            label="Stays with the model"
+                                            description="Nothing moves." />
+                </c-n26.radio-cards>
+            {% endif %}
+        </c-n26.dialog>
     {% endif %}
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"
