@@ -1,5 +1,5 @@
 {# title: A gang, whole #}
-{# note: The whole screen: who owns it, what it is called and what kind, what it is worth, its standing facts, what you can do to it, the stash, then the fighters. Everything above the cards is a header, since every line of it is a line of fighters you cannot see. Narrow the window: the cards go from three columns to one, and Delete stays behind a second click at every width. #}
+{# note: The whole screen: who owns it, what it is called and what kind, what it is worth, its standing facts, what you can do to it, the stash, then the fighters. Everything above the cards is a header, since every line of it is a line of fighters you cannot see. Narrow the window: the cards go from three columns to one, and Clone and Delete stay in the overflow at every width. #}
 {# layout: full #}
 <c-n26.view.gang-sheet :sheet="gang"
                        owner="{{ gang_owner }}"
@@ -94,6 +94,9 @@
                 machinery and is not in a dropdown's scope, so clicking one throws
                 "selectOption is not defined" and the panel never closes.
                 {% endcomment %}
+                <c-ui.dropdown.item href="#">
+                    Clone gang
+                </c-ui.dropdown.item>
                 <c-ui.dropdown.item variant="danger" href="#">
                     Delete gang
                 </c-ui.dropdown.item>
@@ -114,38 +117,12 @@
         {% for member in gang_members %}
             <c-n26.model-card :card="member">
                 <c-slot name="actions">
-                    {% comment %}
-                    Equip is the one you came for and the only per-model act that
-                    is not destructive, so it is the primary and it is on its own.
-
-                    Not joined into a c-n26.button-group with the overflow, which
-                    is what the gang's Print and ⋮ do: those two are peers and read
-                    as one control with two halves. A primary joined to a default
-                    would say the halves are equal when one of them is the point.
-
-                    Cards and Delete share the dropdown because neither is
-                    frequent and one is irreversible — the second click a
-                    destructive act should ask for, as with Delete gang above.
-                    {% endcomment %}
-                    <c-ui.button size="xs" variant="primary" href="#">
+                    <c-ui.button size="xs" variant="ghost" href="#">
                         Equip
                     </c-ui.button>
-                    <c-ui.dropdown>
-                        <c-slot name="trigger">
-                            <c-ui.button size="xs" variant="default" aria-label="More actions">
-                                <span class="n26-icon-only gap-0.5">
-                                    <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
-                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        <c-ui.dropdown.item href="#">
-                            Cards
-                        </c-ui.dropdown.item>
-                        <c-ui.dropdown.item variant="danger" href="#">
-                            Delete
-                        </c-ui.dropdown.item>
-                    </c-ui.dropdown>
+                    <c-ui.button size="xs" variant="ghost" href="#">
+                        Edit
+                    </c-ui.button>
                 </c-slot>
             </c-n26.model-card>
         {% endfor %}

@@ -139,6 +139,7 @@ urlpatterns = [
         name="n26-hire-card",
     ),
     path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
+    path("gangs/<str:pk>/clone/", views.clone_gang, name="n26-clone-gang"),
     path("gangs/<str:pk>/history/", views.gang_history, name="n26-gang-history"),
     path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
     path("gangs/<str:pk>/notes/", views.gang_notes, name="n26-gang-notes"),
@@ -168,6 +169,11 @@ urlpatterns = [
     # The model's own page: the card with its edit affordances and the
     # owner's notes. Equip is the same header's second tab.
     path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
+    path(
+        "fighters/<str:pk>/clone/",
+        views.clone_fighter,
+        name="n26-clone-fighter",
+    ),
     # The options the model was hired with, reopened — the third of the
     # model's own tabs.
     path(

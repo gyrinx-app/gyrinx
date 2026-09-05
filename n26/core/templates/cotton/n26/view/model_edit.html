@@ -24,6 +24,7 @@ sits and what its heading says.
     built from pk.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
+  tab_actions — controls at the right-hand end of the Edit and Equip tabs.
   lore — the lore form, a box of its own beside the notes. Without it no box
     is drawn.
   picture — the picture forms, a box of their own. Without it no box is drawn.
@@ -43,6 +44,7 @@ sits and what its heading says.
     switcher=""
     breadcrumb=""
     actions=""
+    tab_actions=""
     name_action=""
     notes=""
     lore=""
@@ -64,6 +66,9 @@ sits and what its heading says.
         {% endif %}
         {% if actions.strip %}
             <c-slot name="actions">{{ actions }}</c-slot>
+        {% endif %}
+        {% if tab_actions.strip %}
+            <c-slot name="tab_actions">{{ tab_actions }}</c-slot>
         {% endif %}
     </c-n26.model-header>
 

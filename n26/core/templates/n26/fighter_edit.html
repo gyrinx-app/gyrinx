@@ -65,6 +65,32 @@ is named by the page's own heading directly below.
                                 :summary="summary"
                                 trade_points_href="{{ trade_points_href }}" />
         </c-slot>
+        <c-slot name="tab_actions">
+            <c-ui.dropdown align="end">
+                <c-slot name="trigger">
+                    <c-ui.button size="sm" variant="default" aria-label="More actions">
+                        <span class="n26-icon-only gap-0.5">
+                            <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                {% if may_clone %}
+                    <c-ui.dropdown.item href="{% url 'n26-clone-fighter' miniature.pk %}">
+                        Clone model
+                    </c-ui.dropdown.item>
+                {% endif %}
+                {% if not gang.credits_unlimited %}
+                    <c-ui.dropdown.item href="{% url 'n26-gang' gang.pk %}?refund={{ miniature.pk }}">
+                        Refund
+                    </c-ui.dropdown.item>
+                {% endif %}
+                <c-ui.dropdown.item variant="danger"
+                                    href="{% url 'n26-gang' gang.pk %}?delete={{ miniature.pk }}">
+                    Delete
+                </c-ui.dropdown.item>
+            </c-ui.dropdown>
+        </c-slot>
         {% comment %}
         The rename pencil — a link, so the dialog is an address;
         ?back=edit brings the act back to this page. The gang sheet

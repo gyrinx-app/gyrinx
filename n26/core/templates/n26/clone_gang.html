@@ -1,0 +1,53 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Copying one gang under a new name. The form changes only the copy's name;
+the operation takes the rest from the source as one standing snapshot.
+
+The frame is the shared form page. Its green submit ends the act, while
+Cancel goes back to the source gang without writing anything.
+{% endcomment %}
+{% block head_title %}Clone {{ source.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher source as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-clone-gang' source.pk %}"
+                     title="Clone {{ source.name }}"
+                     lead="The new gang will have the same models, equipment and current credits."
+                     :form="form"
+                     submit_label="Clone gang"
+                     cancel_url="{% url 'n26-gang' source.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="source.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' source.pk %}">{{ source.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Clone
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="New gang">
+            <c-ui.field label="Gang name *"
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="gang-name">
+                <c-ui.input id="gang-name"
+                            name="name"
+                            maxlength="200"
+                            required
+                            autocomplete="off"
+                            autofocus="autofocus"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

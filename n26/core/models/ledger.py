@@ -15,9 +15,11 @@ An event may also stand alone — about a model or the gang itself rather
 than an assignment — for acts the books do not price: a rename, a note,
 a characteristic set by hand. The invariant is quantified over entries,
 so a standalone event is outside it by construction: it has no entry to
-fold into and carries no deltas to fold. Together the events are the
-gang's history, and every one is pinned to its gang so the whole story
-reads in one query, in order.
+fold into and carries no deltas to fold. A model clone keeps presentation-only
+summary figures in its machine-readable note so a paged history can tell the
+whole act from one record. Together the events are the gang's history, and
+every one is pinned to its gang so the whole story reads in one query, in
+order.
 """
 
 from django.db import models
@@ -173,6 +175,10 @@ class LedgerEvent(Base):
         IMAGE_CLEARED = "image_cleared", "Picture removed"
         STAT_SET = "stat_set", "Characteristic set"
         STAT_CLEARED = "stat_cleared", "Characteristic cleared"
+        # A clone's entries open from a snapshot rather than from purchases
+        # replayed against today's library. Assignment-level records keep the
+        # ledger fold honest; one standalone record tells the visible act.
+        CLONED = "cloned", "Cloned"
         # What the gang may spend, changed after the founding. It moves no
         # money of its own — the credits that follow are recomputed from
         # the budget less what the ledger says was spent — but it changes

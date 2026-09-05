@@ -121,14 +121,14 @@ that said it twice would be spending the width the name needs.
         {% endcomment %}
         {% comment %}
         Every control on this page belongs to whoever owns the gang, bar
-        one. A reader who does not gets the roster and none of them — not a
+        two. A reader who does not gets the roster and none of them — not a
         disabled button, which is a control saying no, but nothing at all:
         the page is the gang, and the acts are the owner's.
 
-        Printing is the exception, because it is not an act on the gang: it
-        puts on paper what the reader is already reading, and players print
-        rosters for each other. Signed out there is no Print either — a
-        visitor may read a gang, a player may print one.
+        Printing and cloning are the exceptions, because neither changes the
+        gang being read: one puts the roster on paper, and the other makes a
+        new gang owned by the reader. Signed out there is neither — a visitor
+        may read a gang, while both acts need a player.
         {% endcomment %}
         {% if yours %}
             <c-slot name="actions">
@@ -171,6 +171,9 @@ that said it twice would be spending the width the name needs.
                         <c-ui.dropdown.item href="{% url 'n26-gang-lore' gang.pk %}">
                             Lore
                         </c-ui.dropdown.item>
+                        <c-ui.dropdown.item href="{% url 'n26-clone-gang' gang.pk %}">
+                            Clone gang
+                        </c-ui.dropdown.item>
                         {% comment %}
                     A page that asks, not the act: following this link deletes
                     nothing, and the POST it leads to is the only thing that
@@ -184,17 +187,32 @@ that said it twice would be spending the width the name needs.
             </c-slot>
         {% elif may_print %}
             <c-slot name="secondary_actions">
-                <c-ui.button size="sm"
-                             variant="default"
-                             href="{% url 'n26-print-setup' gang.pk %}">
-                    Print
-                </c-ui.button>
-                <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-notes' gang.pk %}">
-                    Notes
-                </c-ui.button>
-                <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-lore' gang.pk %}">
-                    Lore
-                </c-ui.button>
+                <c-n26.button-group>
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 href="{% url 'n26-print-setup' gang.pk %}">
+                        Print
+                    </c-ui.button>
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm" variant="default" aria-label="More actions">
+                                <span class="n26-icon-only gap-0.5">
+                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        <c-ui.dropdown.item href="{% url 'n26-gang-notes' gang.pk %}">
+                            Notes
+                        </c-ui.dropdown.item>
+                        <c-ui.dropdown.item href="{% url 'n26-gang-lore' gang.pk %}">
+                            Lore
+                        </c-ui.dropdown.item>
+                        <c-ui.dropdown.item href="{% url 'n26-clone-gang' gang.pk %}">
+                            Clone gang
+                        </c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </c-n26.button-group>
             </c-slot>
         {% else %}
             {% comment %}
@@ -240,54 +258,14 @@ that said it twice would be spending the width the name needs.
                                   lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}">
                     {% if yours %}
                         <c-slot name="actions">
-                            {% comment %}
-                        Equip is the one you came for and the only per-model act
-                        that is not destructive, so it is the primary and it is
-                        on its own. Edit — the model's own page, where the rest
-                        of the card's controls live — is grouped with the
-                        overflow: the pair reads as one place to look for
-                        "things you can do to this model that are not
-                        equipping". Delete stays in the dropdown because it is
-                        irreversible and should cost a second deliberate click.
-                            {% endcomment %}
-                            <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip' member.id %}">
+                            <c-ui.button size="xs" variant="ghost" href="{% url 'n26-equip' member.id %}">
                                 Equip
                             </c-ui.button>
-                            <c-n26.button-group>
-                                <c-ui.button size="xs"
-                                             variant="default"
-                                             href="{% url 'n26-edit-fighter' member.id %}">
-                                    Edit
-                                </c-ui.button>
-                                <c-ui.dropdown>
-                                    <c-slot name="trigger">
-                                        <c-ui.button size="xs" variant="default" aria-label="More actions">
-                                            <span class="n26-icon-only gap-0.5">
-                                                <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
-                                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                            </span>
-                                        </c-ui.button>
-                                    </c-slot>
-                                    {% comment %}
-                                Both open a question rather than acting: the URL
-                                names the fighter and the sheet answers with the
-                                dialog below, so a click works with no script and
-                                an open question is an address someone can send.
-
-                                Refund only where there is a budget being spent —
-                                a gang founded without one never paid credits, so
-                                there is nothing a refund could give back.
-                                    {% endcomment %}
-                                    {% if budgeted %}
-                                        <c-ui.dropdown.item href="?refund={{ member.id }}">
-                                            Refund
-                                        </c-ui.dropdown.item>
-                                    {% endif %}
-                                    <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
-                                        Delete
-                                    </c-ui.dropdown.item>
-                                </c-ui.dropdown>
-                            </c-n26.button-group>
+                            <c-ui.button size="xs"
+                                         variant="ghost"
+                                         href="{% url 'n26-edit-fighter' member.id %}">
+                                Edit
+                            </c-ui.button>
                         </c-slot>
                     {% endif %}
                 </c-n26.model-card>

@@ -88,6 +88,18 @@ class CreateGangForm(forms.Form):
         ]
 
 
+class CloneGangForm(forms.Form):
+    """The one fact a copied gang does not inherit."""
+
+    name = forms.CharField(max_length=200, label="Gang name")
+
+
+class CloneFighterForm(forms.Form):
+    """The one fact a copied model may change."""
+
+    name = forms.CharField(max_length=200, label="Model name")
+
+
 def _founding_budget(credits):
     """The line under a gang type's name on the create form.
 
