@@ -75,6 +75,9 @@ is named by the page's own heading directly below.
                         </span>
                     </c-ui.button>
                 </c-slot>
+                <c-ui.dropdown.item href="{% url 'n26-gang' gang.pk %}?status={{ miniature.pk }}">
+                    Mark as…
+                </c-ui.dropdown.item>
                 {% if may_clone %}
                     <c-ui.dropdown.item href="{% url 'n26-clone-fighter' miniature.pk %}">
                         Clone model
