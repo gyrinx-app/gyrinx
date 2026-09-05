@@ -3,9 +3,9 @@
 {% comment %}
 Writing a new asset into the campaign's own pack, under one of the asset types
 the campaign deals in — the shared type's or the arbitrator's own. What the
-asset does is not asked here: a name, its words and an income figure are the
-whole of it. Native radios for the asset type, so the form posts with no
-script and a redisplay keeps the pick.
+asset does is not asked here beyond its income: a name, its words and that
+figure are the whole of it. Native radios for the asset type, so the form posts
+with no script and a redisplay keeps the pick.
 {% endcomment %}
 {% block head_title %}New asset in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -70,7 +70,7 @@ script and a redisplay keeps the pick.
                             value="{{ form.annotation.value|default:'' }}" />
             </c-ui.field>
             <c-ui.field label="Income"
-                        description="Credits this asset brings its holder each cycle. Shown, never collected."
+                        description="{{ form.income.help_text }}"
                         error="x"
                         :form="form"
                         name="income"

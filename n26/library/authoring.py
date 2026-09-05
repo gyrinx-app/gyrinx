@@ -174,7 +174,8 @@ def create_asset(
     An asset is one entry in its campaign type's list, so it lands in that
     type's pack unless told otherwise — a campaign type in a campaign's own
     pack keeps its assets there. A blank name is refused here rather than
-    drawn as an empty line on a campaign page.
+    drawn as an empty line on a campaign page. ``income`` is written as
+    the asset's Income contribution (``set_income``); 0 writes nothing.
     """
     from n26.library.models import Asset
 
@@ -183,14 +184,60 @@ def create_asset(
     name = (name or "").strip()
     if not name:
         raise ValidationError("An asset needs a name.")
-    return Asset.objects.create(
+    asset = Asset.objects.create(
         name=name,
         asset_type=asset_type,
         annotation=annotation,
-        income=income,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **kwargs,
+    )
+    if income:
+        set_income(asset, income)
+    return asset
+
+
+def set_income(asset, amount):
+    """What the asset brings its holder each cycle, written as a modifier:
+    the gang carrying the asset has ``amount`` added to its Income
+    counter's reading for as long as it holds the asset.
+
+    The modifier is the asset's own, in the asset's pack, named after it.
+    Setting the figure again changes that modifier's amount in place, so
+    a campaign already holding the asset reads the new figure on its
+    next read; setting it to 0 takes the modifier away, and an asset
+    with no income carries nothing. Several contributions an author
+    attached by hand are folded into the first. Returns the modifier, or
+    None when the asset brings nothing.
+    """
+    from n26.library.income import (
+        ensure_income_counter,
+        income_modifier_name,
+        income_modifiers,
+    )
+    from n26.library.models import Modifier
+
+    amount = max(int(amount or 0), 0)
+    standing = income_modifiers(asset)
+    if amount == 0:
+        for row in standing:
+            delete_modifier(row)
+        return None
+    if standing:
+        kept, *surplus = standing
+        effect = kept.contributes_to_counter
+        if effect.amount != amount:
+            effect.amount = amount
+            effect.save(update_fields=["amount"])
+        for row in surplus:
+            delete_modifier(row)
+        return kept
+    return modifier(
+        income_modifier_name(asset, Modifier, asset.pack_id),
+        targets_gang_alone(),
+        ef_contributes_to_counter(ensure_income_counter(), amount),
+        attach_to=asset,
+        pack_id=asset.pack_id,
     )
 
 

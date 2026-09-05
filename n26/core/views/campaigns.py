@@ -734,6 +734,7 @@ def add_asset(request, pk):
     """
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import AddAssetForm
+    from n26.library.income import income_of, with_income
 
     found = _own_campaign_or_404(request, pk)
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
@@ -754,6 +755,22 @@ def add_asset(request, pk):
         form = AddAssetForm(offered=offered)
 
     submitted = str(form["asset"].value() or "")
+
+    def card(asset):
+        # The asset type and income under the name; a redisplay after a
+        # failed submit keeps the pick.
+        income = income_of(asset)
+        return {
+            "value": str(asset.pk),
+            "label": asset.name,
+            "description": (
+                f"{asset.asset_type}, income {income}¢"
+                if income
+                else str(asset.asset_type)
+            ),
+            "checked": str(asset.pk) == submitted,
+        }
+
     # The asset type's own word for what is being added, with its article,
     # for the title: "Add a territory", "Add an asset". The article follows
     # the word's first letter, since the label is the author's to choose.
@@ -768,22 +785,8 @@ def add_asset(request, pk):
             "asset_type": asset_type,
             "adding": f"{article} {noun}",
             "back": _assets_anchor(found),
-            # Drawn as cards, one per asset, with the asset type and income
-            # under the name; a redisplay after a failed submit keeps the
-            # pick.
-            "assets": [
-                {
-                    "value": str(asset.pk),
-                    "label": asset.name,
-                    "description": (
-                        f"{asset.asset_type}, income {asset.income}¢"
-                        if asset.income
-                        else str(asset.asset_type)
-                    ),
-                    "checked": str(asset.pk) == submitted,
-                }
-                for asset in offered
-            ],
+            # Drawn as cards, one per asset.
+            "assets": [card(asset) for asset in with_income(offered)],
         },
     )
 

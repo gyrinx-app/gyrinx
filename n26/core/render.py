@@ -859,8 +859,9 @@ class CampaignAssetLine:
     all, it is that kind's own name ("Special rule"): the same fact,
     taken from the model rather than from an asset type.
 
-    ``income`` is drawn and never collected; the gang's credits do not
-    move for it. ``provenance`` names the carrier that brought a
+    ``income`` is what the asset contributes to the gang's Income counter,
+    read off the asset's modifiers; the gang's credits do not move for
+    it. ``provenance`` names the carrier that brought a
     possession, and is empty on a holding — a holding's source is the
     campaign, and the block is already drawn under the campaign's name.
     ``campaign_asset_id`` names the campaign's asset, set on a holding
@@ -1055,7 +1056,8 @@ class CampaignAssetEntry:
     else the library asset's own; ``asset_name`` is the library asset's
     only where the two differ, so a renamed asset still says what it is.
     ``boons`` are the asset's modifiers as sentences, the authoring page's
-    own words for what holding the asset does.
+    own words for what holding the asset does — every modifier but the
+    Income contribution, which the ``income`` column already prints.
     """
 
     campaign_asset_id: str
@@ -2211,30 +2213,53 @@ def _campaign_parts(gang_card, membership, keys, readings):
     return possessions, [line for line in counters if line.drawn]
 
 
-def _possession_lines(possessions, labels, provenance_of):
+def _possession_lines(possessions, labels, provenance_of, income_for):
     """Each possession as a row labelled with what sort of thing it is —
     for an asset its type's own word, for anything else the kind's name."""
+    from n26.library.models import Asset
+
     return [
         CampaignAssetLine(
             type_label=labels.get(
                 node.assignable.pk, capfirst(kind_of(node.assignable))
             ),
             name=node.name,
-            income=getattr(node.assignable, "income", 0),
+            income=(
+                income_for(node.assignable, node.assignable)
+                if isinstance(node.assignable, Asset)
+                else 0
+            ),
             provenance=provenance_of(node),
         )
         for node in possessions
     ]
 
 
-def _campaign_block(gang_card, membership, keys, readings):
+def _income_reader(index):
+    """``income_for(asset, carrier)``: what an asset brings, read off the
+    modifiers the card was computed against where there is an index —
+    a holding's are filed under the campaign asset that carries them —
+    and off the asset itself otherwise, which is a query per asset."""
+    from n26.library.income import income_of
+
+    def income_for(asset, carrier):
+        if index is None:
+            return income_of(asset)
+        return income_of(asset, [modifier for modifier, _ in index.for_thing(carrier)])
+
+    return income_for
+
+
+def _campaign_block(gang_card, membership, keys, readings, index=None):
     """What the campaign gave, credited to its carriers.
 
     Each possession draws a row labelled with what sort of thing it is,
     which for an asset is its type's own word and for anything else is
     the kind's name. The holdings take the same shape, so the block reads
     as one run of "what this gang has from the campaign" whether the
-    gang owns the thing or only holds it.
+    gang owns the thing or only holds it. ``index`` is the modifier index
+    the card was computed against, which already holds what each asset's
+    income is read off.
     """
     from n26.library.models import Asset
 
@@ -2244,16 +2269,19 @@ def _campaign_block(gang_card, membership, keys, readings):
     labels = _asset_type_labels(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
+    income_for = _income_reader(index)
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
-        lines=_possession_lines(possessions, labels, _provenance_within(gang_card)),
+        lines=_possession_lines(
+            possessions, labels, _provenance_within(gang_card), income_for
+        ),
         counters=counters,
         holdings=[
             CampaignAssetLine(
                 type_label=campaign_asset.asset.asset_type.label_singular,
                 name=str(campaign_asset),
-                income=campaign_asset.asset.income,
+                income=income_for(campaign_asset.asset, campaign_asset),
                 campaign_asset_id=str(campaign_asset.pk),
             )
             for campaign_asset in gang_card.holdings
@@ -2456,6 +2484,7 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
 
     computed = {}
     gang_computed = None
+    index = None
     recategorised = {}
     if with_effects:
         # One index for the whole gang, not one per model. The gang's own
@@ -2490,7 +2519,9 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
     readings = list(
         gang_computed.counters if gang_computed else counter_readings(gang_card)
     )
-    campaign = _campaign_block(gang_card, membership, campaign_keys, readings)
+    campaign = _campaign_block(
+        gang_card, membership, campaign_keys, readings, index=index
+    )
     # What each model still has of the Trade Points its books give it to
     # spend as it joins. Off the fold that has just been worked out, plus
     # one sum of what the whole roster has spent — never a query a
@@ -2562,6 +2593,7 @@ def render_campaign(campaign, viewer=None):
     from n26.core.effects import compute, counter_readings
     from n26.core.models import CampaignMembership
     from n26.core.render import GANG_SLOT_HOST, choice_lines
+    from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.prose import GANG as GANG_CARRIAGE
     from n26.library.prose import sentence_for
@@ -2706,10 +2738,10 @@ def render_campaign(campaign, viewer=None):
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
                 asset_name=campaign_asset.asset.name if campaign_asset.name else "",
-                income=campaign_asset.asset.income,
+                income=income_of(campaign_asset.asset),
                 boons=[
                     sentence_for(modifier, carriage=GANG_CARRIAGE).text
-                    for modifier in campaign_asset.asset.modifiers.all()
+                    for modifier in boons_of(campaign_asset.asset)
                 ],
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",

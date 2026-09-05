@@ -2009,7 +2009,20 @@ def gang_sheet():
                     provenance=Provenance(
                         source="Territory campaign", source_kind="campaign type"
                     ),
-                )
+                ),
+                # Read, never tallied: the whole figure is what the held
+                # territory contributes, so the stored value stays at 0.
+                CounterLine(
+                    name="Income",
+                    value=30,
+                    tallied=0,
+                    assignment_id="income",
+                    href="#",
+                    back="#",
+                    provenance=Provenance(
+                        source="Territory campaign", source_kind="campaign type"
+                    ),
+                ),
             ],
             holdings=[
                 CampaignAssetLine(
@@ -2302,7 +2315,7 @@ def campaign_sheet():
         add_asset_type_href="#",
         add_counter_href="#",
         add_label_href="#",
-        counter_columns=["Reputation", "Meat"],
+        counter_columns=["Reputation", "Income", "Meat"],
         label_columns=["Alignment"],
         asset_types=CAMPAIGN_ASSET_TYPES,
         gangs=[
@@ -2322,6 +2335,14 @@ def campaign_sheet():
                         value=4,
                         tallied=4,
                         assignment_id="gravebolt-reputation",
+                        href="#",
+                        back="#",
+                    ),
+                    CounterLine(
+                        name="Income",
+                        value=20,
+                        tallied=0,
+                        assignment_id="gravebolt-income",
                         href="#",
                         back="#",
                     ),
@@ -2356,6 +2377,14 @@ def campaign_sheet():
                         href="#",
                         back="#",
                     ),
+                    CounterLine(
+                        name="Income",
+                        value=0,
+                        tallied=0,
+                        assignment_id="pit-income",
+                        href="#",
+                        back="#",
+                    ),
                     None,
                 ],
                 labels=[""],
@@ -2377,6 +2406,14 @@ def campaign_sheet():
                         value=3,
                         tallied=3,
                         assignment_id="choir-reputation",
+                        href="#",
+                        back="#",
+                    ),
+                    CounterLine(
+                        name="Income",
+                        value=60,
+                        tallied=0,
+                        assignment_id="choir-income",
                         href="#",
                         back="#",
                     ),

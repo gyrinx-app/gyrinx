@@ -209,16 +209,18 @@ class TestTheCoreCampaignType:
         assert list(core.assets) == [settlement]
 
         reputation = Counter.objects.get(name="Reputation")
+        income = Counter.objects.get(name="Income")
         members = list(core.built_in_members)
         assert [(member.assignable, member.amount) for member in members] == [
             (reputation, 0),
             (settlement, 0),
+            (income, 0),
         ]
         assert core.built_ins.name == "Territory campaign built-ins"
         assert all(row.pack == default_pack for row in (core, settlement, reputation))
-        # One line per row: the counter, the type, two asset types, the asset,
-        # the set, and two members.
-        assert len(lines) == 8
+        # One line per row: two counters, the type, two asset types, the
+        # asset, the set, and three members.
+        assert len(lines) == 10
 
     def test_running_it_again_creates_nothing(self, default_pack):
         list(seed_core_campaign(apps))
@@ -482,7 +484,7 @@ class TestTheAuthoringPages:
         body = client.get(page, follow=True).content.decode()
         assert "Added Old Ruins under Territory." in body
         assert f'href="/n26/authoring/asset/{ruins.pk}/"' in body
-        assert "income 10cr · no modifiers" in body
+        assert "income 10cr · no other modifiers" in body
 
     def test_an_asset_is_added_under_an_asset_type_of_this_campaign_type_only(
         self, author, client, dominion, owned

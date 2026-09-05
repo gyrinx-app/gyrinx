@@ -8,8 +8,10 @@ campaign type in the books tracks, so it ships in the system pack. The
 Territory campaign type declares the two asset types that campaign deals
 in — a Settlement every gang has its own of, and Territories one gang
 holds at a time — with one Settlement asset under the Settlement type, and
-gives every member gang Reputation at 0 and that Settlement through its
-built-ins. See design/campaign-assets.md.
+gives every member gang Reputation at 0, Income at 0 and that Settlement
+through its built-ins. Income is the counter an asset's income figure
+contributes to (``n26/library/income.py``): built in at 0, it gives every
+gang in the campaign a reading to add to. See design/campaign-assets.md.
 
 Everything is matched on its natural key and left alone if it is
 already there, so this can run against a database that has some of it,
@@ -22,6 +24,8 @@ present names, which is why those are looked up rather than assumed.
 """
 
 from django.conf import settings
+
+from n26.library.income import INCOME
 
 REPUTATION = "Reputation"
 CAMPAIGN_TYPE = "Territory campaign"
@@ -58,9 +62,9 @@ LIBRARY_AUTHOR_HELP = (
     "The campaign type from the core rulebook. Settlement is a possession: "
     "every gang has its own and keeps it. Territory is a holding: one gang "
     "holds it at a time. Add each Territory as an asset under that asset "
-    "type, with its income figure and its Boons as modifiers. Reputation at "
-    "0 and the Settlement are built in, so every gang that joins starts with "
-    "both."
+    "type, with its income in the Income box and its Boons as modifiers. "
+    "Reputation at 0, Income at 0 and the Settlement are built in, so every "
+    "gang that joins starts with all three."
 )
 
 
@@ -97,12 +101,15 @@ def seed_core_campaign(apps):
         defaults={"name": settings.DEFAULT_CONTENT_PACK_NAME},
     )
 
-    reputation = Counter.objects.filter(
-        pack=pack, name__iexact=REPUTATION, qualifier=""
-    ).first()
-    if reputation is None:
-        reputation = Counter.objects.create(pack=pack, name=REPUTATION)
-        lines.append(f"created the {REPUTATION} counter")
+    counters = {}
+    for counter_name in (REPUTATION, INCOME):
+        counter = Counter.objects.filter(
+            pack=pack, name__iexact=counter_name, qualifier=""
+        ).first()
+        if counter is None:
+            counter = Counter.objects.create(pack=pack, name=counter_name)
+            lines.append(f"created the {counter_name} counter")
+        counters[counter_name] = counter
 
     campaign_type = CampaignType.objects.filter(
         pack=pack, name__iexact=CAMPAIGN_TYPE, qualifier=""
@@ -153,11 +160,17 @@ def seed_core_campaign(apps):
         campaign_type.save(update_fields=["built_ins"])
 
     members = built_ins.members
-    if not members.filter(counter=reputation).exists():
-        DefaultAssignment.objects.create(
-            pack=pack, default_set=built_ins, counter=reputation, amount=0, position=0
-        )
-        lines.append(f"built {REPUTATION} at 0 into {CAMPAIGN_TYPE}")
+    for position, counter_name in ((0, REPUTATION), (2, INCOME)):
+        counter = counters[counter_name]
+        if not members.filter(counter=counter).exists():
+            DefaultAssignment.objects.create(
+                pack=pack,
+                default_set=built_ins,
+                counter=counter,
+                amount=0,
+                position=position,
+            )
+            lines.append(f"built {counter_name} at 0 into {CAMPAIGN_TYPE}")
     if not members.filter(asset=settlement).exists():
         DefaultAssignment.objects.create(
             pack=pack, default_set=built_ins, asset=settlement, position=1

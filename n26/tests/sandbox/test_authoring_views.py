@@ -61,9 +61,9 @@ class TestTheMenuIsBackedBySpecs:
     def test_every_leaf_kind_reads_both_ways(self, kind):
         """Editing writes a form's fields straight onto the row, using
         the same spec that describes the creating verb. That only works
-        while every field names a column on the thing being made — a
-        field sourced from another model, or naming nothing, would be
-        silently dropped on save."""
+        while every field names a column on the thing being made, or
+        names the verb that writes it back — a field sourced from another
+        model, or naming nothing, would be silently dropped on save."""
         from n26.library.specs import Conditions, Union
 
         spec = specs()[LEAF_KINDS[kind]]
@@ -74,6 +74,14 @@ class TestTheMenuIsBackedBySpecs:
                 f"has no single column to write back to. Editing would drop "
                 f"it — give the kind its own edit path before adding this."
             )
+            if getattr(kind_of_field, "written_by", None) is not None:
+                # No column, but a verb: the row still has to answer to
+                # the name, or the edit form opens with nothing in the box.
+                assert hasattr(model, name), (
+                    f"{kind}'s {name} is written by a verb but {model.__name__} "
+                    f"does not read it back — give the model a {name} property."
+                )
+                continue
             source = getattr(kind_of_field, "source", None)
             assert source is not None and source[0] is model, (
                 f"{kind}'s {name} is not a column on {model.__name__}, so "

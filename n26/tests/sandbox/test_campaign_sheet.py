@@ -155,8 +155,8 @@ class TestTheGangsTable:
 
         sheet = render_campaign(campaign)
 
-        assert sheet.counter_columns == ["Reputation", "Meat"]
-        assert readings(line_named(sheet, "Late")) == [0, 2]
+        assert sheet.counter_columns == ["Reputation", "Income", "Meat"]
+        assert readings(line_named(sheet, "Late")) == [0, 0, 2]
 
     def test_a_held_territory_counts_in_the_reading(self, campaign, gangs, old_ruins):
         """The same reading the gang sheet shows: stored value plus what a
@@ -168,8 +168,8 @@ class TestTheGangsTable:
 
         sheet = render_campaign(campaign)
 
-        assert readings(line_named(sheet, "The Ashen Choir")) == [3]
-        assert readings(line_named(sheet, "The Rust Kings")) == [0]
+        assert readings(line_named(sheet, "The Ashen Choir")) == [3, 30]
+        assert readings(line_named(sheet, "The Rust Kings")) == [0, 0]
 
     def test_a_gang_without_the_counter_reads_none(self, campaign, gangs):
         """A dash, never a blank: a gang whose card lacks the counter says
@@ -180,8 +180,8 @@ class TestTheGangsTable:
             gang_root=gangs[2], counter__name="Reputation"
         ).update(archived=True)
         sheet = render_campaign(campaign)
-        assert readings(line_named(sheet, "Pit of Teeth")) == [None]
-        assert readings(line_named(sheet, "The Ashen Choir")) == [0]
+        assert readings(line_named(sheet, "Pit of Teeth")) == [None, 0]
+        assert readings(line_named(sheet, "The Ashen Choir")) == [0, 0]
 
     def test_assets_sit_under_their_asset_type_column(
         self, campaign, gangs, old_ruins, toll_crossing, protection
