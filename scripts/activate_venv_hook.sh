@@ -70,16 +70,32 @@ fi
 # rebuild PATH from a known base instead of accumulating duplicates.
 BASE_PATH="$PATH"
 
+# SessionStart fires on startup, resume, clear and after compaction, and the env
+# file persists for the session, so without this guard the block accumulates
+# (six copies were observed in one session).
+MARKER="# >>> Gyrinx per-worktree venv activation >>>"
+if grep -qF -- "$MARKER" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+  exit 0
+fi
+
 # Emit the dynamic block.  Constants determined at hook time are quoted via
 # printf %q so they survive sourcing.  The heredoc body is single-quoted so
 # $vars are evaluated at *source* time (per Bash call), not at hook-write
 # time.
+#
+# Comment lines are stripped from the block on the way out. Claude Code inlines
+# the env file into the command line of EVERY Bash and Monitor call, so any word
+# in a comment here ends up in every wrapper process's argv. A comment that
+# mentioned `pytest` meant an agent's `pkill -f pytest` killed every Bash and
+# Monitor wrapper on the machine, across all sessions (2026-09-04). Keep comments
+# in this file, not in the emitted block, and keep the block's code free of words
+# anyone might `pkill -f`.
 {
-  echo "# >>> Gyrinx per-worktree venv activation >>>"
+  echo "$MARKER"
   printf 'export __GYRINX_BASE_PATH=%q\n' "$BASE_PATH"
   printf 'export __GYRINX_PG_BIN_DIR=%q\n' "$PG_BIN_DIR"
   printf 'export __GYRINX_MAIN_WT=%q\n' "$MAIN_WT"
-  cat <<'BLOCK'
+  grep -Ev '^[[:space:]]*(#|$)' <<'BLOCK'
 _gyrinx_activate_worktree() {
   local wt_root venv lib
 
@@ -140,6 +156,6 @@ _gyrinx_activate_worktree() {
   fi
 }
 _gyrinx_activate_worktree
-# <<< Gyrinx per-worktree venv activation <<<
 BLOCK
+  echo "# <<< Gyrinx per-worktree venv activation <<<"
 } >> "$CLAUDE_ENV_FILE"
