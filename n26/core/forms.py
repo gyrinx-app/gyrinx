@@ -344,9 +344,9 @@ class RenameFighterForm(forms.Form):
 class CampaignForm(forms.Form):
     """Setting a campaign up, and editing one afterwards.
 
-    ``budget`` is how much a gang should be worth to join — its rating, its
+    ``budget`` is what a gang should be worth to join — its rating, its
     stash and the credits it has not spent. It refuses nobody: a bigger gang
-    joins and is marked as over it. The field's ``initial`` is 1000,
+    joins and wears an Over budget badge. The field's ``initial`` is 1000,
     the usual figure, so set-up opens there. Edit supplies the stored value,
     so a campaign that sets none stays blank. Blank is not zero — it means
     no budget at all — and lands as ``budget=None``.
@@ -355,7 +355,6 @@ class CampaignForm(forms.Form):
     name = forms.CharField(
         max_length=200,
         label="Campaign name",
-        help_text="You can change this later.",
     )
     budget = forms.IntegerField(
         required=False,
@@ -363,14 +362,20 @@ class CampaignForm(forms.Form):
         initial=1000,
         label="Gang budget",
         help_text=(
-            "How much a gang should be worth to join, counting its rating, stash and unspent credits. A bigger gang still joins and is marked. Leave blank to set no budget."
+            "What a gang should be worth to join, counting its rating, stash "
+            "and unspent credits. A gang worth more than this can still join, "
+            "and is marked as over budget on the campaign page. Leave blank "
+            "for no budget."
         ),
     )
     summary = forms.CharField(
         required=False,
         label="Summary",
         widget=RichText(),
-        help_text="What this campaign is, and anything the players have agreed.",
+        help_text=(
+            "What this campaign is, and anything the players have agreed. "
+            "Shown at the top of the campaign's page."
+        ),
     )
 
 
@@ -394,8 +399,8 @@ class FoundCampaignForm(CampaignForm):
         .prefetch_related("asset_types"),
         label="Campaign type",
         help_text=(
-            "The rules the campaign is played under. Each type sets what "
-            "the gangs fight over and what every gang starts with."
+            "Which campaign from the rulebook you are running. Each card "
+            "lists what every gang starts with and what the gangs fight over."
         ),
         error_messages={
             "invalid_choice": (

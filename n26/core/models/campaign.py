@@ -98,10 +98,10 @@ class Campaign(Base, Owned, Archived):
         null=True,
         blank=True,
         help_text=(
-            "How much a gang should be worth to join, counting its rating, "
-            "stash and unspent credits. Nothing is refused for being over: a "
-            "bigger gang joins and is marked. Null means the campaign sets "
-            "none."
+            "What a gang should be worth to join, counting its rating, stash "
+            "and unspent credits. A gang worth more than this can still join, "
+            "and is marked as over budget on the campaign page. Blank means "
+            "the campaign has no budget."
         ),
     )
     #: The arbitrator's own words: what this campaign is, and whatever the
