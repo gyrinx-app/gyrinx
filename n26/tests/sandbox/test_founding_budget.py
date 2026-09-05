@@ -53,7 +53,9 @@ FOUNDING_KIND = Action.Kind.FOUNDING
 
 @pytest.fixture
 def player():
-    return User.objects.create_user("tom")
+    # Staff, because the founding budgets reach staff owners only while
+    # they are being tested; the non-staff owner has tests of their own.
+    return User.objects.create_user("tom", is_staff=True)
 
 
 #: The entries each gang list holds, as ``(entry, the subtype naming its
@@ -1138,3 +1140,15 @@ class TestTheFigureOnTheGangPage:
         stranger = User.objects.create_user("a-stranger")
 
         assert self.HOVER.format("Rasp") not in self.body(client, gang, reader=stranger)
+
+    def test_an_owner_who_is_not_staff_is_not_shown_it_yet(self, client, gang, leader):
+        """The budgets reach staff owners only while they are being tested,
+        the same readers as the Actions square that completes the founding.
+        Every other owner reads their roster as it was before budgets."""
+        plain = User.objects.create_user("plain-owner")
+        gang.owner = plain
+        gang.save(update_fields=["owner"])
+
+        body = self.body(client, gang, reader=plain)
+        assert self.HOVER.format("Rasp") not in body
+        assert " TP<span" not in body

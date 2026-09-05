@@ -16,6 +16,7 @@ from n26.core.views.permissions import (
     _own_gang_or_404,
     link_campaign,
     may_see_actions_square,
+    may_see_founding,
     trade_points_href,
 )
 
@@ -257,10 +258,11 @@ def gang_sheet(request, pk):
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     card = build_gang_card(gang)
-    # for_owner puts the owner-only figures on the cards — what a model
-    # has left of its founding Trade Points — and is what keeps a
-    # stranger's read from paying for figures they are not shown.
-    sheet = render_gang(gang, card=card, for_owner=yours)
+    # for_owner puts the founding figures on the cards — what a model has
+    # left of its founding Trade Points — for the readers the feature
+    # reaches, and is what keeps everyone else's read from paying for
+    # figures they are not shown.
+    sheet = render_gang(gang, card=card, for_owner=may_see_founding(gang, request.user))
     dialog = None
     link_campaign(sheet.campaign, request.user)
     if yours:

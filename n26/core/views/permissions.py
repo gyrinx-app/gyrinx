@@ -71,6 +71,19 @@ def link_campaign(block, user):
     block.pool_href = reverse("n26-campaign-pool", args=[block.campaign_id])
 
 
+def may_see_founding(gang, user):
+    """Whether the reader is shown the founding Trade Point budgets.
+
+    The figures on the model cards, the allowance block on the equip
+    screen and the terms that make list lines count Trade Points are one
+    feature, and while it is being tested it reaches the same readers as
+    the Actions square that completes the founding: staff who own the
+    gang. Everyone else is read exactly as before budgets existed. The
+    two gates lift together.
+    """
+    return may_see_actions_square(gang, user)
+
+
 def may_see_actions_square(gang, user):
     """Whether the gang page draws its Actions square for this reader.
 
