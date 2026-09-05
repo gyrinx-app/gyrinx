@@ -1714,6 +1714,46 @@ def test_a_template_row_is_badged_as_one(client, user, template_campaign):
 
 
 @pytest.mark.django_db
+def test_the_templates_block_comes_before_the_search_bar(
+    client, user, template_campaign
+):
+    """It is a sibling of the filter and the list, not nested in the pinned column.
+
+    That position is what lets it collapse to one line above the search on a
+    narrow screen instead of pushing the campaign list down.
+    """
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert content.index('id="campaign-templates"') < content.index('name="q"'), (
+        "the templates block must render before the search field"
+    )
+
+
+@pytest.mark.django_db
+def test_the_templates_block_has_a_collapse_toggle(client, user, template_campaign):
+    """The toggle is hidden by CSS at xl; the markup is always there."""
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert 'data-bs-target="#campaign-templates"' in content
+    assert 'data-gy-collapse-icon="campaign-templates"' in content
+
+
+@pytest.mark.django_db
+def test_no_templates_means_no_block_at_all(client, user, make_campaign):
+    """An empty block above the search would be pure noise."""
+    make_campaign("An Ordinary Campaign")
+    client.force_login(user)
+
+    content = client.get(reverse("core:campaigns")).content.decode()
+
+    assert 'id="campaign-templates"' not in content
+
+
+@pytest.mark.django_db
 def test_interstitial_requires_login(client):
     response = client.get(reverse("core:campaigns-new-template"))
 
