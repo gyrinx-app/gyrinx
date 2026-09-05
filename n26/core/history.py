@@ -39,6 +39,11 @@ Kind = LedgerEvent.Kind
 #: how a thing is built can change what it charges.
 MONEY = {Kind.PURCHASED, Kind.REFUNDED, Kind.SOLD, Kind.REPRICED, Kind.AMENDED}
 
+#: The kinds that are a campaign's asset coming to the gang or leaving
+#: it. Nothing else is ever written with them, so a record of either kind
+#: is a holding's whether or not the asset still stands.
+HOLDING = {Kind.GAINED, Kind.LOST}
+
 #: The kinds that are always about the model itself rather than its kit.
 PERSONAL = {
     Kind.TOOK_AWAY,
@@ -158,7 +163,7 @@ def _events(gang, window=None):
     """The gang's events, oldest first — all of them, or the last
     ``window`` of them read back to front and turned round."""
     rows = gang.ledger_events.select_related(
-        "miniature", "actor", "campaign", "campaign_asset__asset__kind"
+        "miniature", "actor", "campaign", "campaign_asset__asset__asset_type"
     )
     if window is None:
         return list(rows.order_by("created", "id"))
@@ -317,13 +322,17 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                 continue
         ride = _rides(e, row)
         if (
-            joined
-            and ride is None
+            ride is None
             and e.kind == Kind.GRANTED
             and row is not None
             and row.campaign_type_id is not None
         ):
-            waiting.append((e, row, _THE_JOINING))
+            # A campaign type only ever arrives with the joining. Told
+            # apart from it — the joining outside the window being read —
+            # the grant has no act to ride and draws no line, since a line
+            # of its own would name a type no page names.
+            if joined:
+                waiting.append((e, row, _THE_JOINING))
             continue
         if ride is not None:
             if ride in here:
@@ -378,7 +387,14 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         if home is None:
             acts.append(_one_act(e, row, viewer, alive))
             continue
-        home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
+        # The campaign's own type wears the campaign's name and no page
+        # names it, so it folds under the joining without a line of its
+        # own; the shared type still says what the campaign is played as.
+        own_type = e.campaign is not None and (
+            row.campaign_type_id == e.campaign.additions_id
+        )
+        if not own_type:
+            home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
         home.credits += -e.credits_delta
         home.trade_points += -e.trade_points_delta
         home.rating += e.rating_delta
@@ -786,40 +802,34 @@ def _tell(e, row, alive):
 
 
 def _about_a_holding(e):
-    """Whether this record is a campaign's token changing hands.
+    """Whether this record is a campaign's asset coming to the gang or
+    leaving it. The two kinds are written for nothing else."""
+    return e.kind in HOLDING
 
-    Named by the token where it still stands. A token dropped since
-    leaves the record naming none — and a grant or a taking
-    away about no assignment can only ever have been a token's, since
-    every other grant has a record behind it.
-    """
-    return e.campaign_asset_id is not None or (
-        e.assignment_id is None and e.kind in {Kind.GRANTED, Kind.TOOK_AWAY}
+
+def _holding_name(e):
+    """The asset an event is about, linked to the campaign's assets while
+    it still stands. One removed from the campaign since is named from the
+    note, which kept the name for exactly this: the line still says what
+    the gang gained or lost."""
+    campaign_asset = e.campaign_asset
+    if campaign_asset is None:
+        return Span(e.note or "an asset")
+    return Span(
+        str(campaign_asset),
+        reverse("n26-campaign", args=[campaign_asset.campaign_id]) + "#assets",
     )
 
 
 def _tell_holding(e):
-    """A campaign's token granted to the gang or taken away from it.
-
-    The token is linked to the campaign's assets while it stands. One
-    dropped since is named from the note, which kept the name for exactly
-    this: the line still says what changed hands. Which gang goes unsaid,
-    as for joining — the gang's own history is already about it, and the
-    campaign's log says whose act it was beside the sentence.
+    """A campaign's asset the gang gained or lost, as the gang's own
+    history says it: "gained the territory Old Ruins". Which gang goes
+    unsaid, as for joining — the gang's own history is already about it.
     """
-    token = e.campaign_asset
-    if token is not None:
-        name = Span(
-            str(token),
-            reverse("n26-campaign", args=[token.campaign_id]) + "#assets",
-        )
-        kind = f"the {token.kind_label} "
-    else:
-        name = Span(e.note or "an asset")
-        kind = ""
-    if e.kind == Kind.GRANTED:
-        return (Span(f"granted {kind}"), name, Span(" to the gang"))
-    return (Span(f"took {kind}"), name, Span(" away from the gang"))
+    campaign_asset = e.campaign_asset
+    sort = f"the {campaign_asset.type_label} " if campaign_asset is not None else ""
+    verb = "gained " if e.kind == Kind.GAINED else "lost "
+    return (Span(verb + sort), _holding_name(e))
 
 
 def _action_named(note):
@@ -883,7 +893,7 @@ def _shown_note(e):
         return ""
     if e.note == "reset":
         return ""
-    # A token's note is its name, which the sentence has already said.
+    # A holding's note is its name, which the sentence has already said.
     if _about_a_holding(e):
         return ""
     return e.note
@@ -972,13 +982,20 @@ def campaign_history_size(campaign):
     of lines the full history draws, which is what a reader comparing
     "N earlier acts not shown" against the page expects it to mean.
     """
-    from django.db.models import Q
+    from django.db.models import Exists, OuterRef, Q
 
     riders = Q(kind=Kind.GRANTED) & (
         Q(assignment__caused_by__isnull=False)
         | Q(assignment__campaign_type__isnull=False)
     )
-    return campaign.events.count() + campaign.gang_events.exclude(riders).count()
+    # A hand-over is two records under one mark and one line in the log.
+    handed_over = Q(kind=Kind.LOST) & Exists(
+        LedgerEvent.objects.filter(batch=OuterRef("batch"), kind=Kind.GAINED)
+    )
+    return (
+        campaign.events.count()
+        + campaign.gang_events.exclude(riders).exclude(handed_over).count()
+    )
 
 
 def _campaign_own_acts(campaign, viewer, limit=None):
@@ -1011,7 +1028,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     from n26.core.models import LedgerEvent, Miniature
 
     events = LedgerEvent.objects.filter(campaign=campaign).select_related(
-        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__kind"
+        "miniature", "actor", "gang", "campaign", "campaign_asset__asset__asset_type"
     )
     events = (
         events.order_by("-created", "-id")[:limit]
@@ -1021,6 +1038,17 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     # A limited read takes the newest; telling them needs them oldest first,
     # because a rider is told after the thing it rode.
     events = sorted(events, key=lambda e: (e.created, str(e.pk)))
+    if not events:
+        return
+
+    # An asset gained or lost is told as the campaign's own sentence, which
+    # names the gangs rather than riding under one gang's line, and a
+    # hand-over — LOST on one gang and GAINED on another under one mark —
+    # is one act, not two.
+    holdings = [e for e in events if e.kind in HOLDING]
+    for when, act in _holding_acts(holdings):
+        yield when, act
+    events = [e for e in events if e.kind not in HOLDING]
     if not events:
         return
 
@@ -1051,6 +1079,43 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
             act.gang_pk = str(gang_id)
             act.gang_name = named
             yield (act.when, str(gang_id)), act
+
+
+def _holding_acts(events):
+    """The campaign's assets moving between its gangs, one act each.
+
+    "Old Ruins went to Ash Vipers" for an asset assigned, "Ash Vipers lost
+    Old Ruins" for one unassigned, and "Old Ruins went from Ash Vipers to
+    Hammerfall" for one handed over — the LOST and the GAINED that share a
+    mark, told once. Nobody is named as the actor: the sentence is about
+    what the asset did, and who moved it is in each gang's own history.
+    ``events`` are oldest first, and the acts come out the same way.
+    """
+    by_mark = {}
+    for e in events:
+        by_mark.setdefault(e.batch or e.pk, []).append(e)
+    for marked in by_mark.values():
+        lost = next((e for e in marked if e.kind == Kind.LOST), None)
+        gained = next((e for e in marked if e.kind == Kind.GAINED), None)
+        first = marked[0]
+        name = _holding_name(first)
+        if lost is not None and gained is not None:
+            spans = (
+                name,
+                Span(f" went from {_gang_named(lost)} to {_gang_named(gained)}"),
+            )
+        elif gained is not None:
+            spans = (name, Span(f" went to {_gang_named(gained)}"))
+        else:
+            spans = (Span(f"{_gang_named(lost)} lost "), name)
+        yield (
+            (first.created, str(first.pk)),
+            Act(when=first.created, actor="", spans=spans, category="gang"),
+        )
+
+
+def _gang_named(e):
+    return e.gang.name if e.gang_id else "a gang"
 
 
 def _one_campaign_act(e, viewer):
@@ -1092,7 +1157,7 @@ def _tell_campaign(e):
             kinds.INVITED
             | kinds.INVITE_ACCEPTED
             | kinds.INVITE_DECLINED
-            | kinds.PARTICIPANT_REMOVED
+            | kinds.PLAYER_REMOVED
         ):
             # An answer is the invited person's own act, so the actor's name
             # already leads the sentence and naming them again would say it
@@ -1117,15 +1182,15 @@ def _tell_campaign(e):
                 return (Span(f"removed the battle of {e.note}"),), "campaign"
             return (Span("removed a battle"),), "campaign"
         case kinds.ASSET_ADDED:
-            # The note is the copy's name at the time. A copy since dropped
-            # is still named, which is what a log is for.
+            # The note is the asset's name at the time. One removed since is
+            # still named, which is what a log is for.
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"added {what}"),), "campaign"
-        case kinds.ASSET_DROPPED:
+        case kinds.ASSET_REMOVED:
             what = f"the asset {e.note}" if e.note else "an asset"
-            return (Span(f"dropped {what}"),), "campaign"
-        case kinds.KIND_ADDED:
-            what = f"the kind of asset {e.note}" if e.note else "a kind of asset"
+            return (Span(f"removed {what}"),), "campaign"
+        case kinds.ASSET_TYPE_ADDED:
+            what = f"the asset type {e.note}" if e.note else "an asset type"
             return (Span(f"added {what}"),), "campaign"
         case kinds.ASSET_CREATED:
             what = f"the asset {e.note}" if e.note else "an asset"

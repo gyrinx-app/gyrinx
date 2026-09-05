@@ -850,25 +850,25 @@ class StashLine:
 @dataclass(frozen=True)
 class CampaignAssetLine:
     """One asset the gang has from its campaign, drawn as a row of its
-    own: what kind of asset it is on the left, what this one is called on
+    own: what type of asset it is on the left, what this one is called on
     the right.
 
-    ``kind_label`` is the campaign type's own word for the class of thing
+    ``type_label`` is the campaign type's own word for the class of thing
     — "Settlement", "Territory" — as the author wrote it, so it reads as
     a row label. Where the thing the campaign gave is not an asset at
     all, it is that kind's own name ("Special rule"): the same fact,
-    taken from the model rather than from an asset kind.
+    taken from the model rather than from an asset type.
 
     ``income`` is drawn and never collected; the gang's credits do not
     move for it. ``provenance`` names the carrier that brought a
     possession, and is empty on a holding — a holding's source is the
     campaign, and the block is already drawn under the campaign's name.
-    ``campaign_asset_id`` is the campaign's token, set on a holding and
-    empty on a possession, so a renderer can tell the two apart and link
-    a holding to the campaign's assets.
+    ``campaign_asset_id`` names the campaign's asset, set on a holding
+    and empty on a possession, so a renderer can tell the two apart and
+    link a holding to the campaign's assets.
     """
 
-    kind_label: str
+    type_label: str
     name: str
     income: int = 0
     provenance: Provenance = field(default_factory=Provenance)
@@ -889,13 +889,13 @@ class CampaignBlock:
     and leaves with it, which is why the sheet keeps it apart from the
     gang's own rows and counters.
 
-    ``holdings`` are the campaign's pooled assets the gang holds — held,
-    never owned, and worth nothing to the gang's rating. They take the
+    ``holdings`` are the campaign's assets the gang holds — held, never
+    owned, and worth nothing to the gang's rating. They take the
     same row shape as a possession, because a reader asking what this
     gang has from the campaign is asking one question. What holding one
     does for the gang lands where any modifier's work does: a Reputation
     contribution in the counter's reading here, a rule among the gang's
-    rules, each credited to the token.
+    rules, each credited to the campaign's asset.
     """
 
     name: str
@@ -998,7 +998,7 @@ class CampaignGangLine:
 
     The money figures are the gang's pinned totals, read off its row. The
     counters and the assets are the campaign's, in the order the sheet's
-    ``counter_columns`` and ``asset_kinds`` name them, so a renderer lays
+    ``counter_columns`` and ``asset_types`` name them, so a renderer lays
     each value under its heading by position and never by name. A counter
     the gang does not carry reads ``None``, which is drawn as a dash: a
     blank cell in a column of numbers reads as a number that failed to
@@ -1020,8 +1020,12 @@ class CampaignGangLine:
     over_budget: bool = False
     #: One line per ``CampaignSheet.counter_columns``, or None.
     counters: list[CounterLine | None] = field(default_factory=list)
-    #: One list of names per ``CampaignSheet.asset_kinds``: what this gang
-    #: has of that kind, possessions and holdings alike. Empty is a dash.
+    #: One entry per ``CampaignSheet.label_columns``: what this gang picked
+    #: for that label, or empty where it has not picked yet — drawn as a
+    #: dash, as an unset counter is.
+    labels: list[str] = field(default_factory=list)
+    #: One list of names per ``CampaignSheet.asset_types``: what this gang
+    #: has of that type, possessions and holdings alike. Empty is a dash.
     assets: list[list[str]] = field(default_factory=list)
     #: The gang's own page. Filled by whoever knows the URL space.
     href: str = ""
@@ -1031,28 +1035,30 @@ class CampaignGangLine:
 
 
 @dataclass(frozen=True)
-class AssetKindColumn:
-    """One class of asset the campaign deals in, as a heading."""
+class AssetTypeColumn:
+    """One asset type the campaign deals in, as a heading."""
 
-    kind_id: str
+    asset_type_id: str
     label: str
     plural: str
-    pooled: bool
+    #: Whether one gang holds each asset of this type at a time. A
+    #: possession is every gang's own and the campaign keeps none.
+    holding: bool
 
 
 @dataclass
-class CampaignAssetCopy:
-    """One copy of a pooled asset in the campaign, as the assets table
-    draws it: what it is called, what it does, and who holds it.
+class CampaignAssetEntry:
+    """One of the campaign's assets, as the assets table draws it: what it
+    is called, what it does, and who holds it.
 
-    ``name`` is the copy's own name where the arbitrator gave it one,
-    else the asset's; ``asset_name`` is the asset's own only where the
-    two differ, so a renamed copy still says what it is a copy of.
-    ``boons`` are the asset's modifiers as sentences, the authoring
-    page's own words for what holding the asset does.
+    ``name`` is the name the arbitrator gave the asset in this campaign,
+    else the library asset's own; ``asset_name`` is the library asset's
+    only where the two differ, so a renamed asset still says what it is.
+    ``boons`` are the asset's modifiers as sentences, the authoring page's
+    own words for what holding the asset does.
     """
 
-    copy_id: str
+    campaign_asset_id: str
     name: str
     asset_name: str = ""
     income: int = 0
@@ -1063,72 +1069,41 @@ class CampaignAssetCopy:
     #: The holding gang's own page. Filled by whoever knows the URL space.
     holder_href: str = ""
     #: Whether the reader owns the holding gang, which is what lets them
-    #: hand the copy back.
+    #: hand the asset over.
     holder_yours: bool = False
-    #: Where each act on this copy is asked. Empty is no control: the
+    #: Where each act on this asset is asked. Empty is no control: the
     #: view fills them for the reader who may act and nobody else.
-    grant_href: str = ""
-    take_away_href: str = ""
+    assign_href: str = ""
+    unassign_href: str = ""
     transfer_href: str = ""
     #: The transfer control's word. The arbitrator transfers the campaign's
-    #: copy; the holding gang's owner hands over something they hold.
+    #: asset; the holding gang's owner hands over something they hold.
     transfer_label: str = "Transfer"
-    drop_href: str = ""
+    remove_href: str = ""
 
 
 @dataclass
 class CampaignAssetTable:
-    """Every copy of one pooled kind, under the kind's plural label."""
+    """Every asset of one Holding asset type, under the type's plural
+    label."""
 
-    kind_id: str
+    asset_type_id: str
     label: str
     plural: str
-    copies: list[CampaignAssetCopy] = field(default_factory=list)
-    #: Where a copy of this kind is added. Empty for a reader who may not.
+    entries: list[CampaignAssetEntry] = field(default_factory=list)
+    #: Where an asset of this type is added to the campaign, and where a
+    #: new asset of this type is written into the campaign's pack. Empty
+    #: for a reader who may not.
     add_href: str = ""
+    create_href: str = ""
 
     @property
     def held(self):
-        return sum(1 for copy in self.copies if copy.held)
+        return sum(1 for entry in self.entries if entry.held)
 
     @property
     def unclaimed(self):
-        return len(self.copies) - self.held
-
-
-@dataclass(frozen=True)
-class AdditionLine:
-    """One thing the arbitrator added to the campaign, as the additions
-    section lists it: what it is called and one line saying what it is —
-    a kind's mode, an asset's kind and income, a counter's opening value,
-    a label's options."""
-
-    name: str
-    detail: str = ""
-
-
-@dataclass
-class CampaignAdditions:
-    """What the arbitrator has added on top of the shared type, by sort.
-
-    Read off the additions type and the campaign's pack: the type's own
-    asset kinds, the assets written under any of the campaign's kinds,
-    and the additions' built-in members split by what they are. Where an
-    addition is asked for is the view's to fill, as every address is.
-    """
-
-    kinds: list[AdditionLine] = field(default_factory=list)
-    assets: list[AdditionLine] = field(default_factory=list)
-    counters: list[AdditionLine] = field(default_factory=list)
-    labels: list[AdditionLine] = field(default_factory=list)
-    add_kind_href: str = ""
-    add_asset_href: str = ""
-    add_counter_href: str = ""
-    add_label_href: str = ""
-
-    @property
-    def any(self):
-        return bool(self.kinds or self.assets or self.counters or self.labels)
+        return len(self.entries) - self.held
 
 
 @dataclass
@@ -1142,10 +1117,13 @@ class CampaignSheet:
     ``counter_columns`` are the campaign's counters in the order the
     gangs table shows them: Reputation first, then the rest by name. A
     counter is the campaign's where a member gang's card credits it to
-    the campaign — which every counter the type or the additions build in
-    is. ``asset_kinds`` are every kind the campaign deals in, the shared
-    type's first, then the additions', each in its authored position;
-    ``assets`` are the pooled ones among them with their copies.
+    the campaign — which every counter the type or the arbitrator builds
+    in is. ``label_columns`` are the labels the arbitrator asks every
+    gang to pick, in the order they were added; a gang's pick for each is
+    on its line. ``asset_types`` are every asset type the campaign deals in, the
+    shared type's first, then the arbitrator's own, each in its authored
+    position; ``assets`` are the Holding ones among them with the
+    campaign's assets under each.
     """
 
     name: str
@@ -1159,31 +1137,33 @@ class CampaignSheet:
     budget: int | None = None
     #: The arbitrator's own words, as editor HTML — sanitised where drawn.
     summary: str = ""
-    #: What the arbitrator has added on top of the shared type, by name.
-    additions: list[str] = field(default_factory=list)
-    #: The same additions in full, for the arbitrator's own section.
-    added: CampaignAdditions = field(default_factory=CampaignAdditions)
     gangs: list[CampaignGangLine] = field(default_factory=list)
     counter_columns: list[str] = field(default_factory=list)
-    asset_kinds: list[AssetKindColumn] = field(default_factory=list)
+    label_columns: list[str] = field(default_factory=list)
+    asset_types: list[AssetTypeColumn] = field(default_factory=list)
     assets: list[CampaignAssetTable] = field(default_factory=list)
     battles_fought: int = 0
+    #: Where the arbitrator adds an asset type, a counter and a label.
+    #: Empty for a reader who may not, as every address here is.
+    add_asset_type_href: str = ""
+    add_counter_href: str = ""
+    add_label_href: str = ""
 
     @property
     def gang_count(self):
         return len(self.gangs)
 
     @property
-    def copies(self):
-        return sum(len(table.copies) for table in self.assets)
+    def asset_count(self):
+        return sum(len(table.entries) for table in self.assets)
 
     @property
-    def copies_held(self):
+    def assets_held(self):
         return sum(table.held for table in self.assets)
 
     @property
-    def copies_unclaimed(self):
-        return self.copies - self.copies_held
+    def assets_unclaimed(self):
+        return self.asset_count - self.assets_held
 
     @property
     def gangs_over_budget(self):
@@ -2170,13 +2150,13 @@ def _campaign_keys(gang_card, membership):
     return frozenset(keys)
 
 
-def _asset_kind_labels(assets):
-    """What each asset's kind is called, keyed by the asset's id.
+def _asset_type_labels(assets):
+    """What each asset's type is called, keyed by the asset's id.
 
     One query for the whole block, and none where the campaign gave no
-    asset. The kind is not on the assignment's own fetch — widening that
-    would put another join on every assignment query in the app, for a
-    fact only this block reads.
+    asset. The asset type is not on the assignment's own fetch — widening
+    that would put another join on every assignment query in the app, for
+    a fact only this block reads.
     """
     from n26.library.models import Asset
 
@@ -2184,7 +2164,7 @@ def _asset_kind_labels(assets):
         return {}
     return dict(
         Asset.objects.filter(pk__in={asset.pk for asset in assets}).values_list(
-            "pk", "kind__label_singular"
+            "pk", "asset_type__label_singular"
         )
     )
 
@@ -2233,10 +2213,10 @@ def _campaign_parts(gang_card, membership, keys, readings):
 
 def _possession_lines(possessions, labels, provenance_of):
     """Each possession as a row labelled with what sort of thing it is —
-    for an asset its kind's own word, for anything else the kind's name."""
+    for an asset its type's own word, for anything else the kind's name."""
     return [
         CampaignAssetLine(
-            kind_label=labels.get(
+            type_label=labels.get(
                 node.assignable.pk, capfirst(kind_of(node.assignable))
             ),
             name=node.name,
@@ -2251,7 +2231,7 @@ def _campaign_block(gang_card, membership, keys, readings):
     """What the campaign gave, credited to its carriers.
 
     Each possession draws a row labelled with what sort of thing it is,
-    which for an asset is its kind's own word and for anything else is
+    which for an asset is its type's own word and for anything else is
     the kind's name. The holdings take the same shape, so the block reads
     as one run of "what this gang has from the campaign" whether the
     gang owns the thing or only holds it.
@@ -2261,7 +2241,7 @@ def _campaign_block(gang_card, membership, keys, readings):
     if membership is None:
         return None
     possessions, counters = _campaign_parts(gang_card, membership, keys, readings)
-    labels = _asset_kind_labels(
+    labels = _asset_type_labels(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
     return CampaignBlock(
@@ -2271,12 +2251,12 @@ def _campaign_block(gang_card, membership, keys, readings):
         counters=counters,
         holdings=[
             CampaignAssetLine(
-                kind_label=token.asset.kind.label_singular,
-                name=str(token),
-                income=token.asset.income,
-                campaign_asset_id=str(token.pk),
+                type_label=campaign_asset.asset.asset_type.label_singular,
+                name=str(campaign_asset),
+                income=campaign_asset.asset.income,
+                campaign_asset_id=str(campaign_asset.pk),
             )
-            for token in gang_card.holdings
+            for campaign_asset in gang_card.holdings
         ],
     )
 
@@ -2567,9 +2547,9 @@ def render_campaign(campaign, viewer=None):
     Every gang at the table is read at once: one query for the gang-hosted
     assignments of all of them, one hydration pass, one modifier index,
     then a query-free compute per gang — so a campaign of twelve gangs
-    costs what a campaign of one does. The campaign's copies ride one
-    query with their assets' modifiers along, since the assets table says
-    what each does in words.
+    costs what a campaign of one does. The campaign's assets ride one
+    query with their library assets' modifiers along, since the assets
+    table says what each does in words.
 
     ``viewer`` decides which gangs and holdings are the reader's own; the
     addresses of the controls that follow from that are the view's to
@@ -2581,7 +2561,8 @@ def render_campaign(campaign, viewer=None):
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
     from n26.core.models import CampaignMembership
-    from n26.library.models import Asset, AssetKind, Modifier
+    from n26.core.render import GANG_SLOT_HOST, choice_lines
+    from n26.library.models import Asset, AssetType, Modifier
     from n26.library.prose import GANG as GANG_CARRIAGE
     from n26.library.prose import sentence_for
     from n26.library.references import reading_sentences
@@ -2594,88 +2575,99 @@ def render_campaign(campaign, viewer=None):
     )
     by_membership = {membership.pk: membership for membership in memberships}
 
-    # The shared type's kinds first, then the additions', each in its
-    # authored position: the arbitrator's own columns follow the book's.
-    kinds = sorted(
-        AssetKind.objects.filter(
+    # The shared type's asset types first, then the arbitrator's own, each
+    # in its authored position: the arbitrator's own columns follow the
+    # book's.
+    asset_types = sorted(
+        AssetType.objects.filter(
             campaign_type_id__in=(campaign.campaign_type_id, campaign.additions_id)
         ),
-        key=lambda kind: (
-            kind.campaign_type_id != campaign.campaign_type_id,
-            kind.position,
-            kind.label_singular,
+        key=lambda asset_type: (
+            asset_type.campaign_type_id != campaign.campaign_type_id,
+            asset_type.position,
+            asset_type.label_singular,
         ),
     )
-    kind_slot = {kind.pk: index for index, kind in enumerate(kinds)}
+    column_of = {asset_type.pk: index for index, asset_type in enumerate(asset_types)}
 
-    # Every copy, with what its asset does along. A copy whose holder has
-    # left the campaign is nobody's, whatever its column says.
-    copies = list(
-        campaign.pool.select_related("asset__kind").prefetch_related(
+    # Every asset of the campaign, with what its library asset does along.
+    # One whose holder has left the campaign is nobody's, whatever its
+    # column says.
+    campaign_assets = list(
+        campaign.campaign_assets.select_related("asset__asset_type").prefetch_related(
             Prefetch(
                 "asset__modifiers", queryset=reading_sentences(Modifier.objects.all())
             )
         )
     )
     holdings = {}
-    for copy in copies:
-        holder = by_membership.get(copy.holder_id)
+    for campaign_asset in campaign_assets:
+        holder = by_membership.get(campaign_asset.holder_id)
         if holder is not None:
-            holdings.setdefault(holder.gang_id, []).append(copy)
+            holdings.setdefault(holder.gang_id, []).append(campaign_asset)
 
     gangs = [membership.gang for membership in memberships]
     cards = build_gang_cards(gangs, holdings)
     index = build_modifier_index(carriers(*cards.values()))
 
     parts = {}
+    picks = {}
     for membership in memberships:
         card = cards[membership.gang_id]
         computed = compute(card, index)
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(card, membership, keys, readings)
+        # What the gang has picked for each choice it is asked, by the
+        # choice's label. A label is a gang-level slot the arbitrator built
+        # in, so the gang's own choices are where its pick is read.
+        picks[membership.pk] = {
+            line.kind_label: line.chosen or ""
+            for line in choice_lines(computed, host=GANG_SLOT_HOST)
+        }
 
-    # Which kind each possessed asset is of, for the whole table at once.
+    # Which asset type each possessed asset is of, for the whole table at
+    # once.
     possessed = {
         node.assignable.pk
         for possessions, _ in parts.values()
         for node in possessions
         if isinstance(node.assignable, Asset)
     }
-    kind_of_asset = (
-        dict(Asset.objects.filter(pk__in=possessed).values_list("pk", "kind_id"))
+    type_of_asset = (
+        dict(Asset.objects.filter(pk__in=possessed).values_list("pk", "asset_type_id"))
         if possessed
         else {}
     )
 
     names = {line.name for _, counters in parts.values() for line in counters}
     counter_columns = sorted(names, key=lambda name: (name != LEADING_COUNTER, name))
-    # Every counter the additions build in is a column, whether or not any
+    # Every counter the arbitrator built in is a column, whether or not any
     # gang carries it yet: a counter added a moment ago has not reached
     # the gangs until the propagation pass runs, and a heading with dashes
-    # under it says so where a missing column would say nothing.
-    members = _addition_members(campaign)
-    added = _campaign_additions(campaign, kinds, members)
-    for line in added.counters:
-        if line.name not in names:
-            counter_columns.append(line.name)
+    # under it says so where a missing column would say nothing. Every
+    # label is a column the same way.
+    added_counters, label_columns = _arbitrators_additions(campaign)
+    for name in added_counters:
+        if name not in names:
+            counter_columns.append(name)
 
     lines = []
     for membership in memberships:
         gang = membership.gang
         possessions, counters = parts[membership.pk]
         readings_by_name = {line.name: line for line in counters}
-        assets = [[] for _ in kinds]
+        assets = [[] for _ in asset_types]
         for node in possessions:
-            slot = kind_slot.get(
-                kind_of_asset.get(getattr(node.assignable, "pk", None))
+            column = column_of.get(
+                type_of_asset.get(getattr(node.assignable, "pk", None))
             )
-            if slot is not None:
-                assets[slot].append(node.name)
-        for copy in holdings.get(gang.pk, ()):
-            slot = kind_slot.get(copy.asset.kind_id)
-            if slot is not None:
-                assets[slot].append(str(copy))
+            if column is not None:
+                assets[column].append(node.name)
+        for campaign_asset in holdings.get(gang.pk, ()):
+            column = column_of.get(campaign_asset.asset.asset_type_id)
+            if column is not None:
+                assets[column].append(str(campaign_asset))
         lines.append(
             CampaignGangLine(
                 gang_id=str(gang.pk),
@@ -2689,32 +2681,35 @@ def render_campaign(campaign, viewer=None):
                 colour=gang.colour,
                 over_budget=over_budget(campaign, gang),
                 counters=[readings_by_name.get(name) for name in counter_columns],
+                labels=[picks[membership.pk].get(name, "") for name in label_columns],
                 assets=assets,
                 yours=gang.owner_id == reading,
             )
         )
 
     tables = {
-        kind.pk: CampaignAssetTable(
-            kind_id=str(kind.pk), label=kind.label_singular, plural=kind.plural
+        asset_type.pk: CampaignAssetTable(
+            asset_type_id=str(asset_type.pk),
+            label=asset_type.label_singular,
+            plural=asset_type.plural,
         )
-        for kind in kinds
-        if kind.is_pooled
+        for asset_type in asset_types
+        if asset_type.is_holding
     }
-    for copy in copies:
-        table = tables.get(copy.asset.kind_id)
+    for campaign_asset in campaign_assets:
+        table = tables.get(campaign_asset.asset.asset_type_id)
         if table is None:
             continue
-        holder = by_membership.get(copy.holder_id)
-        table.copies.append(
-            CampaignAssetCopy(
-                copy_id=str(copy.pk),
-                name=str(copy),
-                asset_name=copy.asset.name if copy.name else "",
-                income=copy.asset.income,
+        holder = by_membership.get(campaign_asset.holder_id)
+        table.entries.append(
+            CampaignAssetEntry(
+                campaign_asset_id=str(campaign_asset.pk),
+                name=str(campaign_asset),
+                asset_name=campaign_asset.asset.name if campaign_asset.name else "",
+                income=campaign_asset.asset.income,
                 boons=[
                     sentence_for(modifier, carriage=GANG_CARRIAGE).text
-                    for modifier in copy.asset.modifiers.all()
+                    for modifier in campaign_asset.asset.modifiers.all()
                 ],
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
@@ -2731,93 +2726,41 @@ def render_campaign(campaign, viewer=None):
         arbitrator=campaign.owner.username if campaign.owner_id else "",
         budget=campaign.budget,
         summary=campaign.summary,
-        additions=[str(member.assignable) for member in members],
-        added=added,
         gangs=lines,
         counter_columns=counter_columns,
-        asset_kinds=[
-            AssetKindColumn(
-                kind_id=str(kind.pk),
-                label=kind.label_singular,
-                plural=kind.plural,
-                pooled=kind.is_pooled,
+        label_columns=label_columns,
+        asset_types=[
+            AssetTypeColumn(
+                asset_type_id=str(asset_type.pk),
+                label=asset_type.label_singular,
+                plural=asset_type.plural,
+                holding=asset_type.is_holding,
             )
-            for kind in kinds
+            for asset_type in asset_types
         ],
         assets=list(tables.values()),
         battles_fought=campaign.battles.count(),
     )
 
 
-def _addition_members(campaign):
-    """The additions type's live built-in members, in their order, with
-    what each names along — what the arbitrator has given every member
-    gang. A slot member brings its picklist's options too, so a label can
-    list them. One query, none for a campaign nothing has been added to,
-    and two more where a slot is among them."""
-    from django.db.models import Prefetch
-
-    from n26.library.models import PicklistMember
-    from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
+def _arbitrators_additions(campaign):
+    """The names of the counters and the labels the arbitrator has built
+    into this campaign, each in the order they were added. One query, and
+    none for a campaign nothing has been added to."""
+    from django.db.models import Q
 
     built_ins = campaign.additions.built_ins
     if built_ins is None:
-        return []
-    return list(
+        return [], []
+    members = (
         built_ins.members.filter(archived=False)
-        .select_related(*DEFAULT_ASSIGNABLE_FIELDS)
-        .prefetch_related(
-            Prefetch(
-                "slot__picklist__members",
-                queryset=PicklistMember.objects.select_related("pickable").order_by(
-                    "position"
-                ),
-            )
-        )
+        .filter(Q(counter__isnull=False) | Q(slot__isnull=False))
+        .select_related("counter", "slot")
         .order_by("position")
     )
-
-
-def _campaign_additions(campaign, kinds, members):
-    """Everything the arbitrator has added, sorted by what it is.
-
-    ``kinds`` are every kind the campaign deals in and ``members`` the
-    additions' built-ins, both already read; the additions' own kinds
-    are the ones on its type. The assets are the ones in the campaign's
-    pack, whichever of the campaign's kinds they sit under — an
-    arbitrator's Territory belongs here as much as their Racket. One
-    query, and it does not grow with the gangs.
-    """
-    from n26.library.models import Asset, AssetKind
-
-    added = CampaignAdditions()
-    for kind in kinds:
-        if kind.campaign_type_id == campaign.additions_id:
-            mode = AssetKind.Mode(kind.mode).label.lower()
-            added.kinds.append(AdditionLine(name=kind.label_singular, detail=mode))
-    assets = (
-        Asset.objects.filter(pack=campaign.pack_id).unarchived().select_related("kind")
-    )
-    for asset in assets:
-        detail = asset.kind.label_singular
-        if asset.income:
-            detail = f"{detail} · income {asset.income}¢"
-        added.assets.append(AdditionLine(name=str(asset), detail=detail))
-    for member in members:
-        if member.counter_id is not None:
-            added.counters.append(
-                AdditionLine(
-                    name=str(member.assignable), detail=f"opens at {member.amount}"
-                )
-            )
-        elif member.slot_id is not None:
-            options = ", ".join(
-                str(row.pickable) for row in member.slot.picklist.members.all()
-            )
-            added.labels.append(
-                AdditionLine(name=member.slot.choice_label, detail=options)
-            )
-    return added
+    counters = [str(member.counter) for member in members if member.counter_id]
+    labels = [member.slot.choice_label for member in members if member.slot_id]
+    return counters, labels
 
 
 # --- The ledger ----------------------------------------------------------

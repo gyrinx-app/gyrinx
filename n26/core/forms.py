@@ -9,7 +9,7 @@ gang types are the library's own.
 from django import forms
 
 from n26.core.widgets import RichText
-from n26.library.models import AssetKind, CampaignType, GangType
+from n26.library.models import AssetType, CampaignType, GangType
 
 
 class CreateGangForm(forms.Form):
@@ -369,14 +369,16 @@ class FoundCampaignForm(CampaignForm):
     is the plain ``CampaignForm``, and the type is not on it.
     """
 
-    # Only the types anybody may found on: the system pack's, unarchived.
-    # A campaign's own additions type lives in a pack the arbitrator owns
-    # and is never offered here, or anywhere else.
+    # Only the types anybody may found on: the system pack's, unarchived,
+    # and never a campaign's own type — that one lives in a pack the
+    # arbitrator owns and is filtered out besides, so a system-pack row
+    # that came to be a campaign's own would still stay off the list.
     campaign_type = forms.ModelChoiceField(
         queryset=CampaignType.objects.selectable()
+        .filter(additions_to__isnull=True)
         .exclude(name__regex=r"^\s*$")
         .select_related("built_ins")
-        .prefetch_related("asset_kinds"),
+        .prefetch_related("asset_types"),
         label="Campaign type",
         help_text=(
             "The rules the campaign is played under. Each type sets what "
@@ -398,7 +400,7 @@ class FoundCampaignForm(CampaignForm):
         shape ``CreateGangForm.gang_type_choices`` uses: ``checked`` is
         worked out here so a redisplay after a failed submit keeps the
         reader's pick. Each card carries what founding on the type gives —
-        its description, its asset kinds, what every gang starts with, and
+        its description, its asset types, what every gang starts with, and
         any campaign-wide rules — so the picker reads as choosing a
         rulebook rather than a name.
         """
@@ -466,13 +468,13 @@ class BattleForm(forms.Form):
 
 
 class AddAssetForm(forms.Form):
-    """One copy of a pooled asset, to add to a campaign.
+    """An asset to add to a campaign.
 
     The assets offered are the ones the campaign deals in — those of the
-    pooled kinds of its type and of its additions — so the form cannot
-    add a Settlement or an asset of another type. ``offered`` has no
-    default for the same reason a gang picker has none: a queryset built
-    without one would accept anything.
+    Holding asset types of its type and of its own additions — so the form
+    cannot add a Settlement or an asset of another campaign type.
+    ``offered`` has no default for the same reason a gang picker has none:
+    a queryset built without one would accept anything.
     """
 
     asset = forms.ModelChoiceField(
@@ -486,8 +488,8 @@ class AddAssetForm(forms.Form):
     name = forms.CharField(
         required=False,
         max_length=200,
-        label="Name for this copy",
-        help_text="Optional. Leave blank to use the asset's name.",
+        label="Name in this campaign",
+        help_text="Optional. Leave blank to use the asset's own name.",
     )
 
     def __init__(self, *args, offered, **kwargs):
@@ -495,8 +497,8 @@ class AddAssetForm(forms.Form):
         self.fields["asset"].queryset = offered
 
 
-class GrantAssetForm(forms.Form):
-    """Which gang playing the campaign a copy goes to."""
+class AssignAssetForm(forms.Form):
+    """Which gang playing the campaign an asset goes to."""
 
     membership = forms.ModelChoiceField(
         queryset=None,
@@ -512,16 +514,16 @@ class GrantAssetForm(forms.Form):
         self.fields["membership"].queryset = playing
 
 
-# --- The arbitrator's additions ----------------------------------------------
+# --- What the arbitrator adds ------------------------------------------------
 #
-# Small forms for the campaign page's own section: each writes one kind of
-# thing into the campaign's pack through ``CampaignOperation``. None of them
-# asks what an asset does — an asset here has a name, its words and an
-# income figure, and nothing else.
+# Small forms for the arbitrator's own controls on the campaign page: each
+# writes one kind of thing into the campaign's pack through
+# ``CampaignOperation``. None of them asks what an asset does — an asset
+# here has a name, its words and an income figure, and nothing else.
 
 
-class AddAssetKindForm(forms.Form):
-    """A new class of asset for one campaign: its label and how it behaves."""
+class AddAssetTypeForm(forms.Form):
+    """A new asset type for one campaign: its label and its ownership."""
 
     label_singular = forms.CharField(
         max_length=200,
@@ -537,29 +539,30 @@ class AddAssetKindForm(forms.Form):
             "and an s is added."
         ),
     )
-    mode = forms.ChoiceField(
-        choices=AssetKind.Mode.choices,
-        initial=AssetKind.Mode.POOLED,
-        label="How it behaves",
+    ownership = forms.ChoiceField(
+        choices=AssetType.Ownership.choices,
+        initial=AssetType.Ownership.HOLDING,
+        label="Ownership",
         widget=forms.RadioSelect,
-        error_messages={"required": "Say how assets of this kind behave."},
+        error_messages={"required": "Select Possession or Holding."},
     )
 
 
 class NewAssetForm(forms.Form):
-    """A new asset under one of the campaign's kinds.
+    """A new asset under one of the campaign's asset types.
 
-    ``kinds`` are the kinds the campaign deals in — the shared type's and
-    the additions' — and have no default for the reason every picker here
-    has none: a queryset built without one would accept any kind at all.
+    ``asset_types`` are the asset types the campaign deals in — the shared
+    type's and the campaign's own — and have no default for the reason
+    every picker here has none: a queryset built without one would accept
+    any asset type at all.
     """
 
-    kind = forms.ModelChoiceField(
+    asset_type = forms.ModelChoiceField(
         queryset=None,
-        label="Kind",
+        label="Asset type",
         error_messages={
-            "invalid_choice": "That is not a kind of asset this campaign deals in.",
-            "required": "Select a kind.",
+            "invalid_choice": "That is not an asset type this campaign deals in.",
+            "required": "Select an asset type.",
         },
     )
     name = forms.CharField(max_length=200, label="Name")
@@ -579,9 +582,9 @@ class NewAssetForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, kinds, **kwargs):
+    def __init__(self, *args, asset_types, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["kind"].queryset = kinds
+        self.fields["asset_type"].queryset = asset_types
 
 
 class AddCounterForm(forms.Form):

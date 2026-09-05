@@ -1,13 +1,13 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Writing a new asset into the campaign's own pack, under one of the kinds the
-campaign deals in — the shared type's or the arbitrator's own. What the asset
-does is not asked here: a name, its words and an income figure are the whole
-of it. Native radios for the kind, so the form posts with no script and a
-redisplay keeps the pick.
+Writing a new asset into the campaign's own pack, under one of the asset types
+the campaign deals in — the shared type's or the arbitrator's own. What the
+asset does is not asked here: a name, its words and an income figure are the
+whole of it. Native radios for the asset type, so the form posts with no
+script and a redisplay keeps the pick.
 {% endcomment %}
-{% block head_title %}Create an asset in {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}New asset in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -17,7 +17,7 @@ redisplay keeps the pick.
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-new-asset' campaign.pk %}"
-                     title="Create an asset"
+                     title="New asset"
                      lead="An asset of this campaign's own. It is offered in this campaign and in no other."
                      :form="form"
                      submit_label="Create asset"
@@ -32,22 +32,22 @@ redisplay keeps the pick.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Create an asset
+                    New asset
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="Kind">
-            <c-n26.radio-cards label="Kind *"
-                               description="Which kind of asset this is."
+        <c-n26.form-section title="Asset type">
+            <c-n26.radio-cards label="Asset type *"
+                               description="Which asset type this asset is one of."
                                :form="form"
-                               name="kind">
-                {% for kind in kinds %}
-                    <c-n26.radio-cards.card name="kind"
-                                            value="{{ kind.value }}"
-                                            label="{{ kind.label }}"
-                                            description="{{ kind.description }}"
-                                            :checked="kind.checked" />
+                               name="asset_type">
+                {% for asset_type in asset_types %}
+                    <c-n26.radio-cards.card name="asset_type"
+                                            value="{{ asset_type.value }}"
+                                            label="{{ asset_type.label }}"
+                                            description="{{ asset_type.description }}"
+                                            :checked="asset_type.checked" />
                 {% endfor %}
             </c-n26.radio-cards>
         </c-n26.form-section>

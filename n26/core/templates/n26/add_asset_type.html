@@ -1,12 +1,12 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Declaring a new kind of asset for one campaign. The kind lands on the
-campaign's own additions, so the shared type is untouched and no other
-campaign sees it. Native radios for the mode, as the campaign type cards
+Declaring a new asset type for one campaign. The asset type lands on the
+campaign's own campaign type, so the shared type is untouched and no other
+campaign sees it. Native radios for the ownership, as the campaign type cards
 are, so the form posts with no script and a redisplay keeps the pick.
 {% endcomment %}
-{% block head_title %}Add a kind of asset to {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}Add an asset type to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -15,11 +15,11 @@ are, so the form posts with no script and a redisplay keeps the pick.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-add-kind' campaign.pk %}"
-                     title="Add a kind of asset"
-                     lead="A kind of asset this campaign deals in, such as Rackets. Add the assets themselves afterwards."
+    <c-n26.form-page action="{% url 'n26-campaign-add-asset-type' campaign.pk %}"
+                     title="Add an asset type"
+                     lead="An asset type this campaign deals in, such as Rackets. Add the assets themselves afterwards."
                      :form="form"
-                     submit_label="Add kind"
+                     submit_label="Add asset type"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -31,19 +31,19 @@ are, so the form posts with no script and a redisplay keeps the pick.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Add a kind of asset
+                    Add an asset type
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="The kind">
+        <c-n26.form-section title="The asset type">
             <c-ui.field label="Label *"
                         description='What one of these is called, e.g. "Racket".'
                         error="x"
                         :form="form"
                         name="label_singular"
-                        for="kind-label">
-                <c-ui.input id="kind-label"
+                        for="asset-type-label">
+                <c-ui.input id="asset-type-label"
                             name="label_singular"
                             autocomplete="off"
                             value="{{ form.label_singular.value|default:'' }}" />
@@ -53,21 +53,21 @@ are, so the form posts with no script and a redisplay keeps the pick.
                         error="x"
                         :form="form"
                         name="label_plural"
-                        for="kind-plural">
-                <c-ui.input id="kind-plural"
+                        for="asset-type-plural">
+                <c-ui.input id="asset-type-plural"
                             name="label_plural"
                             autocomplete="off"
                             value="{{ form.label_plural.value|default:'' }}" />
             </c-ui.field>
         </c-n26.form-section>
-        <c-n26.form-section title="How it behaves">
-            <c-n26.radio-cards label="How it behaves *" :form="form" name="mode">
-                {% for mode in modes %}
-                    <c-n26.radio-cards.card name="mode"
-                                            value="{{ mode.value }}"
-                                            label="{{ mode.label }}"
-                                            description="{{ mode.description }}"
-                                            :checked="mode.checked" />
+        <c-n26.form-section title="Ownership">
+            <c-n26.radio-cards label="Ownership *" :form="form" name="ownership">
+                {% for ownership in ownerships %}
+                    <c-n26.radio-cards.card name="ownership"
+                                            value="{{ ownership.value }}"
+                                            label="{{ ownership.label }}"
+                                            description="{{ ownership.description }}"
+                                            :checked="ownership.checked" />
                 {% endfor %}
             </c-n26.radio-cards>
         </c-n26.form-section>

@@ -401,7 +401,7 @@ class TestWhatThePageCosts:
     #: The page with the post shut. Session and the signed-in reader, the
     #: gang and its stash, the roster read once for both the offer and
     #: the equip list, the gang's rows and their hydration, the campaign
-    #: tokens the gang holds, the modifier index behind them, the actions
+    #: assets the gang holds, the modifier index behind them, the actions
     #: the gang has open, and the standard Trading Post the receipt links
     #: to. None of it repeats per model.
     BUDGET = 38

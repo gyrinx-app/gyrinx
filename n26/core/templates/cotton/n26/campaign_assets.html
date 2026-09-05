@@ -1,18 +1,20 @@
 {% comment %}
-<c-n26.campaign-assets> — every copy of one kind of asset, as a table.
+<c-n26.campaign-assets> — every asset of one asset type in the campaign, as
+a table.
 
     <c-n26.campaign-assets :table="table" />
 
-One table per pooled kind, headed by the kind's own plural — Territories,
-Rackets — with what each copy is called, what it brings in, what holding it
-does, and who holds it. The holder is a link to the gang's sheet; a copy
-nobody holds says Unclaimed in muted text, a fact and not a control.
+One table per asset type whose ownership is Holding, headed by the type's
+own plural — Territories, Rackets — with what each asset is called, what it
+brings in, what holding it does, and who holds it. The holder is a link to
+the gang's sheet; an asset nobody holds says Unclaimed in muted text, a fact
+and not a control.
 
 The controls are whatever addresses the structure carries. Each leads to a
 page that asks; nothing here acts on a click. A reader whose structure
 carries no addresses sees a table with no controls, not a table of disabled
-ones — the view fills them for the arbitrator, and the take-away and the
-transfer for the owner of the holding gang, whose transfer reads "Hand over".
+ones — the view fills them for the arbitrator, and Unassign and the transfer
+for the owner of the holding gang, whose transfer reads "Hand over".
 
   :table — a n26.render.CampaignAssetTable.
 {% endcomment %}
@@ -22,15 +24,28 @@ transfer for the owner of the holding gang, whose transfer reads "Hand over".
     <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 class="text-base font-semibold text-ink-900 dark:text-ink-100">
             {{ table.plural }}
-            {% if table.copies %}
+            {% if table.entries %}
                 <span class="ml-1 text-sm font-normal text-muted">{{ table.held }} held, {{ table.unclaimed }} unclaimed</span>
             {% endif %}
         </h3>
-        {% if table.add_href %}
-            <c-ui.button size="xs" variant="default" href="{{ table.add_href }}">Add {{ table.label|lower }}</c-ui.button>
+        {% if table.add_href or table.create_href %}
+            <div class="flex items-center gap-1">
+                {% if table.add_href %}
+                    <c-ui.button size="xs"
+                                 variant="default"
+                                 href="{{ table.add_href }}"
+                                 title="Add one of the campaign type's {{ table.plural|lower }} to this campaign">Add {{ table.label|lower }}</c-ui.button>
+                {% endif %}
+                {% if table.create_href %}
+                    <c-ui.button size="xs"
+                                 variant="default"
+                                 href="{{ table.create_href }}"
+                                 title="Write a new {{ table.label|lower }} for this campaign alone">Create {{ table.label|lower }}</c-ui.button>
+                {% endif %}
+            </div>
         {% endif %}
     </div>
-    {% if table.copies %}
+    {% if table.entries %}
         <c-ui.table>
             <thead>
                 <tr>
@@ -42,48 +57,48 @@ transfer for the owner of the holding gang, whose transfer reads "Hand over".
                 </tr>
             </thead>
             <tbody>
-                {% for copy in table.copies %}
+                {% for entry in table.entries %}
                     <tr>
                         <td class="min-w-40">
-                            <span class="font-semibold text-ink-900 dark:text-ink-100">{{ copy.name }}</span>
-                            {% if copy.asset_name %}<span class="block text-xs text-muted">{{ copy.asset_name }}</span>{% endif %}
+                            <span class="font-semibold text-ink-900 dark:text-ink-100">{{ entry.name }}</span>
+                            {% if entry.asset_name %}<span class="block text-xs text-muted">{{ entry.asset_name }}</span>{% endif %}
                         </td>
                         <td class="text-right tabular-nums whitespace-nowrap">
-                            {% if copy.income %}{{ copy.income }}¢{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                            {% if entry.income %}{{ entry.income }}¢{% else %}<span class="text-muted">&mdash;</span>{% endif %}
                         </td>
                         <td class="min-w-48 max-w-md text-xs">
-                            {% if copy.boons %}
+                            {% if entry.boons %}
                                 <ul class="flex flex-col gap-0.5">
-                                    {% for boon in copy.boons %}<li>{{ boon }}</li>{% endfor %}
+                                    {% for boon in entry.boons %}<li>{{ boon }}</li>{% endfor %}
                                 </ul>
                             {% else %}
                                 <span class="text-muted">&mdash;</span>
                             {% endif %}
                         </td>
                         <td class="whitespace-nowrap">
-                            {% if copy.held %}
-                                <c-n26.link href="{{ copy.holder_href }}">{{ copy.holder }}</c-n26.link>
+                            {% if entry.held %}
+                                <c-n26.link href="{{ entry.holder_href }}">{{ entry.holder }}</c-n26.link>
                             {% else %}
                                 <span class="text-muted">Unclaimed</span>
                             {% endif %}
                         </td>
                         <td class="text-right whitespace-nowrap">
-                            {% if copy.take_away_href or copy.transfer_href or copy.grant_href or copy.drop_href %}
+                            {% if entry.unassign_href or entry.transfer_href or entry.assign_href or entry.remove_href %}
                                 <div class="flex items-center justify-end gap-1">
-                                    {% if copy.transfer_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ copy.transfer_href }}">{{ copy.transfer_label }}</c-ui.button>
+                                    {% if entry.transfer_href %}
+                                        <c-ui.button size="xs" variant="default" href="{{ entry.transfer_href }}">{{ entry.transfer_label }}</c-ui.button>
                                     {% endif %}
-                                    {% if copy.take_away_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ copy.take_away_href }}">Unassign</c-ui.button>
+                                    {% if entry.unassign_href %}
+                                        <c-ui.button size="xs" variant="default" href="{{ entry.unassign_href }}">Unassign</c-ui.button>
                                     {% endif %}
-                                    {% if copy.grant_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ copy.grant_href }}">Assign</c-ui.button>
+                                    {% if entry.assign_href %}
+                                        <c-ui.button size="xs" variant="default" href="{{ entry.assign_href }}">Assign</c-ui.button>
                                     {% endif %}
-                                    {% if copy.drop_href %}
+                                    {% if entry.remove_href %}
                                         <c-ui.button size="xs"
                                                      variant="ghost"
-                                                     href="{{ copy.drop_href }}"
-                                                     aria-label="Remove {{ copy.name }}"
+                                                     href="{{ entry.remove_href }}"
+                                                     aria-label="Remove {{ entry.name }}"
                                                      title="Remove this asset">
                                             <span class="n26-icon-only">
                                                 <c-n26.icon name="x-mark" class="size-4" />

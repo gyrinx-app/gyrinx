@@ -1,5 +1,5 @@
 {# title: A campaign, whole #}
-{# note: The gang sheet's sibling: the name with the type it was founded on and who runs it, the headline figures where the gang sheet keeps its money, the facts strip beside the controls, then the gangs table, the assets by kind, the people and the battles side by side, and the log. Narrow the window: the tables scroll in their own boxes and the two short sections stack. #}
+{# note: The gang sheet's sibling: the name with the type it was founded on and who runs it, the headline figures where the gang sheet keeps its money, the facts strip beside the controls, then the gangs table, the assets by asset type, the players and the battles side by side, and the log. The arbitrator's Add asset type, Add counter and Add label sit on the headings of the tables they add to. Narrow the window: the tables scroll in their own boxes and the two short sections stack. #}
 {# layout: full #}
 <c-n26.view.campaign-sheet :sheet="campaign_sheet"
                            edit_href="#"
@@ -43,23 +43,9 @@
             Add gang
         </c-ui.button>
     </c-slot>
-    <c-slot name="participants_actions">
+    <c-slot name="players_actions">
         <c-ui.button size="sm" variant="primary" href="#">
             Add players
-        </c-ui.button>
-    </c-slot>
-    <c-slot name="additions_actions">
-        <c-ui.button size="sm" variant="primary" href="#">
-            Add kind of asset
-        </c-ui.button>
-        <c-ui.button size="sm" variant="primary" href="#">
-            Create asset
-        </c-ui.button>
-        <c-ui.button size="sm" variant="primary" href="#">
-            Add counter
-        </c-ui.button>
-        <c-ui.button size="sm" variant="primary" href="#">
-            Add label
         </c-ui.button>
     </c-slot>
     <c-slot name="battles_actions">
@@ -67,7 +53,7 @@
             Record battle
         </c-ui.button>
     </c-slot>
-    <c-slot name="participants">
+    <c-slot name="players">
         <c-ui.table>
             <thead>
                 <tr>
@@ -128,8 +114,7 @@
             <li class="flex gap-3 border-b border-box-border/50 py-2">
                 <span class="w-24 shrink-0 text-right text-sm tabular-nums text-muted">5 Sep 09:12</span>
                 <div class="min-w-0 flex-1">
-                    <p class="text-base"><span class="font-medium">{{ gang_owner }}</span> granted the territory Old Ruins to the gang</p>
-                    <p class="text-sm text-muted">The Ashen Choir</p>
+                    <p class="text-base">Old Ruins went to The Ashen Choir</p>
                 </div>
             </li>
             <li class="flex gap-3 border-b border-box-border/50 py-2">

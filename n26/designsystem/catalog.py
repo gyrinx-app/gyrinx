@@ -1973,9 +1973,10 @@ GROUPS: list[Group] = [
                     "campaign gave sits in the same c-n26.detail-list as the "
                     "gang's own facts, under a heading naming the campaign. An "
                     "asset's row is labelled with the campaign type's word for "
-                    "its class, and its value is this one's name, whether the "
-                    "gang owns it or only holds it; a holding links to the campaign's assets "
-                    "because it can change hands. The tally controls beside a "
+                    "its asset type, and its value is this one's name, whether "
+                    "the gang owns it or only holds it; a holding links to the "
+                    "campaign's assets because another gang may hold it next. "
+                    "The tally controls beside a "
                     "counter are drawn only where the line carries an address, "
                     "which n26.core.views.owned.link_counters sets for the "
                     "gang's owner alone."
@@ -2004,7 +2005,7 @@ GROUPS: list[Group] = [
                 notes=(
                     "A real table over c-ui.table, which wraps it in its own "
                     "scroll box. The columns are the sheet's own: one per "
-                    "campaign counter, then one per asset kind, laid out by "
+                    "campaign counter, then one per asset type, laid out by "
                     "position, so a value lands under its heading by index. "
                     "Every empty value is an em dash. Each gang's href must be "
                     "filled by the view; the component reverses no addresses."
@@ -2014,14 +2015,15 @@ GROUPS: list[Group] = [
                 slug="campaign-assets",
                 tag="c-n26.campaign-assets",
                 template="n26/campaign_assets.html",
-                summary="Every copy of one kind of asset, as a table.",
+                summary="Every asset of one asset type in the campaign, as a table.",
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "One call per pooled kind. The controls are whatever "
-                    "addresses the structure carries — grant, take away, drop "
-                    "and add — so a reader who may not act sees no controls "
-                    "rather than disabled ones; n26.core.views.campaigns fills "
-                    "them for the arbitrator and the holding gang's owner."
+                    "One call per asset type whose ownership is Holding. The "
+                    "controls are whatever addresses the structure carries — "
+                    "Assign, Unassign, Transfer, Remove, Add and Create "
+                    "— so a reader who may not act sees no controls rather "
+                    "than disabled ones; n26.core.views.campaigns fills them "
+                    "for the arbitrator and the holding gang's owner."
                 ),
             ),
             Component(
@@ -2570,10 +2572,13 @@ GROUPS: list[Group] = [
                     "figures in the corner, the facts strip beside the page's "
                     "controls, then the sections at one heading scale. The "
                     "gangs table and the assets tables are drawn from the "
-                    "sheet; participants, battles and the log arrive as slots "
-                    "because each names addresses. Every slot is declared: the "
-                    "page filling this calls its context `battles` and "
-                    "`participants` too, and an undeclared slot would draw those."
+                    "sheet; players, battles and the log arrive as slots "
+                    "because each names addresses. What the arbitrator adds "
+                    "sits where it shows: Add asset type on the Assets heading, "
+                    "Add counter and Add label on the Gangs heading. Every slot "
+                    "is declared: the page filling this calls its context "
+                    "`battles` and `players` too, and an undeclared slot would "
+                    "draw those."
                 ),
             ),
             Component(

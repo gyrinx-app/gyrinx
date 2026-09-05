@@ -5,8 +5,9 @@
 
 A real table, because what a reader does here is compare gangs down a column:
 whose rating is highest, who holds which territories, where Reputation stands.
-The columns are the sheet's own — one per campaign counter, then one per asset
-kind — laid out by position, so the component names nothing the campaign type
+The columns are the sheet's own — one per campaign counter, one per label the
+arbitrator asks, then one per asset type — laid out by position, so the
+component names nothing the campaign type
 did not.
 
 The gang cell carries the name, and under it the type and whose gang it is: a
@@ -15,7 +16,7 @@ whose would send the reader to the sheet to find out. The name is a link to
 the gang's sheet, which opens for anybody holding the address.
 
 Every empty value is an em dash, never a blank. A counter a gang does not
-carry and a kind of which it has nothing both read as "none" rather than as a
+carry and an asset type of which it has nothing both read as "none" rather than as a
 cell that failed to fill.
 
 A counter cell carries the same controls a gang sheet draws beside a counter,
@@ -24,7 +25,7 @@ arbitrator on every gang, and for a gang's owner on their own. Everybody else
 reads the number alone.
 
 Scrolls sideways inside its own box, which the kit's table wrapper provides,
-so a campaign with several counters and kinds never widens the page.
+so a campaign with several counters and asset types never widens the page.
 
   :sheet — a n26.render.CampaignSheet. Each gang's `href` should already be
     filled; a gang with none draws as plain text.
@@ -38,7 +39,8 @@ so a campaign with several counters and kinds never widens the page.
             <th scope="col" class="text-right">Rating</th>
             <th scope="col" class="text-right">Credits</th>
             {% for name in sheet.counter_columns %}<th scope="col" class="text-right">{{ name }}</th>{% endfor %}
-            {% for kind in sheet.asset_kinds %}<th scope="col">{{ kind.plural }}</th>{% endfor %}
+            {% for name in sheet.label_columns %}<th scope="col">{{ name }}</th>{% endfor %}
+            {% for asset_type in sheet.asset_types %}<th scope="col">{{ asset_type.plural }}</th>{% endfor %}
         </tr>
     </thead>
     <tbody>
@@ -77,6 +79,11 @@ so a campaign with several counters and kinds never widens the page.
                             {{ line.value }}
                             {% if line.href %}<c-n26.counter-controls :counter="line" />{% endif %}
                         {% endif %}
+                    </td>
+                {% endfor %}
+                {% for pick in gang.labels %}
+                    <td class="whitespace-nowrap">
+                        {% if pick %}{{ pick }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
                     </td>
                 {% endfor %}
                 {% for names in gang.assets %}

@@ -40,11 +40,9 @@ from n26.core.hire import (
 from n26.core.images import MAX_PX, PORTRAIT
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
-    AdditionLine,
-    AssetKindColumn,
+    AssetTypeColumn,
     AssignableLine,
-    CampaignAdditions,
-    CampaignAssetCopy,
+    CampaignAssetEntry,
     CampaignAssetLine,
     CampaignAssetTable,
     CampaignBlock,
@@ -1991,7 +1989,7 @@ def gang_sheet():
             assets_href="#",
             lines=[
                 CampaignAssetLine(
-                    kind_label="Settlement",
+                    type_label="Settlement",
                     name="Settlement",
                     provenance=Provenance(
                         source="Territory campaign", source_kind="campaign type"
@@ -2015,7 +2013,7 @@ def gang_sheet():
             ],
             holdings=[
                 CampaignAssetLine(
-                    kind_label="Territory",
+                    type_label="Territory",
                     name="Old Ruins",
                     income=30,
                     campaign_asset_id="old-ruins",
@@ -2176,7 +2174,7 @@ def gang_sheet_context():
     a_visit = VisitLine(trade_points_left=3, href="#")
     # Fixed times, counted back from when the page is drawn, so the
     # relative times the square prints read as a story rather than as
-    # five copies of one date frozen at the moment this file was written.
+    # five entries of one date frozen at the moment this file was written.
     now = timezone.now()
     lately = tuple(
         HistoryLine(when=now - timedelta(minutes=minutes), actor=actor, told=told)
@@ -2256,17 +2254,22 @@ def gang_sheet_context():
 
 # --------------------------------------------------------------------- campaign
 
-#: The sample campaign's kinds, the shared type's first: a Settlement every
-#: gang holds, then the two kinds that change hands — Territories from the
+#: The sample campaign's asset types, the shared type's first: a Settlement
+#: every gang has its own of, then the two holdings — Territories from the
 #: type and a Racket the arbitrator added.
-CAMPAIGN_KINDS = [
-    AssetKindColumn(
-        kind_id="settlement", label="Settlement", plural="Settlements", pooled=False
+CAMPAIGN_ASSET_TYPES = [
+    AssetTypeColumn(
+        asset_type_id="settlement",
+        label="Settlement",
+        plural="Settlements",
+        holding=False,
     ),
-    AssetKindColumn(
-        kind_id="territory", label="Territory", plural="Territories", pooled=True
+    AssetTypeColumn(
+        asset_type_id="territory", label="Territory", plural="Territories", holding=True
     ),
-    AssetKindColumn(kind_id="racket", label="Racket", plural="Rackets", pooled=True),
+    AssetTypeColumn(
+        asset_type_id="racket", label="Racket", plural="Rackets", holding=True
+    ),
 ]
 
 
@@ -2278,7 +2281,8 @@ def campaign_sheet():
     territories held and unclaimed, one with a name of its own; a racket
     nobody holds yet. Every address is "#" — the gallery has no campaign
     behind it — which is also the state the controls take for the
-    arbitrator, so the table is seen with its buttons on.
+    arbitrator, so the tables are seen with their buttons on, including
+    the arbitrator's own Add asset type, Add counter and Add label.
     """
     return CampaignSheet(
         name="Dust Falls",
@@ -2295,19 +2299,12 @@ def campaign_sheet():
             "hands after every battle; the arbitrator settles ties at the "
             "table.</p>"
         ),
-        additions=["Meat", "Alignment"],
-        added=CampaignAdditions(
-            kinds=[AdditionLine(name="Racket", detail="changes hands")],
-            assets=[AdditionLine(name="Protection", detail="Racket · income 10¢")],
-            counters=[AdditionLine(name="Meat", detail="opens at 3")],
-            labels=[AdditionLine(name="Alignment", detail="Law Abiding, Outlaw")],
-            add_kind_href="#",
-            add_asset_href="#",
-            add_counter_href="#",
-            add_label_href="#",
-        ),
+        add_asset_type_href="#",
+        add_counter_href="#",
+        add_label_href="#",
         counter_columns=["Reputation", "Meat"],
-        asset_kinds=CAMPAIGN_KINDS,
+        label_columns=["Alignment"],
+        asset_types=CAMPAIGN_ASSET_TYPES,
         gangs=[
             CampaignGangLine(
                 gang_id="gravebolt-kin",
@@ -2337,6 +2334,7 @@ def campaign_sheet():
                         back="#",
                     ),
                 ],
+                labels=["Outlaw"],
                 assets=[["Settlement"], ["Toll Crossing"], []],
                 href="#",
             ),
@@ -2360,6 +2358,7 @@ def campaign_sheet():
                     ),
                     None,
                 ],
+                labels=[""],
                 assets=[["Settlement"], [], []],
                 href="#",
             ),
@@ -2390,6 +2389,7 @@ def campaign_sheet():
                         back="#",
                     ),
                 ],
+                labels=["Law Abiding"],
                 assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"], []],
                 href="#",
                 yours=True,
@@ -2397,13 +2397,14 @@ def campaign_sheet():
         ],
         assets=[
             CampaignAssetTable(
-                kind_id="territory",
+                asset_type_id="territory",
                 label="Territory",
                 plural="Territories",
                 add_href="#",
-                copies=[
-                    CampaignAssetCopy(
-                        copy_id="old-ruins",
+                create_href="#",
+                entries=[
+                    CampaignAssetEntry(
+                        campaign_asset_id="old-ruins",
                         name="Old Ruins",
                         income=30,
                         boons=[
@@ -2415,11 +2416,11 @@ def campaign_sheet():
                         holder_gang_id="the-ashen-choir",
                         holder_href="#",
                         holder_yours=True,
-                        take_away_href="#",
+                        unassign_href="#",
                         transfer_href="#",
                     ),
-                    CampaignAssetCopy(
-                        copy_id="old-ruins-sump",
+                    CampaignAssetEntry(
+                        campaign_asset_id="old-ruins-sump",
                         name="Old Ruins by the sump",
                         asset_name="Old Ruins",
                         income=30,
@@ -2432,39 +2433,40 @@ def campaign_sheet():
                         holder_gang_id="the-ashen-choir",
                         holder_href="#",
                         holder_yours=True,
-                        take_away_href="#",
+                        unassign_href="#",
                     ),
-                    CampaignAssetCopy(
-                        copy_id="toll-crossing",
+                    CampaignAssetEntry(
+                        campaign_asset_id="toll-crossing",
                         name="Toll Crossing",
                         income=20,
                         held=True,
                         holder="Gravebolt Kin",
                         holder_gang_id="gravebolt-kin",
                         holder_href="#",
-                        take_away_href="#",
+                        unassign_href="#",
                     ),
-                    CampaignAssetCopy(
-                        copy_id="collapsed-dome",
+                    CampaignAssetEntry(
+                        campaign_asset_id="collapsed-dome",
                         name="Collapsed Dome",
                         income=10,
-                        grant_href="#",
-                        drop_href="#",
+                        assign_href="#",
+                        remove_href="#",
                     ),
                 ],
             ),
             CampaignAssetTable(
-                kind_id="racket",
+                asset_type_id="racket",
                 label="Racket",
                 plural="Rackets",
                 add_href="#",
-                copies=[
-                    CampaignAssetCopy(
-                        copy_id="protection",
+                create_href="#",
+                entries=[
+                    CampaignAssetEntry(
+                        campaign_asset_id="protection",
                         name="Protection",
                         boons=["Adds 1 to the gang's Meat."],
-                        grant_href="#",
-                        drop_href="#",
+                        assign_href="#",
+                        remove_href="#",
                     ),
                 ],
             ),
@@ -2488,12 +2490,7 @@ def campaign_sheet_context():
             gang_name=gang_name,
         )
         for minutes, actor, spans, gang_name in (
-            (
-                12,
-                OWNER,
-                ("granted the territory ", "Old Ruins", " to the gang"),
-                "The Ashen Choir",
-            ),
+            (12, "", ("Old Ruins", " went to The Ashen Choir"), ""),
             (40, "marta", ("hired Brakk, a Ganger",), "Gravebolt Kin"),
             (95, OWNER, ("recorded a battle fought on 4 September",), ""),
             (3 * 60, OWNER, ("added the asset Collapsed Dome",), ""),
@@ -2505,7 +2502,7 @@ def campaign_sheet_context():
     return {
         "campaign_sheet": campaign_sheet(),
         "campaign_acts": acts,
-        "campaign_participants": [
+        "campaign_players": [
             {"username": "marta", "state": "accepted"},
             {"username": "ossian", "state": "accepted"},
             {"username": "vey", "state": "invited"},
@@ -2647,7 +2644,7 @@ def carried():
     """What the fighter buying from the sample list is already holding.
 
     Keyed the way :func:`n26.core.owned.owned_things` keys it — by the
-    content row, not by the copy — so ``build_catalogue`` joins it to the
+    content row, not by the entry — so ``build_catalogue`` joins it to the
     catalogue exactly as the application does. The shell's owned rows are
     owned rows because the real function said so, and not because a
     template drew them differently.
@@ -2661,7 +2658,7 @@ def carried():
     """
     from n26.core.owned import OwnedPart, OwnedThing, thing_key
 
-    def copy(name, rating, index=0, parts=(), chosen=(), fit_href=""):
+    def entry(name, rating, index=0, parts=(), chosen=(), fit_href=""):
         stock = _stock(name)
         pk = f"{stock.pk}-{index}"
         return thing_key(stock), OwnedThing(
@@ -2689,21 +2686,21 @@ def carried():
     )
     held = {}
     for key, thing in (
-        copy("Meltagun", 135, parts=(round_,)),
-        copy("Stub gun", 5, index=0),
-        copy("Stub gun", 5, index=1),
+        entry("Meltagun", 135, parts=(round_,)),
+        entry("Stub gun", 5, index=0),
+        entry("Stub gun", 5, index=1),
         # A mount bought with one option taken from each of its two sets
         # — the options themselves, never the author's name for the set
         # they came from. The list's other mount is left unbought, so one
         # of the two draws its controls and the other draws its picks.
-        copy(
+        entry(
             "Ridge-runner",
             125,
             chosen=("Ridge-runner harpoon", "Ridge-runner spikes"),
         ),
         # An accessory nothing is holding yet, so its row is the one that
         # offers to bolt it onto one of the guns above.
-        copy("Infra-sight", 40, fit_href="#"),
+        entry("Infra-sight", 40, fit_href="#"),
     ):
         held.setdefault(key, []).append(thing)
     return held
@@ -2727,7 +2724,7 @@ def owned_context():
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
     return {
         "owned_copies": [
-            copy_row(thing) for copies in carried().values() for thing in copies
+            copy_row(thing) for entries in carried().values() for thing in entries
         ],
         # The gun and its round together, which is what a sale of the gun
         # is priced on: what goes with it counts towards what it fetches.
@@ -2816,7 +2813,7 @@ def owned_context():
         # The mount the sample fighter owns, reopened on its alternatives.
         # Built by the real loader from the real offer, so what starts
         # picked here is decided the way the application decides it: the
-        # harpoon and the spikes, which is what the copy was bought with.
+        # harpoon and the spikes, which is what the entry was bought with.
         "owned_rechoose_dialog": {
             **named,
             "kind": "rechoose",

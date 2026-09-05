@@ -2,25 +2,25 @@
 
 A **campaign type** is to a campaign what a gang type is to a gang: the
 authored thing it is founded on. It holds a built-in set (what every
-member gang gets), campaign-wide modifiers, and its **asset kinds**, each
-of which lists the **assets** of that kind. Shared types live in the
-system pack; an arbitrator's additions to one campaign live in that
-campaign's own pack as a second type layered on top. See
+member gang gets), campaign-wide modifiers, and its **asset types**, each
+of which lists the **assets** of that type. Shared types live in the
+system pack; an arbitrator's own additions to one campaign live in that
+campaign's own pack as a second campaign type layered on top. See
 design/campaign-assets.md.
 
-An **asset kind** is a row on the type with a label and a mode. The mode
-is on the kind rather than the asset because it is a whole class of
-asset that behaves one way: a Settlement is given to every gang on
-joining and never staked; a Territory is a token the campaign keeps,
-with one holder at a time.
+An **asset type** is a row on the campaign type with a label and an
+ownership. The ownership is on the asset type rather than the asset
+because a whole class of asset behaves one way: a Settlement is a
+possession, given to every gang on joining and kept; a Territory is a
+holding, kept by the campaign with one holder at a time.
 
 An **asset** is one entry in a campaign type's list of what it hands
-out, filed under one of the type's kinds — that is the whole of how it
-belongs to the type, and it is authored on the type's page. It is
-assignable so that a held-one-each asset can be a built-in member and
-so that either mode can carry modifiers for what holding it does. An
-asset that changes hands is never assigned; the campaign's copy records
-who holds it.
+out, filed under one of the type's asset types — that is the whole of
+how it belongs to the campaign type, and it is authored on the campaign
+type's page. It is assignable so that a possession can be a built-in
+member and so that either ownership can carry modifiers for what having
+it does. A holding is never assigned; the campaign's own record of the
+asset says who holds it.
 """
 
 from django.db import models
@@ -41,12 +41,12 @@ class CampaignType(Content, Assignable):
     Assignable for the same reason a gang type is: joining a campaign is a
     gang-hosted assignment naming its type. That gives the built-ins every
     member gang arrives with — a Reputation counter, a Settlement —
-    something to be caused by, and gives campaign-wide modifiers a carrier
-    every member's card can find.
+    something to be caused by, and puts campaign-wide modifiers on every
+    member's card.
 
-    It also declares its **asset kinds** — Territory, Racket, Settlement —
-    and under each kind lists the **assets** a campaign of this type hands
-    out. Its pricing fields stay at zero; nobody buys a campaign type.
+    It also declares its **asset types** — Territory, Racket, Settlement —
+    and under each asset type lists the **assets** a campaign of this type
+    hands out. Its pricing fields stay at zero; nobody buys a campaign type.
 
     The **description** is the one field here written for a player: the
     arbitrator setting a campaign up reads it on the set-up screen. The
@@ -85,42 +85,41 @@ class CampaignType(Content, Assignable):
 
     @property
     def assets(self):
-        """Every asset this type hands out: the assets of its kinds.
+        """Every asset this type hands out: the assets of its asset types.
 
-        An asset belongs to one kind and the kind to one type, so this is
-        the whole relationship — there is no list on the type to keep in
-        step with it. Archived assets are included, as a plain read is;
-        a surface offering new copies narrows with ``unarchived()``.
+        An asset belongs to one asset type and the asset type to one
+        campaign type, so this is the whole relationship — there is no
+        list on the campaign type to keep in step with it. Archived assets
+        are included, as a plain read is; a surface offering new campaign
+        assets narrows with ``unarchived()``.
         """
-        return Asset.objects.filter(kind__campaign_type=self)
+        return Asset.objects.filter(asset_type__campaign_type=self)
 
-    def pooled_assets(self):
-        """The assets a campaign of this type can keep copies of: those of
-        its kinds that change hands. A held-one-each asset is every member
-        gang's own, and the campaign keeps no copies of it."""
-        return self.assets.filter(kind__mode=AssetKind.Mode.POOLED)
+    def holding_assets(self):
+        """The assets a campaign of this type keeps and hands between gangs:
+        those of its asset types whose ownership is Holding. A possession
+        is every member gang's own, and the campaign keeps none of it."""
+        return self.assets.filter(asset_type__ownership=AssetType.Ownership.HOLDING)
 
 
-class AssetKind(Content):
+class AssetType(Content):
     """A class of asset a campaign type has — Territory, Racket,
-    Settlement — with the label a campaign page prints and the mode that
-    fixes how every asset of the kind behaves.
+    Settlement — with the label a campaign page prints and the ownership
+    that fixes how every asset of the type behaves.
 
-    **Held one each** means every gang is given one when it joins and
-    keeps it: a Settlement, a home territory. **Changes hands** means the
-    campaign keeps the copies and each copy has one holder at a time: a
-    Territory, a Racket, a Relic.
+    **Possession** means every gang has its own and keeps it: a
+    Settlement, a home territory. **Holding** means one gang holds it at a
+    time, and it can change hands: a Territory, a Racket, a Relic.
     """
 
-    class Mode(models.TextChoices):
-        #: Given to every gang on joining, never staked.
-        HELD_ONE_EACH = "held-one-each", "Held one each"
-        #: A token the campaign keeps, with one holder at a time. The value
-        #: is what stored rows say and stays as it is.
-        POOLED = "pooled", "Changes hands"
+    class Ownership(models.TextChoices):
+        #: Every gang has its own and keeps it.
+        POSSESSION = "held-one-each", "Possession"
+        #: One gang holds it at a time, and it can change hands.
+        HOLDING = "pooled", "Holding"
 
     campaign_type = models.ForeignKey(
-        CampaignType, on_delete=models.CASCADE, related_name="asset_kinds"
+        CampaignType, on_delete=models.CASCADE, related_name="asset_types"
     )
     label_singular = models.CharField(
         max_length=200,
@@ -137,31 +136,31 @@ class AssetKind(Content):
             "and an s is added."
         ),
     )
-    mode = models.CharField(
+    ownership = models.CharField(
         max_length=20,
-        choices=Mode,
+        choices=Ownership,
+        verbose_name="Ownership",
         help_text=(
-            "Held one each: every gang is given one when it joins and keeps "
-            "it. Changes hands: the campaign keeps the copies, and each copy "
-            "has one holder at a time."
+            "Possession: every gang has its own and keeps it. Holding: one "
+            "gang holds it at a time, and it can change hands."
         ),
     )
     position = models.PositiveIntegerField(
         default=0,
-        help_text="Where this kind sits in the campaign's listing.",
+        help_text="Where this asset type sits in the campaign's listing.",
     )
 
     class Meta:
-        verbose_name = "asset kind"
-        verbose_name_plural = "asset kinds"
+        verbose_name = "asset type"
+        verbose_name_plural = "asset types"
         # The id rather than the relation: ordering by the relation would
-        # join the type and sort by its own ordering on every read.
+        # join the campaign type and sort by its own ordering on every read.
         ordering = ["campaign_type_id", "position", "label_singular"]
         constraints = [
             models.UniqueConstraint(
                 "campaign_type",
                 Lower("label_singular"),
-                name="asset_kind_unique_label_per_type",
+                name="asset_type_unique_label_per_campaign_type",
             ),
         ]
 
@@ -174,40 +173,41 @@ class AssetKind(Content):
         return self.label_plural or f"{self.label_singular}s"
 
     @property
-    def is_pooled(self):
-        return self.mode == self.Mode.POOLED
+    def is_holding(self):
+        return self.ownership == self.Ownership.HOLDING
 
     @property
     def authoring_label(self):
-        """The label with the type it belongs to, for a picker that offers
-        every campaign type's kinds at once."""
+        """The label with the campaign type it belongs to, for a picker that
+        offers every campaign type's asset types at once."""
         return f"{self.label_singular} ({self.campaign_type})"
 
 
 class Asset(Content, Assignable):
     """One thing a campaign has — a Settlement, the Old Ruins
-    territory, a Racket — of one asset kind.
+    territory, a Racket — of one asset type.
 
     An asset is one entry in the list of what its campaign type hands
-    out, and is added on that type's page under its kind. Its **income**
-    is a figure drawn on the card; nothing collects it. What holding it
-    does for the holder rides it as ordinary modifiers.
+    out, and is added on that campaign type's page under its asset type.
+    Its **income** is a figure drawn on the card; nothing collects it.
+    What having it does for the gang rides it as ordinary modifiers.
 
-    Assignable so that an asset of a held-one-each kind can be built into
-    its campaign type and arrive on every member gang, and so that an
-    asset of either kind can carry modifiers. An asset that changes hands
-    is never assigned: the campaign's copy records who holds it.
+    Assignable so that a possession can be built into its campaign type
+    and arrive on every member gang, and so that an asset of either
+    ownership can carry modifiers. A holding is never assigned: the
+    campaign's own record of the asset says who holds it.
     """
 
     family = Family.BASE
 
-    kind = models.ForeignKey(
-        AssetKind,
+    asset_type = models.ForeignKey(
+        AssetType,
         on_delete=models.PROTECT,
         related_name="assets",
+        verbose_name="Asset type",
         help_text=(
-            "Which kind this asset is one of. Settled when the asset is made "
-            "on its campaign type's page, and never changed afterwards."
+            "Which asset type this asset is one of. Settled when the asset is "
+            "made on its campaign type's page, and never changed afterwards."
         ),
     )
     income = models.PositiveIntegerField(
@@ -234,5 +234,5 @@ class Asset(Content, Assignable):
 
     @property
     def campaign_type(self):
-        """The type whose asset kind this belongs to."""
-        return self.kind.campaign_type
+        """The campaign type whose asset type this belongs to."""
+        return self.asset_type.campaign_type

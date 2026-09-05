@@ -87,7 +87,7 @@ def create_campaign_type(
     name, qualifier="", description="", library_author_help="", **kwargs
 ):
     """A kind of campaign, for a campaign to be founded on. Its asset
-    kinds are added afterwards with ``add_asset_kind``, and its assets
+    types are added afterwards with ``add_asset_type``, and its assets
     under those with ``create_asset``. Stored stripped, as a gang type's
     name is. The description is for the arbitrator founding on the type;
     the author help is for whoever builds content against it."""
@@ -105,79 +105,87 @@ def create_campaign_type(
     )
 
 
-def add_asset_kind(
-    campaign_type, label_singular, mode, label_plural="", position=None, **kwargs
+def add_asset_type(
+    campaign_type, label_singular, ownership, label_plural="", position=None, **kwargs
 ):
-    """One class of asset a campaign type deals in, at the end of its
-    listing unless placed. Two kinds of one type cannot share a label,
-    whatever the case: a campaign page would print two headings that read
-    the same.
+    """One asset type a campaign type deals in, at the end of its listing
+    unless placed. Two asset types of one campaign type cannot share a
+    label, whatever the case: a campaign page would print two headings
+    that read the same.
 
-    A kind is part of its type, so it lands in the type's pack unless
-    told otherwise — a type in a campaign's own pack keeps its kinds there.
+    An asset type is part of its campaign type, so it lands in that type's
+    pack unless told otherwise — a campaign type in a campaign's own pack
+    keeps its asset types there.
     """
-    from n26.library.models import AssetKind
+    from n26.library.models import AssetType
 
     if "pack" not in kwargs and "pack_id" not in kwargs:
         kwargs["pack_id"] = campaign_type.pack_id
     label_singular = (label_singular or "").strip()
     if not label_singular:
-        raise ValidationError("An asset kind needs a label.")
-    if campaign_type.asset_kinds.filter(label_singular__iexact=label_singular).exists():
+        raise ValidationError("An asset type needs a label.")
+    if campaign_type.asset_types.filter(label_singular__iexact=label_singular).exists():
         raise ValidationError(
-            f"{campaign_type} already has an asset kind called “{label_singular}”."
+            f"{campaign_type} already has an asset type called “{label_singular}”."
         )
     if position is None:
-        last = campaign_type.asset_kinds.aggregate(last=Max("position"))["last"]
+        last = campaign_type.asset_types.aggregate(last=Max("position"))["last"]
         position = 0 if last is None else last + 1
-    return AssetKind.objects.create(
+    return AssetType.objects.create(
         campaign_type=campaign_type,
         label_singular=label_singular,
         label_plural=label_plural,
-        mode=mode,
+        ownership=ownership,
         position=position,
         **kwargs,
     )
 
 
-def remove_asset_kind(kind):
-    """Take an asset kind off its campaign type.
+def remove_asset_type(asset_type):
+    """Take an asset type off its campaign type.
 
-    Refused in words while any asset is of this kind: each of those
-    would be left of no kind at all, and the database would refuse the
-    delete with nobody's name on it. An asset's kind is settled when it
-    is made, so the way clear is to delete the assets first.
+    Refused in words while any asset is of this type: each of those would
+    be left of no type at all, and the database would refuse the delete
+    with nobody's name on it. An asset's type is settled when it is made,
+    so the way clear is to delete the assets first.
     """
-    count = kind.assets.count()
+    count = asset_type.assets.count()
     if count:
         noun = "asset is" if count == 1 else "assets are"
         them = "it" if count == 1 else "them"
         raise ValidationError(
-            f"{count} {noun} of the kind {kind}. Delete {them} before removing {kind}."
+            f"{count} {noun} of the asset type {asset_type}. Delete {them} before "
+            f"removing {asset_type}."
         )
-    kind.delete()
+    asset_type.delete()
 
 
 def create_asset(
-    name, kind, annotation="", income=0, qualifier="", library_author_help="", **kwargs
+    name,
+    asset_type,
+    annotation="",
+    income=0,
+    qualifier="",
+    library_author_help="",
+    **kwargs,
 ):
-    """One asset of one kind — a Settlement, the Old Ruins territory.
+    """One asset of one asset type — a Settlement, the Old Ruins territory.
 
-    An asset is one entry in its kind's campaign type's list, so it lands
-    in that type's pack unless told otherwise — a type in a campaign's
-    own pack keeps its assets there. A blank name is refused here rather
-    than drawn as an empty line on a campaign page.
+    An asset is one entry in its campaign type's list, so it lands in that
+    type's pack unless told otherwise — a campaign type in a campaign's own
+    pack keeps its assets there. A blank name is refused here rather than
+    drawn as an empty line on a campaign page.
     """
     from n26.library.models import Asset
 
     if "pack" not in kwargs and "pack_id" not in kwargs:
-        kwargs["pack_id"] = kind.pack_id
+        kwargs["pack_id"] = asset_type.pack_id
     name = (name or "").strip()
     if not name:
         raise ValidationError("An asset needs a name.")
     return Asset.objects.create(
         name=name,
-        kind=kind,
+        asset_type=asset_type,
         annotation=annotation,
         income=income,
         qualifier=qualifier,

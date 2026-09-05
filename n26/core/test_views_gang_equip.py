@@ -601,7 +601,7 @@ class TestTheQueryBudget:
 
         # The reader and their session, the gang, its card — two
         # assignment queries, one hydration pass per kind they name and the
-        # campaign's tokens it holds — the roster behind the header's count,
+        # campaign's assets it holds — the roster behind the header's count,
         # which of its lists hold gear, and
         # the browse of the one chosen with its entries, their use lists and
         # their offers. The drawer asks once whether campaigns are open to

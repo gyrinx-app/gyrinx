@@ -2,8 +2,8 @@
 
 A campaign gets the treatment a gang does (design/gang-sheet.md): a plain
 structure holding everything its page draws — the gangs at the table with
-their money, their campaign counters and what they hold, every copy of every
-pooled asset with its holder — built by ``render_campaign`` in a fixed
+their money, their campaign counters and what they hold, every asset of every
+Holding asset type with its holder — built by ``render_campaign`` in a fixed
 number of queries however many gangs are in it. The page is a renderer
 over this; what the campaign *is* is asserted here.
 """
@@ -20,7 +20,7 @@ from n26.core.models import Campaign
 from n26.core.render import render_campaign
 from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
-    add_asset_kind,
+    add_asset_type,
     add_built_in,
     create_asset,
     create_counter,
@@ -36,9 +36,9 @@ from n26.tests.sandbox.actions import (
     add_asset,
     add_campaign_counter,
     add_campaign_label,
+    assign_asset,
     found_campaign,
     found_gang,
-    grant_asset,
     hire,
     hire_with_option,
     join_campaign,
@@ -67,7 +67,7 @@ def campaign(arbitrator, core):
 @pytest.fixture
 def old_ruins(core):
     """A Territory worth Reputation while held, with a named rule."""
-    territory = core.asset_kinds.get(label_singular="Territory")
+    territory = core.asset_types.get(label_singular="Territory")
     asset = create_asset("Old Ruins", territory, income=30)
     reputation = Counter.objects.get(name="Reputation")
     modifier(
@@ -88,15 +88,15 @@ def old_ruins(core):
 @pytest.fixture
 def toll_crossing(core):
     """A Territory with income and nothing else."""
-    territory = core.asset_kinds.get(label_singular="Territory")
+    territory = core.asset_types.get(label_singular="Territory")
     return create_asset("Toll Crossing", territory, income=20)
 
 
 @pytest.fixture
 def protection(campaign):
     """A Racket the arbitrator added to this campaign alone, so a second
-    pooled kind sits beside the shared type's Territory."""
-    racket = add_asset_kind(campaign.additions, "Racket", "pooled")
+    Holding asset type sits beside the shared type's Territory."""
+    racket = add_asset_type(campaign.additions, "Racket", "pooled")
     return create_asset("Protection", racket)
 
 
@@ -161,8 +161,8 @@ class TestTheGangsTable:
     def test_a_held_territory_counts_in_the_reading(self, campaign, gangs, old_ruins):
         """The same reading the gang sheet shows: stored value plus what a
         held asset contributes."""
-        copy = add_asset(campaign, old_ruins)
-        grant_asset(copy, gangs[1])
+        entry = add_asset(campaign, old_ruins)
+        assign_asset(entry, gangs[1])
         reputation = gangs[1].assignments.get(counter__name="Reputation")
         tally(reputation, 2)
 
@@ -183,22 +183,22 @@ class TestTheGangsTable:
         assert readings(line_named(sheet, "Pit of Teeth")) == [None]
         assert readings(line_named(sheet, "The Ashen Choir")) == [0]
 
-    def test_assets_sit_under_their_kind_column(
+    def test_assets_sit_under_their_asset_type_column(
         self, campaign, gangs, old_ruins, toll_crossing, protection
     ):
-        """Every kind the campaign deals in is a column — the shared type's
-        first, then the additions' — and a gang's possessions and holdings
-        land under theirs. A held-one-each Settlement is every gang's."""
+        """Every asset type the campaign deals in is a column — the shared
+        type's first, then the arbitrator's own — and a gang's possessions
+        and holdings land under theirs. A Settlement is every gang's own."""
         ruins = add_asset(campaign, old_ruins)
         toll = add_asset(campaign, toll_crossing, name="The Sump Toll")
         racket = add_asset(campaign, protection)
-        grant_asset(ruins, gangs[1])
-        grant_asset(toll, gangs[1])
-        grant_asset(racket, gangs[0])
+        assign_asset(ruins, gangs[1])
+        assign_asset(toll, gangs[1])
+        assign_asset(racket, gangs[0])
 
         sheet = render_campaign(campaign)
 
-        assert [(kind.plural, kind.pooled) for kind in sheet.asset_kinds] == [
+        assert [(t.plural, t.holding) for t in sheet.asset_types] == [
             ("Settlements", False),
             ("Territories", True),
             ("Rackets", True),
@@ -222,29 +222,29 @@ class TestTheGangsTable:
 
 
 class TestTheAssetsTables:
-    """One table per pooled kind, each copy with its name, income, boons
-    in words, and holder."""
+    """One table per Holding asset type, each asset with its name, income,
+    boons in words, and holder."""
 
-    def test_pooled_kinds_get_a_table_and_held_one_each_kinds_do_not(
+    def test_holdings_get_a_table_and_possessions_do_not(
         self, campaign, gangs, old_ruins, protection
     ):
         sheet = render_campaign(campaign)
         assert [table.plural for table in sheet.assets] == ["Territories", "Rackets"]
-        assert all(table.copies == [] for table in sheet.assets)
+        assert all(table.entries == [] for table in sheet.assets)
 
-    def test_a_copy_says_what_it_is_and_who_holds_it(
+    def test_an_asset_says_what_it_is_and_who_holds_it(
         self, campaign, gangs, old_ruins, arbitrator
     ):
         named = add_asset(campaign, old_ruins, name="Old Ruins by the sump")
         plain = add_asset(campaign, old_ruins)
-        grant_asset(named, gangs[1])
+        assign_asset(named, gangs[1])
 
         sheet = render_campaign(campaign, viewer=gangs[1].owner)
         (territories,) = sheet.assets
-        by_name = {copy.name: copy for copy in territories.copies}
+        by_name = {entry.name: entry for entry in territories.entries}
 
         held = by_name["Old Ruins by the sump"]
-        assert held.copy_id == str(named.pk)
+        assert held.campaign_asset_id == str(named.pk)
         assert held.asset_name == "Old Ruins"
         assert held.income == 30
         assert held.held and held.holder == "The Ashen Choir"
@@ -254,11 +254,15 @@ class TestTheAssetsTables:
         assert any("Salvage" in boon for boon in held.boons)
 
         unclaimed = by_name["Old Ruins"]
-        assert unclaimed.copy_id == str(plain.pk)
+        assert unclaimed.campaign_asset_id == str(plain.pk)
         assert unclaimed.asset_name == ""
         assert not unclaimed.held and unclaimed.holder == ""
         assert (territories.held, territories.unclaimed) == (1, 1)
-        assert (sheet.copies, sheet.copies_held, sheet.copies_unclaimed) == (2, 1, 1)
+        assert (sheet.asset_count, sheet.assets_held, sheet.assets_unclaimed) == (
+            2,
+            1,
+            1,
+        )
 
     def test_the_headline_names_the_type_and_the_arbitrator(
         self, campaign, gangs, arbitrator
@@ -270,7 +274,6 @@ class TestTheAssetsTables:
         assert sheet.budget == 1000
         assert sheet.gang_count == 3
         assert sheet.battles_fought == 0
-        assert sheet.additions == []
 
 
 class TestTheQueryBudget:
@@ -294,7 +297,7 @@ class TestTheQueryBudget:
         first = found_gang("First", gang_type, owner=User.objects.create_user("one"))
         join_campaign(first, campaign)
         hire(first, profile, "Vex")
-        grant_asset(add_asset(campaign, old_ruins), first)
+        assign_asset(add_asset(campaign, old_ruins), first)
         sheet, few = self.measure(campaign)
         assert len(sheet.gangs) == 1
 
@@ -304,7 +307,7 @@ class TestTheQueryBudget:
             )
             join_campaign(more, campaign)
             hire(more, profile, f"Model {index}")
-            grant_asset(add_asset(campaign, toll_crossing), more)
+            assign_asset(add_asset(campaign, toll_crossing), more)
         sheet, again = self.measure(campaign)
 
         assert len(sheet.gangs) == 4
@@ -316,8 +319,8 @@ class TestTheQueryBudget:
         FeatureFlag.objects.create(
             slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
         )
-        # The arbitrator's additions draw a section of their own, a counter
-        # column with a control in every cell, and a label with its options.
+        # What the arbitrator added draws a counter column with a control in
+        # every cell, and a label every gang is asked.
         # Added before any gang joins, so every gang measured carries the
         # same kinds: the first card carrying a slot pays that kind's
         # hydration once, which is the price of the kind and not of a gang.
@@ -328,7 +331,7 @@ class TestTheQueryBudget:
             gang = found_gang(name, gang_type, owner=User.objects.create_user(name))
             join_campaign(gang, campaign)
             gangs.append(gang)
-        grant_asset(add_asset(campaign, old_ruins), gangs[0])
+        assign_asset(add_asset(campaign, old_ruins), gangs[0])
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk])
         # The first request of a session writes the session row; that is
@@ -345,12 +348,11 @@ class TestTheQueryBudget:
                 owner=User.objects.create_user(f"u{index}"),
             )
             join_campaign(more, campaign)
-            grant_asset(add_asset(campaign, old_ruins), more)
+            assign_asset(add_asset(campaign, old_ruins), more)
 
         with CaptureQueriesContext(connection) as more_queries:
             body = client.get(address).content.decode()
 
         assert "More 2" in body
-        assert 'id="additions"' in body
         assert body.count("Add one to Meat") == 6
         assert len(more_queries.captured_queries) == len(few.captured_queries)

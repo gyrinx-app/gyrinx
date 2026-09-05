@@ -1,11 +1,11 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before a copy nobody holds is dropped, at an
-address of its own. Following the link that leads here changes nothing; the
-POST is the act.
+The question asked before somebody is taken out of a campaign, at an address
+of its own. Following the link that leads here changes nothing; the POST is
+the act.
 {% endcomment %}
-{% block head_title %}Drop {{ token }}{% endblock head_title %}
+{% block head_title %}Remove {{ player.user.username }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -14,11 +14,11 @@ POST is the act.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-asset-drop' campaign.pk token.pk %}"
-                     title="Drop {{ token }}?"
-                     submit_label="Drop"
+    <c-n26.form-page action="{% url 'n26-campaign-remove-player' campaign.pk player.user.pk %}"
+                     title="Remove {{ player.user.username }} from {{ campaign.name }}?"
+                     submit_label="Remove"
                      submit_variant="danger"
-                     cancel_url="{{ back }}">
+                     cancel_url="{% url 'n26-campaign-add-player' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -29,22 +29,16 @@ POST is the act.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Drop
+                    Remove
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% if token.held %}
-            <c-ui.alert variant="warning"
-                        title="{{ token.holder.gang.name }} holds this copy">
-                A held copy cannot be dropped. Take it away first, so the
-                gang's history records that it was taken away.
-            </c-ui.alert>
-        {% else %}
-            <c-ui.alert variant="warning" title="You cannot undo this">
-                Dropping removes this copy from the campaign. The log still shows
-                that it was added, and records that it was dropped.
-            </c-ui.alert>
-        {% endif %}
+        <c-ui.alert variant="warning" title="Their gangs stay where they are">
+            {{ player.user.username }} stops being a player in
+            {{ campaign.name }}. Any gang of theirs already playing keeps playing —
+            a gang is in a campaign on its own account, and taking somebody off
+            this list does not take their gangs out. They can be asked again.
+        </c-ui.alert>
     </c-n26.form-page>
 {% endblock content %}

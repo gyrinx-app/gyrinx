@@ -47,14 +47,14 @@ urlpatterns = [
         name="n26-campaign-remove-gang",
     ),
     path(
-        "campaigns/<str:pk>/participants/add/",
-        views.add_participant,
-        name="n26-campaign-add-participant",
+        "campaigns/<str:pk>/players/add/",
+        views.add_player,
+        name="n26-campaign-add-player",
     ),
     path(
-        "campaigns/<str:pk>/participants/<int:user_pk>/remove/",
-        views.remove_participant,
-        name="n26-campaign-remove-participant",
+        "campaigns/<str:pk>/players/<int:user_pk>/remove/",
+        views.remove_player,
+        name="n26-campaign-remove-player",
     ),
     path(
         "campaigns/<str:pk>/invitation/",
@@ -72,7 +72,7 @@ urlpatterns = [
         name="n26-campaign-remove-battle",
     ),
     # The campaign's assets are listed on its own page; these are the acts
-    # on one copy. Adding and dropping are the arbitrator's; taking away
+    # on one of them. Adding and removing are the arbitrator's; unassigning
     # is also the holding gang's owner's.
     path(
         "campaigns/<str:pk>/assets/add/",
@@ -80,46 +80,46 @@ urlpatterns = [
         name="n26-campaign-add-asset",
     ),
     path(
-        "campaigns/<str:pk>/assets/<str:token_pk>/grant/",
-        views.grant_asset,
-        name="n26-campaign-asset-grant",
+        "campaigns/<str:pk>/assets/<str:asset_pk>/assign/",
+        views.assign_asset,
+        name="n26-campaign-asset-assign",
     ),
     path(
-        "campaigns/<str:pk>/assets/<str:token_pk>/take-away/",
-        views.take_away_asset,
-        name="n26-campaign-asset-take-away",
+        "campaigns/<str:pk>/assets/<str:asset_pk>/unassign/",
+        views.unassign_asset,
+        name="n26-campaign-asset-unassign",
     ),
     path(
-        "campaigns/<str:pk>/assets/<str:token_pk>/drop/",
-        views.drop_asset,
-        name="n26-campaign-asset-drop",
+        "campaigns/<str:pk>/assets/<str:asset_pk>/remove/",
+        views.remove_asset,
+        name="n26-campaign-asset-remove",
     ),
-    # Handing a held copy to another gang: the arbitrator's, and the
+    # Handing a held asset to another gang: the arbitrator's, and the
     # holding gang's owner's.
     path(
-        "campaigns/<str:pk>/assets/<str:token_pk>/transfer/",
+        "campaigns/<str:pk>/assets/<str:asset_pk>/transfer/",
         views.transfer_asset,
         name="n26-campaign-asset-transfer",
     ),
-    # The arbitrator's additions: content written into the campaign's own
-    # pack and onto its additions type. One page per kind of thing.
+    # What the arbitrator adds: content written into the campaign's own
+    # pack and onto its own campaign type. One page per kind of thing.
     path(
-        "campaigns/<str:pk>/additions/kind/",
-        views.add_kind,
-        name="n26-campaign-add-kind",
+        "campaigns/<str:pk>/assets/types/add/",
+        views.add_asset_type,
+        name="n26-campaign-add-asset-type",
     ),
     path(
-        "campaigns/<str:pk>/additions/asset/",
+        "campaigns/<str:pk>/assets/new/",
         views.new_asset,
         name="n26-campaign-new-asset",
     ),
     path(
-        "campaigns/<str:pk>/additions/counter/",
+        "campaigns/<str:pk>/counters/add/",
         views.add_counter,
         name="n26-campaign-add-counter",
     ),
     path(
-        "campaigns/<str:pk>/additions/label/",
+        "campaigns/<str:pk>/labels/add/",
         views.add_label,
         name="n26-campaign-add-label",
     ),
@@ -327,12 +327,12 @@ urlpatterns = [
         authoring_views.picklist_member_remove,
         name="authoring-picklist-member-remove",
     ),
-    # An asset kind belongs to its campaign type and is edited on that
+    # An asset type belongs to its campaign type and is edited on that
     # type's page; taking it off is the one act that needs an address.
     path(
-        "authoring/asset-kinds/<str:pk>/remove/",
-        authoring_views.asset_kind_remove,
-        name="authoring-asset-kind-remove",
+        "authoring/asset-types/<str:pk>/remove/",
+        authoring_views.asset_type_remove,
+        name="authoring-asset-type-remove",
     ),
     # A literal address, so it matches ahead of the kind catch-all: a
     # roll table's gaps and overlaps are facts about the whole list, and

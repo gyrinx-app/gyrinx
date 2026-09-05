@@ -11,10 +11,11 @@ facts sit in the same list as the gang's own. It has to be called inside a
 <c-n26.detail-list>.
 
 Takes a n26.render.CampaignBlock. An asset draws a row whose label is the
-campaign type's word for its class — Settlement, Territory — and whose value is
-this one's name, whether the gang owns it or only holds it. A possession has a
-tooltip naming the carrier that brought it; a holding's value links to the campaign's assets
-, because a holding is the campaign's and can change hands.
+campaign type's word for its asset type — Settlement, Territory — and whose
+value is this one's name, whether the gang owns it or only holds it. A
+possession has a tooltip naming the campaign type that brought it; a holding's
+value links to the campaign's assets, because a holding is the campaign's and
+another gang may hold it next.
 
 Each counter draws an ordinary counter row, so a campaign's Reputation looks
 the same as any counter the gang keeps. Its tally controls are drawn only where
@@ -37,7 +38,7 @@ everybody a link that answers most of them with a 404.
         <c-n26.link href="{{ campaign.href }}" tone="current">{{ campaign.name }}</c-n26.link>
     </c-n26.detail-list.heading>
     {% for line in campaign.lines %}
-        <c-n26.detail-list.row label="{{ line.kind_label }}" :editable="False" class="{{ class }}">
+        <c-n26.detail-list.row label="{{ line.type_label }}" :editable="False" class="{{ class }}">
             {% spaceless %}
                 {% if line.provenance.source %}
                     <c-ui.tooltip size="sm">
@@ -52,7 +53,7 @@ everybody a link that answers most of them with a 404.
         </c-n26.detail-list.row>
     {% endfor %}
     {% for holding in campaign.holdings %}
-        <c-n26.detail-list.row label="{{ holding.kind_label }}" :editable="False" class="{{ class }}">
+        <c-n26.detail-list.row label="{{ holding.type_label }}" :editable="False" class="{{ class }}">
             {% spaceless %}
                 <c-n26.link href="{{ campaign.assets_href }}" tone="current">{{ holding.name }}</c-n26.link>
                 {% if holding.income %}<span class="text-muted">&nbsp;· income {{ holding.income }}¢</span>{% endif %}
