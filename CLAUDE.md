@@ -302,7 +302,15 @@ titles, which should freely name model classes, functions and flags.
 
 ### Before Starting
 
-1. Create a new branch for the task: `git checkout -b issue-NAME`
+1. **Use a dedicated git worktree for every task that changes repository files.**
+   Before editing, create a worktree named `<agent-name>-<task>` with a `codex/`
+   branch, or reuse the worktree already assigned to the task. Do this
+   automatically without asking permission. Run edits, tests, and development
+   commands from that worktree. Leave the shared root checkout untouched,
+   including other agents' uncommitted changes. Read-only investigation can use
+   the current checkout. Work in the root checkout or on `main` only when
+   explicitly requested or when the operation inherently requires it; explain
+   the reason before proceeding. Small changes are not an exception.
 2. **Start the dev server** (`./scripts/dev.sh`) near the start of any coding session —
    don't wait to be asked. Share the URL (per-worktree port, printed in the startup
    banner) so changes can be tested in the browser as they land.
