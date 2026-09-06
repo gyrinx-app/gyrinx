@@ -24,6 +24,7 @@ from n26.library.authoring import (
     create_trading_post,
     create_wargear,
 )
+from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
@@ -103,9 +104,11 @@ def venators(library):
 
 @pytest.fixture
 def tester(db):
-    # Staff, because the founding budgets reach staff owners only while
-    # they are being tested; the non-staff owner has a class of their own.
-    return User.objects.create_user("player", is_staff=True)
+    # On the founding flag's allowlist, because the budgets reach the
+    # owners it admits; the owner it does not has a class of their own.
+    person = User.objects.create_user("player")
+    admit_to_founding(person)
+    return person
 
 
 @pytest.fixture
@@ -444,10 +447,10 @@ class TestBothPotsAtOnce:
 
 
 class TestAnOwnerTheBudgetsDoNotReachYet:
-    """While the founding budgets are being tested they reach staff owners
-    only, the same readers as the Actions square that completes the
-    founding. Every other owner's screens are read exactly as they were
-    before budgets existed: no tally, list lines counting nothing, the
+    """The founding budgets reach the owners the founding flag admits, the
+    same readers as the Actions square that completes the founding. Every
+    other owner's screens are read exactly as they were before budgets
+    existed: no tally, list lines counting nothing, the
     post-is-shut note in its old place, and a purchase naming no action."""
 
     @pytest.fixture(autouse=True)
@@ -514,7 +517,7 @@ class TestTheWayIntoAVisitFromTheRail:
             not in client.get(equip_url(ganger, post)).content.decode()
         )
 
-    def test_a_staff_owner_gets_the_button_dead_and_the_reason(
+    def test_an_admitted_owner_gets_the_button_dead_and_the_reason(
         self, client, tester, ganger, post
     ):
         client.force_login(tester)

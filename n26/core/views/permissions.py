@@ -76,10 +76,10 @@ def may_see_founding(gang, user):
 
     The figures on the model cards, the allowance block on the equip
     screen and the terms that make list lines count Trade Points are one
-    feature, and while it is being tested it reaches the same readers as
-    the Actions square that completes the founding: staff who own the
-    gang. Everyone else is read exactly as before budgets existed. The
-    two gates lift together.
+    feature, and it reaches the same readers as the Actions square that
+    completes the founding: owners the ``founding`` flag admits. Everyone
+    else is read exactly as before budgets existed. The two gates lift
+    together, by opening the flag.
     """
     return may_see_actions_square(gang, user)
 
@@ -87,17 +87,22 @@ def may_see_founding(gang, user):
 def may_see_actions_square(gang, user):
     """Whether the gang page draws its Actions square for this reader.
 
-    The square is shown to staff who own the gang while the actions it
-    holds are still being built out. Everyone else reads the gang page
-    as it was before the square existed: the Trading Post visit line
-    stays on the stash card for every owner.
+    The square is shown to the gang's owner where the ``founding`` flag
+    admits them — a named few while the actions are tried out, everyone
+    once it opens. Every other reader gets the gang page as it was before
+    the square existed: the Trading Post visit line stays on the stash
+    card for every owner.
+
+    Owning the gang is checked first, so a reader's flag is only looked up
+    on their own gang: one query per page for an owner, none for anyone
+    else. Callers that ask more than once on one page keep the first
+    reading (``n26.core.views.gangs.gang``).
     """
-    return bool(
-        user is not None
-        and user.is_authenticated
-        and user.is_staff
-        and gang.owner_id == user.pk
-    )
+    from n26.flags import FOUNDING, enabled
+
+    if user is None or not user.is_authenticated or gang.owner_id != user.pk:
+        return False
+    return enabled(FOUNDING, user)
 
 
 def _own_gang_or_404(request, pk):
