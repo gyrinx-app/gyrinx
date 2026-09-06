@@ -13,13 +13,16 @@ the gang's Found and equip gang action is open. So it is kept the way
 everything else in this edition is kept: what a model may spend is a
 counter reading off its computed card, which content raises and no
 column stores, and what it has spent is the ledger's answer — every
-purchase that recorded the founding action, on that model. A refund
-returns to the same action because its event sits on the assignment the
-purchase made; a sale returns nothing, as it never returns Trade Points.
+purchase that recorded a Found and equip gang action of this gang, on
+that model. A refund returns to the same action because its event sits
+on the assignment the purchase made; a sale returns nothing, as it
+never returns Trade Points.
 
-Closing the action and starting it again gives a fresh figure, which is
-what an owner wants after hiring somebody new: spend is counted per
-action, so the old one's purchases stay on the old one.
+Closing the action and starting it again does not hand the figure back:
+spend is counted across every founding action the gang has opened, so
+what was bought the first time still sits on the allowance. A model
+hired after the first founding closed has spent nothing yet, and meets
+its figure whole.
 """
 
 from dataclasses import dataclass
@@ -82,8 +85,8 @@ class FoundingBudget:
     neither is a second copy of anything.
 
     ``action`` is the gang's open Found and equip gang action — the row
-    a purchase on this screen records, so that what has gone can be
-    summed back off it.
+    a purchase on this screen records. What has gone is every founding
+    action's spend, not only this one's.
     """
 
     action: object
@@ -124,10 +127,10 @@ def budget_for(gang, miniature, computed):
     homebrew one of the same name is not mistaken for it; which actions
     the gang has open — held on the gang, so a purchase on the same
     request reads it again for free — and what this model has already
-    spent under the founding one.
+    spent under every founding action.
     """
     from n26.core.models import Action
-    from n26.core.reconcile import trade_points_spent_by
+    from n26.core.reconcile import trade_points_spent_by_kind
 
     granted = budget_granted(computed)
     if granted <= 0:
@@ -138,7 +141,7 @@ def budget_for(gang, miniature, computed):
     return FoundingBudget(
         action=action,
         granted=granted,
-        spent=trade_points_spent_by(action, miniature),
+        spent=trade_points_spent_by_kind(gang, Action.Kind.FOUNDING, miniature),
     )
 
 
@@ -156,12 +159,12 @@ def budgets_by_model(gang, computed):
 
     A fixed cost for the whole roster rather than a query a fighter: the
     standard counter is asked for once, and what has gone is one sum
-    grouped by whoever spent it. A gang whose books grant no such
-    allowance pays for neither — nothing on any of its cards names the
-    counter.
+    grouped by whoever spent it, across every founding action the gang
+    has opened. A gang whose books grant no such allowance pays for
+    neither — nothing on any of its cards names the counter.
     """
     from n26.core.models import Action
-    from n26.core.reconcile import trade_points_spent_by_model
+    from n26.core.reconcile import trade_points_spent_by_model_for_kind
     from n26.library.standard_content import founding_budget_counter
 
     named = {
@@ -179,7 +182,9 @@ def budgets_by_model(gang, computed):
         return {}
     spent = {
         str(model_id): total
-        for model_id, total in trade_points_spent_by_model(action).items()
+        for model_id, total in trade_points_spent_by_model_for_kind(
+            gang, Action.Kind.FOUNDING
+        ).items()
     }
     budgets = {}
     for model_id, fold in named.items():

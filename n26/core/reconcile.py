@@ -178,6 +178,58 @@ def trade_points_spent_by_model(action):
     return {row[buyer]: row["total"] or 0 for row in spends}
 
 
+def trade_points_spent_by_kind(gang, kind, miniature):
+    """Every Trade Point one model spent against any action of this kind.
+
+    The same sum as :func:`trade_points_spent_by`, widened from one
+    action to every action of that kind the gang has opened. A founding
+    allowance is one allowance however many times the action is opened:
+    completing it and starting again does not hand the figure back.
+
+    Visit spend stays on :func:`trade_points_spent` — a visit that closed
+    loses what it had left, and the next one starts from what the
+    fighters brought.
+
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    return (
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__action__gang=gang,
+            assignment__ledger_entry__action__kind=kind,
+            assignment__ledger_entry__spent_by=miniature,
+        ).aggregate(total=Sum("trade_points_delta"))["total"]
+        or 0
+    )
+
+
+def trade_points_spent_by_model_for_kind(gang, kind):
+    """What every model has spent against any action of this kind.
+
+    The same sum as :func:`trade_points_spent_by_kind`, asked once for
+    the whole roster rather than once per model.
+
+    Purchases that recorded no buyer are left out rather than gathered
+    under a blank name — nobody's own allowance buys into the stash.
+
+    One query.
+    """
+    from n26.core.models import LedgerEvent
+
+    buyer = "assignment__ledger_entry__spent_by"
+    spends = (
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__action__gang=gang,
+            assignment__ledger_entry__action__kind=kind,
+            **{f"{buyer}__isnull": False},
+        )
+        .values(buyer)
+        .annotate(total=Sum("trade_points_delta"))
+    )
+    return {row[buyer]: row["total"] or 0 for row in spends}
+
+
 def trade_points_spent(gang):
     """What the gang's open Visit Trading Post action has spent.
 

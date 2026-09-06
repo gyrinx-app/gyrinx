@@ -12,12 +12,13 @@ Four claims, and each has a test below:
 * what a model may spend is content — a counter its gang type and its
   affiliation raise — so nothing in the code names a rank or a figure,
   and a model holding two ranks spends the better and not the sum;
-* what it has spent is what points back at the gang's Found and equip
-  gang action, on that model alone;
+* what it has spent is what points back at any of the gang's Found and
+  equip gang actions, on that model alone;
 * a refund returns to the action the purchase counted against, whenever
   it is taken, and a sale returns nothing;
-* completing the action and starting it again gives a fresh figure,
-  because spend is counted per action.
+* completing the action and starting it again remembers what was spent,
+  so the allowance is one allowance however many times the action is
+  opened.
 """
 
 import pytest
@@ -476,12 +477,12 @@ class TestGivingSomethingBack:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
-    def test_a_refund_after_the_action_closed_counts_against_nothing_open(
+    def test_a_refund_after_the_action_closed_returns_to_the_allowance(
         self, gang, leader, legacy_list
     ):
         """The refund lands on the action the purchase counted against,
-        which is complete. Starting again therefore begins at nothing
-        spent rather than at points handed back into it."""
+        which is complete. Starting again still sees those points as
+        returned, because spend is counted across every founding action."""
         bought = buy_at_founding(
             leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
         )
@@ -497,9 +498,10 @@ class TestGivingSomethingBack:
 
 
 class TestFinishingAndStartingAgain:
-    """Spend is counted per action, so completing one and starting
-    another gives the model its figure back whole. That is how an owner
-    equips somebody hired after the founding was done."""
+    """Spend is counted across every founding action, so completing one
+    and starting another leaves what was bought sitting on the
+    allowance. A model hired after the first founding closed has spent
+    nothing yet, and meets its figure whole."""
 
     def test_a_completed_action_leaves_no_budget(self, gang, leader):
         complete_action(gang, FOUNDING_KIND)
@@ -514,14 +516,41 @@ class TestFinishingAndStartingAgain:
 
         assert reading(leader) == 5
 
-    def test_starting_again_begins_at_nothing_spent(self, gang, leader, legacy_list):
+    def test_starting_again_remembers_what_was_spent(self, gang, leader, legacy_list):
         buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
 
         start_action(gang, FOUNDING_KIND)
 
-        assert budget(leader).spent == 0
-        assert budget(leader).remaining == 5
+        assert budget(leader).spent == 3
+        assert budget(leader).remaining == 2
+
+    def test_a_later_purchase_adds_to_what_was_already_spent(
+        self, gang, leader, legacy_list
+    ):
+        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        complete_action(gang, FOUNDING_KIND)
+        start_action(gang, FOUNDING_KIND)
+
+        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Mesh armour"))
+
+        assert budget(leader).spent == 4
+        assert budget(leader).remaining == 1
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_somebody_hired_after_the_founding_closed_starts_at_nothing_spent(
+        self, gang, leader, hire_into, legacy_list
+    ):
+        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        complete_action(gang, FOUNDING_KIND)
+        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
+
+        start_action(gang, FOUNDING_KIND)
+
+        assert budget(leader).spent == 3
+        assert budget(kel).spent == 0
+        assert budget(kel).remaining == 4
 
     def test_the_earlier_actions_purchases_stay_on_it(self, gang, leader, legacy_list):
         first = buy_at_founding(
@@ -977,6 +1006,15 @@ class TestTheRosterReadInOneGo:
         assert card.founding_budget is False
         assert card.trade_points_left is None
 
+    def test_starting_again_leaves_what_was_spent_on_the_card(
+        self, gang, leader, player, legacy_list
+    ):
+        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        complete_action(gang, FOUNDING_KIND, actor=player)
+        start_action(gang, FOUNDING_KIND, actor=player)
+
+        assert card_for(gang, "Rasp").trade_points_left == 2
+
     def test_spending_past_it_reads_below_nothing(
         self, gang, hire_into, kit, legacy_list
     ):
@@ -995,7 +1033,7 @@ class TestTheRosterReadInOneGo:
     ):
         """Two reads for the allowances however many models carry one:
         the standard counter, asked once for the roster rather than once
-        a model, and what every model has spent under the founding
+        a model, and what every model has spent under every founding
         action. Which actions the gang has open is a third, and the sheet
         pays it for the visit's figure whether or not anybody has an
         allowance.
