@@ -2883,6 +2883,10 @@ def owned_context():
             **named,
             "kind": "remove",
             "title": "Delete Meltagun?",
+            "remove_note": (
+                "No credits are returned. Use Refund instead to recover the "
+                "amount paid."
+            ),
             "submit_label": "Delete",
             "submit_variant": "danger",
         },

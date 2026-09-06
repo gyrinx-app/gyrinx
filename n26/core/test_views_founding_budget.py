@@ -853,7 +853,24 @@ class TestAGangFoundedWithNoBudget:
 
         dialog = response.context["dialog"]
         assert dialog["kind"] == "remove"
-        assert dialog["can_refund"] is False
+        # Nothing to point the reader at: this gang counts no credits and
+        # no allowance paid for the banner.
+        assert dialog["remove_note"] == "Nothing comes back."
+
+    def test_the_removal_panel_points_at_the_trade_points_and_not_at_credits(
+        self, client, leader, legacy_list, plate
+    ):
+        """The reader is deciding between Delete and Refund. Telling them
+        to recover the amount paid would name money this gang has none
+        of, so the sentence names what Refund would actually give."""
+        response = client.get(f"{equip_url(leader, legacy_list)}&remove={plate.pk}")
+
+        note = response.context["dialog"]["remove_note"]
+        assert note == (
+            "Nothing comes back. Use Refund instead to get 3 Trade Points back."
+        )
+        assert "amount paid" not in note
+        assert "¢" not in note
 
     def test_refunding_the_copy_returns_the_trade_points(
         self, client, leader, legacy_list, plate
@@ -922,6 +939,22 @@ class TestAGangFoundedWithNoBudget:
         # and nothing has drawn a page to read them off since.
         said = [str(message) for message in get_messages(response.wsgi_request)]
         assert said[-1] == "Refunded Rasp — 3 Trade Points back."
+
+    def test_refunding_the_model_but_stashing_the_kit_returns_nothing(
+        self, client, gang, leader, plate
+    ):
+        """Stashing keeps what was paid for the kit, so a model whose
+        only Trade Points rode the kit hands nothing back. The message
+        says what happened rather than promising a zero back."""
+        from n26.core.reconcile import trade_points_spent_for
+
+        response = client.post(
+            reverse("n26-refund-fighter", args=[leader.pk]), {"kit": "stash"}
+        )
+
+        assert trade_points_spent_for(gang.open_action(FOUNDING)) == 3
+        said = [str(message) for message in get_messages(response.wsgi_request)]
+        assert said[-1] == "Deleted Rasp. Their kit is in the stash (1 line)."
 
     def test_deleting_the_model_leaves_the_trade_points_spent(
         self, client, gang, leader, plate

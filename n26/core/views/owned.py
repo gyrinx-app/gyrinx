@@ -278,6 +278,26 @@ def refund_words(gang, paid, trade_points):
     return f"{credits}¢ and {points}" if credits else points
 
 
+def removal_words(gang, paid, trade_points):
+    """The sentence under a removal: what it hands back, and what Refund
+    would hand back instead.
+
+    A gang with a budget hears about credits, which is what its removals
+    keep spent. A gang counting none hears what it would actually get —
+    its models' founding Trade Points — because "the amount paid" would
+    name money it has none of, and where no allowance paid for the thing
+    there is nothing to point it at.
+    """
+    if not gang.credits_unlimited:
+        return "No credits are returned. Use Refund instead to recover the amount paid."
+    if trade_points:
+        return (
+            "Nothing comes back. Use Refund instead to get "
+            f"{refund_words(gang, paid, trade_points)} back."
+        )
+    return "Nothing comes back."
+
+
 def _panel(request, assignment, kind, at):
     """What every one of these dialogs says, whatever it is asking."""
     return {
@@ -420,7 +440,10 @@ def owned_dialog(request, host: EquipHost):
     is_part = assignment.parent_id is not None
     dialog = _panel(request, assignment, kind, host.at) | {
         "stash_host": host.is_stash,
-        "can_refund": not gang.credits_unlimited or bool(points),
+        # The removal panel's own sentence, worked out where the figures
+        # are already in hand rather than by the template asking whether
+        # this gang has a budget.
+        "remove_note": removal_words(gang, paid, points),
     }
 
     if kind == "sell":

@@ -684,7 +684,7 @@ def _dismiss(request, pk, kind):
         trade_points_carried_by,
         trade_points_in,
     )
-    from n26.core.views.owned import refund_words
+    from n26.core.views.owned import refund_words, refunded_credits
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
@@ -748,7 +748,11 @@ def _dismiss(request, pk, kind):
         trade_points=points_back,
     )
     stashed = f" Their kit is in the stash ({moved} line{'s' if moved != 1 else ''})."
-    if kind == "refund":
+    # What came back, worked out after the stash move rather than before
+    # it: kit put in the stash keeps what was paid for it, so a departure
+    # that stashed everything the allowance bought returns nothing, and a
+    # refund is what the deletion it turned out to be says it is.
+    if kind == "refund" and (refunded_credits(gang, paid_back) or points_back):
         messages.success(
             request,
             f"Refunded {was} — {refund_words(gang, paid_back, points_back)} back."

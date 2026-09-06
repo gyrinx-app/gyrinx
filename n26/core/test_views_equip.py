@@ -1625,7 +1625,9 @@ def test_a_gang_with_no_budget_is_offered_no_refund(
     ).content.decode()
     assert "Delete" in asked
     assert "Refund" not in asked
-    assert "No credits are returned." in asked
+    # Not "no credits are returned": this gang counts none either way, so
+    # the sentence says the plain thing instead of naming money.
+    assert "Nothing comes back." in asked
 
 
 @pytest.fixture
