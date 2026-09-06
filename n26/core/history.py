@@ -632,9 +632,11 @@ def _turn(e, row):
 def _one_act(e, row, viewer, alive):
     spans, category = _tell(e, row, alive)
     model = _model_of(e, row)
+    # A grant's sentence already names who gained the thing.
+    actor = "" if e.kind == Kind.GRANTED and model is not None else _actor(e, viewer)
     return Act(
         when=e.created,
-        actor=_actor(e, viewer),
+        actor=actor,
         spans=spans,
         credits=-e.credits_delta,
         trade_points=-e.trade_points_delta,
@@ -665,9 +667,10 @@ def _movement(note):
 def _tell(e, row, alive):
     """The sentence for one event, and which filter bucket it sits in.
 
-    Spans start lowercase: the actor's name goes in front of them. The
-    words are chosen so that a reader who knows nothing of how the app
-    stores things reads only what happened.
+    Spans start lowercase: the actor's name goes in front of them,
+    except a grant about a model, which names the model as the subject
+    and carries no actor. The words are chosen so that a reader who
+    knows nothing of how the app stores things reads only what happened.
     """
     thing = Span(_name(row)) if row else Span("something")
     kind = Span(_kindword(row)) if row else Span("")
@@ -716,15 +719,10 @@ def _tell(e, row, alive):
             # A pick whose roll is not in the story — told further back
             # than the page reaches, or not told at all.
             rolled = f", rolled {row.roll.roll}" if row.roll else ""
-            return (
-                Span("gained "),
-                thing,
-                *_for(model, at, "on"),
-                Span(rolled),
-            ), category
+            return _granted(thing, model, at, rolled), category
         case Kind.GRANTED:
             # Only reached when what caused it is not in the story.
-            return (Span("gained "), thing, *_for(model, at, "on")), category
+            return _granted(thing, model, at), category
         case Kind.ROLLED:
             # The choice it was for is on the event: what the pick that
             # follows says its kind is, said here before there is a pick.
@@ -976,6 +974,18 @@ def _dice_label(dice):
     from n26.library.models import Dice
 
     return Dice.label_for(dice)
+
+
+def _granted(thing, model, at, rolled=""):
+    """A grant as the model gaining the thing.
+
+    The fighter is the subject. Naming the person who recorded it as
+    the one who gained the effect reads as if they received it. A
+    caught-up grant is already told this way.
+    """
+    if model is not None:
+        return (at, Span(" gained "), thing, Span(rolled))
+    return (Span("gained "), thing, Span(rolled))
 
 
 def _for(model, at, word="for"):
