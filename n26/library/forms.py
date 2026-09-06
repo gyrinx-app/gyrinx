@@ -364,6 +364,12 @@ def _initial_from(spec, row):
             if chosen is not None:
                 initial[f"{name}_kind"] = chosen
                 initial[f"{name}_{chosen}"] = getattr(row, chosen)
+            # The asks the chosen kind declares ride the same row, so an
+            # edit opens on them too — otherwise saving a grant without
+            # touching its pick would silently drop the pick.
+            for ask_name, options in _union_asks(kind).items():
+                if chosen in options and getattr(row, ask_name, None) is not None:
+                    initial[ask_name] = getattr(row, ask_name)
         elif isinstance(kind, Choice) and kind.reads is not None:
             initial[name] = kind.reads(row)
         elif not hasattr(row, name):

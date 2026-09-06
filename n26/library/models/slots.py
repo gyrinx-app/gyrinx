@@ -522,11 +522,13 @@ class Slot(Content, Assignable):
 
     #: Building a slot in is what carries its starting pick — the
     #: Ironhead Squats profile arriving with the Squats legacy already
-    #: chosen — so that is what attaching one asks for. Restated with the
+    #: chosen — so that is what attaching one asks for, and a grant of a
+    #: slot asks the same question of its own row. Restated with the
     #: inherited entry ask, because declaring these replaces rather than
     #: merges (library/offers.py).
     ATTACHMENT_ASKS = {
         "built-in": ("default_pickable",),
+        "grant": ("with_pick",),
         "entry": ("price_override", "trade_point_override"),
     }
 

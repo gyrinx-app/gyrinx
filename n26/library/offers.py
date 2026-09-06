@@ -5,7 +5,8 @@ computed from them here; no form ever knows a kind by name.
 
 **Attachment asks.** When a row is named by a through row — built into
 a profile (``DefaultAssignment``), listed in a collection
-(``CollectionEntry``) — the through row sometimes carries values that
+(``CollectionEntry``), given by a modifier (``AddsAssignable``) — the
+through row sometimes carries values that
 only make sense for some kinds: a counter's opening value, an entry's
 price override. Which of those apply is the *kind's* knowledge, declared
 in ``ATTACHMENT_ASKS`` on the assignable class, keyed by the through
@@ -44,11 +45,11 @@ class Ask:
 def attachment_contexts():
     """Every through row that attaches assignables, by its context key —
     what the declarations on the kinds are checked against."""
-    from n26.library.models import CollectionEntry, DefaultAssignment
+    from n26.library.models import AddsAssignable, CollectionEntry, DefaultAssignment
 
     return {
         through.attachment_context: through
-        for through in (DefaultAssignment, CollectionEntry)
+        for through in (DefaultAssignment, CollectionEntry, AddsAssignable)
     }
 
 

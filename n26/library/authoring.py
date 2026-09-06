@@ -1930,7 +1930,9 @@ def targets_gang():
 
 def targets_gang_alone():
     """The gang carrying it: applied only to the gang, and what it gives
-    the gang does not reach the models."""
+    the gang does not reach the models. A pick given with a slot is the
+    exception: what the gang has picked is a fact about every model in
+    it, whichever way the pick arrived."""
     from n26.library.models import TargetsGang
 
     return TargetsGang.objects.create(echoes=False)
@@ -1939,9 +1941,15 @@ def targets_gang_alone():
 # --- Effects: what a modifier does (ef_ at read, op_ at purchase) -----------
 
 
-def ef_adds(thing):
+def ef_adds(thing, with_pick=None):
     """Grants the target a subtype, skill, trait, collection, rule, weapon
     or wargear — or a further choice, which is how one pick opens the next.
+
+    ``with_pick`` is the pick a granted slot arrives settled on —
+    ``ef_adds(supertype_slot, with_pick=goliath)`` for a Clan House
+    choice that makes the gang count as a Goliath gang. The pick lasts
+    exactly as long as the slot. Only a hidden slot may carry one: a
+    granted pick has no assignment of its own to remove.
 
     Granted weapons and wargear add zero rating and are removed when
     their source is removed. Their modifiers apply. Weapons include free
@@ -1958,7 +1966,13 @@ def ef_adds(thing):
     """
     from n26.library.models import AddsAssignable
 
-    return AddsAssignable.objects.create(**_assignable_kwarg(thing))
+    grant = AddsAssignable(**_assignable_kwarg(thing), with_pick=with_pick)
+    if with_pick is not None:
+        # The pick has to belong to a hidden slot of its own type, and
+        # only the row knows both ends — so the row says it, once.
+        grant.clean()
+    grant.save()
+    return grant
 
 
 def ef_removes(thing):

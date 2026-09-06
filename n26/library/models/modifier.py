@@ -805,7 +805,9 @@ class TargetsGang(models.Model):
     #: it does to every fighter. Off, the grant is the gang's alone:
     #: it prints on the gang's card and touches no fighter. Stored
     #: assignments the gang holds (a pick made for it) ride regardless —
-    #: that is assignment-level broadcast, not this modifier's.
+    #: that is assignment-level broadcast, not this modifier's. A pick
+    #: given with a slot counts the same way: what the gang has picked is
+    #: a fact about every member, however the pick arrived.
     echoes = models.BooleanField(
         default=True,
         help_text=(
@@ -972,7 +974,29 @@ class AddsAssignable(AssignableChoice):
 
     Naming a hidden carrier gives a *bundle*: it draws no row, so what
     arrives is everything it in turn does.
+
+    A granted slot may arrive already settled: ``with_pick`` names the
+    pick it comes with. The pick stays as long as the slot does. Only a
+    hidden slot may carry one, because a granted pick has no assignment
+    of its own to remove.
     """
+
+    #: The key ``Slot.ATTACHMENT_ASKS`` uses to say what granting it
+    #: asks for beyond the slot itself (library/offers.py).
+    attachment_context = "grant"
+
+    with_pick = models.ForeignKey(
+        "library.Pickable",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="pick given with the slot",
+        help_text=(
+            "The pick a granted slot arrives settled on. Only for a hidden "
+            "slot; leave blank for anything else."
+        ),
+    )
 
     class Meta:
         verbose_name = "adds assignable"
@@ -982,10 +1006,56 @@ class AddsAssignable(AssignableChoice):
                 condition=exactly_one_of(GRANTABLE_FIELDS),
                 name="adds_assignable_exactly_one",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(with_pick__isnull=True) | models.Q(slot__isnull=False)
+                ),
+                name="adds_assignable_pick_belongs_to_a_slot",
+            ),
         ]
 
     def __str__(self):
+        if self.with_pick_id is not None:
+            return f"adds {super().__str__()} with {self.with_pick}"
         return f"adds {super().__str__()}"
+
+    def clean(self):
+        """A starting pick belongs to a hidden slot of its own type.
+
+        Only this row knows both ends, so the database can say that a
+        pick needs a slot and nothing more.
+        """
+        super().clean()
+        if self.with_pick_id is None:
+            return
+        if self.slot_id is None:
+            raise ValidationError(
+                {
+                    "with_pick": (
+                        "A starting pick belongs to a slot. Identify the "
+                        "slot for this pick."
+                    )
+                }
+            )
+        if self.with_pick.slot_type_id != self.slot.slot_type_id:
+            raise ValidationError(
+                {
+                    "with_pick": (
+                        f"{self.with_pick} belongs to {self.with_pick.slot_type}, "
+                        f"and {self.slot} offers {self.slot.slot_type} pickables."
+                    )
+                }
+            )
+        if not self.slot.hidden:
+            raise ValidationError(
+                {
+                    "with_pick": (
+                        f"Only a hidden slot can be given with its pick. "
+                        f"{self.slot} is shown on the card, so a pick given "
+                        "with it would have no Remove control."
+                    )
+                }
+            )
 
 
 class RemovesAssignable(AssignableChoice):

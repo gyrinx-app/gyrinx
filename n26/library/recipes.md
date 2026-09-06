@@ -202,6 +202,47 @@ When those checks pass, add the house collection to the real gang type's built-i
 
 If you archive the main hire collection, gangs can again hire fighters listed under their gang type. The collection stays hidden on the gang sheet. Check the gang type's fighter entries before using this fallback: it can include fighters that the collection excluded.
 
+## A Clan House Outcast gang
+
+An Outcast gang chooses one of the six Clan Houses when it is created,
+and for campaign purposes counts as a gang of that House. Two gang-level
+choices are involved: the Clan House the Outcast player picks, and the
+hidden **Gang supertype** slot every gang carries. A Clan House gang
+type arrives with its supertype already picked. The Clan House pick
+fills the supertype slot.
+
+1. Create a **slot type** named "Gang supertype" and a **pickable** for
+   each House — Goliath, Escher, Orlock, Van Saar, Delaque, Cawdor.
+   These pickables carry no modifiers of their own. A rule reaches them
+   through the *has pickable* condition instead.
+2. Add a **picklist** of the six, and a **slot** named "Gang supertype",
+   taking 1 pick, assigned to the gang, with *hidden* turned on. Hidden
+   means the gang sheet never prints a "Gang supertype" line.
+3. Build that slot into every gang type. On each Clan House gang type,
+   name the matching House as the **starting pick**. On Outcast,
+   Enforcers and the rest, build it in with no starting pick.
+4. The Clan House choice is its own slot type, with its own pickables
+   carrying the equipment access and the rest of what the choice gives.
+   On each "Clan House: X" pickable, add a **modifier**: targets the gang
+   alone, *gives* the Gang supertype slot, **with X picked**. The pick
+   control appears once you choose a slot as the kind, and only a hidden
+   slot can take one.
+
+A Goliath gang and a Clan House Goliath Outcast gang now both have
+Goliath picked for their Gang supertype. A rule written as *targets
+every model, where it has picked Goliath* reaches every fighter in both.
+Taking the Clan House pick back takes the supertype pick with it, and
+the rule stops applying.
+
+One step is not yet possible: a condition on the gang itself (*targets
+the gang, where it has picked Goliath*). Until the gang scope takes
+conditions, a rule meant for the gang alone has to be written on the
+model scope and reach the gang's fighters instead.
+
+Nothing new shows on the gang sheet. The given pick is a fact about the
+gang, not a line: it adds nothing to the rating and does not appear in
+the history.
+
 ## A Gang Legacy
 
 > Draft, for review. The steps below are the authoring steps. Everything
