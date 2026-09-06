@@ -329,6 +329,23 @@ class TestWhatTheScreenSays:
         budget = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
         assert (budget.granted, budget.spent, budget.remaining) == (5, 3, 2)
 
+    def test_starting_the_action_again_leaves_what_was_spent(
+        self, client, gang, tester, leader, legacy_list
+    ):
+        """Completing Found and equip gang and opening it again does not
+        hand the figure back: what this model already spent still sits
+        on the tally."""
+        client.post(
+            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
+        )
+        with operation(gang, actor=tester) as op:
+            op.close_action(gang.open_action(FOUNDING))
+        with operation(gang, actor=tester) as op:
+            op.open_action(FOUNDING)
+
+        budget = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        assert (budget.granted, budget.spent, budget.remaining) == (5, 3, 2)
+
     def test_the_post_being_shut_is_not_mentioned(self, client, leader, post):
         """A model with an allowance has somewhere for its Trade Points to
         go, so there is nothing to tell it about the post."""
