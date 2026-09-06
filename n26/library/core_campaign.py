@@ -9,9 +9,12 @@ Territory campaign type declares the two asset types that campaign deals
 in — a Settlement every gang has its own of, and Territories one gang
 holds at a time — with one Settlement asset under the Settlement type, and
 gives every member gang Reputation at 0, Income at 0 and that Settlement
-through its built-ins. Income is the counter an asset's income figure
-contributes to (``n26/library/income.py``): built in at 0, it gives every
-gang in the campaign a reading to add to. See design/campaign-assets.md.
+through its built-ins. The two counters are built in here; the Settlement
+is built in by the rule every possession follows
+(``n26/library/possessions.py``), applied to the type once the asset
+stands. Income is the counter an asset's income figure contributes to
+(``n26/library/income.py``): built in at 0, it gives every gang in the
+campaign a reading to add to. See design/campaign-assets.md.
 
 Everything is matched on its natural key and left alone if it is
 already there, so this can run against a database that has some of it,
@@ -26,6 +29,7 @@ present names, which is why those are looked up rather than assumed.
 from django.conf import settings
 
 from n26.library.income import INCOME
+from n26.library.possessions import build_in_missing
 
 REPUTATION = "Reputation"
 CAMPAIGN_TYPE = "Territory campaign"
@@ -160,7 +164,8 @@ def seed_core_campaign(apps):
         campaign_type.save(update_fields=["built_ins"])
 
     members = built_ins.members
-    for position, counter_name in ((0, REPUTATION), (2, INCOME)):
+
+    def build_in_counter(counter_name, position):
         counter = counters[counter_name]
         if not members.filter(counter=counter).exists():
             DefaultAssignment.objects.create(
@@ -171,11 +176,16 @@ def seed_core_campaign(apps):
                 position=position,
             )
             lines.append(f"built {counter_name} at 0 into {CAMPAIGN_TYPE}")
-    if not members.filter(asset=settlement).exists():
-        DefaultAssignment.objects.create(
-            pack=pack, default_set=built_ins, asset=settlement, position=1
-        )
-        lines.append(f"built the {SETTLEMENT} into {CAMPAIGN_TYPE}")
+
+    # Reputation, then the type's possessions, then Income: the order the
+    # type's page lists them in. The Settlement is not built in by name —
+    # the possession rule finds every asset of a Possession asset type
+    # and builds in whichever is missing, which on a fresh database is
+    # the one Settlement.
+    build_in_counter(REPUTATION, 0)
+    for member in build_in_missing(apps, campaign_type):
+        lines.append(f"built the {member.asset.name} into {CAMPAIGN_TYPE}")
+    build_in_counter(INCOME, 2)
     return lines
 
 

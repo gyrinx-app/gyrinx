@@ -324,6 +324,36 @@ class TestEditingTheTypeReachesMemberGangs:
         ]
         assert_reconciled(gang)
 
+    def test_a_new_possession_lands_on_a_gang_already_playing(
+        self, membership, gang, core, task_queue
+    ):
+        """Creating an asset under a Possession asset type is the whole of
+        building it in, and the pass that edit files delivers it to every
+        member gang, credited to the type."""
+        from n26.library.authoring import add_asset_type, create_asset
+
+        with task_queue.capture():
+            hideout = add_asset_type(core, "Hideout", "held-one-each")
+            create_asset("Bolthole", hideout)
+        task_queue.deliver_all()
+
+        assert caused_by(membership.type_carrier) == [
+            ("Bolthole", None),
+            ("Income", 0),
+            ("Reputation", 0),
+            ("Settlement", None),
+        ]
+        block = render_gang(gang).campaign
+        assert [(line.type_label, line.name) for line in block.lines] == [
+            ("Settlement", "Settlement"),
+            ("Hideout", "Bolthole"),
+        ]
+        caught_up = LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.CAUGHT_UP
+        )
+        assert [event.assignment.assignable.name for event in caught_up] == ["Bolthole"]
+        assert_reconciled(gang)
+
 
 class TestTheLeaveRoute:
     """Not offered: a gang that left would keep what the campaign gave it."""

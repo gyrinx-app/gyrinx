@@ -167,6 +167,7 @@ def create_asset(
     income=0,
     qualifier="",
     library_author_help="",
+    given_by=None,
     **kwargs,
 ):
     """One asset of one asset type — a Settlement, the Old Ruins territory.
@@ -176,14 +177,34 @@ def create_asset(
     pack keeps its assets there. A blank name is refused here rather than
     drawn as an empty line on a campaign page. ``income`` is written as
     the asset's Income contribution (``set_income``); 0 writes nothing.
+
+    An asset of a **Possession** asset type is built into a campaign type
+    here, so every gang that joins is given one with no further step
+    (``n26.library.possessions``). ``given_by`` names that type; unnamed,
+    it is the asset type's own. A campaign writing an asset into its own
+    pack under a shared asset type names its additions type, because the
+    giver has to be in the asset's pack — a shared type giving one
+    campaign's asset would hand it to every campaign founded on it.
     """
-    from n26.library.models import Asset
+    from n26.library.models import Asset, AssetType
 
     if "pack" not in kwargs and "pack_id" not in kwargs:
         kwargs["pack_id"] = asset_type.pack_id
     name = (name or "").strip()
     if not name:
         raise ValidationError("An asset needs a name.")
+    giver = None
+    if asset_type.ownership == AssetType.Ownership.POSSESSION:
+        giver = given_by if given_by is not None else asset_type.campaign_type
+        pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
+        # Settled before anything is written, so a refused asset leaves
+        # no row behind.
+        if giver.pack_id != pack_id:
+            raise ValueError(
+                f"{name} would be in a different pack from {giver}. The "
+                "campaign type that gives a possession to every gang has to "
+                "be in the asset's own pack."
+            )
     asset = Asset.objects.create(
         name=name,
         asset_type=asset_type,
@@ -194,7 +215,25 @@ def create_asset(
     )
     if income:
         set_income(asset, income)
+    if giver is not None:
+        add_built_in(giver, asset, pack=asset.pack)
     return asset
+
+
+def take_out_of_built_ins(asset):
+    """Stop every campaign type giving this asset: its live built-in
+    memberships go, the way ``remove_default_member`` takes any member
+    off — archived where a gang has already been given one, deleted
+    where none has. Gangs already holding the asset keep it.
+
+    Called when a possession is deleted or archived, so an asset that
+    is gone stops arriving on gangs that join afterwards. A holding is
+    never built in, so this finds nothing for one.
+    """
+    from n26.library.models import DefaultAssignment
+
+    for member in DefaultAssignment.objects.filter(asset=asset, archived=False):
+        remove_default_member(member)
 
 
 def set_income(asset, amount):
@@ -1513,7 +1552,17 @@ def delete_content(row):
     refusal into words. Reusable modifiers attached to the row survive
     it — they may be carried elsewhere, so they are not this row's to
     take.
+
+    An asset's built-in memberships are the one exception: nobody
+    authored them — a possession is built in by being created — so they
+    go with the asset rather than standing in its way. Where a gang has
+    already been given one, its assignment still protects the asset and
+    the refusal stands.
     """
+    from n26.library.models import Asset
+
+    if isinstance(row, Asset):
+        take_out_of_built_ins(row)
     row.delete()
 
 
