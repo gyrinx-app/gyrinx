@@ -196,6 +196,23 @@ def apply(adrift):
     return report
 
 
+def apply_one(gang_id):
+    """One gang's move as it stands now, committed on its own. Returns
+    the line the report carries for it. The entry for a run that visits
+    gangs across deliveries, where the plan is read afresh per gang
+    rather than carried from the preview."""
+    current = find(gang_id)
+    if current.problems:
+        return (
+            f"gang {gang_id}: skipped — its picks no longer pass the move's "
+            "checks: " + "; ".join(current.problems)
+        )
+    moves = dict(current.gangs).get(gang_id)
+    if moves is None:
+        return f"gang {gang_id}: nothing left to move"
+    return _repoint_one(gang_id, moves)
+
+
 def _repoint_one(gang_id, moves):
     """One gang's move, committed or rolled back on its own. Returns the
     line the report carries for it."""

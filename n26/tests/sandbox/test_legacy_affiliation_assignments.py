@@ -8,6 +8,7 @@ from n26.core.legacy_affiliation_assignments import (
     LIVE_SPARE,
     Refused,
     apply,
+    apply_one,
     find,
 )
 from n26.core.models import Assignment, LedgerEntry, LedgerEvent
@@ -157,6 +158,28 @@ def test_it_deletes_the_legacy_rows_and_their_empty_books_without_changing_pages
     assert_reconciled(spare_gang)
     assert find().nothing_here
     assert apply(find()) == ["no legacy affiliation assignments remain"]
+
+
+def test_one_gang_visited_on_its_own_deletes_what_it_holds_now(legacy_world):
+    """A run that visits gangs across deliveries reads each gang afresh
+    rather than carrying the preview's plan; a gang with nothing left
+    says so rather than refusing, and one whose assignments no longer
+    pass the safety checks is skipped in the checks' own words."""
+    none_gang, none, spare_gang, mutant, *_ = legacy_world
+
+    assert (
+        apply_one(none_gang.pk) == f"gang {none_gang.pk}: deleted 1 legacy assignment"
+    )
+    assert not Assignment.objects.filter(pk=none.pk).exists()
+    assert apply_one(none_gang.pk) == f"gang {none_gang.pk}: nothing left to delete"
+
+    entry = mutant.ledger_entry
+    entry.paid = 5
+    entry.save()
+    line = apply_one(spare_gang.pk)
+    assert line.startswith(f"gang {spare_gang.pk}: skipped")
+    assert "non-zero ledger entry" in line
+    assert Assignment.objects.filter(pk=mutant.pk).exists()
 
 
 def test_it_refuses_a_non_zero_ledger_entry(legacy_world):

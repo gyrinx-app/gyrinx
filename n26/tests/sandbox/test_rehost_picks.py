@@ -20,7 +20,7 @@ from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled, check_gang
-from n26.core.rehost_picks import Refused, apply, find
+from n26.core.rehost_picks import Refused, apply, apply_one, find
 from n26.core.render import render_gang
 from n26.core.views.choose import link_slots
 from n26.library.authoring import (
@@ -296,6 +296,32 @@ class TestMovingThePick:
         assert f"gang {gang.pk}: moved 1 pick onto the gang" in report
         gang.refresh_from_db()
         assert_reconciled(gang)
+
+    def test_one_gang_visited_on_its_own_moves_what_it_holds_now(self, gang, astray):
+        """A run that visits gangs across deliveries reads each gang
+        afresh rather than carrying the preview's plan; a gang with
+        nothing left says so rather than refusing."""
+        assert apply_one(gang.pk) == f"gang {gang.pk}: moved 1 pick onto the gang"
+        astray.refresh_from_db()
+        assert (astray.gang, astray.miniature) == (gang, None)
+        assert apply_one(gang.pk) == f"gang {gang.pk}: nothing left to move"
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_a_gang_that_stopped_passing_the_checks_is_skipped_when_visited(
+        self, gang, astray
+    ):
+        """Between the preview and the visit the pick may change; one that
+        no longer names the choice it settles cannot be read, so the visit
+        leaves the gang alone rather than moving it."""
+        Assignment.objects.filter(pk=astray.pk).update(chosen_for=None)
+
+        line = apply_one(gang.pk)
+
+        assert line.startswith(f"gang {gang.pk}: skipped")
+        assert "names no choice" in line
+        astray.refresh_from_db()
+        assert astray.miniature is not None
 
     def test_the_leaders_card_still_reads_it_as_chosen(self, gang, astray):
         apply(find())

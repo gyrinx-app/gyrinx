@@ -1,0 +1,37 @@
+{% comment %}
+    The summary of one gang-by-gang run, on the Backfill detail page: what
+    it was going to do, what it has done so far, and — once it has
+    finished — what it did. Each gang is its own transaction, so a run
+    still working has settled the gangs it names below and no others.
+{% endcomment %}
+{% if backfill.summary.report %}
+    {% if backfill.status == "running" %}
+        <h2>What it has done so far</h2>
+        <p>
+            Each gang is one transaction. A gang named below is settled; a gang
+            not yet named stands exactly as it did. A run that is interrupted
+            continues from where it stopped on its next delivery.
+        </p>
+    {% else %}
+        <h2>What it did</h2>
+    {% endif %}
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% elif backfill.summary.preview %}
+    <h2>What it is doing</h2>
+    <p>
+        The preview listed these gangs. Each gang is one transaction, so a gang
+        not yet named as settled stands exactly as it did, and a gang that fails
+        its checks is left as it stood and named below.
+    </p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.total %}
+    <p>{{ backfill.summary.done|default:0 }} of {{ backfill.summary.total }} gang{{ backfill.summary.total|pluralize }} settled.</p>
+{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}

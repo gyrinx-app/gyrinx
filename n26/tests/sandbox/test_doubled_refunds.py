@@ -19,7 +19,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.doubled_refunds import Refused, apply, find
+from n26.core.doubled_refunds import Refused, apply, apply_one, find
 from n26.core.models import LedgerEvent
 from n26.core.reconcile import assert_reconciled, check_gang
 from n26.maintenance import Operation, repair_doubled_refunds_view
@@ -181,6 +181,35 @@ class TestDroppingTheSurplus:
         apply(find())
 
         assert find().nothing_here
+
+    def test_one_gang_visited_on_its_own_drops_what_it_holds_now(self, doubled):
+        """A run that visits gangs across deliveries reads each gang
+        afresh rather than carrying the preview's plan; a gang with
+        nothing left says so rather than refusing."""
+        assert apply_one(doubled.pk).startswith(f"gang {doubled.pk}: dropped 2 events")
+        doubled.refresh_from_db()
+        assert_reconciled(doubled)
+        assert apply_one(doubled.pk) == f"gang {doubled.pk}: nothing left to drop"
+
+    def test_a_gang_whose_line_came_back_onto_the_roster_is_skipped_when_visited(
+        self, doubled
+    ):
+        """Between the preview and the visit a player may unarchive the
+        line; a refund leg on a line still on the roster is a different
+        fault, and the visit leaves the gang alone rather than deleting
+        it."""
+        line = LedgerEvent.objects.filter(
+            gang=doubled, kind=LedgerEvent.Kind.REFUNDED
+        ).earliest("created")
+        line.assignment.archived = False
+        line.assignment.save(update_fields=["archived"])
+        legs_before = LedgerEvent.objects.filter(gang=doubled).count()
+
+        line = apply_one(doubled.pk)
+
+        assert line.startswith(f"gang {doubled.pk}: skipped")
+        assert "still on the roster" in line
+        assert LedgerEvent.objects.filter(gang=doubled).count() == legs_before
 
     def test_a_gang_with_real_history_applies_to_nothing(self, gang, vex):
         report = apply(find())
