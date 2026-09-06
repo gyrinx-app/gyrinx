@@ -184,6 +184,27 @@ class ComputedWeapon:
         return sorted((printed | added) - removed)
 
 
+def stacked_names(names):
+    """Collapse repeated names to ``Name (n)``.
+
+    A several-pick slot can hold the same result more than once. The
+    card lists each distinct name once, with a count when it lands
+    more than once, in the order the first of each appeared. The
+    picks themselves stay as they were written — this is only how
+    the line reads.
+    """
+    counts = {}
+    order = []
+    for name in names:
+        if name not in counts:
+            order.append(name)
+            counts[name] = 0
+        counts[name] += 1
+    return ", ".join(
+        name if counts[name] == 1 else f"{name} ({counts[name]})" for name in order
+    )
+
+
 @dataclass
 class ChoiceSlot:
     """A choice on a card, resolved or not.
@@ -231,7 +252,7 @@ class ChoiceSlot:
 
     @property
     def chosen_name(self):
-        return ", ".join(node.name for node in self.picks) if self.picks else None
+        return stacked_names(node.name for node in self.picks) if self.picks else None
 
     @property
     def identity(self):

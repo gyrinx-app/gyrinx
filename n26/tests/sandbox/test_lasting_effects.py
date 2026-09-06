@@ -303,7 +303,22 @@ class TestAFighterIsHurt:
         assert cell.held_at == "minimum"
         assert cell.held_note == "Cannot get any worse."
         assert [p.source for p in cell.modified_by] == ["Spinal Injury"] * 3
+        assert cell.changed_by == "Spinal Injury (3)"
         assert_reconciled(gang)
+
+    def test_the_tooltip_on_the_sheet_stacks_the_same_injury(
+        self, client, gang, brute, tables
+    ):
+        spinal = result_named(tables["Lasting Injury"]["table"], "Spinal Injury")
+        for _ in range(3):
+            pick(brute, "Lasting Injuries", spinal)
+        client.force_login(gang.owner)
+        from django.urls import reverse
+
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "S changed by Spinal Injury (3)" in body
+        assert "S changed by Spinal Injury, Spinal Injury" not in body
+        assert "Cannot get any worse." in body
 
     def test_an_improvement_after_the_injuries_lifts_the_stat_off_the_floor(
         self, gang, brute, tables, fighter_stats

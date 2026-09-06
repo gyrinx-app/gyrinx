@@ -21,6 +21,7 @@ from n26.core.effects import (
     counter_totals,
     kind_of,
     limit_notes,
+    stacked_names,
 )
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
@@ -198,6 +199,21 @@ class StatCell:
     @property
     def modified(self):
         return bool(self.modified_by)
+
+    @property
+    def changed_by(self):
+        """The sources the tooltip lists, repeats stacked as Name (n).
+
+        Each change still stands on ``modified_by`` — a second Hand
+        Injury is a second change. This is only how the sentence reads.
+        """
+        labels = []
+        for change in self.modified_by:
+            name = change.source or "a modifier"
+            if change.source_kind:
+                name = f"{name} ({change.source_kind})"
+            labels.append(name)
+        return stacked_names(labels)
 
     @property
     def held_note(self):

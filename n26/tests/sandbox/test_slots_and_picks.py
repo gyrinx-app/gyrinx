@@ -2040,13 +2040,20 @@ class TestAChoiceThatAllowsRepeats:
         assert not line.is_resolved
         assert not line.is_full
 
-    def test_the_same_result_twice_stands_twice(self, yolanda, results):
+    def test_the_same_result_is_held_twice_and_reads_as_a_count(self, yolanda, results):
         self._pick(yolanda, results["Eye Injury"])
         self._pick(yolanda, results["Eye Injury"])
 
         picks = [p.assignable for p in self._slot(yolanda).picks]
         assert picks == [results["Eye Injury"]] * 2
-        assert self._line(yolanda).chosen == "Eye Injury, Eye Injury"
+        assert self._line(yolanda).chosen == "Eye Injury (2)"
+
+    def test_a_later_repeat_joins_the_first_of_its_name(self, yolanda, results):
+        self._pick(yolanda, results["Eye Injury"])
+        self._pick(yolanda, results["Out Cold"])
+        self._pick(yolanda, results["Eye Injury"])
+
+        assert self._line(yolanda).chosen == "Eye Injury (2), Out Cold"
 
     def test_and_what_it_does_is_done_twice(self, yolanda, results):
         self._pick(yolanda, results["Eye Injury"])
@@ -2237,7 +2244,8 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         body = client.get(sheet_url).content.decode()
         # The row, not the flash message that also names the choice.
         row = body[body.index("Lasting Injuries</dt>") :]
-        assert "Eye Injury, Eye Injury" in row
+        assert "Eye Injury (2)" in row
+        assert "Eye Injury, Eye Injury" not in row
         assert ">Add</" not in row[: row.index("</dd>")]
 
     def test_the_confirmation_uses_the_verb_the_button_did(
