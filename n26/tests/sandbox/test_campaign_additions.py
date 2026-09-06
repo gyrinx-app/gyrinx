@@ -474,16 +474,22 @@ class TestSystemContentNeverPointsAtAnArbitratorsAsset:
         assert "has an owner" in cross_pack_refusal(default_pack, made)
         assert cross_pack_refusal(campaign.pack, made) is None
 
-    def test_the_system_types_page_refuses_it_as_a_built_in(
+    def test_the_system_types_page_offers_no_asset_as_a_built_in(
         self, client, campaign, core
     ):
+        """An asset is never picked into a type's built-ins by hand — a
+        possession is built in by being created — so the one way an
+        arbitrator's asset could reach the shared type is not a choice
+        the page offers, and a post naming it is refused as no choice."""
         territory = core.asset_types.get(label_singular="Territory")
         made = create_campaign_asset(campaign, territory, "Sump Hole")
         staff = User.objects.create_user("staff", is_staff=True)
         client.force_login(staff)
 
+        page = f"/n26/authoring/campaign-type/{core.pk}/"
+        assert 'value="asset"' not in client.get(page).content.decode()
         response = client.post(
-            f"/n26/authoring/campaign-type/{core.pk}/",
+            page,
             {
                 "act": "built_in",
                 "thing_kind": "asset",
@@ -493,8 +499,106 @@ class TestSystemContentNeverPointsAtAnArbitratorsAsset:
         )
 
         assert response.status_code == 200
-        assert "which has an owner" in response.content.decode()
         assert not core.built_in_members.filter(asset=made).exists()
+
+
+class TestAPossession:
+    """An asset of a Possession asset type is every gang's own: the campaign's
+    additions type gives it the moment it is made, so the arbitrator adds
+    nothing else. Gangs joining afterwards receive it as they join; gangs
+    already playing receive it by the propagation pass."""
+
+    def test_it_is_built_into_the_campaigns_own_type(self, campaign, core):
+        hideout = add_campaign_asset_type(
+            campaign, "Hideout", ownership="held-one-each"
+        )
+        made = create_campaign_asset(campaign, hideout, "Bolthole")
+
+        (member,) = campaign.additions.built_in_members.all()
+        assert member.asset == made
+        assert member.pack == campaign.pack
+        assert campaign.additions.built_ins.pack == campaign.pack
+        assert not core.built_in_members.filter(asset=made).exists()
+
+    def test_one_under_the_shared_settlement_type_is_this_campaigns_alone(
+        self, campaign, core, gang_type
+    ):
+        """An arbitrator's asset under the shared Settlement type lands on
+        the additions, never on the shared type: another campaign on the
+        same type never gives it."""
+        settlement = core.asset_types.get(label_singular="Settlement")
+        made = create_campaign_asset(campaign, settlement, "Sump Home")
+
+        assert [m.assignable for m in campaign.additions.built_in_members] == [made]
+        assert not core.built_in_members.filter(asset=made).exists()
+
+        other = found_campaign(
+            "Elsewhere", core, owner=User.objects.create_user("other")
+        )
+        stranger = found_gang(
+            "Strangers", gang_type, owner=User.objects.create_user("s")
+        )
+        join_campaign(stranger, other)
+        names = [line.name for line in render_gang(stranger).campaign.lines]
+        assert names == ["Settlement"]
+
+    def test_a_gang_joining_afterwards_has_it(self, campaign, gang_type):
+        hideout = add_campaign_asset_type(
+            campaign, "Hideout", ownership="held-one-each"
+        )
+        create_campaign_asset(campaign, hideout, "Bolthole")
+        late = found_gang("Late", gang_type, owner=User.objects.create_user("late"))
+        join_campaign(late, campaign)
+
+        block = render_gang(late).campaign
+        assert [(line.type_label, line.name) for line in block.lines] == [
+            ("Settlement", "Settlement"),
+            ("Hideout", "Bolthole"),
+        ]
+        membership = late.campaign_memberships.get(left__isnull=True)
+        bolthole = next(line for line in block.lines if line.name == "Bolthole")
+        assert bolthole.provenance.source == str(campaign.additions)
+        assert membership.additions_carrier is not None
+
+    def test_gangs_already_playing_catch_up(
+        self, campaign, gang, rival, propagating, task_queue
+    ):
+        with task_queue.capture():
+            hideout = add_campaign_asset_type(
+                campaign, "Hideout", ownership="held-one-each"
+            )
+            create_campaign_asset(campaign, hideout, "Bolthole")
+        task_queue.deliver_all()
+
+        for member in (gang, rival):
+            names = [line.name for line in render_gang(member).campaign.lines]
+            assert names == ["Settlement", "Bolthole"]
+            caught_up = LedgerEvent.objects.filter(
+                gang=member, kind=LedgerEvent.Kind.CAUGHT_UP
+            )
+            assert [e.assignment.assignable.name for e in caught_up] == ["Bolthole"]
+            membership = member.campaign_memberships.get(left__isnull=True)
+            assert caught_up.get().assignment.caused_by == membership.additions_carrier
+            assert_reconciled(member)
+
+    def test_the_sheet_gains_a_column_for_it(
+        self, campaign, gang, propagating, task_queue
+    ):
+        with task_queue.capture():
+            hideout = add_campaign_asset_type(
+                campaign, "Hideout", ownership="held-one-each"
+            )
+            create_campaign_asset(campaign, hideout, "Bolthole")
+        task_queue.deliver_all()
+
+        sheet = render_campaign(campaign)
+        assert [column.label for column in sheet.asset_types] == [
+            "Settlement",
+            "Territory",
+            "Hideout",
+        ]
+        (line,) = sheet.gangs
+        assert line.assets == [["Settlement"], [], ["Bolthole"]]
 
 
 class TestACounter:

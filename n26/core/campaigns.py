@@ -527,6 +527,14 @@ class CampaignOperation:
         What holding the asset does is not written here beyond its income,
         which lands as the asset's Income contribution: it has a name, its
         words and that figure, and nothing else.
+
+        An asset of a Possession asset type is every gang's own, so it is
+        built into the campaign's additions type as it is made, no matter
+        which campaign type its asset type belongs to, because the
+        additions type is the only campaign type in the campaign's pack.
+        It arrives on every gang that joins from now on; gangs already
+        playing are given it by the propagation pass that every built-in
+        edit files, marked as caught up.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import create_asset
@@ -549,6 +557,7 @@ class CampaignOperation:
             annotation=(annotation or "").strip(),
             income=income or 0,
             pack=self.campaign.pack,
+            given_by=self.campaign.additions,
         )
         self.event(CampaignEvent.Kind.ASSET_CREATED, note=str(asset))
         return asset

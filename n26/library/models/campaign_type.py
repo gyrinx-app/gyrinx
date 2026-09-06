@@ -19,8 +19,10 @@ out, filed under one of the type's asset types — that is the whole of
 how it belongs to the campaign type, and it is authored on the campaign
 type's page. It is assignable so that a possession can be a built-in
 member and so that either ownership can carry modifiers for what having
-it does. A holding is never assigned; the campaign's own record of the
-asset says who holds it.
+it does. A possession is built into its campaign type the moment it is
+created, and taken out again when it is deleted or archived, with no
+step for the author (``n26.library.possessions``). A holding is never
+assigned; the campaign's own record of the asset says who holds it.
 """
 
 from django.db import models
@@ -39,10 +41,12 @@ class CampaignType(Content, Assignable):
     gang that joins a campaign founded on it.
 
     Assignable for the same reason a gang type is: joining a campaign is a
-    gang-hosted assignment naming its type. That gives the built-ins every
-    member gang arrives with — a Reputation counter, a Settlement —
+    gang-hosted assignment naming its type. That gives everything a member
+    gang receives on joining — a Reputation counter, a Settlement —
     something to be caused by, and puts campaign-wide modifiers on every
-    member's card.
+    member's card. A counter or a rule is added to that list by hand; an
+    asset of a Possession asset type is added to it when the asset is
+    created.
 
     It also declares its **asset types** — Territory, Settlement — and
     under each asset type lists the **assets** a campaign of this type
@@ -54,6 +58,11 @@ class CampaignType(Content, Assignable):
     """
 
     family = Family.GANG
+
+    #: What every gang that joins can be given by hand: a counter with
+    #: its opening value, a rule, a slot to pick in. Kit is a model's,
+    #: not a campaign's, and an asset is built in by its asset type.
+    built_in_kinds = ("counter", "rule", "slot")
 
     description = models.TextField(
         blank=True,
@@ -196,11 +205,19 @@ class Asset(Content, Assignable):
 
     Assignable so that a possession can be built into its campaign type
     and arrive on every member gang, and so that an asset of either
-    ownership can carry modifiers. A holding is never assigned: the
-    campaign's own record of the asset says who holds it.
+    ownership can carry modifiers. A possession is built in when it is
+    created and taken out when it is deleted or archived; nobody adds it
+    by hand. A holding is never assigned: the campaign's own record of
+    the asset says who holds it.
     """
 
     family = Family.BASE
+
+    #: The built-in picker never offers an asset. A possession is built in
+    #: by being created under a Possession asset type, and a holding is
+    #: never built in, so a hand-picked asset member could only be a
+    #: mistake.
+    offered_as_built_in = False
 
     asset_type = models.ForeignKey(
         AssetType,
@@ -231,6 +248,30 @@ class Asset(Content, Assignable):
     def campaign_type(self):
         """The campaign type whose asset type this belongs to."""
         return self.asset_type.campaign_type
+
+    @property
+    def is_possession(self):
+        """Whether every gang has its own of this — read off the asset
+        type, where the ownership lives."""
+        return not self.asset_type.is_holding
+
+    def archive(self):
+        """An archived possession stops being given: its built-in
+        memberships go with it, the way deleting the asset takes them.
+        Gangs already holding one keep it, as with every built-in."""
+        from n26.library.authoring import take_out_of_built_ins
+
+        take_out_of_built_ins(self)
+        super().archive()
+
+    def unarchive(self):
+        """Bringing a possession back starts it being given again: the
+        memberships archiving took out come back, and the gangs that
+        joined meanwhile catch up. The mirror of ``archive``."""
+        from n26.library.possessions import give_back
+
+        super().unarchive()
+        give_back(self)
 
     @property
     def income(self):

@@ -457,6 +457,29 @@ class GeneratedForm(forms.Form):
         for name, kind in self.spec.fields.items():
             if isinstance(kind, One) and kind.within:
                 self.fields[name].queryset = getattr(carrier, kind.within).all()
+            if isinstance(kind, Union) and kind.through is not None:
+                self._offer_the_carriers_kinds(name, kind, carrier)
+
+    def _offer_the_carriers_kinds(self, name, kind, carrier):
+        """Narrow a built-in picker to the kinds its carrier declares
+        (``built_in_kinds``), the first of them as the default, and drop
+        the pickers for the rest — so what is offered and what is
+        accepted are the same list. A carrier declaring nothing keeps
+        every kind."""
+        offered = getattr(carrier, "built_in_kinds", None)
+        if offered is None:
+            return
+        offered = [option for option in offered if option in kind.over]
+        kind_field = self.fields[f"{name}_kind"]
+        labels = dict(kind_field.choices)
+        # In the carrier's order, so the default reads first in the list.
+        kind_field.choices = [("", labels[""])] if "" in labels else []
+        kind_field.choices += [(option, labels[option]) for option in offered]
+        kind_field.initial = offered[0] if offered else None
+        for option in kind.over:
+            if option not in offered:
+                self.fields.pop(f"{name}_{option}", None)
+                self.fields.pop(f"{name}_new_{option}", None)
 
     def clean(self):
         cleaned = super().clean()

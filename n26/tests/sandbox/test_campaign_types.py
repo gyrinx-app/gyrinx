@@ -158,16 +158,217 @@ class TestAuthoringACampaignType:
         remove_asset_type(dominion["territory"])
         assert not AssetType.objects.filter(pk=dominion["territory"].pk).exists()
 
-    def test_a_possession_and_a_counter_can_be_built_in(self, dominion):
+    def test_a_possession_is_built_in_as_it_is_created_and_a_counter_by_hand(
+        self, dominion, default_pack
+    ):
         settlement = create_asset("Settlement", dominion["settlement"])
         reputation = create_counter("Reputation")
-
         add_built_in(dominion["type"], reputation, amount=0)
-        add_built_in(dominion["type"], settlement)
 
         members = list(dominion["type"].built_in_members)
-        assert [member.assignable for member in members] == [reputation, settlement]
-        assert members[0].amount == 0
+        assert [member.assignable for member in members] == [settlement, reputation]
+        assert members[0].pack == default_pack
+        assert members[1].amount == 0
+        assert dominion["type"].built_ins.name == "Dominion built-ins"
+
+    def test_a_holding_is_never_built_in(self, dominion):
+        create_asset("Old Ruins", dominion["territory"])
+        assert dominion["type"].built_ins is None
+
+    def test_every_possession_asset_type_gives_its_assets(self, dominion):
+        """The rule is the asset type's ownership, not the word Settlement:
+        a second Possession asset type's assets arrive the same way."""
+        hideout = add_asset_type(dominion["type"], "Hideout", "held-one-each")
+        settlement = create_asset("Settlement", dominion["settlement"])
+        bolthole = create_asset("Bolthole", hideout)
+
+        members = list(dominion["type"].built_in_members)
+        assert [member.assignable for member in members] == [settlement, bolthole]
+
+    def test_deleting_or_archiving_a_possession_takes_it_out(self, dominion):
+        from n26.library.authoring import delete_content
+
+        hideout = add_asset_type(dominion["type"], "Hideout", "held-one-each")
+        settlement = create_asset("Settlement", dominion["settlement"])
+        bolthole = create_asset("Bolthole", hideout)
+
+        delete_content(bolthole)
+        assert not Asset.objects.filter(pk=bolthole.pk).exists()
+        assert [m.assignable for m in dominion["type"].built_in_members] == [settlement]
+
+        settlement.archive()
+        # Nothing ever materialised from the member, so it goes rather
+        # than being archived; the set itself stays for the next thing.
+        assert list(dominion["type"].built_in_members) == []
+        assert not DefaultAssignment.objects.filter(asset=settlement).exists()
+        assert dominion["type"].built_ins is not None
+
+    def test_unarchiving_a_possession_gives_it_again(self, dominion):
+        """The mirror of archiving. Nothing had come from the member, so
+        archiving deleted it and unarchiving adds a fresh one — the asset
+        is given to gangs that join from here on, as it was before."""
+        settlement = create_asset("Settlement", dominion["settlement"])
+        settlement.archive()
+        assert list(dominion["type"].built_in_members) == []
+
+        settlement.unarchive()
+
+        assert [m.assignable for m in dominion["type"].built_in_members] == [settlement]
+        assert DefaultAssignment.objects.filter(asset=settlement).count() == 1
+
+    def test_unarchiving_a_holding_gives_nothing(self, dominion):
+        """A holding is never built in, so there is nothing to put back."""
+        from n26.library.authoring import add_asset_type
+
+        cache = add_asset_type(dominion["type"], "Cache", "pooled")
+        loot = create_asset("Loot", cache)
+        loot.archive()
+        loot.unarchive()
+
+        assert not DefaultAssignment.objects.filter(asset=loot).exists()
+
+    def test_a_possession_is_given_by_a_type_in_its_own_pack(self, dominion, owned):
+        """A campaign writing an asset into its own pack under a shared
+        Possession asset type names its additions type as the giver; the
+        shared type must never hand one campaign's asset to every campaign
+        founded on it."""
+        with pytest.raises(ValueError, match="own pack"):
+            create_asset("Sump Home", dominion["settlement"], pack=owned["pack"])
+        assert not Asset.objects.filter(name="Sump Home").exists()
+
+        home = create_asset(
+            "Sump Home",
+            dominion["settlement"],
+            pack=owned["pack"],
+            given_by=owned["type"],
+        )
+        assert [m.assignable for m in owned["type"].built_in_members] == [home]
+        assert owned["type"].built_ins.pack == owned["pack"]
+        assert dominion["type"].built_ins is None
+
+    def test_the_rule_can_be_run_over_what_already_stands(
+        self, dominion, owned, default_pack
+    ):
+        """The data migration's pass: a possession authored before the rule,
+        with no member naming it, is built in; one already given is left
+        alone; a campaign's own asset under a shared type goes to that
+        campaign's additions."""
+        from n26.core.models import Campaign
+        from n26.library.possessions import build_in_missing
+        from n26.tests.sandbox.actions import found_campaign
+
+        settlement = Asset.objects.create(
+            pack=default_pack, name="Settlement", asset_type=dominion["settlement"]
+        )
+        given = create_asset(
+            "Bolthole", add_asset_type(dominion["type"], "Hideout", "held-one-each")
+        )
+        stray = Asset.objects.create(
+            pack=owned["pack"], name="Stray", asset_type=dominion["settlement"]
+        )
+        campaign = found_campaign(
+            "Dust Falls", dominion["type"], owner=User.objects.create_user("arb")
+        )
+        theirs = Asset.objects.create(
+            pack=campaign.pack, name="Sump Home", asset_type=dominion["settlement"]
+        )
+
+        made = build_in_missing(apps)
+
+        assert sorted(member.asset.name for member in made) == [
+            "Settlement",
+            "Sump Home",
+        ]
+        assert [m.assignable for m in dominion["type"].built_in_members] == [
+            given,
+            settlement,
+        ]
+        # The pass founded the additions' set on its own copy of the type.
+        campaign.additions.refresh_from_db()
+        assert [m.assignable for m in campaign.additions.built_in_members] == [theirs]
+        # A pack no campaign owns gives nothing.
+        assert not DefaultAssignment.objects.filter(asset=stray).exists()
+        assert Campaign.objects.count() == 1
+        assert build_in_missing(apps) == []
+
+    def test_the_pass_founds_one_set_for_a_type_with_several_possessions(
+        self, dominion, default_pack
+    ):
+        """Two possessions of a type that has no set yet land in one set:
+        the pass reads the type once, not once per asset."""
+        from n26.library.possessions import build_in_missing
+
+        hideout = add_asset_type(dominion["type"], "Hideout", "held-one-each")
+        first = Asset.objects.create(
+            pack=default_pack, name="Settlement", asset_type=dominion["settlement"]
+        )
+        second = Asset.objects.create(
+            pack=default_pack, name="Bolthole", asset_type=hideout
+        )
+
+        made = build_in_missing(apps)
+
+        dominion["type"].refresh_from_db()
+        assert {member.default_set_id for member in made} == {
+            dominion["type"].built_ins_id
+        }
+        assert DefaultAssignmentSet.objects.count() == 1
+        assert [m.assignable for m in dominion["type"].built_in_members] == [
+            second,
+            first,
+        ]
+        assert build_in_missing(apps) == []
+
+    def test_archiving_through_the_admin_takes_a_possession_out(
+        self, dominion, default_pack
+    ):
+        """The admin change form is the one place an asset is archived by
+        a person, and it saves the row rather than calling ``archive``;
+        the admin routes that save through the same rule."""
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        from n26.library.admin import AssetAdmin
+
+        settlement = create_asset("Settlement", dominion["settlement"])
+        assert dominion["type"].built_in_members.count() == 1
+
+        settlement.archived = True
+        AssetAdmin(Asset, AdminSite()).save_model(
+            RequestFactory().post("/"), settlement, form=None, change=True
+        )
+
+        settlement.refresh_from_db()
+        assert settlement.archived
+        assert list(dominion["type"].built_in_members) == []
+
+    def test_unarchiving_through_the_admin_gives_a_possession_back(
+        self, dominion, default_pack
+    ):
+        """Unticking Archived on the same form is how a person brings an
+        asset back, and the admin routes that save through the rule too."""
+        from types import SimpleNamespace
+
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        from n26.library.admin import AssetAdmin
+
+        settlement = create_asset("Settlement", dominion["settlement"])
+        settlement.archive()
+        assert list(dominion["type"].built_in_members) == []
+
+        settlement.archived = False
+        AssetAdmin(Asset, AdminSite()).save_model(
+            RequestFactory().post("/"),
+            settlement,
+            form=SimpleNamespace(changed_data=["archived"]),
+            change=True,
+        )
+
+        settlement.refresh_from_db()
+        assert not settlement.archived
+        assert [m.assignable for m in dominion["type"].built_in_members] == [settlement]
 
     def test_a_gang_can_be_assigned_a_campaign_type_and_an_asset(
         self, dominion, gang_type, owner
@@ -380,9 +581,122 @@ class TestTheAuthoringPages:
         assert f'name="add-asset-{territory.pk}-name"' in body
         assert f'name="add-asset-{territory.pk}-income"' in body
         assert "Add Territory" in body
-        assert "Comes with" in body
+        assert "Every gang that joins gets" in body
+        assert "Comes with" not in body
         assert "Modifiers" in body
         assert f"/n26/authoring/asset-types/{territory.pk}/remove/" in body
+
+    def test_the_type_page_says_what_every_gang_gets_and_offers_no_asset(
+        self, author, client, dominion
+    ):
+        """The section is labelled for what it is on a campaign type — what
+        every gang is given on joining — and its picker offers no asset: a
+        possession is built in by being created under its asset type."""
+        settlement = create_asset("Settlement", dominion["settlement"])
+        add_built_in(dominion["type"], create_counter("Reputation"), amount=0)
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+
+        body = client.get(page).content.decode()
+
+        assert "Every gang that joins gets" in body
+        assert "Given to every gang when it joins a campaign of this type." in body
+        assert "Add something every gang gets" in body
+        assert "Add a built-in" not in body
+        assert "from the Settlement asset type · delete the asset to remove it" in body
+        assert "counter · opening value 0" not in body
+        assert "counter" in body
+        (given,) = dominion["type"].built_in_members.filter(asset=settlement)
+        (counted,) = dominion["type"].built_in_members.filter(counter__isnull=False)
+        assert f"/n26/authoring/built-ins/{counted.pk}/remove/" in body
+        assert f"/n26/authoring/built-ins/{given.pk}/remove/" not in body
+        assert 'value="asset"' not in body
+        assert 'value="counter"' in body
+
+    def test_the_type_page_offers_counter_rule_and_slot_and_opens_on_counter(
+        self, author, client, dominion
+    ):
+        """Kit is a model's to be given, so the picker on a campaign type
+        offers only what a campaign gives a gang, and a post naming
+        anything else is refused as no choice."""
+
+        from n26.library.authoring import create_weapon
+
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+        body = client.get(page).content.decode()
+
+        assert re.search(r'value="counter"\s+selected', body)
+        # The Kind select's own options come first after its id; the
+        # per-kind pickers follow.
+        options = re.findall(
+            r'<option\s+value="(\w+)"', body.split("id_thing_kind")[-1]
+        )
+        assert options[:3] == ["counter", "rule", "slot"]
+        for kind in ("weapon", "wargear", "skill", "collection", "hidden", "subtype"):
+            assert f'value="{kind}"' not in body
+            assert f'name="thing_{kind}"' not in body
+
+        weapon = create_weapon("Stub gun")
+        response = client.post(
+            page,
+            {
+                "act": "built_in",
+                "thing_kind": "weapon",
+                "thing_weapon": str(weapon.pk),
+                "amount": "0",
+            },
+        )
+        assert response.status_code == 200
+        assert dominion["type"].built_ins is None
+
+    def test_creating_a_possession_on_the_type_page_lists_it_among_what_every_gang_gets(
+        self, author, client, dominion
+    ):
+        settlement = dominion["settlement"]
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+        response = client.post(
+            page,
+            {
+                "act": "add-asset",
+                "part": str(settlement.pk),
+                f"add-asset-{settlement.pk}-name": "Settlement",
+            },
+        )
+        assert response.status_code == 302
+
+        made = Asset.objects.get(name="Settlement")
+        # The page founded the type's set on its own copy of the type.
+        dominion["type"].refresh_from_db()
+        assert [m.assignable for m in dominion["type"].built_in_members] == [made]
+        body = client.get(page).content.decode()
+        assert "from the Settlement asset type" in body
+
+    def test_an_asset_member_cannot_be_taken_off_at_its_address(
+        self, author, client, dominion
+    ):
+        settlement = create_asset("Settlement", dominion["settlement"])
+        (member,) = dominion["type"].built_in_members.all()
+        remove = f"/n26/authoring/built-ins/{member.pk}/remove/"
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+
+        asked = client.get(remove)
+        assert asked.status_code == 302
+        assert asked.url == page
+        refused = client.post(remove, follow=True)
+        assert "Delete the asset to remove it." in refused.content.decode()
+        assert list(dominion["type"].built_in_members) == [member]
+        assert not member.archived
+        assert Asset.objects.filter(pk=settlement.pk).exists()
+
+    def test_deleting_a_possession_on_its_page_takes_it_out_of_what_every_gang_gets(
+        self, author, client, dominion
+    ):
+        settlement = create_asset("Settlement", dominion["settlement"])
+
+        response = client.post(f"/n26/authoring/asset/{settlement.pk}/delete/")
+
+        assert response.status_code == 302
+        assert not Asset.objects.filter(pk=settlement.pk).exists()
+        assert list(dominion["type"].built_in_members) == []
 
     def test_the_type_page_adds_an_asset_type(self, author, client, dominion):
         response = client.post(

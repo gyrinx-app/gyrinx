@@ -166,6 +166,14 @@ def _describe_built_in(member):
     thing = member.assignable
     if isinstance(thing, Collection):
         notes = ["collection — a list it may use"]
+    elif member.asset_id is not None:
+        # A possession is built in by being created under its asset type,
+        # and goes when the asset does; the row has no Remove of its own,
+        # so it says where the member came from and what takes it away.
+        notes = [
+            f"from the {thing.asset_type} asset type",
+            "delete the asset to remove it",
+        ]
     else:
         notes = [str(thing._meta.verbose_name)]
     if member.amount:
@@ -277,7 +285,10 @@ def _weapon_parts(parts):
 def _built_in_parts(parts):
     from n26.library.models import DefaultAssignment
 
-    return parts.prefetch_related(*DefaultAssignment.ASSIGNABLE_FIELDS)
+    # An asset member's row names its asset type, so that comes along.
+    return parts.prefetch_related(
+        *DefaultAssignment.ASSIGNABLE_FIELDS, "asset__asset_type"
+    )
 
 
 def _arrange_built_ins(pairs):
@@ -500,6 +511,15 @@ DETAIL_KINDS = {
 }
 
 
+def _gives_to_every_gang(thing):
+    """Whether this thing's built-ins are what every gang is given on
+    joining a campaign — a campaign type — so the section says so rather
+    than "comes with", which reads as kit arriving with a purchase."""
+    from n26.library.models import CampaignType
+
+    return isinstance(thing, CampaignType)
+
+
 #: What a thing always comes with, in the same shape as a kind's own
 #: parts — but filed apart from them, because this is not one kind's
 #: section. Every assignable can carry built-ins, so which pages draw
@@ -515,26 +535,46 @@ DETAIL_KINDS = {
 #: The words are ours rather than the part model's, because the row is a
 #: DefaultAssignment — accurate, and nothing an author says. They avoid
 #: naming any one carrier: a profile is hired and a piece of wargear is
-#: bought, and both come with what is listed here.
+#: bought, and both come with what is listed here. A campaign type is
+#: the exception: nothing acquires one, so its section says what every
+#: gang that joins is given.
 BUILT_INS_PART = {
     "act": "built_in",
     "verb": "add_built_in",
     "parts": "built_in_members",
     "statline": False,
     "describe": _describe_built_in,
-    "parts_label": "comes with",
+    "parts_label": lambda thing: (
+        "every gang that joins gets" if _gives_to_every_gang(thing) else "comes with"
+    ),
     "part_name": "built-in",
     "parts_hint": _built_in_parts,
-    "parts_description": (
-        "What comes with this, free, the moment it is acquired — hired, "
-        "for a profile; bought, for a weapon or a piece of wargear. Taking "
-        "a line off changes only what is acquired next: the thing itself "
-        "stays in the library, and anything already holding it keeps it."
+    "parts_description": lambda thing: (
+        (
+            "Given to every gang when it joins a campaign of this type. "
+            "Counters start at the amount shown."
+        )
+        if _gives_to_every_gang(thing)
+        else (
+            "What comes with this, free, the moment it is acquired — hired, "
+            "for a profile; bought, for a weapon or a piece of wargear. Taking "
+            "a line off changes only what is acquired next: the thing itself "
+            "stays in the library, and anything already holding it keeps it."
+        )
     ),
+    # The add form's heading and button on a campaign type, where "Add a
+    # built-in" would name the mechanism rather than what the author does.
+    "add_title": lambda thing: (
+        "Add something every gang gets" if _gives_to_every_gang(thing) else ""
+    ),
+    "submit_label": lambda thing: "Add" if _gives_to_every_gang(thing) else "",
     # Where a row's Remove control leads. A part is taken off at its
     # own address, never from the listing, because what the act means
     # cannot be read off the row.
     "removes": "authoring-built-in-remove",
+    # An asset member is a possession built in by its asset type, and
+    # deleting the asset is what takes it out; the row offers no Remove.
+    "removable": lambda member: member.asset_id is None,
     # A gun's own lines nest under it, so the listing reads the way a
     # card draws firing lines under weapons.
     "arrange": _arrange_built_ins,
@@ -548,6 +588,17 @@ BUILT_INS_PART = {
         else ""
     ),
     "door_label": "Add a weapon profile…",
+    "part_help": lambda thing: (
+        [
+            "A counter with its opening value, or a rule, that every gang is "
+            "given when it joins a campaign of this type. No choice is "
+            "offered. An asset of a Possession asset type is given as well, "
+            "but you do not add it here: it is listed above with its asset "
+            "type."
+        ]
+        if _gives_to_every_gang(thing)
+        else ""
+    ),
 }
 
 
@@ -858,21 +909,20 @@ def _holders_of(default_set):
     )
 
 
-def _reach_said(reach, adding):
+def _reach_said(reach, adding, later="what is acquired from now on"):
     """How far an addition to a set of defaults travels, in a sentence.
 
     Says who already holds the set and what the addition does to them.
     The consequence follows the feature flag, because reach is only
     promised while the passes that deliver it actually run: shut, the
-    sentence says the change waits instead.
+    sentence says the change waits instead. ``later`` is what an
+    addition reaches when nothing holds the set yet — kit is acquired,
+    but a campaign type is joined.
     """
     from n26.flags import BUILT_IN_PROPAGATION, switched_on
 
     if reach.uses == 0:
-        return (
-            f"Held by no gang yet, so {adding} changes only what is "
-            f"acquired from now on."
-        )
+        return f"Held by no gang yet, so {adding} changes only {later}."
     times = "once" if reach.uses == 1 else f"{reach.uses} times"
     where = "in one gang" if reach.gangs == 1 else f"across {reach.gangs} gangs"
     standing = f"Already held {times}, {where}"
@@ -911,6 +961,12 @@ def _built_in_reach_said(thing):
         if thing.built_ins_id
         else reach_of_new_built_ins(thing)
     )
+    if _gives_to_every_gang(thing):
+        return _reach_said(
+            reach,
+            "something added here",
+            later="what gangs get when they join from now on",
+        )
     return _reach_said(reach, "a built-in added here")
 
 
@@ -2073,6 +2129,7 @@ def detail(request, kind, pk):
             form = form_class(carrier=thing)
             statline_form = statline_class() if statline_class else None
         removes = section.get("removes")
+        removable = section.get("removable", lambda part: True)
         opens = section.get("opens")
 
         pairs = []
@@ -2091,9 +2148,10 @@ def detail(request, kind, pk):
                         # own; the row's name is then plain words.
                         "href": _opens_url(opens, part),
                         # Blank for a kind whose parts cannot be taken off
-                        # here; the row simply draws no control.
+                        # here, or for the one part of a kind that cannot;
+                        # the row simply draws no control.
                         "remove_url": reverse(removes, args=[part.pk])
-                        if removes
+                        if removes and removable(part)
                         else "",
                         # A part edited in place carries its own form; the
                         # one just refused keeps the form it was refused on.
@@ -2119,8 +2177,12 @@ def detail(request, kind, pk):
                 "part_verbose_name": part_name,
                 # "Add an option", "Add a firing line". Worked out rather
                 # than written beside each name, so a kind renamed on its
-                # model never leaves the heading ungrammatical.
-                "part_article": _article_for(part_name),
+                # model never leaves the heading ungrammatical. A section
+                # may say both in its own words instead.
+                "add_title": worded(section.get("add_title", ""))
+                or f"Add {_article_for(part_name)} {part_name}",
+                "submit_label": worded(section.get("submit_label", ""))
+                or f"Add {part_name}",
                 "part_verbose_name_plural": worded(
                     section.get("parts_label", part_model._meta.verbose_name_plural)
                 ),
@@ -2135,7 +2197,11 @@ def detail(request, kind, pk):
                     if section.get("act") == "built_in"
                     else ""
                 ),
-                "part_help": kind_help(part_model),
+                # The part model's own words, unless the section says its
+                # own: a campaign type's members are not kit arriving with
+                # a purchase, which is what the built-in row's words say.
+                "part_help": worded(section.get("part_help", ""))
+                or kind_help(part_model),
                 "wants_statline": section["statline"],
                 "parts": parts,
                 "form": form,
@@ -2776,6 +2842,17 @@ def built_in_remove(request, pk):
     )
     holders = _holders_of(member.default_set)
     back = _back_to(holders)
+
+    # The listing offers no Remove on an asset member, and the address
+    # refuses one too: a possession is taken out by deleting the asset.
+    if member.asset_id is not None:
+        messages.error(
+            request,
+            f"{_label_for(member.assignable)} cannot be removed here. It is "
+            f"given by its {member.asset.asset_type} asset type. Delete the "
+            "asset to remove it.",
+        )
+        return redirect(back)
 
     if request.method == "POST":
         said = _label_for(member.assignable)
