@@ -1522,7 +1522,7 @@ def test_a_refund_names_what_was_paid_and_not_its_rating(
     ).content.decode()
     copy = " ".join(body.split())
 
-    assert "5¢ comes back — the amount paid, not its rating." in copy
+    assert "You get 5¢ back — the amount paid, not its rating." in copy
     assert (
         "It and anything attached to it are removed from the gang, undoing the purchase."
         in copy
@@ -1625,7 +1625,9 @@ def test_a_gang_with_no_budget_is_offered_no_refund(
     ).content.decode()
     assert "Delete" in asked
     assert "Refund" not in asked
-    assert "No credits are returned." in asked
+    # Not "no credits are returned": this gang counts none either way, so
+    # the sentence says the plain thing instead of naming money.
+    assert "Nothing comes back." in asked
 
 
 @pytest.fixture

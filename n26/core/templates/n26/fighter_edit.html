@@ -100,7 +100,7 @@ is named by the page's own heading directly below.
                         Clone model
                     </c-ui.dropdown.item>
                 {% endif %}
-                {% if not gang.credits_unlimited %}
+                {% if may_refund %}
                     <c-ui.dropdown.item href="{% url 'n26-gang' gang.pk %}?refund={{ miniature.pk }}">
                         Refund
                     </c-ui.dropdown.item>

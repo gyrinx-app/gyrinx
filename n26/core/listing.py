@@ -397,10 +397,11 @@ def copy_row(copy, refunds=True):
     Takes an :class:`n26.core.owned.OwnedThing`, which already knows where
     each of its controls leads; this says what each of them means.
 
-    ``refunds`` is whether Refund is offered at all. A gang founded
-    without a budget never paid credits, so there is nothing a refund
-    could give back — its rows offer Remove alone, exactly as its
-    fighter cards offer Delete without Refund.
+    ``refunds`` is whether the gang refunds in credits at all. A gang
+    founded without a budget has no credits to give back, so its copies
+    offer Remove alone — unless this particular one took Trade Points out
+    of its buyer's founding allowance, which a refund does return. That
+    is what ``paid_trade_points`` on the copy says, and either is enough.
     """
     return OwnedCopyRow(
         id=copy.id,
@@ -434,7 +435,7 @@ def copy_row(copy, refunds=True):
                     ),
                     *(
                         (Action("Refund", LINK, part.refund_href, SECONDARY),)
-                        if refunds
+                        if refunds or part.paid_trade_points
                         else ()
                     ),
                     Action("Remove", LINK, part.remove_href, DANGER),
@@ -470,7 +471,7 @@ def copy_row(copy, refunds=True):
             Action("Reassign", LINK, copy.reassign_href, SECONDARY),
             *(
                 (Action("Refund", LINK, copy.refund_href, SECONDARY),)
-                if refunds
+                if refunds or copy.paid_trade_points
                 else ()
             ),
             Action("Delete", LINK, copy.remove_href, DANGER),
@@ -526,8 +527,9 @@ def build_catalogue(view, owned, name=None, refunds=True, expanded_key=""):
     keyed the way rows are keyed — so the join is one dictionary read per
     row, however much the fighter is carrying and however long the list.
 
-    ``refunds`` rides down to every owned copy: a gang with no budget is
-    offered no Refund anywhere in the catalogue.
+    ``refunds`` rides down to every owned copy: a gang with no budget
+    refunds no credits, so a copy is offered Refund only where it took
+    Trade Points out of a founding allowance.
 
     Sections keep the order and the shape the browse gave them, with one
     substitution: a section the content left unnamed is called

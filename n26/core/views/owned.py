@@ -40,7 +40,8 @@ The acts are deliberately distinct, and the ledger says which happened:
     because which model holds a thing and which gun it is bolted to are
     not one question, however much they are one act.
 ``refund``
-    Undoing the purchase: every credit that was paid comes back. The amount
+    Undoing the purchase: everything that was handed over comes back —
+    credits, and the Trade Points a founding allowance paid. The amount
     paid and the rating part company at the first discount, which is why
     this is not a sale.
 ``remove``
@@ -249,6 +250,54 @@ def _asked(request):
 ROUTES = {"fit": "reassign", "detach": "reassign"}
 
 
+def refunded_credits(gang, paid):
+    """What a refund of something bought for ``paid`` puts back in this
+    gang's pocket.
+
+    Nothing, where the gang was founded with no budget: it counts no
+    credits — its number is its rating — so the ledger's figure is a
+    number nobody watching the gang would see move.
+    """
+    return 0 if gang.credits_unlimited else paid
+
+
+def refund_words(gang, paid, trade_points):
+    """What a refund hands back, as a phrase to drop into a sentence.
+
+    Both figures where both moved, and the one that did otherwise. A gang
+    spending its models' founding allowances and nothing else is told
+    about the Trade Points alone, because naming a sum of money would
+    promise it a figure that never moves.
+    """
+    from django.template.defaultfilters import pluralize
+
+    credits = refunded_credits(gang, paid)
+    if not trade_points:
+        return f"{credits}¢"
+    points = f"{trade_points} Trade Point{pluralize(trade_points)}"
+    return f"{credits}¢ and {points}" if credits else points
+
+
+def removal_words(gang, paid, trade_points):
+    """The sentence under a removal: what it hands back, and what Refund
+    would hand back instead.
+
+    A gang with a budget hears about credits, which is what its removals
+    keep spent. A gang counting none hears what it would actually get —
+    its models' founding Trade Points — because "the amount paid" would
+    name money it has none of, and where no allowance paid for the thing
+    there is nothing to point it at.
+    """
+    if not gang.credits_unlimited:
+        return "No credits are returned. Use Refund instead to recover the amount paid."
+    if trade_points:
+        return (
+            "Nothing comes back. Use Refund instead to get "
+            f"{refund_words(gang, paid, trade_points)} back."
+        )
+    return "Nothing comes back."
+
+
 def _panel(request, assignment, kind, at):
     """What every one of these dialogs says, whatever it is asking."""
     return {
@@ -356,6 +405,7 @@ def owned_dialog(request, host: EquipHost):
         detachable_children,
         refund_of,
         sale_of,
+        trade_points_in,
     )
 
     kind, named = _asked(request)
@@ -363,15 +413,25 @@ def owned_dialog(request, host: EquipHost):
         return None
 
     gang = host.gang
-    # A gang founded without a budget never paid credits, so there is
-    # nothing a refund could give back: a refund address asks the remove
-    # question instead, exactly as the fighter-level flow answers.
-    if kind == "refund" and gang.credits_unlimited:
-        kind = "remove"
-
     assignment = _held(host, named)
     if assignment is None:
         return None
+
+    # What a refund of this would hand back, asked once and only where
+    # the answer decides something: what the refund panel promises, and
+    # whether a gang that returns no credits has Trade Points to return
+    # instead. A gang with a budget always offers the act, so its remove
+    # panel settles that without asking.
+    asks_figures = kind == "refund" or (kind == "remove" and gang.credits_unlimited)
+    refunding, paid = refund_of(assignment) if asks_figures else ((), 0)
+    points = trade_points_in(refunding)
+    # A gang founded without a budget pays no credits, so a refund of a
+    # purchase it made in credits alone would give nothing back: that
+    # address asks the remove question instead, exactly as the
+    # fighter-level flow answers. Points off a founding allowance are a
+    # different matter — those come back.
+    if kind == "refund" and gang.credits_unlimited and not points:
+        kind = "remove"
 
     name = str(assignment.assignable)
     # A part is what hangs off something else — ammo in a gun, a sight
@@ -380,7 +440,10 @@ def owned_dialog(request, host: EquipHost):
     is_part = assignment.parent_id is not None
     dialog = _panel(request, assignment, kind, host.at) | {
         "stash_host": host.is_stash,
-        "can_refund": not gang.credits_unlimited,
+        # The removal panel's own sentence, worked out where the figures
+        # are already in hand rather than by the template asking whether
+        # this gang has a budget.
+        "remove_note": removal_words(gang, paid, points),
     }
 
     if kind == "sell":
@@ -531,16 +594,21 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "refund":
-        _, paid = refund_of(assignment)
-        # The figure is what the ledger says was handed over, which is not
-        # on the page anywhere and is not the price the listing quotes —
-        # so the sentence says which number it is as well as what it is.
+        # The figures are what the ledger says was handed over, which is
+        # not on the page anywhere and is not the price the listing
+        # quotes — so the sentence says which numbers they are as well as
+        # what they are. Trade Points are named where any moved: a gang
+        # spending its founding allowance is being handed back the only
+        # thing it paid.
+        credits = refunded_credits(gang, paid)
         return dialog | {
             "title": f"Refund {name}?",
-            "proceeds": paid,
+            "proceeds": credits,
+            "trade_points": points,
             "sum": (
-                f"{paid}¢ comes back — the amount paid, not its rating."
-                if paid
+                f"You get {refund_words(gang, paid, points)} back — the amount "
+                "paid, not its rating."
+                if credits or points
                 else "Nothing was paid for this, so nothing comes back."
             ),
             "submit_label": "Refund",
@@ -555,7 +623,13 @@ def owned_dialog(request, host: EquipHost):
 
 
 def link_stash_actions(sheet, at, *, refunds=True):
-    """Add dialog links without querying; print and read-only sheets stay plain."""
+    """Add dialog links without querying; print and read-only sheets stay plain.
+
+    ``refunds`` is whether the gang refunds in credits at all. A gang
+    founded without a budget has none to give back, so a stash line is
+    offered Refund only where a founding allowance paid for it — the line
+    already says which, off the card the sheet was drawn from.
+    """
     from n26.core.listing import DANGER, LINK, SECONDARY, Action
 
     for line in sheet.stash:
@@ -570,7 +644,7 @@ def link_stash_actions(sheet, at, *, refunds=True):
             ),
             Action("Sell", LINK, with_query(at, sell=line.id), DANGER),
         ]
-        if refunds:
+        if refunds or line.paid_trade_points:
             menu.append(
                 Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
             )
@@ -586,8 +660,10 @@ def link_possession_actions(model_card, host, *, refunds=True):
     with no assignment — granted gear, a hire preview — stays a name
     with nothing to click.
 
-    ``refunds`` is whether Refund is offered at all, the same flag the
-    listing takes: a gang founded without a budget never paid credits.
+    ``refunds`` is whether the gang refunds in credits at all, the same
+    flag the listing takes: a gang founded without a budget has none to
+    give back, and each copy says for itself whether a founding allowance
+    paid for it.
     """
     from dataclasses import replace
 
@@ -1144,25 +1220,27 @@ def remove_assignment(request, pk):
 @login_required
 @require_POST
 def refund_assignment(request, pk):
-    """Undo the purchase: it archives, and every credit paid comes back.
+    """Undo the purchase: it archives, and what was paid comes back.
 
-    What was *paid*, not its rating — see ``Operation.refund``. The
-    figure is read before the write, because afterwards every entry in
-    the subtree has been settled to zero and there is nothing left to add
-    up.
+    Credits, and the Trade Points a founding allowance paid. What was
+    *paid*, not its rating — see ``Operation.refund``. The figures are
+    read before the write, because afterwards every entry in the subtree
+    has been settled to zero and there is nothing left to add up.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation, refund_of
+    from n26.core.operations import Refusal, operation, refund_of, trade_points_in
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
-    # No budget, no refund: the money never left a budget, so the act
+    refunding, paid = refund_of(assignment)
+    points = trade_points_in(refunding)
+    # A gang with no budget pays no credits, so unless a founding
+    # allowance paid for this there is nothing to give back: the act
     # behind this address is the removal the dialog promised.
-    if gang.credits_unlimited:
+    if gang.credits_unlimited and not points:
         return remove_assignment(request, pk)
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
-    _, paid = refund_of(assignment)
     back = _back_to(request, assignment, gang)
     touched = _row_behind(assignment)
 
@@ -1186,8 +1264,11 @@ def refund_assignment(request, pk):
         thing=name,
         action="refund",
         refunded=paid,
+        trade_points=points,
     )
-    messages.success(request, f"Refunded {name} — {paid}¢ back.")
+    messages.success(
+        request, f"Refunded {name} — {refund_words(gang, paid, points)} back."
+    )
     return _acted(request, touched, gang, back)
 
 

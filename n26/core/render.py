@@ -891,6 +891,10 @@ class StashLine:
     id: str = ""
     #: An accessory moves onto a weapon rather than a model.
     is_accessory: bool = False
+    #: Whether a founding allowance paid for this line or anything hung
+    #: off it. A gang with no credit budget refunds nothing else, so this
+    #: is what says whether the act is worth offering there.
+    paid_trade_points: bool = False
     #: What can happen to this line, each a link to a dialog on the page
     #: that drew it — see ``n26.core.views.owned.link_stash_actions``.
     #: Empty is a name with nothing to click, which is what a print-out
@@ -2547,6 +2551,7 @@ def stash_lines(gang_card):
             provenance=stash_provenance(node),
             id=str(node.assignment.pk) if node.assignment is not None else "",
             is_accessory=isinstance(node.assignable, WeaponAccessory),
+            paid_trade_points=node.paid_trade_points,
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen

@@ -373,7 +373,7 @@ def edit_fighter(request, pk):
         statline_override_form_for,
     )
     from n26.core.images import MAX_PX, PORTRAIT
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal, operation, trade_points_carried_by
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import build_model_card, roster, summarise_roster
     from n26.core.views.choose import link_slots
@@ -714,6 +714,14 @@ def edit_fighter(request, pk):
             # Copying the owner carries both across; the child has no
             # independent purchase to copy on its own.
             "may_clone": miniature.membership.caused_by_id is None,
+            # Whether the menu offers Refund beside Delete. A gang founded
+            # without a budget refunds no credits, so the act is worth
+            # offering only where a founding allowance paid for something
+            # this model still carries. One query, and only for such a
+            # gang — everybody else knows the answer already.
+            "may_refund": (
+                not gang.credits_unlimited or trade_points_carried_by(miniature) > 0
+            ),
             # The role beside the name: the rank the profile is filed
             # under, which is what a reader checking "which of my models
             # is this" wants said once at the top. The bare name — the

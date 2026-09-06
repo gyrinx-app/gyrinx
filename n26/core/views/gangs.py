@@ -394,10 +394,6 @@ def gang_sheet(request, pk):
                 gang, marking or ransoming, status_back
             ),
             "dialog": dialog,
-            # A gang founded without a budget never spent credits, so
-            # there is nothing a refund could give back: its cards offer
-            # Delete alone.
-            "budgeted": gang.starting_credits is not None,
         },
     )
 
@@ -581,8 +577,14 @@ def _leaving(request, gang):
     lines a stash disposal would move — only lines money was paid for,
     because a built-in knife moved to the stash is clutter the next hire
     re-arms for free.
+
+    Trade Points are counted beside the credits because a refund gives
+    both back. A gang founded without a budget returns nothing else, so
+    the points are also what decides whether the question is a refund at
+    all.
     """
-    from n26.core.operations import refund_of, subtree
+    from n26.core.operations import refund_of, trade_points_in
+    from n26.core.views.owned import refund_words
 
     for kind in ("delete", "refund"):
         miniature = _fighter_named(request, gang, kind)
@@ -591,25 +593,58 @@ def _leaving(request, gang):
     else:
         return None
 
-    # A gang founded without a budget never spent credits, so there is
+    membership = miniature.membership
+    hire, fighter_paid = refund_of(membership)
+    fighter_points = trade_points_in(hire)
+    in_hire = {held.pk for held in hire}
+    extra_paid = extra_points = stashable = 0
+    for root in _kit_roots(miniature):
+        held, paid = refund_of(root)
+        if paid > 0:
+            stashable += 1
+        if root.pk not in in_hire:
+            extra_paid += paid
+            extra_points += trade_points_in(held)
+
+    full_points = fighter_points + extra_points
+    # A gang founded without a budget pays no credits, so unless a
+    # founding allowance paid for something this model carries there is
     # nothing to give back: a refund asked of it is a deletion, and the
     # dialog says so rather than offering 0¢.
-    if kind == "refund" and gang.starting_credits is None:
+    if kind == "refund" and gang.starting_credits is None and not full_points:
         kind = "delete"
 
-    membership = miniature.membership
-    in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
-    roots = _kit_roots(miniature)
-    _, fighter_paid = refund_of(membership)
-    extra_paid = sum(refund_of(root)[1] for root in roots if root.pk not in in_hire)
-    stashable = sum(1 for root in roots if refund_of(root)[1] > 0)
     return {
         "kind": kind,
         "miniature": miniature,
-        "full_paid": fighter_paid + extra_paid,
-        "fighter_paid": fighter_paid,
+        # What the whole departure hands back, credits and Trade Points
+        # together: a figure naming only the credits would promise
+        # nothing to a gang that counts none.
+        "full_returned": refund_words(gang, fighter_paid + extra_paid, full_points),
+        # And what the model alone hands back, for the button that
+        # stashes the kit first.
+        "stash_label": _stash_label(gang, kind, fighter_paid, fighter_points),
         "stashable": stashable,
     }
+
+
+def _stash_label(gang, kind, paid, trade_points):
+    """The second button on a leaving dialog: put the kit in the stash
+    first, then do the thing.
+
+    It names what the model alone hands back, where that is something.
+    Where it is nothing — a hire that was free, or a gang whose credits
+    count for nothing and whose allowance paid only for the kit being
+    stashed — a figure would promise a zero, so the button says what it
+    does and leaves the arithmetic out.
+    """
+    from n26.core.views.owned import refund_words, refunded_credits
+
+    if kind != "refund":
+        return "Stash their kit, then delete"
+    if refunded_credits(gang, paid) or trade_points:
+        return f"Stash kit, refund {refund_words(gang, paid, trade_points)}"
+    return "Stash their kit, then refund"
 
 
 @login_required
@@ -641,15 +676,28 @@ def _dismiss(request, pk, kind):
     fighter is still there afterwards and the sheet says why.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation, refund_of, subtree
+    from n26.core.operations import (
+        Refusal,
+        operation,
+        refund_of,
+        subtree,
+        trade_points_carried_by,
+        trade_points_in,
+    )
+    from n26.core.views.owned import refund_words, refunded_credits
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
     membership = miniature.membership
     gang = membership.gang
-    # No budget, no refund: the gang never spent credits, so the act
-    # behind either address is the same deletion the dialog promised.
-    if kind == "refund" and gang.starting_credits is None:
+    # No budget and no founding allowance spent on this model: nothing
+    # comes back either way, so the act behind either address is the same
+    # deletion the dialog promised.
+    if (
+        kind == "refund"
+        and gang.starting_credits is None
+        and not trade_points_carried_by(miniature)
+    ):
         kind = "delete"
     sheet_url = reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":
@@ -672,11 +720,14 @@ def _dismiss(request, pk, kind):
             remaining = [
                 root for root in _kit_roots(miniature) if root.pk not in in_hire
             ]
-            paid_back = 0
+            paid_back = points_back = 0
             if kind == "refund":
-                paid_back = refund_of(membership)[1] + sum(
-                    refund_of(root)[1] for root in remaining
-                )
+                hire, paid_back = refund_of(membership)
+                points_back = trade_points_in(hire)
+                for root in remaining:
+                    held, paid = refund_of(root)
+                    paid_back += paid
+                    points_back += trade_points_in(held)
             act = op.refund if kind == "refund" else op.remove
             act(membership)
             for root in remaining:
@@ -694,12 +745,18 @@ def _dismiss(request, pk, kind):
         kind=kind,
         kit="stash" if stash_kit else "with",
         refunded=paid_back,
+        trade_points=points_back,
     )
     stashed = f" Their kit is in the stash ({moved} line{'s' if moved != 1 else ''})."
-    if kind == "refund":
+    # What came back, worked out after the stash move rather than before
+    # it: kit put in the stash keeps what was paid for it, so a departure
+    # that stashed everything the allowance bought returns nothing, and a
+    # refund is what the deletion it turned out to be says it is.
+    if kind == "refund" and (refunded_credits(gang, paid_back) or points_back):
         messages.success(
             request,
-            f"Refunded {was} — {paid_back}¢ back." + (stashed if moved else ""),
+            f"Refunded {was} — {refund_words(gang, paid_back, points_back)} back."
+            + (stashed if moved else ""),
         )
     else:
         messages.success(request, f"Deleted {was}." + (stashed if moved else ""))
