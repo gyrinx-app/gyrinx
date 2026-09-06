@@ -264,6 +264,15 @@ class Asset(Content, Assignable):
         take_out_of_built_ins(self)
         super().archive()
 
+    def unarchive(self):
+        """Bringing a possession back starts it being given again: the
+        memberships archiving took out come back, and the gangs that
+        joined meanwhile catch up. The mirror of ``archive``."""
+        from n26.library.possessions import give_back
+
+        super().unarchive()
+        give_back(self)
+
     @property
     def income(self):
         """What this brings its holder each cycle, read off its Income

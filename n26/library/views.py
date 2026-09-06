@@ -957,7 +957,9 @@ def _built_in_reach_said(thing):
     )
     if _gives_to_every_gang(thing):
         return _reach_said(
-            reach, "something added here", later="what gangs joining from now on get"
+            reach,
+            "something added here",
+            later="what gangs get when they join from now on",
         )
     return _reach_said(reach, "a built-in added here")
 

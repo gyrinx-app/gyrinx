@@ -203,6 +203,30 @@ class TestAuthoringACampaignType:
         assert not DefaultAssignment.objects.filter(asset=settlement).exists()
         assert dominion["type"].built_ins is not None
 
+    def test_unarchiving_a_possession_gives_it_again(self, dominion):
+        """The mirror of archiving. Nothing had come from the member, so
+        archiving deleted it and unarchiving adds a fresh one — the asset
+        is given to gangs that join from here on, as it was before."""
+        settlement = create_asset("Settlement", dominion["settlement"])
+        settlement.archive()
+        assert list(dominion["type"].built_in_members) == []
+
+        settlement.unarchive()
+
+        assert [m.assignable for m in dominion["type"].built_in_members] == [settlement]
+        assert DefaultAssignment.objects.filter(asset=settlement).count() == 1
+
+    def test_unarchiving_a_holding_gives_nothing(self, dominion):
+        """A holding is never built in, so there is nothing to put back."""
+        from n26.library.authoring import add_asset_type
+
+        cache = add_asset_type(dominion["type"], "Cache", "pooled")
+        loot = create_asset("Loot", cache)
+        loot.archive()
+        loot.unarchive()
+
+        assert not DefaultAssignment.objects.filter(asset=loot).exists()
+
     def test_a_possession_is_given_by_a_type_in_its_own_pack(self, dominion, owned):
         """A campaign writing an asset into its own pack under a shared
         Possession asset type names its additions type as the giver; the
@@ -317,6 +341,34 @@ class TestAuthoringACampaignType:
         settlement.refresh_from_db()
         assert settlement.archived
         assert list(dominion["type"].built_in_members) == []
+
+    def test_unarchiving_through_the_admin_gives_a_possession_back(
+        self, dominion, default_pack
+    ):
+        """Unticking Archived on the same form is how a person brings an
+        asset back, and the admin routes that save through the rule too."""
+        from types import SimpleNamespace
+
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        from n26.library.admin import AssetAdmin
+
+        settlement = create_asset("Settlement", dominion["settlement"])
+        settlement.archive()
+        assert list(dominion["type"].built_in_members) == []
+
+        settlement.archived = False
+        AssetAdmin(Asset, AdminSite()).save_model(
+            RequestFactory().post("/"),
+            settlement,
+            form=SimpleNamespace(changed_data=["archived"]),
+            change=True,
+        )
+
+        settlement.refresh_from_db()
+        assert not settlement.archived
+        assert [m.assignable for m in dominion["type"].built_in_members] == [settlement]
 
     def test_a_gang_can_be_assigned_a_campaign_type_and_an_asset(
         self, dominion, gang_type, owner

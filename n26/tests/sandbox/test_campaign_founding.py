@@ -35,7 +35,7 @@ from n26.core.render import render_gang
 from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import add_built_in, create_counter
 from n26.library.core_campaign import seed_core_campaign
-from n26.library.models import CampaignType
+from n26.library.models import CampaignType, DefaultAssignment
 from n26.tests.sandbox.actions import found_campaign, found_gang, join_campaign
 
 pytestmark = pytest.mark.django_db
@@ -352,6 +352,40 @@ class TestEditingTheTypeReachesMemberGangs:
             gang=gang, kind=LedgerEvent.Kind.CAUGHT_UP
         )
         assert [event.assignment.assignable.name for event in caught_up] == ["Bolthole"]
+        assert_reconciled(gang)
+
+    def test_bringing_an_archived_possession_back_gives_it_again(
+        self, membership, gang, core, task_queue
+    ):
+        """Archiving an asset stops it being given and unarchiving starts
+        it again. The gang that already holds one keeps the one it has:
+        the same membership comes back rather than a second one, so the
+        catch-up pass has nothing to hand it."""
+        from n26.library.authoring import add_asset_type, create_asset
+
+        with task_queue.capture():
+            hideout = add_asset_type(core, "Hideout", "held-one-each")
+            bolthole = create_asset("Bolthole", hideout)
+        task_queue.deliver_all()
+        member = DefaultAssignment.objects.get(asset=bolthole)
+        held = Assignment.objects.get(gang=gang, materialised_from=member)
+
+        bolthole.archive()
+        member.refresh_from_db()
+        assert member.archived
+        assert Assignment.objects.filter(pk=held.pk).exists()
+
+        with task_queue.capture():
+            bolthole.unarchive()
+        task_queue.deliver_all()
+
+        member.refresh_from_db()
+        assert not member.archived
+        assert list(DefaultAssignment.objects.filter(asset=bolthole)) == [member]
+        assert [
+            assignment.pk
+            for assignment in Assignment.objects.filter(gang=gang, asset=bolthole)
+        ] == [held.pk]
         assert_reconciled(gang)
 
 

@@ -20,14 +20,17 @@ the shared type would hand one campaign's asset to every campaign
 founded on it.
 
 ``authoring.create_asset`` applies the rule to live models and files
-the propagation pass. ``build_in_missing`` applies it to whatever
-is already there, written against the model classes it is handed so the
-seed and a data migration can run it on historical ones.
+the propagation pass. ``give_back`` puts an unarchived asset back.
+``build_in_missing`` applies the rule to whatever is already there,
+written against the model classes it is handed so the seed and a data
+migration can run it on historical ones.
 """
 
 from itertools import chain, count
 
+from django.apps import apps as live_models
 from django.core.exceptions import FieldError
+from django.db import transaction
 from django.db.models import Max
 
 #: The stored value of ``AssetType.Ownership.POSSESSION``, spelt out so
@@ -59,6 +62,42 @@ def giver_of(asset, apps):
     except LookupError, FieldError:
         return None
     return campaign.additions if campaign is not None else None
+
+
+@transaction.atomic
+def give_back(asset):
+    """Give an unarchived possession again, the mirror of the archive
+    that stopped it: gangs joining from here on are given one, and the
+    gangs that joined while it was archived catch up.
+
+    The archived membership is revived rather than replaced. Every copy
+    already in a gang names that membership as its provenance, so a
+    fresh one would be a second provenance and the catch-up pass would
+    hand those gangs a second copy. Where the membership was deleted
+    instead — nothing had come from it — a new one is added through the
+    authoring verb, which files the pass itself.
+
+    Does nothing for a holding, which is never built in, and nothing
+    where the asset is already given.
+    """
+    from n26.core.propagation import file_propagation_task
+    from n26.library.authoring import add_built_in
+    from n26.library.models import AssetType, DefaultAssignment
+
+    if asset.asset_type.ownership != AssetType.Ownership.POSSESSION:
+        return
+    members = DefaultAssignment.objects.filter(asset=asset)
+    if members.filter(archived=False).exists():
+        return
+    revived = list(members.filter(archived=True))
+    for member in revived:
+        member.unarchive()
+        file_propagation_task(member.default_set)
+    if revived:
+        return
+    giver = giver_of(asset, live_models)
+    if giver is not None:
+        add_built_in(giver, asset, pack=asset.pack)
 
 
 def _field(model, *names):

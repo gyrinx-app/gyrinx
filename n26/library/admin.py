@@ -98,14 +98,18 @@ class AssetAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """Ticking Archived here is the one way a person archives an asset,
-        and the change form saves the row rather than calling ``archive``
-        — so the memberships that give a possession are taken out here,
-        as ``Asset.archive`` takes them."""
+        and unticking it the one way they bring one back. The change form
+        saves the row rather than calling ``archive`` or ``unarchive``, so
+        the memberships that give a possession are taken out and put back
+        here, as those two methods do it."""
         from n26.library.authoring import take_out_of_built_ins
+        from n26.library.possessions import give_back
 
         if obj.archived:
             take_out_of_built_ins(obj)
         super().save_model(request, obj, form, change)
+        if not obj.archived and "archived" in form.changed_data:
+            give_back(obj)
 
 
 @admin.register(Stat)
