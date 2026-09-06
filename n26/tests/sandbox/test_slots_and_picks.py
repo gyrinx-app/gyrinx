@@ -2040,7 +2040,7 @@ class TestAChoiceThatAllowsRepeats:
         assert not line.is_resolved
         assert not line.is_full
 
-    def test_the_same_result_twice_stands_twice(self, yolanda, results):
+    def test_the_same_result_is_held_twice_and_reads_as_a_count(self, yolanda, results):
         self._pick(yolanda, results["Eye Injury"])
         self._pick(yolanda, results["Eye Injury"])
 
