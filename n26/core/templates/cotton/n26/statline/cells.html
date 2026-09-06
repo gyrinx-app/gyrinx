@@ -9,11 +9,12 @@ Stat.format_value — 4", 3+, +2 — so nothing here interprets a characteristic
 
 A modified cell is marked by accent colour and semibold together, so it still
 reads in a theme whose accent sits close to the text. Its tooltip says what
-changed it and, for a cell stopped at the stat's limit, that it can get no
-worse or no better.
+changed it — the same Name (n) stacking the Lasting Injuries line uses —
+and, for a cell stopped at the stat's limit, that it can get no worse or no
+better.
 
   :cells — a list of n26.render.StatCell.
   leading / trailing — extra <td> either side.
 {% endcomment %}
 <c-vars :cells="None" leading="" trailing="" />
-{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<td class="whitespace-nowrap px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{% if cell.modified %}<c-ui.tooltip size="sm"><span class="font-semibold text-accent-text underline decoration-dotted underline-offset-2">{{ cell.value }}</span><c-slot name="content">{{ cell.short_name }} changed by {% for change in cell.modified_by %}{{ change.source|default:"a modifier" }}{% if change.source_kind %} ({{ change.source_kind }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% if cell.held_note %}. {{ cell.held_note }}{% endif %}</c-slot></c-ui.tooltip>{% else %}{{ cell.value }}{% endif %}</td>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}
+{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<td class="whitespace-nowrap px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{% if cell.modified %}<c-ui.tooltip size="sm"><span class="font-semibold text-accent-text underline decoration-dotted underline-offset-2">{{ cell.value }}</span><c-slot name="content">{{ cell.short_name }} changed by {{ cell.changed_by }}{% if cell.held_note %}. {{ cell.held_note }}{% endif %}</c-slot></c-ui.tooltip>{% else %}{{ cell.value }}{% endif %}</td>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}

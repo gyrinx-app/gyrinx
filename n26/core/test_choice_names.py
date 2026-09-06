@@ -51,3 +51,63 @@ class TestTheChosenLine:
         assert (
             slot("Enfeebled", "Enfeebled", "Enfeebled").chosen_name == "Enfeebled (3)"
         )
+
+
+def cell(*sources, kinds=None):
+    from n26.core.render import Provenance, StatCell
+
+    kinds = kinds or [""] * len(sources)
+    return StatCell(
+        short_name="WS",
+        full_name="Weapon Skill",
+        value="6+",
+        modified_by=[
+            Provenance(source=source, source_kind=kind)
+            for source, kind in zip(sources, kinds, strict=True)
+        ],
+    )
+
+
+class TestTheTooltipSources:
+    def test_repeats_read_as_a_count(self):
+        assert cell(
+            "Hand Injury", "Hand Injury", "Hand Injury", "Hand Injury"
+        ).changed_by == ("Hand Injury (4)")
+
+    def test_a_kind_stays_on_the_name(self):
+        assert (
+            cell("Weapon Skill", kinds=["advancement"]).changed_by
+            == "Weapon Skill (advancement)"
+        )
+
+    def test_the_held_note_is_separate(self):
+        from n26.core.render import Provenance, StatCell
+
+        held = StatCell(
+            short_name="WS",
+            full_name="Weapon Skill",
+            value="6+",
+            modified_by=[Provenance(source="Hand Injury")] * 4,
+            held_at="minimum",
+        )
+        assert held.changed_by == "Hand Injury (4)"
+        assert held.held_note == "Cannot get any worse."
+
+    def test_the_cells_draw_the_stacked_sentence(self):
+        from django.template import Context, Template
+        from django_cotton.compiler_regex import CottonCompiler
+
+        from n26.core.render import Provenance, StatCell
+
+        held = StatCell(
+            short_name="WS",
+            full_name="Weapon Skill",
+            value="6+",
+            modified_by=[Provenance(source="Hand Injury")] * 4,
+            held_at="minimum",
+        )
+        html = Template(
+            CottonCompiler().process('<c-n26.statline.cells :cells="cells" />')
+        ).render(Context({"cells": [held]}))
+        assert "WS changed by Hand Injury (4). Cannot get any worse." in html
+        assert "Hand Injury, Hand Injury" not in html
