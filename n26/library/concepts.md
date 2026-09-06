@@ -237,7 +237,7 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 
 *Not a type: the assignment that settles a choice.*
 
-The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is never paid for: no credits move, and there is nothing to refund or sell. A pickable may still carry a rating contribution — a Spyrer's Power Boost result raises the model's value by the amount the table prints — and the pick carries that as its rating. Removing the pick removes that rating too. Most pickables add 0.
 
 A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, including the fighter who made the pick. A pickable that carries the *draws the pick on the card* effect is displayed after all, on the cards its scope reaches. See below.
 

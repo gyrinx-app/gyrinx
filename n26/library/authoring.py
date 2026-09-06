@@ -779,6 +779,7 @@ def create_pickable(
     qualifier="",
     library_author_help="",
     category=None,
+    rating_contribution=0,
     **kwargs,
 ):
     """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
@@ -789,6 +790,10 @@ def create_pickable(
     decisions: a rule placing "the chosen set" reads it to learn which
     category the pick means, which is how a Skill Tree pick stands for
     the set it names.
+
+    ``rating_contribution`` is what holding the pick adds to the model's
+    rating, in credits: a Power Boost result adds 20. A pick is never
+    paid for, so this is a rating, not a price.
     """
     from n26.library.models import Pickable
 
@@ -798,6 +803,7 @@ def create_pickable(
         qualifier=qualifier,
         library_author_help=library_author_help,
         category=category,
+        rating_contribution=rating_contribution,
         **kwargs,
     )
     for scope, effect in effects:
