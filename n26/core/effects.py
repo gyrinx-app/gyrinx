@@ -92,7 +92,7 @@ def kind_of(thing):
         return ""
     if isinstance(thing, CampaignAsset):
         # A campaign asset is named by what its campaign type calls the
-        # asset type — "territory", "racket" — never by the table it sits in.
+        # asset type — "territory", "settlement" — never by the table it sits in.
         return thing.type_label
     return str(thing._meta.verbose_name)
 

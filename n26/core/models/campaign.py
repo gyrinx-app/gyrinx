@@ -391,7 +391,7 @@ class CampaignAsset(Base):
     @property
     def type_label(self):
         """What sort of asset this is, in the campaign type's own word,
-        lowercased for a sentence: "territory", "racket"."""
+        lowercased for a sentence: "territory", "settlement"."""
         return self.asset.asset_type.label_singular.lower()
 
 

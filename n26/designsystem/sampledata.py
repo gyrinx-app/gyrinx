@@ -2267,9 +2267,8 @@ def gang_sheet_context():
 
 # --------------------------------------------------------------------- campaign
 
-#: The sample campaign's asset types, the shared type's first: a Settlement
-#: every gang has its own of, then the two holdings — Territories from the
-#: type and a Racket the arbitrator added.
+#: The sample campaign's asset types: a Settlement every gang has its own
+#: of, then the Territories gangs take from each other.
 CAMPAIGN_ASSET_TYPES = [
     AssetTypeColumn(
         asset_type_id="settlement",
@@ -2280,9 +2279,6 @@ CAMPAIGN_ASSET_TYPES = [
     AssetTypeColumn(
         asset_type_id="territory", label="Territory", plural="Territories", holding=True
     ),
-    AssetTypeColumn(
-        asset_type_id="racket", label="Racket", plural="Rackets", holding=True
-    ),
 ]
 
 
@@ -2291,7 +2287,7 @@ def campaign_sheet():
 
     Three gangs of different types, one of them over the budget; two
     campaign counters, one of which a gang lacks so the dash is drawn;
-    territories held and unclaimed, one with a name of its own; a racket
+    territories held and unclaimed, one with a name of its own and one
     nobody holds yet. Every address is "#" — the gallery has no campaign
     behind it — which is also the state the controls take for the
     arbitrator, so the tables are seen with their buttons on, including
@@ -2356,7 +2352,7 @@ def campaign_sheet():
                     ),
                 ],
                 labels=["Outlaw"],
-                assets=[["Settlement"], ["Toll Crossing"], []],
+                assets=[["Settlement"], ["Toll Crossing"]],
                 href="#",
             ),
             CampaignGangLine(
@@ -2388,7 +2384,7 @@ def campaign_sheet():
                     None,
                 ],
                 labels=[""],
-                assets=[["Settlement"], [], []],
+                assets=[["Settlement"], []],
                 href="#",
             ),
             CampaignGangLine(
@@ -2427,7 +2423,7 @@ def campaign_sheet():
                     ),
                 ],
                 labels=["Law Abiding"],
-                assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"], []],
+                assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"]],
                 href="#",
                 yours=True,
             ),
@@ -2486,21 +2482,6 @@ def campaign_sheet():
                         campaign_asset_id="collapsed-dome",
                         name="Collapsed Dome",
                         income=10,
-                        assign_href="#",
-                        remove_href="#",
-                    ),
-                ],
-            ),
-            CampaignAssetTable(
-                asset_type_id="racket",
-                label="Racket",
-                plural="Rackets",
-                add_href="#",
-                create_href="#",
-                entries=[
-                    CampaignAssetEntry(
-                        campaign_asset_id="protection",
-                        name="Protection",
                         boons=["Adds 1 to the gang's Meat."],
                         assign_href="#",
                         remove_href="#",
