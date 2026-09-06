@@ -252,3 +252,78 @@ class TestTheAttemptCount:
         may_start, why_not = _claim(record.pk)
         assert not may_start
         assert "already" in why_not
+
+
+class TestACallableWorkList:
+    """A work-list read under the lock: a callable that returns the
+    queryset to walk, refuses in its own words, or writes the ending
+    itself and returns nothing to walk. What ``do_one`` says about a row
+    becomes a line of the record's report."""
+
+    def test_it_is_read_under_the_lock_and_walked(self, record, rows, monkeypatch):
+        order = []
+        real_lock = maintenance._single_flight
+
+        @contextmanager
+        def watched_lock(key):
+            order.append("locked")
+            with real_lock(key) as mine:
+                yield mine
+
+        def work_list():
+            order.append("read")
+            return rows
+
+        monkeypatch.setattr(maintenance, "_single_flight", watched_lock)
+        seen = []
+        run(record, work_list, seen.append)
+
+        record.refresh_from_db()
+        assert order == ["locked", "read"]
+        assert record.status == Backfill.Status.DONE
+        assert len(seen) == 25
+
+    def test_a_refusal_ends_the_record_failed_in_its_own_words(self, record):
+        class Refused(Exception):
+            pass
+
+        def refuse():
+            raise Refused("the world is not the one the plan described")
+
+        run(record, refuse, lambda pk: None, refusals=(Refused,))
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.FAILED
+        assert record.error == "the world is not the one the plan described"
+
+    def test_nothing_to_walk_leaves_the_ending_the_work_list_wrote(self, record):
+        def nothing():
+            Backfill.objects.filter(pk=record.pk).update(
+                status=Backfill.Status.DONE, summary={"report": ["nothing here"]}
+            )
+            return None
+
+        touched = []
+        run(record, nothing, touched.append)
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary == {"report": ["nothing here"]}
+        assert touched == []
+
+    def test_what_a_row_says_is_a_line_of_the_report(self, record, rows):
+        def say(pk):
+            return f"row {pk}: settled"
+
+        run(record, rows, say, budget=timedelta(0))
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.RUNNING
+        assert len(record.summary["report"]) == 10
+
+        while record.status == Backfill.Status.RUNNING:
+            run(record, rows, say, budget=timedelta(0))
+            record.refresh_from_db()
+
+        assert record.status == Backfill.Status.DONE
+        assert len(record.summary["report"]) == 25
+        assert all(line.endswith(": settled") for line in record.summary["report"])

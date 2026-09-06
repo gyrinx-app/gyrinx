@@ -502,6 +502,15 @@ anything else that connects as that role too.
   ending — done, refused, broken — written onto the record rather than raised. Long repairs that
   cannot finish in one go re-enqueue themselves in chunks (`n23/core/tasks.py`), reporting progress
   into the same record.
+- **An n26 repair that walks players' gangs one at a time goes through `run_per_gang`, never
+  `_run_recorded`.** One delivery has 600 seconds before Pub/Sub redelivers it and Cloud Run cuts
+  the request; proving one gang's books before and after its commit is many queries, and a plan of
+  a few hundred gangs already uses most of that. `run_per_gang` (`n26/maintenance.py`) takes the
+  module's `find` and an `apply_one(gang_id)`, reads the plan once, and walks the gangs through
+  `run_batched`, which hands the rest to a fresh delivery when its budget is spent. `_run_recorded`
+  is for library-only work and for the conversions, which hold every gang inside one transaction; a
+  guard test in `n26/tests/test_maintenance_console.py` fails a task that puts a gang-by-gang module
+  through it, and any run that uses more than half its deadline is written up on its record.
 
 ## Key Models Reference
 

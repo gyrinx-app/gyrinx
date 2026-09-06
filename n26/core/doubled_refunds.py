@@ -195,6 +195,18 @@ def apply(doubled):
     return report
 
 
+def apply_one(gang_id):
+    """One gang's repair as it stands now, committed on its own. Returns
+    the line the report carries for it. The entry for a run that visits
+    gangs across deliveries, where the plan is read afresh per gang
+    rather than carried from the preview."""
+    standing = {g: legs for g, legs, _ in find().gangs}
+    ids = standing.get(gang_id)
+    if ids is None:
+        return f"gang {gang_id}: nothing left to drop"
+    return _repair_one(gang_id, ids)
+
+
 def _repair_one(gang_id, ids):
     """One gang's repair, committed or rolled back on its own. Returns
     the line the report carries for it."""

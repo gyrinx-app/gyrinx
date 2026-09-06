@@ -294,6 +294,23 @@ def apply(plan):
     return report
 
 
+def apply_one(gang_id):
+    """One gang's deletion as it stands now, committed on its own.
+    Returns the line the report carries for it. The entry for a run that
+    visits gangs across deliveries, where the plan is read afresh per
+    gang rather than carried from the preview."""
+    current = find(gang_id)
+    if current.problems:
+        return (
+            f"gang {gang_id}: skipped — its affiliation assignments no longer "
+            "pass the deletion safety checks: " + "; ".join(current.problems)
+        )
+    assignments = dict(current.gangs).get(gang_id)
+    if assignments is None:
+        return f"gang {gang_id}: nothing left to delete"
+    return _delete_one(gang_id, assignments)
+
+
 def _delete_one(gang_id, assignments):
     from copy import deepcopy
 

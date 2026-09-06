@@ -22,7 +22,7 @@ from n26.core.effects import compute
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled, check_gang
 from n26.core.render import render_gang
-from n26.core.repoint_champion_picks import Refused, apply, find
+from n26.core.repoint_champion_picks import Refused, apply, apply_one, find
 from n26.core.views.choose import link_slots
 from n26.library.authoring import (
     add_picklist_member,
@@ -319,6 +319,22 @@ class TestMovingThePick:
         ) == before
         assert adrift.caused_by == champion.membership
         assert f"gang {gang.pk}: moved 1 pick onto its slot's own pickables" in report
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_one_gang_visited_on_its_own_moves_what_it_holds_now(
+        self, gang, adrift, champion_archetypes
+    ):
+        """A run that visits gangs across deliveries reads each gang
+        afresh rather than carrying the preview's plan; a gang with
+        nothing left says so rather than refusing."""
+        assert (
+            apply_one(gang.pk)
+            == f"gang {gang.pk}: moved 1 pick onto its slot's own pickables"
+        )
+        adrift.refresh_from_db()
+        assert adrift.pickable == champion_archetypes["Brawler"]
+        assert apply_one(gang.pk) == f"gang {gang.pk}: nothing left to move"
         gang.refresh_from_db()
         assert_reconciled(gang)
 

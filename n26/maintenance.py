@@ -15,19 +15,28 @@ read, and the pin needed to express that contradicts the recorded
 history of any database that already ran it — so a repair runs after a
 deploy instead, on a schema that is fully migrated by construction.
 
-Runs come in two shapes, and each states its own promise. A small
+Runs come in three shapes, and each states its own promise. A small
 repair (``_run_recorded``) is one transaction, deliberately
 all-or-nothing: interrupted, it rolls back whole and can simply be run
-again. Work too large for one transaction (``run_batched``) commits row
-by row instead, writes how far it got onto the record, and continues
-from there after any interruption — which trades the clean rollback for
-a requirement that each row's work be idempotent. Delivery is
-at-least-once, so two guards stand between either promise and a second
-copy running alongside the first: a lock only one run can hold, and a
-cap on how many attempts may start without recording any progress
-before the record gives up and says so. A batched run resets that count
-with every batch it records, so a long run's many deliveries are never
-mistaken for a stuck one.
+again. It is for library-only work and for the conversions, which hold
+every gang they touch inside that one transaction; it must finish
+inside one delivery, and a run that uses most of that time is flagged
+on its record. Work too large for one transaction (``run_batched``)
+commits row by row instead, writes how far it got onto the record, and
+continues from there after any interruption — which trades the clean
+rollback for a requirement that each row's work be idempotent. A repair
+that walks players' gangs one at a time, proving each gang's books
+before and after its own commit, is the third shape (``run_per_gang``):
+the batched runner with the gangs of a plan as its work-list. Every
+gang-by-gang repair goes through it, whatever its size looks like on
+the day it is written — a gang's proof is many queries, and a plan of a
+few hundred gangs is already longer than one delivery may take.
+Delivery is at-least-once, so two guards stand between any of these
+promises and a second copy running alongside the first: a lock only one
+run can hold, and a cap on how many attempts may start without
+recording any progress before the record gives up and says so. A
+batched run resets that count with every batch it records, so a long
+run's many deliveries are never mistaken for a stuck one.
 
 A repair that has been run and cannot recur keeps its slug registered
 with no view. It leaves the menu, and the record of the run still reads
@@ -67,6 +76,7 @@ __all__ = [
     "repair_doubled_refunds",
     "repoint_champion_picks",
     "run_batched",
+    "run_per_gang",
     "task_routes",
 ]
 
@@ -76,6 +86,13 @@ __all__ = [
 #: it records a batch. Either way, without the cap a run that always
 #: dies would repeat for ever, each attempt paying its cost again.
 MAX_ATTEMPTS = 2
+
+#: How long one delivery may run before the queue redelivers it and the
+#: request serving it is cut off. Every route below declares this as its
+#: acknowledgement deadline, and the tests hold the two together. A
+#: one-transaction run that takes more than half of it is written up on
+#: its record: the next run of the same size, on a slower day, is lost.
+ONE_ATTEMPT_DEADLINE = timedelta(seconds=600)
 
 #: The locks a run holds for as long as it is working — one per
 #: operation, declared beside their operations below. A lock fences the
@@ -295,6 +312,11 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
     finished report — and never raise, because a task that fails is
     redelivered and there is nowhere for a raised error to go but round
     again.
+
+    The whole run must fit inside one delivery. How long it took is
+    written on the record, and a run that used more than half of
+    ``ONE_ATTEMPT_DEADLINE`` gets a warning there too: the work belongs
+    on ``run_per_gang`` or ``run_batched`` before it is run again.
     """
     with _single_flight(LOCK_KEYS[operation]) as mine:
         if not mine:
@@ -311,6 +333,7 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
             )
             return
 
+        started = timezone.now()
         try:
             report = work()
         except refusals as refused:
@@ -327,11 +350,18 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
             )
             return
 
-        _write(
-            backfill_id,
-            status=Backfill.Status.DONE,
-            summary_patch={"report": list(report)},
-        )
+        took = timezone.now() - started
+        summary_patch = {"report": list(report), "seconds": int(took.total_seconds())}
+        if took > ONE_ATTEMPT_DEADLINE / 2:
+            limit = int(ONE_ATTEMPT_DEADLINE.total_seconds())
+            summary_patch["warning"] = (
+                f"This run took {int(took.total_seconds())} of the {limit} "
+                "seconds one delivery may take before the queue redelivers "
+                "it and the request serving it is cut off. Move the work "
+                "onto run_per_gang or run_batched before running it again."
+            )
+            logger.warning("%s: %s", what, summary_patch["warning"])
+        _write(backfill_id, status=Backfill.Status.DONE, summary_patch=summary_patch)
 
 
 #: How long one batched attempt may work before handing the rest back
@@ -358,24 +388,31 @@ def run_batched(
     again,
     batch_size=BATCH_SIZE,
     budget=BATCH_BUDGET,
+    refusals=(),
 ):
     """Work through ``items`` one at a time, each on its own commit,
     remembering how far it got.
 
-    ``_run_recorded`` holds a whole run inside one transaction; this is
-    the shape for work too large for that. ``items`` is a queryset with
-    a unique primary key — ordered here, because the cursor is only
-    sound over a total order — and it must be stable: a queryset that
-    stops matching rows as they are settled moves the finish line while
-    the cursor chases it. ``do_one(pk)`` settles one row completely,
-    committing its own writes and leaving nothing behind when it fails.
-    It must be idempotent: a crashed attempt replays at most one batch,
-    and a rerun is a fresh record that walks every row again, settling
-    only what the earlier run missed.
+    ``_run_recorded`` is for work that fits inside one delivery and one
+    transaction; this is the shape for everything else. ``items`` is a
+    queryset with a unique primary key — ordered here, because the
+    cursor is only sound over a total order — and it must be stable: a
+    queryset that stops matching rows as they are settled moves the
+    finish line while the cursor chases it. It may instead be a callable
+    that reads the work-list under the run's lock, once per delivery;
+    one that raises a ``refusals`` exception ends the record FAILED in
+    the refusal's own words, and one that returns ``None`` has written
+    the ending itself and there is nothing to walk. ``do_one(pk)``
+    settles one row completely, committing its own writes and leaving
+    nothing behind when it fails. It must be idempotent: a crashed
+    attempt replays at most one batch, and a rerun is a fresh record
+    that walks every row again, settling only what the earlier run
+    missed. A string it returns is a line of the record's report.
 
     Progress lands on the record after every batch — how many rows are
-    settled, of how many, the failures so far, and the cursor the next
-    attempt continues from. That write doubles as the cancel check: an
+    settled, of how many, the failures so far, the report so far, and
+    the cursor the next attempt continues from. That write doubles as
+    the cancel check: an
     operator's CANCELLED is an ending, endings are final, so the
     refused write is the signal to stop, and the rows already settled
     stay settled. It also starts the attempt count over, which is what
@@ -412,9 +449,15 @@ def run_batched(
             )
             return
         try:
-            continued = _work_through(
-                backfill_id, what, items, do_one, batch_size, budget
-            )
+            work_list = items() if callable(items) else items
+            if work_list is not None:
+                continued = _work_through(
+                    backfill_id, what, work_list, do_one, batch_size, budget
+                )
+        except refusals as refused:
+            # A refusal is the discipline working: nothing was written,
+            # and the reason is already in words.
+            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
         except Exception as broke:  # noqa: BLE001 — the ending must be recorded
             logger.exception("%s broke", what)
             _write(
@@ -433,6 +476,7 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
     cursor = backfill.summary.get("cursor", "")
     settled = int(backfill.summary.get("done", 0))
     failures = dict(backfill.summary.get("failures", {}))
+    report = list(backfill.summary.get("report", []))
     # Counted once, on the first attempt: the finish line must not move
     # while the cursor chases it.
     total = backfill.summary.get("total")
@@ -451,6 +495,7 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
                 "total": total,
                 "cursor": str(position),
                 "failures": failures,
+                "report": report,
                 "attempts": 0,
             },
         )
@@ -487,13 +532,15 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
             break
         for pk in batch:
             try:
-                do_one(pk)
+                line = do_one(pk)
             except Exception as broke:  # noqa: BLE001 — one row never starves the rest
                 logger.exception("%s could not settle %s", what, pk)
                 failures[str(pk)] = str(broke)
             else:
                 settled += 1
                 failures.pop(str(pk), None)
+                if isinstance(line, str):
+                    report.append(line)
         cursor = str(batch[-1])
         if not record(cursor):
             stopped()
@@ -517,6 +564,79 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
     else:
         _write(backfill_id, status=Backfill.Status.DONE)
     return False
+
+
+class PlanRefused(Exception):
+    """A gang-by-gang plan read under the lock names problems."""
+
+
+def run_per_gang(
+    backfill_id,
+    *,
+    operation,
+    what,
+    find,
+    apply_one,
+    again,
+    batch_size=BATCH_SIZE,
+    budget=BATCH_BUDGET,
+):
+    """Run a repair that works through players' gangs one at a time.
+
+    The shape every such repair shares: ``find()`` reads a plan whose
+    ``gangs`` name each gang to visit, whose ``problems`` refuse the
+    whole run, and whose ``nothing_here`` says there is no work;
+    ``apply_one(gang_id)`` settles one gang inside its own transaction,
+    reading that gang's part of the plan again under its lock, and
+    returns the line the report carries for it. Proving one gang's
+    books is many queries, so a plan of a few hundred gangs already
+    outlasts one delivery: the gangs go through ``run_batched``, which
+    commits gang by gang, records how far it got, and hands the rest to
+    a fresh delivery when its budget is spent.
+
+    The plan is read once, under the lock, on the first delivery. Its
+    gang ids and preview land on the record, and every later delivery
+    walks the same list — a plan re-read mid-run could add gangs behind
+    the cursor and never visit them. A gang whose part of the plan has
+    changed by the time it is visited is ``apply_one``'s to notice and
+    leave alone.
+    """
+    from n26.core.models import Gang
+
+    def gangs():
+        backfill = Backfill.objects.get(pk=backfill_id)
+        ids = backfill.summary.get("gang_ids")
+        if ids is None:
+            plan = find()
+            if plan.problems:
+                raise PlanRefused(
+                    f"{what} cannot run: " + "; ".join(plan.problems) + "."
+                )
+            if plan.nothing_here:
+                _write(
+                    backfill_id,
+                    status=Backfill.Status.DONE,
+                    summary_patch={"report": list(plan.preview())},
+                )
+                return None
+            ids = [str(gang_id) for gang_id, *_ in plan.gangs]
+            _write(
+                backfill_id,
+                summary_patch={"gang_ids": ids, "report": list(plan.preview())},
+            )
+        return Gang.objects.filter(pk__in=ids)
+
+    run_batched(
+        backfill_id,
+        operation=operation,
+        what=what,
+        items=gangs,
+        do_one=apply_one,
+        again=again,
+        batch_size=batch_size,
+        budget=budget,
+        refusals=(PlanRefused,),
+    )
 
 
 def _plan(system):
@@ -806,17 +926,18 @@ def repair_doubled_refunds(backfill_id, **said_by_whoever_enqueued_it):
     """Drop the surplus refund, sale and removal legs a doubled click
     wrote, and prove every affected gang's books whole, once.
 
-    Two gangs' worth of events in one transaction: small enough to hold,
-    and a gang that still fails to reconcile unwinds the lot.
+    One gang's worth of events in one transaction: a gang that still
+    fails to reconcile unwinds its own repair and the rest go on.
     """
-    from n26.core.doubled_refunds import Refused, apply, find
+    from n26.core.doubled_refunds import apply_one, find
 
-    _run_recorded(
+    run_per_gang(
         backfill_id,
-        Operation.REPAIR_DOUBLED_REFUNDS,
-        "Doubled refund repair",
-        lambda: apply(find()),
-        Refused,
+        operation=Operation.REPAIR_DOUBLED_REFUNDS,
+        what="Doubled refund repair",
+        find=find,
+        apply_one=apply_one,
+        again=lambda: repair_doubled_refunds.enqueue(backfill_id=backfill_id),
     )
 
 
@@ -863,17 +984,18 @@ def rehost_gang_picks(backfill_id, **said_by_whoever_enqueued_it):
     on and onto the gang, and prove every affected gang's books whole,
     once.
 
-    A gang's worth of picks in one transaction: small enough to hold,
-    and a gang that fails to reconcile unwinds its own move.
+    A gang's worth of picks in one transaction: a gang that fails to
+    reconcile unwinds its own move and the rest go on.
     """
-    from n26.core.rehost_picks import Refused, apply, find
+    from n26.core.rehost_picks import apply_one, find
 
-    _run_recorded(
+    run_per_gang(
         backfill_id,
-        Operation.REHOST_GANG_PICKS,
-        "Gang pick rehosting",
-        lambda: apply(find()),
-        Refused,
+        operation=Operation.REHOST_GANG_PICKS,
+        what="Gang pick rehosting",
+        find=find,
+        apply_one=apply_one,
+        again=lambda: rehost_gang_picks.enqueue(backfill_id=backfill_id),
     )
 
 
@@ -899,14 +1021,17 @@ def delete_empty_affiliations(backfill_id, **said_by_whoever_enqueued_it):
 @task
 def delete_legacy_affiliation_assignments(backfill_id, **said_by_whoever_enqueued_it):
     """Delete the two measured player-data leftovers of the conversions."""
-    from n26.core.legacy_affiliation_assignments import Refused, apply, find
+    from n26.core.legacy_affiliation_assignments import apply_one, find
 
-    _run_recorded(
+    run_per_gang(
         backfill_id,
-        Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS,
-        "Legacy affiliation assignment deletion",
-        lambda: apply(find()),
-        Refused,
+        operation=Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS,
+        what="Legacy affiliation assignment deletion",
+        find=find,
+        apply_one=apply_one,
+        again=lambda: delete_legacy_affiliation_assignments.enqueue(
+            backfill_id=backfill_id
+        ),
     )
 
 
@@ -1034,17 +1159,18 @@ def repoint_champion_picks(backfill_id, **said_by_whoever_enqueued_it):
     """Point every live pick at the pickable of its own name on its
     slot's picklist, and prove every affected gang's books whole, once.
 
-    A gang's worth of picks in one transaction: small enough to hold,
-    and a gang that fails to reconcile unwinds its own move.
+    A gang's worth of picks in one transaction: a gang that fails to
+    reconcile unwinds its own move and the rest go on.
     """
-    from n26.core.repoint_champion_picks import Refused, apply, find
+    from n26.core.repoint_champion_picks import apply_one, find
 
-    _run_recorded(
+    run_per_gang(
         backfill_id,
-        Operation.REPOINT_CHAMPION_PICKS,
-        "Champion pick repointing",
-        lambda: apply(find()),
-        Refused,
+        operation=Operation.REPOINT_CHAMPION_PICKS,
+        what="Champion pick repointing",
+        find=find,
+        apply_one=apply_one,
+        again=lambda: repoint_champion_picks.enqueue(backfill_id=backfill_id),
     )
 
 

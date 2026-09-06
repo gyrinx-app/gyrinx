@@ -174,6 +174,17 @@ def apply(astray):
     return report
 
 
+def apply_one(gang_id):
+    """One gang's move as it stands now, committed on its own. Returns
+    the line the report carries for it. The entry for a run that visits
+    gangs across deliveries, where the plan is read afresh per gang
+    rather than carried from the preview."""
+    ids = dict(find(gang_id).gangs).get(gang_id)
+    if ids is None:
+        return f"gang {gang_id}: nothing left to move"
+    return _rehost_one(gang_id, ids)
+
+
 def _rehost_one(gang_id, ids):
     """One gang's move, committed or rolled back on its own. Returns the
     line the report carries for it."""

@@ -10,6 +10,10 @@ Each repair's own discipline is proven beside it; this file cares only
 about the door it is triggered through.
 """
 
+import ast
+import importlib
+from pathlib import Path
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -21,9 +25,11 @@ from gyrinx.maintenance.registry import (
     operations,
     resolve_operation,
 )
+from n26 import maintenance
 from n26.core.reconcile import assert_reconciled
 from n26.maintenance import (
     LOCK_KEYS,
+    ONE_ATTEMPT_DEADLINE,
     Operation,
     convert_chaos_god_view,
     convert_outcast_affiliation_view,
@@ -32,9 +38,194 @@ from n26.maintenance import (
     delete_legacy_affiliation_assignments_view,
     delete_nameless_gang_type_view,
     open_founding_actions_view,
+    task_routes,
 )
 
 pytestmark = pytest.mark.django_db
+
+
+def _is_atomic(call):
+    """``transaction.atomic(...)`` or a bare ``atomic(...)``."""
+    if not isinstance(call, ast.Call):
+        return False
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        return func.attr == "atomic"
+    return isinstance(func, ast.Name) and func.id == "atomic"
+
+
+def _opens_a_transaction(function):
+    """True when the function's own body begins a transaction."""
+    return any(
+        isinstance(statement, ast.With)
+        and any(_is_atomic(item.context_expr) for item in statement.items)
+        for statement in function.body
+    )
+
+
+def commits_row_by_row(module_name):
+    """Whether any loop in the module commits per iteration — directly,
+    or by calling a function of the module that opens its own
+    transaction. That is the batched shape, and a run of it under the
+    one-transaction runner has no budget and no cursor."""
+    module = importlib.import_module(module_name)
+    here = Path(module.__file__)
+    # A package is read whole: the conversions live in its files, not
+    # in the file that names it.
+    files = sorted(here.parent.rglob("*.py")) if here.name == "__init__.py" else [here]
+    trees = [ast.parse(path.read_text()) for path in files]
+    functions = [
+        node
+        for tree in trees
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    owners = {fn.name for fn in functions if _opens_a_transaction(fn)}
+    for tree in trees:
+        for loop in ast.walk(tree):
+            if not isinstance(loop, (ast.For, ast.While)):
+                continue
+            for node in ast.walk(loop):
+                if isinstance(node, ast.With) and any(
+                    _is_atomic(item.context_expr) for item in node.items
+                ):
+                    return True
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id in owners
+                ):
+                    return True
+    return False
+
+
+def tasks_run_in_one_transaction():
+    """Every task in ``n26/maintenance.py`` that runs through the
+    one-transaction runner, with the modules it imports to do so.
+    Discovered from the source, so a new task is checked without anyone
+    listing it."""
+    tree = ast.parse(Path(maintenance.__file__).read_text())
+    runners = {"_run_recorded"}
+    # A helper that only wraps the runner counts as the runner: the
+    # conversions reach it through one.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and any(
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id == "_run_recorded"
+            for call in ast.walk(node)
+        ):
+            runners.add(node.name)
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        calls = {
+            call.func.id
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+        }
+        if not calls & runners:
+            continue
+        modules = [
+            imported.module
+            for imported in ast.walk(node)
+            if isinstance(imported, ast.ImportFrom) and imported.module
+        ]
+        if modules:
+            found.append((node.name, tuple(modules)))
+    return found
+
+
+class TestTheRunnerDiscipline:
+    """A run through the one-transaction runner must finish inside one
+    delivery. A repair that walks gangs and commits each on its own has
+    outgrown that runner however few gangs it names today: a gang's
+    proof is many queries, and the plan on the day it is run is not the
+    plan on the day it was written. Such repairs go through
+    ``run_per_gang``, whose budget hands the rest to a fresh delivery."""
+
+    def test_there_is_something_to_check(self):
+        assert tasks_run_in_one_transaction()
+        assert task_routes
+
+    @pytest.mark.parametrize(
+        "task_name,modules",
+        tasks_run_in_one_transaction(),
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_no_one_transaction_task_commits_gang_by_gang(self, task_name, modules):
+        offenders = [name for name in modules if commits_row_by_row(name)]
+        assert not offenders, (
+            f"{task_name} runs through _run_recorded but {', '.join(offenders)} "
+            "commits inside a loop. Route it through run_per_gang (or "
+            "run_batched), which records how far it got and hands the rest "
+            "to a fresh delivery before the acknowledgement deadline."
+        )
+
+    def test_every_route_declares_the_one_attempt_deadline(self):
+        """The warning ``_run_recorded`` writes is measured against this
+        constant, so a route with a different deadline would be judged
+        against the wrong clock."""
+        seconds = int(ONE_ATTEMPT_DEADLINE.total_seconds())
+        one_transaction = {name for name, _ in tasks_run_in_one_transaction()}
+        astray = [
+            route.name
+            for route in task_routes
+            if route.name in one_transaction and route.ack_deadline != seconds
+        ]
+        assert not astray, (
+            f"{', '.join(astray)}: ack_deadline is not {seconds}s. Change "
+            "ONE_ATTEMPT_DEADLINE with it, or the run-time warning is measured "
+            "against the wrong clock."
+        )
+
+    def test_a_long_one_transaction_run_is_written_up_on_its_record(self, monkeypatch):
+        operation = Operation.DELETE_EMPTY_AFFILIATIONS
+        record = Backfill.objects.create(
+            operation=operation.value, status=Backfill.Status.RUNNING
+        )
+        # The runner reads the clock through its own module, so only it
+        # sees a run that took most of the deadline; the record's own
+        # timestamps keep the real clock.
+        start = maintenance.timezone.now()
+        reads = []
+
+        class SlowClock:
+            @staticmethod
+            def now():
+                reads.append(True)
+                if len(reads) == 1:
+                    return start
+                return start + ONE_ATTEMPT_DEADLINE * 0.9
+
+        monkeypatch.setattr(maintenance, "timezone", SlowClock)
+
+        maintenance._run_recorded(
+            record.pk, operation, "A slow repair", lambda: ["done"], ()
+        )
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["report"] == ["done"]
+        assert record.summary["seconds"] == 540
+        assert "540 of the 600 seconds" in record.summary["warning"]
+        assert "run_per_gang" in record.summary["warning"]
+
+    def test_a_quick_one_transaction_run_records_only_how_long_it_took(self):
+        operation = Operation.DELETE_EMPTY_AFFILIATIONS
+        record = Backfill.objects.create(
+            operation=operation.value, status=Backfill.Status.RUNNING
+        )
+
+        maintenance._run_recorded(
+            record.pk, operation, "A quick repair", lambda: ["done"], ()
+        )
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["seconds"] == 0
+        assert "warning" not in record.summary
 
 
 @pytest.fixture
