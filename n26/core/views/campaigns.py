@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
+from n26.library.staged import sees_staged
 
 #: How many campaigns a page of the list holds. A row is a name, a budget
 #: and its controls — shorter than a gang's, so a page holds more of them.
@@ -133,8 +134,11 @@ def create_campaign(request):
     from n26.core.forms import FoundCampaignForm
     from n26.core.models import Campaign
 
+    # Staged campaign types are on the cards for whoever may see staged
+    # content and for nobody else.
+    shown = sees_staged(request.user)
     if request.method == "POST":
-        form = FoundCampaignForm(request.POST)
+        form = FoundCampaignForm(request.POST, include_staged=shown)
         if form.is_valid():
             campaign = Campaign(
                 name=form.cleaned_data["name"],
@@ -154,7 +158,7 @@ def create_campaign(request):
             messages.success(request, f"Set up {campaign.name}.")
             return redirect("n26-campaign", pk=campaign.pk)
     else:
-        form = FoundCampaignForm()
+        form = FoundCampaignForm(include_staged=shown)
 
     return render(
         request,
@@ -632,7 +636,7 @@ def remove_battle(request, pk, battle_pk):
     )
 
 
-def _holding_assets(campaign):
+def _holding_assets(campaign, *, include_staged=False):
     """The library assets this campaign can add: those of the Holding asset
     types of its type and of its own additions.
 
@@ -647,7 +651,10 @@ def _holding_assets(campaign):
     """
     return (
         (campaign.campaign_type.holding_assets() | campaign.additions.holding_assets())
-        .selectable([campaign.pack_id, campaign.campaign_type.pack_id])
+        .selectable(
+            [campaign.pack_id, campaign.campaign_type.pack_id],
+            include_staged=include_staged,
+        )
         .select_related("asset_type")
         .order_by("asset_type__position", "asset_type__label_singular", "name")
     )
@@ -738,7 +745,7 @@ def add_asset(request, pk):
 
     found = _own_campaign_or_404(request, pk)
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
-    offered = _holding_assets(found)
+    offered = _holding_assets(found, include_staged=sees_staged(request.user))
     if asset_type is not None:
         offered = offered.filter(asset_type=asset_type)
 

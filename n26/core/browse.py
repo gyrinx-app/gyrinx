@@ -233,7 +233,7 @@ class CollectionView:
                 yield from category.lines
 
 
-def browse(collection, terms=None):
+def browse(collection, terms=None, *, include_staged=False):
     """A collection, browsed: its selector sweeps plus its entries.
 
     Entries win over selectors for the same item — that is where per-item
@@ -272,6 +272,11 @@ def browse(collection, terms=None):
     and the lines keep the item's real numbers regardless — see
     ``shows_trade_points``.
 
+    Staged content — swept in, listed, or a gun's staged round — is left
+    off the listing unless ``include_staged`` says the reader may see it
+    (``n26.library.staged``). The gate is here, where a thing is offered,
+    and nowhere a thing already held is drawn.
+
     A fixed number of queries: the entries with their prefetches, plus
     one per selector — the count follows the collection's
     *definition*, never its size.
@@ -295,7 +300,9 @@ def browse(collection, terms=None):
     shows_trade_points = prints_trade_points(terms, in_trade_points)
 
     for selector in selectors:
-        for thing in selector.contents(include_exclusive=terms.shows_exclusive):
+        for thing in selector.contents(
+            include_exclusive=terms.shows_exclusive, include_staged=include_staged
+        ):
             price = price_of(thing)
             lines[_key(thing)] = (
                 thing.category,
@@ -358,6 +365,12 @@ def browse(collection, terms=None):
         if entry.pk in housed:
             continue
         thing = entry.assignable
+        # An archived line or thing is off the listing for everyone; a
+        # staged one only for a reader who may not see staged content.
+        if entry.archived or thing.archived:
+            continue
+        if not include_staged and (entry.staged or thing.staged):
+            continue
         price = price_of(thing, entry)
         lines[_key(thing)] = (
             thing.category,
@@ -370,7 +383,10 @@ def browse(collection, terms=None):
                 charges_trade_points=terms.charges_trade_points,
                 shows_trade_points=shows_trade_points,
                 parts=_entry_parts(
-                    ammo.get(entry.weapon_id, ()), terms, shows_trade_points
+                    ammo.get(entry.weapon_id, ()),
+                    terms,
+                    shows_trade_points,
+                    include_staged=include_staged,
                 ),
                 choices=offered_choices(thing),
             ),
@@ -379,7 +395,7 @@ def browse(collection, terms=None):
     return _sectioned(str(collection), lines.values())
 
 
-def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
+def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False, include_staged=False):
     """Everything in the library a list could sell, browsed as one surface.
 
     Not a collection: nobody authored it and no gang holds it. The kinds
@@ -393,7 +409,9 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
     no gun above it would be a purchase with nowhere to land.
 
     What a discovery surface offers: the standard pack's content,
-    unarchived, the same question a picker asks. ``for_use_notes`` loads
+    unarchived and live, the same question a picker asks — with
+    ``include_staged`` saying whether this reader is shown what authors
+    have not yet put live. ``for_use_notes`` loads
     the use lists of every kind that carries them, so a fighter's screen
     can note this view (``with_use_notes``) for no query per line — the
     same prefetch a sweep makes. Off, the lists are not loaded: the stash
@@ -431,7 +449,7 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
             continue
         # built_ins because pricing composes the set's own price in, and
         # category__section because every line is filed under its home.
-        found = model.objects.selectable().select_related(
+        found = model.objects.selectable(include_staged=include_staged).select_related(
             "category__section", "built_ins"
         )
         if for_use_notes and issubclass(model, UsableBy):
@@ -442,7 +460,7 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False):
             found = found.prefetch_related(
                 Prefetch(
                     "profiles",
-                    queryset=paid_profiles(),
+                    queryset=paid_profiles(include_staged=include_staged),
                     to_attr=TRADEABLE_PROFILES,
                 )
             )
@@ -574,17 +592,22 @@ def _ammo_by_weapon(entries):
     return filed
 
 
-def _entry_parts(entries, terms, shows_trade_points):
+def _entry_parts(entries, terms, shows_trade_points, *, include_staged=False):
     """A curated gun's ammo: the list's own entries, at the list's prices.
 
     Priced through the entry like every other line the list carries, so
     an author who reprices a round reprices the one the reader clicks.
     Whether the profile has a price of its own is beside the point —
     a list naming a free profile at 15 credits is the list pricing it at
-    15 credits.
+    15 credits. A staged round, or a staged entry for one, is not under
+    the gun unless the reader may see staged content.
     """
     parts = []
     for entry in entries:
+        if entry.archived or entry.weapon_profile.archived:
+            continue
+        if not include_staged and (entry.staged or entry.weapon_profile.staged):
+            continue
         price = price_of(entry.weapon_profile, entry)
         parts.append(
             PricedLine(
@@ -803,7 +826,27 @@ def regrouped_by_placement(view, placements, fallback=None, name=None):
     return regrouped
 
 
-def offered_by(slot, computed, terms=EQUIPMENT_LIST):
+def picklist_lines(picklist, *, include_staged=False):
+    """The lines of a picklist a reader may be offered, unordered.
+
+    Archived lines and archived pickables are off every discovery surface,
+    as archived content always is. Staged ones are held back separately —
+    a staged pickable is off every list, a staged line is off this one,
+    the way a staged entry is off its collection — unless the reader may
+    see staged content. One statement of the rule, read by the pick
+    screen and by the roll panel, so the two cannot come to disagree.
+    """
+    lines = (
+        picklist.members.select_related("pickable")
+        .unarchived()
+        .filter(pickable__archived=False, pickable__pack__archived=False)
+    )
+    if not include_staged:
+        lines = lines.filter(staged=False, pickable__staged=False)
+    return lines
+
+
+def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     """What *this* fighter may choose for a choice slot.
 
     A slot narrowed to a tier ("a Skill from a set that is Primary for
@@ -830,9 +873,13 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     (:class:`Listed`). No sections and no prices — the pickables behind a
     choice and nothing else — and the same rule holds: the list informs,
     and an owner may still hand over something off it.
+
+    Whichever branch, a staged thing is not offered unless
+    ``include_staged`` says this reader may see it: the one gate on
+    staged content sits where things are offered (``n26.library.staged``).
     """
     if slot.slot is not None:
-        members = slot.slot.picklist.members.select_related("pickable")
+        members = picklist_lines(slot.slot.picklist, include_staged=include_staged)
         if slot.slot.picklist.dice:
             # A roll table is read by the roll, so its picker comes in
             # roll order — a player who rolled 24 scans for the band
@@ -852,10 +899,15 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None
     if section is None:
-        return None if offer is None else offer.choosables()
+        if offer is None:
+            return None
+        # The whole kind, read as every discovery surface reads it: never
+        # an archived row, and a staged one only for a reader who may see it.
+        found = offer.choosables().unarchived()
+        return found if include_staged else found.live()
 
     collection = section.collection
-    view = browse(collection, terms)
+    view = browse(collection, terms, include_staged=include_staged)
     placed = regrouped_by_placement(
         view,
         placements_for(computed, collection),

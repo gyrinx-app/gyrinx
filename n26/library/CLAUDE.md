@@ -139,6 +139,17 @@ edits it directly, so keep it prose they would happily rewrite. Say what
 a kind *is* rather than how the code arranges it, and when a kind gains
 a field or a behaviour, write that in.
 
+## Staged content — the third documentation page
+
+`staged.md` (beside this file) is rendered at `/n26/authoring/docs/staged/`
+and explains staging to authors: what it hides and what it does not, which
+kinds can be staged, who sees staged content and how the flag rolls it
+out, where staging happens, and the working rhythm for a new book. Same
+rules as the other two pages: author-facing words, the pages' own terms,
+prose the maintainer would happily rewrite. The code it describes is
+`staged.py` here and `n26/core`'s discovery surfaces; when either gains a
+behaviour authors would notice, write it in.
+
 ## Ingest — spreadsheets in, rows out
 
 Three stages: read (CSV → dicts), plan (→ an `IngestPlan` of frozen

@@ -14,7 +14,7 @@ from django.contrib.auth.models import Group, User
 
 from gyrinx.site.flags import enabled, known_flags
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS, FOUNDING
+from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS, FOUNDING, STAGED_CONTENT
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
@@ -37,6 +37,11 @@ class TestWhatThisEditionClaims:
         for it on every owner's gang page; unclaimed, that ask would raise
         instead of standing shut."""
         assert FOUNDING in known_flags()
+
+    def test_staged_content_is_registered(self):
+        """Who sees staged content asks this flag on every screen where a
+        player adds to a gang; unclaimed, every one of them would raise."""
+        assert STAGED_CONTENT in known_flags()
 
     def test_the_seam_answers_for_it(self):
         """A slug with no row is off — the same answer the platform gives,

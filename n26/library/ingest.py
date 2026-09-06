@@ -2378,6 +2378,8 @@ class IngestResult:
     created: dict = field(default_factory=dict)  # key -> model instance
     updated: dict = field(default_factory=dict)
     existing: dict = field(default_factory=dict)
+    #: Whether what was created was held back from players.
+    staged: bool = False
 
     def counts(self):
         tally = TallyCounter(key.split(":", 1)[0] for key in self.created)
@@ -2452,7 +2454,7 @@ def _refuse_what_cannot_be_done(plan):
         )
 
 
-def perform(plan):
+def perform(plan, *, staged=False):
     """Execute the plan through the authoring verbs, in one transaction.
 
     Refuses a plan with error problems: the preview said no. Returns an
@@ -2464,6 +2466,12 @@ def perform(plan):
     statline shapes, profile types, XP counter and skill tiers are
     resolved by their standard names and a missing one is a loud
     LookupError, never quietly re-planted.
+
+    ``staged`` holds back what the import *creates* — the rows players
+    would otherwise meet the moment the transaction commits — until an
+    author puts them live (``n26.library.staged``). What it changes is
+    changed at once: those rows are live already, and a corrected price
+    is not something to hold back.
     """
     if not plan.ok:
         errors = [p for p in plan.problems if p.severity == "error"]
@@ -2471,14 +2479,40 @@ def perform(plan):
             f"plan has {len(errors)} unresolved problem(s); first: {errors[0].message}"
         )
     _refuse_what_cannot_be_done(plan)
-    result = IngestResult()
+    result = IngestResult(staged=staged)
     with transaction.atomic():
         performer = _Performer(plan, result)
         for kind in PERFORM_ORDER:
             for planned in plan.planned:
                 if planned.kind == kind:
                     performer.perform_one(planned)
+        if staged:
+            _stage_created(result)
     return result
+
+
+def _stage_created(result):
+    """Hold back the rows the import made, one write per kind.
+
+    Only kinds a player is offered are staged (``stageable_kinds``): a
+    category or a modifier the import made is reached through a fighter
+    or a weapon that is, and staging it as well would only lengthen the
+    list of things to put live. A planned row whose creator hands back a
+    row of some other kind — a restriction returns the item it narrows,
+    which may have been live for years — is left alone: what was made is
+    what is staged.
+    """
+    from n26.library import authoring
+    from n26.library.staged import stageable_kinds
+
+    stageable = stageable_kinds()
+    authoring.stage_all(
+        [
+            row
+            for key, row in result.created.items()
+            if type(row) in stageable and type(row).__name__ == key.split(":", 1)[0]
+        ]
+    )
 
 
 class _Performer:

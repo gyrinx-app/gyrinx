@@ -30,6 +30,7 @@ from django.utils.html import escape
 from django.utils.safestring import mark_safe
 
 from n26.library.forms import (
+    StagedForm,
     cross_pack_refusal,
     generate_form,
     statline_form_for,
@@ -42,6 +43,7 @@ from n26.library.references import reading_sentences as _reading_sentences
 from n26.library.references import references_to
 from n26.library.sheets import INGEST_SHEETS, SHEET_LABELS, SHEET_NAMES
 from n26.library.specs import specs
+from n26.library.staged import stageable, staged_count, staged_counts, staged_rows
 
 #: What each sheet holds, by the planner's name for it — the sentence a
 #: sheet's own upload page leads with.
@@ -768,6 +770,10 @@ def _naming(row):
         "label": str(row),
         "qualifier": getattr(row, "qualifier", "") or "",
         "help": getattr(row, "library_author_help", "") or "",
+        # Badged wherever the row is named, so an author checking a list
+        # against the book can tell what players are seeing from what
+        # they are not.
+        "staged": bool(getattr(row, "staged", False)),
     }
 
 
@@ -1272,7 +1278,11 @@ def index(request):
         for family, kinds in grouped.items()
         if kinds
     ]
-    return render(request, "authoring/index.html", {"families": families})
+    return render(
+        request,
+        "authoring/index.html",
+        {"families": families, "staged_count": staged_count()},
+    )
 
 
 #: The documentation the authoring pages carry: url slug → (title, the
@@ -1288,6 +1298,12 @@ DOCS = {
         "Recipes",
         "recipes.md",
         "Step-by-step walkthroughs of whole rulebook setups.",
+    ),
+    "staged": (
+        "Staged content",
+        "staged.md",
+        "Holding new content back from players until it is put live, and "
+        "checking it as they will see it.",
     ),
 }
 
@@ -1423,7 +1439,16 @@ def leaf(request, kind):
                 # only remember the qualifier, or a word from the help,
                 # finds the row by typing that.
                 "search": " ".join(
-                    [naming["label"], naming["qualifier"], *notes, naming["help"]]
+                    part
+                    for part in [
+                        naming["label"],
+                        naming["qualifier"],
+                        *notes,
+                        naming["help"],
+                        # Typing the word finds every staged row of the kind.
+                        "staged" if naming["staged"] else "",
+                    ]
+                    if part
                 ).lower(),
             }
         )
@@ -1567,6 +1592,9 @@ def create(request, kind):
     model = _model_for(spec)
     form_class = generate_form(spec)
     suggestion_class = suggestion_form_for(model)
+    # Only kinds a player is offered somewhere can be held back; for the
+    # rest the switch would promise a difference nothing would show.
+    holds = stageable(model)
 
     if request.method == "POST":
         form = form_class(request.POST, request.FILES)
@@ -1575,12 +1603,24 @@ def create(request, kind):
             if suggestion_class
             else None
         )
-        if form.is_valid() and (suggestions is None or suggestions.is_valid()):
+        held = StagedForm(request.POST) if holds else None
+        if (
+            form.is_valid()
+            and (suggestions is None or suggestions.is_valid())
+            and (held is None or held.is_valid())
+        ):
+            from n26.library import authoring
+
+            staged = held is not None and held.cleaned_data["staged"]
             try:
                 with transaction.atomic():
                     created = form.compile()
                     if suggestions is not None:
                         suggestions.apply(created)
+                    # Inside the transaction, so no reader meets the row
+                    # live in the moment before it is held back.
+                    if staged:
+                        authoring.stage(created)
             except ValidationError as refused:
                 # A verb that turns something away in words is turning
                 # away something an author typed — two boxes that make no
@@ -1598,17 +1638,26 @@ def create(request, kind):
                     f"“{form.cleaned_data[named]}” already exists in this pack.",
                 )
             else:
-                messages.success(request, f"Created {created}.")
+                if staged:
+                    messages.success(
+                        request,
+                        f"Created {created}. It is staged: players do not see it "
+                        f"until you put it live.",
+                    )
+                else:
+                    messages.success(request, f"Created {created}.")
                 return redirect("authoring-detail", kind=kind, pk=created.pk)
     else:
         form = form_class()
         suggestions = suggestion_class(prefix="suggested") if suggestion_class else None
+        held = StagedForm() if holds else None
 
     return render(
         request,
         "authoring/create.html",
         {
             "kind": kind,
+            "staged_form": held,
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
             "kind_help": kind_help(model),
@@ -1895,6 +1944,11 @@ def detail(request, kind, pk):
 
     composer = None
     act = request.POST.get("act", "")
+    # Before the modifier acts, which take any act they do not recognise.
+    if request.method == "POST" and act in STAGING_ACTS and stageable(model):
+        return _staging_action(
+            request, thing, act, reverse("authoring-detail", args=[kind, pk])
+        )
 
     def adds_elsewhere(one):
         """Where this section's parts are added, or nothing — a route
@@ -2115,6 +2169,7 @@ def detail(request, kind, pk):
         {
             "kind": kind,
             "thing": thing,
+            "stageable": stageable(model),
             "parent": _parent_of(kind, thing),
             "nested": kind in NESTED_KINDS,
             "related_sections": _related_sections(kind, thing),
@@ -2292,6 +2347,119 @@ def _add_under_part(request, kind, thing, sections):
     return None, (str(part.pk), form)
 
 
+#: The two acts a row's own page offers on whether players see it.
+STAGING_ACTS = ("stage", "put_live")
+
+
+def _staging_action(request, thing, act, back):
+    """Hold a row back from players, or release it — one click on its page.
+
+    ``back`` is the page the click came from: a kind's own detail page, or
+    a firing line's, which has an address of its own.
+    """
+    from n26.library import authoring
+
+    if act == "stage":
+        authoring.stage(thing)
+        messages.success(
+            request, f"Staged {thing}. Players do not see it until you put it live."
+        )
+    else:
+        authoring.put_live(thing)
+        messages.success(request, f"{thing} is live.")
+    return redirect(back)
+
+
+@staff_member_required
+def staged(request):
+    """Everything written but not yet put live, kind by kind, and the
+    button that releases one row.
+
+    Every kind with a staged row is listed, not only the ones the pages
+    can stage, so nothing held back is ever out of an author's sight. A
+    row is named by its model and id rather than by an authoring page,
+    because not every kind has one and every kind has a table.
+    """
+    from django.apps import apps
+
+    from n26.library import authoring
+    from n26.library.models import Content
+
+    if request.method == "POST" and request.POST.get("act") == "put_live":
+        try:
+            model = apps.get_model("library", request.POST.get("model", ""))
+        except LookupError:
+            raise Http404("No such kind") from None
+        if not issubclass(model, Content):
+            raise Http404("No such kind")
+        # Only a staged row: this page lists staged rows and nothing else,
+        # so a live one named here is a stale page. A pk that is not a ULID
+        # raises out of the field rather than failing to match, and is the
+        # same bad link.
+        try:
+            row = get_object_or_404(
+                model.objects.filter(staged=True), pk=request.POST.get("pk", "")
+            )
+        except ValidationError:
+            raise Http404("No such row") from None
+        authoring.put_live(row)
+        messages.success(request, f"{row} is live.")
+        return redirect("authoring-staged")
+
+    slugs = _kind_slugs()
+    groups = []
+    total = 0
+    for model, rows in staged_rows():
+        kind = slugs.get(model)
+        describe = LEAF_DESCRIBE.get(kind, _describe_row)
+        total += len(rows)
+        groups.append(
+            {
+                "kind_name_plural": str(model._meta.verbose_name_plural),
+                "model": model._meta.model_name,
+                "rows": [
+                    {**_named_row(row, model, slugs), "notes": describe(row)}
+                    for row in rows
+                ],
+            }
+        )
+    return render(
+        request,
+        "authoring/staged.html",
+        {"groups": groups, "count": total},
+    )
+
+
+@staff_member_required
+def staged_put_live(request):
+    """The question asked before everything staged goes live at once.
+
+    A page rather than a prompt, like every act here that is hard to take
+    back: releasing a new gang type and the fighters, lists and gear
+    written for it is one click, and the page says how many rows that is
+    before the click. The act is one transaction, so players meet all of
+    it or none of it.
+    """
+    from n26.library import authoring
+
+    if request.method == "POST":
+        count = authoring.put_everything_live()
+        messages.success(
+            request, f"Put {count} {'thing' if count == 1 else 'things'} live."
+        )
+        return redirect("authoring-staged")
+
+    groups = [
+        {"kind_name_plural": str(model._meta.verbose_name_plural), "count": count}
+        for model, count in staged_counts()
+    ]
+    return render(
+        request,
+        "authoring/staged_put_live.html",
+        {"groups": groups, "count": sum(group["count"] for group in groups)},
+    )
+
+
 def _modifier_action(request, kind, thing, act):
     """One modifier action against a carrier: compose, attach, detach.
 
@@ -2392,6 +2560,13 @@ def weapon_profile(request, pk):
     edit_class = generate_form(spec)
     statline_class = _statline_editor_for(profile)
 
+    if request.method == "POST" and request.POST.get("act", "") in STAGING_ACTS:
+        return _staging_action(
+            request,
+            profile,
+            request.POST["act"],
+            reverse("authoring-weapon-profile", args=[pk]),
+        )
     if request.method == "POST":
         edit_form = edit_class.opened_on(profile, request.POST, request.FILES)
         statline_edit = (
@@ -2422,6 +2597,7 @@ def weapon_profile(request, pk):
             # its own, and the weapon is where its reader came from.
             "kind": "weapon",
             "thing": profile,
+            "stageable": stageable(WeaponProfile),
             "label": _label_for(profile),
             "weapon": profile.weapon,
             "weapons_plural": str(profile.weapon._meta.verbose_name_plural),
@@ -2462,21 +2638,39 @@ def weapon_profile_add(request, pk):
     if request.method == "POST":
         form = form_class(request.POST, request.FILES, carrier=weapon)
         statline_form = statline_class(request.POST) if statline_class else None
-        if form.is_valid() and (statline_form is None or statline_form.is_valid()):
+        held = StagedForm(request.POST)
+        if (
+            form.is_valid()
+            and (statline_form is None or statline_form.is_valid())
+            and held.is_valid()
+        ):
+            from n26.library import authoring
+
+            staged = held.cleaned_data["staged"]
             try:
                 with transaction.atomic():
                     profile = spec.verb(weapon, **form.verb_data())
                     if statline_form is not None:
                         statline_form.save(profile)
+                    if staged:
+                        authoring.stage(profile)
             except IntegrityError as refused:
                 _refuse_the_line(form, spec, refused)
             else:
                 said, _ = _describe_weapon_profile(profile)
-                messages.success(request, f"Added {said}.")
+                if staged:
+                    messages.success(
+                        request,
+                        f"Added {said}. It is staged: players do not see it until "
+                        f"you put it live.",
+                    )
+                else:
+                    messages.success(request, f"Added {said}.")
                 return redirect(back)
     else:
         form = form_class(carrier=weapon)
         statline_form = statline_class() if statline_class else None
+        held = StagedForm()
 
     return render(
         request,
@@ -2491,6 +2685,7 @@ def weapon_profile_add(request, pk):
             "verbose_name_plural": str(WeaponProfile._meta.verbose_name_plural),
             "part_help": kind_help(WeaponProfile),
             "form": form,
+            "staged_form": held,
             "statline_cells": statline_form.cells() if statline_form else None,
             "back": back,
         },
@@ -3690,8 +3885,9 @@ def collection_page(request, pk):
 
     # An author's own preview of what they wrote, never a shopping trip:
     # a post previewed on its buying terms would hide the Exclusive items
-    # its author is here to check.
-    view = browse(collection, EQUIPMENT_LIST)
+    # its author is here to check — and staged lines are exactly what an
+    # author is here to check, so they are on the preview too.
+    view = browse(collection, EQUIPMENT_LIST, include_staged=True)
 
     # The schema's own promise, kept on the preview: unplaced categories
     # fall into the default section, so the group of things with no home
@@ -4483,8 +4679,13 @@ def ingest_preview(request):
                 f"nothing was written.",
             )
         else:
+            # A switch, so absent means off: that is all an unchecked box
+            # posts. The page draws it on, because an import is the way a
+            # whole book arrives and a whole book is checked before it is
+            # shown.
+            staged = request.POST.get("staged") == "on"
             with transaction.atomic():
-                result = perform(plan)
+                result = perform(plan, staged=staged)
             created = result.counts()
             # One event for the run, outside the transaction and carrying
             # totals. A row apiece would write thousands of events for one
@@ -4497,11 +4698,17 @@ def ingest_preview(request):
                 created=sum(created.values()),
                 updated=len(result.updated),
             )
+            held = (
+                " The new rows are staged: players do not see them until you "
+                "put them live on the Staged content page."
+                if staged and created
+                else ""
+            )
             messages.success(
                 request,
                 f"Created {sum(created.values())} rows, changed "
-                f"{len(result.updated)}. Below is a fresh reading of the same "
-                f"sheets against the library as it now stands.",
+                f"{len(result.updated)}.{held} Below is a fresh reading of the "
+                f"same sheets against the library as it now stands.",
             )
         # However it went, come back by a fresh reading: a reload must not
         # offer to run the import a second time, and the honest

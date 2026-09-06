@@ -39,6 +39,7 @@ from n26.core.views.permissions import (
     may_see_founding,
     trade_points_href,
 )
+from n26.library.staged import sees_staged
 
 #: The most a purchase will take for one line. No price in the game comes
 #: near it; it is here because the number is typed by hand, and a slip on
@@ -412,13 +413,14 @@ class Screen:
         return EquipHost.stash(self.gang, self.card, at=at)
 
 
-def _screen(gang, miniature=None, list_param="", budgets=True):
+def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged=False):
     """What an equip screen shows: card, collections, chosen list, view.
 
     ``miniature`` names whose screen this is; without one it is the
     gang's. On either, ``list_param`` may be :data:`ALL_SCOPE`, the
     library tab that is not a collection; on the gang's it may also be
-    :data:`STASH_SCOPE`.
+    :data:`STASH_SCOPE`. ``include_staged`` is whether the reader is
+    shown staged content on every list here (``n26.library.staged``).
 
     One derivation for the pages and for every partial update — an update
     re-derives here because the act it follows changed the state it
@@ -474,12 +476,24 @@ def _screen(gang, miniature=None, list_param="", budgets=True):
             # restriction is likeliest to bite.
             chosen = None
             view = priced_from(
-                all_gear(ALL_LABEL, terms or EQUIPMENT_LIST, for_use_notes=True),
-                [browse(collection, terms) for collection in collections],
+                all_gear(
+                    ALL_LABEL,
+                    terms or EQUIPMENT_LIST,
+                    for_use_notes=True,
+                    include_staged=include_staged,
+                ),
+                [
+                    browse(collection, terms, include_staged=include_staged)
+                    for collection in collections
+                ],
             )
         else:
             chosen = chosen_from(collections)
-            view = browse(chosen, terms) if chosen is not None else None
+            view = (
+                browse(chosen, terms, include_staged=include_staged)
+                if chosen is not None
+                else None
+            )
         if view is not None:
             view = with_use_notes(view, usability_for(computed))
         return Screen(
@@ -498,14 +512,21 @@ def _screen(gang, miniature=None, list_param="", budgets=True):
     elif list_param == ALL_SCOPE:
         chosen = None
         view = priced_from(
-            all_gear(ALL_LABEL),
-            [browse(collection) for collection in collections],
+            all_gear(ALL_LABEL, include_staged=include_staged),
+            [
+                browse(collection, include_staged=include_staged)
+                for collection in collections
+            ],
         )
     else:
         chosen = chosen_from(collections)
         # No usability notes: those are about a fighter, and the stash is
         # not one.
-        view = browse(chosen) if chosen is not None else None
+        view = (
+            browse(chosen, include_staged=include_staged)
+            if chosen is not None
+            else None
+        )
     return Screen(gang, None, card, computed, collections, chosen, view)
 
 
@@ -560,6 +581,7 @@ def render_update(
         miniature=miniature,
         list_param=list_param,
         budgets=may_see_founding(gang, request.user),
+        include_staged=sees_staged(request.user),
     )
     host = screen.host(at)
     held = possessions(host)
@@ -872,6 +894,7 @@ def equip(request, pk):
         miniature=miniature,
         list_param=wanted,
         budgets=founding_seen,
+        include_staged=sees_staged(request.user),
     )
     collections, chosen, view = screen.collections, screen.chosen, screen.view
 
@@ -1219,7 +1242,7 @@ def equip_gang(request, pk):
     wanted = request.POST.get("list", request.GET.get("list", ""))
     stash_tab = wanted == STASH_SCOPE
     everything = wanted == ALL_SCOPE
-    screen = _screen(gang, list_param=wanted)
+    screen = _screen(gang, list_param=wanted, include_staged=sees_staged(request.user))
     collections, chosen, view = screen.collections, screen.chosen, screen.view
 
     # Preserve the collection picker's section across purchases.

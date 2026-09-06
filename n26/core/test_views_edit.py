@@ -698,9 +698,10 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        # One of these asks whether the reader is offered the model's
-        # status, which is a flag reading and is taken once for the page.
-        assert self.measure(client, edit_url(vex)) == 42
+        # Two of these are flag readings — whether the reader is offered
+        # the model's status, and whether they see staged content — each
+        # taken once for the page.
+        assert self.measure(client, edit_url(vex)) == 43
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

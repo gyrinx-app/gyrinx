@@ -1417,7 +1417,7 @@ def choice_lines(computed, host=""):
     return [_choice_line(slot, host) for slot in computed.choices]
 
 
-def build_choice_offer(slot, computed):
+def build_choice_offer(slot, computed, *, include_staged=False):
     """What may be chosen for one slot, in the one shape a picker draws.
 
     The offer decides the list; this only flattens it. A slot narrowed to
@@ -1448,7 +1448,7 @@ def build_choice_offer(slot, computed):
         # click here could write, so there is nothing to draw.
         return ChoiceOffer(label=slot.kind_label, chosen=slot.chosen_name)
 
-    offered = offered_by(slot, computed)
+    offered = offered_by(slot, computed, include_staged=include_staged)
     current = slot.resolved_with.assignable if slot.resolved_with is not None else None
 
     if isinstance(offered, CollectionView):

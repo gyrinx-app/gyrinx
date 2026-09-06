@@ -1640,6 +1640,8 @@ class TestThePanelsAPageCarries:
 
         card = build_card(fighter)
         request = RequestFactory().get(AT, query)
+        # A request carries its reader, as one the middleware built would.
+        request.user = fighter.gang.owner
         host = EquipHost.fighter(fighter.gang, card, fighter, AT)
         return accessorise_dialogs(request, host)
 

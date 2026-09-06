@@ -286,14 +286,17 @@ def build_hire_entry(profile, index=None, with_cards=True, base=None, entry=None
     return HireEntry(profile=profile, groups=groups, entry=entry)
 
 
-def build_hire_list(gang_type, with_cards=True):
+def build_hire_list(gang_type, with_cards=True, *, include_staged=False):
     """Every profile a gang of this type could hire — the whole screen.
 
     A fixed number of queries however many profiles there are: the content
     is fetched in one pass, one modifier index covers every card, and the
     cards themselves are assembled in memory.
     """
-    return build_entries(list(hireable_profiles(gang_type)), with_cards=with_cards)
+    return build_entries(
+        list(hireable_profiles(gang_type, include_staged=include_staged)),
+        with_cards=with_cards,
+    )
 
 
 def build_entries(profiles, with_cards=True):
@@ -342,7 +345,7 @@ def build_offer_entries(offers, with_cards=True):
     ]
 
 
-def collection_offers(collections):
+def collection_offers(collections, *, include_staged=False):
     """Every fighter these collections offer, as they offer it.
 
     Both ways a collection contains something, answered together: curated
@@ -372,11 +375,15 @@ def collection_offers(collections):
     if not ids:
         return []
 
-    entries = list(
-        CollectionEntry.objects.filter(
-            collection_id__in=ids, profile__isnull=False
-        ).order_by("position")
-    )
+    # An archived entry is a line the list no longer offers, whoever is
+    # looking; a staged one is a line it does not offer yet. A staged
+    # profile is dropped below, where the profiles are fetched.
+    listed = CollectionEntry.objects.filter(
+        collection_id__in=ids, profile__isnull=False
+    ).unarchived()
+    if not include_staged:
+        listed = listed.live()
+    entries = list(listed.order_by("position"))
     sweeps = list(
         CollectionSelector.objects.filter(
             collection_id__in=ids,
@@ -391,7 +398,10 @@ def collection_offers(collections):
     wanted = Q(pk__in=[entry.profile_id for entry in entries])
     for sweep in sweeps:
         wanted |= sweep.as_selector().as_q(Profile)
-    found = {profile.pk: profile for profile in hireable_profiles().filter(wanted)}
+    found = {
+        profile.pk: profile
+        for profile in hireable_profiles(include_staged=include_staged).filter(wanted)
+    }
 
     offers = []
     for collection in collections:
@@ -491,7 +501,7 @@ def section_hire_list(entries):
     )
 
 
-def hireable_profiles(gang_type=None):
+def hireable_profiles(gang_type=None, *, include_staged=False):
     """Hireable profiles with everything a preview card needs.
 
     ``gang_type`` narrows to one gang list; without it, every hireable
@@ -513,8 +523,13 @@ def hireable_profiles(gang_type=None):
     )
     # A profile that is not hireable is not a secret — its card still
     # previews wherever it is granted — it just is not for sale here:
-    # a pet arrives behind its collar, not off the hire screen.
-    found = Profile.objects.filter(hireable=True)
+    # a pet arrives behind its collar, not off the hire screen. An archived
+    # one is off the screen too, as archived content is off every
+    # discovery surface, and a staged one is not for sale to anyone who
+    # may not see staged content.
+    found = Profile.objects.filter(hireable=True).unarchived()
+    if not include_staged:
+        found = found.live()
     if gang_type is not None:
         found = found.filter(gang_type=gang_type)
     return (
@@ -537,7 +552,7 @@ def hireable_profiles(gang_type=None):
     )
 
 
-def supplementary_profiles():
+def supplementary_profiles(*, include_staged=False):
     """The profiles every gang may hire, whichever gang type authored them.
 
     Being supplementary is a fact of the taxonomy: a profile whose home
@@ -547,7 +562,9 @@ def supplementary_profiles():
     """
     from n26.library.standard_content import SUPPLEMENTARY_SECTION
 
-    return hireable_profiles().filter(category__section__name=SUPPLEMENTARY_SECTION)
+    return hireable_profiles(include_staged=include_staged).filter(
+        category__section__name=SUPPLEMENTARY_SECTION
+    )
 
 
 def _entry_order(entry):

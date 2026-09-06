@@ -1,0 +1,51 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before everything staged goes live at once, at an
+address of its own: it survives a reload, Back works, and so does a
+browser with scripting switched off. The form's POST is the act, and the act
+is one transaction — players meet all of it or none of it.
+{% endcomment %}
+{% block head_title %}
+    Put everything live
+{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-staged-put-live' %}"
+                     title="Put everything live?"
+                     lead="Everything staged goes live together, in one step. Players see all of it from then on."
+                     submit_label="Put everything live"
+                     cancel_url="{% url 'authoring-staged' %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-staged' %}">
+                    Staged content
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Put everything live
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if count %}
+            <c-n26.form-section title="What goes live">
+                <c-ui.table>
+                    <tbody>
+                        {% for group in groups %}
+                            <tr>
+                                <td class="w-full">{{ group.kind_name_plural|capfirst }}</td>
+                                <td class="text-right tabular-nums">{{ group.count }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+                <c-ui.description class="mt-3">
+                    {{ count }} thing{{ count|pluralize }} in all. You can stage each one again afterwards from its own page.
+                </c-ui.description>
+            </c-n26.form-section>
+        {% else %}
+            <c-ui.description>
+                Nothing is staged, so there is nothing to put live.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

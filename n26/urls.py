@@ -378,6 +378,14 @@ urlpatterns = [
         authoring_views.foundations,
         name="authoring-foundations",
     ),
+    # Literal addresses, ahead of the kind catch-all: what is staged is a
+    # fact about the whole library, and putting it all live is one act.
+    path("authoring/staged/", authoring_views.staged, name="authoring-staged"),
+    path(
+        "authoring/staged/put-live/",
+        authoring_views.staged_put_live,
+        name="authoring-staged-put-live",
+    ),
     path("authoring/ingest/", authoring_views.ingest, name="authoring-ingest"),
     path(
         "authoring/ingest/preview/",

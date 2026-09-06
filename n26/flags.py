@@ -24,6 +24,7 @@ __all__ = [
     "BUILT_IN_PROPAGATION",
     "CAMPAIGNS",
     "FOUNDING",
+    "STAGED_CONTENT",
     "enabled",
     "requires_flag",
     "switched_on",
@@ -42,4 +43,9 @@ BUILT_IN_PROPAGATION = "built-in-propagation"
 #: is drawn, and purchases count against no founding budget.
 FOUNDING = "founding"
 
-register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, FOUNDING)
+#: Seeing content an author has staged but not yet put live, everywhere a
+#: player adds to a gang. Staff see it by right; this is how anyone else
+#: does, so a release can be rehearsed with a group before it is made.
+STAGED_CONTENT = "staged-content"
+
+register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, FOUNDING, STAGED_CONTENT)
