@@ -4,6 +4,8 @@ from django.contrib import admin
 from n26.library import artwork
 from n26.library.models import (
     Asset,
+    AssetTable,
+    AssetTableEntry,
     AssetType,
     CampaignType,
     ContentPack,
@@ -104,6 +106,38 @@ class AssetAdmin(admin.ModelAdmin):
         here, as those two methods do it."""
         from n26.library.authoring import take_out_of_built_ins
         from n26.library.possessions import give_back
+
+        if obj.archived:
+            take_out_of_built_ins(obj)
+        super().save_model(request, obj, form, change)
+        if not obj.archived and "archived" in form.changed_data:
+            give_back(obj)
+
+
+class AssetTableEntryInline(admin.TabularInline):
+    model = AssetTableEntry
+    extra = 1
+    fields = ["asset", "position", "roll_low", "roll_high"]
+    ordering = ["position"]
+    autocomplete_fields = ["asset"]
+
+
+@admin.register(AssetTable)
+class AssetTableAdmin(admin.ModelAdmin):
+    list_display = ["name", "asset_type", "dice", "pack", "archived"]
+    list_filter = ["pack", "asset_type__campaign_type", "dice", "archived"]
+    search_fields = ["name", "qualifier"]
+    list_select_related = ["pack", "asset_type", "asset_type__campaign_type"]
+    inlines = [AssetTableEntryInline]
+
+    def save_model(self, request, obj, form, change):
+        """Ticking Archived here is the one way a person archives a table,
+        and unticking it the one way they bring one back. The change form
+        saves the row rather than calling ``archive`` or ``unarchive``, so
+        the memberships that give a table are taken out and put back
+        here, as those two methods do it."""
+        from n26.library.authoring import take_out_of_built_ins
+        from n26.library.tables import give_back
 
         if obj.archived:
             take_out_of_built_ins(obj)

@@ -33,6 +33,7 @@ READ_WITH = {
     # as "chosen from the start for that choice", which names it.
     "library.defaultassignment": ("default_set", "slot"),
     "library.picklistmember": ("picklist", "pickable"),
+    "library.assettableentry": ("table", "asset"),
     "library.option": ("default_set", "profile", "wargear"),
     # The slot rides along for the same reason: a grant naming a starting
     # pick is read as "chosen from the start for that choice".
@@ -61,7 +62,13 @@ READ_WITH = {
 #:
 #: Each column here is loaded by ``READ_WITH`` above, so saying a row
 #: this way costs no query.
-NAMED_BY = {"library.defaultassignment": "default_set"}
+#: An entry reads as the asset it names, so a page saying what stands in
+#: the way of deleting that asset would name the asset itself; the table
+#: is what has to be edited.
+NAMED_BY = {
+    "library.defaultassignment": "default_set",
+    "library.assettableentry": "table",
+}
 
 
 def named(row):

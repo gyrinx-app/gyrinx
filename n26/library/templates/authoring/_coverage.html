@@ -1,0 +1,27 @@
+{% comment %}
+Whether a rolled table's bands cover its die, as one alert above the
+rows: every roll landing on exactly one row is the whole table's fact,
+and no single row can say it. Drawn for a picklist's members and an asset
+table's entries alike.
+
+Takes `coverage` (a Coverage), `unclaimed_said`, `doubled_said` and
+`bandless_said` — the rolls and rows already in words, from
+views._coverage_context.
+{% endcomment %}
+{% if coverage.whole %}
+    <c-ui.alert variant="success" class="mt-4">
+        {{ coverage.covered }} of {{ coverage.total }} rolls covered.
+    </c-ui.alert>
+{% else %}
+    <c-ui.alert variant="warning" class="mt-4">
+        {{ coverage.covered }} of {{ coverage.total }} rolls covered{% if unclaimed_said %} — {{ unclaimed_said }} unclaimed{% endif %}.
+        {% for roll, rows in doubled_said %}
+            <br />
+            {{ roll }} is claimed by more than one result — {{ rows }}.
+        {% endfor %}
+        {% for name in bandless_said %}
+            <br />
+            {{ name }} has no band, so no roll lands on it.
+        {% endfor %}
+    </c-ui.alert>
+{% endif %}

@@ -118,6 +118,10 @@ GRANTABLE_FIELDS = {
     # pickable handed over with no slot to answer shows nothing and does
     # nothing, so giving one could only be a mistake.
     "slot": "library.Slot",
+    # A table of campaign assets the gang may roll on — a journal's
+    # Goliath Territories, given to every gang of that House by a modifier
+    # on the House pick. A fact on the gang's card that draws no line.
+    "asset_table": "library.AssetTable",
 }
 
 #: What an ``AllowsAtMost`` may count. The books limit ranks ("no
@@ -1051,6 +1055,13 @@ class AssignableChoice(models.Model):
         blank=True,
         related_name="+",
     )
+    asset_table = models.ForeignKey(
+        "library.AssetTable",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     class Meta:
         abstract = True
@@ -1077,10 +1088,14 @@ class AssignableChoice(models.Model):
         carriers its own rules hang off — an alliance's "the gang
         gains…" — but has no type line, no skills row, and holds no
         weapons, so nothing else can land there. A slot may land on
-        either a gang or a model.
+        either a gang or a model. An asset table goes on the gang only:
+        holding a table is what says a gang may roll on it, and a model
+        rolls for nothing.
         """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE
+        if self.asset_table_id is not None:
+            return target_kind == GANG
         if target_kind == GANG:
             return (
                 self.rule_id is not None

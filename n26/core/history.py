@@ -541,7 +541,7 @@ def _machinery(e, row):
         return False
     if e.kind == Kind.CLONED:
         return True
-    if row.hidden_id is not None:
+    if row.hidden_id is not None or row.asset_table_id is not None:
         return True
     if row.weapon_profile_id is None:
         return False

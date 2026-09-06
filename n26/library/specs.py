@@ -353,6 +353,8 @@ def _build_registry():
         Affiliation,
         AllowsAtMost,
         Asset,
+        AssetTable,
+        AssetTableEntry,
         AssetType,
         CampaignType,
         Category,
@@ -1220,6 +1222,42 @@ def _build_registry():
                     source=(Asset, "library_author_help"), long=True
                 ),
             },
+            joins_carrier_pack=True,
+        ),
+        # A table is made on its campaign type's page, under one of the
+        # type's Holding asset types, the way an asset is: the asset type
+        # is the carrier the form is handed, and the table joins the type's
+        # pack.
+        Spec(
+            authoring.create_asset_table,
+            {
+                "name": Text(source=(AssetTable, "name")),
+                "asset_type": One(
+                    model=AssetType, source=(AssetTable, "asset_type"), fixed=True
+                ),
+                "dice": Choice(source=(AssetTable, "dice")),
+                "qualifier": Text(source=(AssetTable, "qualifier")),
+                "library_author_help": Text(
+                    source=(AssetTable, "library_author_help"), long=True
+                ),
+            },
+            joins_carrier_pack=True,
+        ),
+        Spec(
+            authoring.add_asset_table_entry,
+            {
+                # A table lists one asset type's assets, so the picker on
+                # its page offers that asset type's and nothing else.
+                "asset": One(
+                    model=Asset,
+                    source=(AssetTableEntry, "asset"),
+                    within="may_list",
+                ),
+                "position": Int(source=(AssetTableEntry, "position")),
+                "roll_low": Int(source=(AssetTableEntry, "roll_low")),
+                "roll_high": Int(source=(AssetTableEntry, "roll_high")),
+            },
+            model=AssetTableEntry,
             joins_carrier_pack=True,
         ),
         Spec(

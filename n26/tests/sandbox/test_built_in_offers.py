@@ -50,7 +50,21 @@ def a_row_of(model, name):
         for field in model._meta.fields
         if field.many_to_one and not field.null and not field.has_default()
     }
-    return model.objects.create(name=name, **required)
+    return model.objects.create(**{_naming_field(model): name}, **required)
+
+
+def _naming_field(model):
+    """The column a bare row of ``model`` is named by: ``name`` where the
+    model has one, else its first required text column — an asset type
+    is named by its label."""
+    names = {field.name for field in model._meta.fields}
+    if "name" in names:
+        return "name"
+    return next(
+        field.name
+        for field in model._meta.fields
+        if field.get_internal_type() == "CharField" and not field.blank
+    )
 
 
 def acquired_kind_pages():

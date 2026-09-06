@@ -29,6 +29,7 @@ assignables.
 """
 
 import random
+from dataclasses import dataclass
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -261,6 +262,64 @@ ROLL_TABLE_IS_WHOLE = (
     "A roll table names its dice and how a roll finds its row, or neither: "
     "one without the other is a table nothing could read."
 )
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """Whether a roll table's bands claim its die.
+
+    Gaps and overlaps make a table unrollable, and neither is a fact
+    about any one row — only the whole table can say. ``covered`` counts
+    rolls claimed by at least one row; a roll claimed twice is covered
+    and doubled both.
+    """
+
+    #: Every roll the die can produce.
+    total: int
+    #: How many of them at least one band claims.
+    covered: int
+    #: The rolls no band claims, in roll order.
+    unclaimed: list
+    #: ``(roll, rows)`` for every roll more than one band claims.
+    doubled: list
+    #: Rows with no band at all: on the table, never rolled.
+    bandless: list
+
+    @property
+    def whole(self):
+        """True when every roll lands on exactly one row and every row
+        can be rolled — the table a roll can be made on."""
+        return self.covered == self.total and not self.doubled and not self.bandless
+
+
+def band_coverage(dice, rows):
+    """The bands of ``rows`` checked against ``dice``, as :class:`Coverage`.
+
+    Pure over the rows it is handed — anything with ``roll_low`` and
+    ``roll_high`` — so a picklist's members and an asset table's entries
+    are checked by the one function, and a test can assert on the result
+    without rendering anything. A band may span rolls the die cannot
+    produce — "31-46" on a D66 — and such rolls count for nothing: the
+    check walks the die's own rolls, never the band's arithmetic. A die
+    of "" has no rolls, so every row of an unrolled table is bandless
+    and nothing is covered.
+    """
+    rolls = Dice.rolls(dice)
+    claimed = {}
+    for row in rows:
+        if row.roll_low is None:
+            continue
+        for roll in rolls:
+            if row.roll_low <= roll <= row.roll_high:
+                claimed.setdefault(roll, []).append(row)
+    return Coverage(
+        total=len(rolls),
+        covered=len(claimed),
+        unclaimed=[roll for roll in rolls if roll not in claimed],
+        # In roll order, as everything about a table is read.
+        doubled=sorted((roll, who) for roll, who in claimed.items() if len(who) > 1),
+        bandless=[row for row in rows if row.roll_low is None],
+    )
 
 
 def band_problem(roll_low, roll_high):

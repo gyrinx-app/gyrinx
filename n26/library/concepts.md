@@ -127,6 +127,18 @@ Fields of its own: its **asset type** (settled when the asset is made, and fixin
 
 Assignable so that a possession can be built into its campaign type and arrive on every member gang, and so that an asset of either ownership can carry modifiers. A possession is built in as it is created, taken out when it is deleted or archived, and built in again when an archived one is brought back; gangs already given one keep it. It is built into its asset type's campaign type, or, for an asset an arbitrator makes in a campaign's own pack, into that campaign's own type. A holding is never assigned: the campaign's own record of the asset says who holds it, and the gang's history says when it gained or lost it.
 
+### Asset table
+
+*A table of one Holding asset type's assets — the Territory Selection Table — that a gang holds.*
+
+Made on the campaign type's page, under one of its Holding asset types; a Possession asset type has no tables, because every gang has its own of those and there is nothing to roll for. A table's own page, reached from the campaign type's, lists its **entries** — one asset each, of the table's asset type — and, on a rolled table, the band of rolls that lands on each. Above the entries the page says whether the bands cover the die: every roll the die can make should land on exactly one entry, and a gap or an overlap is named there.
+
+Fields of its own: its **asset type** (settled when the table is made) and **dice**. A table with dice is rolled on; a table without is an ordered list, chosen from rather than rolled.
+
+A gang may roll on any table it holds, and it comes to hold one the three ways it holds anything. A table is built into its campaign type as it is created — the core Territory Selection Table reaches every gang that joins a Territory campaign with no author's step — and taken out when it is deleted or archived, the way a possession is. A modifier may give a table to the gang (*targets the gang alone → gives the Goliath Territories table*), which is how a journal's table reaches every gang of its House. And an arbitrator opens a table to every gang in one campaign by building it into the campaign's own additions. Whichever way it arrived, a table draws no line on the gang sheet or the campaign page: the roll controls read which tables a gang holds.
+
+The Territory Selection Table ships in the system pack: eighteen Territories on a D66, built into the Territory campaign type.
+
 ### Hidden
 
 *A carrier for effects that draws no row of its own.*
