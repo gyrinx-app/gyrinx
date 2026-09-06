@@ -974,7 +974,9 @@ def compute(card, index):
                             amount=effect.amount,
                             source=label,
                             source_kind=label_kind,
-                            acquired=_acquired_at(lines.get(step.root_key)),
+                            acquired=getattr(
+                                lines.get(step.root_key), "acquired", None
+                            ),
                         )
                         holder = (
                             computed
@@ -1484,12 +1486,6 @@ def _shortfall_notes(computed):
         for slot in computed.choices
         if slot.slot is not None and len(slot.picks) < slot.min_picks
     ]
-
-
-def _acquired_at(node):
-    """When the line a chain of changes stands on was written, or None."""
-    assignment = getattr(node, "assignment", None)
-    return getattr(assignment, "created", None)
 
 
 class _Facts:

@@ -131,6 +131,25 @@ class TestStat:
         assert stat.shift(-1, -5) == -6
         assert stat.shift(0, 40) == 40
 
+    def test_limits_the_wrong_way_round_are_refused_in_words(self):
+        with pytest.raises(ValidationError, match="cannot be above"):
+            Stat(short_name="S", full_name="Strength", minimum=10, maximum=1).clean()
+        with pytest.raises(ValidationError, match="improves downwards"):
+            Stat(
+                short_name="Sv",
+                full_name="Save",
+                is_inverted=True,
+                minimum=3,
+                maximum=6,
+            ).clean()
+
+    def test_limits_the_right_way_round_pass_clean(self):
+        Stat(short_name="S", full_name="Strength", minimum=1, maximum=10).clean()
+        Stat(
+            short_name="Sv", full_name="Save", is_inverted=True, minimum=6, maximum=3
+        ).clean()
+        Stat(short_name="L", full_name="Lethality").clean()
+
 
 class TestStatlineType:
     def test_stats_come_back_in_position_order(self, person_statline_type):

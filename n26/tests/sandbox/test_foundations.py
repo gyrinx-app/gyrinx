@@ -85,6 +85,29 @@ class TestTheSeedsThemselves:
         assert seed.status() == "complete"
         assert Stat.objects.filter(full_name="Movement").count() == 1
 
+    def test_a_characteristic_made_without_limits_is_given_the_books(
+        self, default_pack
+    ):
+        """A Strength made by hand, or by the weapon shape seeded first,
+        has no limits of its own; the model characteristics seed fills
+        them in rather than leaving a shared definition unbounded."""
+        from n26.library.authoring import create_stat
+
+        create_stat("S", "Strength")
+        STANDARD_CONTENT["model-characteristics"].create()
+
+        strength = Stat.objects.get(full_name="Strength")
+        assert (strength.minimum, strength.maximum) == (1, 10)
+
+    def test_a_limit_an_author_set_is_kept(self, default_pack):
+        from n26.library.authoring import create_stat
+
+        create_stat("S", "Strength", minimum=2, maximum=8)
+        STANDARD_CONTENT["model-characteristics"].create()
+
+        strength = Stat.objects.get(full_name="Strength")
+        assert (strength.minimum, strength.maximum) == (2, 8)
+
 
 class TestWhatTheSeedsCreate:
     def test_the_model_characteristics_are_the_thirteen(self, default_pack):

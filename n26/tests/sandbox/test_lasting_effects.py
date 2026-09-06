@@ -301,6 +301,7 @@ class TestAFighterIsHurt:
         cell = card_for(brute).statline.get("S")
         assert cell.value == "1"
         assert cell.held_at == "minimum"
+        assert cell.held_note == "Cannot get any worse."
         assert [p.source for p in cell.modified_by] == ["Spinal Injury"] * 3
         assert_reconciled(gang)
 
@@ -322,7 +323,8 @@ class TestAFighterIsHurt:
         )
         assign(bionic, miniature=brute, paid=30)
 
-        assert card_for(brute).statline.get("S").value == "2"
+        cell = card_for(brute).statline.get("S")
+        assert (cell.value, cell.held_at) == ("2", "")
         assert_reconciled(gang)
 
     def test_the_row_is_there_before_anyone_wrote_it(

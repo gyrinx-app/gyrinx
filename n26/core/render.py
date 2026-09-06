@@ -199,6 +199,23 @@ class StatCell:
     def modified(self):
         return bool(self.modified_by)
 
+    @property
+    def held_note(self):
+        """The sentence the tooltip adds for a cell held at a limit.
+
+        Said in the stat's own direction rather than as "minimum" or
+        "maximum": a Save held at 6+ shows the largest number on the
+        row, and calling that its minimum would read as the wrong way.
+        """
+        return HELD_NOTES.get(self.held_at, "")
+
+
+#: What a cell held at a limit says, by which limit holds it.
+HELD_NOTES = {
+    "minimum": "Cannot get any worse.",
+    "maximum": "Cannot get any better.",
+}
+
 
 @dataclass
 class EditableStatCell:
@@ -1213,6 +1230,12 @@ def apply_changes(stat, raw, changes):
     if not changes:
         return raw, [], ""
 
+    # A change with nothing stored behind it is part of what the card
+    # prints, so it folds first; the rest fold in the order they were
+    # acquired. The tooltip lists them in the same order.
+    changes = sorted(
+        changes, key=lambda change: (change.acquired is not None, change.acquired or 0)
+    )
     sources = [
         Provenance(source=change.source, source_kind=change.source_kind, computed=True)
         for change in changes
@@ -1232,9 +1255,6 @@ def apply_changes(stat, raw, changes):
         return raw, sources, ""  # not a number — leave it, but say it was touched
 
     held = ""
-    # Stable: changes nothing stored stands behind fold first, as part of
-    # what the card prints; the rest in the order they were acquired.
-    shifts.sort(key=lambda change: (change.acquired is not None, change.acquired or 0))
     for change in shifts:
         delta = (
             change.amount
@@ -1244,6 +1264,10 @@ def apply_changes(stat, raw, changes):
         moved = stat.shift(number, delta)
         if moved != number + delta:
             held = "maximum" if change.mode == "improve" else "minimum"
+        elif moved != number:
+            # A later change moved the value off the limit, so the cell
+            # is no longer held there.
+            held = ""
         number = moved
     return str(number), sources, held
 

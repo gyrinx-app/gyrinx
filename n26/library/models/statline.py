@@ -96,7 +96,7 @@ class Stat(Content):
     #: The rulebook's limits, as the number a cell stops at. A roll target
     #: is inverted, so its minimum is the larger number: a Save's minimum
     #: is 6 (6+) and its maximum 3 (3+). Blank means no limit.
-    minimum = models.PositiveIntegerField(
+    minimum = models.IntegerField(
         null=True,
         blank=True,
         help_text=(
@@ -104,7 +104,7 @@ class Stat(Content):
             "e.g. 1 for Strength, 6 for a 6+ Save. Blank means no limit."
         ),
     )
-    maximum = models.PositiveIntegerField(
+    maximum = models.IntegerField(
         null=True,
         blank=True,
         help_text=(
@@ -130,6 +130,27 @@ class Stat(Content):
         if not self.field_name and self.full_name:
             self.field_name = self.derive_field_name(self.full_name)
         super().save(*args, **kwargs)
+
+    def clean(self):
+        """The minimum is the worst value and the maximum the best, so
+        which is the larger number follows the stat's direction. A pair
+        the wrong way round would stop every change in both directions."""
+        super().clean()
+        if self.minimum is None or self.maximum is None:
+            return
+        if self.is_inverted and self.minimum < self.maximum:
+            raise ValidationError(
+                {
+                    "minimum": (
+                        "This stat improves downwards, so the minimum is the "
+                        "larger number, e.g. 6 for a 6+ Save with a maximum of 3."
+                    )
+                }
+            )
+        if not self.is_inverted and self.minimum > self.maximum:
+            raise ValidationError(
+                {"minimum": "The minimum cannot be above the maximum."}
+            )
 
     @staticmethod
     def derive_field_name(full_name):

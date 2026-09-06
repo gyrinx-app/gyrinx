@@ -2,9 +2,9 @@
 
 A characteristic is never worsened past its minimum or improved past its
 maximum (core rules: characteristics and profiles); the part of a change
-that would take it there is disregarded. Until now nothing on a stat
-said where those limits were, so a third Spinal Injury took a Strength
-of 3 to 0 and a fourth to -1.
+that would take it there is disregarded. The stat is where those limits
+are written, so a third Spinal Injury leaves a Strength of 3 at 1 rather
+than taking it to 0.
 
 The two fields are added blank, then filled for the thirteen model
 characteristics in every pack, matched on the internal field name the
@@ -59,7 +59,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="stat",
             name="maximum",
-            field=models.PositiveIntegerField(
+            field=models.IntegerField(
                 blank=True,
                 help_text=(
                     "The value a change stops at when it improves this stat, "
@@ -72,7 +72,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="stat",
             name="minimum",
-            field=models.PositiveIntegerField(
+            field=models.IntegerField(
                 blank=True,
                 help_text=(
                     "The value a change stops at when it worsens this stat, "

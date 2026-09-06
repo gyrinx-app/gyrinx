@@ -323,12 +323,26 @@ class StandardContent:
 
 
 def _stat(short, full, flags):
-    """One characteristic definition, matched on its name."""
+    """One characteristic definition, matched on its name.
+
+    A definition already there keeps everything it says, except that a
+    limit it leaves blank is filled in: a Strength made by the weapon
+    shape, or by hand, still stops where the book says.
+    """
     from n26.library.models import Stat
 
     stat = Stat.objects.filter(full_name=full).first()
     if stat is None:
-        stat = Stat.objects.create(short_name=short, full_name=full, **flags)
+        return Stat.objects.create(short_name=short, full_name=full, **flags)
+    blank = [
+        name
+        for name in ("minimum", "maximum")
+        if name in flags and getattr(stat, name) is None
+    ]
+    for name in blank:
+        setattr(stat, name, flags[name])
+    if blank:
+        stat.save(update_fields=blank)
     return stat
 
 

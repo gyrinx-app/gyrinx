@@ -94,6 +94,32 @@ class TestTheSurplusIsDisregarded:
         earlier = [change(STRENGTH, "worsen", at=day) for day in range(3)]
         assert apply_changes(STRENGTH, "3", [later, *earlier])[0] == "2"
 
+    def test_the_sources_read_in_the_order_the_changes_landed(self):
+        later = change(STRENGTH, "improve", at=10, source="Bionic arm")
+        earlier = change(STRENGTH, "worsen", at=0, source="Spinal Injury")
+        _, sources, _ = apply_changes(STRENGTH, "3", [later, earlier])
+        assert [source.source for source in sources] == ["Spinal Injury", "Bionic arm"]
+
+    def test_the_latest_set_wins_whatever_order_the_sets_arrive_in(self):
+        first = change(STRENGTH, "set", 5, at=0)
+        second = change(STRENGTH, "set", 7, at=1)
+        assert apply_changes(STRENGTH, "3", [second, first])[0] == "7"
+
+    def test_a_stat_lifted_off_its_floor_is_no_longer_held_there(self):
+        """Held at a limit describes the value as it stands: once a later
+        change moves it away, the cell can be worsened again."""
+        changes = [change(STRENGTH, "worsen", at=day) for day in range(3)]
+        changes.append(change(STRENGTH, "improve", at=10, source="Bionic arm"))
+        value, _, held = apply_changes(STRENGTH, "3", changes)
+        assert (value, held) == ("2", "")
+
+    def test_a_stat_held_at_its_floor_again_says_so(self):
+        changes = [change(STRENGTH, "worsen", at=day) for day in range(3)]
+        changes.append(change(STRENGTH, "improve", at=10, source="Bionic arm"))
+        changes.append(change(STRENGTH, "worsen", 2, at=11))
+        value, _, held = apply_changes(STRENGTH, "3", changes)
+        assert (value, held) == ("1", "minimum")
+
     def test_a_change_nothing_stored_stands_behind_folds_first(self):
         """A built-in's change is part of what the card prints, so it
         lands before anything the model acquired."""
@@ -136,6 +162,11 @@ class TestWhatTheLimitsLeaveAlone:
             change(STRENGTH, "set", 5, at=1),
         ]
         assert apply_changes(STRENGTH, "3", changes)[0] == "4"
+
+    def test_a_set_is_not_held_to_the_limits(self):
+        """A set is authored content, like the printed value: the limits
+        govern what folds on top of it, not the value itself."""
+        assert apply_changes(STRENGTH, "3", [change(STRENGTH, "set", 12)])[0] == "12"
 
     def test_no_changes_means_no_touch(self):
         assert apply_changes(STRENGTH, "3", []) == ("3", [], "")
