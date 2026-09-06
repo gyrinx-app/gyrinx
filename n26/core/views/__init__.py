@@ -56,6 +56,7 @@ from n26.core.views.gangs import (
     gang_trade_points,
     gangs,
     mark_fighter,
+    pay_ransom,
     refund_fighter,
     rename_fighter,
 )
@@ -119,6 +120,7 @@ __all__ = [
     "gang_notes",
     "gang_sheet",
     "mark_fighter",
+    "pay_ransom",
     "gang_trade_points",
     "gangs",
     "hire_card",

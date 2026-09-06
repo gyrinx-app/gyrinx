@@ -32,6 +32,42 @@ def _safe_redirect(request, url, fallback_url="/"):
     return HttpResponseRedirect(fallback_url)
 
 
+def may_mark_status(gang, user):
+    """Whether this reader is offered a model's status to set.
+
+    Where a model stands between battles is one feature: the badge and
+    the Mark as dialog that change it by hand, the ransom that is paid
+    for a held model, and Clean House, which clears every model In
+    Recovery at the end of the cycle. Clean House is drawn in the Actions
+    square, so the whole of it reaches the owners that square reaches —
+    those the ``founding`` flag admits — and lifts with it. Shut, a model
+    still carries a status and a result from a table still sets it; there
+    is simply no control saying so.
+    """
+    return may_see_actions_square(gang, user)
+
+
+def status_href(gang, miniature, user=None, *, back="", ransom=True):
+    """Where a model's status badge leads: the sheet's Mark as… dialog, or
+    Pay ransom… while the model is held — the act the status wants next.
+
+    Empty for a reader who is not offered the status at all, so the badge
+    draws as words. ``back`` names where the act lands afterwards ("edit"
+    for the model's own page); ``ransom=False`` asks for Mark as…
+    whatever the status.
+    """
+    from django.urls import reverse
+
+    from n26.core.status import Status
+
+    if user is not None and not may_mark_status(gang, user):
+        return ""
+    sheet = reverse("n26-gang", args=[gang.pk])
+    kind = "ransom" if ransom and miniature.status == Status.RANSOMED else "status"
+    tail = f"&back={back}" if back else ""
+    return f"{sheet}?{kind}={miniature.pk}{tail}"
+
+
 def trade_points_href(gang, user):
     """Where the Trade Points figure leads, or nowhere for a reader who
     cannot change it.

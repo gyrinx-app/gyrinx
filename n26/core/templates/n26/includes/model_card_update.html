@@ -11,7 +11,11 @@ beside the card rather than inside it, so replacing it leaves their editors
 alone.
 {% endcomment %}
 <div id="n26-model-card-host" hx-swap-oob="true">
-    <c-n26.model-card :card="card" mode="edit" :htmx="True">
+    <c-n26.model-card :card="card"
+                      mode="edit"
+                      :htmx="True"
+                      status_href="{{ status_href }}"
+                      :status_hx="True">
         <c-slot name="name_action">
             {% include "n26/includes/model_name_action.html" %}
         </c-slot>

@@ -53,6 +53,7 @@ sits and what its heading says.
     skills=""
     statline=""
     :htmx="False"
+    status_href=""
     class=""
 />
 
@@ -88,7 +89,9 @@ sits and what its heading says.
         <div id="n26-model-card-host">
             <c-n26.model-card :card="card"
                               mode="edit"
-                              :htmx="htmx">
+                              :htmx="htmx"
+                              status_href="{{ status_href }}"
+                              :status_hx="htmx">
                 {% if name_action.strip %}
                     <c-slot name="name_action">{{ name_action }}</c-slot>
                 {% endif %}

@@ -24,6 +24,7 @@ from n26.core.render import option_key
 from n26.core.status import Status
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
     create_profile,
     ef_adds,
@@ -216,6 +217,11 @@ class TestACapturedModel:
 
 
 class TestThePage:
+    @pytest.fixture(autouse=True)
+    def admitted(self, owner):
+        """The status controls reach the owners the founding flag admits."""
+        admit_to_founding(owner)
+
     def test_the_escape_row_offers_to_roll_a_d6(
         self, client, owner, gang, krago, tables
     ):

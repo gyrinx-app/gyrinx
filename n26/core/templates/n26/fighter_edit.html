@@ -34,7 +34,11 @@ is named by the page's own heading directly below.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    <c-n26.view.model-edit :miniature="miniature" :card="card" lead="{{ role }}" :htmx="True">
+    <c-n26.view.model-edit :miniature="miniature"
+                           :card="card"
+                           lead="{{ role }}"
+                           :htmx="True"
+                           status_href="{{ status_href }}">
         {% comment %}
         The heading offers the gang's other models — every row this same
         screen for them. Not what the bar offers, which is the reader's
@@ -75,9 +79,22 @@ is named by the page's own heading directly below.
                         </span>
                     </c-ui.button>
                 </c-slot>
-                <c-ui.dropdown.item href="{% url 'n26-gang' gang.pk %}?status={{ miniature.pk }}">
-                    Mark as…
-                </c-ui.dropdown.item>
+                {% comment %}
+                Both ask the sheet for the question and land the act back
+                here; the host the panel arrives in is drawn below. Absent
+                for a reader the status feature does not reach, which is
+                what leaves the addresses empty.
+                {% endcomment %}
+                {% if mark_href %}
+                    {% if miniature.status == "ransomed" %}
+                        <c-ui.dropdown.item href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none">
+                            Pay ransom…
+                        </c-ui.dropdown.item>
+                    {% endif %}
+                    <c-ui.dropdown.item href="{{ mark_href }}" hx-get="{{ mark_href }}" hx-swap="none">
+                        Mark as…
+                    </c-ui.dropdown.item>
+                {% endif %}
                 {% if may_clone %}
                     <c-ui.dropdown.item href="{% url 'n26-clone-fighter' miniature.pk %}">
                         Clone model
@@ -304,6 +321,11 @@ is named by the page's own heading directly below.
             </c-n26.owned-dialog>
         {% endif %}
     </div>
+    {% comment %}
+    Where the Mark as… and Pay ransom questions land when asked from here:
+    the sheet answers the fetch with this host filled.
+    {% endcomment %}
+    <div id="n26-status-dialog-host"></div>
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"
                       action="{% url 'n26-rename-fighter' renaming.pk %}?back=edit"
