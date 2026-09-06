@@ -1299,6 +1299,12 @@ DOCS = {
         "recipes.md",
         "Step-by-step walkthroughs of whole rulebook setups.",
     ),
+    "staged": (
+        "Staged content",
+        "staged.md",
+        "Holding new content back from players until it is put live, and "
+        "checking it as they will see it.",
+    ),
 }
 
 

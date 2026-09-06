@@ -290,6 +290,17 @@ class TestPuttingEverythingLive:
         assert "nothing to put live" in body
 
 
+class TestTheDocumentationPage:
+    def test_it_is_listed_and_renders(self, client, author):
+        assert (
+            "/n26/authoring/docs/staged/"
+            in client.get("/n26/authoring/docs/").content.decode()
+        )
+        body = client.get("/n26/authoring/docs/staged/").content.decode()
+        assert "Staging holds back new things" in body
+        assert "## What you can stage" not in body
+
+
 class TestTheIndex:
     def test_it_counts_what_is_staged(self, client, author, default_pack):
         stage(create_weapon("Plasma caliver"))
