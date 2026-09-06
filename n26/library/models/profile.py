@@ -127,6 +127,13 @@ class Profile(Content, Assignable, Optioned):
                 name="profile_unique_per_pack",
             ),
             exclusive_has_no_trade_points("profile"),
+            # The floor, where an importer cannot step over it. ``clean``
+            # says the same thing in words for an author filling a form;
+            # this is what holds when nothing calls it.
+            models.CheckConstraint(
+                condition=models.Q(price__gte=0),
+                name="profile_price_is_not_below_zero",
+            ),
         ]
 
     def __str__(self):

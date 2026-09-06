@@ -14,6 +14,8 @@ shedding a liability.
 
 import pytest
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
 from n26.core.operations import proceeds_for
 from n26.core.reconcile import assert_reconciled
@@ -121,3 +123,59 @@ class TestTheFloorIsOtherwiseUnchanged:
 
     def test_something_worth_less_than_nothing_fetches_nothing(self):
         assert proceeds_for(-10) == 0
+
+
+class TestAFighterIsNeverPricedBelowNothing:
+    """Gear may be worth less than nothing; being hired never is. Nobody
+    is paid to take a fighter on, so a negative there is an author's slip
+    — and the floor has to hold on every surface that asks for the
+    figure, not only the one the author happened to use."""
+
+    def test_the_profile_form_refuses_it(self, make_profile):
+        profile = make_profile("Juve")
+        profile.price = -1
+        with pytest.raises(ValidationError):
+            profile.full_clean()
+
+    def test_the_database_refuses_it_too(self, make_profile):
+        """An importer never calls full_clean, so the floor cannot live
+        in validation alone."""
+        profile = make_profile("Juve")
+        profile.price = -1
+        with pytest.raises(IntegrityError), transaction.atomic():
+            profile.save()
+
+    def test_a_list_cannot_override_a_fighter_below_zero(self, default_pack, library):
+        """The override is the same number asked for by a different
+        surface, so it is floored the same way. Otherwise the rule would
+        hold everywhere except where an author is likeliest to type it."""
+        from n26.library.authoring import add_entry, create_collection
+
+        hire_list = create_collection("Hangers-on")
+        entry = add_entry(hire_list, library["bruiser"])
+        # Set in memory and validated without saving: the constraint below
+        # refuses the write outright, so the worded refusal has to be
+        # reached before the database gets a chance to speak.
+        entry.price_override = -50
+        with pytest.raises(ValidationError):
+            entry.full_clean()
+
+    def test_the_database_refuses_that_override_too(self, default_pack, library):
+        """The authoring verb and the ingest both make entries with
+        ``objects.create``, so neither runs validation. Without the
+        constraint the floor would hold only for whoever used a form."""
+        from n26.library.authoring import add_entry, create_collection
+
+        hire_list = create_collection("Hangers-on again")
+        entry = add_entry(hire_list, library["bruiser"])
+        entry.price_override = -50
+        with pytest.raises(IntegrityError), transaction.atomic():
+            entry.save()
+
+    def test_a_list_may_still_override_gear_below_zero(self, default_pack, library):
+        from n26.library.authoring import add_entry, create_collection
+
+        gear_list = create_collection("Gene-smithing")
+        entry = add_entry(gear_list, library["brittle_bones"], price_override=-20)
+        entry.full_clean()
+        assert entry.price.credits == -20

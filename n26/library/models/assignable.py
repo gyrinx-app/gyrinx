@@ -136,8 +136,9 @@ class Assignable(models.Model):
     price = models.IntegerField(
         default=0,
         help_text=(
-            "Credit price at reference — what the catalogue prints. May be "
-            "below zero for something that makes its holder worth less."
+            "Credit price at reference — what the catalogue prints. Gear may "
+            "be priced below zero, for something that makes its holder worth "
+            "less. A fighter may not."
         ),
     )
     trade_point_price = models.PositiveIntegerField(
