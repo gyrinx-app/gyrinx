@@ -54,13 +54,36 @@ def _is_atomic(call):
     return isinstance(func, ast.Name) and func.id == "atomic"
 
 
+def _is_atomic_decorator(decorator):
+    """``@transaction.atomic``, ``@atomic``, or either called."""
+    if isinstance(decorator, ast.Call):
+        return _is_atomic(decorator)
+    if isinstance(decorator, ast.Attribute):
+        return decorator.attr == "atomic"
+    return isinstance(decorator, ast.Name) and decorator.id == "atomic"
+
+
 def _opens_a_transaction(function):
-    """True when the function's own body begins a transaction."""
+    """True when the function begins a transaction of its own — as a
+    decorator, or as a ``with`` anywhere in its body."""
+    if any(_is_atomic_decorator(d) for d in function.decorator_list):
+        return True
     return any(
-        isinstance(statement, ast.With)
-        and any(_is_atomic(item.context_expr) for item in statement.items)
-        for statement in function.body
+        isinstance(node, ast.With)
+        and any(_is_atomic(item.context_expr) for item in node.items)
+        for node in ast.walk(function)
     )
+
+
+LOOPS = (
+    ast.For,
+    ast.While,
+    ast.AsyncFor,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
 
 
 def commits_row_by_row(module_name):
@@ -83,7 +106,7 @@ def commits_row_by_row(module_name):
     owners = {fn.name for fn in functions if _opens_a_transaction(fn)}
     for tree in trees:
         for loop in ast.walk(tree):
-            if not isinstance(loop, (ast.For, ast.While)):
+            if not isinstance(loop, LOOPS):
                 continue
             for node in ast.walk(loop):
                 if isinstance(node, ast.With) and any(
@@ -99,42 +122,61 @@ def commits_row_by_row(module_name):
     return False
 
 
+def _calls(function):
+    return {
+        call.func.id
+        for call in ast.walk(function)
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+    }
+
+
 def tasks_run_in_one_transaction():
-    """Every task in ``n26/maintenance.py`` that runs through the
-    one-transaction runner, with the modules it imports to do so.
+    """Every function in ``n26/maintenance.py`` that calls the
+    one-transaction runner itself, with the modules it imports to do so.
     Discovered from the source, so a new task is checked without anyone
-    listing it."""
+    listing it. A task that reaches the runner through a wrapper is
+    covered by the wrapper's own entry. A function calling the runner
+    with no import of its own is listed with no modules, so the check
+    fails on it rather than passing it by."""
     tree = ast.parse(Path(maintenance.__file__).read_text())
-    runners = {"_run_recorded"}
-    # A helper that only wraps the runner counts as the runner: the
-    # conversions reach it through one.
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and any(
-            isinstance(call, ast.Call)
-            and isinstance(call.func, ast.Name)
-            and call.func.id == "_run_recorded"
-            for call in ast.walk(node)
-        ):
-            runners.add(node.name)
     found = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        calls = {
-            call.func.id
-            for call in ast.walk(node)
-            if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
-        }
-        if not calls & runners:
+        if "_run_recorded" not in _calls(node):
             continue
-        modules = [
+        modules = tuple(
             imported.module
             for imported in ast.walk(node)
             if isinstance(imported, ast.ImportFrom) and imported.module
-        ]
-        if modules:
-            found.append((node.name, tuple(modules)))
+        )
+        found.append((node.name, modules))
     return found
+
+
+def one_transaction_route_names():
+    """The routed task names that end in the one-transaction runner,
+    directly or through a wrapper."""
+    tree = ast.parse(Path(maintenance.__file__).read_text())
+    functions = {
+        node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+    }
+    reaches = {}
+
+    def reaches_runner(name, seen=()):
+        if name in reaches:
+            return reaches[name]
+        function = functions.get(name)
+        if function is None or name in seen:
+            return False
+        calls = _calls(function)
+        answer = "_run_recorded" in calls or any(
+            reaches_runner(called, (*seen, name)) for called in calls
+        )
+        reaches[name] = answer
+        return answer
+
+    return {route.name for route in task_routes if reaches_runner(route.name)}
 
 
 class TestTheRunnerDiscipline:
@@ -147,6 +189,7 @@ class TestTheRunnerDiscipline:
 
     def test_there_is_something_to_check(self):
         assert tasks_run_in_one_transaction()
+        assert one_transaction_route_names()
         assert task_routes
 
     @pytest.mark.parametrize(
@@ -155,6 +198,11 @@ class TestTheRunnerDiscipline:
         ids=lambda value: value if isinstance(value, str) else "",
     )
     def test_no_one_transaction_task_commits_gang_by_gang(self, task_name, modules):
+        assert modules, (
+            f"{task_name} calls _run_recorded but imports nothing inside the "
+            "function, so what it runs cannot be read from here. Import the "
+            "repair's module inside the task, as the other tasks do."
+        )
         offenders = [name for name in modules if commits_row_by_row(name)]
         assert not offenders, (
             f"{task_name} runs through _run_recorded but {', '.join(offenders)} "
@@ -163,12 +211,23 @@ class TestTheRunnerDiscipline:
             "to a fresh delivery before the acknowledgement deadline."
         )
 
+    def test_the_guard_reads_the_shapes_it_is_for(self):
+        """The guard is only worth having if it tells the two shapes
+        apart: a module that commits inside a loop, and one that holds
+        everything inside one transaction."""
+        assert commits_row_by_row("n26.core.legacy_affiliation_assignments")
+        assert commits_row_by_row("n26.core.rehost_picks")
+        assert not commits_row_by_row("n26.library.empty_affiliations")
+        assert not commits_row_by_row("n26.library.conversion")
+
     def test_every_route_declares_the_one_attempt_deadline(self):
         """The warning ``_run_recorded`` writes is measured against this
         constant, so a route with a different deadline would be judged
-        against the wrong clock."""
+        against the wrong clock. Every routed task that ends in the
+        one-transaction runner is checked, wrappers followed."""
         seconds = int(ONE_ATTEMPT_DEADLINE.total_seconds())
-        one_transaction = {name for name, _ in tasks_run_in_one_transaction()}
+        one_transaction = one_transaction_route_names()
+        assert len(one_transaction) > 2
         astray = [
             route.name
             for route in task_routes
@@ -211,6 +270,36 @@ class TestTheRunnerDiscipline:
         assert record.summary["seconds"] == 540
         assert "540 of the 600 seconds" in record.summary["warning"]
         assert "run_per_gang" in record.summary["warning"]
+
+    def test_a_per_gang_record_page_reads_as_progress_until_it_is_done(
+        self, client, superuser
+    ):
+        """A gang-by-gang run commits as it goes, so its page says what
+        it has done so far while it runs, and only calls that the whole
+        of what it did once it has ended."""
+        client.force_login(superuser)
+        record = Backfill.objects.create(
+            operation=Operation.REPAIR_DOUBLED_REFUNDS.value,
+            status=Backfill.Status.RUNNING,
+            summary={
+                "preview": ["gang 1: drop 2 surplus events"],
+                "report": ["gang 1: dropped 2 events; credits now 990"],
+                "done": 1,
+                "total": 3,
+                "attempts": 1,
+            },
+        )
+        address = reverse("admin:maintenance_backfill_detail", args=[record.id])
+
+        page = client.get(address).content.decode()
+        assert "What it has done so far" in page
+        assert "1 of 3 gangs settled" in page
+        assert "gang 1: dropped 2 events" in page
+
+        Backfill.objects.filter(pk=record.pk).update(status=Backfill.Status.DONE)
+        page = client.get(address).content.decode()
+        assert "What it did" in page
+        assert "What it has done so far" not in page
 
     def test_a_quick_one_transaction_run_records_only_how_long_it_took(self):
         operation = Operation.DELETE_EMPTY_AFFILIATIONS

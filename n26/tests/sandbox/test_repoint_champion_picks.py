@@ -338,6 +338,25 @@ class TestMovingThePick:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    def test_a_gang_that_stopped_passing_the_checks_is_skipped_when_visited(
+        self, gang, adrift, champion_list, slot_type
+    ):
+        """Between the preview and the visit the list may gain a second
+        pickable of the same name; which one the pick means cannot be
+        read, so the visit leaves the gang alone rather than guessing."""
+        add_picklist_member(
+            champion_list,
+            create_pickable("Brawler", slot_type, qualifier="Second Champion"),
+        )
+        before = adrift.pickable_id
+
+        line = apply_one(gang.pk)
+
+        assert line.startswith(f"gang {gang.pk}: skipped")
+        assert "cannot be read" in line
+        adrift.refresh_from_db()
+        assert adrift.pickable_id == before
+
     def test_the_champions_card_still_reads_it_as_chosen(self, gang, adrift):
         apply(find())
 

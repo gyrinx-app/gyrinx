@@ -75,6 +75,7 @@ __all__ = [
     "rehost_gang_picks",
     "repair_doubled_refunds",
     "repoint_champion_picks",
+    "PlanRefused",
     "run_batched",
     "run_per_gang",
     "task_routes",
@@ -88,8 +89,10 @@ __all__ = [
 MAX_ATTEMPTS = 2
 
 #: How long one delivery may run before the queue redelivers it and the
-#: request serving it is cut off. Every route below declares this as its
-#: acknowledgement deadline, and the tests hold the two together. A
+#: request serving it is cut off. Every one-transaction route below
+#: declares this as its acknowledgement deadline, and the tests hold the
+#: two together; a batched route may declare less, since it hands back
+#: long before. A
 #: one-transaction run that takes more than half of it is written up on
 #: its record: the next run of the same size, on a slower day, is lost.
 ONE_ATTEMPT_DEADLINE = timedelta(seconds=600)
@@ -402,7 +405,8 @@ def run_batched(
     that reads the work-list under the run's lock, once per delivery;
     one that raises a ``refusals`` exception ends the record FAILED in
     the refusal's own words, and one that returns ``None`` has written
-    the ending itself and there is nothing to walk. ``do_one(pk)``
+    the ending itself and there is nothing to walk — a record it left
+    RUNNING is ended FAILED rather than left waiting. ``do_one(pk)``
     settles one row completely, committing its own writes and leaving
     nothing behind when it fails. It must be idempotent: a crashed
     attempt replays at most one batch, and a rerun is a fresh record
@@ -454,9 +458,23 @@ def run_batched(
                 continued = _work_through(
                     backfill_id, what, work_list, do_one, batch_size, budget
                 )
+            elif Backfill.objects.filter(
+                pk=backfill_id, status=Backfill.Status.RUNNING
+            ).exists():
+                # Nothing to walk and no ending written: left alone, the
+                # record would say RUNNING for ever with no delivery
+                # coming to finish it.
+                _write(
+                    backfill_id,
+                    status=Backfill.Status.FAILED,
+                    error=(
+                        "The work-list reported nothing to walk but wrote no "
+                        "ending onto the record."
+                    ),
+                )
         except refusals as refused:
-            # A refusal is the discipline working: nothing was written,
-            # and the reason is already in words.
+            # Refused before any row was walked, so the record ends in
+            # the refusal's own words with nothing to unwind.
             _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
         except Exception as broke:  # noqa: BLE001 — the ending must be recorded
             logger.exception("%s broke", what)
@@ -570,6 +588,14 @@ class PlanRefused(Exception):
     """A gang-by-gang plan read under the lock names problems."""
 
 
+#: How many gangs a per-gang run settles between progress writes. A
+#: gang's proof is many queries and the budget is only consulted after
+#: a whole batch, so the batch is kept small: progress lands often, a
+#: crash replays little, and a batch cannot on its own outlast the
+#: delivery.
+PER_GANG_BATCH_SIZE = 10
+
+
 def run_per_gang(
     backfill_id,
     *,
@@ -578,28 +604,36 @@ def run_per_gang(
     find,
     apply_one,
     again,
-    batch_size=BATCH_SIZE,
+    batch_size=PER_GANG_BATCH_SIZE,
     budget=BATCH_BUDGET,
+    refusals=(),
 ):
     """Run a repair that works through players' gangs one at a time.
 
     The shape every such repair shares: ``find()`` reads a plan whose
     ``gangs`` name each gang to visit, whose ``problems`` refuse the
     whole run, and whose ``nothing_here`` says there is no work;
-    ``apply_one(gang_id)`` settles one gang inside its own transaction,
-    reading that gang's part of the plan again under its lock, and
-    returns the line the report carries for it. Proving one gang's
-    books is many queries, so a plan of a few hundred gangs already
-    outlasts one delivery: the gangs go through ``run_batched``, which
-    commits gang by gang, records how far it got, and hands the rest to
-    a fresh delivery when its budget is spent.
+    ``apply_one(gang_id)`` reads that one gang's part of the plan again,
+    settles the gang inside its own transaction, and returns the line
+    the report carries for it. Proving one gang's books is many
+    queries, so a plan of a few hundred gangs already outlasts one
+    delivery: the gangs go through ``run_batched``, which commits gang
+    by gang, records how far it got, and hands the rest to a fresh
+    delivery when its budget is spent.
 
     The plan is read once, under the lock, on the first delivery. Its
-    gang ids and preview land on the record, and every later delivery
-    walks the same list — a plan re-read mid-run could add gangs behind
-    the cursor and never visit them. A gang whose part of the plan has
-    changed by the time it is visited is ``apply_one``'s to notice and
-    leave alone.
+    gang ids land on the record, and every later delivery walks the
+    same list — a plan re-read mid-run could add gangs behind the cursor
+    and never visit them. What each gang holds is read again when it is
+    visited, because deliveries may be minutes apart: ``apply_one``
+    settles what the gang holds now, and a gang that no longer passes
+    the plan's checks is left alone and named in the report. The
+    preview stays in ``summary["preview"]``, where the view put it, so
+    the record's report holds only what was done.
+
+    ``refusals`` are the exceptions a caller's ``find`` may raise to
+    refuse the run in its own words; a plan naming ``problems`` refuses
+    without raising.
     """
     from n26.core.models import Gang
 
@@ -620,10 +654,7 @@ def run_per_gang(
                 )
                 return None
             ids = [str(gang_id) for gang_id, *_ in plan.gangs]
-            _write(
-                backfill_id,
-                summary_patch={"gang_ids": ids, "report": list(plan.preview())},
-            )
+            _write(backfill_id, summary_patch={"gang_ids": ids})
         return Gang.objects.filter(pk__in=ids)
 
     run_batched(
@@ -635,7 +666,7 @@ def run_per_gang(
         again=again,
         batch_size=batch_size,
         budget=budget,
-        refusals=(PlanRefused,),
+        refusals=(PlanRefused, *refusals),
     )
 
 
@@ -1694,7 +1725,7 @@ register_operation(
             "gang is proved to reconcile."
         ),
         view=rehost_gang_picks_view,
-        detail_template="admin/maintenance/n26/_rehost_detail.html",
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
     )
 )
 
@@ -1716,7 +1747,7 @@ register_operation(
             "money moves; every gang is proved to reconcile."
         ),
         view=repoint_champion_picks_view,
-        detail_template="admin/maintenance/n26/_rehost_detail.html",
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
     )
 )
 
@@ -1854,7 +1885,7 @@ register_operation(
             "fold to minus what the thing was worth."
         ),
         view=repair_doubled_refunds_view,
-        detail_template="admin/maintenance/n26/_delete_detail.html",
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
     )
 )
 
@@ -1871,7 +1902,7 @@ register_operation(
             "obsolete line may disappear from its gang sheet."
         ),
         view=delete_legacy_affiliation_assignments_view,
-        detail_template="admin/maintenance/n26/_delete_detail.html",
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
     )
 )
 

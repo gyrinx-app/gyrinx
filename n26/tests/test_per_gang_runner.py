@@ -96,6 +96,21 @@ class TestAPlanThatRefuses:
         assert touched == []
 
 
+class TestAPlanThatRaisesItsOwnRefusal:
+    def test_the_callers_refusal_ends_the_record_in_its_words(self, record):
+        class Refused(Exception):
+            pass
+
+        def find():
+            raise Refused("the library is not the one the plan expects")
+
+        run(record, find, lambda pk: None, refusals=(Refused,))
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.FAILED
+        assert record.error == "the library is not the one the plan expects"
+
+
 class TestAPlanWithNothingToDo:
     def test_the_record_ends_done_with_the_preview(self, record):
         plan = Plan(nothing_here=True, said=["nothing left to move"])
@@ -125,8 +140,10 @@ class TestAPlanOfGangs:
         assert sorted(seen) == sorted(gang.pk for gang in gangs)
         assert len(set(seen)) == len(gangs)
         assert record.summary["gang_ids"] == [str(gang.pk) for gang in gangs]
-        assert record.summary["report"][0] == "what the plan would do"
-        assert sorted(record.summary["report"][1:]) == sorted(
+        # The preview is the view's to record; the report holds only
+        # what was done, so the record page never shows intent under a
+        # past-tense heading.
+        assert sorted(record.summary["report"]) == sorted(
             f"gang {gang.pk}: settled" for gang in gangs
         )
         assert record.summary["done"] == len(gangs)

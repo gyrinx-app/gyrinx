@@ -311,6 +311,15 @@ class TestACallableWorkList:
         assert record.summary == {"report": ["nothing here"]}
         assert touched == []
 
+    def test_nothing_to_walk_with_no_ending_written_fails_the_record(self, record):
+        """A record left RUNNING with no delivery coming would wait for
+        ever; the runner ends it and says why."""
+        run(record, lambda: None, lambda pk: None)
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.FAILED
+        assert "wrote no ending" in record.error
+
     def test_what_a_row_says_is_a_line_of_the_report(self, record, rows):
         def say(pk):
             return f"row {pk}: settled"

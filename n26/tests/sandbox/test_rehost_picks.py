@@ -308,6 +308,21 @@ class TestMovingThePick:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    def test_a_gang_that_stopped_passing_the_checks_is_skipped_when_visited(
+        self, gang, astray
+    ):
+        """Between the preview and the visit the pick may change; one that
+        no longer names the choice it settles cannot be read, so the visit
+        leaves the gang alone rather than moving it."""
+        Assignment.objects.filter(pk=astray.pk).update(chosen_for=None)
+
+        line = apply_one(gang.pk)
+
+        assert line.startswith(f"gang {gang.pk}: skipped")
+        assert "names no choice" in line
+        astray.refresh_from_db()
+        assert astray.miniature is not None
+
     def test_the_leaders_card_still_reads_it_as_chosen(self, gang, astray):
         apply(find())
 

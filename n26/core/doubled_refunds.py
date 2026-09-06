@@ -80,9 +80,11 @@ class Doubled:
         return lines
 
 
-def _surplus_events():
+def _surplus_events(gang_id=None):
     """Every leg after the first of its kind on a line, and every removal
-    leg written in the same act as one of those.
+    leg written in the same act as one of those. ``gang_id`` narrows the
+    reading to one gang's ledger; every event is pinned to its gang, so
+    the narrowing is a filter rather than a join.
 
     Found in the ledger's own terms rather than by folding every gang's
     books: a line with two ``refunded`` or two ``sold`` events is the
@@ -92,9 +94,12 @@ def _surplus_events():
     """
     from n26.core.models import LedgerEvent
 
+    events = LedgerEvent.objects.all()
+    if gang_id is not None:
+        events = events.filter(gang_id=gang_id)
     money_kinds = (LedgerEvent.Kind.REFUNDED, LedgerEvent.Kind.SOLD)
     doubled = (
-        LedgerEvent.objects.filter(kind__in=money_kinds, assignment__isnull=False)
+        events.filter(kind__in=money_kinds, assignment__isnull=False)
         .values("assignment_id", "kind")
         .annotate(count=Count("id"))
         .filter(count__gt=1)
@@ -110,7 +115,7 @@ def _surplus_events():
 
     batches = {event.batch for event in surplus if event.batch is not None}
     if batches:
-        repeats = LedgerEvent.objects.filter(
+        repeats = events.filter(
             batch__in=batches, kind=LedgerEvent.Kind.REMOVED
         ).order_by("created", "id")
         for event in repeats:
@@ -134,9 +139,10 @@ def _surplus_events():
     return surplus
 
 
-def find():
-    """What stands to be dropped, gang by gang."""
-    surplus = _surplus_events()
+def find(gang_id=None):
+    """What stands to be dropped, gang by gang. ``gang_id`` narrows the
+    plan to that one gang."""
+    surplus = _surplus_events(gang_id)
     if not surplus:
         return Doubled(nothing_here=True)
 
@@ -200,7 +206,13 @@ def apply_one(gang_id):
     the line the report carries for it. The entry for a run that visits
     gangs across deliveries, where the plan is read afresh per gang
     rather than carried from the preview."""
-    standing = {g: legs for g, legs, _ in find().gangs}
+    current = find(gang_id)
+    if current.problems:
+        return (
+            f"gang {gang_id}: skipped — its books no longer pass the repair's "
+            "checks: " + "; ".join(current.problems)
+        )
+    standing = {g: legs for g, legs, _ in current.gangs}
     ids = standing.get(gang_id)
     if ids is None:
         return f"gang {gang_id}: nothing left to drop"
@@ -218,7 +230,7 @@ def _repair_one(gang_id, ids):
         # are being dropped; then the plan again, because it was read
         # before this transaction opened.
         gang = Gang.objects.select_for_update().get(pk=gang_id)
-        standing = {g: legs for g, legs, _ in find().gangs}
+        standing = {g: legs for g, legs, _ in find(gang_id).gangs}
         if standing.get(gang_id) != ids:
             return (
                 f"gang {gang_id}: skipped — its books changed since the plan "

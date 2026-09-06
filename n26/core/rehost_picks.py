@@ -179,7 +179,13 @@ def apply_one(gang_id):
     the line the report carries for it. The entry for a run that visits
     gangs across deliveries, where the plan is read afresh per gang
     rather than carried from the preview."""
-    ids = dict(find(gang_id).gangs).get(gang_id)
+    current = find(gang_id)
+    if current.problems:
+        return (
+            f"gang {gang_id}: skipped — its picks no longer pass the move's "
+            "checks: " + "; ".join(current.problems)
+        )
+    ids = dict(current.gangs).get(gang_id)
     if ids is None:
         return f"gang {gang_id}: nothing left to move"
     return _rehost_one(gang_id, ids)
