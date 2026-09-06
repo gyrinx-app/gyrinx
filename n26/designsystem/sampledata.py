@@ -1238,6 +1238,9 @@ def _fighter_statline():
                         source="Weapon Skill", source_kind="advancement", computed=True
                     )
                 ],
+                # 2+ is as good as a Weapon Skill gets, so the tooltip also
+                # says the cell can get no better.
+                held_at="maximum",
             ),
             _cell("BS", "Ballistic Skill", "3+"),
             _cell("S", "Strength", "3"),

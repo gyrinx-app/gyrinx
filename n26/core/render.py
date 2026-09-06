@@ -190,10 +190,31 @@ class StatCell:
     highlighted: bool = False
     first_of_group: bool = False
     modified_by: list[Provenance] = field(default_factory=list)
+    #: ``"minimum"`` or ``"maximum"`` when a change was stopped at the
+    #: stat's limit, so the card can say why an injury shows no further
+    #: effect; empty otherwise.
+    held_at: str = ""
 
     @property
     def modified(self):
         return bool(self.modified_by)
+
+    @property
+    def held_note(self):
+        """The sentence the tooltip adds for a cell held at a limit.
+
+        Said in the stat's own direction rather than as "minimum" or
+        "maximum": a Save held at 6+ shows the largest number on the
+        row, and calling that its minimum would read as the wrong way.
+        """
+        return HELD_NOTES.get(self.held_at, "")
+
+
+#: What a cell held at a limit says, by which limit holds it.
+HELD_NOTES = {
+    "minimum": "Cannot get any worse.",
+    "maximum": "Cannot get any better.",
+}
 
 
 @dataclass
@@ -1193,13 +1214,28 @@ class CampaignSheet:
 def apply_changes(stat, raw, changes):
     """Fold stat changes onto a printed value, using the stat's own rules.
 
-    Sets land first, then shifts, which sum. Values that are not plain
-    numbers — ``S`` for the wielder's Strength, ``E`` for engaged-only
-    range — are immune: there is nothing sensible to add to them.
+    Sets land first. Shifts then fold one at a time, in the order their
+    carriers were acquired, each stopping at the stat's limits
+    (``Stat.shift``): a characteristic is never worsened past its
+    minimum or improved past its maximum, and the part of a change that
+    would take it there is disregarded rather than carried over — so a
+    fighter with three Spinal Injuries stands at Strength 1, and a bionic
+    fitted afterwards lifts them to 2. Values that are not plain numbers
+    — ``S`` for the wielder's Strength, ``E`` for engaged-only range — are
+    immune: there is nothing sensible to add to them.
+
+    Returns the value, where it came from, and which limit it was held at
+    (``"minimum"``, ``"maximum"`` or ``""``).
     """
     if not changes:
-        return raw, []
+        return raw, [], ""
 
+    # A change with nothing stored behind it is part of what the card
+    # prints, so it folds first; the rest fold in the order they were
+    # acquired. The tooltip lists them in the same order.
+    changes = sorted(
+        changes, key=lambda change: (change.acquired is not None, change.acquired or 0)
+    )
     sources = [
         Provenance(source=change.source, source_kind=change.source_kind, computed=True)
         for change in changes
@@ -1208,21 +1244,32 @@ def apply_changes(stat, raw, changes):
         if change.mode == "set":
             raw = str(change.amount)
 
-    shift = 0
-    for change in changes:
-        if change.mode == "improve":
-            shift -= change.amount if stat.is_inverted else -change.amount
-        elif change.mode == "worsen":
-            shift += change.amount if stat.is_inverted else -change.amount
+    shifts = [change for change in changes if change.mode in ("improve", "worsen")]
+    if not shifts:
+        return raw, sources, ""
 
-    if shift:
-        number = stat._as_int(str(raw).rstrip('"+').lstrip("+"))
-        if number is None:
-            number = _none_of_it(stat, raw)
-        if number is None:
-            return raw, sources  # not a number — leave it, but say it was touched
-        raw = str(number + shift)
-    return raw, sources
+    number = stat._as_int(str(raw).rstrip('"+').lstrip("+"))
+    if number is None:
+        number = _none_of_it(stat, raw)
+    if number is None:
+        return raw, sources, ""  # not a number — leave it, but say it was touched
+
+    held = ""
+    for change in shifts:
+        delta = (
+            change.amount
+            if (change.mode == "worsen") == stat.is_inverted
+            else -change.amount
+        )
+        moved = stat.shift(number, delta)
+        if moved != number + delta:
+            held = "maximum" if change.mode == "improve" else "minimum"
+        elif moved != number:
+            # A later change moved the value off the limit, so the cell
+            # is no longer held there.
+            held = ""
+        number = moved
+    return str(number), sources, held
 
 
 def _none_of_it(stat, raw):
@@ -1286,7 +1333,7 @@ def build_statline(owner, changes_for=None, stat_overrides=None):
         stat = type_stat.stat
         changes = changes_for(stat.field_name) if changes_for else []
         hand_set = stat_overrides.get(type_stat.pk, "")
-        raw, sources = apply_changes(
+        raw, sources, held_at = apply_changes(
             stat, hand_set or stored.get(type_stat.pk, ""), changes
         )
         if hand_set:
@@ -1299,6 +1346,7 @@ def build_statline(owner, changes_for=None, stat_overrides=None):
                 highlighted=type_stat.is_highlighted,
                 first_of_group=type_stat.is_first_of_group,
                 modified_by=sources,
+                held_at=held_at,
             )
         )
     return Statline(cells=cells)

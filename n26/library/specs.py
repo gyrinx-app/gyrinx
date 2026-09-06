@@ -899,6 +899,8 @@ def _build_registry():
                 "is_target": Bool(source=(Stat, "is_target")),
                 "is_inverted": Bool(source=(Stat, "is_inverted")),
                 "is_modifier": Bool(source=(Stat, "is_modifier")),
+                "minimum": Int(source=(Stat, "minimum")),
+                "maximum": Int(source=(Stat, "maximum")),
             },
             model=Stat,
             identity="full_name",

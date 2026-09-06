@@ -142,6 +142,11 @@ class StatChange:
     amount: int
     source: str
     source_kind: str = ""
+    #: When the line carrying this change was written onto the card, so
+    #: changes fold in the order they were acquired — the order a stat's
+    #: limits are met in decides what each change was worth. ``None`` for
+    #: a change nothing stored stands behind: a built-in, a preview.
+    acquired: object = None
 
 
 @dataclass
@@ -969,6 +974,9 @@ def compute(card, index):
                             amount=effect.amount,
                             source=label,
                             source_kind=label_kind,
+                            acquired=getattr(
+                                lines.get(step.root_key), "acquired", None
+                            ),
                         )
                         holder = (
                             computed

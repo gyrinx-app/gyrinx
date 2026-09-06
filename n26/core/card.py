@@ -91,6 +91,10 @@ class Node:
     #: lives on the assignment, and this is what the hire will write
     #: there.
     opens_at: int = 0
+    #: When the line was written onto the card, for a stored one; None
+    #: for a line the library alone draws. Stat changes fold in this
+    #: order, and a limit that stops one decides what the rest are worth.
+    acquired: object = None
     #: The stored assignment, when this card was built from stored ones.
     assignment: Assignment | None = None
 
@@ -146,6 +150,7 @@ def node_for(assignment):
             assignment.profile_id is not None
             and (role is None or role.role == "primary")
         ),
+        acquired=assignment.created,
         assignment=assignment,
     )
 
