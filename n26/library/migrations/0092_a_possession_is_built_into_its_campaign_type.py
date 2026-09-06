@@ -41,7 +41,7 @@ def build_in(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0088_possession_help_drops_and_keeps_it"),
+        ("library", "0091_staged_content_may_be_opened_early"),
         # A campaign's pack and additions type, so an arbitrator's asset can
         # be given by the campaign it belongs to; and the propagation task
         # table, so the pass can be filed from here.
