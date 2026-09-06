@@ -23,6 +23,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 __all__ = [
     "BUILT_IN_PROPAGATION",
     "CAMPAIGNS",
+    "FOUNDING",
     "enabled",
     "requires_flag",
     "switched_on",
@@ -35,4 +36,10 @@ CAMPAIGNS = "campaigns"
 #: edits still file their passes; nothing runs them until it opens.
 BUILT_IN_PROPAGATION = "built-in-propagation"
 
-register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION)
+#: Founding a gang as an action: the Actions square on the gang page, the
+#: founding Trade Point budgets on the cards and equip screens, and list
+#: lines counting Trade Points while the action is open. Shut, none of it
+#: is drawn, and purchases count against no founding budget.
+FOUNDING = "founding"
+
+register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, FOUNDING)

@@ -16,6 +16,7 @@ from django.urls import reverse
 from n26.core import history
 from n26.core.models import Action, Gang, LedgerEvent
 from n26.core.operations import Refusal, operation
+from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
@@ -33,9 +34,11 @@ ONE_AT_A_TIME = "You can have only one of these actions open at a time."
 @pytest.fixture
 def tester(db):
     """The signed-in person these tests look at the app as."""
-    # Staff, because the square and its address are staff-only while the
-    # action is built out; the non-staff owner has tests of their own.
-    return User.objects.create_user("player", is_staff=True)
+    # On the founding flag's allowlist, because the square and its address
+    # reach the owners it admits; the owner it does not has tests of their own.
+    person = User.objects.create_user("player")
+    admit_to_founding(person)
+    return person
 
 
 @pytest.fixture
@@ -405,12 +408,27 @@ class TestTheSquareOnTheGangPage:
         body = client.get(sheet(gang)).content.decode()
         assert "Found and equip gang" not in body
         assert "Complete action" not in body
+
+    def test_the_flag_open_to_everyone_admits_no_reader_but_the_owner(
+        self, client, gang
+    ):
+        """Opening the flag widens who among owners sees their own square;
+        it never puts another gang's actions in front of a reader."""
+        from gyrinx.site.models import Availability, FeatureFlag
+
+        FeatureFlag.objects.filter(slug="founding").update(
+            availability=Availability.EVERYONE
+        )
+        client.force_login(User.objects.create_user("stranger"))
+        body = client.get(sheet(gang)).content.decode()
+        assert "Found and equip gang" not in body
+        assert 'value="start"' not in body
         assert "No action is open." not in body
 
-    def test_an_owner_who_is_not_staff_gets_no_square_yet(self, client, gang):
-        """Staff-only while the action is built out: the owner reads the
-        gang page as it was before the square, and the open action stays
-        open behind it."""
+    def test_an_owner_the_flag_does_not_admit_gets_no_square(self, client, gang):
+        """Outside the founding flag's allowlist the owner reads the gang
+        page as it was before the square, and the open action stays open
+        behind it."""
         plain = User.objects.create_user("plain-player")
         gang.owner = plain
         gang.save(update_fields=["owner"])
@@ -722,7 +740,9 @@ class TestTheActsBehindIt:
         client.force_login(User.objects.create_user("stranger"))
         assert client.post(act_page(gang), {"act": "finish"}).status_code == 404
 
-    def test_an_owner_who_is_not_staff_cannot_reach_the_address(self, client, gang):
+    def test_an_owner_the_flag_does_not_admit_cannot_reach_the_address(
+        self, client, gang
+    ):
         plain = User.objects.create_user("plain-player")
         gang.owner = plain
         gang.save(update_fields=["owner"])

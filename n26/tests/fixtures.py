@@ -1,5 +1,8 @@
 import pytest
+from django.contrib.auth.models import Group
 
+from gyrinx.site.models import Availability, FeatureFlag
+from n26.flags import FOUNDING
 from n26.library.models import (
     ContentPack,
     GangType,
@@ -13,6 +16,31 @@ from n26.library.models import (
     get_default_pack,
 )
 from n26.library.standard_content import MODEL_CHARACTERISTICS, MODEL_STATLINE
+
+FOUNDING_GROUP_NAME = "Founding preview"
+
+
+def admit_to_founding(*users):
+    """Put these accounts on the founding flag's allowlist, creating the
+    flag and its group where they do not exist yet.
+
+    The flag rows are seeded nowhere the test suite runs, so a test that
+    wants the Actions square or the founding budgets drawn creates the
+    row itself. It is opened on the allowlist rather than to everyone so
+    the tests keep an owner the flag does not reach.
+    """
+    group, _ = Group.objects.get_or_create(name=FOUNDING_GROUP_NAME)
+    FeatureFlag.objects.get_or_create(
+        slug=FOUNDING,
+        defaults={
+            "name": "Founding",
+            "availability": Availability.ALLOWLIST,
+            "group": group,
+        },
+    )
+    for user in users:
+        user.groups.add(group)
+    return group
 
 
 @pytest.fixture
