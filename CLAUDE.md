@@ -303,10 +303,11 @@ titles, which should freely name model classes, functions and flags.
 ### Before Starting
 
 1. **Use a dedicated git worktree for every task that changes repository files.**
-   Before editing, create a worktree named `<agent-name>-<task>` with a `codex/`
-   branch, or reuse the worktree already assigned to the task. Do this
-   automatically without asking permission. Run edits, tests, and development
-   commands from that worktree. Leave the shared root checkout untouched,
+   Before editing, create a worktree named `<agent-name>-<task>` with a branch
+   prefix matching the agent: `claude/` for Claude, `codex/` for Codex, and the
+   equivalent for other agents. Reuse the worktree already assigned to the task
+   when one exists. Do this automatically without asking permission. Run edits,
+   tests, and development commands from that worktree. Leave the shared root checkout untouched,
    including other agents' uncommitted changes. Read-only investigation can use
    the current checkout. Work in the root checkout or on `main` only when
    explicitly requested or when the operation inherently requires it; explain
