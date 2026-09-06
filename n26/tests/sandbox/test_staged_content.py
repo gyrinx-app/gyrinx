@@ -327,6 +327,22 @@ class TestHiring:
             membership__profile=runner, name="Sand"
         ).exists()
 
+    def test_an_archived_line_offers_its_fighter_to_nobody(
+        self, client, author, authors_gang, profiles
+    ):
+        """Archiving a line takes the offer off the list for every reader,
+        author included; only staging is a question of who is looking."""
+        mercs = create_collection(
+            "Mercenaries", entries=[(profiles["ganger"], {"price_override": 30})]
+        )
+        mercs.entries.get(profile=profiles["ganger"]).archive()
+        assign(mercs, gang=authors_gang[0])
+
+        client.force_login(author)
+        assert (
+            "Mercenaries" not in client.get(hire_url(authors_gang[0])).content.decode()
+        )
+
     def test_a_collection_offering_a_staged_fighter_offers_it_to_authors_only(
         self, client, player, author, players_gang, authors_gang, profiles
     ):
@@ -458,6 +474,19 @@ class TestChoosing:
         _, ours = legacy_offer(authors_gang[0], include_staged=True)
         assert theirs == set()
         assert ours == {"Van Saar"}
+
+    def test_a_pick_in_an_archived_pack_is_offered_to_nobody(
+        self, players_gang, authors_gang, legacy, other_pack
+    ):
+        from n26.tests.sandbox.actions import add_picklist_member, create_pickable
+
+        stranded = create_pickable("Orlock", legacy["slot"].slot_type, pack=other_pack)
+        add_picklist_member(legacy["slot"].picklist, stranded)
+        other_pack.archive()
+        _, theirs = legacy_offer(players_gang[0], include_staged=False)
+        _, ours = legacy_offer(authors_gang[0], include_staged=True)
+        assert "Orlock" not in theirs
+        assert "Orlock" not in ours
 
     def test_a_staged_line_on_the_picklist_is_held_back_too(
         self, players_gang, authors_gang, legacy

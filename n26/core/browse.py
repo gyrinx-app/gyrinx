@@ -833,7 +833,7 @@ def picklist_lines(picklist, *, include_staged=False):
     lines = (
         picklist.members.select_related("pickable")
         .unarchived()
-        .filter(pickable__archived=False)
+        .filter(pickable__archived=False, pickable__pack__archived=False)
     )
     if not include_staged:
         lines = lines.filter(staged=False, pickable__staged=False)

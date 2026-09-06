@@ -375,12 +375,13 @@ def collection_offers(collections, *, include_staged=False):
     if not ids:
         return []
 
+    # An archived entry is a line the list no longer offers, whoever is
+    # looking; a staged one is a line it does not offer yet. A staged
+    # profile is dropped below, where the profiles are fetched.
     listed = CollectionEntry.objects.filter(
         collection_id__in=ids, profile__isnull=False
-    )
+    ).unarchived()
     if not include_staged:
-        # A staged entry is a row the list does not yet offer; a staged
-        # profile is dropped below, where the profiles are fetched.
         listed = listed.live()
     entries = list(listed.order_by("position"))
     sweeps = list(
