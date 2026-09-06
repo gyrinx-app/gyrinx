@@ -516,7 +516,10 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         Prefetch(
             field,
             queryset=apps.get_model(ASSIGNABLE_FIELDS[field]).objects.select_related(
-                "category"
+                # The section rides along because heading order is the
+                # taxonomy's, and Category breaks a tie on its section's
+                # name. Reading that per group would be a query per group.
+                "category__section",
             ),
         )
         if field in GEAR_WITH_A_CATEGORY

@@ -116,7 +116,57 @@ class TestEverySurfaceDrawsIt:
         state = gang_state(krath.membership.gang)
         model = next(iter(state["models"].values()))
         assert [name for name, _ in model["equipment"]] == ["Respirator"]
-        assert model["gear_groups"] == {"Gene-smithing": [("Iron flesh", 30)]}
+        assert model["gear_groups"] == [("Gene-smithing", [("Iron flesh", 30)])]
+
+
+class TestTwoHeadingsOfOneName:
+    """A category name is unique only within its section, so two headings
+    can read alike. They stay two headings, and the capture keeps them
+    apart — folded together, a conversion could move a possession from one
+    to the other and still call the two pages equal."""
+
+    @pytest.fixture
+    def twins(self, default_pack, library, gang_type, player):
+        first = create_category("Ranged Weapons", "Salvage", draws_its_own_row=True)
+        second = create_category("Close Combat", "Salvage", draws_its_own_row=True)
+        left = create_wargear("Cutting torch", price=20, category=first)
+        right = create_wargear("Bent rebar", price=5, category=second)
+        gang = found_gang("Two Names", gang_type, owner=player, budget=1000)
+        mini = hire(gang, library["bruiser"], "Sull", paid=100)
+        assign(left, miniature=mini, paid=20)
+        assign(right, miniature=mini, paid=5)
+        return mini
+
+    def test_both_headings_are_drawn(self, twins):
+        card = card_of(twins)
+        assert [group.name for group in card.gear_groups] == ["Salvage", "Salvage"]
+
+    def test_each_keeps_its_own_things(self, twins):
+        card = card_of(twins)
+        held = [[line.name for line in group.lines] for group in card.gear_groups]
+        assert sorted(held) == [["Bent rebar"], ["Cutting torch"]]
+
+    def test_the_capture_does_not_fold_them_together(self, twins):
+        from n26.core.capture import gang_state
+
+        state = gang_state(twins.membership.gang)
+        model = next(iter(state["models"].values()))
+        assert len(model["gear_groups"]) == 2
+        assert sorted(lines for _, lines in model["gear_groups"]) == [
+            [("Bent rebar", 5)],
+            [("Cutting torch", 20)],
+        ]
+
+    def test_drawing_them_asks_no_query_of_its_own(
+        self, twins, django_assert_num_queries
+    ):
+        """Ordering breaks its tie on the section's name, which rides the
+        same hydration pass rather than a query per heading."""
+        card = build_card(twins)
+        with CaptureQueriesContext(connection) as counted:
+            card_to_model_card(card, name="Sull")
+        # Only the statline's own fetch, which no group adds to.
+        assert len(counted.captured_queries) <= 1
 
 
 class TestNothingElseChanges:

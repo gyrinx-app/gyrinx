@@ -2097,13 +2097,18 @@ def card_to_model_card(
         powers=sorted(line_rows["powers"], key=lambda line: line.name),
         equipment=sorted(equipment, key=lambda line: line.name),
         # The taxonomy's own order, so two cards never disagree about
-        # which heading comes first. Ties fall back to name, as Category
-        # itself does.
+        # which heading comes first — the same three keys Category orders
+        # by, because a card sorting them any other way would disagree
+        # with every listing that shows the same categories.
         gear_groups=[
             GearGroup(name=home.name, lines=sorted(lines, key=lambda line: line.name))
             for home, lines in sorted(
                 apart.values(),
-                key=lambda pair: (pair[0].position, pair[0].name),
+                key=lambda pair: (
+                    pair[0].position,
+                    pair[0].section.name,
+                    pair[0].name,
+                ),
             )
         ],
         collections=sorted(line_rows["collections"], key=lambda line: line.name),
