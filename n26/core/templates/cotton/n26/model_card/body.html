@@ -161,28 +161,20 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
 
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-            {% comment %}
-            Actions need one line per assignment so each menu stays beside
-            the thing it changes. Without them the compact comma-separated
-            run stands, which is what the gang sheet and a print card draw.
-            {% endcomment %}
-            {% if card.equipment_has_actions %}
-                <ul class="flex flex-col gap-1">
-                    {% for line in card.equipment %}
-                        <li class="flex items-center gap-2">
-                            <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
-                            <c-n26.owned-actions :sell="line.sell"
-                                                 :more="line.more"
-                                                 :htmx="htmx"
-                                                 layout="menu"
-                                                 label="{{ line.name }}" />
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
-            {% endif %}
+            {% include "n26/includes/gear_lines.html" with lines=card.equipment has_actions=card.equipment_has_actions %}
         </dd>
+
+        {% comment %}
+        Gear whose category asks for a heading of its own, after the general
+        Gear row. Each group is drawn exactly as Gear is, menus included:
+        these are possessions, and an owner must be able to take one off.
+        {% endcomment %}
+        {% for group in card.gear_groups %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ group.name }}</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                {% include "n26/includes/gear_lines.html" with lines=group.lines has_actions=group.has_actions %}
+            </dd>
+        {% endfor %}
 
         {% comment %}
         One row per open or settled choice, labelled by what it asks for.

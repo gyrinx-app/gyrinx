@@ -28,6 +28,11 @@ from n26.core.models.assignment import ASSIGNABLE_FIELDS
 from n26.library.models.assignable import Family, Optioned
 from n26.library.models.modifier import GANG, MODEL
 
+#: The assignable kinds whose lines reach a card's Gear row, and so the
+#: ones a card asks for a category. Their hydration joins the category in
+#: rather than fetching it separately; see ``hydrate_rows``.
+GEAR_WITH_A_CATEGORY = ("wargear", "weapon_accessory")
+
 
 @dataclass
 class Node:
@@ -476,7 +481,8 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
     what a fighter carries and never how it was chosen, and would pay
     these passes for an answer it does not print.
     """
-    from django.db.models import prefetch_related_objects
+    from django.apps import apps
+    from django.db.models import Prefetch, prefetch_related_objects
 
     paths = [
         *ASSIGNABLE_FIELDS,
@@ -499,6 +505,23 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.
         "weapon_profile__weapon",
+    ]
+    # A card asks a possession's category whether it draws a row of its
+    # own, and these two kinds are the ones that reach the Gear row —
+    # everything else is filed by its kind, drawn inside its weapon, or
+    # is the gang's and not the model's. Joined onto the kind's own pass
+    # rather than added as a path of its own: one FK to a small table
+    # is free here, where a second pass would be a query per card.
+    paths = [
+        Prefetch(
+            field,
+            queryset=apps.get_model(ASSIGNABLE_FIELDS[field]).objects.select_related(
+                "category"
+            ),
+        )
+        if field in GEAR_WITH_A_CATEGORY
+        else field
+        for field in paths
     ]
     if with_statlines:
         paths += [

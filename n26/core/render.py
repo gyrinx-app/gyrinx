@@ -662,6 +662,35 @@ def lift_landing(offer, landed, threshold=False):
     )
 
 
+@dataclass
+class GearGroup:
+    """Gear filed under a category that draws its own row on a card.
+
+    The Gear row is where a possession goes unless its category asks for
+    a heading of its own — a Goliath's Gene-smithing upgrades read as
+    what the model *is*, not as kit they happen to be carrying, and a
+    reader scanning for them should not have to find them among the
+    grenades.
+
+    Not frozen: the actions on its lines are filled in afterwards by
+    whoever knows the URL space, exactly as the Gear row's are.
+    """
+
+    name: str
+    lines: list[AssignableLine] = field(default_factory=list)
+
+    @property
+    def has_actions(self):
+        """Whether any line here has somewhere to click.
+
+        The same question ``ModelCard.equipment_has_actions`` asks of the
+        Gear row, and asked per group: a card drawn for its owner gets a
+        line each with its own menu, and every other surface gets the
+        compact run.
+        """
+        return any(line.sell for line in self.lines)
+
+
 @dataclass(frozen=True)
 class EffectLine:
     """Something this model's kit does beyond its own card.
@@ -715,6 +744,11 @@ class ModelCard:
     #: through the same sections; drawn as their own row.
     powers: list[AssignableLine] = field(default_factory=list)
     equipment: list[AssignableLine] = field(default_factory=list)
+    #: Gear held apart from the Gear row, under its category's name. One
+    #: group per category that asks for a row of its own, in the order
+    #: the taxonomy puts them in. Drawn after Gear, because the Gear row
+    #: is the general case and these are the exceptions to it.
+    gear_groups: list[GearGroup] = field(default_factory=list)
     #: Collections this model can browse — equipment lists, trading posts.
     #: Access to buy from, not things owned; drawn apart from equipment.
     collections: list[AssignableLine] = field(default_factory=list)
@@ -1767,6 +1801,10 @@ def card_to_model_card(
     """
     primary = None
     equipment, weapons = [], []
+    #: Lines diverted out of Gear, by the category that asked for them.
+    #: Keyed by category pk, holding the category itself so the groups
+    #: can be put in the taxonomy's order once the walk is done.
+    apart = {}
     # The named line rows, keyed by the vocabulary the kinds declare
     # (``card_row``). One mapping serves the walk over stored assignments and
     # the merge of computed grants below — the two can not disagree
@@ -1969,14 +2007,21 @@ def card_to_model_card(
             if node.is_primary_profile:
                 primary = thing
         else:
-            equipment.append(
-                AssignableLine(
-                    name=node.name,
-                    provenance=provenance_of(node),
-                    rating=node.rating,
-                    id=(str(node.assignment.pk) if node.assignment is not None else ""),
-                )
+            line = AssignableLine(
+                name=node.name,
+                provenance=provenance_of(node),
+                rating=node.rating,
+                id=(str(node.assignment.pk) if node.assignment is not None else ""),
             )
+            # A possession goes in Gear unless its category asks for a
+            # heading of its own. The category is prefetched for the
+            # kinds that get here (card.hydrate_rows); a kind carrying
+            # none has nothing to ask and stays in Gear.
+            home = getattr(thing, "category", None)
+            if home is not None and home.draws_its_own_row:
+                apart.setdefault(home.pk, (home, []))[1].append(line)
+            else:
+                equipment.append(line)
 
     if computed:
         # Computed grants join the same rows the stored lines chose —
@@ -2051,6 +2096,16 @@ def card_to_model_card(
         rules=sorted(line_rows["rules"], key=lambda line: line.name),
         powers=sorted(line_rows["powers"], key=lambda line: line.name),
         equipment=sorted(equipment, key=lambda line: line.name),
+        # The taxonomy's own order, so two cards never disagree about
+        # which heading comes first. Ties fall back to name, as Category
+        # itself does.
+        gear_groups=[
+            GearGroup(name=home.name, lines=sorted(lines, key=lambda line: line.name))
+            for home, lines in sorted(
+                apart.values(),
+                key=lambda pair: (pair[0].position, pair[0].name),
+            )
+        ],
         collections=sorted(line_rows["collections"], key=lambda line: line.name),
         choices=[
             *(

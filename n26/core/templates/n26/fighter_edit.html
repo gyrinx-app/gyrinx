@@ -281,6 +281,25 @@ is named by the page's own heading directly below.
         A file of its own because a tab click is answered with the box
         alone — see n26/includes/skills_box.html.
         {% endcomment %}
+        {% comment %}
+        One link per list this model buys from, straight to that list's own
+        face of Equip. A category drawing its own row on the card names
+        what the model holds; this is the way to the screen that adds more,
+        without hunting for the tab first.
+        {% endcomment %}
+        {% if equip_lists %}
+            <c-slot name="buying">
+                <ul class="flex flex-wrap gap-x-4 gap-y-1">
+                    {% for list in equip_lists %}
+                        <li>
+                            <c-n26.link href="{{ list.href }}" title="{{ list.title }}">
+                                {{ list.label }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </c-slot>
+        {% endif %}
         <c-slot name="skills">
             {% include "n26/includes/skills_box.html" %}
         </c-slot>

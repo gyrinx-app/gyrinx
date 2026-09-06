@@ -83,6 +83,11 @@ def _model_state(card):
         "powers": _names(card.powers),
         "rules": _names(card.rules),
         "equipment": _rated(card.equipment),
+        # Gear drawn under its category's own heading, kept apart here as
+        # it is on the card. Folding it back into equipment would let a
+        # conversion move a possession between headings and still call the
+        # two pages equal.
+        "gear_groups": {group.name: _rated(group.lines) for group in card.gear_groups},
         "collections": _names(card.collections),
         "choices": _choices([*card.choices, *card.skill_choices, *card.power_choices]),
         "remarks": _remarks(card.remarks),

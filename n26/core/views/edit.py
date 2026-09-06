@@ -363,7 +363,7 @@ def edit_fighter(request, pk):
     and the complaint under them; anything saved lands back here.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.access import model_collections
+    from n26.core.access import collections_for, model_collections
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.forms import (
@@ -377,6 +377,7 @@ def edit_fighter(request, pk):
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import build_model_card, roster, summarise_roster
     from n26.core.views.choose import link_slots
+    from n26.core.views.equip import _tab_label, buyable_lists
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
     from n26.core.views.owned import (
@@ -686,6 +687,26 @@ def edit_fighter(request, pk):
         own, computed, "rule", "Special rules", include_staged=shown
     )
 
+    # The lists this model buys from, each leading straight to its own
+    # face of the Equip screen. The card states what the model holds and
+    # not where more comes from; this page is where an owner changes what
+    # the model is, and a heading on the card is no use to them without a
+    # way to the screen that fills it. Built from the card already in
+    # hand, so no second walk.
+    equip_lists = [
+        {
+            "label": _tab_label(collection),
+            "title": (
+                "" if _tab_label(collection) == str(collection) else str(collection)
+            ),
+            "href": f"{reverse('n26-equip', args=[miniature.pk])}?list={collection.pk}",
+        }
+        for collection in buyable_lists(
+            access.collection
+            for access in collections_for(miniature, card=own, computed=computed)
+        )
+    ]
+
     # The header's far corner: the gang's figures and the roster tally,
     # the same numbers the equip face keeps there. One query.
     members = roster(gang)
@@ -697,6 +718,7 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
+            "equip_lists": equip_lists,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to
