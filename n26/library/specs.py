@@ -370,6 +370,7 @@ def _build_registry():
         OffersChoice,
         OpAddsMiniature,
         OpChangesCounter,
+        OpSetsStatus,
         Option,
         OptionGroup,
         Pickable,
@@ -780,6 +781,18 @@ def _build_registry():
                 "on the ledger."
             ),
             example="Selected as Outcast Leader: starts with 61 XP.",
+        ),
+        Spec(
+            authoring.op_sets_status,
+            {"status": Choice(source=(OpSetsStatus, "status"))},
+            label="Sets a status",
+            blurb=(
+                "When the pick carrying this modifier lands, the model is "
+                "marked In Recovery, Critically Injured, Captured or Dead — "
+                "recorded on the ledger. Taking the pick away does not undo "
+                "it."
+            ),
+            example="Grievous Wound: the fighter goes into Recovery.",
         ),
         # -- the leaves: what the authoring views create ----------------
         # Name-only (and nearly-so) kinds, the ground everything else

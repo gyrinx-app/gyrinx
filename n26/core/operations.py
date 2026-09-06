@@ -42,6 +42,7 @@ from n26.core.models import (
     ProfileRole,
     Reason,
 )
+from n26.core.status import Status
 
 #: The least a sale ever returns. Half of a knife is nothing, and nobody
 #: hands a knife over for nothing.
@@ -229,6 +230,10 @@ _UNASKED = object()
 #: The note on a roll that was made at the table and entered, which is
 #: how the record tells one from a roll the page generated.
 ROLL_ENTERED = "Rolled at the table and entered here."
+
+#: The reason on a status change Clean House made, which is how the
+#: history tells the cycle's end from the owner's own hand.
+CLEAN_HOUSE = "Clean House"
 
 
 def _movement_note(moved, reason):
@@ -569,6 +574,50 @@ class Operation:
         miniature.save(update_fields=["name", "modified"])
         self.event(miniature, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
         return miniature
+
+    def set_status(self, miniature, status, note=""):
+        """Put a model into a status — In Recovery, Captured, Dead — and
+        say so in the history.
+
+        Nothing is priced, so the event stands alone; but a death changes
+        what the rating sums to, so the model is marked touched and
+        ``settle`` repins it. The note keeps both statuses and, after a
+        colon, what did it — the result whose effect set it, "Clean
+        House", or nothing for the owner's own hand. The same status
+        again is nothing to do and writes nothing.
+        """
+        status = Status(status)
+        was = Status(miniature.status)
+        if was == status:
+            return miniature
+        miniature.status = status
+        miniature.save(update_fields=["status", "modified"])
+        self.touched(miniature)
+        self.event(
+            miniature,
+            LedgerEvent.Kind.STATUS_SET,
+            note=_movement_note(f"{was} → {status}", note),
+        )
+        return miniature
+
+    def clean_house(self):
+        """The end of the cycle: every model In Recovery is Active again.
+
+        One event per model, all in this operation's batch, so the
+        history tells them as one act. Returns the models cleared.
+        """
+        from n26.core.models import Miniature
+
+        cleared = list(
+            Miniature.objects.filter(
+                membership__gang=self.gang,
+                membership__archived=False,
+                status=Status.RECOVERY,
+            )
+        )
+        for miniature in cleared:
+            self.set_status(miniature, Status.ACTIVE, note=CLEAN_HOUSE)
+        return cleared
 
     def rename_gang(self, name):
         """Give the gang a new name, and say so in its own history.

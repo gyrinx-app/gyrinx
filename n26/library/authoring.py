@@ -1952,6 +1952,15 @@ def op_changes_counter(counter, mode="set", amount=0):
     return OpChangesCounter.objects.create(counter=counter, mode=mode, amount=amount)
 
 
+def op_sets_status(status):
+    """A stored effect: assigning the carrier puts the bearer into a
+    status — ``op_sets_status("recovery")`` on Grievous Wound, so the
+    pick landing sends the fighter into Recovery on the ledger."""
+    from n26.library.models import OpSetsStatus
+
+    return OpSetsStatus.objects.create(status=status)
+
+
 def _assignable_kwarg(thing):
     from n26.library.models import (
         Collection,
