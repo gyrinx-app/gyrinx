@@ -560,6 +560,42 @@ class TestTheAuthoringPages:
         assert 'value="asset"' not in body
         assert 'value="counter"' in body
 
+    def test_the_type_page_offers_counter_rule_and_slot_and_opens_on_counter(
+        self, author, client, dominion
+    ):
+        """Kit is a model's to be given, so the picker on a campaign type
+        offers only what a campaign gives a gang, and a post naming
+        anything else is refused as no choice."""
+
+        from n26.library.authoring import create_weapon
+
+        page = f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+        body = client.get(page).content.decode()
+
+        assert re.search(r'value="counter"\s+selected', body)
+        # The Kind select's own options come first after its id; the
+        # per-kind pickers follow.
+        options = re.findall(
+            r'<option\s+value="(\w+)"', body.split("id_thing_kind")[-1]
+        )
+        assert options[:3] == ["counter", "rule", "slot"]
+        for kind in ("weapon", "wargear", "skill", "collection", "hidden", "subtype"):
+            assert f'value="{kind}"' not in body
+            assert f'name="thing_{kind}"' not in body
+
+        weapon = create_weapon("Stub gun")
+        response = client.post(
+            page,
+            {
+                "act": "built_in",
+                "thing_kind": "weapon",
+                "thing_weapon": str(weapon.pk),
+                "amount": "0",
+            },
+        )
+        assert response.status_code == 200
+        assert dominion["type"].built_ins is None
+
     def test_creating_a_possession_on_the_type_page_lists_it_among_what_every_gang_gets(
         self, author, client, dominion
     ):

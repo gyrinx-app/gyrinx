@@ -218,6 +218,13 @@ class Assignable(models.Model):
     #: offers an act whose meaning it cannot ask for.
     offered_as_built_in = True
 
+    #: Which kinds this kind's own built-in picker offers, by their
+    #: ``DefaultAssignment`` column names, the first being the default.
+    #: None offers every kind the picker has. A carrier nobody equips —
+    #: a campaign type — names the few that make sense for it, so its
+    #: form does not open on a weapon.
+    built_in_kinds = None
+
     class Meta:
         abstract = True
 

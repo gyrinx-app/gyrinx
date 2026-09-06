@@ -59,6 +59,11 @@ class CampaignType(Content, Assignable):
 
     family = Family.GANG
 
+    #: What every gang that joins can be given by hand: a counter with
+    #: its opening value, a rule, a slot to pick in. Kit is a model's,
+    #: not a campaign's, and an asset is built in by its asset type.
+    built_in_kinds = ("counter", "rule", "slot")
+
     description = models.TextField(
         blank=True,
         default="",
