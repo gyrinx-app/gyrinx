@@ -288,11 +288,16 @@ def create_stat(
     is_target=False,
     is_inverted=False,
     is_modifier=False,
+    minimum=None,
+    maximum=None,
     **kwargs,
 ):
     """A stat definition, e.g. ``create_stat("M", "Movement", is_inches=True)``.
 
-    The internal ``field_name`` is derived from the full name.
+    The internal ``field_name`` is derived from the full name. ``minimum``
+    and ``maximum`` are the values a change stops at, as the rulebook
+    prints them: 6 for a 6+ Save. Leave them blank where the stat has no
+    limit.
     """
     return Stat.objects.create(
         short_name=short_name,
@@ -301,6 +306,8 @@ def create_stat(
         is_target=is_target,
         is_inverted=is_inverted,
         is_modifier=is_modifier,
+        minimum=minimum,
+        maximum=maximum,
         **kwargs,
     )
 

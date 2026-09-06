@@ -142,6 +142,11 @@ class StatChange:
     amount: int
     source: str
     source_kind: str = ""
+    #: When the line carrying this change was written onto the card, so
+    #: changes fold in the order they were acquired — the order a stat's
+    #: limits are met in decides what each change was worth. ``None`` for
+    #: a change nothing stored stands behind: a built-in, a preview.
+    acquired: object = None
 
 
 @dataclass
@@ -969,6 +974,7 @@ def compute(card, index):
                             amount=effect.amount,
                             source=label,
                             source_kind=label_kind,
+                            acquired=_acquired_at(lines.get(step.root_key)),
                         )
                         holder = (
                             computed
@@ -1478,6 +1484,12 @@ def _shortfall_notes(computed):
         for slot in computed.choices
         if slot.slot is not None and len(slot.picks) < slot.min_picks
     ]
+
+
+def _acquired_at(node):
+    """When the line a chain of changes stands on was written, or None."""
+    assignment = getattr(node, "assignment", None)
+    return getattr(assignment, "created", None)
 
 
 class _Facts:

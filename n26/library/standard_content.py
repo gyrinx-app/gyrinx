@@ -29,24 +29,47 @@ from dataclasses import dataclass
 
 from n26.library.models.profile import TYPE_NAMES
 
+
+def _limits(minimum, maximum):
+    """The two limit fields of a stat, as the rulebook's table writes them."""
+    return {"minimum": minimum, "maximum": maximum}
+
+
+_TARGET = {"is_target": True, "is_inverted": True}
+
 #: The 2026 model characteristics profile (core rules): nine battle
 #: stats, then the four psychology stats — plain numbers, higher better,
 #: never a plus. One shape serves Fighters and Vehicles alike; the Type
 #: line tells them apart. ``(short, full, stat flags, display flags)``.
+#:
+#: Each carries the rulebook's minimum and maximum (core rules:
+#: characteristics and profiles), the values a change stops at. A roll
+#: target's are written as its number — a Save runs from 6 (6+) to 3
+#: (3+). Wounds alone may fall to 0; the psychology stats stop at 4.
 MODEL_CHARACTERISTICS = [
-    ("M", "Movement", {"is_inches": True}, {"is_first_of_group": True}),
-    ("WS", "Weapon Skill", {"is_target": True, "is_inverted": True}, {}),
-    ("BS", "Ballistic Skill", {"is_target": True, "is_inverted": True}, {}),
-    ("S", "Strength", {}, {}),
-    ("T", "Toughness", {}, {}),
-    ("W", "Wounds", {}, {}),
-    ("I", "Initiative", {}, {}),
-    ("A", "Attacks", {}, {}),
-    ("Sv", "Save", {"is_target": True, "is_inverted": True}, {}),
-    ("Ld", "Leadership", {}, {"is_highlighted": True, "is_first_of_group": True}),
-    ("Cl", "Cool", {}, {"is_highlighted": True}),
-    ("Wil", "Willpower", {}, {"is_highlighted": True}),
-    ("Int", "Intelligence", {}, {"is_highlighted": True}),
+    (
+        "M",
+        "Movement",
+        {"is_inches": True, **_limits(1, 12)},
+        {"is_first_of_group": True},
+    ),
+    ("WS", "Weapon Skill", {**_TARGET, **_limits(6, 2)}, {}),
+    ("BS", "Ballistic Skill", {**_TARGET, **_limits(6, 2)}, {}),
+    ("S", "Strength", _limits(1, 10), {}),
+    ("T", "Toughness", _limits(1, 10), {}),
+    ("W", "Wounds", _limits(0, 10), {}),
+    ("I", "Initiative", _limits(1, 10), {}),
+    ("A", "Attacks", _limits(1, 10), {}),
+    ("Sv", "Save", {**_TARGET, **_limits(6, 3)}, {}),
+    (
+        "Ld",
+        "Leadership",
+        _limits(4, 10),
+        {"is_highlighted": True, "is_first_of_group": True},
+    ),
+    ("Cl", "Cool", _limits(4, 10), {"is_highlighted": True}),
+    ("Wil", "Willpower", _limits(4, 10), {"is_highlighted": True}),
+    ("Int", "Intelligence", _limits(4, 10), {"is_highlighted": True}),
 ]
 
 #: The shape every weapon table prints (core rules). Strength is the

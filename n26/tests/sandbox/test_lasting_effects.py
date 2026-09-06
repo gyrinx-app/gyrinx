@@ -29,6 +29,7 @@ import pytest
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.reconcile import assert_reconciled
+from n26.core.render import build_model_card
 from n26.library.authoring import detach_modifier
 from n26.library.standard_content import (
     LASTING_EFFECT_TABLES,
@@ -37,17 +38,20 @@ from n26.library.standard_content import (
 from n26.library.views import coverage
 from n26.tests.sandbox.actions import (
     add_built_in,
+    assign,
     attach_modifiers_to,
     changes_stat,
     choose,
     create_hidden,
     create_profile,
+    create_wargear,
     ef_adds,
     ef_removes,
     found_gang,
     hire,
     is_profile_type,
     modifier,
+    set_statline,
     targets_every_model,
     targets_model,
 )
@@ -135,6 +139,12 @@ def computed_for(miniature):
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return compute(card, index)
+
+
+def card_for(miniature):
+    card = build_card(miniature, with_statlines=True)
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    return build_model_card(miniature, card=card, computed=compute(card, index))
 
 
 def choice_of(miniature, label):
@@ -271,6 +281,48 @@ class TestAFighterIsHurt:
             c for c in computed_for(yolanda).stat_changes if c.source == "Eye Injury"
         ]
         assert len(changes) == 2
+        assert_reconciled(gang)
+
+    @pytest.fixture
+    def brute(self, gang, gang_type, fighter_type, standing):
+        profile = create_profile("Brute", fighter_type, gang_type, price=50)
+        set_statline(profile, strength=3)
+        return hire(gang, profile, "Ox", paid=50)
+
+    def test_injuries_stop_at_the_characteristics_minimum(self, gang, brute, tables):
+        """Three Spinal Injuries on a Strength of 3 leave it at 1, not 0:
+        a characteristic is never reduced below its minimum, and the part
+        of an injury that would do so is disregarded. The card still
+        lists every injury, and says the cell is held at its limit."""
+        spinal = result_named(tables["Lasting Injury"]["table"], "Spinal Injury")
+        for _ in range(3):
+            pick(brute, "Lasting Injuries", spinal)
+
+        cell = card_for(brute).statline.get("S")
+        assert cell.value == "1"
+        assert cell.held_at == "minimum"
+        assert [p.source for p in cell.modified_by] == ["Spinal Injury"] * 3
+        assert_reconciled(gang)
+
+    def test_an_improvement_after_the_injuries_lifts_the_stat_off_the_floor(
+        self, gang, brute, tables, fighter_stats
+    ):
+        """The surplus of the injuries is not kept: a bionic fitted after
+        them stands one above the minimum, whatever they would have
+        taken the stat to."""
+        spinal = result_named(tables["Lasting Injury"]["table"], "Spinal Injury")
+        for _ in range(5):
+            pick(brute, "Lasting Injuries", spinal)
+        bionic = create_wargear("Bionic Arm")
+        modifier(
+            "Bionic Arm improves S",
+            targets_model(),
+            changes_stat(fighter_stats["S"], "improve", 1),
+            carried_by=bionic,
+        )
+        assign(bionic, miniature=brute, paid=30)
+
+        assert card_for(brute).statline.get("S").value == "2"
         assert_reconciled(gang)
 
     def test_the_row_is_there_before_anyone_wrote_it(

@@ -93,6 +93,25 @@ class Stat(Content):
         default=False,
         help_text="A roll target, displayed with a plus suffix, e.g. 3+.",
     )
+    #: The rulebook's limits, as the number a cell stops at. A roll target
+    #: is inverted, so its minimum is the larger number: a Save's minimum
+    #: is 6 (6+) and its maximum 3 (3+). Blank means no limit.
+    minimum = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The value a change stops at when it worsens this stat, "
+            "e.g. 1 for Strength, 6 for a 6+ Save. Blank means no limit."
+        ),
+    )
+    maximum = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The value a change stops at when it improves this stat, "
+            "e.g. 10 for Strength, 2 for a 2+ Weapon Skill. Blank means no limit."
+        ),
+    )
 
     class Meta:
         verbose_name = "stat"
@@ -153,6 +172,34 @@ class Stat(Content):
             return int(value.strip())
         except ValueError:
             return None
+
+    def bounds(self):
+        """``(lowest, highest)`` numbers a change may move this stat to.
+
+        ``minimum`` and ``maximum`` hold the rulebook's worst and best
+        values. For an inverted stat the worst value is the larger
+        number, so the two come back the other way round. Either is
+        ``None`` where there is no limit.
+        """
+        worst, best = self.minimum, self.maximum
+        return (best, worst) if self.is_inverted else (worst, best)
+
+    def shift(self, number, delta):
+        """``number`` moved by ``delta``, stopping at this stat's limits.
+
+        The part of a change that would take the stat past a limit is
+        dropped, so three injuries to a Strength of 3 leave it at 1, and
+        a later improvement lifts it to 2. A value that is already past
+        a limit stays where it is rather than being pulled back to the
+        limit: a change only ever moves a stat in its own direction.
+        """
+        lowest, highest = self.bounds()
+        moved = number + delta
+        if delta < 0 and lowest is not None and moved < lowest:
+            return min(number, lowest)
+        if delta > 0 and highest is not None and moved > highest:
+            return max(number, highest)
+        return moved
 
     @property
     def placeholder(self):

@@ -93,6 +93,44 @@ class TestStat:
         with pytest.raises(IntegrityError), transaction.atomic():
             make_stat("Mv", "Movement")
 
+    def test_limits_are_blank_unless_given(self, make_stat):
+        stat = make_stat("L", "Lethality")
+        assert (stat.minimum, stat.maximum) == (None, None)
+        assert stat.bounds() == (None, None)
+
+    def test_bounds_read_lowest_then_highest_for_a_plain_number(self):
+        stat = Stat(short_name="S", full_name="Strength", minimum=1, maximum=10)
+        assert stat.bounds() == (1, 10)
+
+    def test_bounds_swap_for_a_stat_that_improves_downwards(self):
+        """A Save's minimum is 6+ and its maximum 3+: the worst value is
+        the larger number, so the bounds are read the other way round."""
+        save = Stat(
+            short_name="Sv", full_name="Save", is_inverted=True, minimum=6, maximum=3
+        )
+        assert save.bounds() == (3, 6)
+
+    @pytest.mark.parametrize(
+        ("number", "delta", "expected"),
+        [
+            (3, -1, 2),  # within limits: the whole change lands
+            (2, -3, 1),  # past the minimum: stops there
+            (1, -1, 1),  # at the minimum: nothing more happens
+            (0, -1, 0),  # already past it: left where it is, not pulled back
+            (9, 3, 10),  # past the maximum: stops there
+            (11, 1, 11),  # already past it: left where it is
+            (5, 0, 5),
+        ],
+    )
+    def test_shift_stops_at_the_limits(self, number, delta, expected):
+        stat = Stat(short_name="S", full_name="Strength", minimum=1, maximum=10)
+        assert stat.shift(number, delta) == expected
+
+    def test_shift_without_limits_is_plain_addition(self):
+        stat = Stat(short_name="AP", full_name="Armour Piercing", is_inverted=True)
+        assert stat.shift(-1, -5) == -6
+        assert stat.shift(0, 40) == 40
+
 
 class TestStatlineType:
     def test_stats_come_back_in_position_order(self, person_statline_type):

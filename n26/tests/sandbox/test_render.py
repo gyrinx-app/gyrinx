@@ -13,6 +13,7 @@ from n26.core.card import build_card
 from n26.core.render import build_ledger, build_model_card, render_gang
 from n26.core.render_text import gang_to_text, ledger_to_text, render_model_card
 from n26.library.models import Profile, ProfileType, StatlineType, StatlineTypeStat
+from n26.library.standard_content import MODEL_CHARACTERISTICS
 from n26.tests.sandbox.actions import (
     assign,
     buy_weapon_profile,
@@ -30,21 +31,18 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-#: (short, full, flags, first_of_group, highlighted) in card order.
+#: (short, full, flags, first_of_group, highlighted) in card order — the
+#: shipped definitions, so a suite can never stand on a shape the app
+#: cannot produce.
 FIGHTER_STATS = [
-    ("M", "Movement", {"is_inches": True}, True, False),
-    ("WS", "Weapon Skill", {"is_target": True, "is_inverted": True}, False, False),
-    ("BS", "Ballistic Skill", {"is_target": True, "is_inverted": True}, False, False),
-    ("S", "Strength", {}, False, False),
-    ("T", "Toughness", {}, False, False),
-    ("W", "Wounds", {}, False, False),
-    ("I", "Initiative", {}, False, False),
-    ("A", "Attacks", {}, False, False),
-    ("Sv", "Save", {"is_target": True, "is_inverted": True}, False, False),
-    ("Ld", "Leadership", {}, True, True),
-    ("Cl", "Cool", {}, False, True),
-    ("Wil", "Willpower", {}, False, True),
-    ("Int", "Intelligence", {}, False, True),
+    (
+        short,
+        full,
+        flags,
+        display.get("is_first_of_group", False),
+        display.get("is_highlighted", False),
+    )
+    for short, full, flags, display in MODEL_CHARACTERISTICS
 ]
 
 GANG_SISTER = {
