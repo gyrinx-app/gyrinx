@@ -2,8 +2,9 @@
 
 Staging lets you write new content, check it in the app exactly as players
 will meet it, and put it live when the whole change is ready. A staged
-thing is held back from every place a player adds to a gang. Nobody but
-authors sees it there until you put it live.
+thing is held back from every place a player adds to a gang. Players do
+not see it there until you put it live; staff do, and the staged-content
+flag can let chosen players in.
 
 ## What staging hides, and what it does not
 

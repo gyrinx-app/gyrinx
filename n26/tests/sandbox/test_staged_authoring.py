@@ -306,7 +306,7 @@ class TestTheIndex:
         stage(create_weapon("Plasma caliver"))
         stage(create_weapon("Spear"))
         body = " ".join(client.get("/n26/authoring/").content.decode().split())
-        assert "2 things written but not yet put live" in body
+        assert "2 things players cannot see yet" in body
         assert STAGED_URL in body
 
     def test_with_nothing_staged_it_says_so(self, client, author, default_pack):
