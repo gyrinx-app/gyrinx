@@ -1543,6 +1543,9 @@ def create_collection(
     return collection
 
 
+# Atomic so an asset's memberships and the asset go together: a refused
+# delete leaves the memberships standing.
+@transaction.atomic
 def delete_content(row):
     """Take an authored row out of the library for good.
 

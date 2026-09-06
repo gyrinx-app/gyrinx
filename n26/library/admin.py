@@ -96,6 +96,17 @@ class AssetAdmin(admin.ModelAdmin):
     search_fields = ["name", "qualifier"]
     list_select_related = ["pack", "asset_type", "asset_type__campaign_type"]
 
+    def save_model(self, request, obj, form, change):
+        """Ticking Archived here is the one way a person archives an asset,
+        and the change form saves the row rather than calling ``archive``
+        — so the memberships that give a possession are taken out here,
+        as ``Asset.archive`` takes them."""
+        from n26.library.authoring import take_out_of_built_ins
+
+        if obj.archived:
+            take_out_of_built_ins(obj)
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(Stat)
 class StatAdmin(admin.ModelAdmin):

@@ -96,6 +96,10 @@ def build_in_missing(apps, campaign_type=None):
         assets = assets.filter(**{f"{asset_type_field}__campaign_type": campaign_type})
 
     made = []
+    # One instance per giver for the whole pass. Each asset row arrives
+    # with its own copy of the campaign type, and a copy read before the
+    # first asset founded the type's set would found a second one.
+    givers = {}
     for asset in assets.order_by("name"):
         # Read through one name whichever the class uses, so the rest of
         # the pass need not know which migration it is running in.
@@ -104,6 +108,7 @@ def build_in_missing(apps, campaign_type=None):
         giver = giver_of(asset, apps)
         if giver is None:
             continue
+        giver = givers.setdefault(giver.pk, giver)
         built_ins = _built_ins_of(giver, DefaultAssignmentSet)
         if built_ins.members.filter(asset=asset, archived=False).exists():
             continue

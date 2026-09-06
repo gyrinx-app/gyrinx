@@ -267,6 +267,57 @@ class TestAuthoringACampaignType:
         assert Campaign.objects.count() == 1
         assert build_in_missing(apps) == []
 
+    def test_the_pass_founds_one_set_for_a_type_with_several_possessions(
+        self, dominion, default_pack
+    ):
+        """Two possessions of a type that has no set yet land in one set:
+        the pass reads the type once, not once per asset."""
+        from n26.library.possessions import build_in_missing
+
+        hideout = add_asset_type(dominion["type"], "Hideout", "held-one-each")
+        first = Asset.objects.create(
+            pack=default_pack, name="Settlement", asset_type=dominion["settlement"]
+        )
+        second = Asset.objects.create(
+            pack=default_pack, name="Bolthole", asset_type=hideout
+        )
+
+        made = build_in_missing(apps)
+
+        dominion["type"].refresh_from_db()
+        assert {member.default_set_id for member in made} == {
+            dominion["type"].built_ins_id
+        }
+        assert DefaultAssignmentSet.objects.count() == 1
+        assert [m.assignable for m in dominion["type"].built_in_members] == [
+            second,
+            first,
+        ]
+        assert build_in_missing(apps) == []
+
+    def test_archiving_through_the_admin_takes_a_possession_out(
+        self, dominion, default_pack
+    ):
+        """The admin change form is the one place an asset is archived by
+        a person, and it saves the row rather than calling ``archive``;
+        the admin routes that save through the same rule."""
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        from n26.library.admin import AssetAdmin
+
+        settlement = create_asset("Settlement", dominion["settlement"])
+        assert dominion["type"].built_in_members.count() == 1
+
+        settlement.archived = True
+        AssetAdmin(Asset, AdminSite()).save_model(
+            RequestFactory().post("/"), settlement, form=None, change=True
+        )
+
+        settlement.refresh_from_db()
+        assert settlement.archived
+        assert list(dominion["type"].built_in_members) == []
+
     def test_a_gang_can_be_assigned_a_campaign_type_and_an_asset(
         self, dominion, gang_type, owner
     ):
