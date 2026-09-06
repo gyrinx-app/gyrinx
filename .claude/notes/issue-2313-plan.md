@@ -118,14 +118,34 @@ slot as a `ChoiceLine` (`n26/core/render.py:387`, filled
 `n26/core/effects.py:1597-1660`).
 
 **Money.** The +20 belongs to the Power Boost result, not the rung — see §4.
-Rung pickables are priced zero; Power Boost pickables carry 20/10/10/15/20.
-`_choose_for_slot` hardcodes `paid=0` and lets `rating` fall through to zero
-(`n26/core/operations.py:2190-2198` with `:358-366`), pinned by
-`n26/tests/sandbox/test_slots_and_picks.py:207-218`. It already **forwards
-`rating` in `**kwargs`**, so the change is to default it from the pickable's
-own reference price. `op.select` is the in-house precedent for a free
-acquisition that still adds rating (`operations.py:2374-2381`:
-`paid=0, rating=price_of(thing).credits, reason=Reason.REWARD`).
+It is **rating, not money**: the gang spends no credits, so nothing is bought
+and nothing is refundable. Tom's line (2026-09-06, via merlin-a986's
+Gene-smithing assessment): *if the gang pays, it is a purchase and belongs in
+a collection; if credit value moves but money does not, it is rating on the
+pick.* So **`Pickable.price` stays untouched and unread** — that field means
+"what a catalogue asks for this", picks are in no catalogue, and reading it
+is how the next person justifies wiring charging behind it.
+
+Instead, a small dedicated field on `Pickable` saying what it is: the credit
+value this pick adds to its holder's rating (name to settle in PR 1; not
+`price`). Default 0. The choose view passes it explicitly —
+`op.choose(..., rating=pickable.<field>)` — which works today with no change
+to `operations.py`: `choose` and `_choose_for_slot` forward `**kwargs` to
+`assign` (`n26/core/operations.py:2010, 2106`), and `assign` takes `rating`
+independently of `paid` (`:284-366`), writing `LedgerEntry(list_price=0,
+paid=0, rating_contribution=20)`. Reconcile holds: `check_entry` only ties
+`paid` to `list_price - discount` (`n26/core/reconcile.py:22-40`). Do **not**
+default it silently inside `_choose_for_slot`: every pick writes rating 0
+today and `n26/library/concepts.md:240` says so in words ("A pick is free and
+adds nothing to any rating"); that sentence and the authoring page change
+deliberately in the same PR. `op.select` (`operations.py:2374-2381`) is the
+in-house precedent for `paid=0` with a real rating.
+
+Nothing becomes sellable or refundable: `Pickable` is `Family.CHOICE` and
+the owned-assignment acts require `Family.GEAR` (`_possession_or_404`), so
+sell / refund / reassign 404 by construction. Removal already does the right
+thing (`Operation.remove` archives; `sum_rating` skips archived,
+`reconcile.py:45-62`).
 
 **Ledger.** No new event kind. The pick writes the ordinary entry and event
 through `assign` (`operations.py:284-396`) with `rating_contribution=20` and
@@ -216,10 +236,9 @@ printing — no System Downgrade, Jammed Articulation, Disrupted Ammo Cables,
 Cracked Power Cell or Reduced Power Distribution, which the text we hold puts
 at 51-55. A content correction, not this issue's code.
 
-**Rejected alternative:** pricing rungs cumulatively (20/40/60) so a step down
-refunds itself. It double-counts against the boost line, makes the Hunt
-Master's free level a special case, and spends the `price` field that a paid
-ladder will want to mean a real purchase.
+**Rejected alternative:** rating the rungs cumulatively (20/40/60) so a step
+down settles itself. It double-counts against the boost line and makes the
+Hunt Master's free level a special case.
 
 ## 5. Experienced Hunter
 
@@ -235,10 +254,13 @@ payoff of putting the money on the boost rather than the rung.
 
 ## 6. Paid ladders later
 
-The minimal extension: a field on `Slot` saying its picks are bought, one
-branch in `_choose_for_slot` taking the credits path, and rung pickables
-carrying a real price. Ordering, levels, the card line, removal and refund
-already exist.
+The dividing line is **money, not rating**. When the gang genuinely pays for
+a rung, that is a purchase, and purchases belong in a **collection**: the
+rung is offered through a priced entry and bought through the ordinary equip
+path, with its confirm step, refund and ledger already there. Do not reach
+for the rating field in §2 to fake it — "set the rating and skip the
+collection" leaves the credits in the gang's pocket, which is the wrong
+answer. Ordering, levels and the card line carry over unchanged.
 
 Do not build now: no per-position price table, no cumulative-versus-
 independent mode. n23's `ContentEquipmentUpgrade`
@@ -261,9 +283,10 @@ rather than creating them, so hand-author first. Write the walkthrough into
 `n26/library/recipes.md` once the shape is agreed, in the register of the
 Lasting Injury section beside it.
 
-**Migrations:** none for the content shape. Leaves today are `library` 0089
-and `n26` core 0062, with library 0090-0092 in flight on open PRs 2483 and
-2485. Number last, repoint, and say so on the PR.
+**Migrations:** one, for PR 1's rating field on `Pickable` (`library`).
+Leaves at planning time were `library` 0089 and `n26` core 0062, with
+library 0090-0094 in flight on open PRs (2483, 2485, 2496). Number last,
+repoint, and say so on the PR.
 
 ## 8. Work breakdown
 
@@ -272,11 +295,18 @@ verbs in `n26/tests/sandbox/actions.py` — **not** the platform fixtures in
 `gyrinx/conftest.py`, which `n26/tests/CLAUDE.md` forbids here. Every sandbox
 test ends with `assert_reconciled(gang)`.
 
-1. **A pick carries a rating.** `_choose_for_slot` defaults `rating` from the
-   pickable's reference price, `Reason.REWARD`. Tests in
-   `test_slots_and_picks.py`: a priced pickable moves the model's and the
-   gang's rating, a free one does not, reconcile stays honest. Plus a guard
-   that no shipped pickable is priced.
+1. **A pick may carry a rating.** New field on `Pickable` (library
+   migration, one column, default 0; **not** `price`). Name it and word its
+   help text so it cannot be read as a price: *what holding this adds to the
+   model's credit value, when nothing was paid for it.* Check `gh pr list`
+   for open `library` migrations before numbering and again before merging,
+   and post the number in the board's `migrations` room. Exposed on the
+   Pickable authoring page, passed explicitly as `rating=` by the choose view
+   with `Reason.REWARD`. Update `concepts.md` §Picks and the authoring help
+   in the same PR. Tests in `test_slots_and_picks.py`: a rated pickable moves
+   the model's and the gang's rating, an unrated one does not, un-picking and
+   switching drop it with no credit movement, reconcile stays honest, and
+   sell/refund on a pick still 404.
 2. **The augmentation shape, content only.** New suite
    `n26/tests/sandbox/test_spyrer_augmentations.py`: build the Orrus bolt
    launcher and the Jakara rig from the book, hire a Spyrer, take Tier 1 then
@@ -307,9 +337,10 @@ exists — but `n26/flags.py` is one line if 3 and 4 must land ahead of it.
   no cache between requests. Take the query budget before and after using the
   existing budget assertions (e.g.
   `n26/tests/sandbox/test_gang_legacy.py:691-708`).
-- **Rating on picks is a shared path.** Any priced pickable in prod would
-  move a gang's rating on deploy. Check with `manage prodshell` before
-  merging 1, and reconcile after.
+- **Rating on picks is a shared path.** The new field defaults to 0, so no
+  existing pick changes value on deploy; still, reconcile prod after PR 1
+  lands, and keep the field off `price` so nothing already in prod is read
+  as a rating by accident.
 - **Identity by display string.** Twenty items each with a "Tier 1": names
   are unique per pack, so the item belongs in the name or in the
   author-facing `qualifier`; the card prints the name alone.
@@ -323,8 +354,15 @@ exists — but `n26/flags.py` is one line if 3 and 4 must land ahead of it.
 
 ## 10. For Tom
 
-1. Money on the boost or on the rung? This decides item 1 and the refund
-   words. Recommendation: the boost.
+1. *(Decided 2026-09-06: `Pickable.price` is not hooked up for picks.)*
+   Two ways left for the Power Boost's +20 to reach the card: **(i)** a
+   dedicated rating field on `Pickable`, rating-not-money, as §2 now says —
+   nearly free, one column, one deliberate change to the "picks add nothing
+   to rating" rule; or **(ii)** no rating at all: the result prints its
+   credit figure in words and the gang's rating does not move. (i) is what
+   the rules mean by "increase their credit cost"; (ii) is zero code and
+   zero doctrine change. Recommendation: (i). Either way the rung stays
+   free.
 2. *(Decided 2026-09-06: an owner may switch or step back freely; the app
    informs, never polices.)* Confirm the wording in §4 says enough.
 3. Is the Hunt Master's free level just a note, or should the app open
