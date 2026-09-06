@@ -444,6 +444,49 @@ class TestThePage:
         assert "back from Recovery" in reply.content.decode()
         assert fresh(krago).status == Status.ACTIVE
 
+    def test_a_ransom_is_named_in_the_actions_square(
+        self, client, owner, gang, krago, sheet
+    ):
+        """A model held for ransom is named there with the way to settle
+        it, because unpaid the model dies."""
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.RANSOMED)
+        client.force_login(owner)
+        page = client.get(sheet).content.decode()
+        assert "Krago is held for ransom." in page
+        assert "Pay ransom" in page
+        assert f"?ransom={krago.pk}" in page
+
+    def test_the_square_stops_saying_nothing_is_open(
+        self, client, owner, gang, krago, sheet
+    ):
+        """A reader with something to do is not told there is nothing."""
+        from n26.core.models import Action
+
+        client.force_login(owner)
+        # A gang founded a moment ago still has that action open, and an
+        # open action says so on its own; this is about the other half.
+        with operation(gang, actor=owner) as op:
+            op.close_action(gang.open_action(Action.Kind.FOUNDING))
+        assert "No action is open." in client.get(sheet).content.decode()
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.RECOVERY)
+        page = client.get(sheet).content.decode()
+        assert "No action is open." not in page
+        assert "1 model In Recovery until the cycle ends." in page
+
+    def test_the_recovery_step_counts_the_models(
+        self, client, owner, gang, krago, nix, sheet
+    ):
+        client.force_login(owner)
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.RECOVERY)
+            op.set_status(nix, Status.RECOVERY)
+        assert (
+            "2 models In Recovery until the cycle ends."
+            in client.get(sheet).content.decode()
+        )
+
     def test_an_active_model_offers_a_quiet_way_in(
         self, client, owner, gang, krago, sheet
     ):

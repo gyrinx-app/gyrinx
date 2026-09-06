@@ -99,7 +99,7 @@ on the card's face — a small control by the actions opens it.
                     </c-ui.tooltip>
                 </div>
 
-                {% if actions or card.image_url or card.status_label %}
+                {% if actions or card.image_url or card.status_label or status_href %}
                     <div class="flex flex-nowrap items-center gap-2">
                         {% comment %}
                         Where the model stands between battles, ahead of

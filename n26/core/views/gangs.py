@@ -11,6 +11,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
+from n26.core.status import Status
 from n26.core.status import explains as status_explains
 from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
@@ -360,6 +361,13 @@ def gang_sheet(request, pk):
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                     history_at=reverse("n26-gang-history", args=[gang.pk]),
                     clean_house_at=reverse("n26-clean-house", args=[gang.pk]),
+                    # Every model held for ransom, by name: an unpaid one
+                    # dies, so it is the first thing the square asks for.
+                    ransoms=tuple(
+                        (model.name, f"{at}?ransom={model.id}")
+                        for model in sheet.models
+                        if model.status == Status.RANSOMED
+                    ),
                     viewer=request.user,
                 )
                 if founding_seen
@@ -418,7 +426,7 @@ class Marking:
 def _marking(request, gang):
     """The model ``?status=`` says is being marked, if it is on this roster."""
     from n26.core.operations import refund_of
-    from n26.core.status import Status, label_for
+    from n26.core.status import label_for
 
     miniature = _fighter_named(request, gang, "status")
     if miniature is None:
