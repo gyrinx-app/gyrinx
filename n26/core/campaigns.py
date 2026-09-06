@@ -529,11 +529,12 @@ class CampaignOperation:
         words and that figure, and nothing else.
 
         An asset of a Possession asset type is every gang's own, so it is
-        built into the campaign's additions type as it is made — whichever
-        type its asset type belongs to, because the additions are the one
-        type in the campaign's pack. Gangs joining from now on receive it
-        as they join; gangs already playing receive it by the propagation
-        pass every built-in edit files, marked as caught up.
+        built into the campaign's additions type as it is made, no matter
+        which campaign type its asset type belongs to, because the
+        additions type is the only campaign type in the campaign's pack.
+        It arrives on every gang that joins from now on; gangs already
+        playing are given it by the propagation pass that every built-in
+        edit files, marked as caught up.
         """
         from n26.core.operations import Refusal
         from n26.library.authoring import create_asset

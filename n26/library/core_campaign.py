@@ -12,7 +12,7 @@ gives every member gang Reputation at 0, Income at 0 and that Settlement
 through its built-ins. The two counters are built in here; the Settlement
 is built in by the rule every possession follows
 (``n26/library/possessions.py``), applied to the type once the asset
-stands. Income is the counter an asset's income figure contributes to
+exists. Income is the counter an asset's income figure contributes to
 (``n26/library/income.py``): built in at 0, it gives every gang in the
 campaign a reading to add to. See design/campaign-assets.md.
 

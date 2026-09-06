@@ -590,8 +590,9 @@ BUILT_INS_PART = {
         [
             "A counter with its opening value, or a rule, that every gang is "
             "given when it joins a campaign of this type. No choice is "
-            "offered. An asset of a Possession asset type is given without "
-            "being added here: it is listed above with its asset type."
+            "offered. An asset of a Possession asset type is given as well, "
+            "but you do not add it here: it is listed above with its asset "
+            "type."
         ]
         if _gives_to_every_gang(thing)
         else ""
@@ -902,21 +903,20 @@ def _holders_of(default_set):
     )
 
 
-def _reach_said(reach, adding):
+def _reach_said(reach, adding, later="what is acquired from now on"):
     """How far an addition to a set of defaults travels, in a sentence.
 
     Says who already holds the set and what the addition does to them.
     The consequence follows the feature flag, because reach is only
     promised while the passes that deliver it actually run: shut, the
-    sentence says the change waits instead.
+    sentence says the change waits instead. ``later`` is what an
+    addition reaches when nothing holds the set yet — kit is acquired,
+    but a campaign type is joined.
     """
     from n26.flags import BUILT_IN_PROPAGATION, switched_on
 
     if reach.uses == 0:
-        return (
-            f"Held by no gang yet, so {adding} changes only what is "
-            f"acquired from now on."
-        )
+        return f"Held by no gang yet, so {adding} changes only {later}."
     times = "once" if reach.uses == 1 else f"{reach.uses} times"
     where = "in one gang" if reach.gangs == 1 else f"across {reach.gangs} gangs"
     standing = f"Already held {times}, {where}"
@@ -955,12 +955,11 @@ def _built_in_reach_said(thing):
         if thing.built_ins_id
         else reach_of_new_built_ins(thing)
     )
-    adding = (
-        "something added here"
-        if _gives_to_every_gang(thing)
-        else "a built-in added here"
-    )
-    return _reach_said(reach, adding)
+    if _gives_to_every_gang(thing):
+        return _reach_said(
+            reach, "something added here", later="what gangs joining from now on get"
+        )
+    return _reach_said(reach, "a built-in added here")
 
 
 def _article_for(word):
@@ -2652,9 +2651,9 @@ def built_in_remove(request, pk):
     if member.asset_id is not None:
         messages.error(
             request,
-            f"{_label_for(member.assignable)} is given by its "
-            f"{member.asset.asset_type} asset type. Delete the asset to "
-            "remove it.",
+            f"{_label_for(member.assignable)} cannot be removed here. It is "
+            f"given by its {member.asset.asset_type} asset type. Delete the "
+            "asset to remove it.",
         )
         return redirect(back)
 

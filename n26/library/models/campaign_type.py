@@ -41,11 +41,12 @@ class CampaignType(Content, Assignable):
     gang that joins a campaign founded on it.
 
     Assignable for the same reason a gang type is: joining a campaign is a
-    gang-hosted assignment naming its type. That gives what every member
-    gang is given on joining — a Reputation counter, a Settlement —
+    gang-hosted assignment naming its type. That gives everything a member
+    gang receives on joining — a Reputation counter, a Settlement —
     something to be caused by, and puts campaign-wide modifiers on every
     member's card. A counter or a rule is added to that list by hand; an
-    asset of a Possession asset type joins it when the asset is created.
+    asset of a Possession asset type is added to it when the asset is
+    created.
 
     It also declares its **asset types** — Territory, Settlement — and
     under each asset type lists the **assets** a campaign of this type

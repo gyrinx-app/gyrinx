@@ -180,11 +180,12 @@ def create_asset(
 
     An asset of a **Possession** asset type is built into a campaign type
     here, so every gang that joins is given one with no further step
-    (``n26.library.possessions``). ``given_by`` names that type; unnamed,
-    it is the asset type's own. A campaign writing an asset into its own
-    pack under a shared asset type names its additions type, because the
-    giver has to be in the asset's pack — a shared type giving one
-    campaign's asset would hand it to every campaign founded on it.
+    (``n26.library.possessions``). ``given_by`` names that type; without
+    it, the asset type's own campaign type gives the asset. A campaign
+    writing an asset into its own pack under a shared asset type names
+    its additions type, because the giver has to be in the asset's pack
+    — a shared type giving one campaign's asset would hand it to every
+    campaign founded on it.
     """
     from n26.library.models import Asset, AssetType
 

@@ -21,7 +21,7 @@ founded on it.
 
 ``authoring.create_asset`` applies the rule to live models and files
 the propagation pass. ``build_in_missing`` applies it to whatever
-already stands, written against the model classes it is handed so the
+is already there, written against the model classes it is handed so the
 seed and a data migration can run it on historical ones.
 """
 
