@@ -12,15 +12,30 @@
             For what each kind is, and step-by-step walkthroughs of whole rulebook setups, see
             <c-n26.link href="{% url 'authoring-docs' %}">Documentation</c-n26.link>.
         </p>
-        <p>
-            <c-n26.link href="{% url 'authoring-staged' %}">Staged content</c-n26.link>:
-            {% if staged_count %}
-                {{ staged_count }} thing{{ staged_count|pluralize }} players cannot see yet.
-            {% else %}
-                nothing is waiting to be put live.
-            {% endif %}
-        </p>
     </c-n26.prose>
+    {% comment %}
+    What is staged is the one figure on this page that changes what an
+    author does next, so it is a card of its own rather than a line in the
+    prose — tinted while anything is waiting, so it cannot be read past.
+    The tint is the kit's warning surface, so the page has one amber.
+    {% endcomment %}
+    <c-ui.card data-staged="{% if staged_count %}waiting{% else %}none{% endif %}"
+               class="mt-6 max-w-xl {% if staged_count %}border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40{% endif %}">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-muted">Staged content</p>
+                {% if staged_count %}
+                    <p class="mt-1 text-2xl font-semibold tabular-nums text-ink-900 dark:text-ink-100">
+                        {{ staged_count }}
+                        <span class="text-base font-normal">thing{{ staged_count|pluralize }} players cannot see yet</span>
+                    </p>
+                {% else %}
+                    <p class="mt-1 text-sm text-muted">Nothing is staged.</p>
+                {% endif %}
+            </div>
+            <c-ui.button href="{% url 'authoring-staged' %}" variant="primary">Open Staged content</c-ui.button>
+        </div>
+    </c-ui.card>
     {% comment %}
     One table, a tbody per family, rather than a table per family: column
     widths are a table's own, so separate tables mean every family sizes
