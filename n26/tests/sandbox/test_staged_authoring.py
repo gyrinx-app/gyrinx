@@ -56,10 +56,22 @@ class TestTheSwitchBesideACreatingForm:
         body = client.get("/n26/authoring/category/new/").content.decode()
         assert 'name="staged"' not in body
 
-    def test_the_switch_starts_on(self, client, author):
-        """The kit's switch carries its state in the script that draws it."""
+    def test_the_switch_starts_on_in_the_markup_itself(self, client, author):
+        """Posted before any script runs, the form must still say staged:
+        the checkbox carries ``checked`` from the server, not only the
+        state the page's script is seeded with."""
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
-        assert "switchInput(false, true)" in body
+        start = body.index('name="staged"')
+        assert "checked" in body[start : body.index(">", start)]
+
+    def test_a_switch_that_starts_off_carries_no_checked_attribute(
+        self, client, author
+    ):
+        """The other direction: a boolean the form draws off must post
+        nothing, or every off switch would quietly save as on."""
+        body = client.get("/n26/authoring/weapon/new/").content.decode()
+        start = body.index('name="is_exclusive"')
+        assert "checked" not in body[start : body.index(">", start)]
 
     def test_created_with_the_switch_on_the_row_is_staged(
         self, client, author, default_pack
