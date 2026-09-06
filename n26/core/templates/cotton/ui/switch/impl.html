@@ -10,6 +10,12 @@ control looks right and posts the opposite — a silent wrong value on save.
 
 `x-model="switchOn"` on the element itself reflects both ways. No `.boolean`
 modifier: that casts a string, and this state is a boolean already.
+
+The checkbox also carries `checked` in the markup when the switch starts on.
+A form posts what the DOM holds, and until Alpine has run — or with no script
+at all — the DOM holds only what the server drew: without the attribute an
+"on" switch posts nothing, and the field reads as off. Alpine seeds
+`switchOn` from the same value, so the two agree from the first byte.
 {% endcomment %}
 <c-vars
     name=""
@@ -43,6 +49,7 @@ modifier: that casts a string, and this state is a boolean already.
         name="{{ name }}"
         value="{{ value }}"
         {% if disabled %}disabled{% endif %}
+        {% if checked|lower == "true" %}checked{% endif %}
         {{ attrs }}
         class="sr-only"
         x-ref="input"

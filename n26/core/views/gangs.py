@@ -1,6 +1,7 @@
 """Where a player lands, what they own, and founding one more."""
 
 import json
+from dataclasses import dataclass
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,11 +11,14 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
+from n26.core.status import Status
+from n26.core.status import explains as status_explains
 from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
     link_campaign,
+    may_mark_status,
     may_see_actions_square,
     may_see_founding,
     trade_points_href,
@@ -251,12 +255,44 @@ def gang_sheet(request, pk):
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
+    from n26.core.views.htmx import is_htmx
     from n26.core.views.owned import link_counters, link_stash_actions, owned_dialog
     from n26.core.views.skills import link_skills
 
     gang = _any_gang_or_404(request, pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
+    # The act lands where it was asked from: the model's own page when
+    # the address says so, this sheet otherwise. A named place, never a
+    # URL, so there is nothing for an open redirect to ride.
+    status_back = "edit" if request.GET.get("back") == "edit" else ""
+    may_mark = may_mark_status(gang, request.user)
+    if may_mark and request.method == "GET" and is_htmx(request):
+        # A badge or menu asking for a status question over htmx gets the
+        # panel alone, in its host, and the page underneath stays as it
+        # is. The address is corrected to the one that draws the panel on
+        # a plain visit, so a reload shows it again — unless the ask came
+        # from the model's own page, whose address this is not.
+        marking = _marking(request, gang)
+        ransoming = None if marking else _ransoming(request, gang)
+        if marking or ransoming:
+            response = render(
+                request,
+                "n26/includes/status_dialogs.html",
+                {
+                    "gang": gang,
+                    "marking": marking,
+                    "ransoming": ransoming,
+                    "redrawn": True,
+                    "status_back": status_back,
+                    "status_cancel_url": _status_cancel_url(
+                        gang, marking or ransoming, status_back
+                    ),
+                },
+            )
+            if not status_back:
+                response["HX-Replace-Url"] = request.get_full_path()
+            return response
     card = build_gang_card(gang)
     # Read once for the page: the flag behind it is a query, and the
     # cards, the stash card and the square all ask the same question.
@@ -282,10 +318,18 @@ def gang_sheet(request, pk):
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
     renaming = None if leaving or not yours else _renaming(request, gang)
+    marking = None if leaving or renaming or not may_mark else _marking(request, gang)
+    ransoming = (
+        None
+        if leaving or renaming or marking or not may_mark
+        else _ransoming(request, gang)
+    )
     if (
         yours
         and not leaving
         and not renaming
+        and not marking
+        and not ransoming
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
         host = EquipHost.stash(gang, card, at=at)
@@ -316,6 +360,14 @@ def gang_sheet(request, pk):
                     founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                     history_at=reverse("n26-gang-history", args=[gang.pk]),
+                    clean_house_at=reverse("n26-clean-house", args=[gang.pk]),
+                    # Every model held for ransom, by name: an unpaid one
+                    # dies, so it is the first thing the square asks for.
+                    ransoms=tuple(
+                        (model.name, f"{at}?ransom={model.id}")
+                        for model in sheet.models
+                        if model.status == Status.RANSOMED
+                    ),
                     viewer=request.user,
                 )
                 if founding_seen
@@ -331,12 +383,148 @@ def gang_sheet(request, pk):
             "card_mode": "gang" if yours else "view",
             "renaming": renaming,
             "leaving": leaving,
+            "marking": marking,
+            "ransoming": ransoming,
+            # Whether the cards offer a model's status at all: the badge
+            # leads to the dialog, and an Active model gets a quiet way in
+            # of its own. Shut, every status is drawn as words.
+            "may_mark": may_mark,
+            "status_back": status_back,
+            "status_cancel_url": _status_cancel_url(
+                gang, marking or ransoming, status_back
+            ),
             "dialog": dialog,
             # A gang founded without a budget never spent credits, so
             # there is nothing a refund could give back: its cards offer
             # Delete alone.
             "budgeted": gang.starting_credits is not None,
         },
+    )
+
+
+@dataclass(frozen=True)
+class Marking:
+    """The status question ``?status=`` opened: whose, what they are now,
+    and what a death would do with their kit."""
+
+    miniature: object
+    current: str
+    #: ``(value, label, what it means, checked)`` per status — checked
+    #: worked out here because a cotton ``:checked`` takes a variable and
+    #: not a comparison.
+    choices: tuple
+    #: True when the model carries kit money was paid for, so a death
+    #: has a stash to offer.
+    stashable: bool
+    #: Whether the kit is lost rather than stashed by default — a
+    #: Vehicle's, a Brute's, a Hanger-on's — and its opposite, for the
+    #: two radios.
+    kit_lost_by_default: bool
+    kit_stashed: bool
+
+
+def _marking(request, gang):
+    """The model ``?status=`` says is being marked, if it is on this roster."""
+    from n26.core.operations import refund_of
+    from n26.core.status import label_for
+
+    miniature = _fighter_named(request, gang, "status")
+    if miniature is None:
+        return None
+    profile = miniature.membership.profile
+    vehicle = profile.profile_type.name == "Vehicle"
+    lost = vehicle or _kit_is_lost_on_death(profile)
+    return Marking(
+        miniature=miniature,
+        current=miniature.status,
+        choices=tuple(
+            (
+                value,
+                label_for(value, vehicle),
+                status_explains(value, vehicle),
+                value == miniature.status,
+            )
+            for value in Status.values
+        ),
+        stashable=any(refund_of(root)[1] > 0 for root in _kit_roots(miniature)),
+        kit_lost_by_default=lost,
+        kit_stashed=not lost,
+    )
+
+
+@dataclass(frozen=True)
+class Ransoming:
+    """The ransom question ``?ransom=`` opened: whose, who could be paid,
+    and what the gang has to pay with."""
+
+    miniature: object
+    #: ``(pk, name)`` for each other gang in the campaign; empty for a
+    #: gang playing none, who can still pay somebody not on Gyrinx.
+    payees: tuple
+    #: What the gang has left, or None where it spends freely.
+    credits: object
+    #: The D6 × 10 figures, for the radio.
+    amounts: tuple = tuple(range(10, 70, 10))
+
+
+def _payees(gang):
+    """``(pk, name)`` for each other gang in this gang's campaign — the
+    only gangs a ransom may be paid to. A gang playing no campaign has
+    none, and pays somebody not on Gyrinx."""
+    from n26.core.models import CampaignMembership
+
+    membership = (
+        CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+        .select_related("campaign")
+        .first()
+    )
+    if membership is None:
+        return ()
+    return tuple(
+        (str(other.gang_id), other.gang.name)
+        for other in CampaignMembership.objects.filter(
+            campaign=membership.campaign, left__isnull=True
+        )
+        .exclude(gang=gang)
+        .select_related("gang")
+        .order_by("gang__name")
+    )
+
+
+def _ransoming(request, gang):
+    """The model ``?ransom=`` says is being paid for, if it is on this
+    roster and held for ransom."""
+    from n26.core.status import Status
+
+    miniature = _fighter_named(request, gang, "ransom")
+    if miniature is None or miniature.status != Status.RANSOMED:
+        return None
+    return Ransoming(
+        miniature=miniature,
+        payees=_payees(gang),
+        credits=None if gang.credits_unlimited else gang.credits,
+    )
+
+
+def _status_cancel_url(gang, asking, back):
+    """Where dismissing a status question goes: the model's own page when
+    the question was asked from there, the sheet otherwise."""
+    if back == "edit" and asking is not None:
+        return reverse("n26-edit-fighter", args=[asking.miniature.pk])
+    return reverse("n26-gang", args=[gang.pk])
+
+
+def _kit_is_lost_on_death(profile):
+    """Whether the rules delete this model's kit with it: a Brute's or a
+    Hanger-on's gear is deleted where a fighter's goes to the stash."""
+    from n26.library.models import Subtype
+
+    if profile.built_ins_id is None:
+        return False
+    return any(
+        isinstance(member.assignable, Subtype)
+        and member.assignable.name in {"Brute", "Hanger-on"}
+        for member in profile.built_ins.members.all()
     )
 
 
@@ -519,6 +707,180 @@ def _dismiss(request, pk, kind):
 
 
 @login_required
+def mark_fighter(request, pk):
+    """Put one model into a status by hand: the act behind the sheet's
+    ``?status=`` dialog.
+
+    Nothing is priced, but a status is part of the gang's story, so it
+    goes through an operation and the history says what changed. A
+    death asks once about the kit: ``kit=stash`` moves what money was
+    paid for to the stash, ``kit=lost`` removes it, and nothing leaves it
+    on the body. GET reopens the dialog instead of acting.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import Refusal, operation, refund_of
+    from n26.core.status import Status
+    from n26.core.views.permissions import _own_miniature_or_404
+
+    miniature = _own_miniature_or_404(request, pk)
+    gang = miniature.membership.gang
+    if not may_mark_status(gang, request.user):
+        raise Http404("Setting a status by hand is not open here.")
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    back_url = _back_url(request, miniature, sheet_url)
+    if request.method != "POST":
+        return redirect(f"{sheet_url}?status={miniature.pk}")
+    try:
+        status = Status(request.POST.get("status", ""))
+    except ValueError:
+        messages.error(request, "Select a status from the list.")
+        return redirect(f"{sheet_url}?status={miniature.pk}")
+    kit = request.POST.get("kit", "")
+    try:
+        with operation(gang, actor=request.user) as op:
+            if status == Status.DEAD and kit in {"stash", "lost"}:
+                for root in _kit_roots(miniature):
+                    if refund_of(root)[1] <= 0:
+                        continue
+                    if kit == "stash":
+                        op.move(root, gang.stash, note=f"{miniature.name} died")
+                    else:
+                        op.remove(root, note=f"lost with {miniature.name}")
+            op.set_status(miniature, status)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(back_url)
+    record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, status=status, kit=kit)
+    messages.success(request, f"{miniature.name} is now {status_label_for(miniature)}.")
+    return redirect(back_url)
+
+
+def _back_url(request, miniature, sheet_url):
+    """Where an act on a model's status lands: its own page when the
+    address says ``back=edit``, the sheet otherwise. A named place, never
+    a URL, so there is nothing here for an open redirect to ride."""
+    if request.GET.get("back") == "edit":
+        return reverse("n26-edit-fighter", args=[miniature.pk])
+    return sheet_url
+
+
+def status_label_for(miniature):
+    from n26.core.status import label_for
+
+    profile = miniature.membership.profile
+    return label_for(miniature.status, profile.profile_type.name == "Vehicle")
+
+
+@login_required
+def pay_ransom(request, pk):
+    """Settle a ransom: pay it and the model comes back into Recovery, or
+    say it could not be paid and the model dies, kit to the stash.
+
+    The payment is a transfer to the gang named, or to nobody the app
+    knows; either way the credits leave and the history says why. A
+    payment the gang cannot afford is refused whole and the model stays
+    held for ransom — the owner then chooses the other button.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import Gang
+    from n26.core.operations import Refusal, operation, refund_of
+    from n26.core.status import Status
+    from n26.core.views.permissions import _own_miniature_or_404
+
+    miniature = _own_miniature_or_404(request, pk)
+    gang = miniature.membership.gang
+    if not may_mark_status(gang, request.user):
+        raise Http404("Paying a ransom is not open here.")
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    back_url = _back_url(request, miniature, sheet_url)
+    if request.method != "POST":
+        return redirect(f"{sheet_url}?ransom={miniature.pk}")
+    if miniature.status != Status.RANSOMED:
+        messages.error(request, f"{miniature.name} is not held for ransom.")
+        return redirect(back_url)
+
+    outcome = request.POST.get("outcome", "")
+    try:
+        credits = to = None
+        if outcome == "paid":
+            # Only what the dialog offered: a figure off the D6 × 10
+            # table, and a gang from the same campaign — a stranger's
+            # ledger is not this owner's to write to.
+            try:
+                credits = int(request.POST.get("credits", ""))
+            except ValueError:
+                credits = None
+            if credits not in Ransoming.amounts:
+                raise Refusal("Select what the ransom came to.")
+            payee = request.POST.get("to", "")
+            if payee:
+                if payee not in {pk for pk, _ in _payees(gang)}:
+                    raise Refusal("Select who was paid from the list.")
+                to = Gang.objects.get(pk=payee)
+        # The payee's line is taken with the payer's, and whether the
+        # model is still held is read under it: the check above ran on a
+        # row that two clicks on Pay can both have read as Ransomed.
+        with operation(gang, actor=request.user, also=[to]) as op:
+            miniature.refresh_from_db(fields=["status"])
+            if miniature.status != Status.RANSOMED:
+                raise Refusal(f"{miniature.name} is not held for ransom.")
+            if outcome == "paid":
+                op.transfer(
+                    to, credits, note=f"ransom for {miniature.name}", about=miniature
+                )
+                op.set_status(miniature, Status.RECOVERY, note="Ransom paid")
+            elif outcome == "unpaid":
+                # The Escape table names where an unpaid model's kit goes:
+                # all of it to the owner's stash, so nothing is asked. The
+                # deletion a Brute or Hanger-on suffers is the general
+                # Clean House rule, which is what Mark as… pre-ticks.
+                for root in _kit_roots(miniature):
+                    if refund_of(root)[1] > 0:
+                        op.move(root, gang.stash, note=f"{miniature.name} died")
+                op.set_status(miniature, Status.DEAD, note="Ransom not paid")
+            else:
+                raise Refusal("Say whether the ransom was paid.")
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(f"{sheet_url}?ransom={miniature.pk}")
+    record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, ransom=outcome)
+    if outcome == "paid":
+        messages.success(
+            request, f"Ransom paid. {miniature.name} is back, In Recovery."
+        )
+    else:
+        messages.success(request, f"{miniature.name} is now Dead.")
+    return redirect(back_url)
+
+
+@login_required
+def clean_house(request, pk):
+    """Clear In Recovery across the gang: the end of the cycle, by hand."""
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import operation
+
+    gang = _own_gang_or_404(request, pk)
+    if not may_mark_status(gang, request.user):
+        raise Http404("Clean House is not open here.")
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    if request.method != "POST":
+        return redirect(sheet_url)
+    with operation(gang, actor=request.user) as op:
+        cleared = op.clean_house()
+    record(request, N26Noun.GANG, EventVerb.UPDATE, gang, cleaned_house=len(cleared))
+    if cleared:
+        messages.success(
+            request,
+            f"Cleaned house: {len(cleared)} models are back from Recovery."
+            if len(cleared) > 1
+            else f"Cleaned house: {cleared[0].name} is back from Recovery.",
+        )
+    else:
+        messages.info(request, "No models were In Recovery.")
+    return redirect(sheet_url)
+
+
+@login_required
 def rename_fighter(request, pk):
     """Rename one model: the act behind the model's own-page dialog.
 
@@ -572,9 +934,14 @@ def create_gang(request):
     from n26.core.forms import CreateGangForm
     from n26.core.models import Gang
     from n26.core.operations import operation
+    from n26.library.staged import sees_staged
 
+    # Staged gang types are on the cards for whoever may see staged content
+    # — an author checking a type before players meet it — and for nobody
+    # else.
+    shown = sees_staged(request.user)
     if request.method == "POST":
-        form = CreateGangForm(request.POST)
+        form = CreateGangForm(request.POST, include_staged=shown)
         if form.is_valid():
             budget = form.cleaned_data["starting_credits"]
             gang_type = form.cleaned_data["gang_type"]
@@ -606,7 +973,7 @@ def create_gang(request):
             # every gang they already have.
             return redirect("n26-gang", pk=gang.pk)
     else:
-        form = CreateGangForm()
+        form = CreateGangForm(include_staged=shown)
 
     return render(
         request,

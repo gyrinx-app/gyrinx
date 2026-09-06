@@ -31,6 +31,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from n26.core.views.permissions import _own_gang_or_404
+from n26.library.staged import sees_staged
 
 
 @dataclass(frozen=True)
@@ -200,18 +201,26 @@ def _roll_posted(request, gang, found):
     return _roll_at(request.POST.get("roll", ""), gang, found)
 
 
-def _roll_result(event, found, offer):
-    """One roll, as the page draws it, and the keys of the rows it reached."""
+def _roll_result(event, found, offer, *, include_staged=False):
+    """One roll, as the page draws it, and the keys of the rows it reached.
+
+    The table is read as the pick screen offers it to this reader
+    (``picklist_lines``): never an archived line or pickable, and a staged
+    one only for a reader who may see staged content — the roll lands on
+    nothing there rather than on a name they were never offered.
+    """
     from django.db.models import F
 
+    from n26.core.browse import picklist_lines
     from n26.core.operations import ROLL_ENTERED
     from n26.core.render import RollResult, option_key
     from n26.library.models import Dice, RollSelects
 
     picklist = found.slot.slot.picklist
-    # In the list's own roll order, so what the panel names reads in the
-    # order the list beneath it draws.
-    members = picklist.members.select_related("pickable").order_by(
+    # The lines the pick screen offers this reader, in the list's own roll
+    # order, so what the panel names reads in the order the list beneath
+    # it draws.
+    members = picklist_lines(picklist, include_staged=include_staged).order_by(
         F("roll_low").asc(nulls_last=True), "position", "pickable__name"
     )
     landed = picklist.landing(event.roll, members)
@@ -297,7 +306,11 @@ def choose(request, pk, slot):
 
     gang = _own_gang_or_404(request, pk)
     found = _find_slot(gang, slot)
-    offer = build_choice_offer(found.slot, found.computed)
+    # The list is built for this reader: staged picks are on it only for
+    # somebody who may see staged content, and the click below and the
+    # roll panel are read against the same list.
+    shown = sees_staged(request.user)
+    offer = build_choice_offer(found.slot, found.computed, include_staged=shown)
     back = reverse("n26-gang", args=[gang.pk])
     here = reverse("n26-choose", args=[gang.pk, slot])
 
@@ -475,7 +488,7 @@ def choose(request, pk, slot):
     roll_table = _roll_table(found)
     event = _roll_named(request, gang, found)
     if event is not None:
-        roll, landed = _roll_result(event, found, offer)
+        roll, landed = _roll_result(event, found, offer, include_staged=shown)
         addable = [
             option
             for group in offer.groups

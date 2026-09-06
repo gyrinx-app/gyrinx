@@ -182,6 +182,9 @@ urlpatterns = [
         name="n26-fighter-options",
     ),
     path("fighters/<str:pk>/rename/", views.rename_fighter, name="n26-rename-fighter"),
+    path("fighters/<str:pk>/status/", views.mark_fighter, name="n26-mark-fighter"),
+    path("fighters/<str:pk>/ransom/", views.pay_ransom, name="n26-pay-ransom"),
+    path("gangs/<str:pk>/clean-house/", views.clean_house, name="n26-clean-house"),
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
@@ -374,6 +377,14 @@ urlpatterns = [
         "authoring/foundations/",
         authoring_views.foundations,
         name="authoring-foundations",
+    ),
+    # Literal addresses, ahead of the kind catch-all: what is staged is a
+    # fact about the whole library, and putting it all live is one act.
+    path("authoring/staged/", authoring_views.staged, name="authoring-staged"),
+    path(
+        "authoring/staged/put-live/",
+        authoring_views.staged_put_live,
+        name="authoring-staged-put-live",
     ),
     path("authoring/ingest/", authoring_views.ingest, name="authoring-ingest"),
     path(

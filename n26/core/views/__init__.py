@@ -43,6 +43,7 @@ from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.edit import edit_fighter
 from n26.core.views.equip import equip, equip_gang
 from n26.core.views.gangs import (
+    clean_house,
     create_gang,
     dashboard,
     delete_fighter,
@@ -54,6 +55,8 @@ from n26.core.views.gangs import (
     gang_sheet,
     gang_trade_points,
     gangs,
+    mark_fighter,
+    pay_ransom,
     refund_fighter,
     rename_fighter,
 )
@@ -99,6 +102,7 @@ __all__ = [
     "unassign_asset",
     "transfer_asset",
     "archive_campaign",
+    "clean_house",
     "delete_fighter",
     "delete_gang",
     "edit_campaign",
@@ -115,6 +119,8 @@ __all__ = [
     "gang_lore",
     "gang_notes",
     "gang_sheet",
+    "mark_fighter",
+    "pay_ransom",
     "gang_trade_points",
     "gangs",
     "hire_card",

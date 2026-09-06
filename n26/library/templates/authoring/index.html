@@ -12,6 +12,14 @@
             For what each kind is, and step-by-step walkthroughs of whole rulebook setups, see
             <c-n26.link href="{% url 'authoring-docs' %}">Documentation</c-n26.link>.
         </p>
+        <p>
+            <c-n26.link href="{% url 'authoring-staged' %}">Staged content</c-n26.link>:
+            {% if staged_count %}
+                {{ staged_count }} thing{{ staged_count|pluralize }} players cannot see yet.
+            {% else %}
+                nothing is waiting to be put live.
+            {% endif %}
+        </p>
     </c-n26.prose>
     {% comment %}
     One table, a tbody per family, rather than a table per family: column

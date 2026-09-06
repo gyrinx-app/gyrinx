@@ -445,6 +445,60 @@ def revise(row, **fields):
     return row
 
 
+def stage(row):
+    """Hold a row back from players until it is put live.
+
+    Nothing about the row changes but who is offered it: every surface
+    where a player adds to a gang leaves it out, and whoever may see
+    staged content meets it there as players will once it is live
+    (``n26.library.staged``).
+    """
+    return revise(row, staged=True)
+
+
+def put_live(row):
+    """Release a staged row to players."""
+    return revise(row, staged=False)
+
+
+def stage_all(rows):
+    """Hold back several rows at once — what an import does with everything
+    it made. One write per kind, and the rows in hand are marked too, so a
+    caller reading them back sees what was written.
+    """
+    from collections import defaultdict
+
+    from django.utils import timezone
+
+    by_model = defaultdict(list)
+    for row in rows:
+        row.staged = True
+        by_model[type(row)].append(row.pk)
+    now = timezone.now()
+    with transaction.atomic():
+        for model, pks in by_model.items():
+            model.objects.filter(pk__in=pks).update(staged=True, modified=now)
+    return rows
+
+
+def put_everything_live():
+    """Release every staged row at once, in one transaction — so a new gang
+    type and the fighters and lists written for it reach players together
+    rather than in whatever order an author clicks. Returns how many rows
+    went live.
+    """
+    from django.utils import timezone
+
+    from n26.library.staged import content_kinds
+
+    now = timezone.now()
+    with transaction.atomic():
+        return sum(
+            model.objects.filter(staged=True).update(staged=False, modified=now)
+            for model in content_kinds()
+        )
+
+
 def set_traits(weapon_profile, traits):
     """The traits printed on a firing line, replaced.
 
@@ -2003,6 +2057,15 @@ def op_changes_counter(counter, mode="set", amount=0):
     from n26.library.models import OpChangesCounter
 
     return OpChangesCounter.objects.create(counter=counter, mode=mode, amount=amount)
+
+
+def op_sets_status(status):
+    """A stored effect: assigning the carrier puts the bearer into a
+    status — ``op_sets_status("recovery")`` on Grievous Wound, so the
+    pick landing sends the fighter into Recovery on the ledger."""
+    from n26.library.models import OpSetsStatus
+
+    return OpSetsStatus.objects.create(status=status)
 
 
 def _assignable_kwarg(thing):

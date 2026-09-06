@@ -1,0 +1,129 @@
+{% comment %}
+The status questions the sheet can ask about one model: Mark as… when the
+address names a member, Pay the ransom when it names one held for ransom.
+Expects `marking`, `ransoming`, `gang`, `status_cancel_url`, `status_back`
+and `redrawn` from the view.
+
+Drawn inside a host of its own so a click can fetch the question alone: the
+badge and the menu ask over htmx, the server sends back this host with the
+panel in it, and the page underneath is not rebuilt. Without a script the
+same click is a plain link and the whole page is served with the panel open.
+Fetched on its own the host is swapped in by id, and the panel counts as one
+this page opened, so dismissing it puts the address back rather than
+navigating.
+
+`status_back` names where the act lands afterwards — "edit" for the model's
+own page, empty for the sheet — and is a named place, never a URL.
+{% endcomment %}
+<div id="n26-status-dialog-host"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    {% if marking %}
+        {% comment %}
+        One radio per status, the current one checked; a death asks once
+        what to do with the kit, defaulting the way the rules do — a
+        fighter's to the stash, a Vehicle's, Brute's or Hanger-on's lost.
+        {% endcomment %}
+        <c-n26.dialog title="Mark {{ marking.miniature.name }} as…"
+                      action="{% url 'n26-mark-fighter' marking.miniature.pk %}{% if status_back %}?back={{ status_back }}{% endif %}"
+                      cancel_url="{{ status_cancel_url }}"
+                      submit_label="Save"
+                      :redrawn="redrawn">
+            <c-slot name="lead">
+                A result added from a table sets this on its own. Use this
+                to change it by hand.
+            </c-slot>
+            {% csrf_token %}
+            <c-n26.radio-cards label="Status" name="status">
+                {% for value, label, explains, checked in marking.choices %}
+                    <c-n26.radio-cards.card name="status"
+                                            value="{{ value }}"
+                                            label="{{ label }}"
+                                            description="{{ explains }}"
+                                            :checked="checked"
+                                            :wrap="True" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            {% if marking.stashable %}
+                <c-n26.radio-cards label="If they died, their kit"
+                                   description="Applies only when the status is Dead. Covers the kit you paid for; built-in kit stays with the model."
+                                   name="kit">
+                    <c-n26.radio-cards.card name="kit"
+                                            value="stash"
+                                            label="Goes to the stash"
+                                            description="The rules' default for a fighter."
+                                            :checked="marking.kit_stashed"
+                                            :wrap="True" />
+                    <c-n26.radio-cards.card name="kit"
+                                            value="lost"
+                                            label="Is lost"
+                                            description="The rules' default for a Vehicle, a Brute or a Hanger-on."
+                                            :checked="marking.kit_lost_by_default"
+                                            :wrap="True" />
+                    <c-n26.radio-cards.card name="kit"
+                                            value=""
+                                            label="Stays with the model"
+                                            description="Nothing moves."
+                                            :wrap="True" />
+                </c-n26.radio-cards>
+            {% endif %}
+        </c-n26.dialog>
+    {% endif %}
+    {% if ransoming %}
+        {% comment %}
+        The rules' D6 × 10 as a row of figures, who gets paid from the
+        campaign's other gangs — or nobody the app knows — and the two ways
+        out: Pay, or Could not pay, which the rules make a death with the
+        kit to the stash.
+        {% endcomment %}
+        <c-n26.dialog title="Pay the ransom for {{ ransoming.miniature.name }}"
+                      action="{% url 'n26-pay-ransom' ransoming.miniature.pk %}{% if status_back %}?back={{ status_back }}{% endif %}"
+                      cancel_url="{{ status_cancel_url }}"
+                      submit_label=""
+                      :redrawn="redrawn">
+            <c-slot name="lead">
+                D6 × 10 credits to the gang that captured them. Paid, they come
+                back In Recovery.{% if ransoming.credits is not None %} The gang has {{ ransoming.credits }}¢.{% endif %}
+            </c-slot>
+            {% csrf_token %}
+            <c-n26.radio-cards label="The ransom" name="credits" min="6rem">
+                {% for amount in ransoming.amounts %}
+                    <c-n26.radio-cards.card name="credits" value="{{ amount }}" label="{{ amount }}¢" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            <c-n26.radio-cards label="Paid to" name="to">
+                {% for pk, name in ransoming.payees %}
+                    <c-n26.radio-cards.card name="to" value="{{ pk }}" label="{{ name }}" />
+                {% endfor %}
+                {% comment %}
+                The last card takes the whole row: it is the one with a
+                sentence to say, and a payee list of any length leaves it
+                alone on its line rather than boxed beside a gang name.
+                {% endcomment %}
+                <c-n26.radio-cards.card name="to"
+                                        value=""
+                                        label="A gang not on Gyrinx"
+                                        description="The credits leave; nobody here receives them."
+                                        :checked="True"
+                                        :wrap="True"
+                                        class="col-span-full" />
+            </c-n26.radio-cards>
+            {% comment %}
+            Two acts and no default submit: paying and failing to pay are
+            both endings, so each is its own button and the form has no
+            other way to go.
+            {% endcomment %}
+            <c-slot name="actions">
+                <c-ui.button type="submit"
+                             name="outcome"
+                             value="unpaid"
+                             variant="danger"
+                             size="md">
+                    Could not pay — they die
+                </c-ui.button>
+                <c-ui.button type="submit" name="outcome" value="paid" variant="success" size="md">
+                    Pay
+                </c-ui.button>
+            </c-slot>
+        </c-n26.dialog>
+    {% endif %}
+</div>

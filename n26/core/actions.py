@@ -105,13 +105,37 @@ class HistoryLine:
 
 
 @dataclass(frozen=True)
+class Step:
+    """One thing waiting for the owner to do.
+
+    ``told`` says what stands, in a sentence naming the model where one
+    model is what it is about. ``verb`` is the button. Exactly one of
+    ``href`` and ``post`` is set: a step that asks a question first is a
+    link to it, and a step that acts on the click is a form.
+    """
+
+    told: str
+    verb: str
+    href: str = ""
+    post: str = ""
+
+
+@dataclass(frozen=True)
 class ActionsSquare:
-    """What a gang has open, and the ways to start something.
+    """What a gang has open, what is waiting to be done, and the ways to
+    start something.
 
     Drawn as one square in the roster grid, ahead of the stash. It is
     there whether or not anything is open: a square that came and went
     would move every card after it, and "nothing is open" is worth
     saying to a reader deciding what to do next.
+
+    The two halves are different questions and the square keeps them
+    apart. An **action** is something running that the owner opened, and
+    it has an end. A **step** in ``to_do`` is something the rules are
+    waiting on: a ransom to settle, the cycle to close. So "No action is
+    open." is said only when there is nothing on either half — a reader
+    with a ransom to pay is not told there is nothing to do.
 
     ``start_founding`` is where the start form posts, and is empty while
     a founding action is open.
@@ -126,6 +150,10 @@ class ActionsSquare:
     history: tuple = ()
     start_founding: str = ""
     history_href: str = ""
+    #: What the rules are waiting on, in the order it wants doing:
+    #: ransoms first, because an unpaid one kills the model, then the
+    #: end of the cycle.
+    to_do: tuple = ()
 
     @property
     def anything_open(self):
@@ -212,7 +240,17 @@ def history_lines(gang, viewer=None, limit=SNAPSHOT):
     )
 
 
-def actions_square(gang, sheet, *, founding_at, visit_at, history_at, viewer=None):
+def actions_square(
+    gang,
+    sheet,
+    *,
+    founding_at,
+    visit_at,
+    history_at,
+    clean_house_at="",
+    ransoms=(),
+    viewer=None,
+):
     """The gang page's Actions square: what is open, what has been done,
     and what may start.
 
@@ -233,4 +271,33 @@ def actions_square(gang, sheet, *, founding_at, visit_at, history_at, viewer=Non
         history=history_lines(gang, viewer=viewer),
         start_founding="" if founding is not None else founding_at,
         history_href=history_at,
+        to_do=steps_waiting(sheet, clean_house_at=clean_house_at, ransoms=ransoms),
     )
+
+
+def steps_waiting(sheet, *, clean_house_at="", ransoms=()):
+    """What the rules are waiting on, in the order it wants doing.
+
+    A ransom comes first however many there are: unpaid, the model dies,
+    and Clean House is the end of the same cycle. Both are drawn only
+    where the reader may act — the addresses are empty otherwise, and an
+    empty address is a step nobody is offered.
+    """
+    from n26.core.status import Status
+
+    steps = [
+        Step(told=f"{name} is held for ransom.", verb="Pay ransom", href=at)
+        for name, at in ransoms
+        if at
+    ]
+    in_recovery = sum(1 for model in sheet.models if model.status == Status.RECOVERY)
+    if in_recovery and clean_house_at:
+        models = "model" if in_recovery == 1 else "models"
+        steps.append(
+            Step(
+                told=f"{in_recovery} {models} In Recovery until the cycle ends.",
+                verb="Clean House",
+                post=clean_house_at,
+            )
+        )
+    return tuple(steps)

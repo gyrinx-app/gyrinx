@@ -252,10 +252,7 @@ that said it twice would be spending the width the name needs.
         </c-slot>
         <c-slot name="members">
             {% for member in sheet.models %}
-                <c-n26.model-card :card="member"
-                                  mode="{{ card_mode }}"
-                                  notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
-                                  lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}">
+                <c-n26.model-card :card="member" mode="{{ card_mode }}" notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" status_href="{% if may_mark %}{% if member.status == 'ransomed' %}?ransom={{ member.id }}{% else %}?status={{ member.id }}{% endif %}{% endif %}" :status_hx="True">
                     {% if yours %}
                         <c-slot name="actions">
                             <c-ui.button size="xs" variant="ghost" href="{% url 'n26-equip' member.id %}">
@@ -270,6 +267,33 @@ that said it twice would be spending the width the name needs.
                     {% endif %}
                 </c-n26.model-card>
             {% endfor %}
+            {% comment %}
+            The dead stay on the roster and keep their cards, drawn under
+            their own heading at the end and counting nothing. Their
+            badge leads to Mark as — a table mistake is undone by hand —
+            and Edit to the page that carries the ways off the roster.
+            {% endcomment %}
+            {% if sheet.dead %}
+                <c-n26.divider label="Dead" class="col-span-full py-2" />
+                {% for member in sheet.dead %}
+                    <c-n26.model-card :card="member"
+                                      mode="view"
+                                      notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                      lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                      status_href="{% if may_mark %}?status={{ member.id }}{% endif %}"
+                                      :status_hx="True">
+                        {% if yours %}
+                            <c-slot name="actions">
+                                <c-ui.button size="xs"
+                                             variant="ghost"
+                                             href="{% url 'n26-edit-fighter' member.id %}">
+                                    Edit
+                                </c-ui.button>
+                            </c-slot>
+                        {% endif %}
+                    </c-n26.model-card>
+                {% endfor %}
+            {% endif %}
         </c-slot>
     </c-n26.view.gang-sheet>
     {% comment %}
@@ -328,6 +352,7 @@ that said it twice would be spending the width the name needs.
             </c-n26.dialog>
         {% endif %}
     {% endif %}
+    {% include "n26/includes/status_dialogs.html" with redrawn=False %}
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"
                       action="{% url 'n26-rename-fighter' renaming.pk %}"

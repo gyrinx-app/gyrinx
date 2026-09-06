@@ -75,6 +75,7 @@ from n26.core.owned import (
 )
 from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
+from n26.library.staged import sees_staged
 
 #: The largest step this address will take, either way. Far above any
 #: step a control offers, and far below what the column holds.
@@ -184,7 +185,7 @@ def _gang_weapons(gang):
     )
 
 
-def accessory_catalogue():
+def accessory_catalogue(*, include_staged=False):
     """Every accessory a reader may fit, read in one go.
 
     The whole table, because a screen showing a fighter's guns needs the
@@ -200,13 +201,13 @@ def accessory_catalogue():
     from n26.library.models import WeaponAccessory
 
     return list(
-        WeaponAccessory.objects.selectable()
+        WeaponAccessory.objects.selectable(include_staged=include_staged)
         .select_related("fits_category")
         .order_by("name")
     )
 
 
-def fitting_accessories(weapon, catalogue=None):
+def fitting_accessories(weapon, catalogue=None, *, include_staged=False):
     """What a reader is offered to bolt onto this weapon, priced.
 
     Narrowed to what fits — the bracket in the accessory's name, as
@@ -219,7 +220,7 @@ def fitting_accessories(weapon, catalogue=None):
     several weapons; without one it reads them itself.
     """
     if catalogue is None:
-        catalogue = accessory_catalogue()
+        catalogue = accessory_catalogue(include_staged=include_staged)
     return [
         {"pk": str(accessory.pk), "name": accessory.name, "price": accessory.price}
         for accessory in catalogue
@@ -311,7 +312,7 @@ def accessorise_dialogs(request, host: EquipHost):
     if not weapons:
         return []
 
-    catalogue = accessory_catalogue()
+    catalogue = accessory_catalogue(include_staged=sees_staged(request.user))
     dialogs = []
     for node in weapons:
         pk = str(node.assignment.pk)
@@ -1062,9 +1063,9 @@ def accessorise_assignment(request, pk):
     touched = _row_behind(assignment)
 
     try:
-        accessory = WeaponAccessory.objects.selectable().get(
-            pk=request.POST.get("accessory", "")
-        )
+        accessory = WeaponAccessory.objects.selectable(
+            include_staged=sees_staged(request.user)
+        ).get(pk=request.POST.get("accessory", ""))
     except WeaponAccessory.DoesNotExist, ValidationError, ValueError:
         # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.

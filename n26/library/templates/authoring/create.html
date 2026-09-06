@@ -28,6 +28,18 @@
           class="mt-6 max-w-xl space-y-5">
         {% csrf_token %}
         {% include "authoring/_form.html" %}
+        {% comment %}
+        Beside the form rather than in it: whether players see the thing
+        yet is not one of the facts that make it, so it is asked apart —
+        and only for a kind players are offered somewhere, which is the
+        only kind the switch changes anything for.
+        {% endcomment %}
+        {% if staged_form %}
+            <c-n26.form-section title="Who can see it"
+                                class="rounded-box border border-box-border p-4">
+                {% include "authoring/_form.html" with form=staged_form %}
+            </c-n26.form-section>
+        {% endif %}
         {% if suggestion_form %}
             <c-n26.form-section title="Comes with"
                                 description="All optional — blank to skip."

@@ -36,6 +36,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from n26.library import artwork
+from n26.library.models.base import Content
 from n26.library.specs import (
     Artwork,
     Bool,
@@ -78,6 +79,7 @@ EFFECT_MODELS = {
     "ef_allows_at_most": "AllowsAtMost",
     "op_adds_model": "OpAddsMiniature",
     "op_changes_counter": "OpChangesCounter",
+    "op_sets_status": "OpSetsStatus",
 }
 
 #: Kinds the union picker may create inline: name-only leaves. The help
@@ -88,6 +90,25 @@ NAME_ONLY_HELP = (
     'the annotation, so "Leash (3\\")" is Leash at 3" — the same row the '
     "importer would make."
 )
+
+
+class StagedForm(forms.Form):
+    """Whether a new row is held back from players — asked beside the
+    creating form rather than by it.
+
+    Not a spec field: staging is not part of what a thing *is*, and a verb
+    that took it would make every importer and every test say it. Starts
+    switched on, because content typed on these pages is the kind that is
+    checked before players meet it; the import page asks the same question
+    the same way round.
+    """
+
+    staged = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Staged",
+        help_text=Content._meta.get_field("staged").help_text,
+    )
 
 
 class PendingCreate:
@@ -1086,6 +1107,7 @@ EFFECT_CAN_TARGET = {
     "ef_allows_at_most": ("model", "gang"),
     "op_adds_model": ("model", "gang"),
     "op_changes_counter": ("model", "gang"),
+    "op_sets_status": ("model",),
 }
 
 #: The target kinds as an author reads them, for a greyed card's reason.

@@ -42,6 +42,7 @@ from n26.core.models import (
     ProfileRole,
     Reason,
 )
+from n26.core.status import Status
 
 #: The least a sale ever returns. Half of a knife is nothing, and nobody
 #: hands a knife over for nothing.
@@ -229,6 +230,10 @@ _UNASKED = object()
 #: The note on a roll that was made at the table and entered, which is
 #: how the record tells one from a roll the page generated.
 ROLL_ENTERED = "Rolled at the table and entered here."
+
+#: The reason on a status change Clean House made, which is how the
+#: history tells the cycle's end from the owner's own hand.
+CLEAN_HOUSE = "Clean House"
 
 
 def _movement_note(moved, reason):
@@ -569,6 +574,100 @@ class Operation:
         miniature.save(update_fields=["name", "modified"])
         self.event(miniature, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
         return miniature
+
+    def set_status(self, miniature, status, note=""):
+        """Put a model into a status — In Recovery, Captured, Dead — and
+        say so in the history.
+
+        Nothing is priced, so the event stands alone; but a death changes
+        what the rating sums to, so the model is marked touched and
+        ``settle`` repins it. The note keeps both statuses and, after a
+        colon, what did it — the result whose effect set it, "Clean
+        House", or nothing for the owner's own hand. The same status
+        again is nothing to do and writes nothing.
+        """
+        status = Status(status)
+        # The caller read the model before this operation took the gang's
+        # line, and two clicks on one button arrive together: what it
+        # stands in is decided on what the line now holds, so the second
+        # of two identical acts finds nothing to do and writes nothing.
+        miniature.refresh_from_db(fields=["status"])
+        was = Status(miniature.status)
+        if was == status:
+            return miniature
+        miniature.status = status
+        miniature.save(update_fields=["status", "modified"])
+        self.touched(miniature)
+        self.event(
+            miniature,
+            LedgerEvent.Kind.STATUS_SET,
+            note=_movement_note(f"{was} → {status}", note),
+        )
+        return miniature
+
+    def transfer(self, to, credits, note="", about=None):
+        """Pay another gang: credits leave this one and arrive at ``to``.
+
+        Two events, one on each gang, each naming the other as its
+        counterpart and carrying the same note. This gang's carries the
+        spend as a positive delta, and its ``settle`` refuses the whole
+        act if the credits would go below zero — the rules' "or the model
+        dies" is then the caller's next question. The other gang's event
+        is written in an operation of its own, inside this transaction,
+        so its numbers are repinned too; a gang with no budget records
+        the receipt and counts nothing, as it counts nothing for what it
+        spends.
+
+        ``to`` may be None for a payment to somebody the app does not
+        know — a gang at the table that is not on Gyrinx. The credits
+        still leave. ``about`` is the model the payment concerned, where
+        it concerned one.
+
+        The operation this runs in must have been opened with ``to``
+        among its ``also`` gangs, so both lines were taken together in
+        one order; taking the payee's here, second, would let two gangs
+        paying each other wait on one another.
+        """
+        if credits <= 0:
+            raise Refusal("A transfer has to move at least one credit.")
+        if to is not None and to.pk == self.gang.pk:
+            raise Refusal("A gang cannot pay itself.")
+        paid = self.event(
+            about,
+            LedgerEvent.Kind.TRANSFERRED,
+            credits_delta=credits,
+            counterpart=to,
+            note=note,
+        )
+        if to is not None:
+            with operation(to, actor=self.actor) as theirs:
+                theirs.event(
+                    None,
+                    LedgerEvent.Kind.TRANSFERRED,
+                    credits_delta=-credits,
+                    counterpart=self.gang,
+                    note=note,
+                )
+        return paid
+
+    def clean_house(self):
+        """The end of the cycle: every model In Recovery is Active again.
+
+        One event per model, all in this operation's batch, so the
+        history tells them as one act. Returns the models cleared.
+        """
+        from n26.core.models import Miniature
+
+        cleared = list(
+            Miniature.objects.filter(
+                membership__gang=self.gang,
+                membership__archived=False,
+                status=Status.RECOVERY,
+            )
+        )
+        for miniature in cleared:
+            self.set_status(miniature, Status.ACTIVE, note=CLEAN_HOUSE)
+        return cleared
 
     def rename_gang(self, name):
         """Give the gang a new name, and say so in its own history.
@@ -2530,8 +2629,8 @@ def _sold_separately(line, entry, weapon):
     return frozenset()
 
 
-def _hold(gang):
-    """Take the gang's own line, before this operation touches anything.
+def _hold(*gangs):
+    """Take the gangs' own lines, before this operation touches anything.
 
     Every operation ends by rewriting the gang's pinned numbers, so all
     of them take this line either way. Taking it first gives every writer
@@ -2539,13 +2638,19 @@ def _hold(gang):
     what the act before it wrote, and no two wait on each other's rows in
     opposite orders.
 
+    An act that writes to more than one gang — a payment — takes every
+    line it will need here, in one statement ordered by key, so two such
+    acts meeting over the same gangs queue instead of each waiting on the
+    other's row.
+
     Held for the length of the transaction, and only against others
     taking it — one gang at a time, while every other gang goes on
     untouched.
     """
     from n26.core.models import Gang
 
-    Gang.objects.select_for_update().filter(pk=gang.pk).first()
+    pks = sorted({gang.pk for gang in gangs if gang is not None and gang.pk})
+    list(Gang.objects.select_for_update().filter(pk__in=pks).order_by("pk"))
 
 
 def clone_gang(source, *, name, owner, actor=None):
@@ -2593,12 +2698,17 @@ def clone_gang(source, *, name, owner, actor=None):
 
 
 @contextmanager
-def operation(gang, actor=None, batch=None):
-    """One transaction; pinned numbers rewritten when it closes."""
+def operation(gang, actor=None, batch=None, also=()):
+    """One transaction; pinned numbers rewritten when it closes.
+
+    ``also`` names the other gangs this act will write to — the payee of
+    a transfer — so their lines are taken with this gang's, together and
+    in one order.
+    """
     op = Operation(gang, actor=actor, batch=batch)
     with transaction.atomic():
         if gang is not None and gang.pk is not None:
-            _hold(gang)
+            _hold(gang, *also)
             # Anything the gang read before its line was taken can
             # already be stale — two clicks on one button arrive
             # together often enough. What is decided in here is decided

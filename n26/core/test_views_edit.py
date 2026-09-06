@@ -233,8 +233,10 @@ class TestSavingWithoutRebuildingThePage:
         nothing — so the other editor is not rebuilt."""
         client.force_login(tester)
         body = client.get(edit_url(vex)).content.decode()
-        assert body.count('hx-swap="none"') == 2
-        assert f'hx-post="{edit_url(vex)}"' in body
+        # The two boxes are the only forms posting in place; the menu's
+        # status items fetch a dialog the same way and are not counted.
+        assert body.count(f'hx-post="{edit_url(vex)}"') == 2
+        assert body.count('hx-swap="none"') >= 2
         assert 'name="act" value="notes"' in body
         assert 'name="act" value="lore"' in body
         # Skills and the rest still rebuild the page: they are ticks, not
@@ -696,7 +698,10 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        assert self.measure(client, edit_url(vex)) == 41
+        # Two of these are flag readings — whether the reader is offered
+        # the model's status, and whether they see staged content — each
+        # taken once for the page.
+        assert self.measure(client, edit_url(vex)) == 43
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

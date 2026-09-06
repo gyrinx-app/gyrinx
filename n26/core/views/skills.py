@@ -61,6 +61,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from n26.core.views.permissions import _own_miniature_or_404
+from n26.library.staged import sees_staged
 
 
 def link_skills(*cards, among=None):
@@ -143,7 +144,7 @@ class SkillsOffer:
     rest: list
 
 
-def _sets_on_offer(card, computed, among=None):
+def _sets_on_offer(card, computed, among=None, *, include_staged=False):
     """Every set a model could hold something from, one group each, said
     with whether their placements name the tier it sits in.
 
@@ -193,7 +194,10 @@ def _sets_on_offer(card, computed, among=None):
                 # to settle: were one on this list, a save that did not
                 # tick it would take it away — by the wrong write, and
                 # from a box the owner was not looking at.
-                narrow(browse(collection, EQUIPMENT_LIST), kinds=(Skill, Power)),
+                narrow(
+                    browse(collection, EQUIPMENT_LIST, include_staged=include_staged),
+                    kinds=(Skill, Power),
+                ),
                 placements,
                 fallback=collection.default_section(),
                 name=str(collection),
@@ -215,7 +219,7 @@ def _sets_on_offer(card, computed, among=None):
     return found
 
 
-def skills_offer(card, computed, among=None):
+def skills_offer(card, computed, among=None, *, include_staged=False):
     """What this model may hold, as a list to tick rather than to click.
 
     Every set the library holds for a model, skills and powers alike —
@@ -244,7 +248,9 @@ def skills_offer(card, computed, among=None):
     from n26.core.render import ChoiceOffer
 
     own, rest, every = [], [], []
-    for placed, group in _sets_on_offer(card, computed, among):
+    for placed, group in _sets_on_offer(
+        card, computed, among, include_staged=include_staged
+    ):
         every.append(group)
         if placed or any(option.is_current for option in group.options):
             own.append(group)
@@ -257,7 +263,7 @@ def skills_offer(card, computed, among=None):
     )
 
 
-def _offered_keys(slot, computed):
+def _offered_keys(slot, computed, *, include_staged=False):
     """What the Choose page lists for this question, keyed as the tick
     list keys its options.
 
@@ -266,7 +272,7 @@ def _offered_keys(slot, computed):
     """
     from n26.core.browse import offered_by
 
-    listed = offered_by(slot, computed)
+    listed = offered_by(slot, computed, include_staged=include_staged)
     if listed is None:
         return frozenset()
     if hasattr(listed, "all_lines"):
@@ -336,7 +342,7 @@ def _answer_with(op, miniature, thing, questions, lists):
     return op.choose(anchor, thing, offer=slot.offer, **host)
 
 
-def apply_ticks(op, miniature, card, computed, ticked):
+def apply_ticks(op, miniature, card, computed, ticked, *, include_staged=False):
     """Make what a model holds match what was ticked, and say what moved.
 
     The listing is derived again here rather than trusted from the page,
@@ -362,11 +368,14 @@ def apply_ticks(op, miniature, card, computed, ticked):
     fixed box submits nothing and reading its silence as a clearing
     would take away the assignment of anything a modifier also grants.
     """
-    offer = skills_offer(card, computed).everything
+    offer = skills_offer(card, computed, include_staged=include_staged).everything
     rows = _rows_on(card)
     granted = _grants_on(computed)
     questions = _open_questions(computed)
-    lists = {id(slot): _offered_keys(slot, computed) for slot in questions}
+    lists = {
+        id(slot): _offered_keys(slot, computed, include_staged=include_staged)
+        for slot in questions
+    }
     answered = _answered_by(computed)
 
     # One entry per thing: two collections may both list a skill, and a
@@ -388,7 +397,9 @@ def apply_ticks(op, miniature, card, computed, ticked):
         slot = answered.get(key)
         if slot is not None and slot not in questions:
             questions.append(slot)
-            lists.setdefault(id(slot), _offered_keys(slot, computed))
+            lists.setdefault(
+                id(slot), _offered_keys(slot, computed, include_staged=include_staged)
+            )
 
     for key, option in options.items():
         if key in granted:
@@ -466,6 +477,9 @@ def skills(request, pk):
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
+    # Whether this reader is offered staged skills, on the listing and on
+    # the click that selects from it alike.
+    shown = sees_staged(request.user)
 
     # One card build serves the whole page: the grid that decides which
     # collections are theirs, and how usable each line is, are both read
@@ -515,7 +529,7 @@ def skills(request, pk):
     listed = narrow(
         with_use_notes(
             regrouped_by_placement(
-                browse(chosen, EQUIPMENT_LIST),
+                browse(chosen, EQUIPMENT_LIST, include_staged=shown),
                 placements,
                 fallback=chosen.default_section(),
                 name=str(chosen),
@@ -558,7 +572,10 @@ def skills(request, pk):
         try:
             with operation(gang, actor=request.user) as op:
                 questions = _open_questions(computed)
-                lists = {id(slot): _offered_keys(slot, computed) for slot in questions}
+                lists = {
+                    id(slot): _offered_keys(slot, computed, include_staged=shown)
+                    for slot in questions
+                }
                 selected = _answer_with(op, miniature, picked.thing, questions, lists)
         except Refusal as refusal:
             messages.error(request, str(refusal))

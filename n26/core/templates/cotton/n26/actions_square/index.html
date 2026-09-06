@@ -9,6 +9,11 @@ drawn whether or not anything is open — a square that came and went would
 shift every card after it, and a reader deciding what to do next is owed
 "nothing is open" as plainly as they are owed what is.
 
+Under what is open, what the rules are waiting on: a ransom to settle, the
+cycle to close. The two are different questions — one is something the owner
+started and can end, the other is something owed — so they are drawn apart,
+and "No action is open." is kept for a square with nothing on either half.
+
 Under that, the gang's last few acts. What has been done is the other half
 of what is open, and a reader who wants more than the snapshot follows it
 through to the history page. The sentences are the history page's own, so
@@ -56,9 +61,31 @@ Whoever draws this owns the gang. There is no reader-facing shape.
                 </c-ui.button>
             </div>
         {% endif %}
-        {% if not square.anything_open %}
+        {% comment %}
+        Nothing running and nothing waiting. Said only then: a reader with
+        a ransom to settle is not told there is nothing to do.
+        {% endcomment %}
+        {% if not square.anything_open and not square.to_do %}
             <p class="text-xs text-muted">No action is open.</p>
         {% endif %}
+        {% comment %}
+        What the rules are waiting on. A step that asks a question first
+        is a link to it; one that acts on the click is a form, because
+        following a link must not change the roster.
+        {% endcomment %}
+        {% for step in square.to_do %}
+            <div class="flex flex-wrap items-center justify-between gap-2 {% if not forloop.first or square.anything_open %}border-t border-box-border pt-3{% endif %}">
+                <span class="text-xs text-ink-700 dark:text-ink-300">{{ step.told }}</span>
+                {% if step.post %}
+                    <form method="post" action="{{ step.post }}">
+                        {% csrf_token %}
+                        <c-ui.button type="submit" size="xs" variant="default">{{ step.verb }}</c-ui.button>
+                    </form>
+                {% else %}
+                    <c-ui.button size="xs" variant="default" href="{{ step.href }}">{{ step.verb }}</c-ui.button>
+                {% endif %}
+            </div>
+        {% endfor %}
         {% comment %}
         A plain form, drawn whenever the founding action is not open,
         whatever else the gang has going on. The button names what the

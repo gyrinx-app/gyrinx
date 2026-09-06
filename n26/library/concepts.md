@@ -245,6 +245,16 @@ Where the slot type does not allow repeats, the picker marks the pickables alrea
 
 ---
 
+## Staged content
+
+Any kind a player is offered somewhere can be **staged**: written, but not
+yet put live. A staged thing is held back from every place a player adds
+to a gang and shown there to authors exactly as players will see it once
+it is live; anything a gang already holds is drawn for everyone. Staging
+holds back new things, never changes to live ones. The
+[Staged content](/n26/authoring/docs/staged/) page explains who sees what,
+what can be staged, where staging happens, and how to work on a new book.
+
 ## Core types & concepts
 
 The types above share some underpinnings. This section explains them.

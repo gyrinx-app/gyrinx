@@ -1,6 +1,7 @@
 from django.db import models
 
 from n26.core.models.abstract import Base, Owned, Rated
+from n26.core.status import Status
 
 
 class Miniature(Base, Owned, Rated):
@@ -14,6 +15,15 @@ class Miniature(Base, Owned, Rated):
     """
 
     name = models.CharField(max_length=200)
+    #: Where the model stands between battles — the roster's In Recovery
+    #: box and the states a lasting effect leaves a model in. Stored, as
+    #: the roster stores it, and written only by ``Operation.set_status``,
+    #: which journals every change: a result's effect sets it when the
+    #: pick lands, Clean House clears Recovery, and the owner may set it by
+    #: hand. A dead model keeps its row and its card and counts nothing
+    #: towards rating; leaving the roster is still the membership's
+    #: archive.
+    status = models.CharField(max_length=12, choices=Status, default=Status.ACTIVE)
     #: What a card shows only when the model keeps no XP counter. Where
     #: there is one, its value is the number and ``tally`` is what moves it.
     xp = models.PositiveIntegerField(default=0)

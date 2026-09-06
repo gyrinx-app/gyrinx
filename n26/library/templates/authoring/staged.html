@@ -1,0 +1,66 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+Everything written but not yet put live, kind by kind. Each row leads to
+its own page and carries the one click that releases it alone; the button
+in the header leads to the page that releases all of it at once — a page,
+not a prompt, because releasing a whole book is worth reading a count
+first.
+{% endcomment %}
+{% block head_title %}
+    Staged content
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Staged content"
+                       lead="Content held back from players until you put it live. It shows for you on every page where players would see it.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Staged content
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% if count %}
+            <c-slot name="actions">
+                <c-ui.button href="{% url 'authoring-staged-put-live' %}" variant="primary">
+                    Put everything live
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+    </c-n26.page-header>
+    {% if groups %}
+        <p class="mt-6 text-sm text-muted">
+            <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100">{{ count }}</span>
+            thing{{ count|pluralize }} staged
+        </p>
+        {% for group in groups %}
+            <c-n26.form-section title="{{ group.kind_name_plural|capfirst }}" class="mt-6">
+                <c-ui.table>
+                    <tbody>
+                        {% for row in group.rows %}
+                            <tr>
+                                {% include "authoring/_name_cell.html" with row=row %}
+                                <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                                <td class="whitespace-nowrap text-right">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="act" value="put_live">
+                                        <input type="hidden" name="model" value="{{ group.model }}">
+                                        <input type="hidden" name="pk" value="{{ row.pk }}">
+                                        <c-ui.button type="submit" size="sm" variant="ghost">
+                                            Put live
+                                        </c-ui.button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            </c-n26.form-section>
+        {% endfor %}
+    {% else %}
+        <c-ui.description class="mt-6">
+            Nothing is staged. New content is staged when you create it with the Staged switch on, or import it with “Stage what this import creates” switched on.
+        </c-ui.description>
+    {% endif %}
+{% endblock content %}

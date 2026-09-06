@@ -91,8 +91,20 @@
             </c-n26.prose>
         {% endif %}
         {% if preview.ok %}
-            <form method="post" class="mt-6">
+            <form method="post" class="mt-6 space-y-5">
                 {% csrf_token %}
+                {% comment %}
+                On by default: an import is how a whole book arrives, and a
+                whole book is checked before players meet it. Only what the
+                import creates is held back — a row it changes is live
+                already, and a corrected price is not something to hold.
+                {% endcomment %}
+                <c-ui.field variant="toggle"
+                            label="Stage what this import creates"
+                            description="New rows are held back from players until you put them live on the Staged content page. Rows that already exist are changed straight away."
+                            for="id_staged">
+                    <c-ui.switch label="" name="staged" id="id_staged" checked="true" />
+                </c-ui.field>
                 <c-n26.form-actions submit_label="Import"
                                     cancel_url="{% url 'authoring-ingest' %}"
                                     cancel_label="Back to the sheets" />
