@@ -544,6 +544,26 @@ def _says_op_adds_miniature(effect, parts):
     )
 
 
+@_renders("op_sets_status")
+def _says_op_sets_status(effect, parts):
+    from n26.core.status import Status
+
+    who = parts.who
+    if effect.status == Status.DEAD:
+        outcome = f"{who.subject} {'die' if who.plural else 'dies'}"
+    else:
+        verb = "are" if who.plural else "is"
+        outcome = f"{who.subject} {verb} marked {Status(effect.status).label}"
+    return (
+        f"when this arrives, {outcome} — written on the ledger once; "
+        "taking this away does not take it back.",
+        (
+            "Happens once, when the pick lands. Removing the pick later does "
+            "not undo the status."
+        ),
+    )
+
+
 @_renders("op_changes_counter")
 def _says_op_changes_counter(effect, parts):
     who = parts.who

@@ -79,6 +79,7 @@ EFFECT_MODELS = {
     "ef_allows_at_most": "AllowsAtMost",
     "op_adds_model": "OpAddsMiniature",
     "op_changes_counter": "OpChangesCounter",
+    "op_sets_status": "OpSetsStatus",
 }
 
 #: Kinds the union picker may create inline: name-only leaves. The help
@@ -1083,6 +1084,7 @@ EFFECT_CAN_TARGET = {
     "ef_allows_at_most": ("model", "gang"),
     "op_adds_model": ("model", "gang"),
     "op_changes_counter": ("model", "gang"),
+    "op_sets_status": ("model",),
 }
 
 #: The target kinds as an author reads them, for a greyed card's reason.

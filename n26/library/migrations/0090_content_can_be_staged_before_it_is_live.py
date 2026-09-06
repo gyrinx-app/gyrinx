@@ -65,7 +65,7 @@ HELP = (
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0088_possession_help_drops_and_keeps_it"),
+        ("library", "0089_a_result_sets_the_models_status"),
     ]
 
     operations = [

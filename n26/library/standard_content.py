@@ -1105,6 +1105,70 @@ DELEGATION_INJURY_TABLE = [
     (6, 6, "Critical Injury"),
 ]
 
+#: What each result does to the model's standing when its pick lands, by
+#: result name — the same on every table that lists the name. The seed
+#: attaches these as modifiers, because a table whose results change
+#: nothing is not the table the book prints. Results not named here
+#: (Out Cold, the enmities, the scars) leave the status alone.
+LASTING_EFFECT_STATUSES = {
+    "Grievous Wound": "recovery",
+    "Eye Injury": "recovery",
+    "Hand Injury": "recovery",
+    "Hobbled": "recovery",
+    "Spinal Injury": "recovery",
+    "Enfeebled": "recovery",
+    "Head Injury": "recovery",
+    "Major Damage": "recovery",
+    "Busted Sights": "recovery",
+    "Drive System Fault": "recovery",
+    "Buckled Frame": "recovery",
+    "Engine Fracture": "recovery",
+    "Captured": "captured",
+    "Critical Injury": "critical",
+    "Critical Damage": "critical",
+    "Memorable Death": "dead",
+    "Catastrophic Explosion!": "dead",
+    "Critical Overload": "dead",
+}
+
+#: The delegation table's Critical Injury sends the fighter home rather
+#: than to the Doc: off the roster for good, which the app calls dead.
+DELEGATION_STATUSES = {"Critical Injury": "dead"}
+
+#: What happens to a captured model, rolled straight after the battle
+#: (core rules, the Wrap-up): a D6 band table of its own, under its own
+#: slot type, granted to the model by the Captured result itself.
+ESCAPE_SLOT_TYPE = "Escape"
+ESCAPE_TABLE = [
+    (1, 1, "Executed"),
+    (2, 4, "Ransomed"),
+    (5, 6, "Daring Escape"),
+]
+ESCAPE_STATUSES = {
+    "Executed": "dead",
+    "Ransomed": "ransomed",
+    "Daring Escape": "recovery",
+}
+#: The results that hand a model to the Escape table.
+CAPTURED_RESULTS = ("Captured",)
+
+
+def lasting_effect_status_modifiers():
+    """A filter for the status modifiers the lasting-effect seed attaches,
+    recognised by what they do and where they sit — a status effect on a
+    result of one of the tables — never by name, so rewording one does
+    not make it look imported."""
+    from django.db.models import Q
+
+    tables = [name for name, _, _, _, _ in LASTING_EFFECT_TABLES] + [ESCAPE_SLOT_TYPE]
+    return Q(
+        op_sets_status__isnull=False, library_pickable_set__slot_type__name__in=tables
+    ) | Q(
+        adds_assignable__slot__slot_type__name=ESCAPE_SLOT_TYPE,
+        library_pickable_set__slot_type__name__in=tables,
+    )
+
+
 #: ``(slot type, plural — the card's heading, rows, die, qualifier)``.
 #: A pack holds one pickable per name and qualifier, and several results
 #: sit on more than one table at the same rolls. A table's qualifier
@@ -1214,13 +1278,116 @@ def _create_lasting_effect_tables():
             slot_type,
             {"picklist": table, "label": plural, "min_picks": 0, "max_picks": 20},
         )
+        statuses = (
+            DELEGATION_STATUSES
+            if name == "Delegation Lasting Injury"
+            else LASTING_EFFECT_STATUSES
+        )
+        for _, _, result in rows:
+            status = statuses.get(result)
+            if status is not None:
+                _status_modifier(
+                    _lasting_row(
+                        Pickable, result, _twin_qualifier(index, result), slot_type, {}
+                    ),
+                    status,
+                )
+    escape = _create_escape_table()
+    for index, (_, _, rows, _, _) in enumerate(LASTING_EFFECT_TABLES):
+        slot_type = SlotType.objects.get(name__iexact=LASTING_EFFECT_TABLES[index][0])
+        for _, _, result in rows:
+            if result in CAPTURED_RESULTS:
+                _grants_escape(
+                    _lasting_row(
+                        Pickable, result, _twin_qualifier(index, result), slot_type, {}
+                    ),
+                    escape,
+                )
+
+
+def _create_escape_table():
+    """The Escape table and the one-pick choice that draws from it.
+
+    Its own slot type, so nothing but an Escape result can settle it,
+    and one pick at most: a captured model rolls once. Returns the slot.
+    """
+    from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
+
+    slot_type = SlotType.objects.filter(name__iexact=ESCAPE_SLOT_TYPE).first()
+    if slot_type is None:
+        slot_type = SlotType.objects.create(
+            name=ESCAPE_SLOT_TYPE, plural_name=ESCAPE_SLOT_TYPE
+        )
+    table = Picklist.objects.filter(
+        slot_type=slot_type, name__iexact=f"{ESCAPE_SLOT_TYPE} Table"
+    ).first()
+    if table is None:
+        table = Picklist.objects.create(
+            name=f"{ESCAPE_SLOT_TYPE} Table",
+            slot_type=slot_type,
+            dice="d6",
+            roll_selects="band",
+        )
+    for position, (low, high, result) in enumerate(ESCAPE_TABLE):
+        pickable = _lasting_row(Pickable, result, "", slot_type, {})
+        PicklistMember.objects.get_or_create(
+            picklist=table,
+            pickable=pickable,
+            defaults={"roll_low": low, "roll_high": high, "position": position},
+        )
+        _status_modifier(pickable, ESCAPE_STATUSES[result])
+    return _lasting_row(
+        Slot,
+        ESCAPE_SLOT_TYPE,
+        "",
+        slot_type,
+        {"picklist": table, "label": ESCAPE_SLOT_TYPE, "min_picks": 0, "max_picks": 1},
+    )
+
+
+def _grants_escape(pickable, slot):
+    """Attach "gives the model the Escape choice" to a Captured result,
+    once — found by name, as the status modifiers are."""
+    from n26.library.authoring import ef_adds, modifier, targets_model
+    from n26.library.models import Modifier
+
+    name = f"{pickable}: rolls on the {slot.choice_label} table"
+    if pickable.modifiers.filter(name=name).exists():
+        return
+    row = Modifier.objects.filter(name=name).first()
+    if row is None:
+        row = modifier(name, targets_model(), ef_adds(slot))
+    pickable.modifiers.add(row)
+
+
+def _status_modifier(pickable, status):
+    """Attach "marks the model <status>" to a result, once.
+
+    Found by name, so running the seed again attaches nothing twice and
+    an author who has detached one is left alone: the name is the
+    seed's, and a modifier of that name already on the result is the
+    seed's own work.
+    """
+    from n26.core.status import Status
+    from n26.library.authoring import modifier, op_sets_status, targets_model
+    from n26.library.models import Modifier
+
+    name = f"{pickable}: {Status(status).label}"
+    if pickable.modifiers.filter(name=name).exists():
+        return
+    row = Modifier.objects.filter(name=name).first()
+    if row is None:
+        row = modifier(name, targets_model(), op_sets_status(status))
+    pickable.modifiers.add(row)
 
 
 def _check_lasting_effect_tables():
     from n26.library.models import PicklistMember, Slot, SlotType
 
-    names = [name for name, _, _, _, _ in LASTING_EFFECT_TABLES]
-    members = sum(len(rows) for _, _, rows, _, _ in LASTING_EFFECT_TABLES)
+    names = [name for name, _, _, _, _ in LASTING_EFFECT_TABLES] + [ESCAPE_SLOT_TYPE]
+    members = sum(len(rows) for _, _, rows, _, _ in LASTING_EFFECT_TABLES) + len(
+        ESCAPE_TABLE
+    )
     present = _count(SlotType, name__in=names)
     present += _count(
         PicklistMember,

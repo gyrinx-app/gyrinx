@@ -66,6 +66,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     offer_option,
     op_adds_model,
     op_changes_counter,
+    op_sets_status,
     remove_default_member,
     restrict_use,
     section_of,
