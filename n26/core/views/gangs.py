@@ -258,11 +258,14 @@ def gang_sheet(request, pk):
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     card = build_gang_card(gang)
+    # Read once for the page: the flag behind it is a query, and the
+    # cards, the stash card and the square all ask the same question.
+    founding_seen = may_see_founding(gang, request.user)
     # for_owner puts the founding figures on the cards — what a model has
     # left of its founding Trade Points — for the readers the feature
     # reaches, and is what keeps everyone else's read from paying for
     # figures they are not shown.
-    sheet = render_gang(gang, card=card, for_owner=may_see_founding(gang, request.user))
+    sheet = render_gang(gang, card=card, for_owner=founding_seen)
     dialog = None
     link_campaign(sheet.campaign, request.user)
     if yours:
@@ -298,12 +301,10 @@ def gang_sheet(request, pk):
             # Whether the stash card's way into a visit is shut for now.
             # Free where the square below was drawn: that read which
             # actions the gang has open, and the gang holds the reading.
-            "founding_blocks_visit": founding_blocks_visit(
-                gang, may_see_founding(gang, request.user)
-            ),
+            "founding_blocks_visit": founding_blocks_visit(gang, founding_seen),
             # The gang's own actions, which are the owner's to perform.
-            # Drawn for staff owners only while the actions are built out;
-            # every other reader gets no square. A fixed handful of
+            # Drawn for the owners the founding flag admits; every other
+            # reader gets no square. A fixed handful of
             # queries for the whole page, whatever the roster: the open
             # actions, and the last stretch of the gang's story with the
             # records it names. What a visit has left is already on the
@@ -317,7 +318,7 @@ def gang_sheet(request, pk):
                     history_at=reverse("n26-gang-history", args=[gang.pk]),
                     viewer=request.user,
                 )
-                if may_see_actions_square(gang, request.user)
+                if founding_seen
                 else None
             ),
             # Printing follows reading rather than owning, so a reader
@@ -1101,8 +1102,8 @@ def gang_founding_action(request, pk):
     from n26.core.operations import Refusal, operation
 
     gang = _own_gang_or_404(request, pk)
-    # The square that posts here is drawn for staff owners only while the
-    # action is built out, so the address is theirs alone too.
+    # The square that posts here is drawn for the owners the founding
+    # flag admits, so the address is theirs alone too.
     if not may_see_actions_square(gang, request.user):
         raise Http404
     at = reverse("n26-gang", args=[gang.pk])

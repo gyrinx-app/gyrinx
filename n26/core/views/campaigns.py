@@ -735,7 +735,7 @@ def add_asset(request, pk):
 
     ``?type=`` narrows the assets offered to one asset type, which is how
     the Add beside each type's table reaches here: an arbitrator adding a
-    territory is not choosing between territories and rackets. The asset
+    territory is not choosing between territories and settlements. The asset
     type rides the form's address too, so a failed submit redisplays the
     same narrowed list.
     """

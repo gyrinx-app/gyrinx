@@ -17,20 +17,24 @@ from django.urls import reverse
 from n26.core.models import Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.library.models import Subtype
+from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
 def tester(db):
-    # Staff, because the Actions square is staff-only while the actions
-    # are built out. The Trade Points page itself is every owner's.
-    return User.objects.create_user("player", is_staff=True)
+    # On the founding flag's allowlist, because the Actions square reaches
+    # the owners it admits. The Trade Points page itself is every owner's.
+    person = User.objects.create_user("player")
+    admit_to_founding(person)
+    return person
 
 
 @pytest.fixture
 def player(db):
-    """An owner who is not staff: sees the stash line, never the square."""
+    """An owner the founding flag does not admit: sees the stash line, never
+    the square."""
     return User.objects.create_user("plain-player")
 
 
@@ -226,7 +230,8 @@ class TestTheActionsSquare:
 
     def test_the_stash_card_still_carries_it(self, client, tester, roster, gang):
         """The stash card keeps its Trading Post line for every owner while
-        the square is staff-only; a staff owner reads it in both places."""
+        the square reaches a named few; an admitted owner reads it in both
+        places."""
         client.force_login(tester)
         start(client, gang, roster["Vex"])
 
@@ -235,7 +240,7 @@ class TestTheActionsSquare:
         assert body.index("Trading Post visit open") < body.index(">Stash</span>")
         assert body.count("Trading Post visit open") == 2
 
-    def test_an_owner_who_is_not_staff_gets_the_stash_line_and_no_square(
+    def test_an_owner_the_flag_does_not_admit_gets_the_stash_line_and_no_square(
         self, client, player, roster, gang
     ):
         gang.owner = player

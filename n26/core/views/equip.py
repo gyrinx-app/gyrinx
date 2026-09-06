@@ -883,6 +883,9 @@ def equip(request, pk):
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
+    # Read once: the flag behind it is a query, and the screen and the
+    # note offering a visit ask the same question.
+    founding_seen = may_see_founding(gang, request.user)
 
     wanted = request.GET.get("list", "")
     everything = wanted == ALL_SCOPE
@@ -890,7 +893,7 @@ def equip(request, pk):
         gang,
         miniature=miniature,
         list_param=wanted,
-        budgets=may_see_founding(gang, request.user),
+        budgets=founding_seen,
         include_staged=sees_staged(request.user),
     )
     collections, chosen, view = screen.collections, screen.chosen, screen.view
@@ -1073,7 +1076,7 @@ def equip(request, pk):
             # Asked only where the note offering one is drawn, so a page
             # that never mentions the post pays nothing to find out.
             "founding_blocks_visit": (
-                founding_blocks_visit(gang, may_see_founding(gang, request.user))
+                founding_blocks_visit(gang, founding_seen)
                 if picker["post_is_shut"]
                 else False
             ),

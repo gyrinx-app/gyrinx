@@ -575,15 +575,15 @@ class AddAssetTypeForm(forms.Form):
     label_singular = forms.CharField(
         max_length=200,
         label="Label",
-        help_text='What one of these is called, e.g. "Racket".',
+        help_text='What one of these is called, e.g. "Territory".',
     )
     label_plural = forms.CharField(
         required=False,
         max_length=200,
         label="Plural label",
         help_text=(
-            'What several of them are called, e.g. "Rackets". Leave blank '
-            "and an s is added."
+            'What several of them are called, e.g. "Territories". Leave '
+            "blank and an s is added."
         ),
     )
     ownership = forms.ChoiceField(

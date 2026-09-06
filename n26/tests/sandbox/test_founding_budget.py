@@ -29,6 +29,7 @@ from n26.core.effects import compute
 from n26.core.founding import budget_for, budget_granted
 from n26.core.models import Action
 from n26.core.reconcile import assert_reconciled
+from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
     add_entry,
     assign,
@@ -53,9 +54,11 @@ FOUNDING_KIND = Action.Kind.FOUNDING
 
 @pytest.fixture
 def player():
-    # Staff, because the founding budgets reach staff owners only while
-    # they are being tested; the non-staff owner has tests of their own.
-    return User.objects.create_user("tom", is_staff=True)
+    # On the founding flag's allowlist, because the budgets reach the
+    # owners it admits; the owner it does not has tests of their own.
+    person = User.objects.create_user("tom")
+    admit_to_founding(person)
+    return person
 
 
 #: The entries each gang list holds, as ``(entry, the subtype naming its
@@ -1153,10 +1156,12 @@ class TestTheFigureOnTheGangPage:
 
         assert self.HOVER.format("Rasp") not in self.body(client, gang, reader=stranger)
 
-    def test_an_owner_who_is_not_staff_is_not_shown_it_yet(self, client, gang, leader):
-        """The budgets reach staff owners only while they are being tested,
-        the same readers as the Actions square that completes the founding.
-        Every other owner reads their roster as it was before budgets."""
+    def test_an_owner_the_flag_does_not_admit_is_not_shown_it(
+        self, client, gang, leader
+    ):
+        """The budgets reach the owners the founding flag admits, the same
+        readers as the Actions square that completes the founding. Every
+        other owner reads their roster as it was before budgets."""
         plain = User.objects.create_user("plain-owner")
         gang.owner = plain
         gang.save(update_fields=["owner"])

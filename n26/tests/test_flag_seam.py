@@ -14,7 +14,7 @@ from django.contrib.auth.models import Group, User
 
 from gyrinx.site.flags import enabled, known_flags
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS, STAGED_CONTENT
+from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS, FOUNDING, STAGED_CONTENT
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
@@ -31,6 +31,12 @@ class TestWhatThisEditionClaims:
         """The running side of propagation checks this flag; unclaimed,
         that check would raise instead of standing down."""
         assert BUILT_IN_PROPAGATION in known_flags()
+
+    def test_founding_is_registered(self):
+        """The gate on the Actions square and the founding budgets asks
+        for it on every owner's gang page; unclaimed, that ask would raise
+        instead of standing shut."""
+        assert FOUNDING in known_flags()
 
     def test_staged_content_is_registered(self):
         """Who sees staged content asks this flag on every screen where a

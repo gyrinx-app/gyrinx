@@ -23,6 +23,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 __all__ = [
     "BUILT_IN_PROPAGATION",
     "CAMPAIGNS",
+    "FOUNDING",
     "STAGED_CONTENT",
     "enabled",
     "requires_flag",
@@ -36,9 +37,15 @@ CAMPAIGNS = "campaigns"
 #: edits still file their passes; nothing runs them until it opens.
 BUILT_IN_PROPAGATION = "built-in-propagation"
 
+#: Founding a gang as an action: the Actions square on the gang page, the
+#: founding Trade Point budgets on the cards and equip screens, and list
+#: lines counting Trade Points while the action is open. Shut, none of it
+#: is drawn, and purchases count against no founding budget.
+FOUNDING = "founding"
+
 #: Seeing content an author has staged but not yet put live, everywhere a
 #: player adds to a gang. Staff see it by right; this is how anyone else
 #: does, so a release can be rehearsed with a group before it is made.
 STAGED_CONTENT = "staged-content"
 
-register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, STAGED_CONTENT)
+register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, FOUNDING, STAGED_CONTENT)

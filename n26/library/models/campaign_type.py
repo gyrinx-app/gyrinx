@@ -44,8 +44,8 @@ class CampaignType(Content, Assignable):
     something to be caused by, and puts campaign-wide modifiers on every
     member's card.
 
-    It also declares its **asset types** — Territory, Racket, Settlement —
-    and under each asset type lists the **assets** a campaign of this type
+    It also declares its **asset types** — Territory, Settlement — and
+    under each asset type lists the **assets** a campaign of this type
     hands out. Its pricing fields stay at zero; nobody buys a campaign type.
 
     The **description** is the one field here written for a player: the
@@ -103,13 +103,13 @@ class CampaignType(Content, Assignable):
 
 
 class AssetType(Content):
-    """A class of asset a campaign type has — Territory, Racket,
-    Settlement — with the label a campaign page prints and the ownership
-    that fixes how every asset of the type behaves.
+    """A class of asset a campaign type has — Territory, Settlement —
+    with the label a campaign page prints and the ownership that fixes
+    how every asset of the type behaves.
 
     **Possession** means every gang has its own: a
     Settlement, a home territory. **Holding** means one gang holds it at a
-    time, and it can change hands: a Territory, a Racket, a Relic.
+    time, and it can change hands: a Territory.
     """
 
     class Ownership(models.TextChoices):
@@ -185,7 +185,7 @@ class AssetType(Content):
 
 class Asset(Content, Assignable):
     """One thing a campaign has — a Settlement, the Old Ruins
-    territory, a Racket — of one asset type.
+    territory — of one asset type.
 
     An asset is one entry in the list of what its campaign type hands
     out, and is added on that campaign type's page under its asset type.

@@ -10,6 +10,12 @@ attributes. The markers themselves come off the widget attrs the form
 layer set — the base layout's script and the tests read them wherever
 they land, so they must survive this dispatch byte-for-byte.
 
+Every branch stacks the field the same way: label, control, then the
+help underneath (description_trailing). Some pages sit these fields
+side by side in a grid, and help between the label and the control is
+as tall as its own sentence, so each control in the row starts at a
+different height.
+
 Takes `field` (a BoundField) and `form`.
 {% endcomment %}
 {% with kind=field|widget_kind label=field.label|capfirst help=field.help_text %}
@@ -17,7 +23,7 @@ Takes `field` (a BoundField) and `form`.
         <c-ui.field data-field
                     variant="toggle"
                     label="{{ label }}"
-                    description="{{ help }}"
+                    description_trailing="{{ help }}"
                     error="x"
                     :form="form"
                     name="{{ field.name }}"
@@ -34,7 +40,7 @@ Takes `field` (a BoundField) and `form`.
     {% elif kind == "textarea" %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"
-                    description="{{ help }}"
+                    description_trailing="{{ help }}"
                     error="x"
                     :form="form"
                     name="{{ field.name }}"
@@ -51,10 +57,15 @@ Takes `field` (a BoundField) and `form`.
 
             default_if_none, never default: a stored 0 is falsy, and
             `default` would draw an empty box for it.
+
+            The value sits flush against both tags. Whatever is between
+            them is the box's content, so a newline and an indent there
+            are text the author is handed back and can save into the
+            column — the browser only ever drops the first newline.
             {% endcomment %}
-            <c-ui.textarea.impl name="{{ field.html_name }}" id="{{ field.auto_id }}" height="xs">
-                {{ field.value|default_if_none:'' }}
-            </c-ui.textarea.impl>
+            {# djlint:off #}
+            <c-ui.textarea.impl name="{{ field.html_name }}" id="{{ field.auto_id }}" height="xs">{{ field.value|default_if_none:'' }}</c-ui.textarea.impl>
+            {# djlint:on #}
         </c-ui.field>
     {% elif kind == "file" %}
         {% comment %}
@@ -72,7 +83,7 @@ Takes `field` (a BoundField) and `form`.
         {% endcomment %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"
-                    description="{{ help }}"
+                    description_trailing="{{ help }}"
                     error="x"
                     :form="form"
                     name="{{ field.name }}"
@@ -93,7 +104,7 @@ Takes `field` (a BoundField) and `form`.
     {% elif kind == "select" or kind == "selectmultiple" %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"
-                    description="{{ help }}"
+                    description_trailing="{{ help }}"
                     error="x"
                     :form="form"
                     name="{{ field.name }}"
@@ -144,7 +155,7 @@ Takes `field` (a BoundField) and `form`.
     {% else %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"
-                    description="{{ help }}"
+                    description_trailing="{{ help }}"
                     error="x"
                     :form="form"
                     name="{{ field.name }}"
