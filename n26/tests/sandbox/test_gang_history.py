@@ -221,8 +221,9 @@ class TestWhenAGrantArrivesLater:
                 caused_by=vex.membership,
                 kind=history.Kind.GRANTED,
             )
-        act = act_saying(gang, "gained Ferocity on Vex")
+        act = act_saying(gang, "Vex gained Ferocity", viewer=gang.owner)
         hired = act_saying(gang, "hired Vex")
+        assert act.actor == ""
         assert "Ferocity" not in {sub.name for sub in hired.subs}
         assert act.when > hired.when
 

@@ -373,7 +373,7 @@ class TestTheHistoryTellsTheRoll:
         rolled = act_saying(gang, "rolled 24")
         assert rolled.subs == []
         assert any(
-            said == "gained Out Cold on Krago, rolled 24" for said in sentences(gang)
+            said == "Krago gained Out Cold, rolled 24" for said in sentences(gang)
         )
 
     def test_a_pick_whose_roll_is_outside_the_window_folds_under_nothing(
@@ -398,7 +398,7 @@ class TestTheHistoryTellsTheRoll:
             "".join(span.text for span in act.spans)
             for act in history.campaign_history(campaign, limit=1)
         ]
-        assert told == ["gained Out Cold on Krago, rolled 24"]
+        assert told == ["Krago gained Out Cold, rolled 24"]
 
     def test_a_generated_roll_carries_no_note(self, gang, krago):
         roll_for(krago, "Lasting Injuries", rng=random.Random(5))
@@ -417,6 +417,55 @@ class TestTheHistoryTellsTheRoll:
         act = act_saying(gang, "rolled 24")
         assert act.category == "gang"
         assert act.miniature_name == ""
+
+
+class TestAStandingGrantNamesTheFighter:
+    """A pick that stands as its own act is the fighter gaining the
+    effect, not the person who recorded it."""
+
+    def test_the_fighter_gained_the_effect(self, gang, krago, injuries):
+        pick(
+            krago,
+            "Lasting Injuries",
+            result_named(injuries["table"], "Out Cold"),
+        )
+        act = next(
+            a
+            for a in history.build(gang, viewer=gang.owner)
+            if "Out Cold" in "".join(s.text for s in a.spans)
+        )
+        assert act.actor == ""
+        assert "".join(s.text for s in act.spans) == "Krago gained Out Cold"
+
+    def test_the_actions_square_says_the_same(self, gang, krago, injuries):
+        from n26.core.actions import history_lines
+
+        pick(
+            krago,
+            "Lasting Injuries",
+            result_named(injuries["table"], "Out Cold"),
+        )
+        line = next(
+            row
+            for row in history_lines(gang, viewer=gang.owner)
+            if "Out Cold" in row.told
+        )
+        assert line.actor == ""
+        assert line.told == "Krago gained Out Cold"
+
+    def test_the_history_page_does_not_say_you_gained(
+        self, client, owner, gang, krago, injuries
+    ):
+        pick(
+            krago,
+            "Lasting Injuries",
+            result_named(injuries["table"], "Out Cold"),
+        )
+        client.force_login(owner)
+        page = client.get(reverse("n26-gang-history", args=[gang.pk])).content.decode()
+        assert "gained Out Cold" in page
+        assert "Krago" in page
+        assert "You gained Out Cold" not in page
 
 
 class TestThePickScreen:
