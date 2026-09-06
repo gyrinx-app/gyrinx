@@ -764,6 +764,8 @@ def _narrowed(who, scope):
     """
     if not getattr(scope, "CONDITIONS", ()) or scope.pk is None:
         return who, ""
+    if hasattr(scope, "echoes"):
+        return _narrowed_gang(who, scope)
     found = _Narrowings()
     of_weapons = []
     for related in scope.CONDITIONS:
@@ -831,6 +833,22 @@ def _narrowed(who, scope):
         ),
         lead,
     )
+
+
+def _narrowed_gang(who, scope):
+    """The gang scope's conditions, as a clause in front of the sentence.
+
+    There is one gang, so nothing qualifies the subject: the renderers
+    say "the gang" and go on saying it. What a condition adds is the
+    gang it has to be — "for gangs that have picked Goliath, the gang
+    gains …" — said in the condition row's own words, so the modifier's
+    auto-name and this sentence cannot come to describe the gangs
+    differently.
+    """
+    rows = scope._narrowing_rows()
+    if not rows:
+        return who, ""
+    return who, " and ".join(f"for {row}" for row in rows)
 
 
 def _picks_asked(slot):

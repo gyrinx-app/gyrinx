@@ -1045,6 +1045,7 @@ def build_modifier_index(assignables, max_depth=3):
             queryset=CounterAtLeast.objects.select_related("counter"),
         ),
         "targets_miniature__has_pickable__pickables",
+        "targets_gang__has_gang_pickable__pickables",
         "targets_weapons__has_traits__traits",
         # A given slot draws a choice row worked out by ``compute``,
         # which may not query, and its slot type decides what the row's

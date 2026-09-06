@@ -1797,11 +1797,33 @@ def counter_at_least(counter, at_least):
     return CounterAtLeast(counter=counter, at_least=at_least)
 
 
+def has_gang_pickable(*pickables, negate=False):
+    """Condition: the gang has one of these picked —
+    ``targets_gang_alone(has_gang_pickable(goliath))`` for "gangs that
+    have picked Goliath". ``negate=True`` reaches every gang except those.
+
+    Read against the gang's own facts, so a pick the gang made and a
+    pick it was given count the same: a Clan House Goliath Outcast gang
+    matches it just as a Goliath gang does."""
+    from n26.library.models import GangHasPickable
+
+    condition = GangHasPickable(negate=negate)
+    condition._pending_m2m = {"pickables": pickables}
+    return condition
+
+
 def _weapon_conditions():
     """The condition kinds that narrow weapons rather than models."""
     from n26.library.models import HasTraits, InCategories, IsOneOf
 
     return (HasTraits, InCategories, IsOneOf)
+
+
+def _gang_conditions():
+    """The condition kinds that narrow the gang rather than models."""
+    from n26.library.models import GangHasPickable
+
+    return (GangHasPickable,)
 
 
 def has_traits(*traits):
@@ -1886,6 +1908,12 @@ def _model_scope(reach, conditions):
             raise ValueError(
                 f"{type(condition).__name__} narrows weapons — use targets_weapons"
             )
+        if isinstance(condition, _gang_conditions()):
+            raise ValueError(
+                f"{type(condition).__name__} narrows the gang — use targets_gang "
+                "or targets_gang_alone; for the models of such a gang, use "
+                "has_pickable"
+            )
         _attach_condition(condition, scope)
     return scope
 
@@ -1916,26 +1944,42 @@ def targets_attached_weapon():
     return TargetsAttachedWeapon.objects.create()
 
 
-def targets_gang():
+def targets_gang(*conditions):
     """The gang carrying it and all models: affects the gang and all
-    models, in a different way per effect.
+    models, in a different way per effect. Narrowed by nested conditions
+    — ``targets_gang(has_gang_pickable(goliath))``.
 
     Deprecated on the composer — kept for existing content. Prefer
     assigning a hidden item to the gang that carries ``targets_every_model``
     modifiers, which says the same thing legibly."""
-    from n26.library.models import TargetsGang
-
-    return TargetsGang.objects.create()
+    return _gang_scope(True, conditions)
 
 
-def targets_gang_alone():
+def targets_gang_alone(*conditions):
     """The gang carrying it: applied only to the gang, and what it gives
     the gang does not reach the models. A pick given with a slot is the
     exception: what the gang has picked is a fact about every model in
-    it, whichever way the pick arrived."""
+    it, whichever way the pick arrived.
+
+    Narrowed by nested conditions —
+    ``targets_gang_alone(has_gang_pickable(goliath))`` for a boon that
+    applies only to gangs that have picked Goliath."""
+    return _gang_scope(False, conditions)
+
+
+def _gang_scope(echoes, conditions):
     from n26.library.models import TargetsGang
 
-    return TargetsGang.objects.create(echoes=False)
+    scope = TargetsGang.objects.create(echoes=echoes)
+    for condition in conditions:
+        if not isinstance(condition, _gang_conditions()):
+            raise ValueError(
+                f"{type(condition).__name__} narrows models, not the gang — "
+                "use targets_model or targets_every_model; for the gang, "
+                "use has_gang_pickable"
+            )
+        _attach_condition(condition, scope)
+    return scope
 
 
 # --- Effects: what a modifier does (ef_ at read, op_ at purchase) -----------
