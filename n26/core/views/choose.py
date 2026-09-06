@@ -204,24 +204,25 @@ def _roll_posted(request, gang, found):
 def _roll_result(event, found, offer, *, include_staged=False):
     """One roll, as the page draws it, and the keys of the rows it reached.
 
-    A staged line, or a line naming a staged pickable, is not on the table
-    for a reader who may not see staged content — the roll lands on
+    The table is read as the pick screen offers it to this reader
+    (``picklist_lines``): never an archived line or pickable, and a staged
+    one only for a reader who may see staged content — the roll lands on
     nothing there rather than on a name they were never offered.
     """
     from django.db.models import F
 
+    from n26.core.browse import picklist_lines
     from n26.core.operations import ROLL_ENTERED
     from n26.core.render import RollResult, option_key
     from n26.library.models import Dice, RollSelects
 
     picklist = found.slot.slot.picklist
-    # In the list's own roll order, so what the panel names reads in the
-    # order the list beneath it draws.
-    members = picklist.members.select_related("pickable").order_by(
+    # The lines the pick screen offers this reader, in the list's own roll
+    # order, so what the panel names reads in the order the list beneath
+    # it draws.
+    members = picklist_lines(picklist, include_staged=include_staged).order_by(
         F("roll_low").asc(nulls_last=True), "position", "pickable__name"
     )
-    if not include_staged:
-        members = members.filter(staged=False, pickable__staged=False)
     landed = picklist.landing(event.roll, members)
     keys = {option_key(member.pickable) for member in landed}
     named = {

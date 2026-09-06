@@ -820,6 +820,26 @@ def regrouped_by_placement(view, placements, fallback=None, name=None):
     return regrouped
 
 
+def picklist_lines(picklist, *, include_staged=False):
+    """The lines of a picklist a reader may be offered, unordered.
+
+    Archived lines and archived pickables are off every discovery surface,
+    as archived content always is. Staged ones are held back separately —
+    a staged pickable is off every list, a staged line is off this one,
+    the way a staged entry is off its collection — unless the reader may
+    see staged content. One statement of the rule, read by the pick
+    screen and by the roll panel, so the two cannot come to disagree.
+    """
+    lines = (
+        picklist.members.select_related("pickable")
+        .unarchived()
+        .filter(pickable__archived=False)
+    )
+    if not include_staged:
+        lines = lines.filter(staged=False, pickable__staged=False)
+    return lines
+
+
 def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     """What *this* fighter may choose for a choice slot.
 
@@ -853,12 +873,7 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     staged content sits where things are offered (``n26.library.staged``).
     """
     if slot.slot is not None:
-        members = slot.slot.picklist.members.select_related("pickable")
-        if not include_staged:
-            # The line and the pickable it names are held back separately:
-            # a staged pickable is off every list, a staged line is off
-            # this one, the way a staged entry is off its collection.
-            members = members.filter(staged=False, pickable__staged=False)
+        members = picklist_lines(slot.slot.picklist, include_staged=include_staged)
         if slot.slot.picklist.dice:
             # A roll table is read by the roll, so its picker comes in
             # roll order — a player who rolled 24 scans for the band
@@ -880,7 +895,9 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     if section is None:
         if offer is None:
             return None
-        found = offer.choosables()
+        # The whole kind, read as every discovery surface reads it: never
+        # an archived row, and a staged one only for a reader who may see it.
+        found = offer.choosables().unarchived()
         return found if include_staged else found.live()
 
     collection = section.collection

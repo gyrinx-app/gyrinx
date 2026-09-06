@@ -448,6 +448,17 @@ class TestChoosing:
         _, ours = legacy_offer(authors_gang[0], include_staged=True)
         assert ours == {"Cawdor", "Van Saar"}
 
+    def test_an_archived_pick_is_offered_to_nobody(
+        self, players_gang, authors_gang, legacy
+    ):
+        """Archiving is off every discovery surface for every reader; only
+        staging is a question of who is looking."""
+        legacy["cawdor"].archive()
+        _, theirs = legacy_offer(players_gang[0], include_staged=False)
+        _, ours = legacy_offer(authors_gang[0], include_staged=True)
+        assert theirs == set()
+        assert ours == {"Van Saar"}
+
     def test_a_staged_line_on_the_picklist_is_held_back_too(
         self, players_gang, authors_gang, legacy
     ):
