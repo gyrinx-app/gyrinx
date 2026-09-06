@@ -142,12 +142,13 @@ def paid_profiles(with_trade_point_price=False, *, include_staged=False):
     membership at a Trading Post is having a TP price, and a sweep that
     said so means it of the ammo as well as of the gun.
 
-    Staged lines are left out unless ``include_staged``: a round an author
-    has not put live is not on the listing under a gun that is.
+    Archived lines are left out, as archived content is off every discovery
+    surface; staged lines are left out unless ``include_staged``: a round an
+    author has not put live is not on the listing under a gun that is.
     """
     from n26.library.models.assignable import WeaponProfile
 
-    found = WeaponProfile.objects.filter(price__gt=0).exclude(name="")
+    found = WeaponProfile.objects.filter(price__gt=0).exclude(name="").unarchived()
     if with_trade_point_price:
         found = found.filter(trade_point_price__isnull=False)
     if not include_staged:
@@ -490,12 +491,18 @@ class CollectionSelector(Content):
         )
 
         model = self.of_kind.model_class()
-        found = model.objects.filter(self.as_selector().as_q(model)).select_related(
-            # built_ins because pricing a swept line composes the set's
-            # own price in — without it, a sweep full of kitted things
-            # pays a query per row at purchase.
-            "category__section",
-            "built_ins",
+        # Unarchived, as every discovery surface reads: a sweep is where a
+        # reader is offered things, and an archived thing is offered nowhere.
+        found = (
+            model.objects.filter(self.as_selector().as_q(model))
+            .unarchived()
+            .select_related(
+                # built_ins because pricing a swept line composes the set's
+                # own price in — without it, a sweep full of kitted things
+                # pays a query per row at purchase.
+                "category__section",
+                "built_ins",
+            )
         )
         if issubclass(model, UsableBy):
             # So marking a swept listing usable costs no extra queries.

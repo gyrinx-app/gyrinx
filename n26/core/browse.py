@@ -365,6 +365,10 @@ def browse(collection, terms=None, *, include_staged=False):
         if entry.pk in housed:
             continue
         thing = entry.assignable
+        # An archived line or thing is off the listing for everyone; a
+        # staged one only for a reader who may not see staged content.
+        if entry.archived or thing.archived:
+            continue
         if not include_staged and (entry.staged or thing.staged):
             continue
         price = price_of(thing, entry)
@@ -600,6 +604,8 @@ def _entry_parts(entries, terms, shows_trade_points, *, include_staged=False):
     """
     parts = []
     for entry in entries:
+        if entry.archived or entry.weapon_profile.archived:
+            continue
         if not include_staged and (entry.staged or entry.weapon_profile.staged):
             continue
         price = price_of(entry.weapon_profile, entry)

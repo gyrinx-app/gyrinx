@@ -408,6 +408,31 @@ class TestEquipping:
 
         assert Assignment.objects.filter(wargear=gear["spear"], miniature_root=fighter)
 
+    def test_archived_gear_is_off_every_list_for_everyone(
+        self, client, author, authors_gang, house_list, trading_post, gear
+    ):
+        """Archiving is off every discovery surface whoever is looking —
+        a listed line, a swept gun, and a round under a gun alike."""
+        from n26.library.authoring import add_weapon_profile
+
+        hotshot = add_weapon_profile(
+            gear["lasgun"], name="Hotshot", price=5, trade_point_price=2
+        )
+        gear["knife"].archive()
+        gear["caliver"].archive()
+        hotshot.archive()
+        gang, fighter = authors_gang
+        client.force_login(author)
+
+        on_house = client.get(equip_url(fighter, house_list.pk)).content.decode()
+        at_post = client.get(equip_url(fighter, trading_post.pk)).content.decode()
+
+        assert "Knife" not in on_house
+        assert "Spear" in on_house
+        assert "Plasma caliver" not in at_post
+        assert "Hotshot" not in at_post
+        assert "Lasgun" in at_post
+
     def test_what_a_gang_already_holds_is_drawn_for_everyone(
         self, client, authors_gang, gear
     ):
