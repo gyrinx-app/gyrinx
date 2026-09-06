@@ -306,9 +306,11 @@ class TestTheIndex:
         stage(create_weapon("Plasma caliver"))
         stage(create_weapon("Spear"))
         body = " ".join(client.get("/n26/authoring/").content.decode().split())
-        assert "2</span>" in body or "2 <span" in body or ">2 " in body
-        assert "things players cannot see yet" in body
-        assert "Open Staged content" in body
+        assert (
+            '2 <span class="text-base font-normal">things players cannot see yet'
+            in body
+        )
+        assert "Open staged content" in body
         assert STAGED_URL in body
         # Tinted while anything is waiting, so the card cannot be read past.
         assert "border-amber-300 bg-amber-50" in body

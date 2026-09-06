@@ -30,7 +30,7 @@
                         <span class="text-base font-normal">thing{{ staged_count|pluralize }} players cannot see yet</span>
                     </p>
                 </div>
-                <c-ui.button href="{% url 'authoring-staged' %}" variant="primary">Open Staged content</c-ui.button>
+                <c-ui.button href="{% url 'authoring-staged' %}" variant="primary">Open staged content</c-ui.button>
             </div>
         </c-ui.card>
     {% else %}
@@ -40,7 +40,7 @@
                     <p class="text-xs font-semibold uppercase tracking-wide text-muted">Staged content</p>
                     <p class="mt-1 text-sm text-muted">Nothing is staged.</p>
                 </div>
-                <c-ui.button href="{% url 'authoring-staged' %}" variant="ghost">Open Staged content</c-ui.button>
+                <c-ui.button href="{% url 'authoring-staged' %}" variant="ghost">Open staged content</c-ui.button>
             </div>
         </c-ui.card>
     {% endif %}
