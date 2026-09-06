@@ -792,8 +792,9 @@ def create_pickable(
     the set it names.
 
     ``rating_contribution`` is what holding the pick adds to the model's
-    rating, in credits: a Power Boost result adds 20. A pick is never
-    paid for, so this is a rating, not a price.
+    rating, in credits: a Power Boost result adds 20. A pick the gang
+    holds adds nothing. A pick is never paid for, so this is a rating,
+    not a price.
     """
     from n26.library.models import Pickable
 

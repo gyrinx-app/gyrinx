@@ -143,20 +143,15 @@ class Pickable(Content, Assignable):
             "for pickables that work by their own modifiers."
         ),
     )
-    # Rating, never price. A pick is not bought: nothing leaves the
-    # gang's credits, so there is nothing to refund and nothing to sell.
-    # What a rolled result adds to a model's value — a Spyrer's Power
-    # Boost — still has to reach the card, and this is how: the pick is
-    # written with this as its rating contribution and no payment. A
-    # pick that is bought for credits is a purchase, and belongs in a
-    # collection, not here.
+    # Rating, never price: a pick is not bought, so nothing is refunded
+    # or sold. A pick bought for credits is a collection purchase, not this.
     rating_contribution = models.IntegerField(
         default=0,
         help_text=(
-            "Credits this pick adds to the model's rating. A pick is never "
-            "paid for, so this is a rating, not a price. Leave at 0 unless "
-            "the rules raise the model's value, as a Spyrer's Power Boost "
-            "does."
+            "Credits this pick adds to the model's rating. A pick the gang "
+            "holds adds nothing. A pick is never paid for, so this is a "
+            "rating, not a price. Leave at 0 unless the rules raise the "
+            "model's value, as a Spyrer's Power Boost does."
         ),
     )
 

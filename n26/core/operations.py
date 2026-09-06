@@ -2194,7 +2194,8 @@ class Operation:
         prints. The pickable says what it adds (``rating_contribution``,
         0 for almost every pickable) and the pick is written with that
         as its rating and nothing paid — so removing the pick drops the
-        rating and moves no credits. An explicit ``rating`` wins.
+        rating and moves no credits. A pick the gang holds adds nothing:
+        rating is what the models are worth. An explicit ``rating`` wins.
         """
         from n26.library.models import Pickable, Slot
 
@@ -2249,7 +2250,12 @@ class Operation:
                     "Roll again for this choice."
                 )
         if kwargs.get("rating") is None:
-            kwargs["rating"] = chosen.rating_contribution
+            # Rating is what the models are worth, and a gang-hosted
+            # assignment carries none of its own: a pick the gang holds
+            # adds nothing, whatever its pickable says.
+            kwargs["rating"] = (
+                0 if kwargs.get("gang") is not None else chosen.rating_contribution
+            )
         return self.assign(
             chosen,
             caused_by=anchor,

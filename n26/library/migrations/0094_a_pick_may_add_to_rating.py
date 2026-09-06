@@ -2,7 +2,7 @@
 
 A pick is never paid for — no credits move, nothing is refunded or sold —
 but a rolled result can still raise a model's value: a Spyrer's Power
-Boost adds the amount the table prints. The pickable now says what it
+Boost adds the amount the table prints. The pickable says what it
 adds, and the pick is written with that as its rating contribution and
 nothing paid. Every existing pickable adds 0, so no gang's rating moves.
 
@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
             name="rating_contribution",
             field=models.IntegerField(
                 default=0,
-                help_text="Credits this pick adds to the model's rating. A pick is never paid for, so this is a rating, not a price. Leave at 0 unless the rules raise the model's value, as a Spyrer's Power Boost does.",
+                help_text="Credits this pick adds to the model's rating. A pick the gang holds adds nothing. A pick is never paid for, so this is a rating, not a price. Leave at 0 unless the rules raise the model's value, as a Spyrer's Power Boost does.",
             ),
         ),
     ]

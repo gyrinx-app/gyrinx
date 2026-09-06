@@ -2365,7 +2365,7 @@ class TestAPickMayAddToRating:
             line for line in choices_of(miniature) if line.kind_label == "Power Boost"
         )
 
-    def test_the_pick_adds_its_rating_and_costs_no_credits(self, gang, spyrer, results):
+    def test_the_pick_adds_its_rating_and_moves_no_credits(self, gang, spyrer, results):
         orrus = hire(gang, spyrer, "Orrus", paid=200)
         gang.refresh_from_db()
         credits_before, rating_before = gang.credits, gang.rating
@@ -2432,6 +2432,33 @@ class TestAPickMayAddToRating:
         orrus.refresh_from_db()
         assert orrus.rating == 220
         assert self._boost_slot(orrus).chosen_name == "Combat Neuroware"
+        assert_reconciled(gang)
+
+    def test_a_pick_the_gang_holds_adds_nothing(
+        self, gang, person_type, gang_type, boost, results
+    ):
+        """Rating is what the models are worth; a gang-hosted assignment
+        carries none of its own, and a pick landing on the gang is no
+        exception, whatever its pickable says."""
+        table = create_picklist("Gang Boost", boost, members=list(results.values()))
+        gang_slot = create_slot(
+            "Gang Boost", boost, table, min_picks=0, max_picks=1, assigned_to="gang"
+        )
+        profile = create_profile("Rig Master", person_type, gang_type, price=200)
+        add_built_in(profile, gang_slot)
+        master = hire(gang, profile, "Orrus", paid=200)
+        gang.refresh_from_db()
+        before = gang.rating
+        anchor = next(
+            line for line in choices_of(master) if line.kind_label == "Gang Boost"
+        ).anchor.assignment
+
+        pick = choose(anchor, results["Combat Neuroware"])
+
+        gang.refresh_from_db()
+        assert pick.gang_id == gang.pk and pick.miniature_id is None
+        assert pick.ledger_entry.rating_contribution == 0
+        assert gang.rating == before
         assert_reconciled(gang)
 
     def test_an_explicit_rating_wins(self, gang, spyrer, results):
