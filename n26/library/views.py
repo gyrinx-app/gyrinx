@@ -411,7 +411,7 @@ DETAIL_KINDS = {
         "parts_label": "asset types",
         "part_name": "asset type",
         "parts_description": (
-            "The asset types a campaign of this type has — Territory, Racket, "
+            "The asset types a campaign of this type has — Territory, "
             "Settlement. Each has a label a campaign page prints, and an "
             "ownership that fixes how every asset of the type behaves. The "
             "assets themselves are listed under their asset type, and added "
