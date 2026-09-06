@@ -16,34 +16,26 @@
     {% comment %}
     What is staged is the one figure on this page that changes what an
     author does next, so it is a card of its own rather than a line in the
-    prose — and tinted while anything is waiting, so it cannot be read past.
-    Two cards rather than one with a conditional class: a template tag inside
-    a component attribute is not evaluated the way it looks.
+    prose — tinted while anything is waiting, so it cannot be read past.
+    The tint is the kit's warning surface, so the page has one amber.
     {% endcomment %}
-    {% if staged_count %}
-        <c-ui.card class="mt-6 max-w-xl border-amber-300 bg-amber-50 dark:border-amber-700/60 dark:bg-amber-950/30">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-muted">Staged content</p>
+    <c-ui.card data-staged="{% if staged_count %}waiting{% else %}none{% endif %}"
+               class="mt-6 max-w-xl {% if staged_count %}border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40{% endif %}">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-muted">Staged content</p>
+                {% if staged_count %}
                     <p class="mt-1 text-2xl font-semibold tabular-nums text-ink-900 dark:text-ink-100">
                         {{ staged_count }}
                         <span class="text-base font-normal">thing{{ staged_count|pluralize }} players cannot see yet</span>
                     </p>
-                </div>
-                <c-ui.button href="{% url 'authoring-staged' %}" variant="primary">Open staged content</c-ui.button>
-            </div>
-        </c-ui.card>
-    {% else %}
-        <c-ui.card class="mt-6 max-w-xl">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-muted">Staged content</p>
+                {% else %}
                     <p class="mt-1 text-sm text-muted">Nothing is staged.</p>
-                </div>
-                <c-ui.button href="{% url 'authoring-staged' %}" variant="ghost">Open staged content</c-ui.button>
+                {% endif %}
             </div>
-        </c-ui.card>
-    {% endif %}
+            <c-ui.button href="{% url 'authoring-staged' %}" variant="primary">Open Staged content</c-ui.button>
+        </div>
+    </c-ui.card>
     {% comment %}
     One table, a tbody per family, rather than a table per family: column
     widths are a table's own, so separate tables mean every family sizes

@@ -302,23 +302,28 @@ class TestTheDocumentationPage:
 
 
 class TestTheIndex:
+    """The card on the library index says how much is staged, leads to the
+    Staged content page, and is tinted while anything is waiting."""
+
+    @staticmethod
+    def words(body):
+        from django.utils.html import strip_tags
+
+        return " ".join(strip_tags(body).split())
+
     def test_it_counts_what_is_staged(self, client, author, default_pack):
         stage(create_weapon("Plasma caliver"))
         stage(create_weapon("Spear"))
-        body = " ".join(client.get("/n26/authoring/").content.decode().split())
-        assert (
-            '2 <span class="text-base font-normal">things players cannot see yet'
-            in body
-        )
-        assert "Open staged content" in body
+        body = client.get("/n26/authoring/").content.decode()
+        assert "2 things players cannot see yet" in self.words(body)
+        assert "Open Staged content" in self.words(body)
         assert STAGED_URL in body
-        # Tinted while anything is waiting, so the card cannot be read past.
-        assert "border-amber-300 bg-amber-50" in body
+        assert 'data-staged="waiting"' in body
 
     def test_with_nothing_staged_it_says_so(self, client, author, default_pack):
-        body = " ".join(client.get("/n26/authoring/").content.decode().split())
-        assert "Nothing is staged." in body
-        assert "border-amber-300 bg-amber-50" not in body
+        body = client.get("/n26/authoring/").content.decode()
+        assert "Nothing is staged." in self.words(body)
+        assert 'data-staged="none"' in body
 
 
 class TestTheImportPage:
