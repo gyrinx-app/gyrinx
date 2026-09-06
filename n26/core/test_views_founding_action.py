@@ -408,6 +408,21 @@ class TestTheSquareOnTheGangPage:
         body = client.get(sheet(gang)).content.decode()
         assert "Found and equip gang" not in body
         assert "Complete action" not in body
+
+    def test_the_flag_open_to_everyone_admits_no_reader_but_the_owner(
+        self, client, gang
+    ):
+        """Opening the flag widens who among owners sees their own square;
+        it never puts another gang's actions in front of a reader."""
+        from gyrinx.site.models import Availability, FeatureFlag
+
+        FeatureFlag.objects.filter(slug="founding").update(
+            availability=Availability.EVERYONE
+        )
+        client.force_login(User.objects.create_user("stranger"))
+        body = client.get(sheet(gang)).content.decode()
+        assert "Found and equip gang" not in body
+        assert 'value="start"' not in body
         assert "No action is open." not in body
 
     def test_an_owner_the_flag_does_not_admit_gets_no_square(self, client, gang):

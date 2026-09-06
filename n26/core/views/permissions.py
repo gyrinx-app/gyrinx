@@ -77,9 +77,10 @@ def may_see_founding(gang, user):
     The figures on the model cards, the allowance block on the equip
     screen and the terms that make list lines count Trade Points are one
     feature, and it reaches the same readers as the Actions square that
-    completes the founding: owners the ``founding`` flag admits. Everyone
-    else is read exactly as before budgets existed. The two gates lift
-    together, by opening the flag.
+    completes the founding: owners the ``founding`` flag admits. For
+    everyone else no figure is drawn, no list line counts Trade Points and
+    a purchase records no founding action. The two gates lift together,
+    by opening the flag.
     """
     return may_see_actions_square(gang, user)
 
@@ -89,14 +90,13 @@ def may_see_actions_square(gang, user):
 
     The square is shown to the gang's owner where the ``founding`` flag
     admits them — a named few while the actions are tried out, everyone
-    once it opens. Every other reader gets the gang page as it was before
-    the square existed: the Trading Post visit line stays on the stash
-    card for every owner.
+    once it opens. Every other reader gets no square; the Trading Post
+    visit line stays on the stash card for every owner.
 
-    Owning the gang is checked first, so a reader's flag is only looked up
-    on their own gang: one query per page for an owner, none for anyone
-    else. Callers that ask more than once on one page keep the first
-    reading (``n26.core.views.gangs.gang``).
+    Owning the gang is checked first, so the flag is only read for an
+    owner on their own gang: the flag row, and on the allowlist the
+    owner's membership of its group. Nobody else pays for it. A view that
+    needs the reading more than once takes it once and passes it on.
     """
     from n26.flags import FOUNDING, enabled
 
