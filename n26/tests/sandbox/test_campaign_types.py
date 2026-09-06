@@ -15,6 +15,9 @@ owns may never point at content in a pack somebody does. The library's
 models do not check it; the authoring forms do, once, for every pick.
 """
 
+import re
+from html import escape, unescape
+
 import pytest
 from django.apps import apps
 from django.contrib.auth.models import User
@@ -605,6 +608,81 @@ class TestTheAuthoringPages:
         body = client.get("/n26/authoring/campaign-type/").content.decode()
         assert "Territories, Settlements" in body
         assert "1 asset" in body
+
+
+def as_a_browser_would_post(body):
+    """The edit form's values as drawn, ready to be sent back.
+
+    Everything between a textarea's tags is its content, bar the one
+    newline straight after the opening tag, which the parser drops. One
+    thing a browser does that this does not: on submit it rewrites every
+    lone newline in a box to a carriage return and a newline, so a
+    multi-line value comes back from a browser in that form.
+    """
+    form = body[body.index('name="act" value="edit"') :]
+    form = form[: form.index("</form>")]
+    posting = {"act": "edit"}
+    for name, value in re.findall(
+        r'<input[^>]*name="([^"]+)"[^>]*value="([^"]*)"', form
+    ):
+        posting.setdefault(name, unescape(value))
+    for name, held in re.findall(
+        r'<textarea[^>]*name="([^"]+)"[^>]*>(.*?)</textarea>', form, re.S
+    ):
+        posting[name] = unescape(held[1:] if held.startswith("\n") else held)
+    return posting
+
+
+class TestTheDescriptionSurvivesBeingSaved:
+    """The box hands back exactly what is stored. Whitespace drawn round
+    the value is content the author is given: typing before or after it
+    stores it, where the save's trimming cannot reach, and the next page
+    draws a fresh layer round that."""
+
+    @pytest.fixture
+    def described(self, default_pack):
+        return create_campaign_type(
+            "Dominion",
+            description="Gangs fight for turf.\n\nEach turf gives a boon.",
+        )
+
+    def test_the_box_holds_the_description_flush_against_its_tags(
+        self, author, client, described
+    ):
+        body = client.get(
+            f"/n26/authoring/campaign-type/{described.pk}/"
+        ).content.decode()
+
+        assert f">{escape(described.description)}</textarea>" in body
+
+    def test_saving_twice_without_touching_it_stores_the_same_words(
+        self, author, client, described
+    ):
+        page = f"/n26/authoring/campaign-type/{described.pk}/"
+        words = described.description
+
+        for _ in range(2):
+            posting = as_a_browser_would_post(client.get(page).content.decode())
+            assert posting["edit-description"] == words
+            assert client.post(page, posting).status_code == 302
+            described.refresh_from_db()
+            assert described.description == words
+
+    def test_a_description_stored_with_whitespace_round_it_is_trimmed(
+        self, author, client, described
+    ):
+        padded = "    Gangs fight for turf.\n        "
+        CampaignType.objects.filter(pk=described.pk).update(description=padded)
+        page = f"/n26/authoring/campaign-type/{described.pk}/"
+
+        posting = as_a_browser_would_post(client.get(page).content.decode())
+        # The box holds the stored padding and none of its own, so what
+        # the save trims is the author's whitespace and nothing else.
+        assert posting["edit-description"] == padded
+        client.post(page, posting)
+
+        described.refresh_from_db()
+        assert described.description == "Gangs fight for turf."
 
 
 class TestSystemContentNeverReferencesOwnedContent:

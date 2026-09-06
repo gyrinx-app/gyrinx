@@ -17,7 +17,7 @@ are, so the form posts with no script and a redisplay keeps the pick.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-asset-type' campaign.pk %}"
                      title="Add an asset type"
-                     lead="An asset type this campaign deals in, such as Rackets. Add the assets themselves afterwards."
+                     lead="An asset type this campaign deals in, such as Territories. Add the assets themselves afterwards."
                      :form="form"
                      submit_label="Add asset type"
                      cancel_url="{{ back }}">
@@ -38,7 +38,7 @@ are, so the form posts with no script and a redisplay keeps the pick.
         {% csrf_token %}
         <c-n26.form-section title="The asset type">
             <c-ui.field label="Label *"
-                        description='What one of these is called, e.g. "Racket".'
+                        description='What one of these is called, e.g. "Territory".'
                         error="x"
                         :form="form"
                         name="label_singular"
@@ -49,7 +49,7 @@ are, so the form posts with no script and a redisplay keeps the pick.
                             value="{{ form.label_singular.value|default:'' }}" />
             </c-ui.field>
             <c-ui.field label="Plural label"
-                        description='What several of them are called, e.g. "Rackets". Leave blank and an s is added.'
+                        description='What several of them are called, e.g. "Territories". Leave blank and an s is added.'
                         error="x"
                         :form="form"
                         name="label_plural"
