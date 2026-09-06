@@ -129,9 +129,16 @@ class Assignable(models.Model):
         related_name="%(app_label)s_%(class)s_set",
         help_text="What this does once assigned.",
     )
-    price = models.PositiveIntegerField(
+    # Signed, because some things are priced below nothing: a Goliath
+    # Gene-smithing upgrade that weakens the fighter takes credits off
+    # what they are worth. The ledger has always been signed, so this is
+    # the content column catching up with it.
+    price = models.IntegerField(
         default=0,
-        help_text="Credit price at reference — what the catalogue prints.",
+        help_text=(
+            "Credit price at reference — what the catalogue prints. May be "
+            "below zero for something that makes its holder worth less."
+        ),
     )
     trade_point_price = models.PositiveIntegerField(
         null=True,

@@ -630,7 +630,9 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
         related_name="+",
     )
 
-    price_override = models.PositiveIntegerField(
+    # Signed for the same reason the reference price is: a list may price
+    # something below nothing, and blank still means at reference price.
+    price_override = models.IntegerField(
         null=True,
         blank=True,
         help_text="This list's credit price. Blank means at reference price.",
