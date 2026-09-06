@@ -125,10 +125,36 @@ class Node:
             return bool(entry.paid or entry.trade_points or entry.rating_contribution)
         return bool(self.rating)
 
+    @property
+    def paid_trade_points(self):
+        """Whether a founding allowance paid for this line.
+
+        The question a gang with no credit budget asks before offering a
+        refund. Credits mean nothing to such a gang, so what a refund
+        gives it back is its models' Trade Points and nothing else — and
+        a line none of them paid for has nothing to return.
+
+        Asked of everything hanging off the line too, because a refund
+        takes the whole of it: a gun bought in credits, carrying
+        ammunition an allowance paid for, still has points behind it.
+
+        Free, whatever it walks — the card is in memory and each entry
+        arrived with its assignment. A card built from the library alone
+        keeps no ledger and so has nothing to return.
+        """
+        return any(_paid_trade_points(node) for node in self.walk())
+
     def walk(self):
         yield self
         for child in self.children:
             yield from child.walk()
+
+
+def _paid_trade_points(node):
+    """Whether Trade Points were handed over for this one line."""
+    assignment = node.assignment
+    entry = getattr(assignment, "ledger_entry", None) if assignment else None
+    return entry is not None and bool(entry.trade_points)
 
 
 def node_for(assignment):

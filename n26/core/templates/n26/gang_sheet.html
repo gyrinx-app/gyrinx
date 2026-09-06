@@ -326,7 +326,7 @@ that said it twice would be spending the width the name needs.
                 {% if leaving.stashable %}
                     <c-slot name="actions">
                         <c-ui.button type="submit" name="kit" value="stash" size="md">
-                            Stash their kit, then delete
+                            {{ leaving.stash_label }}
                         </c-ui.button>
                     </c-slot>
                 {% endif %}
@@ -335,7 +335,7 @@ that said it twice would be spending the width the name needs.
             <c-n26.dialog title="Refund {{ leaving.miniature.name }}?"
                           action="{% url 'n26-refund-fighter' leaving.miniature.pk %}"
                           cancel_url="{% url 'n26-gang' gang.pk %}"
-                          submit_label="Refund everything — {{ leaving.full_paid }}¢">
+                          submit_label="Refund everything — {{ leaving.full_returned }}">
                 <c-slot name="lead">
                     What was actually paid comes back — free and granted
                     things return nothing. They leave the roster with
@@ -345,7 +345,7 @@ that said it twice would be spending the width the name needs.
                 {% if leaving.stashable %}
                     <c-slot name="actions">
                         <c-ui.button type="submit" name="kit" value="stash" size="md">
-                            Stash kit, refund {{ leaving.fighter_paid }}¢
+                            {{ leaving.stash_label }}
                         </c-ui.button>
                     </c-slot>
                 {% endif %}

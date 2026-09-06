@@ -15,6 +15,7 @@ database.
 
 import pytest
 from django.contrib.auth.models import User
+from django.contrib.messages import get_messages
 from django.urls import reverse
 
 from n26.core.models import Action, Assignment, Gang
@@ -753,3 +754,180 @@ class TestTheQueryBudget:
         assert len(self.reads_counter(asked)) == 1
         assert len(self.reads_actions(asked)) == 1
         assert self.reads_spend(asked) == []
+
+
+def acts_on(response, assignment):
+    """The labels in one held copy's more-menu, off the drawn catalogue.
+
+    None where the screen draws no copy for that assignment at all.
+    """
+    for row in response.context["catalogue"].all_rows():
+        for copy in getattr(row, "copies", ()):
+            if copy.id == str(assignment.pk):
+                return [act.label for act in copy.more]
+    return None
+
+
+class TestAGangFoundedWithNoBudget:
+    """Credits are not all a founding purchase spends.
+
+    A gang founded with the budget box left blank counts no credits, so a
+    refund gives it none back and every surface offers Delete in place of
+    Refund. Its models still have founding allowances, though, and a
+    purchase that took Trade Points out of one is undone by handing them
+    back — which only a refund does.
+    """
+
+    @pytest.fixture
+    def gang(self, venators, tester):
+        """Founded the way the create screen founds one when the owner
+        says they will spend as much as they like."""
+        gang = Gang.objects.create(
+            name="The Long Hunt",
+            owner=tester,
+            gang_type=venators,
+            starting_credits=None,
+            credits=0,
+        )
+        with operation(gang, actor=tester) as op:
+            op.found(venators)
+        return gang
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    @pytest.fixture
+    def plate(self, client, gang, leader, legacy_list):
+        """Flak plate, off the leader's founding allowance: 3 Trade
+        Points, and credits this gang does not count."""
+        client.post(
+            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
+        )
+        return bought(gang, "Flak plate")
+
+    @pytest.fixture
+    def banner(self, client, gang, leader, legacy_list):
+        """The Exclusive line, which carries no Trade Point figure, so
+        no allowance paid anything for it."""
+        client.post(
+            equip_url(leader, legacy_list), {"thing": key_of(wargear("Hunt banner"))}
+        )
+        return bought(gang, "Hunt banner")
+
+    def test_the_equip_page_offers_a_refund_for_the_copy(
+        self, client, leader, legacy_list, plate
+    ):
+        response = client.get(equip_url(leader, legacy_list))
+
+        assert "Refund" in acts_on(response, plate)
+
+    def test_a_copy_no_allowance_paid_for_is_offered_removal_alone(
+        self, client, leader, legacy_list, banner
+    ):
+        response = client.get(equip_url(leader, legacy_list))
+
+        acts = acts_on(response, banner)
+        assert "Refund" not in acts
+        assert "Delete" in acts
+
+    def test_the_dialog_for_the_copy_is_a_refund_and_not_a_removal(
+        self, client, leader, legacy_list, plate
+    ):
+        response = client.get(f"{equip_url(leader, legacy_list)}&refund={plate.pk}")
+
+        dialog = response.context["dialog"]
+        assert dialog["kind"] == "refund"
+        assert dialog["trade_points"] == 3
+        # No credits figure: this gang counts none, so promising one
+        # would name a number that never moves.
+        assert dialog["proceeds"] == 0
+        assert dialog["sum"] == (
+            "You get 3 Trade Points back — the amount paid, not its rating."
+        )
+
+    def test_the_dialog_for_a_copy_no_allowance_paid_for_asks_to_remove(
+        self, client, leader, legacy_list, banner
+    ):
+        response = client.get(f"{equip_url(leader, legacy_list)}&refund={banner.pk}")
+
+        dialog = response.context["dialog"]
+        assert dialog["kind"] == "remove"
+        assert dialog["can_refund"] is False
+
+    def test_refunding_the_copy_returns_the_trade_points(
+        self, client, leader, legacy_list, plate
+    ):
+        before = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        assert (before.spent, before.remaining) == (3, 2)
+
+        response = client.post(reverse("n26-refund", args=[plate.pk]))
+
+        after = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        assert (after.spent, after.remaining) == (0, 5)
+        assert [str(message) for message in get_messages(response.wsgi_request)] == [
+            "Refunded Flak plate — 3 Trade Points back."
+        ]
+
+    def test_removing_the_copy_leaves_the_trade_points_spent(
+        self, client, leader, legacy_list, plate
+    ):
+        """Removal keeps its meaning: the thing goes and nothing comes
+        back."""
+        client.post(reverse("n26-remove", args=[plate.pk]))
+
+        after = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        assert (after.spent, after.remaining) == (3, 2)
+
+    def test_the_edit_menu_offers_a_refund_of_the_model(self, client, leader, plate):
+        body = client.get(
+            reverse("n26-edit-fighter", args=[leader.pk])
+        ).content.decode()
+
+        assert f"?refund={leader.pk}" in body
+
+    def test_a_model_no_allowance_paid_for_is_offered_deletion_alone(
+        self, client, ganger
+    ):
+        body = client.get(
+            reverse("n26-edit-fighter", args=[ganger.pk])
+        ).content.decode()
+
+        assert f"?refund={ganger.pk}" not in body
+        assert f"?delete={ganger.pk}" in body
+
+    def test_the_model_dialog_promises_the_trade_points(
+        self, client, gang, leader, plate
+    ):
+        url = reverse("n26-gang", args=[gang.pk])
+
+        leaving = client.get(f"{url}?refund={leader.pk}").context["leaving"]
+
+        assert leaving["kind"] == "refund"
+        assert leaving["full_returned"] == "3 Trade Points"
+        # Stashing the plate keeps its Trade Points spent and the hire
+        # itself returns nothing this gang counts, so the second button
+        # names no figure rather than promising a zero.
+        assert leaving["stash_label"] == "Stash their kit, then refund"
+
+    def test_refunding_the_model_returns_their_trade_points(
+        self, client, gang, leader, plate
+    ):
+        from n26.core.reconcile import trade_points_spent_for
+
+        response = client.post(reverse("n26-refund-fighter", args=[leader.pk]))
+
+        assert trade_points_spent_for(gang.open_action(FOUNDING)) == 0
+        # The last of them: the purchase this undoes left one of its own,
+        # and nothing has drawn a page to read them off since.
+        said = [str(message) for message in get_messages(response.wsgi_request)]
+        assert said[-1] == "Refunded Rasp — 3 Trade Points back."
+
+    def test_deleting_the_model_leaves_the_trade_points_spent(
+        self, client, gang, leader, plate
+    ):
+        from n26.core.reconcile import trade_points_spent_for
+
+        client.post(reverse("n26-delete-fighter", args=[leader.pk]))
+
+        assert trade_points_spent_for(gang.open_action(FOUNDING)) == 3

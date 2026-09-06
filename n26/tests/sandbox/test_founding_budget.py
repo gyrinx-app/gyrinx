@@ -463,6 +463,33 @@ class TestGivingSomethingBack:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    def test_a_purchase_that_paid_only_trade_points_is_refunded_all_the_same(
+        self, gang, leader, legacy_list
+    ):
+        """What decides between a refund and a plain removal is whether
+        anything was handed over, and Trade Points are something. A gang
+        founded with no credit budget hands over nothing else, so treating
+        a nought in the credits column as nothing paid would leave its
+        allowance spent for good."""
+        from n26.core.models import LedgerEvent
+
+        bought = buy_at_founding(
+            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"), paid=0
+        )
+        assert bought.ledger_entry.paid == 0
+
+        refund(bought)
+
+        event = LedgerEvent.objects.get(
+            assignment=bought, kind=LedgerEvent.Kind.REFUNDED
+        )
+        assert event.trade_points_delta == -3
+        assert event.credits_delta == 0
+        assert budget(leader).spent == 0
+        assert budget(leader).remaining == 5
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
     def test_a_sale_returns_no_trade_points(self, gang, leader, legacy_list):
         """Selling is not undoing: the credits come back at half, and the
         Trade Points stay spent."""

@@ -126,6 +126,10 @@ def refund_of(assignment):
     refunded on this one. That is a different number from a sale's, which
     is half of what the thing is *worth*, and the two part company the
     moment anything is discounted or given away.
+
+    Credits alone. What the same purchases took out of a model's founding
+    allowance is :func:`trade_points_refund_of`, and one purchase may have
+    taken both.
     """
     rows = [row for row in [assignment, *subtree(assignment)] if not row.archived]
     paid = sum(
@@ -134,6 +138,52 @@ def refund_of(assignment):
         if (entry := getattr(row, "ledger_entry", None)) is not None
     )
     return rows, paid
+
+
+def trade_points_in(assignments):
+    """The Trade Points these assignments were bought with.
+
+    Takes what :func:`refund_of` already gathered, so a screen wanting
+    both figures walks the subtree once.
+    """
+    return sum(
+        entry.trade_points
+        for assignment in assignments
+        if (entry := getattr(assignment, "ledger_entry", None)) is not None
+    )
+
+
+def trade_points_refund_of(assignment):
+    """The Trade Points refunding this would give back.
+
+    The other half of :func:`refund_of`, over the same assignments. A
+    purchase made while the gang's Found and equip gang action was open
+    came off the buyer's founding allowance, and undoing it puts them
+    back.
+
+    A gang founded with no credit budget hands over nothing else, so this
+    is the whole of what a refund of one of its purchases returns — which
+    is why a screen asks it before deciding whether to offer the act.
+    """
+    return trade_points_in(refund_of(assignment)[0])
+
+
+def trade_points_carried_by(miniature):
+    """The Trade Points still riding on everything this model holds.
+
+    The same total a full refund of the model would give back — its hire,
+    what the hire brought, and every piece of kit bought since — asked as
+    one query rather than a walk per line, because the screens that ask
+    it only want to know whether to offer the act.
+    """
+    from django.db.models import Sum
+
+    return (
+        Assignment.objects.filter(miniature_root=miniature, archived=False).aggregate(
+            total=Sum("ledger_entry__trade_points")
+        )["total"]
+        or 0
+    )
 
 
 class Refusal(Exception):
@@ -1034,16 +1084,20 @@ class Operation:
         """Take something back and return what was paid for it.
 
         Removal and refund are deliberately different acts: ``remove``
-        archives and keeps the money spent; this archives the same subtree
-        *and* gives the credits back. ``sell`` is the third of them, and
-        returns half of what the thing is worth rather than what was paid.
+        archives and keeps what was spent; this archives the same subtree
+        *and* gives it back. ``sell`` is the third of them, and returns
+        half of what the thing is worth rather than what was paid.
+
+        Credits and Trade Points both count as having been paid, so a
+        purchase that took nothing but Trade Points is refunded like any
+        other. Only a line nobody handed anything over for is simply
+        removed.
 
         Each refunded line's entry is settled to zero with a matching
         event, so folding the events still reproduces the entry and the
-        gang's recomputed credits rise by exactly what was returned. Lines
-        nobody paid for are simply removed. Trade Points come back the
-        same way, and a refund taken on the same trip as the purchase
-        puts them back in the allowance; once a new allowance is set,
+        gang's recomputed credits rise by exactly what was returned. A
+        refund taken on the same trip as the purchase puts the Trade
+        Points back in the allowance; once a new allowance is set,
         neither the spending nor its undoing counts any more — the trip
         a refund belongs to is the trip the purchase belonged to, not
         whenever the owner got round to handing it back.
@@ -1061,7 +1115,7 @@ class Operation:
             target.save(update_fields=["archived", "archived_at", "modified"])
 
             entry = getattr(target, "ledger_entry", None)
-            if entry is None or entry.paid == 0:
+            if entry is None or not (entry.paid or entry.trade_points):
                 self.event(target, LedgerEvent.Kind.REMOVED, note=note)
                 continue
             self.event(

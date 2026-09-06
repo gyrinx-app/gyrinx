@@ -151,6 +151,10 @@ class OwnedPart:
     sell_href: str
     refund_href: str
     remove_href: str
+    #: Whether a founding allowance paid for this copy or anything hung
+    #: off it. A gang with no credit budget refunds nothing else, so this
+    #: is what says whether the act is worth offering there.
+    paid_trade_points: bool = False
     #: Where to go to take this off and leave the fighter holding it.
     #: Empty for a firing line, and for a sight the gun came with.
     detach_href: str = ""
@@ -176,6 +180,10 @@ class OwnedThing:
     reassign_href: str
     refund_href: str
     remove_href: str
+    #: Whether a founding allowance paid for this copy or anything hung
+    #: off it. A gang with no credit budget refunds nothing else, so this
+    #: is what says whether the act is worth offering there.
+    paid_trade_points: bool = False
     #: Where to go to bolt something onto this. Only a weapon has one:
     #: an accessory hangs off the gun it changes, so nothing else on a
     #: card is somewhere to fit one.
@@ -274,6 +282,7 @@ def _parts_of(node, at, *, can_refit=False):
                 sell_href=with_query(at, sell=pk),
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
+                paid_trade_points=child.paid_trade_points,
                 detach_href=with_query(at, detach=pk) if unbolt else "",
                 fit_href=(with_query(at, fit=pk) if unbolt and can_refit else ""),
             )
@@ -355,6 +364,7 @@ def possessions(host: EquipHost):
                 reassign_href=with_query(at, reassign=pk),
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
+                paid_trade_points=node.paid_trade_points,
                 accessorise_href=(
                     with_query(at, accessorise=pk)
                     if isinstance(node.assignable, Weapon)

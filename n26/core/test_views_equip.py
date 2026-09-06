@@ -1522,7 +1522,7 @@ def test_a_refund_names_what_was_paid_and_not_its_rating(
     ).content.decode()
     copy = " ".join(body.split())
 
-    assert "5¢ comes back — the amount paid, not its rating." in copy
+    assert "You get 5¢ back — the amount paid, not its rating." in copy
     assert (
         "It and anything attached to it are removed from the gang, undoing the purchase."
         in copy

@@ -2829,7 +2829,7 @@ def owned_context():
             "kind": "refund",
             "title": "Refund Meltagun?",
             "proceeds": 120,
-            "sum": "120¢ comes back — what was paid for it, not what it is worth.",
+            "sum": "You get 120¢ back — the amount paid, not its rating.",
             "submit_label": "Refund",
             "submit_variant": "danger",
         },
