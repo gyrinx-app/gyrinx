@@ -679,3 +679,130 @@ class AddLabelForm(forms.Form):
         if any(len(option) > 200 for option in options):
             raise forms.ValidationError("An option can be at most 200 characters.")
         return options
+
+
+# --- Asset tables --------------------------------------------------------------
+#
+# The forms behind the two Roll dialogs on the campaign page and the
+# arbitrator's Tables pages. Every picker here takes its queryset from the
+# view, for the reason every campaign picker does: one built without it
+# would accept a table or an asset the campaign has no business with.
+
+
+class RollAssetForm(forms.Form):
+    """A roll on one of the tables offered: which table, and the roll
+    made at the table where it was made there rather than here.
+
+    Whether an entered roll is one the die can make is the operation's
+    question, since only it knows which table's die is being rolled by
+    the time both fields are read.
+    """
+
+    table = forms.ModelChoiceField(
+        queryset=None,
+        label="Table",
+        error_messages={
+            "invalid_choice": "That table is not one that can be rolled on here.",
+            "required": "Select a table.",
+        },
+    )
+    rolled = forms.IntegerField(
+        required=False,
+        min_value=1,
+        label="Enter the roll you made at the table",
+        help_text="Optional. Leave blank and the roll is made here.",
+    )
+
+    def __init__(self, *args, tables, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["table"].queryset = tables
+        # One table offered is the table: nothing to select, so the field
+        # settles on it whether or not the form names it.
+        offered = list(tables)
+        if len(offered) == 1:
+            self.fields["table"].required = False
+            self.only_table = offered[0]
+        else:
+            self.only_table = None
+
+    def clean_table(self):
+        return self.cleaned_data.get("table") or self.only_table
+
+
+class OpenTablesForm(forms.Form):
+    """Which of the tables offered every gang in the campaign may roll on.
+    Unticked is closed; the view reads the difference from what stood
+    before."""
+
+    open = forms.ModelMultipleChoiceField(
+        queryset=None,
+        required=False,
+        error_messages={
+            "invalid_choice": "That table is not one this campaign can open.",
+        },
+    )
+
+    def __init__(self, *args, tables, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["open"].queryset = tables
+
+
+class NewTableForm(forms.Form):
+    """A new asset table for one campaign: what it lists, its name and
+    its die."""
+
+    asset_type = forms.ModelChoiceField(
+        queryset=None,
+        label="Asset type",
+        error_messages={
+            "invalid_choice": "That is not an asset type this campaign deals in.",
+            "required": "Select an asset type.",
+        },
+    )
+    name = forms.CharField(max_length=200, label="Name")
+    dice = forms.ChoiceField(
+        required=False,
+        label="Dice",
+        help_text=(
+            "The die the table is rolled on. Leave blank for an ordered "
+            "list that is chosen from rather than rolled."
+        ),
+    )
+
+    def __init__(self, *args, asset_types, **kwargs):
+        from n26.library.models import Dice
+
+        super().__init__(*args, **kwargs)
+        self.fields["asset_type"].queryset = asset_types
+        self.fields["dice"].choices = [("", "Not rolled"), *Dice.choices]
+
+
+class TableEntryForm(forms.Form):
+    """One more asset on a table: which, and on a rolled table the band
+    of rolls that lands on it. Whether the band fits the table's die is
+    the table's own check, said above the entries."""
+
+    asset = forms.ModelChoiceField(
+        queryset=None,
+        label="Asset",
+        error_messages={
+            "invalid_choice": "That asset is not one this campaign deals in.",
+            "required": "Select an asset.",
+        },
+    )
+    roll_low = forms.IntegerField(
+        required=False,
+        min_value=1,
+        label="Lowest roll",
+        help_text="The lowest roll that lands here. Leave blank on a list.",
+    )
+    roll_high = forms.IntegerField(
+        required=False,
+        min_value=1,
+        label="Highest roll",
+        help_text="The highest roll that lands here. Blank means the lowest alone.",
+    )
+
+    def __init__(self, *args, offered, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["asset"].queryset = offered

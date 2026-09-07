@@ -158,6 +158,11 @@ class CampaignEvent(Base):
         # is that gang's ledger event instead.
         ASSET_ADDED = "asset_added", "Asset added"
         ASSET_REMOVED = "asset_removed", "Asset removed"
+        # A roll on an asset table. One act, one line: the asset it adds is
+        # named in the note, so no ASSET_ADDED is written beside it. A roll
+        # for a gang assigns the asset too, and that is the gang's own
+        # ledger event, as every assignment is.
+        ASSET_ROLLED = "asset_rolled", "Rolled"
         # Content the arbitrator wrote into the campaign's own pack and
         # onto its additions type. What a member gang then receives is
         # that gang's ledger event, as every built-in is.
@@ -165,6 +170,12 @@ class CampaignEvent(Base):
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"
+        # Which asset tables every gang in the campaign may roll on, beyond
+        # the ones its type gives: a table built into the campaign's
+        # additions, taken out again, or written for this campaign.
+        TABLE_OPENED = "table_opened", "Table opened"
+        TABLE_CLOSED = "table_closed", "Table closed"
+        TABLE_CREATED = "table_created", "Table created"
 
     campaign = models.ForeignKey(
         "n26.Campaign",

@@ -27,8 +27,10 @@ controls, as on the gang sheet — and settled text otherwise.
 What the arbitrator adds to the campaign sits where it shows: the sheet's
 `add_asset_type_href` draws beside the Assets heading, and its
 `add_counter_href` and `add_label_href` beside the Gangs heading, since a
-counter or a label is a column of that table. Each is a control for the
-arbitrator alone, drawn only where the address is filled.
+counter or a label is a column of that table; its `tables_href` — where the
+arbitrator opens and writes the tables every gang may roll on — sits beside
+the Assets heading too. Each is a control for the arbitrator alone, drawn
+only where the address is filled.
 
   :sheet — a n26.render.CampaignSheet.
   edit_href — where the campaign's own facts are changed. Empty draws the
@@ -173,8 +175,11 @@ arbitrator alone, drawn only where the address is filled.
     so the control that adds one sits on this heading.
     {% endcomment %}
     <c-n26.section id="assets" title="Assets" count="{% if sheet.asset_count %}{{ sheet.assets_held }} held, {{ sheet.assets_unclaimed }} unclaimed{% endif %}">
-        {% if assets_actions.strip or sheet.add_asset_type_href %}
+        {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
             <c-slot name="actions">
+                {% if sheet.tables_href %}
+                    <c-ui.button size="sm" variant="default" href="{{ sheet.tables_href }}">Tables</c-ui.button>
+                {% endif %}
                 {% if sheet.add_asset_type_href %}
                     <c-ui.button size="sm" variant="default" href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>
                 {% endif %}

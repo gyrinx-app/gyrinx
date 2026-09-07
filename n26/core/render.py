@@ -30,6 +30,7 @@ from n26.library.models import (
     AssetTable,
     Collection,
     Counter,
+    Dice,
     Hidden,
     Pickable,
     Rule,
@@ -1124,11 +1125,41 @@ class CampaignGangLine:
     #: One list of names per ``CampaignSheet.asset_types``: what this gang
     #: has of that type, possessions and holdings alike. Empty is a dash.
     assets: list[list[str]] = field(default_factory=list)
+    #: One per Holding asset type of which this gang holds a rolled table:
+    #: the starting roll the arbitrator may make for it. Empty for a gang
+    #: holding no table it could roll on.
+    starting_rolls: list[StartingRoll] = field(default_factory=list)
     #: The gang's own page. Filled by whoever knows the URL space.
     href: str = ""
     #: Whether the reader owns this gang — what decides which of the
     #: table's controls are theirs.
     yours: bool = False
+
+
+@dataclass
+class HeldTable:
+    """One asset table as a roll control offers it: what it is called and
+    what it is rolled on. ``dice`` is the stored value; ``die`` the word
+    a player says."""
+
+    table_id: str
+    name: str
+    asset_type_id: str
+    dice: str
+    die: str
+
+
+@dataclass
+class StartingRoll:
+    """A gang's starting roll for one asset type: the tables it holds of
+    that type, and the control's wording in the type's own word — "Roll
+    starting territory". The address is the view's to fill, for the
+    arbitrator alone."""
+
+    asset_type_id: str
+    label: str
+    tables: list[HeldTable] = field(default_factory=list)
+    href: str = ""
 
 
 @dataclass(frozen=True)
@@ -1194,6 +1225,13 @@ class CampaignAssetTable:
     #: for a reader who may not.
     add_href: str = ""
     create_href: str = ""
+    #: The rolled tables of this type the campaign itself holds — built
+    #: into its type or its additions — which is what the pool is rolled
+    #: on. Empty where nothing of this type is rolled for.
+    tables: list[HeldTable] = field(default_factory=list)
+    #: Where the pool roll is asked. Empty for a reader who may not, and
+    #: where there is no rolled table to roll on.
+    roll_href: str = ""
 
     @property
     def held(self):
@@ -1246,6 +1284,13 @@ class CampaignSheet:
     add_asset_type_href: str = ""
     add_counter_href: str = ""
     add_label_href: str = ""
+    #: Where the arbitrator opens and writes asset tables. Empty for a
+    #: reader who may not.
+    tables_href: str = ""
+    #: How many territories the rules have the arbitrator generate for a
+    #: campaign of this many players: three each. Players, not gangs, since
+    #: the rules count people at the table; the arbitrator is not one.
+    territories_to_generate: int = 0
 
     @property
     def gang_count(self):
@@ -2811,10 +2856,15 @@ def render_campaign(campaign, viewer=None):
     """
     from django.db.models import Prefetch
 
-    from n26.core.campaigns import over_budget
+    from n26.core.campaigns import (
+        over_budget,
+        tables_in_play,
+        tables_on,
+        withdrawn_members,
+    )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership
+    from n26.core.models import CampaignMembership, CampaignParticipant
     from n26.core.render import GANG_SLOT_HOST, choice_lines
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
@@ -2867,12 +2917,24 @@ def render_campaign(campaign, viewer=None):
 
     parts = {}
     picks = {}
+    held_tables = {}
+    # Tables given through a member the arbitrator has since closed stay
+    # on the gangs and are not offered: one query for every card at once.
+    withdrawn = withdrawn_members(*cards.values())
     for membership in memberships:
         card = cards[membership.gang_id]
         computed = compute(card, index)
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(card, membership, keys, readings)
+        # The rolled tables the gang holds, stored and granted alike, off
+        # the card already computed: which tables its starting roll may
+        # be made on.
+        held_tables[membership.pk] = [
+            _held_table(table)
+            for table in tables_on(card, computed, withdrawn)
+            if table.dice
+        ]
         # What the gang has picked for each choice it is asked, by the
         # choice's label. A label is a gang-level slot the arbitrator built
         # in, so the gang's own choices are where its pick is read.
@@ -2938,15 +3000,23 @@ def render_campaign(campaign, viewer=None):
                 counters=[readings_by_name.get(name) for name in counter_columns],
                 labels=[picks[membership.pk].get(name, "") for name in label_columns],
                 assets=assets,
+                starting_rolls=_starting_rolls(asset_types, held_tables[membership.pk]),
                 yours=gang.owner_id == reading,
             )
         )
 
+    # The rolled tables the campaign itself holds, by asset type: what the
+    # pool of each type is generated from. One query for the whole page.
+    in_play = {}
+    for table in tables_in_play(campaign).order_by("name"):
+        if table.dice:
+            in_play.setdefault(table.asset_type_id, []).append(_held_table(table))
     tables = {
         asset_type.pk: CampaignAssetTable(
             asset_type_id=str(asset_type.pk),
             label=asset_type.label_singular,
             plural=asset_type.plural,
+            tables=in_play.get(asset_type.pk, []),
         )
         for asset_type in asset_types
         if asset_type.is_holding
@@ -2995,7 +3065,47 @@ def render_campaign(campaign, viewer=None):
         ],
         assets=list(tables.values()),
         battles_fought=campaign.battles.count(),
+        territories_to_generate=TERRITORIES_PER_PLAYER
+        * campaign.participants.filter(
+            state=CampaignParticipant.State.ACCEPTED
+        ).count(),
     )
+
+
+#: How many territories the rules generate for each player at the table
+#: when a campaign is set up.
+TERRITORIES_PER_PLAYER = 3
+
+
+def _held_table(table):
+    """An asset table as a roll control offers it."""
+    return HeldTable(
+        table_id=str(table.pk),
+        name=table.name,
+        asset_type_id=str(table.asset_type_id),
+        dice=table.dice,
+        die=Dice.label_for(table.dice),
+    )
+
+
+def _starting_rolls(asset_types, held):
+    """One starting roll per Holding asset type of which the gang holds a
+    rolled table, in the columns' order, worded in the type's own
+    word."""
+    rolls = []
+    for asset_type in asset_types:
+        if not asset_type.is_holding:
+            continue
+        tables = [t for t in held if t.asset_type_id == str(asset_type.pk)]
+        if tables:
+            rolls.append(
+                StartingRoll(
+                    asset_type_id=str(asset_type.pk),
+                    label=f"Roll starting {asset_type.label_singular.lower()}",
+                    tables=tables,
+                )
+            )
+    return rolls
 
 
 def _arbitrators_additions(campaign):

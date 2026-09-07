@@ -123,6 +123,40 @@ urlpatterns = [
         views.add_label,
         name="n26-campaign-add-label",
     ),
+    # Rolling on an asset table: for the campaign's pool, and for one gang's
+    # starting asset. Both dialogs are drawn on the campaign's page; these
+    # are the acts behind them.
+    path(
+        "campaigns/<str:pk>/assets/roll/",
+        views.roll_asset,
+        name="n26-campaign-roll-asset",
+    ),
+    path(
+        "campaigns/<str:pk>/gangs/<str:gang_pk>/roll/",
+        views.roll_starting_asset,
+        name="n26-campaign-roll-starting",
+    ),
+    # Which tables every gang may roll on, and the campaign's own tables.
+    path(
+        "campaigns/<str:pk>/tables/",
+        views.campaign_tables,
+        name="n26-campaign-tables",
+    ),
+    path(
+        "campaigns/<str:pk>/tables/new/",
+        views.new_table,
+        name="n26-campaign-new-table",
+    ),
+    path(
+        "campaigns/<str:pk>/tables/<str:table_pk>/",
+        views.campaign_table,
+        name="n26-campaign-table",
+    ),
+    path(
+        "campaigns/<str:pk>/tables/<str:table_pk>/entries/<str:entry_pk>/remove/",
+        views.remove_table_entry,
+        name="n26-campaign-table-entry-remove",
+    ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
     # After gangs/new/, which would otherwise resolve "new" as an id.

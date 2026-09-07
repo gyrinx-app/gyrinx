@@ -239,4 +239,12 @@ reader's other campaigns — the same pattern a gang's screens use.
             {% endif %}
         </c-slot>
     </c-n26.view.campaign-sheet>
+    {% comment %}
+    The roll questions' host, drawn even when empty so a Roll control can
+    fetch its panel into it without rebuilding the page. Outside the sheet:
+    each panel is a form of its own.
+    {% endcomment %}
+    {% if yours %}
+        {% include "n26/includes/campaign_roll_dialogs.html" with redrawn=False %}
+    {% endif %}
 {% endblock content %}

@@ -1334,6 +1334,27 @@ def _tell_campaign(e):
         case kinds.ASSET_REMOVED:
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"removed {what}"),), "campaign"
+        case kinds.ASSET_ROLLED:
+            # The note is the whole sentence — "Rolled 34 on the Territory
+            # Selection Table: Old Ruins." — written to stand on its own.
+            # Here the actor's name leads, so it loses its capital and its
+            # stop, and the mark of an entered roll follows in its own words.
+            said, _, entered = e.note.partition(". ")
+            if not said:
+                return (Span("rolled on a table"),), "campaign"
+            said = said[0].lower() + said[1:].removesuffix(".")
+            if entered:
+                said = f"{said}, entered from a roll at the table"
+            return (Span(said),), "campaign"
+        case kinds.TABLE_OPENED:
+            what = f"the table {e.note}" if e.note else "a table"
+            return (Span(f"opened {what} to every gang"),), "campaign"
+        case kinds.TABLE_CLOSED:
+            what = f"the table {e.note}" if e.note else "a table"
+            return (Span(f"closed {what}"),), "campaign"
+        case kinds.TABLE_CREATED:
+            what = f"the table {e.note}" if e.note else "a table"
+            return (Span(f"created {what}"),), "campaign"
         case kinds.ASSET_TYPE_ADDED:
             what = f"the asset type {e.note}" if e.note else "an asset type"
             return (Span(f"added {what}"),), "campaign"

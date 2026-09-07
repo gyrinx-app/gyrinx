@@ -16,6 +16,9 @@ carries no addresses sees a table with no controls, not a table of disabled
 ones — the view fills them for the arbitrator, and Unassign and the transfer
 for the owner of the holding gang, whose transfer reads "Hand over".
 
+The Roll control takes the asset type's own word too — "Roll territory" —
+and is drawn only where the campaign holds a rolled table of the type.
+
   :table — a n26.render.CampaignAssetTable.
 {% endcomment %}
 <c-vars :table="None" class="" />
@@ -28,8 +31,23 @@ for the owner of the holding gang, whose transfer reads "Hand over".
                 <span class="ml-1 text-sm font-normal text-muted">{{ table.held }} held, {{ table.unclaimed }} unclaimed</span>
             {% endif %}
         </h3>
-        {% if table.add_href or table.create_href %}
+        {% if table.add_href or table.create_href or table.roll_href %}
             <div class="flex items-center gap-1">
+                {% comment %}
+                Primary: the one control here that begins a form, and the act
+                the rules have the arbitrator do first. Drawn only where the
+                campaign holds a rolled table of this type. It asks over htmx
+                for the panel alone; without a script it is a link to the
+                page with the panel open.
+                {% endcomment %}
+                {% if table.roll_href %}
+                    <c-ui.button size="xs"
+                                 variant="primary"
+                                 href="{{ table.roll_href }}"
+                                 hx-get="{{ table.roll_href }}"
+                                 hx-swap="none"
+                                 title="Roll on a table for a {{ table.label|lower }} nobody holds yet">Roll {{ table.label|lower }}</c-ui.button>
+                {% endif %}
                 {% if table.add_href %}
                     <c-ui.button size="xs"
                                  variant="default"

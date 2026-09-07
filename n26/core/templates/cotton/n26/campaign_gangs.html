@@ -27,6 +27,10 @@ reads the number alone.
 Scrolls sideways inside its own box, which the kit's table wrapper provides,
 so a campaign with several counters and asset types never widens the page.
 
+Under the gang's name, a Roll starting territory control for each asset type
+of which the gang holds a rolled table — worded in the type's own word — where
+the line carries an address for it. The view fills one for the arbitrator.
+
   :sheet — a n26.render.CampaignSheet. Each gang's `href` should already be
     filled; a gang with none draws as plain text.
 {% endcomment %}
@@ -65,6 +69,23 @@ so a campaign with several counters and asset types never widens the page.
                             {% endif %}
                         </span>
                         <span class="text-xs text-muted">{{ gang.gang_type }} · {{ gang.owner }}</span>
+                        {% comment %}
+                        One control per asset type of which the gang holds a
+                        rolled table, in the type's own word, for the reader
+                        whose address the view filled — the arbitrator. Asks
+                        over htmx for the panel alone; a plain link otherwise.
+                        {% endcomment %}
+                        {% for roll in gang.starting_rolls %}
+                            {% if roll.href %}
+                                <span class="mt-1">
+                                    <c-ui.button size="xs"
+                                                 variant="default"
+                                                 href="{{ roll.href }}"
+                                                 hx-get="{{ roll.href }}"
+                                                 hx-swap="none">{{ roll.label }}</c-ui.button>
+                                </span>
+                            {% endif %}
+                        {% endfor %}
                     </div>
                 </td>
                 <td class="text-right tabular-nums whitespace-nowrap">{{ gang.rating }}¢</td>
