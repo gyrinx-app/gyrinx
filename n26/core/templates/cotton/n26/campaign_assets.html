@@ -17,7 +17,7 @@ ones — the view fills them for the arbitrator, and Unassign and the transfer
 for the owner of the holding gang, whose transfer reads "Hand over".
 
 The Roll control takes the asset type's own word too — "Roll territory" —
-and is drawn only where the campaign holds a rolled table of the type.
+and is drawn only where the campaign has a rolled table of the type.
 
   :table — a n26.render.CampaignAssetTable.
 {% endcomment %}
@@ -46,7 +46,7 @@ and is drawn only where the campaign holds a rolled table of the type.
                                  href="{{ table.roll_href }}"
                                  hx-get="{{ table.roll_href }}"
                                  hx-swap="none"
-                                 title="Roll on a table for a {{ table.label|lower }} nobody holds yet">Roll {{ table.label|lower }}</c-ui.button>
+                                 title="Roll for a {{ table.label|lower }}. It is added to the campaign, unclaimed.">Roll {{ table.label|lower }}</c-ui.button>
                 {% endif %}
                 {% if table.add_href %}
                     <c-ui.button size="xs"
@@ -58,7 +58,7 @@ and is drawn only where the campaign holds a rolled table of the type.
                     <c-ui.button size="xs"
                                  variant="default"
                                  href="{{ table.create_href }}"
-                                 title="Write a new {{ table.label|lower }} for this campaign alone">Create {{ table.label|lower }}</c-ui.button>
+                                 title="Create a new {{ table.label|lower }} for this campaign">Create {{ table.label|lower }}</c-ui.button>
                 {% endif %}
             </div>
         {% endif %}

@@ -39,8 +39,8 @@ passed to it would print a second class attribute and drop its styling.
     <div class="flex items-center gap-2">
         <div class="w-56">
             <c-ui.input name="rolled" type="number" inputmode="numeric"
-                        placeholder="Your roll from the table ({{ table.lowest }}–{{ table.highest }})"
-                        aria-label="The number you rolled at the table" />
+                        placeholder="Your own roll ({{ table.lowest }}–{{ table.highest }})"
+                        aria-label="The roll you made yourself" />
         </div>
         <c-ui.button type="submit" name="act" value="enter" variant="default">Enter</c-ui.button>
     </div>

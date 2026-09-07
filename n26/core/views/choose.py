@@ -212,7 +212,7 @@ def _roll_result(event, found, offer, *, include_staged=False):
     from django.db.models import F
 
     from n26.core.browse import picklist_lines
-    from n26.core.operations import ROLL_ENTERED
+    from n26.core.operations import ROLL_ENTERED, ROLL_ENTERED_BEFORE
     from n26.core.render import RollResult, option_key
     from n26.library.models import Dice, RollSelects
 
@@ -244,7 +244,7 @@ def _roll_result(event, found, offer, *, include_staged=False):
         dice_label=dice.label,
         faces=Dice.faces(dice, event.roll),
         landed=tuple(named.get(option_key(m.pickable), m.label) for m in landed),
-        entered=event.note == ROLL_ENTERED,
+        entered=event.note in (ROLL_ENTERED, ROLL_ENTERED_BEFORE),
         applied=str(spent.assignable) if spent is not None else "",
         threshold=picklist.roll_selects == RollSelects.THRESHOLD,
     )

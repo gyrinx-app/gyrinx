@@ -1148,6 +1148,17 @@ class HeldTable:
     dice: str
     die: str
 
+    @property
+    def lowest(self):
+        """The lowest roll the table's die can make — 11 on a D66."""
+        rolls = Dice.rolls(self.dice)
+        return rolls[0] if rolls else None
+
+    @property
+    def highest(self):
+        rolls = Dice.rolls(self.dice)
+        return rolls[-1] if rolls else None
+
 
 @dataclass
 class StartingRoll:

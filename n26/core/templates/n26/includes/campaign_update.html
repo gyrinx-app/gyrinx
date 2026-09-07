@@ -1,0 +1,28 @@
+{% comment %}
+The partial update for a roll on the campaign page — rendered by
+n26.core.views.campaigns._campaign_update, never included by a page.
+
+Nothing here is targeted by the click that caused it. Each host carries
+hx-swap-oob and the id of the element on the page it replaces, so which
+parts of the page a roll updates is decided here and can grow without any
+call site changing. The message is not among them: it rides the HX-Trigger
+header and shows as a toast, because a page that is not re-rendered draws
+no alert block.
+
+Whole sections, never a row. A roll adds a new line — to the assets table,
+to a gang's cell, to the log — and an out-of-band swap can only replace an
+element that is already on the page; it cannot put one where there was
+none. Each host is the same include the page draws, so a section delivered
+by an update and one drawn with the page cannot come to look different.
+
+Expects `sheet` (with its addresses filled), `acts` and `campaign`.
+{% endcomment %}
+{% include "n26/includes/campaign_figures.html" with redrawn=True %}
+{% include "n26/includes/campaign_gangs.html" with redrawn=True %}
+{% include "n26/includes/campaign_assets_section.html" with redrawn=True assets_actions="" %}
+{% include "n26/includes/campaign_log.html" with redrawn=True %}
+{% include "n26/includes/campaign_log_count.html" with redrawn=True %}
+{% comment %}
+The roll dialog's host, emptied: the panel the roll was made from closes.
+{% endcomment %}
+<div id="n26-roll-dialog-host" hx-swap-oob="true"></div>

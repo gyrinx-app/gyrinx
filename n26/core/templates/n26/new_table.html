@@ -3,8 +3,8 @@
 {% comment %}
 Writing a new asset table into the campaign's own pack, under one of the
 Holding asset types the campaign deals in. The table is built into the
-campaign's own campaign type as it is made, so every gang at the table holds
-it and may roll on it. Its entries are added on the page this lands on.
+campaign's own campaign type as it is made, so every gang in the campaign
+holds it. What it contains is added on the page this lands on.
 Native radios for the asset type and the die, so the form posts with no
 script and a redisplay keeps the pick.
 {% endcomment %}
@@ -19,7 +19,7 @@ script and a redisplay keeps the pick.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-new-table' campaign.pk %}"
                      title="Create a table"
-                     lead="A table for this campaign alone. Every gang in the campaign may roll on it; no other campaign sees it. You add its entries next."
+                     lead="Give it a name and choose its die. You add what it contains next."
                      :form="form"
                      submit_label="Create table"
                      cancel_url="{{ back }}">
@@ -39,9 +39,9 @@ script and a redisplay keeps the pick.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="What it lists">
-            <c-n26.radio-cards label="Asset type *"
-                               description="The table lists assets of this type."
+        <c-n26.form-section title="What it contains">
+            <c-n26.radio-cards label="Asset type"
+                               description="What the table contains."
                                :form="form"
                                name="asset_type">
                 {% for asset_type in asset_types %}
@@ -53,7 +53,7 @@ script and a redisplay keeps the pick.
                 {% endfor %}
             </c-n26.radio-cards>
         </c-n26.form-section>
-        <c-n26.form-section title="The table">
+        <c-n26.form-section title="Name and die">
             <c-ui.field label="Name *" error="x" :form="form" name="name" for="table-name">
                 <c-ui.input id="table-name"
                             name="name"
@@ -61,7 +61,7 @@ script and a redisplay keeps the pick.
                             value="{{ form.name.value|default:'' }}" />
             </c-ui.field>
             <c-n26.radio-cards label="Dice"
-                               description="The die the table is rolled on. Not rolled is an ordered list, chosen from rather than rolled."
+                               description="Choose Not rolled for a plain list."
                                :form="form"
                                name="dice"
                                min="8rem">

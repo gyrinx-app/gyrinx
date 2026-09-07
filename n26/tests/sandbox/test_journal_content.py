@@ -768,7 +768,7 @@ class TestTheHouseTable:
 
         # The act itself refuses too, whoever calls it: the gate is not
         # only the dialog's.
-        with pytest.raises(Refusal, match="cannot roll on Goliath Territories"):
+        with pytest.raises(Refusal, match="cannot roll for a territory from Goliath"):
             roll_asset(campaign, goliath, gang=gangs["Goliath"], rolled=1, actor=player)
         roll = roll_asset(
             campaign, goliath, gang=gangs["Goliath"], rolled=1, actor=staff_arbitrator

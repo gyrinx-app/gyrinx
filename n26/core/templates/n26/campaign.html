@@ -32,8 +32,10 @@ reader's other campaigns — the same pattern a gang's screens use.
 {% block content %}
     <c-n26.view.campaign-sheet :sheet="sheet"
                                edit_href="{% if yours %}{% url 'n26-edit-campaign' campaign.pk %}{% endif %}"
-                               log_count="{% if more_acts %}{{ more_acts }} earlier act{{ more_acts|pluralize }} not shown{% endif %}"
                                log_href="{{ log_href }}">
+        <c-slot name="log_count">
+            {% include "n26/includes/campaign_log_count.html" %}
+        </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -212,37 +214,19 @@ reader's other campaigns — the same pattern a gang's screens use.
         {% comment %}
         Cut to the most recent acts, with a count of what is not drawn: a
         campaign played for a year would otherwise push its own facts off
-        the bottom of the page.
+        the bottom of the page. In a host of its own, because a roll made
+        on this page writes a line here and redraws the list in place.
         {% endcomment %}
         <c-slot name="log">
-            {% if acts %}
-                <ol class="flex flex-col">
-                    {% for act in acts %}
-                        <li class="flex gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                            <time datetime="{{ act.when|date:'c' }}"
-                                  title="{{ act.when }}"
-                                  class="w-24 shrink-0 pt-px text-right text-sm tabular-nums whitespace-nowrap text-muted">
-                                {{ act.when|date:"j M H:i" }}
-                            </time>
-                            <div class="min-w-0 flex-1">
-                                <p class="text-base">
-                                    {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
-                                    {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
-                                </p>
-                                {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ol>
-            {% else %}
-                <p class="text-sm text-muted">Nothing in the log yet.</p>
-            {% endif %}
+            {% include "n26/includes/campaign_log.html" %}
         </c-slot>
     </c-n26.view.campaign-sheet>
     {% comment %}
     The roll questions' host, drawn even when empty so a Roll control can
     fetch its panel into it without rebuilding the page. Outside the sheet:
-    each panel is a form of its own.
+    each panel is a form of its own. The panels post over htmx, which only
+    this page may let them do: it holds every host the update names — the
+    figures, the gangs table, the Assets section, the log and this one.
     {% endcomment %}
     {% if yours %}
         {% include "n26/includes/campaign_roll_dialogs.html" with redrawn=False %}

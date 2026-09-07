@@ -1,15 +1,17 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Which asset tables every gang in the campaign may roll on, by asset type.
-The campaign type's own tables are given and carry no control. Every other
-table of the type the arbitrator may open — a system pack's, or one written
+The tables the gangs in the campaign can use, by asset type. The campaign
+type's own tables are included and carry no control. Every other table of
+the type the arbitrator may make available — a system pack's, or one written
 for this campaign — carries a tick. Ticked, the table is built into the
-campaign's own campaign type, so every gang holds it; unticked, it is taken
-out again, and nothing a gang already rolled is taken back.
+campaign's own campaign type, so every gang holds it; unticked, it is
+withdrawn, and nothing a gang already rolled is taken back.
 
 One form over every tick, saved together: the view reads the ticks against
-what stood before and opens or closes only what changed.
+what stood before and changes only what moved. The words are the view's:
+each section's intro, its help and its empty line take the asset type's own
+word for what a table contains.
 {% endcomment %}
 {% block head_title %}Tables in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -22,7 +24,7 @@ what stood before and opens or closes only what changed.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-tables' campaign.pk %}"
                      title="Tables"
-                     lead="The tables a gang rolls on for its starting territory, and the ones you roll on for the campaign's pool. A gang may roll on any table it holds: the ones the campaign type gives, the ones its gang type gives, and any you open here to every gang."
+                     lead="{{ lead }}"
                      submit_label="Save"
                      submit_variant="primary"
                      cancel_url="{{ back }}">
@@ -48,6 +50,7 @@ what stood before and opens or closes only what changed.
         {% csrf_token %}
         {% for section in sections %}
             <c-n26.form-section title="{{ section.asset_type.plural }}">
+                <p class="text-muted">{{ section.intro }}</p>
                 {% if section.given %}
                     <div class="flex flex-col gap-2">
                         {% for table in section.given %}
@@ -56,15 +59,15 @@ what stood before and opens or closes only what changed.
                                     <span class="font-semibold text-ink-900 dark:text-ink-100">{{ table.name }}</span>
                                     <span class="block text-sm text-muted">{{ table.said }}</span>
                                 </span>
-                                <span class="text-sm text-muted">Given by {{ campaign.campaign_type }}. Every gang holds it.</span>
+                                <span class="text-sm text-muted">Included with {{ campaign.campaign_type }}. Available to every gang.</span>
                             </div>
                         {% endfor %}
                     </div>
                 {% endif %}
                 {% if section.offered %}
                     <fieldset>
-                        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">Every gang may roll here</legend>
-                        <p class="mb-2 text-muted">Tick a table to give it to every gang in the campaign. Untick to stop giving it. Anything already rolled on it stays in the campaign.</p>
+                        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">Available to every gang</legend>
+                        <p class="mb-2 text-muted">{{ section.ticks_help }}</p>
                         <div class="flex flex-col gap-2">
                             {% for table in section.offered %}
                                 <div>
@@ -76,7 +79,7 @@ what stood before and opens or closes only what changed.
                                     {% if table.href %}
                                         <div class="mt-1 pl-4">
                                             <c-n26.link href="{{ table.href }}" class="text-sm">
-                                                Entries
+                                                {{ section.asset_type.plural }}
                                             </c-n26.link>
                                         </div>
                                     {% endif %}
@@ -85,12 +88,12 @@ what stood before and opens or closes only what changed.
                         </div>
                     </fieldset>
                 {% elif not section.given %}
-                    <p class="text-sm text-muted">No tables of {{ section.asset_type.plural|lower }} yet. Create one to roll on.</p>
+                    <p class="text-sm text-muted">{{ section.empty }}</p>
                 {% endif %}
             </c-n26.form-section>
         {% empty %}
-            <c-ui.alert variant="info" title="Nothing to roll for">
-                {{ campaign.campaign_type }} has no asset types with Holding ownership, so there is nothing to put on a table.
+            <c-ui.alert variant="info" title="No tables possible">
+                Every asset type in {{ campaign.campaign_type }} is a possession, and possessions are not rolled for.
             </c-ui.alert>
         {% endfor %}
     </c-n26.form-page>

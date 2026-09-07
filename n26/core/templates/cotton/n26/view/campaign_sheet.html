@@ -19,6 +19,11 @@ controls, then the sections. The gangs table and the assets tables are drawn
 here from the sheet; the players, the battles and the log arrive as slots,
 because each names addresses this component has no business knowing.
 
+The figures, the gangs table and the Assets section each sit in a host with
+a stable id (n26/includes/campaign_*.html): a roll made on the campaign page
+redraws those out of band, and only a page holding every host may let its
+dialogs post over htmx.
+
 The lead reads "Territory campaign · arbitrated by tom", so the type is said
 once, here, and nowhere else on the page. The budget is a fact a reader can
 click into where `edit_href` is given — the facts strip is a strip of
@@ -43,7 +48,9 @@ only where the address is filled.
     controls of each section, at the far end of its heading, drawn after the
     sheet's own.
   players, battles, log — the contents of those three sections.
-  log_count — the log heading's count, e.g. "12 earlier acts not shown".
+  log_count — the log heading's count, e.g. "12 earlier acts not shown". May
+    be markup: the campaign page passes it as a slot holding the host a roll's
+    update redraws.
   log_href — where the whole log is read. Given, the Log heading carries a
     "Full log" link; empty, the count stands alone.
 {% endcomment %}
@@ -103,7 +110,7 @@ only where the address is filled.
             an unfilled slot here would draw that one up beside the title.
             {% endcomment %}
             <c-slot name="actions">
-                <c-n26.campaign-figures :sheet="sheet" />
+                {% include "n26/includes/campaign_figures.html" %}
             </c-slot>
         </c-n26.page-header>
 
@@ -161,41 +168,17 @@ only where the address is filled.
                 {{ gangs_actions }}
             </c-slot>
         {% endif %}
-        {% if sheet.gangs %}
-            <c-n26.campaign-gangs :sheet="sheet" />
-        {% else %}
-            <p class="text-sm text-muted">No gangs in this campaign yet.</p>
-        {% endif %}
+        {% include "n26/includes/campaign_gangs.html" %}
     </c-n26.section>
 
     {% comment %}
-    One table per asset type whose ownership is Holding, under one heading.
-    A possession has no table here: every gang has its own, and it is on the
-    gang's row above. An asset type the arbitrator adds is one more table,
-    so the control that adds one sits on this heading.
+    The Assets section is an include the campaign page's partial update
+    draws too, in a host of its own: a roll changes its count as well as
+    adding a line, so the whole section is what an update replaces. The
+    gangs table and the figures sit in hosts of their own for the same
+    reason (see n26/includes/campaign_update.html).
     {% endcomment %}
-    <c-n26.section id="assets" title="Assets" count="{% if sheet.asset_count %}{{ sheet.assets_held }} held, {{ sheet.assets_unclaimed }} unclaimed{% endif %}">
-        {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
-            <c-slot name="actions">
-                {% if sheet.tables_href %}
-                    <c-ui.button size="sm" variant="default" href="{{ sheet.tables_href }}">Tables</c-ui.button>
-                {% endif %}
-                {% if sheet.add_asset_type_href %}
-                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>
-                {% endif %}
-                {{ assets_actions }}
-            </c-slot>
-        {% endif %}
-        {% if sheet.assets %}
-            <div class="flex flex-col gap-6">
-                {% for table in sheet.assets %}
-                    <c-n26.campaign-assets :table="table" />
-                {% endfor %}
-            </div>
-        {% else %}
-            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no asset types with Holding ownership.</p>
-        {% endif %}
-    </c-n26.section>
+    {% include "n26/includes/campaign_assets_section.html" %}
 
     {% comment %}
     Side by side from xl, where both are short lists and a page that stacked
@@ -212,7 +195,8 @@ only where the address is filled.
         </c-n26.section>
     </div>
 
-    <c-n26.section id="log" title="Log" count="{{ log_count }}">
+    <c-n26.section id="log" title="Log">
+        {% if log_count.strip %}<c-slot name="count">{{ log_count }}</c-slot>{% endif %}
         {% if log_href %}
             <c-slot name="actions">
                 <c-ui.button size="sm" variant="default" href="{{ log_href }}">Full log</c-ui.button>

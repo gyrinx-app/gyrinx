@@ -24,7 +24,9 @@ and the campaign page costs the same however many gangs and tables it
 has.
 """
 
+import json
 import random
+import re
 
 import pytest
 from django.apps import apps
@@ -229,11 +231,11 @@ class TestThePoolRoll:
         assert roll.dice.label == "D66"
         (event,) = rolled_events(campaign)
         assert event.note == (
-            f"Rolled {roll.roll} on the Territory Selection Table: {kept.asset.name}."
+            f"Rolled {roll.roll} from the Territory Selection Table: {kept.asset.name}."
         )
         assert not campaign.events.filter(kind=CampaignEvent.Kind.ASSET_ADDED).exists()
         assert sentences(campaign_history(campaign))[-1] == (
-            f"rolled {roll.roll} on the Territory Selection Table: {kept.asset.name}"
+            f"rolled {roll.roll} from the Territory Selection Table: {kept.asset.name}"
         )
         assert campaign_history(campaign)[-1].actor == "arbitrator"
 
@@ -245,12 +247,37 @@ class TestThePoolRoll:
         assert roll.roll == 34
         assert roll.campaign_asset.asset.name == "Corpse Farm"
         (event,) = rolled_events(campaign)
+        assert ROLL_ENTERED == "Manual roll."
         assert event.note == (
-            f"Rolled 34 on the Territory Selection Table: Corpse Farm. {ROLL_ENTERED}"
+            f"Rolled 34 from the Territory Selection Table: Corpse Farm. {ROLL_ENTERED}"
         )
         assert sentences(campaign_history(campaign))[-1] == (
-            "rolled 34 on the Territory Selection Table: Corpse Farm, entered "
-            "from a roll at the table"
+            "rolled 34 from the Territory Selection Table: Corpse Farm (manual roll)"
+        )
+
+    def test_a_stop_inside_a_name_does_not_cut_the_log_line(
+        self, campaign, territory, goliath, owner
+    ):
+        """The manual-roll marker is taken off the note by name, so a gang
+        or a table with a full stop in its own name keeps its whole line."""
+        # The table first, so the gang holds it as it joins.
+        table = create_campaign_table(campaign, territory, "No. 2 Turf", dice="d3")
+        ruins = _holding_assets(campaign).get(name="Old Ruins")
+        add_asset_table_entry(table, ruins, roll_low=1, roll_high=3)
+        doc = found_gang("Dr. Skabb's Crew", goliath, owner=owner, budget=1000)
+        join_campaign(doc, campaign)
+
+        roll_asset(campaign, table, gang=doc, rolled=2)
+        roll_asset(campaign, table, gang=doc)
+        lines = sentences(campaign_history(campaign))
+        assert (
+            "rolled 2 from No. 2 Turf for Dr. Skabb's Crew: Old Ruins (manual roll)"
+            in lines
+        )
+        assert any(
+            line.startswith("rolled ")
+            and line.endswith("from No. 2 Turf for Dr. Skabb's Crew: Old Ruins")
+            for line in lines
         )
 
     def test_a_staged_entry_is_a_gap_for_a_reader_who_may_not_see_it(
@@ -302,13 +329,15 @@ class TestThePoolRoll:
             roll_high=3,
         )
 
-        with pytest.raises(Refusal, match="No entry on Holed covers a roll of 5"):
+        with pytest.raises(Refusal, match="Nothing on Holed covers a roll of 5"):
             roll_asset(campaign, holed, rolled=5)
         assert roll_asset(campaign, holed, rolled=2).campaign_asset.asset.name == "Sump"
 
     def test_a_list_without_dice_is_refused(self, campaign, territory):
         listed = create_campaign_table(campaign, territory, "Listed")
-        with pytest.raises(Refusal, match="It has no dice"):
+        with pytest.raises(
+            Refusal, match="Listed cannot be rolled. It is a list with no dice."
+        ):
             roll_asset(campaign, listed)
 
     def test_a_table_the_campaign_does_not_hold_is_refused(
@@ -323,7 +352,7 @@ class TestThePoolRoll:
             elsewhere, create_asset("Yard", turf), roll_low=1, roll_high=6
         )
 
-        with pytest.raises(Refusal, match="Only a table built into the campaign"):
+        with pytest.raises(Refusal, match="Elsewhere is not available to Dust Falls."):
             roll_asset(campaign, elsewhere, rolled=3)
         assert list(tables_in_play(campaign)) == [AssetTable.objects.get(name=TABLE)]
 
@@ -352,7 +381,7 @@ class TestTheStartingRoll:
         assert gained.campaign_asset == kept
         (event,) = rolled_events(campaign)
         assert event.note == (
-            f"Rolled 1 on Goliath Territories for Slag Kings: Amneo-vats. {ROLL_ENTERED}"
+            f"Rolled 1 from Goliath Territories for Slag Kings: Amneo-vats. {ROLL_ENTERED}"
         )
         slag_kings.refresh_from_db()
         assert slag_kings.rating == 0
@@ -364,8 +393,8 @@ class TestTheStartingRoll:
         assert journal not in tables_held_by(wild_cats, campaign)
         with pytest.raises(
             Refusal,
-            match="Wild Cats cannot roll on Goliath Territories. Only a gang that "
-            "holds that table can.",
+            match="Wild Cats cannot roll for a territory from Goliath Territories. "
+            "That table is not available to Wild Cats.",
         ):
             roll_asset(campaign, journal, gang=wild_cats, rolled=2)
 
@@ -379,22 +408,21 @@ class TestTheStartingRoll:
         roll = roll_asset(campaign, journal, gang=wild_cats, rolled=2)
         assert roll.campaign_asset.asset.name == "Slag Furnace"
         assert sentences(campaign_history(campaign))[-3:] == [
-            "opened the table Goliath Territories to every gang",
-            "rolled 2 on Goliath Territories for Wild Cats: Slag Furnace, entered "
-            "from a roll at the table",
+            "made the table Goliath Territories available to every gang",
+            "rolled 2 from Goliath Territories for Wild Cats: Slag Furnace (manual roll)",
             "Slag Furnace went to Wild Cats",
         ]
 
         close_table(campaign, journal)
 
         assert journal not in tables_held_by(wild_cats, campaign)
-        with pytest.raises(Refusal, match="Wild Cats cannot roll on"):
+        with pytest.raises(Refusal, match="Wild Cats cannot roll for"):
             roll_asset(campaign, journal, gang=wild_cats, rolled=3)
         # Nothing taken back: the territory it rolled is still held.
         roll.campaign_asset.refresh_from_db()
         assert roll.campaign_asset.holder.gang == wild_cats
         assert sentences(campaign_history(campaign))[-1] == (
-            "closed the table Goliath Territories"
+            "withdrew the table Goliath Territories"
         )
         wild_cats.refresh_from_db()
         assert_reconciled(wild_cats)
@@ -493,7 +521,7 @@ class TestTheCatalogue:
         self, campaign, selection_table
     ):
         assert open_table(campaign, selection_table) is None
-        with pytest.raises(Refusal, match="gives it to every gang"):
+        with pytest.raises(Refusal, match="It is included with Territory campaign"):
             close_table(campaign, selection_table)
         assert list(tables_in_play(campaign)) == [selection_table]
 
@@ -659,7 +687,7 @@ class TestThePages:
             reverse("n26-campaign", args=[quiet.pk]) + f"?roll={racket.pk}"
         ).content.decode()
         assert "Roll racket" in page
-        assert "The racket the roll lands on is added" in page
+        assert "The rolled racket will be added to the campaign as unclaimed." in page
         assert "three per player" not in page
 
     def test_a_malformed_gang_key_is_a_bad_link(
@@ -703,8 +731,6 @@ class TestThePages:
         page = client.get(address).content.decode()
         assert "The rules generate three per player: 6 for this campaign." in page
         assert "Roll territory" in page
-        # One table: named, not chosen.
-        assert "On Territory Selection Table" in page
         assert f'name="table" value="{selection_table.pk}"' in page
 
         # Over htmx the panel alone comes back, in its host.
@@ -714,6 +740,14 @@ class TestThePages:
         assert "hx-swap-oob" in body
         assert "<c-n26.view" not in body and "Gangs" not in body
         assert partial["HX-Replace-Url"] == address
+        # One table is a fact, not a choice: named with its die, no radio,
+        # and posted hidden.
+        assert 'type="radio"' not in body
+        assert "Territory Selection Table · D66" in body
+        assert f'type="hidden" name="table" value="{selection_table.pk}"' in body
+        assert (
+            "The rolled territory will be added to the campaign as unclaimed." in body
+        )
 
     def test_the_starting_dialog_offers_only_the_tables_the_gang_holds(
         self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
@@ -732,7 +766,38 @@ class TestThePages:
         ).content.decode()
         assert "Roll starting territory for Wild Cats" in cats
         assert "Goliath Territories" not in cats
-        assert "On Territory Selection Table" in cats
+        assert "Territory Selection Table · D66" in cats
+        assert 'type="radio"' not in cats.split('id="n26-roll-dialog-host"')[1]
+        assert "The rolled territory will be assigned to Wild Cats." in cats
+        assert "The tables Wild Cats holds" not in cats
+
+        # Two tables are radio cards, each named with its die; the range
+        # sentence under the own-roll field follows the selected one.
+        assert kings.count('type="radio"') == 2
+        assert "A D6 roll is 1 to 6." in kings
+        assert "A D66 roll is 11 to 66." in kings
+        assert "The rolled territory will be assigned to Slag Kings." in kings
+
+    def test_the_own_roll_field_is_the_forms_drawn_by_the_component(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        """The field is RollAssetForm.rolled through the kit's field and
+        input components — the same drawing as the campaign budget — so
+        it carries the component's border and background classes rather
+        than a hand-written class that would replace them and leave the
+        box invisible in dark mode."""
+        client.force_login(arbitrator)
+        address = reverse("n26-campaign", args=[campaign.pk]) + f"?roll={territory.pk}"
+        body = client.get(address, HTTP_HX_REQUEST="true").content.decode()
+        (widget,) = re.findall(r"<input[^>]*name=\"rolled\"[^>]*>", body)
+        assert "rounded-control" in widget and "border-ink-300" in widget
+        assert "max-w-32" not in widget
+        assert 'type="number"' in widget and 'id="pool-roll"' in widget
+        assert "Your own roll" in body
+        assert "Optional. Leave blank and the roll is made for you." in body
+        assert "A D66 roll is 11 to 66." in body
+        assert "Use my roll" in body
+        assert "at the table" not in body
 
     def test_posting_the_rolls(
         self,
@@ -753,19 +818,25 @@ class TestThePages:
                 "rolled": "63",
             },
         )
+        # Without htmx the plain campaign page, no anchor: the message at
+        # its top is what the reader should see, not the gangs table.
         assert response.status_code == 302
-        assert response["Location"].endswith("#assets")
+        assert response["Location"] == reverse("n26-campaign", args=[campaign.pk])
         (kept,) = CampaignAsset.objects.filter(campaign=campaign)
         assert kept.asset.name == "Old Ruins" and kept.holder is None
+        page = client.get(response["Location"]).content.decode()
+        assert "Rolled 63: Old Ruins added to the campaign, unclaimed." in page
 
         response = client.post(
             reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
             {"type": str(territory.pk), "table": str(journal.pk), "rolled": "4"},
         )
         assert response.status_code == 302
-        assert response["Location"].endswith("#gangs")
+        assert response["Location"] == reverse("n26-campaign", args=[campaign.pk])
         held = CampaignAsset.objects.get(campaign=campaign, holder__gang=slag_kings)
         assert held.asset.name == "Iron Forge"
+        page = client.get(response["Location"]).content.decode()
+        assert "Rolled 4: Iron Forge assigned to Slag Kings." in page
 
         # A roll the die cannot make comes back to the dialog with the reason.
         response = client.post(
@@ -797,6 +868,154 @@ class TestThePages:
         assert response.status_code == 200
         assert "You cannot roll 99999 on a D6." in response.content.decode()
         assert not AssetTableEntry.objects.filter(table=turf).exists()
+
+    def test_a_roll_over_htmx_redraws_the_page_in_place_with_a_toast(
+        self,
+        client,
+        campaign,
+        territory,
+        journal,
+        selection_table,
+        slag_kings,
+        arbitrator,
+    ):
+        """The dialog posts over htmx. What comes back is the changed
+        sections out of band — figures, gangs, assets, log — the dialog
+        host emptied, the address put back to the plain page, and the
+        message as a toast. No redirect, no reload, no scroll."""
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {
+                "type": str(territory.pk),
+                "table": str(selection_table.pk),
+                "rolled": "63",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "Location" not in response
+        body = response.content.decode()
+        for host in (
+            "n26-campaign-figures",
+            "n26-campaign-gangs",
+            "n26-campaign-assets",
+            "n26-campaign-log",
+            "n26-campaign-log-count",
+        ):
+            assert re.search(rf'id="{host}"\s+hx-swap-oob="true"', body), host
+        assert '<div id="n26-roll-dialog-host" hx-swap-oob="true"></div>' in body
+        assert "<dialog" not in body
+        # The sections carry what the roll changed.
+        assert "Old Ruins" in body
+        assert (
+            "rolled 63 from the Territory Selection Table: Old Ruins (manual roll)"
+            in body
+        )
+        assert "1 unclaimed" in body
+        assert response["HX-Replace-Url"] == reverse("n26-campaign", args=[campaign.pk])
+        toasts = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert [(t["variant"], t["message"]) for t in toasts] == [
+            ("success", "Rolled 63: Old Ruins added to the campaign, unclaimed.")
+        ]
+
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk), "rolled": "4"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert 'id="n26-campaign-gangs" hx-swap-oob="true"' in body
+        assert "Iron Forge" in body
+        toasts = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert [t["message"] for t in toasts] == [
+            "Rolled 4: Iron Forge assigned to Slag Kings."
+        ]
+
+    def test_a_refusal_over_htmx_comes_back_in_the_dialog_without_a_toast(
+        self, client, campaign, territory, journal, selection_table, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {
+                "type": str(territory.pk),
+                "table": str(selection_table.pk),
+                "rolled": "7",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "Location" not in response
+        assert "HX-Trigger" not in response
+        assert "HX-Replace-Url" not in response
+        body = response.content.decode()
+        host = body.split('id="n26-roll-dialog-host"')[1]
+        assert host.lstrip().startswith('hx-swap-oob="true"')
+        # The open panel is deleted by id before the host arrives, so htmx
+        # has nothing to settle the new panel's attributes against.
+        assert body.index(
+            '<div id="n26-dialog" hx-swap-oob="delete"></div>'
+        ) < body.index('id="n26-roll-dialog-host"')
+        assert "<dialog" in body and "You cannot roll 7 on a D66." in body
+        # The typed roll is still in the field for the reader to fix.
+        assert 'value="7"' in body
+        assert "n26-campaign-assets" not in body
+        assert not CampaignAsset.objects.filter(campaign=campaign).exists()
+
+        # A table not offered lands the same way, in the form's words.
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk)},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "That table is not available here." in response.content.decode()
+
+    def test_the_cards_show_the_first_table_chosen_and_keep_the_posted_one(
+        self, client, campaign, territory, journal, slag_kings, arbitrator
+    ):
+        """Two tables: the first card is checked when the dialog opens, so
+        a roll posts with a table; after a refusal the card the reader
+        chose stays checked and the range sentence follows it."""
+        client.force_login(arbitrator)
+        address = reverse("n26-campaign", args=[campaign.pk])
+        body = client.get(
+            f"{address}?starting={slag_kings.pk}&type={territory.pk}",
+            HTTP_HX_REQUEST="true",
+        ).content.decode()
+        radios = re.findall(r'<input type="radio"[^>]*>', body)
+        assert len(radios) == 2
+        assert [("checked" in radio) for radio in radios] == [True, False]
+        first = re.search(r'value="([^"]+)"', radios[0]).group(1)
+        assert f"x-data=\"{{ table: '{first}', rolled: '' }}\"" in body
+
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk), "rolled": "9"},
+            HTTP_HX_REQUEST="true",
+        )
+        body = response.content.decode()
+        assert "You cannot roll 9 on a D6." in body
+        radios = re.findall(r'<input type="radio"[^>]*>', body)
+        assert [("checked" in radio) for radio in radios].count(True) == 1
+        assert re.search(
+            rf'value="{journal.pk}"[^>]*\s+checked', radios[0]
+        ) or re.search(rf'value="{journal.pk}"[^>]*\s+checked', radios[1])
+        assert f"x-data=\"{{ table: '{journal.pk}', rolled: '9' }}\"" in body
+
+        # A table that is not offered falls back to the first card, and what
+        # was typed is escaped for the script that reads it back.
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": "nonsense", "rolled": "1'+x"},
+            HTTP_HX_REQUEST="true",
+        )
+        body = response.content.decode()
+        radios = re.findall(r'<input type="radio"[^>]*>', body)
+        assert [("checked" in radio) for radio in radios] == [True, False]
+        assert f"x-data=\"{{ table: '{first}', rolled: '1\\u0027+x' }}\"" in body
 
     def test_the_gang_owner_cannot_roll_or_open_and_a_stranger_finds_nothing(
         self, client, campaign, territory, journal, selection_table, slag_kings, owner
@@ -833,19 +1052,32 @@ class TestThePages:
         address = reverse("n26-campaign-tables", args=[campaign.pk])
         page = client.get(address).content.decode()
         assert "Territory Selection Table" in page
-        assert "Given by Territory campaign" in page
+        assert "Included with Territory campaign. Available to every gang." in page
+        assert "D66 · 18 territories" in page
+        assert "D6 · 6 territories" in page
         assert "Goliath Territories" in page
-        assert "Every gang may roll here" in page
+        assert "Available to every gang</legend>" in page
+        assert "Tables of territories the gangs in this campaign can use." in page
+        assert (
+            "Gangs can roll for a starting territory from any of these. You can "
+            "also roll to add unclaimed territories to the campaign."
+        ) in page
+        assert "Territories already rolled stay in the campaign." in page
+        for banned in ("roll on", "holds", "Entries", "pool", "Given by", "opened"):
+            assert banned not in page, banned
 
         with task_queue.capture():
             response = client.post(address, {"open": [str(journal.pk)]}, follow=True)
         task_queue.deliver_all()
-        assert "Opened Goliath Territories to every gang." in response.content.decode()
+        assert (
+            "Made Goliath Territories available to every gang."
+            in response.content.decode()
+        )
         assert journal in tables_in_play(campaign)
         assert journal in tables_held_by(wild_cats, campaign)
 
         response = client.post(address, {}, follow=True)
-        assert "Closed Goliath Territories." in response.content.decode()
+        assert "Withdrew Goliath Territories." in response.content.decode()
         assert journal not in tables_in_play(campaign)
 
         response = client.post(address, {}, follow=True)
@@ -866,9 +1098,13 @@ class TestThePages:
         )
 
         page = client.get(response["Location"]).content.decode()
-        assert "Rolled on a D3" in page
+        assert "Created the table Dust Falls Turf. Add territories to it next." in page
+        assert "Rolled with a D3" in page
         assert "0 of 3 rolls covered" in page
         assert "Old Ruins" in page
+        assert "No territories yet. Add the territories a roll can land on." in page
+        assert "Add a territory" in page and "Add territory" in page
+        assert "Entries" not in page and "entries" not in page
 
         ruins = _holding_assets(campaign).get(name="Old Ruins")
         client.post(
