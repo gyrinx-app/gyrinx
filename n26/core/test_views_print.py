@@ -373,11 +373,9 @@ class TestNotesOnPaper:
         )
         assert "n26-print-notes" in vex_card
         assert "n26-print-foot" in vex_card
-        # Notes are no longer a sibling card of their own.
-        assert not any(
-            "n26-print-card-sub" in card and ">Notes<" in card
-            for card in _print_cards(body)
-        )
+        # A sibling notes card used this as its subtitle. The write-in
+        # label is also "Notes", so match the subtitle class specifically.
+        assert 'n26-print-card-sub">Notes' not in body
 
     def test_each_card_leaves_space_to_write(self, client, tester, gang, written):
         client.force_login(tester)
