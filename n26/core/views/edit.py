@@ -693,19 +693,25 @@ def edit_fighter(request, pk):
     # the model is, and a heading on the card is no use to them without a
     # way to the screen that fills it. Built from the card already in
     # hand, so no second walk.
-    equip_lists = [
-        {
-            "label": _tab_label(collection),
-            "title": (
-                "" if _tab_label(collection) == str(collection) else str(collection)
-            ),
-            "href": f"{reverse('n26-equip', args=[miniature.pk])}?list={collection.pk}",
-        }
-        for collection in buyable_lists(
-            access.collection
-            for access in collections_for(miniature, card=own, computed=computed)
+    equip = reverse("n26-equip", args=[miniature.pk])
+    equip_lists = []
+    for collection in buyable_lists(
+        access.collection
+        for access in collections_for(miniature, card=own, computed=computed)
+    ):
+        # The shortened label and the full name, each read once. A title
+        # repeating the word already on screen tells a reader nothing, so
+        # it is empty where nothing was shortened away — the same rule the
+        # equip screen's own tabs follow.
+        full = str(collection)
+        label = _tab_label(collection)
+        equip_lists.append(
+            {
+                "label": label,
+                "title": "" if label == full else full,
+                "href": f"{equip}?list={collection.pk}",
+            }
         )
-    ]
 
     # The header's far corner: the gang's figures and the roster tally,
     # the same numbers the equip face keeps there. One query.
