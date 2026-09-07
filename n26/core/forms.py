@@ -702,7 +702,7 @@ class RollAssetForm(forms.Form):
         queryset=None,
         label="Table",
         error_messages={
-            "invalid_choice": "That table is not one that can be rolled on here.",
+            "invalid_choice": "That table is not one you can roll on here.",
             "required": "Select a table.",
         },
     )
@@ -738,7 +738,7 @@ class OpenTablesForm(forms.Form):
         queryset=None,
         required=False,
         error_messages={
-            "invalid_choice": "That table is not one this campaign can open.",
+            "invalid_choice": "That table is not one you can open here.",
         },
     )
 
@@ -794,13 +794,15 @@ class TableEntryForm(forms.Form):
         required=False,
         min_value=1,
         label="Lowest roll",
-        help_text="The lowest roll that lands here. Leave blank on a list.",
+        help_text="The lowest roll that lands here, on a rolled table.",
     )
     roll_high = forms.IntegerField(
         required=False,
         min_value=1,
         label="Highest roll",
-        help_text="The highest roll that lands here. Blank means the lowest alone.",
+        help_text=(
+            "The highest roll that lands here. Leave blank for a band of one roll."
+        ),
     )
 
     def __init__(self, *args, offered, **kwargs):

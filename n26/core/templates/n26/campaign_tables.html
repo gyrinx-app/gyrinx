@@ -22,7 +22,7 @@ what stood before and opens or closes only what changed.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-tables' campaign.pk %}"
                      title="Tables"
-                     lead="The tables a gang rolls on for its starting territory, and the arbitrator rolls on for the campaign's pool. A gang may roll on any table it holds: the campaign type's, one its own gang type gives it, and any you open here to every gang."
+                     lead="The tables a gang rolls on for its starting territory, and the ones you roll on for the campaign's pool. A gang may roll on any table it holds: the ones the campaign type gives, the ones its gang type gives, and any you open here to every gang."
                      submit_label="Save"
                      submit_variant="primary"
                      cancel_url="{{ back }}">
@@ -64,7 +64,7 @@ what stood before and opens or closes only what changed.
                 {% if section.offered %}
                     <fieldset>
                         <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">Every gang may roll here</legend>
-                        <p class="mb-2 text-muted">Tick a table to give it to every gang in the campaign. Untick to stop giving it; what was already rolled stays.</p>
+                        <p class="mb-2 text-muted">Tick a table to give it to every gang in the campaign. Untick to stop giving it. Anything already rolled on it stays in the campaign.</p>
                         <div class="flex flex-col gap-2">
                             {% for table in section.offered %}
                                 <div>

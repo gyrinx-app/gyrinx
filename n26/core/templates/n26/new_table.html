@@ -19,7 +19,7 @@ script and a redisplay keeps the pick.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-new-table' campaign.pk %}"
                      title="Create a table"
-                     lead="A table of this campaign's own. Every gang in the campaign may roll on it; no other campaign sees it. You add its entries next."
+                     lead="A table for this campaign alone. Every gang in the campaign may roll on it; no other campaign sees it. You add its entries next."
                      :form="form"
                      submit_label="Create table"
                      cancel_url="{{ back }}">
@@ -61,7 +61,7 @@ script and a redisplay keeps the pick.
                             value="{{ form.name.value|default:'' }}" />
             </c-ui.field>
             <c-n26.radio-cards label="Dice"
-                               description="The die the table is rolled on. Not rolled makes an ordered list, chosen from rather than rolled."
+                               description="The die the table is rolled on. Not rolled is an ordered list, chosen from rather than rolled."
                                :form="form"
                                name="dice"
                                min="8rem">

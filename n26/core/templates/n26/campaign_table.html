@@ -114,7 +114,7 @@ the same way wherever it is edited.
                                     value="{{ form.roll_low.value|default_if_none:'' }}" />
                     </c-ui.field>
                     <c-ui.field label="Highest roll"
-                                description="The highest roll that lands here. Blank means the lowest alone."
+                                description="The highest roll that lands here. Leave blank for a band of one roll."
                                 error="x"
                                 :form="form"
                                 name="roll_high"

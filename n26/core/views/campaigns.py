@@ -321,19 +321,22 @@ def _rolling(request, campaign, sheet):
     """The pool roll ``?roll=`` asks for, where the address names one of
     the campaign's Holding asset types with a rolled table to roll on.
     Anything else is a page without the panel."""
-    from n26.core.forms import RollAssetForm
+    from n26.library.territory_table import TERRITORY
 
     asked = request.GET.get("roll", "")
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
+    # Three per player is the rulebook's figure for Territories. An asset
+    # type the arbitrator declared has no such rule, so its dialog says
+    # nothing about how many to generate.
+    territories = table.label == TERRITORY
     return {
         "asset_type_id": asked,
         "label": table.label.lower(),
         "tables": table.tables,
         "only": table.tables[0] if len(table.tables) == 1 else None,
-        "form": RollAssetForm(tables=_tables_named(table.tables)),
-        "to_generate": sheet.territories_to_generate,
+        "to_generate": sheet.territories_to_generate if territories else None,
     }
 
 
@@ -341,8 +344,6 @@ def _starting(request, campaign, sheet):
     """The starting roll ``?starting=`` asks for: one gang at the table,
     and an asset type of which it holds a rolled table. Anything else is
     a page without the panel."""
-    from n26.core.forms import RollAssetForm
-
     gang_id = request.GET.get("starting", "")
     asked = request.GET.get("type", "")
     line = next((g for g in sheet.gangs if g.gang_id == gang_id), None)
@@ -358,16 +359,7 @@ def _starting(request, campaign, sheet):
         "label": roll.label.removeprefix("Roll starting "),
         "tables": roll.tables,
         "only": roll.tables[0] if len(roll.tables) == 1 else None,
-        "form": RollAssetForm(tables=_tables_named(roll.tables)),
     }
-
-
-def _tables_named(held):
-    """The library rows behind the tables a control offers, as the form's
-    queryset."""
-    from n26.library.models import AssetTable
-
-    return AssetTable.objects.filter(pk__in=[table.table_id for table in held])
 
 
 @requires_flag(CAMPAIGNS)
@@ -407,7 +399,8 @@ def roll_asset(request, pk):
         return redirect(again)
     messages.success(
         request,
-        f"Rolled {roll.roll} on {roll.table}: {roll.campaign_asset} added, unclaimed.",
+        f"Rolled {roll.roll} on {roll.table}: {roll.campaign_asset} added to the "
+        "campaign, unclaimed.",
     )
     return redirect(_assets_anchor(found))
 
@@ -423,6 +416,7 @@ def roll_starting_asset(request, pk, gang_pk):
     asset lands assigned to the gang, and the reader back at the gangs
     table, where the gang's line now names it.
     """
+    from django.core.exceptions import ValidationError
     from django.http import Http404
 
     from n26.core.campaigns import campaign_operation, tables_held_by
@@ -432,13 +426,17 @@ def roll_starting_asset(request, pk, gang_pk):
     from n26.library.models import AssetTable
 
     found = _own_campaign_or_404(request, pk)
-    membership = (
-        CampaignMembership.objects.filter(
-            campaign=found, gang_id=gang_pk, left__isnull=True
+    # A key that is not a key at all is a bad link, not a server error.
+    try:
+        membership = (
+            CampaignMembership.objects.filter(
+                campaign=found, gang_id=gang_pk, left__isnull=True
+            )
+            .select_related("gang")
+            .first()
         )
-        .select_related("gang")
-        .first()
-    )
+    except ValidationError:
+        raise Http404("No such gang in this campaign") from None
     if membership is None:
         raise Http404("No such gang in this campaign")
     asked = request.POST.get("type", "") or request.GET.get("type", "")
@@ -844,45 +842,11 @@ def remove_battle(request, pk, battle_pk):
 
 
 def _holding_assets(campaign, *, include_staged=False):
-    """The library assets this campaign can add: those of the Holding asset
-    types of its type and of its own additions.
+    """The assets the Add control offers — ``addable_assets``, which is
+    also the rule ``add_asset`` refuses by."""
+    from n26.core.campaigns import addable_assets
 
-    A possession is every member gang's own, given on joining, and is never
-    added here. Only the assets this campaign may see: the system pack's,
-    the shared type's pack's and the campaign's own — an asset another
-    campaign's arbitrator wrote under the same shared asset type sits in
-    that campaign's pack and is nobody else's to offer. Archived assets are
-    left out here, where a new campaign asset would be made — archiving
-    hides a thing from new additions and takes nothing back from a campaign
-    that already has the asset.
-    """
-    from n26.core.campaigns import tables_in_play
-    from n26.library.models import Asset
-
-    # Every entry of every table the campaign holds is addable too: a
-    # journal's territory becomes addable the moment its table is opened.
-    # Additive only — nothing that was addable stops being so — and the
-    # entry may be in a pack the campaign does not otherwise see.
-    tabled = Asset.objects.filter(
-        tabled__table__in=tables_in_play(campaign)
-    ).unarchived()
-    if not include_staged:
-        tabled = tabled.live()
-    return (
-        (
-            (
-                campaign.campaign_type.holding_assets()
-                | campaign.additions.holding_assets()
-            ).selectable(
-                [campaign.pack_id, campaign.campaign_type.pack_id],
-                include_staged=include_staged,
-            )
-            | tabled
-        )
-        .distinct()
-        .select_related("asset_type")
-        .order_by("asset_type__position", "asset_type__label_singular", "name")
-    )
+    return addable_assets(campaign, include_staged=include_staged)
 
 
 def _assets_anchor(campaign):

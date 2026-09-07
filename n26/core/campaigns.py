@@ -329,14 +329,17 @@ class CampaignOperation:
             )
         # A shared asset type may hold another campaign's own assets, written
         # into that campaign's pack. Only this campaign's pack and the type's
-        # own are this campaign's to deal in.
+        # own are this campaign's to deal in — plus whatever is on a table
+        # the campaign holds, wherever that is filed, which is the same rule
+        # the catalogue reads (``addable_assets``).
         if asset.pack_id not in (
             self.campaign.pack_id,
             self.campaign.campaign_type.pack_id,
-        ):
+        ) and not _on_a_held_table(self.campaign, asset):
             raise ValueError(
                 f"{asset} is in the {asset.pack} pack, which is not this "
-                "campaign's own or its type's."
+                "campaign's own or its type's, and no table this campaign "
+                "holds lists it."
             )
         campaign_asset = self._keep(asset, name)
         self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
@@ -384,14 +387,14 @@ class CampaignOperation:
             raise ValueError(f"{membership} is not playing {self.campaign}.")
         if not table.dice:
             raise Refusal(
-                f"You cannot roll on {table}. It is a list with no dice: nothing "
-                "on it is rolled for."
+                f"You cannot roll on {table}. It has no dice: it is an ordered "
+                "list, chosen from rather than rolled."
             )
         if membership is None:
             if not tables_in_play(self.campaign).filter(pk=table.pk).exists():
                 raise Refusal(
                     f"You cannot roll on {table} for {self.campaign.name}. Only a "
-                    "table built into the campaign can be rolled on for it."
+                    "table built into the campaign can be rolled on for its pool."
                 )
         elif table.pk not in {held.pk for held in tables_held_by(membership.gang)}:
             raise Refusal(
@@ -410,8 +413,8 @@ class CampaignOperation:
         entry = table.landing(rolled, entries)
         if entry is None:
             raise Refusal(
-                f"No entry on {table} is rolled by {rolled}. Fill that gap in the "
-                "table first."
+                f"No entry on {table} covers a roll of {rolled}. Fill that gap in "
+                "the table first."
             )
         campaign_asset = self._keep(entry.asset)
         who = f" for {membership.gang.name}" if membership is not None else ""
@@ -924,6 +927,58 @@ def _own_table(campaign, table):
     campaign's pack is theirs to change."""
     if table.pack_id != campaign.pack_id:
         raise ValueError(f"{table} is not one of {campaign}'s own tables.")
+
+
+def addable_assets(campaign, *, include_staged=False):
+    """The library assets this campaign can add by hand: those of the
+    Holding asset types of its type and of its own additions, plus every
+    entry of every table the campaign holds.
+
+    A possession is every member gang's own, given on joining, and is never
+    added here. Only the assets this campaign may see: the system pack's,
+    the shared type's pack's and the campaign's own — an asset another
+    campaign's arbitrator wrote under the same shared asset type sits in
+    that campaign's pack and is nobody else's to offer. A table the
+    campaign holds widens that by its entries, wherever they are filed: a
+    journal's territory becomes addable the moment its table is opened.
+    Additive only — nothing that was addable stops being so. Archived
+    assets are left out here, where a new campaign asset would be made —
+    archiving hides a thing from new additions and takes nothing back from
+    a campaign that already has the asset. ``add_asset`` refuses by the
+    same rule, so the picker and the act cannot drift apart.
+    """
+    from n26.library.models import Asset
+
+    tabled = Asset.objects.filter(
+        tabled__table__in=tables_in_play(campaign)
+    ).unarchived()
+    if not include_staged:
+        tabled = tabled.live()
+    return (
+        (
+            (
+                campaign.campaign_type.holding_assets()
+                | campaign.additions.holding_assets()
+            ).selectable(
+                [campaign.pack_id, campaign.campaign_type.pack_id],
+                include_staged=include_staged,
+            )
+            | tabled
+        )
+        .distinct()
+        .select_related("asset_type")
+        .order_by("asset_type__position", "asset_type__label_singular", "name")
+    )
+
+
+def _on_a_held_table(campaign, asset):
+    """Whether a table the campaign holds lists this asset — what admits
+    an asset filed outside the campaign's own packs."""
+    from n26.library.models import AssetTableEntry
+
+    return AssetTableEntry.objects.filter(
+        table__in=tables_in_play(campaign), asset=asset
+    ).exists()
 
 
 def tables_in_play(campaign):

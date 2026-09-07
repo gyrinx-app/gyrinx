@@ -284,13 +284,13 @@ class TestThePoolRoll:
             roll_high=3,
         )
 
-        with pytest.raises(Refusal, match="No entry on Holed is rolled by 5"):
+        with pytest.raises(Refusal, match="No entry on Holed covers a roll of 5"):
             roll_asset(campaign, holed, rolled=5)
         assert roll_asset(campaign, holed, rolled=2).campaign_asset.asset.name == "Sump"
 
     def test_a_list_without_dice_is_refused(self, campaign, territory):
         listed = create_campaign_table(campaign, territory, "Listed")
-        with pytest.raises(Refusal, match="It is a list with no dice"):
+        with pytest.raises(Refusal, match="It has no dice"):
             roll_asset(campaign, listed)
 
     def test_a_table_the_campaign_does_not_hold_is_refused(
@@ -434,6 +434,32 @@ class TestTheCatalogue:
         after = [asset.name for asset in _holding_assets(campaign)]
         assert after == before
 
+    def test_an_opened_tables_entry_can_be_added_by_hand(
+        self, client, campaign, journal, arbitrator, campaigns_open
+    ):
+        """The picker and the act read one rule: what the widened catalogue
+        offers, Add territory accepts, though the asset sits in a pack the
+        campaign does not otherwise see."""
+        open_table(campaign, journal)
+        vats = _holding_assets(campaign).get(name="Amneo-vats")
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-add-asset", args=[campaign.pk]),
+            {"asset": str(vats.pk), "name": ""},
+        )
+        assert response.status_code == 302
+        assert CampaignAsset.objects.filter(campaign=campaign, asset=vats).exists()
+
+        # Closed again, the same asset is neither offered nor accepted.
+        close_table(campaign, journal)
+        response = client.post(
+            reverse("n26-campaign-add-asset", args=[campaign.pk]),
+            {"asset": str(vats.pk), "name": ""},
+        )
+        assert response.status_code == 200
+        assert "not one this campaign deals in" in response.content.decode()
+        assert CampaignAsset.objects.filter(campaign=campaign, asset=vats).count() == 1
+
     def test_opening_a_table_of_another_campaigns_type_is_refused(
         self, campaign, default_pack
     ):
@@ -570,12 +596,36 @@ class TestThePages:
         from n26.library.authoring import add_asset_type
 
         bare = create_campaign_type("Bare")
-        add_asset_type(bare, "Racket", "pooled")
+        racket = add_asset_type(bare, "Racket", "pooled")
         quiet = found_campaign("Quiet", bare, owner=arbitrator)
         client.force_login(arbitrator)
         page = client.get(reverse("n26-campaign", args=[quiet.pk])).content.decode()
         assert "Roll racket" not in page
         assert "Add racket" in page
+
+        # With a rolled table of Rackets the control appears, in the type's
+        # word; the three-per-player line is the Territory rule and is not
+        # asserted of Rackets.
+        rackets = create_asset_table("Rackets", racket, dice="d6")
+        add_asset_table_entry(
+            rackets, create_asset("Toll", racket), roll_low=1, roll_high=6
+        )
+        page = client.get(
+            reverse("n26-campaign", args=[quiet.pk]) + f"?roll={racket.pk}"
+        ).content.decode()
+        assert "Roll racket" in page
+        assert "The racket the roll lands on is added" in page
+        assert "three per player" not in page
+
+    def test_a_malformed_gang_key_is_a_bad_link(
+        self, client, campaign, territory, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, "not-a-key"]),
+            {"type": str(territory.pk)},
+        )
+        assert response.status_code == 404
 
     def test_the_controls_take_the_types_word_and_are_the_arbitrators(
         self, client, campaign, journal, slag_kings, wild_cats, arbitrator, owner

@@ -31,7 +31,7 @@ the table, and is otherwise made here.
                       :redrawn="redrawn">
             <c-slot name="lead">
                 The {{ rolling.label }} the roll lands on is added to the campaign,
-                unclaimed. The rules generate three per player: {{ rolling.to_generate }} for this campaign.
+                unclaimed.{% if rolling.to_generate is not None %} The rules generate three per player: {{ rolling.to_generate }} for this campaign.{% endif %}
             </c-slot>
             {% csrf_token %}
             <input type="hidden" name="type" value="{{ rolling.asset_type_id }}">
