@@ -151,6 +151,8 @@ A weapon's firing lines are assignables in their own right (WeaponProfile): the 
 
 Fields of its own: none — the shared set. It takes option sets (plain talons or razor-sharp). Carried by a model and priced like anything else. A thing that fits onto a weapon is not wargear; that is a weapon accessory.
 
+A **Gives something** modifier can grant wargear as free kit. Each grant gives a separate copy with zero rating, present while its source is held. Its modifiers apply, but its built-ins and option sets require an assignment. Granted wargear cannot be sold or moved independently.
+
 ### Skills and Powers
 
 *What a model has selected (skills) or manifests (powers), each with a home category.*

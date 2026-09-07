@@ -1731,17 +1731,17 @@ def _fill_drawn_picks(computed, drawn):
 def _bucket(computed, target, thing):
     """Where a contribution belongs: the row its kind declares
     (``card_row`` — subtypes, skills, powers, rules, collections, and
-    the ComputedCard's buckets carry the same names), a granted weapon,
+    the ComputedCard's buckets carry the same names), granted equipment,
     or a weapon's traits."""
-    from n26.library.models import Weapon
+    from n26.library.models import Wargear, Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
     row = getattr(thing, "card_row", None)
     if row is not None:
         return computed, row
-    if isinstance(thing, Weapon):
-        return computed, "granted_weapons"
+    if isinstance(thing, (Weapon, Wargear)):
+        return computed, "granted_gear"
     return None, None
 
 
@@ -1760,8 +1760,8 @@ def _place(computed, target, contribution, carrier=None):
     if kind == "traits":
         holder.added_traits.append(contribution)
         return holder, "added_traits", contribution
-    if kind == "granted_weapons":
-        return computed.card, "granted", _grant_weapon(computed, contribution, carrier)
+    if kind == "granted_gear":
+        return computed.card, "granted", _grant_gear(computed, contribution, carrier)
     existing = getattr(holder, kind)
     if contribution.name in {c.name for c in existing}:
         # One skill from two givers is one skill. The edge is logged all
@@ -1789,9 +1789,9 @@ def _take_away(computed, target, contribution, source_key, step):
             holder.removed_traits.append(contribution)
             record.holder, record.field = holder, "removed_traits"
             record.added = contribution
-        elif kind == "granted_weapons":
+        elif kind == "granted_gear":
             record.holder, record.field = computed.card, "granted"
-            record.dropped = _ungrant_weapon(computed, contribution)
+            record.dropped = _ungrant_gear(computed, contribution)
         else:
             standing = getattr(holder, kind)
             record.holder, record.field = holder, kind
@@ -2030,61 +2030,54 @@ def _put_back(record):
         )
 
 
-def _grant_weapon(computed, contribution, carrier):
-    """Put a granted weapon on the card, with its free firing lines.
+def _grant_gear(computed, contribution, carrier):
+    """Put one copy of granted equipment on the card.
 
-    Free kit, and the card says so by what the lines are made of: no
-    assignment, so nothing to sell and nothing on the ledger, and a
-    rating of zero, so the gang is worth the same with it as without.
-
-    Only the lines that come with the gun. A paid firing line is ammo
-    somebody bought, and nobody bought this — so a granted weapon offers
-    none, and takes no accessories either: both hang off a purchase.
-
-    Every grant is its own weapon, where every grant of one skill is the
-    same skill: two things each handing the bearer a stub gun leave them
-    holding two stub guns. Answers with the line it dealt, which is what
-    a retraction takes back.
+    No assignment means no sale, transfer, ledger entry or rating.
+    Built-ins and option sets are materialised only at acquisition.
+    Weapons include their free firing lines; paid ammo and accessories
+    need a stored assignment to attach to.
     """
     from n26.core.card import Node
+    from n26.library.models import Weapon
 
     card = computed.card
-    weapon = contribution.thing
+    thing = contribution.thing
     serial = computed.granted_serial
     computed.granted_serial += 1
     node = Node(
-        assignable=weapon,
-        key=("granted", serial, weapon.pk),
+        assignable=thing,
+        key=("granted", serial, thing.pk),
         rating=0,
         caused_by_key=carrier.key if carrier is not None else None,
         computed=True,
+        granted_by=contribution.source,
+        granted_by_kind=contribution.source_kind,
     )
-    for profile in weapon.profiles.all():
-        if profile.price:
-            continue
-        line = Node(
-            assignable=profile,
-            key=("granted", serial, weapon.pk, profile.pk),
-            caused_by_key=node.key,
-            is_weapon_profile=True,
-            computed=True,
-        )
-        node.children.append(line)
-        # Registered here and not at the top of ``compute``: a later, more
-        # specific round may name this weapon and add a trait to it, and
-        # the trait needs somewhere to land.
-        computed.weapons[line.key] = ComputedWeapon(node=line)
+    if isinstance(thing, Weapon):
+        for profile in thing.profiles.all():
+            if profile.price:
+                continue
+            line = Node(
+                assignable=profile,
+                key=("granted", serial, thing.pk, profile.pk),
+                caused_by_key=node.key,
+                is_weapon_profile=True,
+                computed=True,
+            )
+            node.children.append(line)
+            # Later rounds may add traits to these firing lines.
+            computed.weapons[line.key] = ComputedWeapon(node=line)
     card.granted.append(node)
     return node
 
 
-def _ungrant_weapon(computed, contribution):
-    """Take back a granted weapon — every copy of it, whoever gave it.
+def _ungrant_gear(computed, contribution):
+    """Take back granted equipment — every copy, whoever gave it.
 
-    A weapon the gang **bought** is a stored assignment, and one nobody
-    paid for is hidden rather than unbought (``_suppress``); either way this
-    touches only the lines a grant put there. Answers with the lines it
-    took, so a retracted removal can put them back.
+    Stored equipment is handled by ``_suppress``. This only removes
+    computed nodes and returns them so a retracted removal can restore
+    them.
     """
     card = computed.card
     taken = [node for node in card.granted if node.assignable == contribution.thing]

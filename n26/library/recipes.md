@@ -7,6 +7,24 @@ author its setup is settled, so this page grows with the library.
 
 Where a step is not yet possible, the recipe says so.
 
+## A weapon that grants wargear
+
+To make slashing claws grant a grapnel launcher and a drop rig:
+
+1. Create the **weapon** and the two **wargear** items, or open their
+   existing entries.
+2. On the weapon's page, create a **modifier**. Select **The model
+   carrying it** and **Gives something**.
+3. Set **Kind** to **wargear**, select the grapnel launcher, and save.
+4. Add a second modifier with the same scope and effect, selecting the
+   drop rig.
+
+The model's card shows both items while it holds the claws, including
+when the claws themselves are granted. The wargear adds zero rating and
+cannot be sold or moved independently. Its modifiers apply; its built-in
+items and option sets require an assignment. Two grants of the same
+wargear give two copies.
+
 ## Corrupted gangs
 
 Genestealer Cult, Chaos and Malstrain corruption are one build with

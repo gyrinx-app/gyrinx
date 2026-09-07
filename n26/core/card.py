@@ -77,9 +77,12 @@ class Node:
     #: it. Scoped by host, where a ``Hidden`` is scoped by kind.
     broadcast: bool = False
     #: True when this line was worked out at read time and written
-    #: nowhere — a weapon a modifier grants. Nothing paid for it, so it
+    #: nowhere — equipment a modifier grants. Nothing paid for it, so it
     #: is worth nothing and there is nothing to sell.
     computed: bool = False
+    #: The immediate grant source may itself have no node on this card.
+    granted_by: str | None = None
+    granted_by_kind: str | None = None
     #: True when a modifier has taken this line away
     #: (``n26.core.effects``). The assignment stays exactly where it is
     #: and stops being drawn, so removing whatever cancelled it brings the
@@ -189,8 +192,8 @@ class Card:
     #: varies by card — a weapon is bought once and counted once.
     full_rating: int = 0
 
-    #: Lines a modifier granted: a weapon the bearer never bought, with
-    #: its free firing lines beneath it. Filled in by
+    #: Equipment a modifier granted, with free firing lines beneath
+    #: weapons. Filled in by
     #: ``n26.core.effects.compute``, which clears and rebuilds the list on
     #: every run — a card nobody has computed has none. Apart from
     #: ``roots`` because ``roots`` are things the gang owns: these are

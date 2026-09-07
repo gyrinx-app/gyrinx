@@ -560,3 +560,228 @@ class TestAHiddenCarrierStaysHidden:
         (change,) = computed.stat_changes
         assert change.source == "Strength rolled 6"
         assert change.source_kind == ""
+
+
+class TestGrantedWargear:
+    """Slashing claws grant kit that lasts as long as the claws are held."""
+
+    @pytest.fixture
+    def kit(self, default_pack):
+        from n26.library.authoring import ef_adds, modifier
+
+        claws = create_weapon("Slashing claws", profiles=[("", 0)])
+        grapnel = create_wargear("Grapnel launcher", price=25)
+        rig = create_wargear("Drop rig", price=10)
+        for thing in (grapnel, rig):
+            modifier(
+                f"Claws grant {thing.name}",
+                targets_model(),
+                ef_adds(thing),
+                attach_to=claws,
+            )
+        modifier(
+            "Grapnel grants Clamber",
+            targets_model(),
+            ef_adds(create_skill("Clamber")),
+            attach_to=grapnel,
+        )
+        return claws, grapnel, rig
+
+    def test_the_kit_is_free_computed_and_has_no_sale_or_assignment(self, yolanda, kit):
+        from n26.core.models import Assignment, LedgerEntry
+        from n26.core.owned import owned_things
+        from n26.core.reconcile import assert_reconciled
+
+        claws, grapnel, rig = kit
+        give_weapon(yolanda, claws, paid=50)
+        counts = Assignment.objects.count(), LedgerEntry.objects.count()
+        card = card_for(yolanda)
+
+        assert [(item.name, item.rating, item.id) for item in card.equipment] == [
+            ("Drop rig", 0, ""),
+            ("Grapnel launcher", 0, ""),
+        ]
+        assert all(item.provenance.computed for item in card.equipment)
+        assert {item.provenance.source for item in card.equipment} == {"Slashing claws"}
+        assert {item.provenance.source_kind for item in card.equipment} == {"weapon"}
+        assert [skill.name for skill in card.skills] == ["Clamber"]
+        assert counts == (Assignment.objects.count(), LedgerEntry.objects.count())
+        assert not Assignment.objects.filter(wargear__in=[grapnel, rig]).exists()
+        owned = owned_things(build_card(yolanda), "/n26/fighters/x/equip/")
+        assert not {"Grapnel launcher", "Drop rig"} & {
+            item.name for items in owned.values() for item in items
+        }
+        gang = yolanda.gang
+        gang.refresh_from_db()
+        assert gang.rating == 55 + 50
+        assert_reconciled(gang)
+
+    def test_removing_one_of_two_granters_keeps_one_copy_and_its_modifiers(
+        self, yolanda, kit
+    ):
+        from n26.core.reconcile import assert_reconciled
+
+        claws, _, _ = kit
+        first = give_weapon(yolanda, claws, paid=50)
+        second = give_weapon(yolanda, claws, paid=50)
+        assert [item.name for item in card_for(yolanda).equipment].count(
+            "Drop rig"
+        ) == 2
+        remove(first)
+        assert [item.name for item in card_for(yolanda).equipment] == [
+            "Drop rig",
+            "Grapnel launcher",
+        ]
+        assert [skill.name for skill in card_for(yolanda).skills] == ["Clamber"]
+        remove(second)
+        assert card_for(yolanda).equipment == []
+        assert card_for(yolanda).skills == []
+        yolanda.gang.refresh_from_db()
+        assert_reconciled(yolanda.gang)
+
+    def test_taking_away_the_kit_cancels_all_grants_and_their_effects(
+        self, yolanda, kit
+    ):
+        from n26.core.reconcile import assert_reconciled
+        from n26.library.authoring import ef_removes, modifier
+
+        claws, grapnel, _ = kit
+        give_weapon(yolanda, claws, paid=50)
+        give_weapon(yolanda, claws, paid=50)
+        blocker = create_subtype("Without grapnel")
+        modifier(
+            "Takes away grapnel",
+            targets_model(),
+            ef_removes(grapnel),
+            attach_to=blocker,
+        )
+        cancellation = assign(blocker, miniature=yolanda)
+        assert [item.name for item in card_for(yolanda).equipment] == [
+            "Drop rig",
+            "Drop rig",
+        ]
+        assert card_for(yolanda).skills == []
+        remove(cancellation)
+        assert [item.name for item in card_for(yolanda).equipment].count(
+            "Grapnel launcher"
+        ) == 2
+        assert [skill.name for skill in card_for(yolanda).skills] == ["Clamber"]
+        yolanda.gang.refresh_from_db()
+        assert_reconciled(yolanda.gang)
+
+    @pytest.mark.parametrize("paid", [0, 25])
+    def test_removal_hides_unpaid_kit_and_preserves_bought_kit(
+        self, yolanda, kit, paid
+    ):
+        from n26.core.reconcile import assert_reconciled
+        from n26.library.authoring import ef_removes, modifier
+        from n26.tests.sandbox.actions import buy
+
+        _, grapnel, _ = kit
+        bought = buy(yolanda, thing=grapnel, paid=paid, rating=paid)
+        blocker = create_subtype("Without grapnel")
+        modifier(
+            "Takes away grapnel",
+            targets_model(),
+            ef_removes(grapnel),
+            attach_to=blocker,
+        )
+        cancellation = assign(blocker, miniature=yolanda)
+        assert bool(card_for(yolanda).equipment) == bool(paid)
+        assert bool(card_for(yolanda).skills) == bool(paid)
+        bought.refresh_from_db()
+        assert not bought.archived
+        remove(cancellation)
+        assert [item.name for item in card_for(yolanda).equipment] == [
+            "Grapnel launcher"
+        ]
+        yolanda.gang.refresh_from_db()
+        assert_reconciled(yolanda.gang)
+
+    def test_a_granted_weapon_can_grant_kit_with_its_own_provenance(self, yolanda, kit):
+        from n26.library.authoring import ef_adds, modifier
+
+        claws, _, _ = kit
+        source = create_subtype("Claw bearer")
+        modifier("Grants claws", targets_model(), ef_adds(claws), attach_to=source)
+        assign(source, miniature=yolanda)
+        card = card_for(yolanda)
+        assert [item.name for item in card.equipment] == [
+            "Drop rig",
+            "Grapnel launcher",
+        ]
+        assert {item.provenance.source for item in card.equipment} == {"Slashing claws"}
+        assert {item.provenance.source_kind for item in card.equipment} == {"weapon"}
+        assert [skill.name for skill in card.skills] == ["Clamber"]
+
+    def test_granting_wargear_does_not_materialise_its_built_ins(self, yolanda, kit):
+        from n26.core.models import Assignment
+        from n26.library.authoring import add_built_in
+
+        claws, grapnel, _ = kit
+        extra = create_wargear("Spare equipment")
+        add_built_in(grapnel, extra)
+        give_weapon(yolanda, claws)
+        assert [item.name for item in card_for(yolanda).equipment] == [
+            "Drop rig",
+            "Grapnel launcher",
+        ]
+        assert not Assignment.objects.filter(wargear=extra).exists()
+
+    def test_repeated_computation_and_rendering_need_no_queries(
+        self, yolanda, kit, django_assert_num_queries
+    ):
+        claws, _, _ = kit
+        give_weapon(yolanda, claws)
+        card = build_card(yolanda, with_statlines=True)
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        with django_assert_num_queries(0):
+            for _ in range(2):
+                rendered = build_model_card(
+                    yolanda, card=card, computed=compute(card, index)
+                )
+                assert [item.name for item in rendered.equipment] == [
+                    "Drop rig",
+                    "Grapnel launcher",
+                ]
+                assert [skill.name for skill in rendered.skills] == ["Clamber"]
+
+    def test_more_models_with_granted_kit_use_the_same_query_budget(
+        self, yolanda, kit, ganger_profile, django_assert_num_queries
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_gang_card
+        from n26.core.reconcile import assert_reconciled
+
+        claws, _, _ = kit
+        gang = yolanda.gang
+        give_weapon(yolanda, claws)
+
+        def read():
+            with CaptureQueriesContext(connection) as queries:
+                gang_card = build_gang_card(gang)
+                index = build_modifier_index(
+                    [
+                        node.assignable
+                        for card in gang_card.members.values()
+                        for node in card.all_nodes()
+                    ]
+                )
+            with django_assert_num_queries(0):
+                for card in gang_card.members.values():
+                    compute(card, index)
+                    assert {node.name for node in card.granted} == {
+                        "Drop rig",
+                        "Grapnel launcher",
+                    }
+            return len(queries)
+
+        one_model = read()
+        for number in range(3):
+            fighter = hire(gang, ganger_profile, f"Claw bearer {number}")
+            give_weapon(fighter, claws)
+        assert read() == one_model
+        gang.refresh_from_db()
+        assert_reconciled(gang)

@@ -115,3 +115,35 @@ class TestArchived:
         parent.archive()
         child.refresh_from_db()
         assert child.archived
+
+
+class TestWargearGrantEffects:
+    """A grant or removal names exactly one thing and reaches a model."""
+
+    @pytest.mark.parametrize("effect_name", ["AddsAssignable", "RemovesAssignable"])
+    def test_wargear_obeys_the_exactly_one_constraint(self, default_pack, effect_name):
+        from django.db import IntegrityError, transaction
+
+        from n26.library import models
+        from n26.library.authoring import create_skill, create_wargear
+
+        effect_type = getattr(models, effect_name)
+        rig = create_wargear("Drop rig")
+        effect = effect_type.objects.create(wargear=rig)
+        effect.refresh_from_db()
+        assert effect.thing == rig
+        skill = create_skill("Clamber")
+        for fields in ({}, {"wargear": rig, "skill": skill}):
+            with pytest.raises(IntegrityError), transaction.atomic():
+                effect_type.objects.create(**fields)
+
+    @pytest.mark.parametrize("effect_name", ["AddsAssignable", "RemovesAssignable"])
+    def test_wargear_only_reaches_models(self, default_pack, effect_name):
+        from n26.library import models
+        from n26.library.authoring import create_wargear
+        from n26.library.models.modifier import GANG, MODEL, WEAPON_PROFILE
+
+        effect = getattr(models, effect_name)(wargear=create_wargear("Drop rig"))
+        assert effect.accepts(MODEL)
+        assert not effect.accepts(GANG)
+        assert not effect.accepts(WEAPON_PROFILE)

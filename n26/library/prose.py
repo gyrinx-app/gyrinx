@@ -302,7 +302,7 @@ def _gained(thing):
         return f"the {thing} power"
     if kind == "collection":
         return f"access to {thing}"
-    if kind == "weapon":
+    if kind in ("weapon", "wargear"):
         return f"{thing}, free"
     return str(thing)
 
