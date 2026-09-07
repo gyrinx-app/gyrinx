@@ -397,9 +397,8 @@ def hire_fighter(request, pk):
     from n26.core.hire import (
         build_entries,
         build_hire_entry,
-        build_hire_list,
         collection_offers,
-        collection_sections,
+        gang_scope_sections,
         hireable_profiles,
         section_by_gang_type,
         section_hire_list,
@@ -423,6 +422,16 @@ def hire_fighter(request, pk):
     dialog = None
 
     @cache
+    def carried():
+        """The collections this gang carries, worked out once.
+
+        Read twice — for what they offer, and for whether any of them is
+        the gang's own list — and it costs a gang card, so the two never
+        build it twice.
+        """
+        return [access.collection for access in gang_collections(gang)]
+
+    @cache
     def offers():
         """What the collections this gang carries offer, worked out once.
 
@@ -431,10 +440,7 @@ def hire_fighter(request, pk):
         scope that draws no collection sections and a click naming no
         entry never build it at all.
         """
-        return collection_offers(
-            [access.collection for access in gang_collections(gang)],
-            include_staged=shown,
-        )
+        return collection_offers(carried(), include_staged=shown)
 
     if request.method == "POST" and "profile" in request.POST:
         form = HireFighterForm(request.POST)
@@ -615,16 +621,17 @@ def hire_fighter(request, pk):
         )
     else:
         # The gang's own list, then a section for each collection it
-        # carries that offers fighters. After the house's own sections
-        # because that is the order they were come by: the list a gang
-        # founds with is what it is, and a corruption's roster is
+        # carries that offers fighters besides. After the house's own
+        # sections because that is the order they were come by: the list a
+        # gang founds with is what it is, and a corruption's roster is
         # something it took on.
-        hire_list = [
-            *section_hire_list(
-                build_hire_list(gang.gang_type, with_cards=False, include_staged=shown)
-            ),
-            *collection_sections(offers(), with_cards=False),
-        ]
+        hire_list = gang_scope_sections(
+            offers(),
+            gang.gang_type,
+            carried(),
+            with_cards=False,
+            include_staged=shown,
+        )
     _link_cards(gang, hire_list)
     prices = [
         entry.base_price for section in hire_list for entry in section.all_entries()

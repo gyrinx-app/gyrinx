@@ -170,7 +170,17 @@ Both print on the card under their own headings. They arrive built in, given by 
 
 *A named list of content: an equipment list, a trading post, a menu.*
 
+See [Collections](/n26/authoring/docs/collections/) for how to create equipment lists, hire lists and skill access.
+
 One field of its own: **prices its entries** — turned off for a menu, where nothing is for sale and the entries are simply choices.
+
+On the hire screen, a collection of fighters is grouped according to its default section:
+
+- Default section named **Gang List**: the collection becomes the gang's main hire list, with fighters grouped under the usual rank headings. The collection appears on the hire screen and is hidden from the gang sheet. Capitalisation does not affect the section name's meaning.
+- Default section named anything else: fighters appear under that heading, after the gang's main list.
+- No default section: fighters appear under the collection's name. Use this for a corruption's extra fighters.
+
+A gang archetype replaces the house's collection with another whose default section is also named Gang List. A gang with no visible main hire collection hires from its gang type's fighter entries. If two main hire collections are assigned, each appears under its own collection name. This keeps their entries and prices separate.
 
 It contains things in two ways: manual **entries** (hand-picked items, optionally at this list's own price, and optionally narrowed to who *this list* offers the item to — the "(Forge-born only)" case) and **selectors** (rules like "every weapon", at their usual prices). An entry always beats a selector for the same item.
 
