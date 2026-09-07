@@ -499,9 +499,7 @@ class TestAConditionalTerritoryBoon:
         (entry,) = territories.entries
 
         assert entry.income == 20
-        (boon,) = entry.boons
-        assert "gangs that have picked Goliath" in boon
-        assert "10" in boon and INCOME in boon
+        assert entry.boons == [f"Goliath gangs: +10 {INCOME}."]
 
 
 # --- Nothing changes for a scope with no conditions ------------------------
@@ -542,18 +540,18 @@ class TestAConditionLessGangScopeIsUnchanged:
 
 class TestWhatTheAuthoringPagesSay:
     def test_the_scope_says_the_condition(self, goliath, houses):
-        assert str(targets_gang(has_gang_pickable(goliath))) == (
-            "gangs that have picked Goliath"
-        )
+        assert str(targets_gang(has_gang_pickable(goliath))) == "Goliath gangs"
         assert str(targets_gang_alone(has_gang_pickable(goliath))) == (
-            "gangs that have picked Goliath (the gang alone)"
+            "Goliath gangs (the gang alone)"
         )
         assert str(targets_gang(has_gang_pickable(goliath, negate=True))) == (
-            "every gang except those that have picked Goliath"
+            "every gang except Goliath gangs"
         )
         assert str(targets_gang(has_gang_pickable(goliath, houses["Escher"]))) == (
-            "gangs that have picked Escher or Goliath"
+            "Escher or Goliath gangs"
         )
+        # Nobody picks a supertype, so the words never say so.
+        assert "picked" not in str(targets_gang(has_gang_pickable(goliath)))
 
     def test_the_sentence_leads_with_the_condition(self, goliath, default_pack):
         boon = modifier(
@@ -565,8 +563,8 @@ class TestWhatTheAuthoringPagesSay:
         sentence = sentence_for(boon, carriage=None)
 
         assert sentence.text == (
-            "For gangs that have picked Goliath, the gang gains Goliath "
-            "Controlled, printed on the gang page."
+            "For Goliath gangs, the gang gains Goliath Controlled, printed on "
+            "the gang page."
         )
 
     def test_the_plan_names_the_condition(self, owner, goliath_type, journal_boons):
@@ -575,7 +573,7 @@ class TestWhatTheAuthoringPagesSay:
 
         (step,) = [s for s in gang_computed(gang).plan if "(gang)" in str(s.effect)]
 
-        assert "[gangs that have picked Goliath (the gang alone)]" in str(step)
+        assert "[Goliath gangs (the gang alone)]" in str(step)
         assert step.ran_in == 1
 
     def test_the_composer_names_the_modifier_after_its_scope_and_reads_it_back(
@@ -602,9 +600,7 @@ class TestWhatTheAuthoringPagesSay:
 
         assert response.status_code == 302, response.content.decode()[:2000]
         (made,) = Modifier.objects.filter(targets_gang__isnull=False)
-        assert made.name == (
-            "gangs that have picked Goliath (the gang alone): adds Goliath Controlled"
-        )
+        assert made.name == "Goliath gangs (the gang alone): adds Goliath Controlled"
         assert [str(p) for p in made.scope.has_gang_pickable.get().pickables.all()] == [
             "Goliath"
         ]

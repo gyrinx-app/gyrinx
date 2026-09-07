@@ -845,10 +845,9 @@ def _narrowed_gang(who, scope):
 
     There is one gang, so nothing qualifies the subject: the renderers
     say "the gang" and go on saying it. What a condition adds is the
-    gang it has to be — "for gangs that have picked Goliath, the gang
-    gains …" — said in the condition row's own words, so the modifier's
-    auto-name and this sentence cannot come to describe the gangs
-    differently.
+    gang it has to be — "for Goliath gangs, the gang gains …" — said in
+    the condition row's own words, so the modifier's auto-name and this
+    sentence cannot come to describe the gangs differently.
     """
     rows = scope._narrowing_rows()
     if not rows:

@@ -1193,9 +1193,13 @@ class CampaignAssetEntry:
     ``name`` is the name the arbitrator gave the asset in this campaign,
     else the library asset's own; ``asset_name`` is the library asset's
     only where the two differ, so a renamed asset still says what it is.
-    ``boons`` are the asset's modifiers as sentences, the authoring page's
-    own words for what holding the asset does — every modifier but the
-    Income contribution, which the ``income`` column already prints.
+    ``boons`` are what holding the asset does beyond its income figure,
+    one line per modifier, each in the register of the Income column:
+    "Goliath gangs: +10 Income." for a contribution only some gangs get,
+    "Goliath gangs: Goliath Controlled." for a rule only some gangs get,
+    "Goliath Controlled." for one every holder gets. The unconditional
+    Income contribution is the ``income`` column's and is never repeated
+    here (``boon_said``).
     """
 
     campaign_asset_id: str
@@ -2880,8 +2884,6 @@ def render_campaign(campaign, viewer=None):
     from n26.core.render import GANG_SLOT_HOST, choice_lines
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
-    from n26.library.prose import GANG as GANG_CARRIAGE
-    from n26.library.prose import sentence_for
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
 
@@ -3062,8 +3064,7 @@ def render_campaign(campaign, viewer=None):
                 asset_name=campaign_asset.asset.name if campaign_asset.name else "",
                 income=income_of(campaign_asset.asset),
                 boons=[
-                    sentence_for(modifier, carriage=GANG_CARRIAGE).text
-                    for modifier in boons_of(campaign_asset.asset)
+                    boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
                 ],
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
@@ -3104,6 +3105,37 @@ def render_campaign(campaign, viewer=None):
 #: How many territories the rules generate for each player at the table
 #: when a campaign is set up.
 TERRITORIES_PER_PLAYER = 3
+
+
+def boon_said(modifier):
+    """One of an asset's boons as the campaign page's Boons column says
+    it: the gangs it applies to, then what it does, in the register of
+    the Income column beside it.
+
+    "+10 Income." for a counter contribution, "Goliath Controlled." for
+    a rule or other thing the holder gains — by its plain name, since the
+    row already names the territory the rule is annotated with. A boon
+    only some gangs get leads with the scope's own words: "Goliath gangs:
+    +10 Income.". An effect this column has no short form for falls back
+    to the authoring page's whole sentence.
+    """
+    from n26.library.models.modifier import AddsAssignable, ContributesToCounter
+    from n26.library.prose import GANG as GANG_CARRIAGE
+    from n26.library.prose import sentence_for
+
+    effect = modifier.effect
+    if isinstance(effect, ContributesToCounter):
+        said = f"+{effect.amount} {effect.counter.name}."
+    elif isinstance(effect, AddsAssignable) and effect.thing is not None:
+        thing = effect.thing
+        said = f"{getattr(thing, 'name', None) or thing}."
+    else:
+        return sentence_for(modifier, carriage=GANG_CARRIAGE).text
+    scope = modifier.targets_gang
+    if scope is not None and scope.is_conditional:
+        who = ", ".join(str(row) for row in scope._narrowing_rows())
+        return f"{who[0].upper()}{who[1:]}: {said}"
+    return said
 
 
 def _held_table(table):

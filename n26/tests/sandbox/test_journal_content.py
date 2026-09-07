@@ -648,17 +648,17 @@ class TestAJournalTerritoryInPlay:
         (territories,) = render_campaign(campaign, viewer=campaign.owner).assets
         by_name = {entry.name: entry for entry in territories.entries}
 
+        # Each boon in the Income column's register: the gangs it applies
+        # to, then what it does. The rule by its plain name — the row
+        # already says Slug House — and never a word about picking.
         vats = by_name["Amneo-vats"]
         assert vats.income == 15
-        (boon,) = vats.boons
-        assert "gangs that have picked Goliath" in boon
-        assert "10" in boon and INCOME in boon
+        assert vats.boons == ["Goliath gangs: +10 Income."]
 
         slug = by_name["Slug House"]
         assert slug.income == 20
-        (boon,) = slug.boons
-        assert "gangs that have picked Goliath" in boon
-        assert "Goliath Controlled" in boon and "Slug House" in boon
+        assert slug.boons == ["Goliath gangs: Goliath Controlled."]
+        assert INCOME == "Income"
 
 
 # --- The House table and the starting roll ---------------------------------
