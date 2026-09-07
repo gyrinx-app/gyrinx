@@ -144,8 +144,8 @@ slot type. This one is written out because it uses all of them.
 A fighter hired from an entry carrying the slot arrives with an open
 "Gang Legacy" line on their card. Clicking it shows that picklist.
 Picking a legacy opens the legacy's equipment list on the fighter's
-equip page and changes nothing else. The pick is free and adds nothing
-to the gang's rating.
+equip page and changes nothing else. The pick is not paid for, and a
+legacy pickable adds nothing to the gang's rating.
 
 A picklist with one pickable is still a choice: the line stays open
 until the player picks, and nothing is picked for them.

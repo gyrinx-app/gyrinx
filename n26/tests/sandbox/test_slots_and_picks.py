@@ -2310,3 +2310,183 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
             for line in card.questions
             if line.kind_label == "Lasting Injuries"
         )
+
+
+# --- A pick that adds to rating ---------------------------------------------
+
+
+class TestAPickMayAddToRating:
+    """A pick is never paid for, but a pickable may say what holding it
+    adds to the model's rating — a Spyrer's Power Boost raises the
+    model's value by the amount the table prints. The pick is written
+    with that as its rating and nothing paid, so taking it back drops
+    the rating and moves no credits, and the owned-assignment acts
+    (sell, refund, reassign, remove) do not resolve for it at all."""
+
+    @pytest.fixture
+    def boost(self, default_pack):
+        return create_slot_type("Power Boost", allows_repeats=True)
+
+    @pytest.fixture
+    def results(self, boost):
+        return {
+            "Combat Neuroware": create_pickable(
+                "Combat Neuroware", boost, rating_contribution=20
+            ),
+            "Improved Motive Power": create_pickable(
+                "Improved Motive Power", boost, rating_contribution=10
+            ),
+            "Nothing Happens": create_pickable("Nothing Happens", boost),
+        }
+
+    @pytest.fixture
+    def power_boost_slot(self, boost, results):
+        table = create_picklist("Power Boost", boost, members=list(results.values()))
+        return create_slot("Power Boost", boost, table, min_picks=0, max_picks=3)
+
+    @pytest.fixture
+    def spyrer(self, person_type, gang_type, power_boost_slot):
+        profile = create_profile("Spyrer", person_type, gang_type, price=200)
+        add_built_in(profile, power_boost_slot)
+        return profile
+
+    @pytest.fixture
+    def boosted_spyrer(self, person_type, gang_type, power_boost_slot, results):
+        """Hired already holding one result: a slot's starting pick
+        carries its rating like a clicked one."""
+        profile = create_profile("Boosted Spyrer", person_type, gang_type, price=200)
+        add_built_in(
+            profile, power_boost_slot, default_pickable=results["Combat Neuroware"]
+        )
+        return profile
+
+    def _boost_slot(self, miniature):
+        return next(
+            line for line in choices_of(miniature) if line.kind_label == "Power Boost"
+        )
+
+    def test_the_pick_adds_its_rating_and_moves_no_credits(self, gang, spyrer, results):
+        orrus = hire(gang, spyrer, "Orrus", paid=200)
+        gang.refresh_from_db()
+        credits_before, rating_before = gang.credits, gang.rating
+
+        pick = choose(
+            self._boost_slot(orrus).anchor.assignment, results["Combat Neuroware"]
+        )
+
+        gang.refresh_from_db()
+        orrus.refresh_from_db()
+        assert gang.credits == credits_before
+        assert gang.rating == rating_before + 20
+        assert orrus.rating == 220
+        entry = pick.ledger_entry
+        assert (entry.paid, entry.list_price, entry.rating_contribution) == (0, 0, 20)
+        assert_reconciled(gang)
+
+    def test_a_pickable_that_adds_nothing_still_adds_nothing(
+        self, gang, spyrer, results
+    ):
+        orrus = hire(gang, spyrer, "Orrus", paid=200)
+        gang.refresh_from_db()
+        before = gang.rating
+
+        choose(self._boost_slot(orrus).anchor.assignment, results["Nothing Happens"])
+
+        gang.refresh_from_db()
+        assert gang.rating == before
+        assert_reconciled(gang)
+
+    def test_picks_stack_and_each_adds_its_own(self, gang, spyrer, results):
+        orrus = hire(gang, spyrer, "Orrus", paid=200)
+        anchor = self._boost_slot(orrus).anchor.assignment
+
+        choose(anchor, results["Combat Neuroware"])
+        choose(anchor, results["Improved Motive Power"])
+
+        orrus.refresh_from_db()
+        gang.refresh_from_db()
+        assert orrus.rating == 230
+        assert_reconciled(gang)
+
+    def test_taking_the_pick_back_drops_the_rating_and_returns_no_credits(
+        self, gang, spyrer, results
+    ):
+        orrus = hire(gang, spyrer, "Orrus", paid=200)
+        pick = choose(
+            self._boost_slot(orrus).anchor.assignment, results["Combat Neuroware"]
+        )
+        gang.refresh_from_db()
+        credits_before = gang.credits
+
+        remove(pick)
+
+        gang.refresh_from_db()
+        orrus.refresh_from_db()
+        assert gang.credits == credits_before
+        assert orrus.rating == 200
+        assert_reconciled(gang)
+
+    def test_a_starting_pick_carries_its_rating_too(self, gang, boosted_spyrer):
+        orrus = hire(gang, boosted_spyrer, "Orrus", paid=200)
+
+        orrus.refresh_from_db()
+        assert orrus.rating == 220
+        assert self._boost_slot(orrus).chosen_name == "Combat Neuroware"
+        assert_reconciled(gang)
+
+    def test_a_pick_the_gang_holds_adds_nothing(
+        self, gang, person_type, gang_type, boost, results
+    ):
+        """Rating is what the models are worth; a gang-hosted assignment
+        carries none of its own, and a pick landing on the gang is no
+        exception, whatever its pickable says."""
+        table = create_picklist("Gang Boost", boost, members=list(results.values()))
+        gang_slot = create_slot(
+            "Gang Boost", boost, table, min_picks=0, max_picks=1, assigned_to="gang"
+        )
+        profile = create_profile("Rig Master", person_type, gang_type, price=200)
+        add_built_in(profile, gang_slot)
+        master = hire(gang, profile, "Orrus", paid=200)
+        gang.refresh_from_db()
+        before = gang.rating
+        anchor = next(
+            line for line in choices_of(master) if line.kind_label == "Gang Boost"
+        ).anchor.assignment
+
+        pick = choose(anchor, results["Combat Neuroware"])
+
+        gang.refresh_from_db()
+        assert pick.gang_id == gang.pk and pick.miniature_id is None
+        assert pick.ledger_entry.rating_contribution == 0
+        assert gang.rating == before
+        assert_reconciled(gang)
+
+    def test_an_explicit_rating_wins(self, gang, spyrer, results):
+        orrus = hire(gang, spyrer, "Orrus", paid=200)
+
+        pick = choose(
+            self._boost_slot(orrus).anchor.assignment,
+            results["Combat Neuroware"],
+            rating=5,
+        )
+
+        assert pick.ledger_entry.rating_contribution == 5
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_a_pick_is_not_a_possession_so_no_money_act_resolves_for_it(
+        self, client, owner, gang, spyrer, results
+    ):
+        """Rating is not money: a pick cannot be sold, refunded or moved
+        through the acts that serve kit. Those addresses 404 for it, as
+        they do for the assignment naming the model itself."""
+        from django.urls import reverse
+
+        orrus = hire(gang, spyrer, "Orrus", paid=200)
+        pick = choose(
+            self._boost_slot(orrus).anchor.assignment, results["Combat Neuroware"]
+        )
+        client.force_login(owner)
+
+        for route in ("n26-sell", "n26-refund", "n26-reassign", "n26-remove"):
+            assert client.post(reverse(route, args=[pick.pk])).status_code == 404, route

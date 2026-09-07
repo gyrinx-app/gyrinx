@@ -1040,6 +1040,7 @@ def _build_registry():
                     model=Category, source=(Pickable, "category"), optional=True
                 ),
                 "qualifier": Text(source=(Pickable, "qualifier")),
+                "rating_contribution": Int(source=(Pickable, "rating_contribution")),
                 "library_author_help": Text(
                     source=(Pickable, "library_author_help"), long=True
                 ),

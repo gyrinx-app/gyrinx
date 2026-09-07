@@ -143,6 +143,17 @@ class Pickable(Content, Assignable):
             "for pickables that work by their own modifiers."
         ),
     )
+    # Rating, never price: a pick is not bought, so nothing is refunded
+    # or sold. A pick bought for credits is a collection purchase, not this.
+    rating_contribution = models.IntegerField(
+        default=0,
+        help_text=(
+            "Credits this pick adds to the model's rating. A pick the gang "
+            "holds adds nothing. A pick is never paid for, so this is a "
+            "rating, not a price. Leave at 0 unless the rules raise the "
+            "model's value, as a Spyrer's Power Boost does."
+        ),
+    )
 
     class Meta:
         verbose_name = "pickable"

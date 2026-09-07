@@ -2188,6 +2188,14 @@ class Operation:
         writing a second pick. Which row the roll landed on is not
         checked: the rules substitute results ("counts as Out Cold"),
         and the record shows the roll beside whatever was picked.
+
+        A pick is never paid for, but it may carry a rating: a Power
+        Boost result raises the Spyrer's value by the amount the table
+        prints. The pickable says what it adds (``rating_contribution``,
+        0 for almost every pickable) and the pick is written with that
+        as its rating and nothing paid — so removing the pick drops the
+        rating and moves no credits. A pick the gang holds adds nothing:
+        rating is what the models are worth. An explicit ``rating`` wins.
         """
         from n26.library.models import Pickable, Slot
 
@@ -2241,6 +2249,13 @@ class Operation:
                     "That roll was made for a different card. "
                     "Roll again for this choice."
                 )
+        if kwargs.get("rating") is None:
+            # Rating is what the models are worth, and a gang-hosted
+            # assignment carries none of its own: a pick the gang holds
+            # adds nothing, whatever its pickable says.
+            kwargs["rating"] = (
+                0 if kwargs.get("gang") is not None else chosen.rating_contribution
+            )
         return self.assign(
             chosen,
             caused_by=anchor,

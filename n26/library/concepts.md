@@ -203,7 +203,7 @@ A slot type puts a name on one or more slots, and groups pickables. It is not an
 
 *A value that goes into a slot.*
 
-Fields of its own: the **slot type** it belongs to, and an optional **linked category** — plus the shared assignable set, so whatever the pickable means is carried as ordinary modifiers.
+Fields of its own: the **slot type** it belongs to, an optional **linked category**, and a **rating contribution** (credits the pick adds to the model's rating; 0 for most pickables, and nothing for a pick the gang holds) — plus the shared assignable set, so whatever the pickable means is carried as ordinary modifiers.
 
 One thing offered in a slot: a specific value, of a particular slot type, that carries behaviour as ordinary modifiers. It never draws a line of its own: it appears under its slot's choice line when chosen. Without its slot it shows nothing and does nothing, so it arrives chosen, given, or as a slot's starting value, never as a bare built-in. The authoring form does not accept one. Reach: whatever its own modifiers say, from wherever the pick landed.
 
@@ -237,7 +237,7 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 
 *Not a type: the assignment that settles a choice.*
 
-The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is never paid for: no credits move, and there is nothing to refund or sell. A pickable may still carry a rating contribution — a Spyrer's Power Boost result raises the model's value by the amount the table prints — and the pick carries that as its rating. Removing the pick removes that rating too. A pick the gang holds adds nothing, whatever its pickable says. Most pickables add 0.
 
 A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, including the fighter who made the pick. A pickable that carries the *draws the pick on the card* effect is displayed after all, on the cards its scope reaches. See below.
 
