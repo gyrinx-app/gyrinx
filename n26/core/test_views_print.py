@@ -462,6 +462,12 @@ class TestNotesOnPaper:
         client.force_login(tester)
         body = client.get(setup_url(gang)).content.decode()
         assert "Include notes, pictures, and space to write" in body
+        client.post(
+            setup_url(gang),
+            {"name": "no-notes", "include_header": "on", "fighters": [str(roster[0].pk)]},
+        )
+        listed = client.get(setup_url(gang)).content.decode()
+        assert "no notes, pictures, or space to write" in listed
 
 
 class TestPrintingSomebodyElsesGang:
