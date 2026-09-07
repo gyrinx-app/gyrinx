@@ -32,10 +32,11 @@ from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core import select
+from n26.core import history, select
 from n26.core.campaigns import tables_held_by
 from n26.core.card import build_card, build_gang_card, build_modifier_index, carriers
 from n26.core.effects import _Facts, compute, compute_gang
+from n26.core.history import campaign_history
 from n26.core.models import BuiltInPropagationTask, CampaignAsset
 from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
@@ -504,6 +505,83 @@ class TestWhoHasASupertype:
         assert has_picked(roses, "Escher") and not has_picked(roses, "Goliath")
         assert not has_picked(clanless, "Goliath")
         assert not has_picked(clanless, "Escher")
+
+
+# --- Nothing is told about the supertype ------------------------------------
+
+
+def told(acts):
+    """Every sentence and every line beneath one, flattened."""
+    lines = []
+    for act in acts:
+        lines.append("".join(span.text for span in act.spans))
+        lines.extend(f"{sub.name} {sub.note}" for sub in act.subs)
+    return lines
+
+
+class TestNothingIsToldAboutTheSupertype:
+    """The supertype is a classification players never see, so the gang
+    history and the campaign log say nothing when a gang gets it — at
+    founding, or when propagation catches an older gang up — while a
+    visible slot's pick is told as it always was."""
+
+    @pytest.fixture(autouse=True)
+    def flag(self, campaigns_open):
+        return campaigns_open
+
+    def test_founding_a_goliath_gang_writes_no_line_naming_it(
+        self, seeded, gang_types, owner
+    ):
+        gang = found_gang("Irontooth", gang_types["Goliath"], owner=owner, budget=1000)
+
+        lines = told(history.build(gang))
+
+        assert lines
+        assert not any(SLOT_TYPE in line for line in lines)
+        assert not any("Goliath comes with" in line for line in lines)
+
+    def test_the_propagation_pass_writes_no_line_naming_it(
+        self,
+        core,
+        gang_types,
+        clan_house,
+        owner,
+        arbitrator,
+        propagating,
+        task_queue,
+    ):
+        gang = found_gang("Old Guard", gang_types["Goliath"], owner=owner, budget=1000)
+        campaign = found_campaign("Dust Falls", core, owner=arbitrator)
+        join_campaign(gang, campaign)
+
+        with task_queue.capture():
+            seed_all()
+        task_queue.deliver_all()
+
+        assert has_picked(gang, "Goliath")
+        for lines in (told(history.build(gang)), told(campaign_history(campaign))):
+            assert lines
+            assert not any(SLOT_TYPE in line for line in lines)
+            assert not any("comes with" in line for line in lines)
+
+    def test_a_visible_slots_pick_is_still_told(
+        self, seeded, gang_types, clan_house, owner
+    ):
+        gang = found_gang(
+            "The Cast Out", gang_types["Outcast"], owner=owner, budget=1000
+        )
+        boss = hire(gang, clan_house["leader"], "Boss")
+        card = build_card(boss, with_statlines=True)
+        computed = compute(
+            card, build_modifier_index([n.assignable for n in card.all_nodes()])
+        )
+        (choice,) = [c for c in computed.choices if c.kind_label == "Clan House"]
+        choose(choice.anchor.assignment, clan_house["picks"]["Goliath"])
+
+        lines = told(history.build(gang))
+
+        assert any("House Goliath" in line for line in lines)
+        assert not any(SLOT_TYPE in line for line in lines)
 
 
 # --- The boons on a held territory ------------------------------------------
