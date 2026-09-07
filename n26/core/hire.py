@@ -18,12 +18,16 @@ otherwise-default selection, and a specific combination's card is a
 ``build_card_from_profile(profile, option=[...])`` away. Enumerating the
 combinations is exactly the explosion the groups exist to avoid.
 
-Not every fighter on offer is on a gang list. A collection the gang
-carries can list profiles too — a corruption's Aberrants and Chaos
-Spawn arrive that way — and it offers them at its own prices. Such a
-collection becomes a section of its own, built from the same entries by
-the same functions, with the collection's price standing in for the
-fighter's own (``Offer``, ``collection_offers``).
+The gang list itself is a collection the gang carries, and so is every
+other list of fighters it is offered — a corruption's Aberrants and Chaos
+Spawn arrive that way, at the corruption's own prices. A collection says
+which it is through its default section: named for the gang list's own
+taxonomy section, its fighters are the gang's list and file under the
+rank headings; named anything else, or not at all, they are a block of
+their own. Both are built from the same entries by the same functions,
+with the collection's price standing in for the fighter's own (``Offer``,
+``collection_offers``). A gang carrying no list of its own hires from its
+gang type's profiles.
 
 Query budget, as everywhere: previewing a whole gang list is a fixed
 number of queries whatever its length, and so is a gang's carried
@@ -186,20 +190,29 @@ class HireSection:
 class Offer:
     """One profile on the hire screen, and what put it there.
 
-    A plain listing on a gang's own list is an offer with no collection
-    behind it. A collection the gang carries offers its own entries: the entry
-    naming a profile prices it this collection's way, while a sweep
-    ("every profile homed in Corrupted Beasts") offers it at reference
-    like any listing.
+    Every offer here comes from a collection the gang carries, the gang's
+    own list among them: an entry naming a profile prices it that
+    collection's way, while a sweep ("every profile homed in Corrupted
+    Beasts") offers it at reference. A gang carrying no list of its own
+    is offered its gang type's fighter entries instead, and those offers
+    name no collection.
     """
 
     profile: object
     #: The curated entry that offered this, when one did. A swept profile
     #: has none, exactly as a swept line in a browse has none.
     entry: object = None
-    #: Which collection is offering. None for the gang's own list, whose
-    #: offers answer to no collection.
+    #: Which collection is offering. None where the gang type's own
+    #: fighter entries were the offer, which is what a gang with no list
+    #: of its own hires from.
     collection: object = None
+    #: The name of the offering collection's default section, or None
+    #: where it declares none. On this screen that name is where the
+    #: collection's fighters are filed: "Gang List" files them as the
+    #: gang's own list, under the rank headings; any other name is a
+    #: block of that name; no section at all is a block named after the
+    #: collection.
+    default_section: str | None = None
 
     @property
     def base(self):
@@ -371,9 +384,13 @@ def collection_offers(collections, *, include_staged=False):
     from n26.core import select
     from n26.library.models import CollectionEntry, CollectionSelector, Profile
 
-    ids = [collection.pk for collection in collections]
+    # A collection withdrawn, or not yet put live for this reader, offers
+    # nothing here — the same reading every discovery surface gives
+    # archived and staged content.
+    ids = set(visible_to(collections, include_staged=include_staged))
     if not ids:
         return []
+    collections = [collection for collection in collections if collection.pk in ids]
 
     # An archived entry is a line the list no longer offers, whoever is
     # looking; a staged one is a line it does not offer yet. A staged
@@ -384,17 +401,18 @@ def collection_offers(collections, *, include_staged=False):
     if not include_staged:
         listed = listed.live()
     entries = list(listed.order_by("position"))
-    sweeps = list(
-        CollectionSelector.objects.filter(
-            collection_id__in=ids,
-            of_kind=ContentType.objects.get_for_model(Profile),
-        )
-        .select_related("category")
-        .order_by("position")
-    )
+    # Selectors follow the same visibility rules as explicit entries.
+    swept = CollectionSelector.objects.filter(
+        collection_id__in=ids,
+        of_kind=ContentType.objects.get_for_model(Profile),
+    ).unarchived()
+    if not include_staged:
+        swept = swept.live()
+    sweeps = list(swept.select_related("category").order_by("position"))
     if not entries and not sweeps:
         return []
 
+    sections = default_sections(collections, include_staged=include_staged)
     wanted = Q(pk__in=[entry.profile_id for entry in entries])
     for sweep in sweeps:
         wanted |= sweep.as_selector().as_q(Profile)
@@ -413,7 +431,14 @@ def collection_offers(collections, *, include_staged=False):
             if profile.pk in taken:
                 continue
             taken.add(profile.pk)
-            offers.append(Offer(profile=profile, entry=entry, collection=collection))
+            offers.append(
+                Offer(
+                    profile=profile,
+                    entry=entry,
+                    collection=collection,
+                    default_section=sections.get(collection.pk),
+                )
+            )
         for sweep in sweeps:
             if sweep.collection_id != collection.pk:
                 continue
@@ -429,30 +454,165 @@ def collection_offers(collections, *, include_staged=False):
                     continue
                 if selector.matches(select.Matchable(thing=profile)):
                     taken.add(profile.pk)
-                    offers.append(Offer(profile=profile, collection=collection))
+                    offers.append(
+                        Offer(
+                            profile=profile,
+                            collection=collection,
+                            default_section=sections.get(collection.pk),
+                        )
+                    )
     return offers
 
 
-def collection_sections(offers, with_cards=True):
-    """One section per collection that offers fighters, named after it.
+def visible_to(collections, *, include_staged=False):
+    """Ids of unarchived collections visible to this reader."""
+    return [
+        collection.pk
+        for collection in collections
+        if not collection.archived and (include_staged or not collection.staged)
+    ]
 
-    The collection is the heading because the collection is the offer: a
-    reader knows these fighters by what brought them ("Genestealer Cult
-    Corrupted"), not by which gang type authored them. Inside, the
-    categories are the profiles' own homes, in taxonomy order, cheapest
-    first — the same shape every other section on this screen takes.
+
+def default_sections(collections, *, include_staged=False):
+    """Visible default section names keyed by collection id, in one query."""
+    from n26.library.models import CollectionSection
+
+    ids = visible_to(collections, include_staged=include_staged)
+    if not ids:
+        return {}
+    sections = CollectionSection.objects.filter(
+        collection_id__in=ids, is_default=True
+    ).unarchived()
+    if not include_staged:
+        sections = sections.live()
+    return {section.collection_id: section.name for section in sections}
+
+
+def gang_list_ids(collections, *, include_staged=False, include_archived=False):
+    """Identify fighter collections with a default section named Gang List.
+
+    Entries and selectors establish the collection's purpose even when
+    none currently offer a fighter. Discovery excludes hidden content;
+    the gang sheet includes staged and archived lists to keep them hidden.
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from django.db.models import Exists, OuterRef
+
+    from n26.library.models import (
+        CollectionEntry,
+        CollectionSection,
+        CollectionSelector,
+        Profile,
+    )
+    from n26.library.standard_content import GANG_LIST_SECTION
+
+    ids = (
+        [
+            collection.pk
+            for collection in collections
+            if include_staged or not collection.staged
+        ]
+        if include_archived
+        else visible_to(collections, include_staged=include_staged)
+    )
+    if not ids:
+        return set()
+    holds_fighters = Exists(
+        CollectionEntry.objects.filter(
+            collection=OuterRef("collection"), profile__isnull=False
+        )
+    ) | Exists(
+        CollectionSelector.objects.filter(
+            collection=OuterRef("collection"),
+            of_kind=ContentType.objects.get_for_model(Profile),
+        )
+    )
+    sections = CollectionSection.objects.filter(
+        holds_fighters,
+        collection_id__in=ids,
+        is_default=True,
+        name__iexact=GANG_LIST_SECTION,
+    )
+    if not include_archived:
+        sections = sections.unarchived()
+    if not include_staged:
+        sections = sections.live()
+    return set(sections.values_list("collection_id", flat=True))
+
+
+def gang_scope_sections(
+    offers, gang_type, carried, *, with_cards=True, include_staged=False
+):
+    """Build the gang's hire list followed by additional fighter collections.
+
+    One visible gang-list collection replaces the gang-type fallback and
+    uses taxonomy headings. Multiple lists use their collection names.
+    Count carried lists even when all their entries are hidden: an empty
+    list must neither trigger the fallback nor combine with another list.
+    """
+    lists = gang_list_ids(carried, include_staged=include_staged)
+    own = [offer for offer in offers if offer.collection.pk in lists]
+    extra = [offer for offer in offers if offer.collection.pk not in lists]
+
+    if len(lists) > 1:
+        # No one list, so nothing stands as the list.
+        entries, extra = [], [*own, *extra]
+    elif lists:
+        entries = build_offer_entries(own, with_cards=with_cards)
+    else:
+        entries = build_hire_list(
+            gang_type, with_cards=with_cards, include_staged=include_staged
+        )
+
+    return _one_section_per_name(
+        [
+            *section_hire_list(entries),
+            *collection_sections(extra, with_cards=with_cards, gang_lists=lists),
+        ]
+    )
+
+
+def _one_section_per_name(sections):
+    """Merge matching section and category names, preserving first-seen order.
+
+    The picker identifies sections and categories by name. Duplicate
+    headings must share a block so every entry remains reachable.
+    """
+    merged = {}
+    for section in sections:
+        held = merged.get(section.name)
+        if held is None:
+            merged[section.name] = section
+            continue
+        by_name = {category.name: category for category in held.categories}
+        for category in section.categories:
+            standing = by_name.get(category.name)
+            if standing is None:
+                by_name[category.name] = category
+                held.categories.append(category)
+            else:
+                standing.entries = sorted(
+                    [*standing.entries, *category.entries], key=_entry_order
+                )
+    return list(merged.values())
+
+
+def collection_sections(offers, with_cards=True, gang_lists=frozenset()):
+    """Group extra offers by default section, or by collection name.
+
+    Multiple gang lists use their collection names to distinguish their
+    offers. Categories retain taxonomy order, with cheapest entries first.
     """
     grouped = {}
     for offer in offers:
-        grouped.setdefault(offer.collection.pk, (offer.collection, []))[1].append(offer)
-    sections = []
-    for collection, rows in grouped.values():
-        sections.append(
-            _section_of(
-                str(collection), build_offer_entries(rows, with_cards=with_cards)
-            )
-        )
-    return sections
+        named = offer.default_section
+        if named is None or offer.collection.pk in gang_lists:
+            named = str(offer.collection)
+        grouped.setdefault(named, []).append(offer)
+    return [
+        _section_of(name, build_offer_entries(rows, with_cards=with_cards))
+        for name, rows in grouped.items()
+    ]
 
 
 def preview_model_card(profile, option=None, base=None):

@@ -1355,6 +1355,11 @@ DOCS = {
         "recipes.md",
         "Step-by-step walkthroughs of whole rulebook setups.",
     ),
+    "collections": (
+        "Collections",
+        "collections.md",
+        "How to create equipment lists, hire lists and skill access.",
+    ),
     "staged": (
         "Staged content",
         "staged.md",

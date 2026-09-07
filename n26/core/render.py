@@ -27,6 +27,7 @@ from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
     EMPTY_VALUE,
+    Collection,
     Counter,
     Hidden,
     Pickable,
@@ -2162,7 +2163,9 @@ def _provenance_within(card):
     return provenance_of
 
 
-def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
+def _gang_rows(
+    gang_card, gang_computed, skipping=frozenset(), hidden_lists=frozenset()
+):
     """The gang's own rows as lines, same skipping rules as a model card:
     a Hidden draws nothing, a chosen thing is drawn as its choice's row,
     and counters have their own readings. Rules come back as their own list,
@@ -2171,6 +2174,11 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
     ``skipping`` names nodes drawn elsewhere — what a campaign gave, which
     the sheet draws under the campaign's name rather than among the
     gang's own.
+
+    ``hidden_lists`` names the collections that are the gang's own hire
+    list. That list is what the hire screen *is*, stored or granted, so
+    it draws no line here: the sheet says the same whether a gang's list
+    is written down as a collection or left to its gang type.
 
     What a rule grants the gang folds in from ``ComputedGang`` the way a
     model card folds in its contributions — a named rule with the rules,
@@ -2199,6 +2207,11 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
         if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
             if not _speaks_for_itself(node, asked_here):
                 continue
+        if (
+            isinstance(node.assignable, Collection)
+            and node.assignable.pk in hidden_lists
+        ):
+            continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
             continue
@@ -2213,6 +2226,9 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
                     )
                 )
         for contribution in gang_computed.collections:
+            granted = contribution.thing
+            if isinstance(granted, Collection) and granted.pk in hidden_lists:
+                continue
             if contribution.name not in {line.name for line in rows}:
                 rows.append(
                     AssignableLine(
@@ -2221,6 +2237,29 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
                     )
                 )
     return rows, sorted(rules, key=lambda line: line.name)
+
+
+def _gang_lists_on(gang_card, gang_computed):
+    """The ids of the gang's own hire lists among the collections on its
+    card — stored or granted — so the sheet can leave their lines out.
+
+    Staged and archived lists stay hidden on the sheet, including after
+    archiving a list to restore gang-type hiring. One query for all lists.
+    """
+    from n26.core.hire import gang_list_ids
+
+    held = [
+        node.assignable
+        for node in gang_card.roots
+        if isinstance(node.assignable, Collection)
+    ]
+    if gang_computed:
+        held.extend(
+            contribution.thing
+            for contribution in gang_computed.collections
+            if isinstance(contribution.thing, Collection)
+        )
+    return gang_list_ids(held, include_staged=True, include_archived=True)
 
 
 def _campaign_keys(gang_card, membership):
@@ -2624,7 +2663,12 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
     # fighter — and nothing at all for a gang whose books grant none, or
     # for a reader the figure is not for.
     budgets = budgets_by_model(gang, computed) if with_effects and for_owner else {}
-    gang_rows, gang_rules = _gang_rows(gang_card, gang_computed, campaign_keys)
+    gang_rows, gang_rules = _gang_rows(
+        gang_card,
+        gang_computed,
+        campaign_keys,
+        _gang_lists_on(gang_card, gang_computed),
+    )
     return GangSheet(
         name=gang.name,
         gang_type=gang.gang_type.name,
