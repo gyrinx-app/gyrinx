@@ -404,8 +404,16 @@ class CampaignOperation:
                     "table built into the campaign can be rolled on for its pool."
                 )
         elif table.pk not in {
-            held.pk for held in tables_held_by(membership.gang, self.campaign)
+            held.pk
+            for held in tables_held_by(
+                membership.gang,
+                self.campaign,
+                include_staged=sees_staged(self.actor),
+            )
         }:
+            # A staged table the gang holds is one the roller may use only
+            # if they may see staged content: the roll is where a Territory
+            # is newly chosen for the campaign.
             raise Refusal(
                 f"{membership.gang.name} cannot roll on {table}. Only a gang "
                 "that holds that table can."
@@ -1026,7 +1034,7 @@ def tables_in_play(campaign, *, include_staged=False):
     return tables if include_staged else tables.live()
 
 
-def tables_on(card, computed, withdrawn=frozenset()):
+def tables_on(card, computed, withdrawn=frozenset(), *, include_staged=False):
     """The asset tables a gang may roll on, read off its card: the stored
     assignments naming one and the tables a grant dealt onto it, each
     once, in the order they stand. Query-free, so a page that has the
@@ -1036,6 +1044,13 @@ def tables_on(card, computed, withdrawn=frozenset()):
     cards. A copy given through a built-in member the arbitrator has
     since closed stays on the gang — nothing is taken back — but the
     offer is withdrawn, so it is not a table the gang may roll on.
+
+    ``include_staged`` is whether the reader may see staged content
+    (``n26.library.staged.sees_staged``). A staged table a pick gives
+    reaches the gang's card like any grant, but rolling on it is where
+    a Territory is newly chosen for the campaign, so a reader who may
+    not see staged content is not offered it — and, as at every other
+    discovery surface, the default holds staged content back.
     """
     from n26.library.models import AssetTable
 
@@ -1049,7 +1064,7 @@ def tables_on(card, computed, withdrawn=frozenset()):
         held.setdefault(node.assignable.pk, node.assignable)
     for contribution in computed.tables:
         held.setdefault(contribution.thing.pk, contribution.thing)
-    return list(held.values())
+    return [table for table in held.values() if include_staged or not table.staged]
 
 
 def withdrawn_members(*cards):
@@ -1075,18 +1090,20 @@ def withdrawn_members(*cards):
     )
 
 
-def tables_held_by(gang, campaign):
+def tables_held_by(gang, campaign, *, include_staged=False):
     """The asset tables one gang may roll on in this campaign — its
     starting territory's tables. Builds the gang's card and computes it,
     so this is for an act on one gang; a page listing several reads
     ``tables_on`` off cards it already has and asks :func:`foreign_tables`
-    once for all of them."""
+    once for all of them. ``include_staged`` is as for ``tables_on``."""
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute
 
     card = build_gang_card(gang, with_statlines=False)
     computed = compute(card, build_modifier_index(carriers(card)))
-    held = tables_on(card, computed, withdrawn_members(card))
+    held = tables_on(
+        card, computed, withdrawn_members(card), include_staged=include_staged
+    )
     foreign = foreign_tables(campaign, held)
     return [table for table in held if table.pk not in foreign]
 

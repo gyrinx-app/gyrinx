@@ -17,6 +17,11 @@ campaign's own pack under a shared asset type is given by that
 campaign's additions type, so one campaign's table never reaches every
 campaign founded on the shared type.
 
+A table a modifier gives — a journal's House table, given by the Gang
+supertype pick — is that House's, not every gang's, and is never built
+in by the rule: ``is_granted`` tells the two apart, and both passes below
+leave a granted table alone.
+
 ``authoring.create_asset_table`` applies the rule to live models and
 files the propagation pass. ``give_back`` puts an unarchived table back.
 ``build_in_missing`` applies the rule to whatever is already there,
@@ -25,10 +30,23 @@ migration can run it on historical ones.
 """
 
 from django.apps import apps as live_models
+from django.core.exceptions import FieldError
 from django.db import transaction
 from django.db.models import Max
 
 from n26.library.possessions import _built_ins_of, giver_of
+
+
+def is_granted(table, apps):
+    """Whether a modifier gives this table — in which case it is one
+    House's and is not built into a campaign type. Written against the
+    classes handed in; a historical state from before a grant could name
+    a table has no such grant."""
+    try:
+        AddsAssignable = apps.get_model("library", "AddsAssignable")
+        return AddsAssignable.objects.filter(asset_table=table).exists()
+    except LookupError, FieldError:
+        return False
 
 
 @transaction.atomic
@@ -58,6 +76,8 @@ def give_back(table):
         file_propagation_task(member.default_set)
     if revived:
         return
+    if is_granted(table, live_models):
+        return
     giver = giver_of(table, live_models)
     if giver is not None:
         add_built_in(giver, table, pack=table.pack)
@@ -69,8 +89,9 @@ def build_in_missing(apps, campaign_type=None):
 
     Idempotent: a table already given is left alone, so this can run over
     a database that has some of it. Archived tables are skipped — an
-    archived table is one taken out on purpose. ``campaign_type``
-    narrows to the tables of one type's asset types, for the seed.
+    archived table is one taken out on purpose — and so are tables a
+    modifier gives, which are one House's. ``campaign_type`` narrows to
+    the tables of one type's asset types, for the seed.
 
     Members are written directly rather than through the authoring verb,
     because the classes handed in may be historical ones; the caller
@@ -92,7 +113,7 @@ def build_in_missing(apps, campaign_type=None):
     givers = {}
     for table in tables.order_by("name"):
         giver = giver_of(table, apps)
-        if giver is None:
+        if giver is None or is_granted(table, apps):
             continue
         giver = givers.setdefault(giver.pk, giver)
         built_ins = _built_ins_of(giver, DefaultAssignmentSet)

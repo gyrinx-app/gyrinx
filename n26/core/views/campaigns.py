@@ -452,7 +452,9 @@ def roll_starting_asset(request, pk, gang_pk):
         return redirect(again)
     held = [
         table.pk
-        for table in tables_held_by(membership.gang, found)
+        for table in tables_held_by(
+            membership.gang, found, include_staged=sees_staged(request.user)
+        )
         if table.dice and table.asset_type_id == asset_type.pk
     ]
     form = RollAssetForm(request.POST, tables=AssetTable.objects.filter(pk__in=held))
