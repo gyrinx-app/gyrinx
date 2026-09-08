@@ -314,9 +314,34 @@ class TestThePrintPage:
         assert setup_url(gang) in body
 
 
+def _print_cards(body):
+    """Each printed card's markup, split on the card shell class.
+
+    The space after the class name is load-bearing: without it this
+    would also split on ``n26-print-card-head`` and the rest of the
+    card's inner classes.
+    """
+    return body.split('class="n26-print-card ')
+
+
+def _give_picture(op, miniature):
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (40, 50), "purple").save(buffer, format="PNG")
+    op.set_image(
+        miniature,
+        SimpleUploadedFile("vex.png", buffer.getvalue(), content_type="image/png"),
+    )
+
+
 class TestNotesOnPaper:
-    """The written fields on paper: notes print as cards of their own,
-    lore never does, and the toggle takes the lot off."""
+    """The written fields on paper: a model's notes sit on its card next
+    to the picture, with space to write underneath; lore never prints;
+    and the toggle takes the whole strip off."""
 
     @pytest.fixture
     def written(self, gang, roster, tester):
@@ -336,6 +361,34 @@ class TestNotesOnPaper:
         assert "Nobody knows where Vex came from" not in body
         assert "Founded on a debt" not in body
 
+    def test_a_models_notes_sit_on_its_card(self, client, tester, gang, written):
+        client.force_login(tester)
+        body = client.get(print_url(gang)).content.decode()
+        vex_card = next(
+            card
+            for card in _print_cards(body)
+            if "n26-print-card-title" in card
+            and "Vex" in card
+            and "Remember the toxin reroll" in card
+        )
+        assert "n26-print-notes" in vex_card
+        assert "n26-print-foot" in vex_card
+        # A sibling notes card used this as its subtitle. The write-in
+        # label is also "Notes", so match the subtitle class specifically.
+        assert 'n26-print-card-sub">Notes' not in body
+
+    def test_each_card_leaves_space_to_write(self, client, tester, gang, written):
+        client.force_login(tester)
+        body = client.get(print_url(gang)).content.decode()
+        fighter_cards = [
+            card
+            for card in _print_cards(body)
+            if "n26-print-card-title" in card and ("Vex" in card or "Sull" in card)
+        ]
+        assert len(fighter_cards) == 2
+        for card in fighter_cards:
+            assert "n26-print-field" in card
+
     def test_the_toggle_takes_every_note_off(self, client, tester, gang, written):
         client.force_login(tester)
         body = client.get(
@@ -344,6 +397,8 @@ class TestNotesOnPaper:
         ).content.decode()
         assert "Remember the toxin reroll" not in body
         assert "Meet at the sump gate" not in body
+        assert "n26-print-foot" not in body
+        assert "n26-print-field" not in body
 
     def test_a_config_remembers_the_choice(self, client, tester, gang, written):
         client.force_login(tester)
@@ -374,26 +429,49 @@ class TestNotesOnPaper:
     def test_a_pictured_model_prints_its_picture(
         self, client, tester, gang, roster, own_storage
     ):
-        from io import BytesIO
-
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        from PIL import Image
-
         vex, _ = roster
-        buffer = BytesIO()
-        Image.new("RGB", (40, 50), "purple").save(buffer, format="PNG")
         with operation(gang, actor=tester) as op:
-            op.set_image(
-                vex,
-                SimpleUploadedFile(
-                    "vex.png", buffer.getvalue(), content_type="image/png"
-                ),
-            )
+            _give_picture(op, vex)
         client.force_login(tester)
         vex.refresh_from_db()
         body = client.get(print_url(gang)).content.decode()
-        assert "n26-print-photo" in body
-        assert vex.image.url in body
+        vex_card = next(
+            card
+            for card in _print_cards(body)
+            if "n26-print-card-title" in card and "Vex" in card
+        )
+        assert "n26-print-photo" in vex_card
+        assert "n26-print-foot" in vex_card
+        assert vex.image.url in vex_card
+
+    def test_the_toggle_takes_pictures_off_too(
+        self, client, tester, gang, roster, own_storage
+    ):
+        vex, sull = roster
+        with operation(gang, actor=tester) as op:
+            _give_picture(op, vex)
+        client.force_login(tester)
+        body = client.get(
+            print_url(gang),
+            {"pick": "1", "fighters": [str(vex.pk), str(sull.pk)]},
+        ).content.decode()
+        assert "n26-print-photo" not in body
+        assert "n26-print-foot" not in body
+
+    def test_the_setup_names_the_whole_strip(self, client, tester, gang, roster):
+        client.force_login(tester)
+        body = client.get(setup_url(gang)).content.decode()
+        assert "Include notes, pictures, and space to write" in body
+        client.post(
+            setup_url(gang),
+            {
+                "name": "no-notes",
+                "include_header": "on",
+                "fighters": [str(roster[0].pk)],
+            },
+        )
+        listed = client.get(setup_url(gang)).content.decode()
+        assert "no notes, pictures, or space to write" in listed
 
 
 class TestPrintingSomebodyElsesGang:
