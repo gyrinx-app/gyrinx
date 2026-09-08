@@ -316,7 +316,12 @@ test ends with `assert_reconciled(gang)`.
    for `Optioned` kinds, and `Weapon` is not one, so a weapon's built-in
    slot never materialised on purchase (hiring a profile whose default weapon
    carries one nested correctly). Fixed in the same PR; `give_weapon`
-   reconciles too.
+   reconciles too. A second gap followed: `Operation.move` re-derived roots
+   for a carrier's subtree but never re-homed what the carrier had brought
+   *alongside* itself, so a built-in slot (and its picks) bought into the
+   stash stayed stash-hosted when the gun went to a fighter. `move` now
+   carries hosted-alongside rows to the carrier's new host; gang-held picks
+   stay put. Same PR.
 3. **The Power Boost table.** Seeded in `standard_content.py` beside the
    glitch table, the slot attached to the Spyrer subtype, the stored spend on
    each result. Tests with loaded dice: band 1 offers two members, four Kill

@@ -46,6 +46,7 @@ from n26.tests.sandbox.actions import (
     create_gang_type,
     create_pickable,
     create_picklist,
+    create_profile,
     create_slot,
     create_slot_type,
     create_stat,
@@ -54,6 +55,7 @@ from n26.tests.sandbox.actions import (
     create_weapon,
     found_gang,
     hire,
+    move,
     remove,
     removes,
     set_statline,
@@ -77,7 +79,7 @@ WEAPON_STATS = [
 
 
 @pytest.fixture
-def weapon_statline_type(fighter_stats):
+def weapon_statline_type(default_pack, fighter_stats):
     """Strength is one definition shared with the fighter's statline, so
     the weapon shape reuses it rather than defining a second."""
     statline_type = StatlineType.objects.create(name="Weapon")
@@ -95,7 +97,7 @@ def weapon_statline_type(fighter_stats):
 
 
 @pytest.fixture
-def gang_type(db):
+def gang_type(default_pack):
     return create_gang_type("Spyre Hunting Party", starting_credits=1000)
 
 
@@ -140,9 +142,9 @@ def traits(default_pack):
 @pytest.fixture
 def bolt_launchers(weapon_statline_type, traits):
     """The Orrus's paired bolt launchers, as the book prints them."""
-    weapon = create_weapon("Bolt launchers", profiles=(("", 0),))
-    weapon.statline_type = weapon_statline_type
-    weapon.save()
+    weapon = create_weapon(
+        "Bolt launchers", profiles=(("", 0),), statline_type=weapon_statline_type
+    )
     (profile,) = weapon.profiles.all()
     set_statline(
         profile,
@@ -253,11 +255,7 @@ def jakara_rig(augmentation, fighter_stats):
 @pytest.fixture
 def spyrer(fighter_type, gang_type):
     """A Spyrer profile with the statline the rig's tiers move."""
-    from n26.library.models import Profile
-
-    profile = Profile.objects.create(
-        name="Spyrer", profile_type=fighter_type, gang_type=gang_type, price=200
-    )
+    profile = create_profile("Spyrer", fighter_type, gang_type, price=200)
     set_statline(
         profile,
         movement=5,
@@ -339,6 +337,7 @@ class TestTheLadderArrivesWithTheItem:
 
         _, computed = card_for(unarmed)
         assert [line.kind_label for line in computed.choices] == []
+        assert_reconciled(gang)
 
     def test_an_empty_ladder_leaves_no_remark(self, orrus):
         """A minimum of none: leaving it alone is not a shortfall."""
@@ -426,6 +425,42 @@ class TestTheLadderIsTheModelsOwn:
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
         assert stat_of(gun_of(other, "Bolt launchers"), "L") == "1"
         assert not ladder_of(other, "Bolt launchers").is_resolved
+        assert_reconciled(gang)
+
+    def test_a_ladder_bought_into_the_stash_follows_the_item_to_its_carrier(
+        self, gang, spyrer, bolt_launchers, bolt_launcher_tiers
+    ):
+        """Kit may be bought unassigned. Its augmentation choice waits in
+        the stash beside it, where nobody can climb it, and comes along
+        when a model takes the item up."""
+        model = hire(gang, spyrer, "Orrus", paid=200)
+        stashed = buy(gang.stash, thing=bolt_launchers, paid=0)
+        _, computed = card_for(model)
+        assert [line.kind_label for line in computed.choices] == []
+
+        move(stashed, model)
+
+        assert not ladder_of(model, "Bolt launchers").is_resolved
+        climb(model, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
+        assert stat_of(gun_of(model, "Bolt launchers"), "L") == "2"
+        assert_reconciled(gang)
+
+    def test_a_climbed_ladder_goes_back_to_the_stash_with_the_item(
+        self, gang, orrus, bolt_launcher_tiers
+    ):
+        """The other way: stashing the gun takes its rungs out of play
+        and off the model's card, and they return when it is taken up."""
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
+        launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
+
+        move(launchers, gang.stash)
+        _, computed = card_for(orrus)
+        assert [line.kind_label for line in computed.choices] == []
+
+        move(launchers, orrus)
+        assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
+        assert len(ladder_of(orrus, "Bolt launchers").picks) == 1
+        assert_reconciled(gang)
 
     def test_losing_the_item_takes_the_ladder_and_its_rungs(
         self, gang, orrus, bolt_launcher_tiers
