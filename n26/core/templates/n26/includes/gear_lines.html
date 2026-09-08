@@ -1,0 +1,25 @@
+{% comment %}
+What sits under a gear heading on a model card, drawn one of two ways.
+
+Takes `lines` and `has_actions`. Actions need one line per assignment so
+each menu stays beside the thing it changes. Without them the compact
+comma-separated run stands, which is what the gang sheet and a print card
+draw. Used by the Gear row and by every category drawing a row of its own,
+so the two cannot drift apart.
+{% endcomment %}
+{% if has_actions %}
+    <ul class="flex flex-col gap-1">
+        {% for line in lines %}
+            <li class="flex items-center gap-2">
+                <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
+                <c-n26.owned-actions :sell="line.sell"
+                                     :more="line.more"
+                                     :htmx="htmx"
+                                     layout="menu"
+                                     label="{{ line.name }}" />
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <c-n26.assignable-lines :lines="lines" :ratings="False" />
+{% endif %}

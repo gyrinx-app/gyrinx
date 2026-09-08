@@ -27,6 +27,7 @@ from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
     EMPTY_VALUE,
+    Collection,
     Counter,
     Hidden,
     Pickable,
@@ -662,6 +663,35 @@ def lift_landing(offer, landed, threshold=False):
     )
 
 
+@dataclass
+class GearGroup:
+    """Gear filed under a category that draws its own row on a card.
+
+    The Gear row is where a possession goes unless its category asks for
+    a heading of its own — a Goliath's Gene-smithing upgrades read as
+    what the model *is*, not as kit they happen to be carrying, and a
+    reader scanning for them should not have to find them among the
+    grenades.
+
+    Not frozen: the actions on its lines are filled in afterwards by
+    whoever knows the URL space, exactly as the Gear row's are.
+    """
+
+    name: str
+    lines: list[AssignableLine] = field(default_factory=list)
+
+    @property
+    def has_actions(self):
+        """Whether any line here has somewhere to click.
+
+        The same question ``ModelCard.equipment_has_actions`` asks of the
+        Gear row, and asked per group: a card drawn for its owner gets a
+        line each with its own menu, and every other surface gets the
+        compact run.
+        """
+        return any(line.sell for line in self.lines)
+
+
 @dataclass(frozen=True)
 class EffectLine:
     """Something this model's kit does beyond its own card.
@@ -715,6 +745,11 @@ class ModelCard:
     #: through the same sections; drawn as their own row.
     powers: list[AssignableLine] = field(default_factory=list)
     equipment: list[AssignableLine] = field(default_factory=list)
+    #: Gear held apart from the Gear row, under its category's name. One
+    #: group per category that asks for a row of its own, in the order
+    #: the taxonomy puts them in. Drawn after Gear, because the Gear row
+    #: is the general case and these are the exceptions to it.
+    gear_groups: list[GearGroup] = field(default_factory=list)
     #: Collections this model can browse — equipment lists, trading posts.
     #: Access to buy from, not things owned; drawn apart from equipment.
     collections: list[AssignableLine] = field(default_factory=list)
@@ -1767,6 +1802,10 @@ def card_to_model_card(
     """
     primary = None
     equipment, weapons = [], []
+    #: Lines diverted out of Gear, by the category that asked for them.
+    #: Keyed by category pk, holding the category itself so the groups
+    #: can be put in the taxonomy's order once the walk is done.
+    apart = {}
     # The named line rows, keyed by the vocabulary the kinds declare
     # (``card_row``). One mapping serves the walk over stored assignments and
     # the merge of computed grants below — the two can not disagree
@@ -1973,14 +2012,21 @@ def card_to_model_card(
             if node.is_primary_profile:
                 primary = thing
         else:
-            equipment.append(
-                AssignableLine(
-                    name=node.name,
-                    provenance=provenance_of(node),
-                    rating=node.rating,
-                    id=(str(node.assignment.pk) if node.assignment is not None else ""),
-                )
+            line = AssignableLine(
+                name=node.name,
+                provenance=provenance_of(node),
+                rating=node.rating,
+                id=(str(node.assignment.pk) if node.assignment is not None else ""),
             )
+            # A possession goes in Gear unless its category asks for a
+            # heading of its own. The category is prefetched for the
+            # kinds that get here (card.hydrate_rows); a kind carrying
+            # none has nothing to ask and stays in Gear.
+            home = getattr(thing, "category", None)
+            if home is not None and home.draws_its_own_row:
+                apart.setdefault(home.pk, (home, []))[1].append(line)
+            else:
+                equipment.append(line)
 
     if computed:
         # Computed grants join the same rows the stored lines chose —
@@ -2055,6 +2101,21 @@ def card_to_model_card(
         rules=sorted(line_rows["rules"], key=lambda line: line.name),
         powers=sorted(line_rows["powers"], key=lambda line: line.name),
         equipment=sorted(equipment, key=lambda line: line.name),
+        # The taxonomy's own order, so two cards never disagree about
+        # which heading comes first — the same three keys Category orders
+        # by, because a card sorting them any other way would disagree
+        # with every listing that shows the same categories.
+        gear_groups=[
+            GearGroup(name=home.name, lines=sorted(lines, key=lambda line: line.name))
+            for home, lines in sorted(
+                apart.values(),
+                key=lambda pair: (
+                    pair[0].position,
+                    pair[0].section.name,
+                    pair[0].name,
+                ),
+            )
+        ],
         collections=sorted(line_rows["collections"], key=lambda line: line.name),
         choices=[
             *(
@@ -2170,7 +2231,9 @@ def _provenance_within(card):
     return provenance_of
 
 
-def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
+def _gang_rows(
+    gang_card, gang_computed, skipping=frozenset(), hidden_lists=frozenset()
+):
     """The gang's own rows as lines, same skipping rules as a model card:
     a Hidden draws nothing, a chosen thing is drawn as its choice's row,
     and counters have their own readings. Rules come back as their own list,
@@ -2179,6 +2242,11 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
     ``skipping`` names nodes drawn elsewhere — what a campaign gave, which
     the sheet draws under the campaign's name rather than among the
     gang's own.
+
+    ``hidden_lists`` names the collections that are the gang's own hire
+    list. That list is what the hire screen *is*, stored or granted, so
+    it draws no line here: the sheet says the same whether a gang's list
+    is written down as a collection or left to its gang type.
 
     What a rule grants the gang folds in from ``ComputedGang`` the way a
     model card folds in its contributions — a named rule with the rules,
@@ -2207,6 +2275,11 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
         if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
             if not _speaks_for_itself(node, asked_here):
                 continue
+        if (
+            isinstance(node.assignable, Collection)
+            and node.assignable.pk in hidden_lists
+        ):
+            continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
             continue
@@ -2221,6 +2294,9 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
                     )
                 )
         for contribution in gang_computed.collections:
+            granted = contribution.thing
+            if isinstance(granted, Collection) and granted.pk in hidden_lists:
+                continue
             if contribution.name not in {line.name for line in rows}:
                 rows.append(
                     AssignableLine(
@@ -2229,6 +2305,29 @@ def _gang_rows(gang_card, gang_computed, skipping=frozenset()):
                     )
                 )
     return rows, sorted(rules, key=lambda line: line.name)
+
+
+def _gang_lists_on(gang_card, gang_computed):
+    """The ids of the gang's own hire lists among the collections on its
+    card — stored or granted — so the sheet can leave their lines out.
+
+    Staged and archived lists stay hidden on the sheet, including after
+    archiving a list to restore gang-type hiring. One query for all lists.
+    """
+    from n26.core.hire import gang_list_ids
+
+    held = [
+        node.assignable
+        for node in gang_card.roots
+        if isinstance(node.assignable, Collection)
+    ]
+    if gang_computed:
+        held.extend(
+            contribution.thing
+            for contribution in gang_computed.collections
+            if isinstance(contribution.thing, Collection)
+        )
+    return gang_list_ids(held, include_staged=True, include_archived=True)
 
 
 def _campaign_keys(gang_card, membership):
@@ -2632,7 +2731,12 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
     # fighter — and nothing at all for a gang whose books grant none, or
     # for a reader the figure is not for.
     budgets = budgets_by_model(gang, computed) if with_effects and for_owner else {}
-    gang_rows, gang_rules = _gang_rows(gang_card, gang_computed, campaign_keys)
+    gang_rows, gang_rules = _gang_rows(
+        gang_card,
+        gang_computed,
+        campaign_keys,
+        _gang_lists_on(gang_card, gang_computed),
+    )
     return GangSheet(
         name=gang.name,
         gang_type=gang.gang_type.name,

@@ -71,7 +71,8 @@ Once a gang carries that collection, its hire page shows a section named
 after the collection. The section lists exactly those fighters at the
 prices the collection states: the price written on an entry is the price
 the gang is charged. A gang without the corruption does not see that
-section.
+section. To show a different name, give the collection one section,
+marked default, with the name you want.
 
 **The Wyrd upgrade.** Create a "Wyrd" **subtype** carrying two modifiers:
 *offers a choice* of power from the right Wyrd Powers list, and *puts a
@@ -127,6 +128,79 @@ fighters' cards were given rules of their own. Everything the hidden
 item granted goes with it. Remove the corruption and it all comes back.
 Starting Skills and Skill Access live on the fighter entries, so they
 are not affected either way.
+
+## Gang archetypes
+
+Use this recipe when an archetype replaces a house's fighter list, such as an Escher Chem Cult. You will create a house hire collection, an archetype hire collection, and an optional choice on the gang. You will add modifiers to the archetype's pickable to replace the house's lists.
+
+Prepare the content using a test gang type and test gang before adding it to a house used by players. The Outcast **Archetype** is a separate choice; create a **Gang Archetype** slot type for this setup.
+
+### Create the house's hire collection
+
+Live content is available to players. Staged content is available only to staff and players with staged-content access. Prepare the new content as staged wherever the authoring pages offer that setting.
+
+1. Create a **collection** named "Escher Gang List". Leave **Prices its entries** on.
+2. Add a **section** named "Gang List" and mark it as the default. This name makes a fighter collection the main hire list. Capitalisation does not affect its meaning.
+3. Add an **entry** for every fighter available to an ordinary Escher gang. Select the existing fighter entries from the library. Leave the price override blank to use the fighter's reference price, or enter this list's price.
+4. Add the completed collection to your test gang type's **built-in items**. Found a test gang and check its hire page. It should offer exactly the listed fighters under their rank headings, at the listed prices.
+
+A gang without a visible main hire collection uses the fighter entries filed under its gang type. Once the gang has a live collection with a live default Gang List section, the collection determines which fighters appear on that main list. A fighter added to the house later also needs an entry in the collection.
+
+### Create each archetype's hire collection
+
+1. Create "Chem Cults Gang List" as a second **collection**, with **Prices its entries** on and a default section named "Gang List".
+2. Add an **entry** for every fighter the archetype hires. A fighter available on both lists needs an entry in each collection. Set any archetype-specific price on the entry in the archetype collection.
+3. Create a **slot type** named "Gang Archetype" and turn **Allows repeats** off. Create this once, then reuse it for every house and archetype in this setup.
+4. Create a **pickable** named "Chem Cults" belonging to that slot type.
+5. On the Chem Cults pickable, add a modifier with scope **The gang carrying it** and effect **Takes something away**. Select Escher Gang List.
+6. Add a second modifier to the pickable with the same scope and effect **Gives something**. Select Chem Cults Gang List.
+
+Add both modifiers to replace the house's hire collection. Giving the archetype list without taking the house list away leaves two main lists. The hire page then shows each under its collection name.
+
+Keep existing fighters filed under their current gang types while preparing the collections. Before filing archetype-only fighters under their house, check that the house's gangs have received their main hire collection. Otherwise, ordinary gangs without a main hire collection can hire those fighters through their gang type. Include those fighters only in the archetype's collection.
+
+### Add the optional choice to the gang
+
+Do this once per house. Further archetypes need a collection and pickable of their own, then a member in the house's existing picklist.
+
+1. Create a **picklist** named "Escher Gang Archetypes", using the Gang Archetype slot type. Add Chem Cults as a member. Include only archetypes available to Escher; other houses use their own picklists.
+2. Create a **slot** named "Escher Gang Archetype" using the Gang Archetype slot type and Escher Gang Archetypes picklist. Set **Label** to "Gang archetype", **Min picks** to 0, **Max picks** to 1, and **Assigned to** to **the gang**. Leave **Hidden** off.
+3. On the test gang type, add a modifier with scope **The gang carrying it** and effect **Gives something**. Select the Escher Gang Archetype slot. The gang sheet now has a Gang archetype choice.
+
+Leave the slot empty for an ordinary Escher gang. You do not need a pickable for this option.
+
+### Replace the equipment lists
+
+Skip this section if the archetype uses the house's existing equipment lists. Otherwise, create the archetype's equipment collection and add the items and prices it offers. For a fighter with its own list, such as a Chem Cult Death-Maiden, create that equipment collection too.
+
+Check the collections in the house fighters' built-in items and the collection available to the stash. These are the collections the modifiers must remove. If a fighter already has a separate house equipment list, remove that list for that fighter rather than leaving it alongside the replacement.
+
+Add the following pairs of modifiers to the archetype's pickable:
+
+1. **All fighters:** use scope **All models in the gang** for both modifiers. **Takes something away** names the house equipment collection; **Gives something** names the archetype's equipment collection.
+2. **The stash:** use scope **The gang carrying it** for both modifiers, with the same two equipment collections.
+3. **A fighter with its own list:** use scope **All models in the gang** for both modifiers. Add an **Is profile** condition and select the library fighter in **Profiles**, not its collection entry. **Takes something away** names the archetype's general equipment collection; **Gives something** names the fighter's equipment collection.
+
+The fighter and stash swaps need separate pairs. Changing only the gang's collection changes stash access and leaves the fighters' equipment lists unchanged. Fighters keep equipment they already own.
+
+### Check the content before making it available
+
+Entries can be staged from the authoring pages. Staff and players with staged-content access can preview them. Collections and their sections also support staging, although their authoring forms do not offer a staging control.
+
+**Put all required content live before adding the house collection to the real gang type.** Open **Staged content** from the library index and use **Put live** for this setup's new fighters, equipment, collection entries, pickables and picklist members. Review the list before using **Put everything live**, because it also releases other authors' staged work. Slots, picklists and modifiers have no staging control; test them before attaching them to a live gang type. A live main collection with all its entries staged or archived gives players an empty hire list. A staged collection is hidden from players without staged-content access, so it does not replace their gang-type fallback.
+
+Check these steps on your test gang:
+
+1. Leave Gang archetype empty. Check the house's fighters, prices, fighter equipment lists and stash equipment list.
+2. Select Chem Cults. Check that its fighters replace the house list and excluded fighters disappear. Fighters on both lists should use the archetype's prices.
+3. Hire a fighter whose price differs between the lists. Check the amount paid and the fighter's rating.
+4. If equipment lists change, check an ordinary fighter, a fighter with its own list, and the stash.
+5. Clear the archetype. Check that the house's hire and equipment lists return and hired fighters keep their equipment.
+6. Check the gang sheet. The archetype choice should appear; the main hire collections should not.
+
+When those checks pass, add the house collection to the real gang type's built-in items and add the modifier that gives its archetype slot. Check both a newly founded gang and an existing active gang. On each hire page, check the offered fighters and collection prices, then select the archetype and check the replacement. The main hire collection is hidden on the gang sheet, so that sheet cannot confirm access. If an existing gang has not updated, ask a maintainer to check the built-in update. Archived gangs need the maintainer's **Built-ins backfill** before they can rely on the new collection. Finish these checks before changing where archetype-only fighters are filed.
+
+If you archive the main hire collection, gangs can again hire fighters listed under their gang type. The collection stays hidden on the gang sheet. Check the gang type's fighter entries before using this fallback: it can include fighters that the collection excluded.
 
 ## A Gang Legacy
 

@@ -55,6 +55,7 @@ from n26.core.render import (
     CounterLine,
     EffectLine,
     GangSheet,
+    GearGroup,
     ModelCard,
     Provenance,
     RollResult,
@@ -1493,6 +1494,15 @@ def model_card():
         equipment=_printed(
             "Mesh armour (15¢)", "Bio-booster (35¢)", "Photo-goggles (35¢)"
         ),
+        # Gear whose category asks for a heading of its own. Bought and
+        # priced like the rest, and held apart because it reads as what
+        # the model is rather than as what they are carrying.
+        gear_groups=[
+            GearGroup(
+                name="Gene-smithing",
+                lines=_printed("Iron flesh (30¢)"),
+            )
+        ],
         # One choice, still open, and it asks for something the rows above do not
         # already list. A chosen skill is a skill — Overseer sits in `skills`
         # with the rest, marked as granted — so a row labelled "Skill" holding

@@ -179,10 +179,10 @@ def print_setup(request, pk):
     """Choose what a print includes, before the paper is committed.
 
     GET lists the gang's saved configs — each a one-click print — above
-    the form for a new run: an optional name, the two toggles, and every
-    model with its weapons as checkboxes, all ticked to start. Loading a
-    saved config (?config=) pre-fills the form instead, which is how one
-    is edited.
+    the form for a new run: an optional name, the header, stash and notes
+    toggles, and every model with its weapons as checkboxes, all ticked
+    to start. Loading a saved config (?config=) pre-fills the form
+    instead, which is how one is edited.
 
     POST writes a config and redirects to the print page carrying its
     id. A named POST saves under that name; an unnamed one rewrites the

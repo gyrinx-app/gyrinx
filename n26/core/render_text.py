@@ -95,6 +95,9 @@ def render_model_card(card, indent=""):
     if card.equipment:
         names = ", ".join(line.name for line in card.equipment)
         lines.append(f"{indent}  Equipment: {names}")
+    for group in card.gear_groups:
+        names = ", ".join(line.name for line in group.lines)
+        lines.append(f"{indent}  {group.name}: {names}")
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
         lines.append(f"{indent}  Buys from: {names}")

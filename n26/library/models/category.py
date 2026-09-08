@@ -90,6 +90,15 @@ class Category(Content):
             "order their first category does."
         ),
     )
+    draws_its_own_row = models.BooleanField(
+        default=False,
+        verbose_name="Its own row on a card",
+        help_text=(
+            "Tick this for a category whose items belong under their own "
+            "heading on a model's card, rather than in with the rest of "
+            "the gear. The heading is this category's name."
+        ),
+    )
 
     class Meta:
         verbose_name = "category"

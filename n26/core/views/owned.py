@@ -678,12 +678,20 @@ def link_possession_actions(model_card, host, *, refunds=True):
             for part in row.parts:
                 parts[part.id] = part
 
-    model_card.equipment = [
-        replace(line, sell=row.sell, more=row.more)
-        if (row := copies.get(line.id))
-        else line
-        for line in model_card.equipment
-    ]
+    def linked(lines):
+        return [
+            replace(line, sell=row.sell, more=row.more)
+            if (row := copies.get(line.id))
+            else line
+            for line in lines
+        ]
+
+    model_card.equipment = linked(model_card.equipment)
+    # Gear under its own heading is still gear: without this a group's
+    # lines would draw with no menu, and an upgrade could be bought and
+    # then not taken off.
+    for group in model_card.gear_groups:
+        group.lines = linked(group.lines)
     for weapon in model_card.weapons:
         if row := copies.get(weapon.id):
             weapon.sell = row.sell

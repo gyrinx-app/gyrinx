@@ -7065,6 +7065,30 @@ class TestTheDocumentation:
         assert "Recipes" in body
         assert "one card per kind, with its fields and behaviour" in body
 
+    def test_the_index_names_the_collections_page(self, author, client, default_pack):
+        body = client.get("/n26/authoring/docs/").content.decode()
+        assert "/n26/authoring/docs/collections/" in body
+        assert "Collections" in body
+
+    def test_an_author_reads_the_rendered_collections_page(
+        self, author, client, default_pack
+    ):
+        """The one page that explains the kind end to end, so it has to
+        reach every use a collection is put to."""
+        body = client.get("/n26/authoring/docs/collections/").content.decode()
+        for heading in [
+            "Creating an equipment list",
+            "Restricting an entry",
+            "Preparing a collection for players",
+            "Using a collection as a hire list",
+            "Replacing the main list",
+            "Sections for skills and powers",
+            "The Trading Post",
+        ]:
+            assert heading in body, heading
+        assert "## Sections" not in body
+        assert re.search(r"<h1[^>]*>\s*Collections", body)
+
     def test_the_library_index_points_at_the_documentation(
         self, author, client, default_pack
     ):

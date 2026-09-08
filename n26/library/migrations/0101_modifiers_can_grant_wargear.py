@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0094_a_pick_may_add_to_rating"),
+        ("library", "0096_a_price_may_be_below_zero"),
     ]
 
     operations = [

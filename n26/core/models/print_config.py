@@ -1,10 +1,11 @@
 """Print configs — what one print run of a gang includes.
 
 A config names a selection over the gang: which models get a card, which
-of each model's weapons show, and whether the gang header and the stash
-print at all. It is the print screen's memory, nothing more — pure
-display state, like ``AssignmentSet``, so it moves no money, changes no
-rating and never goes through ``n26.operations``.
+of each model's weapons show, and whether the gang header, the stash,
+and the notes strip (notes, picture, space to write) print at all. It is
+the print screen's memory, nothing more — pure display state, like
+``AssignmentSet``, so it moves no money, changes no rating and never
+goes through ``n26.operations``.
 
 Selections are literal: a config prints exactly what was ticked, and
 nothing joins it by being acquired later. A model hired after a config
@@ -43,7 +44,10 @@ class PrintConfig(Base):
     )
     include_notes = models.BooleanField(
         default=True,
-        help_text="Print the gang's notes and a notes card per model that has any.",
+        help_text=(
+            "Print the gang's notes, and on each model card its notes, "
+            "picture, and space to write during a game."
+        ),
     )
     miniatures = models.ManyToManyField(
         "n26.Miniature",

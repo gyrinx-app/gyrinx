@@ -64,7 +64,16 @@ def proceeds_for(rating):
     Half, rounded up, never under :data:`MINIMUM_PROCEEDS`. Worth, not
     outlay: a sword haggled down to 60 is still a hundred credits of sword,
     and rating is what the gang owns.
+
+    Nothing at all for something worth less than nothing. A Gene-smithing
+    upgrade that weakens the fighter is priced below zero, and the floor
+    would otherwise pay a gang to shed its own liabilities as often as it
+    liked. The sale still goes through — the owner may drop whatever they
+    want — it simply pays nothing. A thing worth nothing still fetches the
+    floor, as a free knife always has.
     """
+    if rating < 0:
+        return 0
     return max(MINIMUM_PROCEEDS, -(-rating // 2))
 
 
