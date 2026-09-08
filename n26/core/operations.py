@@ -2564,7 +2564,9 @@ class Operation:
                 f"{assignment.parent.assignable} — move that instead."
             )
         self.touched(assignment.miniature_root)
-        was_on = (assignment.miniature_id, assignment.stash_id)
+        # Where the carrier's own grants were hosted: beside its root, so a
+        # sight bolted onto a gun hosts what it brings on the gun's model.
+        was_on = (assignment.miniature_root_id, assignment.stash_root_id)
         assignment.gang = None
         assignment.miniature = assignment.stash = assignment.parent = None
         if isinstance(to, Stash):
@@ -2595,7 +2597,11 @@ class Operation:
         else:
             host = (assignment.miniature, assignment.stash)
         for row in subtree(assignment):
-            if row.parent_id is None and (row.miniature_id, row.stash_id) == was_on:
+            if (
+                row.parent_id is None
+                and row.gang_id is None
+                and (row.miniature_id, row.stash_id) == was_on
+            ):
                 row.miniature, row.stash = host
             row.save()  # roots re-derive from the parent chain
         self.touched(assignment.miniature_root)

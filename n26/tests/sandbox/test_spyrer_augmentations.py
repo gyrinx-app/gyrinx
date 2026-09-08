@@ -40,6 +40,7 @@ from n26.library.models import Stat, StatlineType, StatlineTypeStat
 from n26.tests.sandbox.actions import (
     add_built_in,
     adds,
+    attach,
     buy,
     changes_stat,
     choose,
@@ -53,6 +54,7 @@ from n26.tests.sandbox.actions import (
     create_trait,
     create_wargear,
     create_weapon,
+    create_weapon_accessory,
     found_gang,
     hire,
     move,
@@ -443,6 +445,53 @@ class TestTheLadderIsTheModelsOwn:
         assert not ladder_of(model, "Bolt launchers").is_resolved
         climb(model, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         assert stat_of(gun_of(model, "Bolt launchers"), "L") == "2"
+        assert_reconciled(gang)
+
+    def test_a_ladder_on_a_bolted_on_part_follows_it_between_guns(
+        self, gang, spyrer, orrus, bolt_launchers, augmentation, lethality
+    ):
+        """A part bolted onto a gun has no host of its own — it hangs off
+        the gun — so what it brings is hosted on the gun's model. Moving
+        the part to another model's gun takes its ladder to that model."""
+        sight = create_weapon_accessory("Targeting rig", price=0)
+        tier = create_pickable(
+            "Tier 1",
+            augmentation,
+            qualifier="Targeting rig",
+            effects=[
+                (
+                    targets_weapons(is_one_of(bolt_launchers)),
+                    changes_stat(lethality, mode="set", amount=3),
+                )
+            ],
+        )
+        table = create_picklist(
+            "Targeting rig augmentations", augmentation, members=[tier]
+        )
+        add_built_in(
+            sight,
+            create_slot(
+                "Targeting rig augmentation",
+                augmentation,
+                table,
+                label="Targeting rig",
+                min_picks=0,
+                max_picks=1,
+            ),
+        )
+        other = hire(gang, spyrer, "Kaustos", paid=200)
+        other_launchers = buy(other, thing=bolt_launchers, paid=0)
+        launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
+        bolted = attach(launchers, sight, paid=0)
+        assert not ladder_of(orrus, "Targeting rig").is_resolved
+
+        move(bolted, other_launchers)
+
+        _, computed = card_for(orrus)
+        assert "Targeting rig" not in [line.kind_label for line in computed.choices]
+        climb(other, "Targeting rig", tier)
+        assert stat_of(gun_of(other, "Bolt launchers"), "L") == "3"
+        assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "1"
         assert_reconciled(gang)
 
     def test_a_climbed_ladder_goes_back_to_the_stash_with_the_item(
