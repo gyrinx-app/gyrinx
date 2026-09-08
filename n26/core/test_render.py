@@ -8,9 +8,12 @@ the flags and limits the shipped definitions carry.
 
 from datetime import datetime, timedelta
 
+import pytest
+
+from n26.core.card import Card, Node
 from n26.core.effects import StatChange
-from n26.core.render import apply_changes
-from n26.library.models import Stat
+from n26.core.render import _provenance_within, apply_changes, card_to_model_card
+from n26.library.models import Stat, Wargear, Weapon
 
 
 def stat(short_name, full_name, **flags):
@@ -170,3 +173,42 @@ class TestWhatTheLimitsLeaveAlone:
 
     def test_no_changes_means_no_touch(self):
         assert apply_changes(STRENGTH, "3", []) == ("3", [], "")
+
+
+class TestGrantProvenance:
+    """An explicit grant label takes precedence over the cause, even when blank."""
+
+    @pytest.mark.parametrize("surface", ["model", "gang"])
+    @pytest.mark.parametrize(
+        "source, kind, expected_source, expected_kind",
+        [
+            ("", "", "", ""),
+            ("Strength rolled 6", "", "Strength rolled 6", ""),
+            (None, None, "Slashing claws", "weapon"),
+            ("", None, "", "weapon"),
+        ],
+    )
+    def test_only_missing_grant_labels_fall_back_to_the_cause(
+        self, surface, source, kind, expected_source, expected_kind
+    ):
+        cause = Node(Weapon(pack_id=None, name="Slashing claws"), key=1)
+        granted = Node(
+            Wargear(pack_id=None, name="Armoured undersuit"),
+            key=2,
+            caused_by_key=cause.key,
+            computed=True,
+            granted_by=source,
+            granted_by_kind=kind,
+        )
+        card = Card(miniature=None, roots=[cause], granted=[granted])
+
+        if surface == "model":
+            provenance = (
+                card_to_model_card(card, name="Yolanda").equipment[0].provenance
+            )
+        else:
+            provenance = _provenance_within(card)(granted)
+
+        assert provenance.source == expected_source
+        assert provenance.source_kind == expected_kind
+        assert provenance.computed is True
