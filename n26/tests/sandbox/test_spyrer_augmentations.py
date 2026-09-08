@@ -353,7 +353,7 @@ class TestClimbingTheLadder:
     nothing else the Spyrer carries."""
 
     def test_tier_one_raises_lethality_and_nothing_else(
-        self, orrus, bolt_launcher_tiers
+        self, gang, orrus, bolt_launcher_tiers
     ):
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
 
@@ -361,8 +361,9 @@ class TestClimbingTheLadder:
         assert stat_of(gun, "L") == "2"
         assert stat_of(gun, "AP") == "-1"
         assert traits_of(gun) == ["Rapid Fire (1)", "Sidearm"]
+        assert_reconciled(gang)
 
-    def test_tier_two_stacks_on_tier_one(self, orrus, bolt_launcher_tiers):
+    def test_tier_two_stacks_on_tier_one(self, gang, orrus, bolt_launcher_tiers):
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 2"])
 
@@ -372,14 +373,16 @@ class TestClimbingTheLadder:
         ladder = ladder_of(orrus, "Bolt launchers")
         assert len(ladder.picks) == 2
         assert ladder.chosen_name == "Tier 1, Tier 2"
+        assert_reconciled(gang)
 
-    def test_tier_three_swaps_the_trait(self, orrus, bolt_launcher_tiers):
+    def test_tier_three_swaps_the_trait(self, gang, orrus, bolt_launcher_tiers):
         for tier in ("Tier 1", "Tier 2", "Tier 3"):
             climb(orrus, "Bolt launchers", bolt_launcher_tiers[tier])
 
         gun = gun_of(orrus, "Bolt launchers")
         assert traits_of(gun) == ["Rapid Fire (2)", "Sidearm"]
         assert ladder_of(orrus, "Bolt launchers").is_full
+        assert_reconciled(gang)
 
     def test_the_rigs_tiers_reach_the_wearer(self, gang, orrus, jakara_rig):
         rig, tiers = jakara_rig
