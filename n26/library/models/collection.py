@@ -630,7 +630,9 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
         related_name="+",
     )
 
-    price_override = models.PositiveIntegerField(
+    # Signed for the same reason the reference price is: a list may price
+    # something below nothing, and blank still means at reference price.
+    price_override = models.IntegerField(
         null=True,
         blank=True,
         help_text="This list's credit price. Blank means at reference price.",
@@ -691,10 +693,34 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
                 condition=exactly_one_of(ENTRY_ASSIGNABLE_FIELDS),
                 name="collection_entry_exactly_one",
             ),
+            # The fighter floor, where an importer cannot step over it.
+            # Entries are made with ``objects.create`` by both the
+            # authoring verb and the ingest, so neither runs ``clean``.
+            models.CheckConstraint(
+                condition=models.Q(profile__isnull=True)
+                | models.Q(price_override__isnull=True)
+                | models.Q(price_override__gte=0),
+                name="collection_entry_profile_price_is_not_below_zero",
+            ),
         ]
 
     def __str__(self):
         return f"{self.assignable} in {self.collection.name}"
+
+    def clean(self):
+        """A list cannot price a fighter below nothing either.
+
+        The rule belongs to the fighter, not to the column: a profile's
+        own price is floored at zero, and an override is the same number
+        asked for by a different surface. Without this the floor would
+        hold everywhere except the one place an author is most likely to
+        type a figure.
+        """
+        super().clean()
+        if self.profile_id is not None and (self.price_override or 0) < 0:
+            raise ValidationError(
+                {"price_override": "A fighter's price cannot be below zero."}
+            )
 
     @property
     def price(self):

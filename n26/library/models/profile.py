@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -126,10 +127,29 @@ class Profile(Content, Assignable, Optioned):
                 name="profile_unique_per_pack",
             ),
             exclusive_has_no_trade_points("profile"),
+            # The floor, where an importer cannot step over it. ``clean``
+            # says the same thing in words for an author filling a form;
+            # this is what holds when nothing calls it.
+            models.CheckConstraint(
+                condition=models.Q(price__gte=0),
+                name="profile_price_is_not_below_zero",
+            ),
         ]
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        """A fighter is never priced below nothing.
+
+        The shared price column is signed, because some of what a model
+        carries makes it worth less than it was. Being hired is not one of
+        those: nobody is paid to take a fighter on, and a negative here
+        would be an author's slip rather than a rule.
+        """
+        super().clean()
+        if self.price < 0:
+            raise ValidationError({"price": "A fighter's price cannot be below zero."})
 
     @property
     def statline_type(self):
