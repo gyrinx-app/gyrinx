@@ -21,7 +21,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0093_a_stat_has_a_minimum_and_a_maximum"),
+        ("library", "0096_a_price_may_be_below_zero"),
     ]
 
     operations = [
