@@ -86,6 +86,14 @@ def detail_groups(card) -> list[DetailGroup]:
         groups.append(DetailGroup("Powers", ", ".join(p.name for p in card.powers)))
     if card.equipment:
         groups.append(DetailGroup("Gear", ", ".join(e.name for e in card.equipment)))
+    for gear_group in card.gear_groups:
+        # Under the category's own name, as on screen. A group with
+        # nothing in it is not built, so there is no empty one to skip.
+        groups.append(
+            DetailGroup(
+                gear_group.name, ", ".join(line.name for line in gear_group.lines)
+            )
+        )
     for choice in card.questions:
         # What it holds, or a blank. The Add on the screen card is a way
         # into the picker, and nothing on paper can be added.

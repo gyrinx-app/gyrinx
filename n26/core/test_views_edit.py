@@ -700,8 +700,12 @@ class TestTheQueryBudget:
         client.force_login(tester)
         # Two of these are flag readings — whether the reader is offered
         # the model's status, and whether they see staged content — each
-        # taken once for the page.
-        assert self.measure(client, edit_url(vex)) == 43
+        # taken once for the page. Two more find the lists this model buys
+        # from, for the links into Equip: which of the collections it holds
+        # are somewhere to buy gear, and the standard Trading Post. Both
+        # are the page's, not the roster's, so the count below still holds
+        # however large the gang grows.
+        assert self.measure(client, edit_url(vex)) == 45
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline
