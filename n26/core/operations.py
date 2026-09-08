@@ -2291,10 +2291,12 @@ class Operation:
         return assignment
 
     def give_weapon(self, miniature, weapon, paid=0, free_profiles=True, **kwargs):
-        """Assign a weapon to a model, copying its free profiles onto it."""
+        """Assign a weapon to a model, copying its free profiles onto it
+        and materialising what it has built in."""
         assignment = self.assign(weapon, miniature=miniature, paid=paid, **kwargs)
         if free_profiles:
             self._grant_free_profiles(weapon, assignment)
+        self.reconcile_defaults(assignment)
         return assignment
 
     def _grant_free_profiles(self, weapon, assignment, sold_separately=frozenset()):
@@ -2429,7 +2431,10 @@ class Operation:
             )
         if hasattr(thing, "resolve_selection"):
             self._record_options(bought, taken)
-            self.reconcile_defaults(bought)
+        # Whatever the thing has built in arrives with it — a weapon's
+        # augmentation choice as much as a wargear's — not only where the
+        # thing offers options.
+        self.reconcile_defaults(bought)
         return bought
 
     def select(self, miniature, thing, note=""):
