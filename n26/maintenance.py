@@ -49,7 +49,11 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import (
+    MultipleObjectsReturned,
+    ObjectDoesNotExist,
+    ValidationError,
+)
 from django.db import connection, models, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
@@ -75,6 +79,7 @@ __all__ = [
     "rehost_gang_picks",
     "repair_doubled_refunds",
     "repoint_champion_picks",
+    "seed_journal_content",
     "PlanRefused",
     "run_batched",
     "run_per_gang",
@@ -201,6 +206,10 @@ class Operation(models.TextChoices):
         "n26_delete_legacy_affiliation_assignments",
         "n26: legacy affiliation assignments are deleted",
     )
+    SEED_JOURNAL_CONTENT = (
+        "n26_seed_journal_content",
+        "n26: the Gang supertype and the Underhive Journal territories are created",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -218,6 +227,7 @@ LOCK_KEYS = {
     Operation.DELETE_EMPTY_AFFILIATIONS: 826_020_616,
     Operation.OPEN_FOUNDING_ACTIONS: 826_020_617,
     Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS: 826_020_618,
+    Operation.SEED_JOURNAL_CONTENT: 826_020_619,
 }
 
 
@@ -1927,6 +1937,115 @@ register_operation(
     )
 )
 
+
+@task
+def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
+    """Create the Gang supertype and the two Underhive Journals' territories
+    and tables, once, and record what was created.
+
+    Library-only work in one transaction under the runner discipline:
+    every row is matched on its name and pack and left alone where it
+    stands, so a rerun creates nothing and says so. The built-in members
+    it adds file the propagation pass that gives gangs already founded
+    their supertype pick.
+    """
+    from n26.library.journal_content import seed_all
+
+    _run_recorded(
+        backfill_id,
+        Operation.SEED_JOURNAL_CONTENT,
+        "Journal content seed",
+        seed_all,
+        (),
+    )
+
+
+def seed_journal_content_view(request):
+    """Say what the seed would create (GET), or record a run and enqueue it.
+
+    The preview is the seed itself, run and rolled back, so it lists
+    exactly the rows a run would create or skip. A seed with nothing to
+    do records no run.
+    """
+    from n26.library.journal_content import NOTHING_TO_DO, preview
+
+    operation = Operation.SEED_JOURNAL_CONTENT
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That seed is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        try:
+            lines = preview()
+        except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+            # The same library shape the GET shows in words: a POST made by
+            # hand against it gets the message, not an error page.
+            messages.error(request, f"The seed cannot run: {broke}")
+            return HttpResponseRedirect(address)
+        if lines[0] == NOTHING_TO_DO:
+            messages.info(request, NOTHING_TO_DO)
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": lines, "attempts": 0},
+        )
+        seed_journal_content.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The seed is running. This page shows what it creates."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    problem = ""
+    try:
+        lines = preview()
+    except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+        # A library shape the seed does not expect — two Territory asset
+        # types, say — is shown on the page in words rather than as an
+        # error page, so the operation stays reachable.
+        lines, problem = [], str(broke)
+    context = page_context(
+        request,
+        operation.label,
+        preview=lines,
+        nothing_to_do=bool(lines) and lines[0] == NOTHING_TO_DO,
+        problem=problem,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/seed_journal_content.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.SEED_JOURNAL_CONTENT.value,
+        name=Operation.SEED_JOURNAL_CONTENT.label,
+        added=date(2026, 9, 7),
+        description=(
+            "Create the Gang supertype: a hidden gang-level slot with six "
+            "marker pickables, Goliath to Cawdor. It is built into each Clan "
+            "House gang type with that House picked, and Clan House Outcast "
+            "gangs are given it by their Clan House pickable. Create the two "
+            "Underhive Journals' territories as well: twelve Territories "
+            "under the Territory campaign type, each with its income and its "
+            "House Controlled boon, and the Goliath Territories and Escher "
+            "Territories tables, each given to the gangs of its House. The "
+            "journal rows are staged until an author puts them live. Every "
+            "row is matched by name, so running this again creates nothing. "
+            "No money moves; the propagation pass gives gangs already "
+            "founded their supertype pick."
+        ),
+        view=seed_journal_content_view,
+        detail_template="admin/maintenance/n26/_seed_journal_content_detail.html",
+    )
+)
+
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a repair holds one
 #: transaction for as long as proving what it touched takes. It is also
@@ -1962,6 +2081,7 @@ task_routes = [
     ),
     TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     TaskRoute(open_founding_actions, ack_deadline=600),
+    TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
 ]
 
 

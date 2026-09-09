@@ -2923,6 +2923,9 @@ def render_campaign(campaign, viewer=None):
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
     withdrawn = withdrawn_members(*cards.values())
+    # A staged table is offered to roll on only to a reader who may see
+    # staged content: the roll is where a Territory is newly chosen.
+    shown_staged = sees_staged(viewer)
     for membership in memberships:
         card = cards[membership.gang_id]
         computed = compute(card, index)
@@ -2933,7 +2936,11 @@ def render_campaign(campaign, viewer=None):
         # the card already computed: which tables its starting roll may
         # be made on.
         held_tables[membership.pk] = [
-            table for table in tables_on(card, computed, withdrawn) if table.dice
+            table
+            for table in tables_on(
+                card, computed, withdrawn, include_staged=shown_staged
+            )
+            if table.dice
         ]
         # What the gang has picked for each choice it is asked, by the
         # choice's label. A label is a gang-level slot the arbitrator built
@@ -3019,9 +3026,7 @@ def render_campaign(campaign, viewer=None):
     # The rolled tables the campaign itself holds, by asset type: what the
     # pool of each type is generated from. One query for the whole page.
     in_play = {}
-    for table in tables_in_play(campaign, include_staged=sees_staged(viewer)).order_by(
-        "name"
-    ):
+    for table in tables_in_play(campaign, include_staged=shown_staged).order_by("name"):
         if table.dice:
             in_play.setdefault(table.asset_type_id, []).append(_held_table(table))
     tables = {

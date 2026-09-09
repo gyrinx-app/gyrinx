@@ -243,6 +243,9 @@ def _rows_for(events):
             "stash",
             # A pick says its kind through the question it answered.
             "chosen_for_slot__slot_type",
+            # A pick of a hidden slot is not told; the slot is read off
+            # the pick, or off the assignment it was chosen for.
+            "chosen_for__slot",
         )
     )
     return {row.pk: row for row in fetched}
@@ -536,6 +539,11 @@ def _machinery(e, row):
     line is the exception in every event it has — bought in the story,
     it must also leave in it — so the test is what its record says was
     ever priced, not what this one event moved.
+
+    A hidden slot asks nothing and draws nothing, and the pick that
+    settles it is a classification, never a choice the player saw — the
+    Gang supertype built into a Clan House gang type — so neither the
+    slot nor its pick is told.
     """
     if row is None:
         return False
@@ -543,10 +551,24 @@ def _machinery(e, row):
         return True
     if row.hidden_id is not None or row.asset_table_id is not None:
         return True
+    if row.slot_id is not None and row.slot.hidden:
+        return True
+    if row.pickable_id is not None and _settles_a_hidden_slot(row):
+        return True
     if row.weapon_profile_id is None:
         return False
     entry = getattr(row, "ledger_entry", None)
     return entry is None or entry.list_price == 0
+
+
+def _settles_a_hidden_slot(pick):
+    """Whether this pick settles a hidden slot: the slot it names, or,
+    for a pick written before picks named their slot, the slot of the
+    assignment it was chosen for. Both are loaded with the record."""
+    slot = pick.chosen_for_slot
+    if slot is None and pick.chosen_for is not None:
+        slot = pick.chosen_for.slot
+    return slot is not None and slot.hidden
 
 
 def _one_edit_of_what_a_model_is(standing):
