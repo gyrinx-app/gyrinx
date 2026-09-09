@@ -1250,7 +1250,7 @@ SHARED_LASTING_RESULTS = {
 }
 
 
-def _lasting_row(model, name, qualifier, slot_type, defaults):
+def _table_row(model, name, qualifier, slot_type, defaults):
     """One pickable or slot for a table, matched three ways in turn.
 
     Its own slot type's row of that name is the one, whatever qualifier
@@ -1296,7 +1296,7 @@ def _create_lasting_effect_tables():
                 roll_selects="band",
             )
         for position, (low, high, result) in enumerate(rows):
-            pickable = _lasting_row(
+            pickable = _table_row(
                 Pickable, result, _twin_qualifier(index, result), slot_type, {}
             )
             PicklistMember.objects.get_or_create(
@@ -1308,7 +1308,7 @@ def _create_lasting_effect_tables():
                     "position": position,
                 },
             )
-        _lasting_row(
+        _table_row(
             Slot,
             name,
             "",
@@ -1324,7 +1324,7 @@ def _create_lasting_effect_tables():
             status = statuses.get(result)
             if status is not None:
                 _status_modifier(
-                    _lasting_row(
+                    _table_row(
                         Pickable, result, _twin_qualifier(index, result), slot_type, {}
                     ),
                     status,
@@ -1335,7 +1335,7 @@ def _create_lasting_effect_tables():
         for _, _, result in rows:
             if result in CAPTURED_RESULTS:
                 _grants_escape(
-                    _lasting_row(
+                    _table_row(
                         Pickable, result, _twin_qualifier(index, result), slot_type, {}
                     ),
                     escape,
@@ -1366,14 +1366,14 @@ def _create_escape_table():
             roll_selects="band",
         )
     for position, (low, high, result) in enumerate(ESCAPE_TABLE):
-        pickable = _lasting_row(Pickable, result, "", slot_type, {})
+        pickable = _table_row(Pickable, result, "", slot_type, {})
         PicklistMember.objects.get_or_create(
             picklist=table,
             pickable=pickable,
             defaults={"roll_low": low, "roll_high": high, "position": position},
         )
         _status_modifier(pickable, ESCAPE_STATUSES[result])
-    return _lasting_row(
+    return _table_row(
         Slot,
         ESCAPE_SLOT_TYPE,
         "",
@@ -1419,20 +1419,28 @@ POWER_BOOST_TABLE = [
 
 
 def _power_boost_result(slot_type, name, annotation, rating):
-    """One result, matched by name and annotation under its own slot
-    type; a name another slot type already claims is refused in words,
-    as the lasting tables do. The annotation doubles as the qualifier so
-    two results of one name are two rows under the per-pack constraint."""
+    """One result, matched by name and qualifier under its own slot type
+    in the default pack; a name another slot type there already claims
+    is refused in words, as the lasting tables do. The annotation doubles
+    as the qualifier so two results of one name are two rows under the
+    per-pack constraint, and the qualifier is what a re-run matches on:
+    an author may reword the annotation without the seed losing its row.
+    Pinned to the pack because names are unique per pack, so a homebrew
+    pack's result of the same name is a different thing.
+    """
+    from django.conf import settings
+
     from n26.library.models import Pickable
 
-    own = Pickable.objects.filter(
-        name__iexact=name, annotation__iexact=annotation, slot_type=slot_type
-    ).first()
+    in_pack = Pickable.objects.filter(
+        name__iexact=name,
+        qualifier__iexact=annotation,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+    )
+    own = in_pack.filter(slot_type=slot_type).first()
     if own is not None:
         return own
-    taken = Pickable.objects.filter(
-        name__iexact=name, qualifier__iexact=annotation
-    ).first()
+    taken = in_pack.first()
     if taken is not None:
         raise RuntimeError(
             f'A pickable named "{name}" already belongs to the '
@@ -1475,7 +1483,7 @@ def _create_power_boost_table():
             pickable=pickable,
             defaults={"roll_low": low, "roll_high": high, "position": position},
         )
-    _lasting_row(
+    _table_row(
         Slot,
         POWER_BOOST_SLOT_TYPE,
         "",

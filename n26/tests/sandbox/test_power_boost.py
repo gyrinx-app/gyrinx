@@ -2,10 +2,10 @@
 table.
 
 The table is standard content, seeded the way the lasting-effect tables
-are: a slot type of its own, a D6 band table, a standing choice. What is
-new is that a result carries what it adds to the model's rating — the
-figure the book prints beside it — and the pick carries that rating
-without anything being paid.
+are: a slot type of its own, a D6 band table, a standing choice. Each
+result carries what it adds to the model's rating — the figure the book
+prints beside it — and the pick carries that rating without anything
+being paid.
 
 What an author finishes by hand, this file does with the verbs, as the
 cookbook says to: the four characteristic results get a modifier that
@@ -89,8 +89,8 @@ def result_named(table, name, annotation=""):
 
 @pytest.fixture
 def finished_results(boost, kill_count, fighter_stats):
-    """The cookbook's steps 3 and 4: what each result does, and the spend
-    every result carries."""
+    """What an author attaches by hand: what each result does, and the
+    spend every result carries."""
     table = boost["table"]
     raises = {
         ("Combat Neuroware", "WS"): "WS",
@@ -120,8 +120,8 @@ def finished_results(boost, kill_count, fighter_stats):
 
 @pytest.fixture
 def gang(gang_type, owner, boost, spyrer_subtype, finished_results):
-    """Step 5: the gang type gives every Spyrer the choice, narrowed by
-    the subtype and never by the Kill Count."""
+    """The gang type gives every Spyrer the choice, narrowed by the
+    subtype and never by the Kill Count."""
     modifier(
         "Spyrers carry Power Boost",
         targets_every_model(has_subtypes(spyrer_subtype)),
@@ -215,17 +215,60 @@ class TestTheTableIsStandardContent:
     adds to the model's rating."""
 
     def test_the_results_and_their_ratings_are_pinned(self, boost):
+        """Pinned as literals, so the seed changes deliberately."""
         rows = [
-            (m.roll_low, m.roll_high, m.pickable.name, m.pickable.annotation)
+            (
+                m.roll_low,
+                m.roll_high,
+                str(m.pickable),
+                m.pickable.qualifier,
+                m.pickable.rating_contribution,
+            )
             for m in boost["table"].members.order_by("position")
         ]
         assert rows == [
-            (low, high, name, note) for low, high, name, note, _ in POWER_BOOST_TABLE
+            (1, 1, "Combat Neuroware (WS)", "WS", 20),
+            (1, 1, "Combat Neuroware (BS)", "BS", 20),
+            (2, 2, "Heightened Reactions", "", 10),
+            (3, 3, "Improved Motive Power", "", 10),
+            (4, 4, "Thickened Armour", "", 15),
+            (5, 6, "Hunting Rig Augmentation", "", 20),
         ]
-        assert [
-            m.pickable.rating_contribution
-            for m in boost["table"].members.order_by("position")
-        ] == [rating for *_, rating in POWER_BOOST_TABLE]
+        assert len(rows) == len(POWER_BOOST_TABLE)
+
+    def test_a_reworded_annotation_keeps_its_row_on_a_second_click(self, boost):
+        """An author may reword what a result prints. The seed matches its
+        rows by qualifier, so a second click adopts the reworded row
+        rather than refusing or creating a twin."""
+        from n26.library.models import Pickable
+
+        ws = Pickable.objects.get(name="Combat Neuroware", qualifier="WS")
+        ws.annotation = "Weapon Skill"
+        ws.save()
+
+        STANDARD_CONTENT["power-boost-table"].create()
+
+        assert Pickable.objects.filter(name="Combat Neuroware").count() == 2
+        assert boost["table"].members.count() == 6
+        assert STANDARD_CONTENT["power-boost-table"].status() == "complete"
+
+    def test_a_homebrew_result_of_the_same_name_is_not_in_the_way(
+        self, boost, homebrew
+    ):
+        """Names are unique per pack. A homebrew pack's own Thickened
+        Armour is a different thing, and the Foundations click must not
+        refuse over it."""
+        from n26.library.models import Pickable, SlotType
+
+        Pickable.objects.create(
+            name="Thickened Armour",
+            slot_type=SlotType.objects.get(name="Power Boost"),
+            pack=homebrew,
+        )
+
+        STANDARD_CONTENT["power-boost-table"].create()
+
+        assert boost["table"].members.count() == 6
 
     def test_a_one_lands_on_both_neuroware_results(self, boost):
         assert [str(m.pickable) for m in boost["table"].landing(1)] == [

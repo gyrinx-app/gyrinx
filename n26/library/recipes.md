@@ -402,7 +402,8 @@ the owner decides when to roll.
    band with the credits it adds to the model's rating, and a standing
    choice of up to twenty picks. The first band contains two results,
    one for Weapon Skill and one for Ballistic Skill, because the book
-   lets the player raise either.
+   lets the player raise either. The table's page says a roll of 1 is
+   claimed by more than one result. That is the book, not a mistake.
 2. Give Spyrers a **Kill Count** counter if they do not have one: create
    the counter and build it into each Spyrer entry, starting at 0. The
    Glitch Count is built the same way.
