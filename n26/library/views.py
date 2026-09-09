@@ -3357,7 +3357,9 @@ def _perform_deletion(request, plan, label):
     if plan.refusals:
         messages.error(
             request,
-            f"{label} was not deleted. " + "; ".join(plan.refusals).capitalize() + ".",
+            f"{label} is still in use, so nothing was deleted: "
+            + "; ".join(plan.refusals)
+            + ".",
         )
         return redirect(request.path)
     if plan.touches_players:

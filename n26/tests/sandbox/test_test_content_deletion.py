@@ -129,7 +129,7 @@ class TestNamingTheTestGangs:
         # The weapon's own firing line goes with it, and is promised.
         assert "firing lines" in plan.counts() or "weapons" in plan.counts()
 
-    def test_a_modifier_only_the_row_carries_goes_with_it(
+    def test_a_modifier_naming_the_row_goes_when_nothing_standing_carries_it(
         self, author, test_type, test_fighter, test_weapon
     ):
         rule = create_rule("Test rule", staged=True)
@@ -140,11 +140,18 @@ class TestNamingTheTestGangs:
             carried_by=rule,
         )
 
-        plan = plan_deletion([rule])
+        # The rule alone: its modifier is not the rule's to take, and
+        # stays as a reusable.
+        alone = plan_deletion([rule])
+        assert alone.ok
+        assert not alone.modifier_ids
 
-        assert plan.ok
-        assert "modifiers" in plan.counts()
-        assert plan.modifier_ids
+        # The rule and the weapon together: the modifier names the weapon
+        # and its only carrier is going, so it goes too, parts first.
+        both = plan_deletion([rule, test_weapon])
+        assert both.ok
+        assert "modifiers" in both.counts()
+        assert both.modifier_ids
 
     def test_a_modifier_something_else_carries_refuses(
         self, author, test_type, test_fighter, test_weapon
@@ -311,6 +318,19 @@ class TestApplying:
 
         assert Modifier.objects.filter(pk=shared.pk).exists()
         assert keeper.modifiers.filter(pk=shared.pk).exists()
+
+    def test_a_modifier_naming_the_weapon_goes_with_the_weapon_and_its_carrier(
+        self, author, test_type, test_fighter, test_weapon
+    ):
+        rule = create_rule("Test rule", staged=True)
+        named = modifier(
+            "Brings a lasgun", targets_model(), ef_adds(test_weapon), carried_by=rule
+        )
+
+        apply(plan_deletion([rule, test_weapon]))
+
+        assert not Modifier.objects.filter(pk=named.pk).exists()
+        assert not Weapon.objects.filter(pk=test_weapon.pk).exists()
 
 
 def table_counts():

@@ -14,8 +14,9 @@ reads every reference to the rows asked for, through the one reference
 reader, and sorts each into one of three:
 
 * **goes with it** — a part of the row (a weapon's firing lines, a
-  list's entries), or a modifier nothing else carries. Deleted along
-  with the row.
+  list's entries), or a modifier that names the row and that nothing
+  standing carries. Deleted along with the row. A modifier the row
+  merely carries is not the row's to take: it stays, as a reusable.
 * **a test gang** — a gang owned by a member of staff that no player is
   in a campaign or a battle with. Deleted whole, with everything hanging
   off it; a campaign holding the content goes the same way when every
@@ -339,22 +340,7 @@ class _Planner:
             for model, rows in by_model.items():
                 for reference in references_to(*rows):
                     self.sort(reference, model)
-            self.sweep_modifiers()
         self.judge_holders()
-
-    def sweep_modifiers(self):
-        """A modifier is the carrier's own field, not a reference to it,
-        so the reader never returns one. Each modifier a doomed row
-        carries goes when nothing standing carries it; otherwise the
-        carrier forgets it and it stays."""
-        for row in list(self.doomed.values()):
-            if not hasattr(row, "modifiers"):
-                continue
-            for held in row.modifiers.all():
-                if _key(held) in self.doomed:
-                    continue
-                if all(_key(c) in self.doomed for c in _carriers_of(held)):
-                    self.doom_modifier(held)
 
     def sort(self, reference, thing_model):
         row = reference.row
@@ -404,6 +390,16 @@ class _Planner:
             )
             return
         if isinstance(row, DefaultAssignment):
+            from n26.library.models import Asset, AssetTable
+
+            if isinstance(
+                self.thing_named_by(reference, thing_model), (Asset, AssetTable)
+            ):
+                # A possession is built in by being created, so nobody
+                # authored the membership: it goes with the asset, the
+                # way the delete verb takes it out.
+                self.doom(row)
+                return
             default_set = row.default_set
             if self.set_goes(default_set):
                 return

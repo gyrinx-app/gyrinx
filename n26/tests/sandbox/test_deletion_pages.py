@@ -122,7 +122,7 @@ class TestARowsDeletePage:
         response = client.post(delete_page(test_weapon, "weapon"), follow=True)
 
         body = response.content.decode()
-        assert "was not deleted" in body
+        assert "still in use, so nothing was deleted" in body
         assert "Theirs" in body
         assert Weapon.objects.filter(pk=test_weapon.pk).exists()
         assert Gang.objects.filter(pk=gang.pk).exists()
