@@ -308,7 +308,7 @@ its modifiers.
 
 *Where an item always sorts: one named home inside a section.*
 
-Fields: its Section, a name, a position.
+Fields: its Section, a name, a position, and whether its items draw under their own heading on a model's card rather than in with the rest of the gear.
 
 Used as a home for an *item* in a collection, so every collection groups it the same way — an autogun is an Auto/Stub Weapon everywhere. The same name may recur under different sections (Primitive Weapons under both Ranged and Close Combat).
 

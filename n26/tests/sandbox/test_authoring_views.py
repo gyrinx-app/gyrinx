@@ -737,21 +737,32 @@ class TestSections:
         home = create_category("Wargear", "Gene-smithing")
         assert not home.draws_its_own_row
 
-        body = client.get(f"/n26/authoring/category/{home.pk}/").content.decode()
+        page = f"/n26/authoring/category/{home.pk}/"
+        body = client.get(page).content.decode()
         assert 'name="edit-draws_its_own_row"' in body
+        assert "switchInput(false, true)" not in body  # drawn off, as stored
 
-        client.post(
-            f"/n26/authoring/category/{home.pk}/",
-            {
-                "act": "edit",
-                "edit-section": str(home.section.pk),
-                "edit-name": "Gene-smithing",
-                "edit-position": "0",
-                "edit-draws_its_own_row": "on",
-            },
-        )
+        edit = {
+            "act": "edit",
+            "edit-section": str(home.section.pk),
+            "edit-name": "Gene-smithing",
+            "edit-position": "0",
+        }
+        client.post(page, {**edit, "edit-draws_its_own_row": "on"})
         home.refresh_from_db()
         assert home.draws_its_own_row
+
+        # Reopened, the switch shows the value it has. Without this an
+        # author saving an unrelated change would clear the flag and
+        # never know.
+        body = client.get(page).content.decode()
+        assert "switchInput(false, true)" in body
+
+        # Unticking is the direction that loses an author's work, so it
+        # is held as well as ticking: an absent box on an edit means off.
+        client.post(page, edit)
+        home.refresh_from_db()
+        assert not home.draws_its_own_row
 
         client.post(
             "/n26/authoring/category/new/",

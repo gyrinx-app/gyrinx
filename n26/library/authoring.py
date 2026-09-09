@@ -1672,7 +1672,9 @@ def create_category(section, name, position=0, draws_its_own_row=False, **kwargs
     ``draws_its_own_row`` puts the category's items under their own
     heading on a model's card rather than in with the rest of the gear.
     A named parameter rather than a pass-through, because the authoring
-    form reads a switch's starting state off this signature.
+    form reads a switch off this signature — its starting state, and
+    whether it must be filled — and a name the catch-all absorbs is not
+    there to read.
     """
     from n26.library.models import Category, Section
 
