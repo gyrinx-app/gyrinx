@@ -4601,6 +4601,34 @@ class TestComposingOnItsOwnPage:
         assert response["Location"] == f"/n26/authoring/modifiers/{made.pk}/"
         assert made.name in client.get(response["Location"]).content.decode()
 
+    @pytest.mark.parametrize("effect_kind", ["ef_adds", "ef_removes"])
+    def test_the_composer_can_give_or_take_wargear(
+        self, author, client, default_pack, effect_kind
+    ):
+        from n26.library.authoring import create_wargear
+        from n26.library.models import Modifier
+
+        rig = create_wargear("Drop rig", price=10)
+        url = "/n26/authoring/modifiers/new/"
+        body = client.get(
+            url, {"scope_kind": "targets_model", "effect_kind": effect_kind}
+        ).content.decode()
+        assert 'value="wargear"' in body
+        response = client.post(
+            url,
+            {
+                "scope_kind": "targets_model",
+                "effect_kind": effect_kind,
+                "what-thing_kind": "wargear",
+                "what-thing_wargear": str(rig.pk),
+                **TestTheModifierSection.NO_CONDITIONS,
+            },
+        )
+        assert response.status_code == 302
+        (made,) = Modifier.objects.all()
+        assert made.effect.thing == rig
+        assert "Drop rig" in client.get(response["Location"]).content.decode()
+
     def test_the_listing_shows_what_was_made(self, author, client, default_pack):
         from n26.library.authoring import create_subtype
 

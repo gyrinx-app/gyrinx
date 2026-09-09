@@ -103,10 +103,10 @@ GRANTABLE_FIELDS = {
     # Free kit: a beast's claws, a vehicle's fixed gun. The weapon and its
     # firing lines are worked out at read time, so they add nothing to the
     # gang's rating, are never paid for, cannot be sold, and go when the
-    # thing that granted them goes. The only grantable kind with a price
-    # and with children of its own — see ``n26.core.effects``, which
-    # builds the card nodes a granted weapon needs.
+    # thing that granted them goes. ``n26.core.effects`` builds the
+    # card nodes for granted equipment and a weapon's firing lines.
     "weapon": "library.Weapon",
+    "wargear": "library.Wargear",
     # A carrier that draws no row, so naming one is naming a *bundle*:
     # everything the hidden thing does arrives or departs together. What
     # a gang's own rules hang off, so that one "takes away" can cancel
@@ -899,6 +899,13 @@ class AssignableChoice(models.Model):
         blank=True,
         related_name="+",
     )
+    wargear = models.ForeignKey(
+        "library.Wargear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     hidden = models.ForeignKey(
         "library.Hidden",
         on_delete=models.PROTECT,
@@ -956,11 +963,12 @@ class AssignableChoice(models.Model):
 class AddsAssignable(AssignableChoice):
     """Gives the target something it would not otherwise have.
 
-    A subtype, skill, trait, collection, rule — or a weapon, which is the
-    one grantable kind that has a price and firing lines of its own. A
-    granted weapon is free kit: it and its lines are worked out at read
-    time, so nothing is bought, nothing is worth anything, and it lasts
-    exactly as long as whatever granted it.
+    A subtype, skill, trait, collection, rule, weapon or wargear. Granted
+    weapons and wargear are free kit: they add zero rating and last as
+    long as their source is held. Each grant gives a separate copy.
+    Their modifiers apply, and weapons include their free firing lines.
+    Built-ins and option sets are only included when an item is acquired
+    through an assignment. Granted kit cannot be sold or moved independently.
 
     Naming a hidden carrier gives a *bundle*: it draws no row, so what
     arrives is everything it in turn does.

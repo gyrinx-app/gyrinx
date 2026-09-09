@@ -1941,10 +1941,11 @@ def targets_gang_alone():
 
 def ef_adds(thing):
     """Grants the target a subtype, skill, trait, collection, rule, weapon
-    — or a further choice, which is how one pick opens the next.
+    or wargear — or a further choice, which is how one pick opens the next.
 
-    A granted weapon is free kit: it arrives with its free firing lines,
-    adds nothing to the gang's rating, and goes when its granter goes.
+    Granted weapons and wargear add zero rating and are removed when
+    their source is removed. Their modifiers apply. Weapons include free
+    firing lines; built-ins and option sets require an assignment.
 
     **A granted weapon arrives too late for its carrier's unfiltered
     rules.** Scopes are asked in order of how conditional they are, so a
@@ -2092,6 +2093,7 @@ def _assignable_kwarg(thing):
         Slot,
         Subtype,
         Trait,
+        Wargear,
         Weapon,
     )
 
@@ -2103,6 +2105,7 @@ def _assignable_kwarg(thing):
         (Rule, "rule"),
         (Power, "power"),
         (Weapon, "weapon"),
+        (Wargear, "wargear"),
         (Hidden, "hidden"),
         (Slot, "slot"),
     )

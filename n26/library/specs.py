@@ -577,7 +577,7 @@ def _build_registry():
             label="Gives something",
             blurb=(
                 "The target gains a subtype, skill, power, rule, trait, "
-                "list or weapon — or a hidden item, which brings whatever "
+                "list, weapon or wargear — or a hidden item, which brings whatever "
                 "it gives. For as long as the item carrying this modifier "
                 "stays."
             ),

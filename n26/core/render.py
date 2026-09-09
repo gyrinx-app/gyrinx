@@ -1855,8 +1855,12 @@ def card_to_model_card(
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
         return Provenance(
-            source=cause.name if cause else None,
-            source_kind=kind_of(cause.assignable) if cause else None,
+            source=node.granted_by
+            if node.granted_by is not None
+            else (cause.name if cause else None),
+            source_kind=node.granted_by_kind
+            if node.granted_by_kind is not None
+            else (kind_of(cause.assignable) if cause else None),
             reason=node.reason,
             computed=node.computed,
         )
@@ -2213,8 +2217,12 @@ def _provenance_within(card):
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
         return Provenance(
-            source=cause.name if cause else None,
-            source_kind=kind_of(cause.assignable) if cause else None,
+            source=node.granted_by
+            if node.granted_by is not None
+            else (cause.name if cause else None),
+            source_kind=node.granted_by_kind
+            if node.granted_by_kind is not None
+            else (kind_of(cause.assignable) if cause else None),
             reason=node.reason,
             computed=node.computed,
         )
