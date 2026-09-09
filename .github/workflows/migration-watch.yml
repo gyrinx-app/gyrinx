@@ -1,0 +1,200 @@
+name: Migration watch
+
+# Re-checks every open pull request that adds a migration whenever main gains
+# one, and checks a pull request against the current main when it changes.
+# Each check merges the branch into main in a throwaway tree and asks the
+# questions the next deploy will: does migrating main and then the merge
+# succeed, do the models still agree with the migrations, does the branch add
+# one leaf per app, and does a branch migration touch what main changed since
+# the branch forked. The answers land in one comment on the pull request and
+# a non-required status on its head commit. Nothing here blocks a merge; it
+# tells the author early instead of at deploy time.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/migrations/**"
+  pull_request:
+    paths:
+      - "**/migrations/**"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to check (blank for every open one)
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+# A newer push to main supersedes an older run over the same open pull
+# requests; a pull request's own runs supersede each other.
+concurrency:
+  group: migration-watch-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      prs: ${{ steps.list.outputs.prs }}
+    steps:
+      - id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          THIS_PR: ${{ github.event.pull_request.number }}
+          THIS_SHA: ${{ github.event.pull_request.head.sha }}
+          ASKED_PR: ${{ inputs.pr }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            prs=$(jq -cn --argjson n "$THIS_PR" --arg sha "$THIS_SHA" '[{number: $n, sha: $sha}]')
+          elif [ -n "$ASKED_PR" ]; then
+            prs=$(gh pr view "$ASKED_PR" --repo "$GITHUB_REPOSITORY" --json number,headRefOid \
+              | jq -c '[{number: .number, sha: .headRefOid}]')
+          else
+            prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
+              --json number,headRefOid,files,isDraft \
+              | jq -c '[.[] | select(any(.files[]; .path | test("/migrations/[^/]+\\.py$"))) | {number: .number, sha: .headRefOid}]')
+          fi
+          echo "prs=$prs" >> "$GITHUB_OUTPUT"
+          echo "checking: $prs"
+
+  check:
+    needs: plan
+    if: needs.plan.outputs.prs != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        pr: ${{ fromJson(needs.plan.outputs.prs) }}
+    name: "PR #${{ matrix.pr.number }}"
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_NAME: gyrinx_replay
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_CONFIG: '{"user":"postgres","password":"postgres"}'
+      PR_NUMBER: ${{ matrix.pr.number }}
+      PR_SHA: ${{ matrix.pr.sha }}
+      REPORT_DIR: ${{ github.workspace }}/.migration-watch
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge the pull request into main in a throwaway tree
+        id: merge
+        continue-on-error: true
+        run: |
+          mkdir -p "$REPORT_DIR"
+          git config user.name "migration-watch"
+          git config user.email "migration-watch@users.noreply.github.com"
+          git fetch --no-tags origin "pull/$PR_NUMBER/head:refs/remotes/pr/$PR_NUMBER"
+          git checkout -q -b merged origin/main
+          git merge --no-edit --no-ff "refs/remotes/pr/$PR_NUMBER" 2>&1 | tee "$REPORT_DIR/merge.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      # The pull request's migrations and models are what is under test; the
+      # tooling that runs them and reports on them is always main's. Without
+      # this a branch could rewrite the action or the report script.
+      - name: Use main's tooling
+        if: steps.merge.outcome == 'success'
+        run: |
+          git checkout origin/main -- .github scripts
+          git commit -q -m "main's tooling" || true
+
+      - uses: ./.github/actions/python-env
+        if: steps.merge.outcome == 'success'
+
+      - name: Create an empty database
+        if: steps.merge.outcome == 'success'
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -c 'CREATE DATABASE gyrinx_replay;'
+
+      # What the next container boot does after this pull request lands: the
+      # database already holds main, then the merge's migrations apply on top.
+      - name: Migrate main
+        id: replay_main
+        if: steps.merge.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          source .venv/bin/activate
+          git checkout -q origin/main
+          manage migrate 2>&1 | tee "$REPORT_DIR/replay-main.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Migrate the merge on top of main
+        id: replay
+        if: steps.replay_main.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          source .venv/bin/activate
+          git checkout -q merged
+          manage migrate 2>&1 | tee "$REPORT_DIR/replay.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Models and migrations agree
+        id: drift
+        if: steps.merge.outcome == 'success'
+        continue-on-error: true
+        run: |
+          source .venv/bin/activate
+          git checkout -q merged
+          manage makemigrations --check --dry-run 2>&1 | tee "$REPORT_DIR/drift.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: The branch adds one leaf per app
+        id: leaves
+        if: steps.merge.outcome == 'success'
+        continue-on-error: true
+        run: |
+          source .venv/bin/activate
+          manage check_migration_conflicts --base origin/main 2>&1 | tee "$REPORT_DIR/leaves.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Branch migrations against what main gained
+        id: overlap
+        if: steps.merge.outcome == 'success'
+        continue-on-error: true
+        run: |
+          source .venv/bin/activate
+          manage check_migration_overlap --base origin/main --head "refs/remotes/pr/$PR_NUMBER" \
+            --json "$REPORT_DIR/overlap.json" 2>&1 | tee "$REPORT_DIR/overlap.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      # A pull request from a fork runs with a read-only token, so its own
+      # run cannot report; the fan-out from main covers it with a write token.
+      - name: Report on the pull request
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE: ${{ steps.merge.outcome }}
+          REPLAY_MAIN: ${{ steps.replay_main.outcome }}
+          REPLAY: ${{ steps.replay.outcome }}
+          DRIFT: ${{ steps.drift.outcome }}
+          LEAVES: ${{ steps.leaves.outcome }}
+          OVERLAP: ${{ steps.overlap.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/migration_watch_report.py

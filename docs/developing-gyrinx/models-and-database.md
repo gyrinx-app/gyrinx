@@ -221,6 +221,30 @@ manage migrate
 - Consider migration dependencies between apps
 - Use data migrations for complex transformations
 
+### Parallel branches and the migration graph
+
+Django normally refuses to run while an app has two leaf migrations and asks
+for a merge migration. Gyrinx switches that refusal off (`gyrinx/migration_graph.py`)
+and makes `makemigrations` depend on every leaf of the app, so:
+
+- Two branches that each add a migration merge and deploy in any order. Nothing
+  is renamed or repointed. `migrate` applies every unapplied migration in
+  dependency order, which is all correctness needs.
+- The next generated migration depends on all the leaves and joins them.
+- Always generate the `dependencies` list with `makemigrations`. A hand-typed
+  list that omits a leaf can put a migration before the state it relies on.
+
+What no graph can see is two branches changing the same model or field, or a
+data migration reading what another branch changes. The `Migration watch`
+workflow (`.github/workflows/migration-watch.yml`) re-checks every open pull
+request with a migration whenever main gains one: it merges the branch into
+main, migrates a database to main and then to the merge, runs
+`makemigrations --check`, confirms the branch adds one leaf per app
+(`manage check_migration_conflicts`), and reads the branch's operations
+against those main gained since the branch forked
+(`manage check_migration_overlap`). Findings arrive as one comment on the
+pull request and a non-required `migration-watch` status.
+
 ## Performance Considerations
 
 ### Query Optimization
