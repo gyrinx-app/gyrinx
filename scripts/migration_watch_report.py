@@ -99,8 +99,13 @@ def build(report_dir):
         )
 
     overlap_path = report_dir / "overlap.json"
+    overlap = None
     if overlap_path.exists():
-        overlap = json.loads(overlap_path.read_text(encoding="utf-8"))
+        try:
+            overlap = json.loads(overlap_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            notes.append(f"The overlap findings could not be read: {error}")
+    if overlap is not None:
         blocks = [f for f in overlap["findings"] if f["severity"] == "blocks"]
         review = [f for f in overlap["findings"] if f["severity"] != "blocks"]
         if blocks or review:

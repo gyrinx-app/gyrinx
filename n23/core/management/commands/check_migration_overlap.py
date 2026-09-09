@@ -41,7 +41,7 @@ def _added_migrations(since, until, prefixes):
         since,
         until,
         "--",
-        "*/migrations/*.py",
+        ":(glob)**/migrations/*.py",
     )
     keys = []
     for path in listing.splitlines():
