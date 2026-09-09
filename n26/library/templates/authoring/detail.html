@@ -139,12 +139,19 @@ thing twice, a line apart.
             its own address, its own question, and its own refusal when
             anything still uses the row.
                     {% endcomment %}
-                    <div class="mt-4">
+                    <div class="mt-4 flex flex-wrap gap-4">
                         <c-n26.link href="{% url 'authoring-thing-delete' kind thing.pk %}"
                                     tone="danger"
                                     class="text-sm">
                             Delete this {{ verbose_name }}…
                         </c-n26.link>
+                        {% if mergeable %}
+                            <c-n26.link href="{% url 'authoring-thing-merge' kind thing.pk %}"
+                                        tone="muted"
+                                        class="text-sm">
+                                Merge it into another {{ verbose_name }}…
+                            </c-n26.link>
+                        {% endif %}
                     </div>
                 </c-n26.form-section>
             {% endif %}

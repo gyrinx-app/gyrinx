@@ -218,6 +218,10 @@ class Operation(models.TextChoices):
         "n26_delete_firing_line",
         "n26: a firing line is removed from the fighters that have it and deleted",
     )
+    MERGE_INTO = (
+        "n26_merge_into",
+        "n26: a duplicate row is merged into the row it duplicates",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -238,6 +242,7 @@ LOCK_KEYS = {
     Operation.SEED_JOURNAL_CONTENT: 826_020_619,
     Operation.DELETE_TEST_CONTENT: 826_020_620,
     Operation.DELETE_FIRING_LINE: 826_020_621,
+    Operation.MERGE_INTO: 826_020_622,
 }
 
 
@@ -2124,12 +2129,32 @@ def delete_firing_line(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
-#: The operations the authoring delete pages ask for, and the task each
-#: runs on. A plan that removes a line from fighters walks gangs; one
-#: that deletes gangs holds everything in one transaction.
+@task
+def merge_into(backfill_id, **said_by_whoever_enqueued_it):
+    """Point everything naming a duplicate at the row it duplicates,
+    gang by gang, and delete the duplicate with the last gang."""
+    from n26.library.merging import MergePlan, Refused, merge_gang, merge_run
+
+    record = Backfill.objects.get(pk=backfill_id)
+    plan = MergePlan.from_record(record.summary)
+    run_per_gang(
+        backfill_id,
+        operation=Operation.MERGE_INTO,
+        what="Merge",
+        find=lambda: merge_run(plan),
+        apply_one=lambda gang_id: merge_gang(gang_id, plan),
+        again=lambda: merge_into.enqueue(backfill_id=backfill_id),
+        refusals=(Refused,),
+    )
+
+
+#: The operations the authoring pages ask for, and the task each runs
+#: on. A plan that removes a line from fighters or merges a row walks
+#: gangs; one that deletes gangs holds everything in one transaction.
 AUTHORING_DELETIONS = {
     Operation.DELETE_TEST_CONTENT: delete_test_content,
     Operation.DELETE_FIRING_LINE: delete_firing_line,
+    Operation.MERGE_INTO: merge_into,
 }
 
 
@@ -2148,9 +2173,12 @@ def start_authoring_deletion(plan, user):
     :class:`AnotherRunning` while an earlier run of the same kind is
     still going.
     """
-    operation = (
-        Operation.DELETE_FIRING_LINE if plan.lines else Operation.DELETE_TEST_CONTENT
-    )
+    if getattr(plan, "survivor", None):
+        operation = Operation.MERGE_INTO
+    elif plan.lines:
+        operation = Operation.DELETE_FIRING_LINE
+    else:
+        operation = Operation.DELETE_TEST_CONTENT
     if running_guard(operation) is not None:
         raise AnotherRunning
     record = Backfill.objects.create(
@@ -2187,6 +2215,20 @@ register_operation(
 )
 register_operation(
     MaintenanceOperation(
+        operation=Operation.MERGE_INTO.value,
+        name=Operation.MERGE_INTO.label,
+        added=date(2026, 9, 9),
+        description=(
+            "Asked for from a row's Merge into page, not from here. Points "
+            "every assignment, list line, built-in membership and modifier "
+            "part naming a duplicate at the row it duplicates, gang by gang, "
+            "each gang proved to reconcile, and deletes the duplicate with "
+            "the last of them. Moves no money."
+        ),
+    )
+)
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DELETE_FIRING_LINE.value,
         name=Operation.DELETE_FIRING_LINE.label,
         added=date(2026, 9, 9),
@@ -2204,6 +2246,7 @@ register_operation(
 task_routes = [
     TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(merge_into, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),
