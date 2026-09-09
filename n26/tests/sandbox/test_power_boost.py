@@ -371,6 +371,29 @@ class TestSpendingKillCount:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    def test_a_characteristic_at_its_best_stays_there(
+        self, gang, spyrer, boost, fighter_stats
+    ):
+        """Weapon Skill stops at 2+. A Spyrer already there who takes
+        Combat Neuroware anyway is not refused — the app informs — and
+        the characteristic reads 2+ still; the rules say such a result
+        counts as Hunting Rig Augmentation, which is the player's to pick
+        instead, and either way the rating rises by twenty."""
+        set_statline(spyrer, weapon_skill=2)
+        ace = hire(gang, spyrer, "Ace", paid=300)
+        tally(kill_row(ace), +4)
+        assert stat_of(ace, "WS") == "2+"
+
+        roll = roll_for(ace, 1)
+        take(ace, result_named(boost["table"], "Combat Neuroware", "WS"), roll=roll)
+
+        assert stat_of(ace, "WS") == "2+"
+        assert kills_of(ace) == 0
+        ace.refresh_from_db()
+        assert ace.rating == 320
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
     def test_the_choice_stays_when_the_count_falls_below_four(self, gang, orrus, boost):
         """Nothing gates the line on the count. Below four it is still
         there, and so is everything already picked for it."""

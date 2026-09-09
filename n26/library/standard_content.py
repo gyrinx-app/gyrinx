@@ -1459,7 +1459,10 @@ def _power_boost_result(slot_type, name, annotation, rating):
 def _create_power_boost_table():
     from n26.library.models import Picklist, PicklistMember, Slot, SlotType
 
-    slot_type = SlotType.objects.filter(name__iexact=POWER_BOOST_SLOT_TYPE).first()
+    # The default pack's slot type, never a homebrew pack's of the same
+    # name: names are unique per pack, and the table belongs with the
+    # standard content it is seeded beside.
+    slot_type = _by_name(SlotType, POWER_BOOST_SLOT_TYPE)
     if slot_type is None:
         slot_type = SlotType.objects.create(
             name=POWER_BOOST_SLOT_TYPE,
@@ -1498,13 +1501,18 @@ def _create_power_boost_table():
 
 
 def _check_power_boost_table():
+    from django.conf import settings
+
     from n26.library.models import PicklistMember, Slot, SlotType
 
-    present = _count(SlotType, name__iexact=POWER_BOOST_SLOT_TYPE)
+    pack = settings.DEFAULT_CONTENT_PACK_SLUG
+    present = _count(SlotType, name__iexact=POWER_BOOST_SLOT_TYPE, pack__slug=pack)
     present += _count(
-        PicklistMember, picklist__name__iexact=f"{POWER_BOOST_SLOT_TYPE} Table"
+        PicklistMember,
+        picklist__name__iexact=f"{POWER_BOOST_SLOT_TYPE} Table",
+        picklist__pack__slug=pack,
     )
-    present += _count(Slot, name__iexact=POWER_BOOST_SLOT_TYPE)
+    present += _count(Slot, name__iexact=POWER_BOOST_SLOT_TYPE, pack__slug=pack)
     return present, 1 + len(POWER_BOOST_TABLE) + 1
 
 
