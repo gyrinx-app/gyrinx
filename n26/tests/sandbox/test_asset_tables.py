@@ -481,6 +481,19 @@ class TestNothingDrawsATable:
             assert "Dominion Territories" not in body
         assert "Dominion Territories" not in str(render_campaign(campaign))
 
+    def test_the_founding_page_leaves_it_out(self, dominion, d6_table):
+        """The one built-ins-enumerating surface a player reads: what
+        founding a campaign on this type gives. The table is how a gang
+        comes to roll, not something it starts with."""
+        from n26.core.campaigns import summarise_campaign_type
+
+        create_asset("Settlement", dominion["settlement"])
+
+        summary = summarise_campaign_type(dominion["type"])
+
+        assert "Settlement" in summary.starts_with
+        assert "Dominion Territories" not in summary.starts_with
+
     def test_the_sheet_costs_the_same_however_many_tables_are_held(
         self, dominion, arbitrator, gang_type, owner, default_pack
     ):

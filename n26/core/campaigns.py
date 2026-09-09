@@ -778,9 +778,13 @@ def summarise_campaign_type(campaign_type, checked=False):
         _asset_type_sentence(asset_type)
         for asset_type in campaign_type.asset_types.all()
     )
-    members = campaign_type.built_in_members.select_related(
-        *DEFAULT_ASSIGNABLE_FIELDS
-    ).order_by("position")
+    # A table is drawn nowhere, the founding page included: it is how a
+    # gang comes to roll, not something the gang starts with.
+    members = (
+        campaign_type.built_in_members.filter(asset_table__isnull=True)
+        .select_related(*DEFAULT_ASSIGNABLE_FIELDS)
+        .order_by("position")
+    )
     given = [_given(member) for member in members]
     starts_with = f"Every gang starts with {_and(given)}." if given else ""
     rules = tuple(
