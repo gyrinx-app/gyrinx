@@ -724,6 +724,46 @@ class TestSections:
         assert made.section == heading
         assert str(made) == "Ranged Weapons: Auto/Stub Weapons"
 
+    def test_a_category_can_be_told_to_draw_its_own_row(
+        self, author, client, default_pack
+    ):
+        """Whether a category's items draw under their own heading on a
+        card is an authoring decision, so it has to be on the authoring
+        form — on the page that makes a category and the one that changes
+        it, since the same form serves both."""
+        from n26.library.authoring import create_category
+        from n26.library.models import Category
+
+        home = create_category("Wargear", "Gene-smithing")
+        assert not home.draws_its_own_row
+
+        body = client.get(f"/n26/authoring/category/{home.pk}/").content.decode()
+        assert 'name="edit-draws_its_own_row"' in body
+
+        client.post(
+            f"/n26/authoring/category/{home.pk}/",
+            {
+                "act": "edit",
+                "edit-section": str(home.section.pk),
+                "edit-name": "Gene-smithing",
+                "edit-position": "0",
+                "edit-draws_its_own_row": "on",
+            },
+        )
+        home.refresh_from_db()
+        assert home.draws_its_own_row
+
+        client.post(
+            "/n26/authoring/category/new/",
+            {
+                "name": "Chem-alchemy Elixirs",
+                "section": str(home.section.pk),
+                "position": "1",
+                "draws_its_own_row": "on",
+            },
+        )
+        assert Category.objects.get(name="Chem-alchemy Elixirs").draws_its_own_row
+
     def test_named_headings_are_founded_once(self, default_pack):
         """The example suites still say create_category("Skills", …) —
         the heading is found or founded, never forked."""

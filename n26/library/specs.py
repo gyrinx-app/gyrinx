@@ -1153,6 +1153,7 @@ def _build_registry():
                 "section": One(model=Section, source=(Category, "section")),
                 "name": Text(source=(Category, "name")),
                 "position": Int(source=(Category, "position")),
+                "draws_its_own_row": Bool(source=(Category, "draws_its_own_row")),
             },
         ),
         # The gang surface: the type, the entries hired off its list,
