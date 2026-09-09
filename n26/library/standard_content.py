@@ -1261,10 +1261,17 @@ def _table_row(model, name, qualifier, slot_type, defaults):
     (lowercased name and qualifier, not slot type) as a bare error.
     Otherwise the row is created.
     """
-    own = model.objects.filter(name__iexact=name, slot_type=slot_type).first()
+    from django.conf import settings
+
+    # The default pack only: names are unique per pack, so a homebrew
+    # pack's row of the same name is neither this seed's nor in its way.
+    in_pack = model.objects.filter(
+        name__iexact=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    )
+    own = in_pack.filter(slot_type=slot_type).first()
     if own is not None:
         return own
-    taken = model.objects.filter(name__iexact=name, qualifier__iexact=qualifier).first()
+    taken = in_pack.filter(qualifier__iexact=qualifier).first()
     if taken is not None:
         raise RuntimeError(
             f'A {model._meta.verbose_name} named "{name}" already belongs '
