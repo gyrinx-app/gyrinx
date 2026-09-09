@@ -59,7 +59,10 @@ from n26.library.models.base import Content
 #: the choice already made, name the slot and give it a starting pick
 #: (``default_pickable``). An **asset** is here because an asset of a
 #: held-one-each kind — a Settlement — arrives built into its campaign
-#: type, on every gang that joins.
+#: type, on every gang that joins. An **asset table** is here for the same
+#: reason: the core Territory table is built into its campaign type, and
+#: an arbitrator opens a journal's table to one campaign by building it
+#: into the campaign's additions.
 DEFAULT_ASSIGNABLE_FIELDS = (
     "weapon",
     "weapon_profile",
@@ -72,6 +75,7 @@ DEFAULT_ASSIGNABLE_FIELDS = (
     "counter",
     "slot",
     "asset",
+    "asset_table",
 )
 
 
@@ -210,6 +214,13 @@ class DefaultAssignment(NamesAnAssignable, Content):
     )
     asset = models.ForeignKey(
         "library.Asset",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    asset_table = models.ForeignKey(
+        "library.AssetTable",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

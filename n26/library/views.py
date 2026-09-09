@@ -16,7 +16,7 @@ The composer and the preview pane hang off this same skeleton later
 import inspect
 import re
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from django import forms
 from django.contrib import messages
@@ -61,6 +61,7 @@ LEAF_KINDS = {
     "counter": "create_counter",
     "hidden": "create_hidden",
     "asset": "create_asset",
+    "asset-table": "create_asset_table",
     "slot-type": "create_slot_type",
     "pickable": "create_pickable",
     "picklist": "create_picklist",
@@ -95,8 +96,9 @@ RETIRED_KINDS = frozenset({"affiliation"})
 #: same thing a second way, from a page that cannot say which kind. Each
 #: row keeps a page of its own — reached from the parent's — for its
 #: modifiers and the rest of its fields, and its breadcrumb runs through
-#: the parent's kind rather than a listing it does not have.
-NESTED_KINDS = frozenset({"asset"})
+#: the parent's kind rather than a listing it does not have. A table is
+#: made the same way, under a Holding asset type.
+NESTED_KINDS = frozenset({"asset", "asset-table"})
 
 
 #: Kinds whose page is a place you come back to: the thing, and the
@@ -174,6 +176,13 @@ def _describe_built_in(member):
             f"from the {thing.asset_type} asset type",
             "delete the asset to remove it",
         ]
+    elif member.asset_table_id is not None:
+        # A table is built in by being created under its asset type, the
+        # same way, and goes when the table does.
+        notes = [
+            f"a table of {thing.asset_type.plural}",
+            "delete the table to remove it",
+        ]
     else:
         notes = [str(thing._meta.verbose_name)]
     if member.amount:
@@ -192,8 +201,86 @@ def _asset_type_parts(parts):
     from n26.library.models import Asset
 
     return parts.prefetch_related(
-        Prefetch("assets", queryset=with_income(Asset.objects.all()))
+        Prefetch("assets", queryset=with_income(Asset.objects.all())),
+        Prefetch("tables", queryset=_tables_with_entry_counts()),
     )
+
+
+def _tables_with_entry_counts():
+    """A type's tables with how many entries each has, read along with
+    the tables rather than once per row."""
+    from django.db.models import Count
+
+    from n26.library.models import AssetTable
+
+    return AssetTable.objects.annotate(entry_count=Count("entries"))
+
+
+def _describe_asset_table(table):
+    """One table under its asset type: what it is rolled on and how many
+    entries it has. Whether its bands cover the die is read on the
+    table's own page, which the name leads to."""
+    notes = []
+    if table.dice:
+        notes.append(f"rolled on a {table.get_dice_display()}")
+    else:
+        notes.append("an ordered list, not rolled")
+    count = getattr(table, "entry_count", None)
+    if count is None:
+        count = table.entries.count()
+    if count == 0:
+        notes.append("no entries yet")
+    else:
+        notes.append(f"{count} entry" if count == 1 else f"{count} entries")
+    return _label_for(table), notes
+
+
+def _describe_asset_table_entry(entry):
+    """One entry on a table: its band, leading, then the asset it names.
+    Its place in the order is not said: the rows are printed in it."""
+    label = f"{entry.band} — {entry.label}" if entry.band else entry.label
+    return label, []
+
+
+def _table_entries_in_roll_order(entries):
+    """A table's entries as the book prints them: by band, the bandless
+    last, each with the asset it names."""
+    from django.db.models import F
+
+    return entries.select_related("asset").order_by(
+        F("roll_low").asc(nulls_last=True), "position", "asset__name"
+    )
+
+
+def _table_entries_description(table):
+    """What the entries section says under its heading: how the table is
+    read. Whether the bands cover the die is said above the entries, by
+    the coverage check."""
+    if not table.dice:
+        return (
+            "An ordered list, chosen from rather than rolled. Give the table "
+            "dice in the form above to roll on it."
+        )
+    return (
+        f"Rolled on a {table.get_dice_display()}. Every roll the die can make "
+        "lands on exactly one entry: give each entry the lowest and highest "
+        "roll that lands on it."
+    )
+
+
+def _coverage_context(said, label):
+    """A coverage check as the alert above a table draws it: the check, and
+    its unclaimed and doubled rolls already in words. ``label`` reads a
+    row's name, so a picklist's members and a table's entries are said
+    the same way."""
+    return {
+        "coverage": said,
+        "unclaimed_said": ", ".join(str(roll) for roll in said.unclaimed),
+        "doubled_said": [
+            (roll, ", ".join(label(row) for row in who)) for roll, who in said.doubled
+        ],
+        "bandless_said": [label(row) for row in said.bandless],
+    }
 
 
 def _describe_asset_type(asset_type):
@@ -287,7 +374,9 @@ def _built_in_parts(parts):
 
     # An asset member's row names its asset type, so that comes along.
     return parts.prefetch_related(
-        *DefaultAssignment.ASSIGNABLE_FIELDS, "asset__asset_type"
+        *DefaultAssignment.ASSIGNABLE_FIELDS,
+        "asset__asset_type",
+        "asset_table__asset_type",
     )
 
 
@@ -441,29 +530,77 @@ DETAIL_KINDS = {
         # one more. An asset is one entry in the campaign type's list, so
         # it is made here rather than from the menu: the asset type is the
         # carrier its form is handed, and the asset joins the type's pack.
-        "under_each": {
-            "act": "add-asset",
-            "verb": "create_asset",
-            "parts": "assets",
-            # The spec field the carrier answers, so the form does not ask
-            # it — the asset type is settled by which block the author
-            # typed in.
-            "carrier_field": "asset_type",
-            # What the form asks here. The rest of an asset's fields are
-            # edited on its own page, which its name leads to.
-            "fields": ("name", "annotation", "income"),
-            "describe": _describe_asset,
-            "opens": lambda asset: reverse(
-                "authoring-detail", args=["asset", asset.pk]
-            ),
-            "parts_label": lambda kind: kind.plural,
-            "part_name": lambda kind: kind.label_singular,
-            "nothing_yet": lambda kind: f"No {kind.plural} yet.",
-        },
+        # A Holding asset type also lists its tables here, for the same
+        # reason; a Possession has none, so its block is left out.
+        "under_each": (
+            {
+                "act": "add-asset",
+                "verb": "create_asset",
+                "parts": "assets",
+                # The spec field the carrier answers, so the form does not
+                # ask it — the asset type is settled by which block the
+                # author typed in.
+                "carrier_field": "asset_type",
+                # What the form asks here. The rest of an asset's fields
+                # are edited on its own page, which its name leads to.
+                "fields": ("name", "annotation", "income"),
+                "describe": _describe_asset,
+                "opens": lambda asset: reverse(
+                    "authoring-detail", args=["asset", asset.pk]
+                ),
+                "parts_label": lambda kind: kind.plural,
+                "part_name": lambda kind: kind.label_singular,
+                "nothing_yet": lambda kind: f"No {kind.plural} yet.",
+            },
+            {
+                "act": "add-asset-table",
+                "verb": "create_asset_table",
+                "parts": "tables",
+                "carrier_field": "asset_type",
+                "fields": ("name", "dice"),
+                "describe": _describe_asset_table,
+                "opens": lambda table: reverse(
+                    "authoring-detail", args=["asset-table", table.pk]
+                ),
+                "parts_label": lambda kind: f"{kind.label_singular} tables",
+                "part_name": "table",
+                "nothing_yet": lambda kind: (
+                    f"No {kind.label_singular} tables yet. A table lists "
+                    f"{kind.plural} a campaign rolls for."
+                ),
+                # Only a Holding asset type has tables: every gang has its
+                # own of a Possession, so nothing rolls for one.
+                "when": lambda kind: kind.is_holding,
+            },
+        ),
         # Taking a kind off is refused while any asset is of it, and the
         # refusal needs a page: a row's control cannot say what stands
         # in the way.
         "removes": "authoring-asset-type-remove",
+    },
+    "asset-table": {
+        "verb": "add_asset_table_entry",
+        "parts": "entries",
+        "statline": False,
+        "describe": _describe_asset_table_entry,
+        "parts_hint": _table_entries_in_roll_order,
+        "parts_label": "entries",
+        "part_name": "entry",
+        "parts_description": _table_entries_description,
+        # Whether the bands cover the die is a fact about the whole table,
+        # drawn above the entries where every row can be read against it.
+        # An ordered list has no die to cover.
+        "coverage": lambda table: (
+            _coverage_context(table.coverage(), lambda entry: entry.label)
+            if table.dice
+            else None
+        ),
+        "nothing_yet": (
+            "No entries yet. Add the assets a roll on this table can land on."
+        ),
+        "removes": "authoring-asset-table-entry-remove",
+        "add_title": "Add an entry",
+        "submit_label": "Add entry",
     },
     "picklist": {
         "verb": "add_picklist_member",
@@ -574,7 +711,9 @@ BUILT_INS_PART = {
     "removes": "authoring-built-in-remove",
     # An asset member is a possession built in by its asset type, and
     # deleting the asset is what takes it out; the row offers no Remove.
-    "removable": lambda member: member.asset_id is None,
+    "removable": lambda member: (
+        member.asset_id is None and member.asset_table_id is None
+    ),
     # A gun's own lines nest under it, so the listing reads the way a
     # card draws firing lines under weapons.
     "arrange": _arrange_built_ins,
@@ -1913,6 +2052,7 @@ DETAIL_PARENTS = {
     # An asset is filed under the campaign type whose asset type it is one
     # of.
     "asset": ("campaign-type", "campaign_type"),
+    "asset-table": ("campaign-type", "campaign_type"),
 }
 
 
@@ -2029,12 +2169,12 @@ def detail(request, kind, pk):
         ),
         None,
     )
-    under_act = _under_act(sections)
+    under_acts = _under_acts(sections)
     if (
         request.method == "POST"
         and act
         and with_modifiers
-        and act not in ("edit", "edit-part", under_act)
+        and act not in ("edit", "edit-part", *under_acts)
         and posted_to is None
     ):
         response, composer = _modifier_action(request, kind, thing, act)
@@ -2054,8 +2194,10 @@ def detail(request, kind, pk):
     # naming the part it goes under. Refused, the bound form takes the
     # place of that part's add form.
     added = None
-    if request.method == "POST" and under_act and act == under_act:
-        response, added = _add_under_part(request, kind, thing, sections)
+    if request.method == "POST" and act in under_acts:
+        response, added = _add_under_part(
+            request, kind, thing, sections, under_acts[act]
+        )
         if response is not None:
             return response
 
@@ -2161,10 +2303,10 @@ def detail(request, kind, pk):
                         # A part edited in place carries its own form; the
                         # one just refused keeps the form it was refused on.
                         "edit_form": _part_edit_form(section, part_spec, part, edited),
-                        # The things filed under this part, and the form
-                        # that adds one more — for a kind whose parts hold
-                        # things of their own.
-                        "under": _under_part(section, part, added),
+                        # The things filed under this part, block by
+                        # block, each with the form that adds one more —
+                        # for a kind whose parts hold things of their own.
+                        "under": _under_parts(section, part, added),
                     },
                 )
             )
@@ -2209,6 +2351,11 @@ def detail(request, kind, pk):
                 or kind_help(part_model),
                 "wants_statline": section["statline"],
                 "parts": parts,
+                # Whether a rolled table's bands cover its die, for the
+                # kinds whose parts claim bands. Nothing for the rest.
+                "coverage": worded(section.get("coverage"))
+                if section.get("coverage")
+                else None,
                 "form": form,
                 "statline_form": statline_form,
                 # Blank for a section adding its parts in a form here;
@@ -2312,11 +2459,14 @@ def _edit_part(request, kind, thing, sections):
     return None, (str(part.pk), form)
 
 
-def _under_act(sections):
-    """The act a form adding a thing under one of these sections' parts
-    posts, or blank where no section holds things under its parts."""
+def _under_acts(sections):
+    """The acts the forms adding things under these sections' parts post,
+    keyed to the block each act adds to — empty where no section holds
+    things under its parts."""
     section = next((one for one in sections if one.get("under_each")), None)
-    return section["under_each"]["act"] if section else ""
+    if section is None:
+        return {}
+    return {under["act"]: under for under in section["under_each"]}
 
 
 def _under_form(under, carrier, data=None):
@@ -2339,14 +2489,22 @@ def _under_form(under, carrier, data=None):
     return form
 
 
-def _under_part(section, part, added):
-    """What one part holds under it, drawn: the rows, each leading to its
-    own page, and the form that adds one more — the one just refused,
-    where this is the part it was refused under, else a fresh one.
-    Nothing for a section whose parts hold nothing."""
-    under = section.get("under_each")
-    if under is None:
-        return None
+def _under_parts(section, part, added):
+    """What one part holds under it, drawn block by block: the rows of
+    each block, each leading to its own page, and the form that adds one
+    more — the one just refused, where this is the block and part it was
+    refused under, else a fresh one. Empty for a section whose parts hold
+    nothing, and a block whose ``when`` says this part has none of its
+    kind is left out."""
+    return [
+        _under_part(under, part, added)
+        for under in section.get("under_each", ())
+        if under.get("when", lambda part: True)(part)
+    ]
+
+
+def _under_part(under, part, added):
+    """One block of what a part holds under it, drawn."""
 
     def worded(value):
         return value(part) if callable(value) else value
@@ -2362,7 +2520,7 @@ def _under_part(section, part, added):
                 "href": _opens_url(under["opens"], row),
             }
         )
-    if added is not None and added[0] == str(part.pk):
+    if added is not None and added[0] == (under["act"], str(part.pk)):
         form = added[1]
     else:
         form = _under_form(under, part)
@@ -2380,23 +2538,27 @@ def _under_part(section, part, added):
     }
 
 
-def _add_under_part(request, kind, thing, sections):
-    """Write one thing under one of ``thing``'s parts.
+def _add_under_part(request, kind, thing, sections, under):
+    """Write one thing under one of ``thing``'s parts, into the block
+    ``under`` — the one whose act was posted.
 
     Returns ``(response, refused)`` as ``_edit_part`` does: a redirect
-    when the thing was made, or ``(None, (part pk, bound form))`` when
-    it was refused and the page should redraw with the form's errors in
-    place. A post naming a part this thing does not have is a mistyped
+    when the thing was made, or ``(None, ((act, part pk), bound form))``
+    when it was refused and the page should redraw with the form's errors
+    in place. A post naming a part this thing does not have is a mistyped
     address rather than an author's mistake.
     """
     section = next((one for one in sections if one.get("under_each")), None)
     if section is None:
         raise Http404("Nothing on this page holds things under its parts")
-    under = section["under_each"]
     spec = specs()[under["verb"]]
     part = get_object_or_404(
         getattr(thing, section["parts"]).all(), pk=request.POST.get("part", "")
     )
+    # A block the page never drew for this part — a table under a
+    # Possession asset type — has no form to have been posted.
+    if not under.get("when", lambda part: True)(part):
+        raise Http404("This part holds nothing of that kind")
     form = _under_form(under, part, request.POST)
     if form.is_valid():
         try:
@@ -2415,7 +2577,7 @@ def _add_under_part(request, kind, thing, sections):
         else:
             messages.success(request, f"Added {made} under {part}.")
             return redirect("authoring-detail", kind=kind, pk=thing.pk), None
-    return None, (str(part.pk), form)
+    return None, ((under["act"], str(part.pk)), form)
 
 
 #: The two acts a row's own page offers on whether players see it.
@@ -2848,14 +3010,23 @@ def built_in_remove(request, pk):
     holders = _holders_of(member.default_set)
     back = _back_to(holders)
 
-    # The listing offers no Remove on an asset member, and the address
-    # refuses one too: a possession is taken out by deleting the asset.
+    # The listing offers no Remove on an asset or table member, and the
+    # address refuses one too: a possession or a table is taken out by
+    # deleting it.
     if member.asset_id is not None:
         messages.error(
             request,
             f"{_label_for(member.assignable)} cannot be removed here. It is "
             f"given by its {member.asset.asset_type} asset type. Delete the "
             "asset to remove it.",
+        )
+        return redirect(back)
+    if member.asset_table_id is not None:
+        messages.error(
+            request,
+            f"{_label_for(member.assignable)} cannot be removed here. A table "
+            "is built in as soon as it is created. Delete the table to "
+            "remove it.",
         )
         return redirect(back)
 
@@ -4125,6 +4296,38 @@ def picklist_member_remove(request, pk):
 
 
 @staff_member_required
+def asset_table_entry_remove(request, pk):
+    """The question asked before an asset is taken off a table.
+
+    What goes is the entry. The asset stays in the library, on every
+    other table that lists it, and in every campaign that already rolled
+    it — worth saying before anything happens, because a control beside
+    an asset's name reads as one that deletes assets.
+    """
+    from n26.library import authoring
+    from n26.library.models import AssetTableEntry
+
+    entry = get_object_or_404(
+        AssetTableEntry.objects.select_related("table", "asset"), pk=pk
+    )
+    table = entry.table
+    back = reverse("authoring-detail", args=["asset-table", table.pk])
+
+    if request.method == "POST":
+        said = entry.label
+        with transaction.atomic():
+            authoring.remove_asset_table_entry(entry)
+        messages.success(request, f"Took {said} off {table}.")
+        return redirect(back)
+
+    return render(
+        request,
+        "authoring/asset_table_entry_remove.html",
+        {"thing": entry, "label": entry.label, "table": table, "back": back},
+    )
+
+
+@staff_member_required
 def asset_type_remove(request, pk):
     """The question asked before an asset type is taken off its campaign
     type.
@@ -4883,61 +5086,18 @@ def _rows(model, kind=None):
     return hint(rows) if hint else rows
 
 
-@dataclass(frozen=True)
-class Coverage:
-    """Whether a roll table's bands claim its die.
-
-    Gaps and overlaps make a table unrollable, and neither is a fact
-    about any one row — only the whole table can say. ``covered`` counts
-    rolls claimed by at least one result; a roll claimed twice is
-    covered and doubled both.
-    """
-
-    #: Every roll the die can produce.
-    total: int
-    #: How many of them at least one band claims.
-    covered: int
-    #: The rolls no band claims, in roll order.
-    unclaimed: list
-    #: ``(roll, members)`` for every roll more than one band claims.
-    doubled: list
-    #: Results with no band at all: on the list, never rolled.
-    bandless: list
-
-
 def coverage(picklist, members=None):
-    """The table's bands checked against its die, as :class:`Coverage`.
+    """The picklist's bands checked against its die (``band_coverage``).
 
-    Pure over the rows it is handed, so a page can say "34 of 36 rolls
-    covered; 23 and 24 unclaimed" and a test can assert it without
-    rendering anything. A band may span rolls the die cannot produce —
-    "31-46" on a D66 — and such rolls count for nothing: the check walks
-    the die's own rolls, never the band's arithmetic. A caller that has
-    already fetched the members hands them over rather than paying for
-    the same rows twice.
+    A caller that has already fetched the members hands them over rather
+    than paying for the same rows twice; otherwise one query however long
+    the table, with each member's pickable for its label.
     """
-    from n26.library.models import Dice
+    from n26.library.models.slots import band_coverage
 
-    rolls = Dice.rolls(picklist.dice)
     if members is None:
-        # One query however long the table: a member's label falls back
-        # to its pickable's name, and every label it holds is printed.
         members = list(picklist.members.select_related("pickable"))
-    claimed = {}
-    for member in members:
-        if member.roll_low is None:
-            continue
-        for roll in rolls:
-            if member.roll_low <= roll <= member.roll_high:
-                claimed.setdefault(roll, []).append(member)
-    return Coverage(
-        total=len(rolls),
-        covered=len(claimed),
-        unclaimed=[roll for roll in rolls if roll not in claimed],
-        # In roll order, as everything about a table is read.
-        doubled=sorted((roll, who) for roll, who in claimed.items() if len(who) > 1),
-        bandless=[member for member in members if member.roll_low is None],
-    )
+    return band_coverage(picklist.dice, members)
 
 
 @staff_member_required
@@ -4981,25 +5141,13 @@ def picklist_table(request, pk):
             F("roll_low").asc(nulls_last=True), "position", "pickable__name"
         )
     )
-    said = coverage(picklist, members)
-    doubled_said = (
-        [
-            (roll, ", ".join(member.label for member in who))
-            for roll, who in said.doubled
-        ]
-        if said
-        else []
-    )
-    unclaimed_said = ", ".join(str(roll) for roll in said.unclaimed) if said else ""
     return render(
         request,
         "authoring/picklist_table.html",
         {
             "picklist": picklist,
             "members": members,
-            "coverage": said,
-            "unclaimed_said": unclaimed_said,
-            "doubled_said": doubled_said,
+            **_coverage_context(coverage(picklist, members), lambda m: m.label),
             "form": form,
         },
     )

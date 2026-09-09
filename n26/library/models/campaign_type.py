@@ -23,8 +23,16 @@ it does. A possession is built into its campaign type the moment it is
 created, and taken out again when it is deleted or archived, with no
 step for the author (``n26.library.possessions``). A holding is never
 assigned; the campaign's own record of the asset says who holds it.
+
+An **asset table** is a table of one Holding asset type's assets — the
+core rulebook's Territory Selection Table — with, on a rolled table, the
+band of rolls that lands on each entry. A gang may roll on any table it
+holds, so a table is assignable: built into its campaign type as it is
+created (``n26.library.tables``), given by a modifier, or built into a
+campaign's additions. It draws no line anywhere.
 """
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -34,6 +42,7 @@ from n26.library.models.assignable import (
     exclusive_has_no_trade_points,
 )
 from n26.library.models.base import Content
+from n26.library.models.slots import Dice, band_coverage, band_problem
 
 
 class CampaignType(Content, Assignable):
@@ -282,3 +291,240 @@ class Asset(Content, Assignable):
         from n26.library.income import income_of
 
         return income_of(self)
+
+
+class AssetTable(Content, Assignable):
+    """A table of one asset type's assets — the Territory Selection
+    Table — that a gang holds and may roll on.
+
+    A gang may roll on any table it holds. The core rulebook's table is
+    built into its campaign type the moment it is created, so every gang
+    that joins holds it, with no step for the author. A journal's table
+    is given by a modifier on the gang's House pick, so every gang of
+    that House holds it. An arbitrator opens a table to every gang in
+    one campaign by building it into that campaign's additions. A table
+    draws no line on the gang sheet or the campaign page: the roll
+    controls read which tables a gang holds.
+
+    Fields of its own: its **asset type**, which fixes the campaign type
+    it belongs to and what its entries may be, and **dice**. A table
+    with dice is rolled on, and its entries claim bands of rolls: every
+    roll the die can make lands on exactly one entry. A table without
+    dice is an ordered list, chosen from rather than rolled. Only a
+    Holding asset type has tables: every gang has its own of a
+    Possession, so there is nothing to roll for.
+    """
+
+    family = Family.CHOICE
+
+    #: A table arrives by being built in or given, never by being
+    #: acquired, so items built into one would sit in the library unread.
+    takes_built_ins = False
+
+    #: The built-in picker never offers a table. A table is built into its
+    #: campaign type by being created, and an arbitrator opens one to a
+    #: campaign from the campaign's own page, so a hand-picked table member
+    #: could only be a mistake.
+    offered_as_built_in = False
+
+    asset_type = models.ForeignKey(
+        AssetType,
+        on_delete=models.PROTECT,
+        related_name="tables",
+        verbose_name="Asset type",
+        help_text=(
+            "Which asset type this table lists. Settled when the table is "
+            "made on its campaign type's page, and never changed afterwards."
+        ),
+    )
+    dice = models.CharField(
+        max_length=8,
+        blank=True,
+        default="",
+        choices=Dice,
+        help_text=(
+            "The die this table is rolled on. Blank is an ordered list, "
+            "chosen from rather than rolled."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "asset table"
+        verbose_name_plural = "asset tables"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                "pack",
+                Lower("name"),
+                Lower("qualifier"),
+                name="asset_table_unique_per_pack",
+            ),
+            exclusive_has_no_trade_points("asset_table"),
+        ]
+
+    @property
+    def campaign_type(self):
+        """The campaign type whose asset type this table lists."""
+        return self.asset_type.campaign_type
+
+    @property
+    def may_list(self):
+        """The assets this table's entries may name: its asset type's, and
+        no others. The picker on the page that adds an entry reads this,
+        so what an author is offered and what the table accepts are one
+        statement. Archived assets are left out, as at every other surface
+        where something is newly chosen."""
+        return self.asset_type.assets.unarchived()
+
+    def clean(self):
+        super().clean()
+        if self.asset_type_id and not self.asset_type.is_holding:
+            raise ValidationError(
+                {
+                    "asset_type": (
+                        f"{self.asset_type} is a Possession asset type: every "
+                        "gang has its own, so there is nothing to roll for. A "
+                        "table lists a Holding asset type."
+                    )
+                }
+            )
+
+    def coverage(self, entries=None):
+        """Whether this table's bands claim its die (``band_coverage``).
+        A caller that has already fetched the entries hands them over
+        rather than paying for the same rows twice."""
+        if entries is None:
+            entries = list(self.entries.select_related("asset"))
+        return band_coverage(self.dice, entries)
+
+    def landing(self, roll, entries=None):
+        """The entry a roll lands on, or None where no band claims it —
+        and None for every roll on a table that is not rolled."""
+        if not self.dice:
+            return None
+        if entries is None:
+            entries = self.entries.all()
+        return next(
+            (
+                entry
+                for entry in entries
+                if entry.roll_low is not None
+                and entry.roll_low <= roll <= entry.roll_high
+            ),
+            None,
+        )
+
+    def archive(self):
+        """An archived table stops being given: its built-in memberships
+        go with it, the way deleting the table takes them. Gangs already
+        holding it keep it, as with every built-in."""
+        from n26.library.authoring import take_out_of_built_ins
+
+        take_out_of_built_ins(self)
+        super().archive()
+
+    def unarchive(self):
+        """Bringing a table back starts it being given again: the
+        memberships archiving took out come back, and the gangs that
+        joined meanwhile catch up. The mirror of ``archive``."""
+        from n26.library.tables import give_back
+
+        super().unarchive()
+        give_back(self)
+
+
+class AssetTableEntry(Content):
+    """One asset on one table, in its place — and, on a rolled table, the
+    band of rolls that lands on it.
+
+    An entry names an asset of the table's own asset type. The same
+    asset may be on several tables, and a roll that lands on an entry
+    adds one more copy of its asset to the campaign, so a table may list
+    an asset the campaign already has.
+    """
+
+    table = models.ForeignKey(
+        AssetTable, on_delete=models.CASCADE, related_name="entries"
+    )
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.PROTECT,
+        related_name="tabled",
+        help_text="The asset a roll landing here adds to the campaign.",
+    )
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text="Where it sits in the table. Ties fall back to the asset's name.",
+    )
+    #: The band of rolls that lands on this entry, both ends inclusive —
+    #: "21-26" as readily as "11", which is the band with one roll in it.
+    #: Plain integers even on a D66, where a band may span rolls that
+    #: cannot come up: a lookup only ever asks about a roll that did.
+    roll_low = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="The lowest roll that lands here, on a rolled table.",
+    )
+    roll_high = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="The highest roll that lands here. The same as the lowest for one roll.",
+    )
+
+    class Meta:
+        verbose_name = "asset table entry"
+        verbose_name_plural = "asset table entries"
+        ordering = ["table", "position", "asset__name"]
+        constraints = [
+            # A band is both ends or neither, and runs upwards.
+            models.CheckConstraint(
+                condition=models.Q(roll_low__isnull=True, roll_high__isnull=True)
+                | models.Q(
+                    roll_low__isnull=False,
+                    roll_high__isnull=False,
+                    roll_low__lte=models.F("roll_high"),
+                ),
+                name="asset_table_entry_band_is_whole",
+            ),
+        ]
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def label(self):
+        """What the table calls the entry: the asset's name."""
+        return str(self.asset)
+
+    @property
+    def band(self):
+        """The band as a table prints it: "51", "21-26", or nothing."""
+        if self.roll_low is None:
+            return ""
+        if self.roll_low == self.roll_high:
+            return str(self.roll_low)
+        return f"{self.roll_low}-{self.roll_high}"
+
+    def clean(self):
+        super().clean()
+        if problem := band_problem(self.roll_low, self.roll_high):
+            raise ValidationError({"roll_low": problem})
+        if self.roll_low is not None and self.table_id and not self.table.dice:
+            raise ValidationError(
+                {
+                    "roll_low": (
+                        f"{self.table} names no dice, so a band here would "
+                        "never be rolled. Give the table its dice first."
+                    )
+                }
+            )
+        if self.table_id and self.asset_id:
+            if self.asset.asset_type_id != self.table.asset_type_id:
+                raise ValidationError(
+                    {
+                        "asset": (
+                            f"{self.asset} is a {self.asset.asset_type}, and "
+                            f"{self.table} lists {self.table.asset_type.plural}."
+                        )
+                    }
+                )

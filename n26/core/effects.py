@@ -86,9 +86,9 @@ def kind_of(thing):
     none.
     """
     from n26.core.models import CampaignAsset
-    from n26.library.models import Hidden, Pickable, Slot
+    from n26.library.models import AssetTable, Hidden, Pickable, Slot
 
-    if isinstance(thing, (Hidden, Slot, Pickable)):
+    if isinstance(thing, (Hidden, Slot, Pickable, AssetTable)):
         return ""
     if isinstance(thing, CampaignAsset):
         # A campaign asset is named by what its campaign type calls the
@@ -588,6 +588,12 @@ class ComputedCard:
     #: it sees a written pick. Their source is the slot, so they go the
     #: moment it does.
     picks: list[Contribution] = field(default_factory=list)
+    #: Asset tables granted computedly — a journal's territory table given
+    #: to every gang of its House. Facts, not lines: nothing draws a table,
+    #: but "holds this table" is what says a gang may roll on it, and a
+    #: condition or a roll control reads a granted one exactly as it reads
+    #: a table the gang was given at joining.
+    tables: list[Contribution] = field(default_factory=list)
     #: Where skill sets and power families sit for this fighter — see
     #: ``CategoryPlacement``.
     placements: list[CategoryPlacement] = field(default_factory=list)
@@ -1285,6 +1291,9 @@ class ComputedGang:
     #: gang-scoped "has picked" condition reads, and what every member's
     #: facts inherit.
     picks: list = field(default_factory=list)
+    #: Asset tables a grant dealt onto the gang — which tables the gang may
+    #: roll on beyond the ones it was given at joining. Drawn nowhere.
+    tables: list = field(default_factory=list)
     counters: list = field(default_factory=list)
     #: Empty today — placements land on models — but present so anything
     #: reading placements (``n26.core.browse.offered_by`` shaping a gang-level
@@ -1371,6 +1380,7 @@ def compute_gang(gang_card, index):
         rules=computed.rules,
         collections=computed.collections,
         picks=computed.picks,
+        tables=computed.tables,
         counters=counter_readings(gang_card, computed),
         placements=computed.placements,
         effects=computed.stored_effects,
@@ -1590,6 +1600,7 @@ class _Facts:
             .also(
                 *(contribution.thing for contribution in computed.subtypes),
                 *(contribution.thing for contribution in computed.picks),
+                *(contribution.thing for contribution in computed.tables),
                 *guest_picks,
             )
             .counting(counter_totals(computed))
@@ -1799,7 +1810,7 @@ def _bucket(computed, target, thing):
     (``card_row`` — subtypes, skills, powers, rules, collections, and
     the ComputedCard's buckets carry the same names), granted equipment,
     or a weapon's traits."""
-    from n26.library.models import Pickable, Wargear, Weapon
+    from n26.library.models import AssetTable, Pickable, Wargear, Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
@@ -1812,6 +1823,10 @@ def _bucket(computed, target, thing):
         # A granted pick draws no line — its slot is hidden — but it is a
         # fact the next round's conditions read, so it is kept.
         return computed, "picks"
+    if isinstance(thing, AssetTable):
+        # Likewise a granted table: no line, but holding it is what says
+        # the gang may roll on it.
+        return computed, "tables"
     return None, None
 
 

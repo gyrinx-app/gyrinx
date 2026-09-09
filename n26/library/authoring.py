@@ -221,20 +221,143 @@ def create_asset(
     return asset
 
 
-def take_out_of_built_ins(asset):
-    """Stop every campaign type giving this asset: its live built-in
-    memberships go, the way ``remove_default_member`` takes any member
-    off — archived where a gang has already been given one, deleted
-    where none has. Gangs already holding the asset keep it.
+def take_out_of_built_ins(thing):
+    """Stop every campaign type giving this asset or asset table: its live
+    built-in memberships go, the way ``remove_default_member`` takes any
+    member off — archived where a gang has already been given one, deleted
+    where none has. Gangs already holding it keep it.
 
-    Called when a possession is deleted or archived, so an asset that
-    is gone stops arriving on gangs that join afterwards. A holding is
-    never built in, so this finds nothing for one.
+    Called when a possession or a table is deleted or archived, so a
+    thing that is gone stops arriving on gangs that join afterwards. A
+    holding is never built in, so this finds nothing for one.
     """
     from n26.library.models import DefaultAssignment
 
-    for member in DefaultAssignment.objects.filter(asset=asset, archived=False):
+    members = DefaultAssignment.objects.filter(
+        **_default_member_kwarg(thing), archived=False
+    )
+    for member in members:
         remove_default_member(member)
+
+
+def _default_member_kwarg(thing):
+    """The ``DefaultAssignment`` column a built-in naming ``thing`` fills."""
+    from n26.library.models import DefaultAssignment
+
+    for name in DefaultAssignment.ASSIGNABLE_FIELDS:
+        if DefaultAssignment._meta.get_field(name).related_model is type(thing):
+            return {name: thing}
+    raise ValueError(f"A {type(thing).__name__} is never built in")
+
+
+def create_asset_table(
+    name,
+    asset_type,
+    dice="",
+    qualifier="",
+    library_author_help="",
+    given_by=None,
+    **kwargs,
+):
+    """One table of one Holding asset type's assets — the Territory
+    Selection Table. Its entries are added afterwards with
+    ``add_asset_table_entry``.
+
+    A table is one of its campaign type's, so it lands in that type's
+    pack unless told otherwise. ``dice`` names the die the table is rolled
+    on; blank makes an ordered list that is chosen from rather than
+    rolled. Refused in words for a Possession asset type: every gang has
+    its own of those, so there is nothing to roll for.
+
+    A table is built into a campaign type here, so every gang that joins
+    holds it with no further step (``n26.library.tables``). ``given_by``
+    names that type; without it, the asset type's own campaign type gives
+    the table. A campaign writing a table into its own pack under a shared
+    asset type names its additions type, because the giver has to be in
+    the table's pack — a shared type giving one campaign's table would
+    hand it to every campaign founded on it.
+    """
+    from n26.library.models import AssetTable
+
+    if "pack" not in kwargs and "pack_id" not in kwargs:
+        kwargs["pack_id"] = asset_type.pack_id
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("A table needs a name.")
+    if not asset_type.is_holding:
+        raise ValidationError(
+            f"{asset_type} is a Possession asset type: every gang has its own, "
+            "so there is nothing to roll for. A table lists a Holding asset type."
+        )
+    giver = given_by if given_by is not None else asset_type.campaign_type
+    pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
+    # Settled before anything is written, so a refused table leaves no
+    # row behind.
+    if giver.pack_id != pack_id:
+        raise ValueError(
+            f"{name} would be in a different pack from {giver}. The campaign "
+            "type that gives a table to every gang has to be in the table's "
+            "own pack."
+        )
+    table = AssetTable.objects.create(
+        name=name,
+        asset_type=asset_type,
+        dice=dice or "",
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **kwargs,
+    )
+    add_built_in(giver, table, pack=table.pack)
+    return table
+
+
+def add_asset_table_entry(
+    table, asset, position=None, roll_low=None, roll_high=None, **kwargs
+):
+    """One more asset on a table, at the end unless placed.
+
+    Refused where the asset is of another asset type: a table lists one
+    asset type's assets and a roll on it has to add one of those. On a
+    rolled table, ``roll_low`` and ``roll_high`` are the band of rolls
+    that lands here — give both, or give ``roll_low`` alone for a band of
+    one roll.
+    """
+    from n26.library.models import AssetTableEntry
+    from n26.library.models.slots import band_problem
+
+    if asset.asset_type_id != table.asset_type_id:
+        raise ValidationError(
+            f"{asset} is a {asset.asset_type}, and {table} lists "
+            f"{table.asset_type.plural}."
+        )
+    if roll_low is not None and not table.dice:
+        raise ValidationError(
+            f"{table} names no dice, so a band here would never be rolled. "
+            "Give the table its dice first."
+        )
+    if position is None:
+        position = table.entries.count()
+    if roll_low is not None and roll_high is None:
+        roll_high = roll_low
+    if problem := band_problem(roll_low, roll_high):
+        raise ValidationError(problem)
+    if "pack" not in kwargs and "pack_id" not in kwargs:
+        kwargs["pack_id"] = table.pack_id
+    return AssetTableEntry.objects.create(
+        table=table,
+        asset=asset,
+        position=position,
+        roll_low=roll_low,
+        roll_high=roll_high,
+        **kwargs,
+    )
+
+
+def remove_asset_table_entry(entry):
+    """Take one asset off one table. The asset itself stays in the
+    library and on every other table that lists it; a campaign that
+    already rolled it keeps what it rolled."""
+    entry.delete()
 
 
 def set_income(asset, amount):
@@ -1625,15 +1748,15 @@ def delete_content(row):
     it — they may be carried elsewhere, so they are not this row's to
     take.
 
-    An asset's built-in memberships are the one exception: nobody
-    authored them — a possession is built in by being created — so they
-    go with the asset rather than standing in its way. Where a gang has
-    already been given one, its assignment still protects the asset and
-    the refusal stands.
+    An asset's or a table's built-in memberships are the one exception:
+    nobody authored them — a possession or a table is built in by being
+    created — so they go with the row rather than standing in its way.
+    Where a gang has already been given one, its assignment still
+    protects the row and the refusal stands.
     """
-    from n26.library.models import Asset
+    from n26.library.models import Asset, AssetTable
 
-    if isinstance(row, Asset):
+    if isinstance(row, (Asset, AssetTable)):
         take_out_of_built_ins(row)
     row.delete()
 
@@ -2148,6 +2271,7 @@ def op_sets_status(status):
 
 def _assignable_kwarg(thing):
     from n26.library.models import (
+        AssetTable,
         Collection,
         Hidden,
         Power,
@@ -2171,6 +2295,7 @@ def _assignable_kwarg(thing):
         (Wargear, "wargear"),
         (Hidden, "hidden"),
         (Slot, "slot"),
+        (AssetTable, "asset_table"),
     )
     for model, name in kinds:
         if isinstance(thing, model):

@@ -304,16 +304,21 @@ def _gained(thing):
         return f"access to {thing}"
     if kind in ("weapon", "wargear"):
         return f"{thing}, free"
+    if kind == "assettable":
+        # "the Territory Selection Table", not "the … Table table".
+        said = str(thing)
+        return f"the {said}" if said.lower().endswith("table") else f"the {said} table"
     return str(thing)
 
 
-#: What the gang's copy of a grant amounts to. Only three kinds can land
-#: there — a named rule, a list, and a hidden carrier — and each means
+#: What the gang's copy of a grant amounts to. Only a few kinds can land
+#: there — a named rule, a list, a hidden carrier, a table — and each means
 #: something different by arriving.
 _ON_THE_GANG = {
     "rule": "printed on the gang page",
     "collection": "and every member may buy from it",
     "hidden": "which draws no line of its own",
+    "assettable": "and may roll on it",
 }
 
 _GANG_REACH = (

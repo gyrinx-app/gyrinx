@@ -336,6 +336,13 @@ urlpatterns = [
         authoring_views.picklist_member_remove,
         name="authoring-picklist-member-remove",
     ),
+    # An entry belongs to its table the way a picklist member belongs to
+    # its list, so taking it off has an address here.
+    path(
+        "authoring/asset-table-entries/<str:pk>/remove/",
+        authoring_views.asset_table_entry_remove,
+        name="authoring-asset-table-entry-remove",
+    ),
     # An asset type belongs to its campaign type and is edited on that
     # type's page; taking it off is the one act that needs an address.
     path(
