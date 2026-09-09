@@ -890,7 +890,7 @@ def reassign_assignment(request, pk):
     (or whatever stash) was holding that gun.
 
     What may not be moved at all is ``Operation.move``'s answer rather
-    than this view's: a weapon's firing line is part of its weapon, and
+    than this view's: a weapon's profile is part of its weapon, and
     the operation says so in a sentence this shows.
     """
     from n26.analytics import EventVerb, N26Noun, record
@@ -907,7 +907,7 @@ def reassign_assignment(request, pk):
     touched = _row_behind(assignment)
     name = str(assignment.assignable)
 
-    # Why a firing line or a sight the gun came with cannot leave the
+    # Why a weapon profile or a sight the gun came with cannot leave the
     # weapon. Said whichever destination the click named: the rule is
     # about the part, not about where it was going.
     stays_on = (
@@ -917,7 +917,7 @@ def reassign_assignment(request, pk):
     # anywhere — the stash, another model, another gun — would leave the
     # gang holding something the sale of this gun is meant to take with
     # it. The operation does not refuse this itself, so the view does,
-    # whichever destination was named. A firing line is left to the
+    # whichever destination was named. A weapon profile is left to the
     # operation, which refuses it in its own words.
     if (
         assignment.parent_id is not None
@@ -933,7 +933,7 @@ def reassign_assignment(request, pk):
     elif wanted == "held":
         # Same host, unfitted. A sight on a fighter's gun stays with
         # that fighter; one on a stashed gun stays in the stash. Something
-        # already loose has nothing to come off; a firing line cannot.
+        # already loose has nothing to come off; a weapon profile cannot.
         if assignment.parent_id is None:
             destination = None
         elif not can_unbolt(assignment):

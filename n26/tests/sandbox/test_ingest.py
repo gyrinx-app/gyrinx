@@ -135,7 +135,7 @@ SIGHT = catalogue_key(
 SUSPENSORS = catalogue_key(
     "WeaponAccessory", "Suspensors", category="Weapon accessories", section=GEAR
 )
-# Typed Wargear on the sheet, but it has a firing line — so a weapon.
+# Typed Wargear on the sheet, but it has a profile — so a weapon.
 FRAG_GRENADES = catalogue_key(
     "Weapon", "Frag grenades", category="Grenades", section=GEAR
 )
@@ -244,7 +244,7 @@ class TestPlanning:
     def test_a_grenade_is_a_weapon_that_takes_no_slot(self, plan):
         """The sheet types grenades Wargear for one reason: they do not
         count against the weapons a fighter holds. But a thing with a
-        firing line is a weapon, so it arrives as one — and slots 0
+        profile is a weapon, so it arrives as one — and slots 0
         carries the fact the typing was standing in for."""
         grenade = plan.get(FRAG_GRENADES)
         assert grenade.kind == "Weapon"
@@ -287,7 +287,7 @@ class TestPlanning:
         ]
 
     def test_ordinary_wargear_stays_wargear(self, plan):
-        # Only a firing line makes the difference — a respirator has none.
+        # Only a profile makes the difference — a respirator has none.
         assert plan.get(RESPIRATOR).kind == "Wargear"
         assert plan.get(PHELYNX).kind == "Wargear"
 
@@ -404,7 +404,7 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
         restriction = plan.get(f"Restriction:{entry.key}")
         assert restriction.fields["allows"] == "Profile:way-brethren"
 
-        # A listing that names a Profile sells one firing line of a gun.
+        # A listing that names a Profile sells one profile of a gun.
         assert plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
 
     def test_an_entry_overrides_only_where_it_disagrees(self, plan):
@@ -456,7 +456,7 @@ class TestPreview:
             example["source"]["sheet"]: example for example in preview["examples"]
         }
         # The catalogue row makes the weapon; the statline row makes its
-        # firing line and the traits on it. Two sheets, two halves.
+        # profile and the traits on it. Two sheets, two halves.
         equipment_example = by_sheet["equipment"]
         assert equipment_example["row"]["Name"] == "Autogun"
         assert ("Weapon", "Autogun") in {
@@ -524,7 +524,7 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
         assert CollectionEntry.objects.count() == 0
 
     def test_a_priced_own_line_is_refused(self, foundation):
-        # A weapon's own firing line is bought with the weapon, so it
+        # A weapon's own profile is bought with the weapon, so it
         # cannot carry a price of its own. A catalogue row typed
         # "Weapon Profile" that names no profile is asking for exactly
         # that, and is sent back rather than guessed at.
@@ -1089,7 +1089,7 @@ class TestSpottingWhatChanged:
             "to": "Wargear: Pets",
         }
 
-    def test_a_rewritten_firing_line_changes_its_traits_and_its_stats(self, imported):
+    def test_a_rewritten_profile_changes_its_traits_and_its_stats(self, imported):
         plan = plan_ingest(
             **{
                 **imported,
@@ -1297,7 +1297,7 @@ class TestApplyingWhatChanged:
         assert set(result.updated) == {FRAG_GRENADES}
         assert Weapon.objects.get(name="Frag grenades").price == 35
 
-    def test_a_rewritten_firing_line_lands_traits_and_stats(self, imported):
+    def test_a_rewritten_profile_lands_traits_and_stats(self, imported):
         plan = plan_ingest(
             **{
                 **imported,
@@ -1369,6 +1369,49 @@ class TestApplyingWhatChanged:
         perform(plan)
         autogun = Weapon.objects.get(name="Autogun")
         assert [p.name for p in autogun.usable_by_profiles.all()] == ["Way-Brethren"]
+
+    def test_a_restriction_on_a_named_profile_lands_on_that_profile(self, imported):
+        """The launcher is open to everyone; one of its rounds is not.
+        "Autogun (warp round) — Sumpkroc only" restricts the round, and
+        the gun's own lists stay empty."""
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment_lists": edited(
+                    EQUIPMENT_LISTS_CSV,
+                    "Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,",
+                    "Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,"
+                    "Sumpkroc only,",
+                ),
+            }
+        )
+        assert not [p for p in plan.problems if p.severity == "error"]
+        perform(plan)
+
+        autogun = Weapon.objects.get(name="Autogun")
+        warp_round = autogun.profiles.get(name="warp round")
+        assert [p.name for p in warp_round.usable_by_profiles.all()] == ["Sumpkroc"]
+        assert autogun.usable_by_words() == ""
+
+    def test_a_restricted_profile_previews_again_as_unchanged(self, imported):
+        """The preview re-plans on every visit. Once the round carries
+        its restriction, planning the same sheet again finds it there
+        rather than failing to ask a profile who may use it."""
+        sheets = {
+            **imported,
+            "equipment_lists": edited(
+                EQUIPMENT_LISTS_CSV,
+                "Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,",
+                "Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,"
+                "Sumpkroc only,",
+            ),
+        }
+        perform(plan_ingest(**sheets))
+
+        plan = plan_ingest(**sheets)
+
+        entry = plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
+        assert plan.get(f"Restriction:{entry.key}").action == "unchanged"
 
     def test_a_skill_set_moved_between_tiers_is_in_one_tier_afterwards(self, imported):
         """The live wrong-card case. Added to without retracting, the
@@ -1757,7 +1800,7 @@ Equipment List,Cawdor,Close combat weapons,Exo weapons,Power fist,,105,,x
         assert resolved.fields["qualifier"] == "Exo weapons"
         assert resolved.fields["price"] == 105
 
-    def test_a_firing_line_brings_its_weapon_with_it(self, foundation, sheets):
+    def test_a_profile_brings_its_weapon_with_it(self, foundation, sheets):
         """An entry asks a profile which weapon it hangs on, to know
         whether it is already listed — so resolution has to say."""
         perform(plan_ingest(pack=None, **sheets))

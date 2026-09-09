@@ -513,7 +513,7 @@ class TestTheLibraryTab:
         assert sorted(drawn[""]) == ["Knife", "Sword"]
 
     def test_a_guns_paid_rounds_ride_under_it(self, client, tester, gang, library):
-        """A firing line names one particular weapon and is bought onto it,
+        """A profile names one particular weapon and is bought onto it,
         so it is drawn under the gun rather than as a row of its own."""
         client.force_login(tester)
         catalogue = client.get(equip_url(gang, scope="all")).context["catalogue"]

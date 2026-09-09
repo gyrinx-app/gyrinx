@@ -30,7 +30,7 @@ live in one step. Corrections to live content stay immediate.
 ## What you can stage
 
 Anything a player is offered somewhere: gang types, campaign types,
-fighters, weapons and their firing lines, wargear, weapon accessories,
+fighters, weapons and their profiles, wargear, weapon accessories,
 skills, powers, subtypes, special rules, pickables, and campaign assets.
 
 The lines of a list count too. An equipment list is made of entries — a

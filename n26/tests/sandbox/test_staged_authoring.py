@@ -136,9 +136,9 @@ class TestARowsOwnPage:
         assert 'value="stage"' not in body
 
 
-class TestAFiringLinesOwnPages:
-    """A firing line is added and corrected on pages of its own, so the
-    switch and the buttons are there too."""
+class TestAWeaponProfilesOwnPages:
+    """A weapon profile is added and corrected on pages of its own, so
+    the switch and the buttons are there too."""
 
     @pytest.fixture
     def lasgun(self, default_pack):

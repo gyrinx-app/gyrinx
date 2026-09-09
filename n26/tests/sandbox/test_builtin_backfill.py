@@ -520,7 +520,7 @@ class TestTheConsoleDoor:
         assert response.status_code == 200
         assert "1 gang would be walked" in page
         assert "2 grants still without provenance" in page
-        assert "a weapon's own firing lines — left alone" in page
+        assert "a weapon's own profiles — left alone" in page
         assert not Backfill.objects.exists()
         assert legacy_grants(gang).count() == 2
         settled(gang)

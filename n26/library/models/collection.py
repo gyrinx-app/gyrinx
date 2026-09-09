@@ -133,8 +133,8 @@ def paid_profiles(with_trade_point_price=False, *, include_staged=False):
     """A weapon's named, paid profiles — the lines a listing prints under
     the gun.
 
-    Named, because a blank profile is the weapon's own firing line rather
-    than an alternative to it. Paid, because a free profile already rides
+    Named, because a blank profile is the weapon's own rather than an
+    alternative to it. Paid, because a free profile already rides
     along with the weapon wherever it goes: listing one would put the
     same ammo on the gun twice.
 
@@ -148,7 +148,14 @@ def paid_profiles(with_trade_point_price=False, *, include_staged=False):
     """
     from n26.library.models.assignable import WeaponProfile
 
-    found = WeaponProfile.objects.filter(price__gt=0).exclude(name="").unarchived()
+    # With their use lists, so noting a round under a gun costs no query
+    # per round — the same prefetch every other listed kind gets.
+    found = (
+        WeaponProfile.objects.filter(price__gt=0)
+        .exclude(name="")
+        .unarchived()
+        .prefetch_related(*USABLE_BY_LISTS)
+    )
     if with_trade_point_price:
         found = found.filter(trade_point_price__isnull=False)
     if not include_staged:

@@ -109,8 +109,8 @@ class TestTheStoryReadsPlainly:
         assert {sub.name for sub in act.subs} == {"Loner", "Grit"}
         assert not any("removed Loner" in line for line in sentences(gang))
 
-    def test_a_paid_firing_line_leaves_in_the_story_too(self, gang, vex):
-        """A free firing line is the weapon's own and never a line; a
+    def test_a_paid_profile_leaves_in_the_story_too(self, gang, vex):
+        """A free profile is the weapon's own and never a line; a
         bought one is money in the books, so it is named when it goes."""
         from n26.library.authoring import add_weapon_profile
         from n26.tests.sandbox.actions import buy_weapon_profile, sell
@@ -133,7 +133,7 @@ class TestTheStoryReadsPlainly:
         act = act_saying(gang, "created the gang")
         assert {sub.name for sub in act.subs} == {"Law of the Blade"}
 
-    def test_a_weapons_own_firing_line_earns_no_line(self, gang, vex):
+    def test_a_weapons_own_profile_earns_no_line(self, gang, vex):
         weapon = create_weapon("Autogun", profiles=[("Rapid fire", 0)], price=30)
         with edit(gang) as op:
             op.assign(weapon, miniature=vex, paid=30)

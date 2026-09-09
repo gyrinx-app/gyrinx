@@ -7,8 +7,9 @@ weapon-targeting scope narrows by category as well as by trait, and by
 both at once when a rule wants the weapons that satisfy each.
 
 The category lives on the weapon, while what a modifier reaches is a
-weapon's firing lines. A line has no home of its own and takes its gun's,
-which is what lets "all Las weapons" mean every line of every Las weapon.
+weapon's profiles. A profile has no home of its own and takes its gun's,
+which is what lets "all Las weapons" mean every profile of every Las
+weapon.
 Both halves of the selector say so: the tests here pin the matching, and
 a sweep of the same category pins the query.
 """
@@ -88,7 +89,7 @@ def solid_projectile(default_pack):
 
 @pytest.fixture
 def make_gun(weapon_statline_type):
-    """A gun with one firing line, homed where the book files it."""
+    """A gun with one profile, homed where the book files it."""
 
     def _make(name, category, armour_piercing=-1, profiles=(("", 0),), traits=()):
         weapon = create_weapon(name, profiles=profiles, category=category)

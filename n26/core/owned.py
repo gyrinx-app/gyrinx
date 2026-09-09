@@ -88,10 +88,10 @@ def is_possession(thing):
 def is_detachable(thing):
     """Can this be taken off whatever it hangs from and fitted elsewhere?
 
-    A weapon's firing line cannot. It names one particular weapon and
-    *is* that weapon's line — unbolt it and there is nothing left to put
-    anywhere, which is why a gun's ammo offers no move. A sight is the
-    other case: it is gear in its own right that happens to be bolted
+    A weapon's profile cannot. It names one particular weapon and
+    *is* that weapon's own profile — unbolt it and there is nothing left
+    to put anywhere, which is why a gun's ammo offers no move. A sight
+    is the other case: it is gear in its own right that happens to be bolted
     on, so it can go into the stash when the gun is sold and come back
     out onto a different gun later.
 
@@ -108,7 +108,7 @@ def can_unbolt(assignment):
     """Can this copy come off what it hangs from and stay with the gang?
 
     :func:`is_detachable` is about the *kind* of thing: a sight can, a
-    firing line cannot. This is about *this copy*. A sight the gun came
+    weapon profile cannot. This is about *this copy*. A sight the gun came
     with belongs to the package — what caused it goes, so it goes — and
     offering to take one off would be offering something the sale of the
     gun takes straight back. ``Operation.move`` refuses only the kind;
@@ -135,10 +135,10 @@ def thing_key(thing):
 class OwnedPart:
     """Something hanging off a thing the model owns: ammo, an accessory.
 
-    A firing line stays put: it *is* the weapon's line. An accessory the
-    gang bought can come off — kept held, or fitted to another gun —
-    which is why those two addresses are here and empty for everything
-    that cannot.
+    A weapon profile stays put: it *is* the weapon's own profile. An
+    accessory the gang bought can come off — kept held, or fitted to
+    another gun — which is why those two addresses are here and empty
+    for everything that cannot.
     """
 
     id: str
@@ -156,7 +156,7 @@ class OwnedPart:
     #: is what says whether the act is worth offering there.
     paid_trade_points: bool = False
     #: Where to go to take this off and leave the fighter holding it.
-    #: Empty for a firing line, and for a sight the gun came with.
+    #: Empty for a weapon profile, and for a sight the gun came with.
     detach_href: str = ""
     #: Where to go to bolt this onto a different gun this fighter is
     #: carrying. Empty unless there is another gun to name.
@@ -294,7 +294,7 @@ def weapons_on(host: EquipHost):
     """The guns this host is carrying — everywhere an accessory could go.
 
     A root the host holds in its own right, rather than anything nested
-    under one: a weapon's own firing line is the weapon, and a gun bolted
+    under one: a weapon's own profile is the weapon, and a gun bolted
     to a mount belongs to whatever is holding it. The accessory question
     is asked of exactly this set, so the two directions agree about what
     counts as a gun on this card.

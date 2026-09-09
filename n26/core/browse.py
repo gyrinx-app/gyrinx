@@ -403,10 +403,10 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False, include_staged=
     ``Collection.containing`` asks it, so a new sort of gear appears here
     the day it exists.
 
-    Firing lines are not among them. A profile names one particular
-    weapon and is bought onto it, so each gun's paid lines ride under it
-    as parts — the shape a trading post's sweep prints — and a line with
-    no gun above it would be a purchase with nowhere to land.
+    Weapon profiles are not among them. A profile names one particular
+    weapon and is bought onto it, so each gun's paid profiles ride under
+    it as parts — the shape a trading post's sweep prints — and a profile
+    with no gun above it would be a purchase with nowhere to land.
 
     What a discovery surface offers: the standard pack's content,
     unarchived and live, the same question a picker asks — with
@@ -732,30 +732,33 @@ def with_use_notes(view, fighter):
     """
     import dataclasses
 
+    def noted_line(line):
+        found = [
+            note
+            for note in (
+                _use_note(line.thing, fighter, line.thing, "usable by"),
+                _use_note(
+                    line.entry,
+                    fighter,
+                    line.thing,
+                    "this list offers it to",
+                ),
+            )
+            if note is not None
+        ]
+        # The rounds under a gun are lines too, each with a restriction
+        # of its own — "krak grenades (Stimmer only)" under a launcher
+        # anyone may carry — so each is asked the same two questions.
+        parts = tuple(noted_line(part) for part in line.parts)
+        if not found and parts == line.parts:
+            return line
+        return dataclasses.replace(line, notes=(*line.notes, *found), parts=parts)
+
     noted = CollectionView(name=view.name)
     for section in view.sections:
         regrouped = SectionGroup(name=section.name)
         for category in section.categories:
-            lines = []
-            for line in category.lines:
-                found = [
-                    note
-                    for note in (
-                        _use_note(line.thing, fighter, line.thing, "usable by"),
-                        _use_note(
-                            line.entry,
-                            fighter,
-                            line.thing,
-                            "this list offers it to",
-                        ),
-                    )
-                    if note is not None
-                ]
-                lines.append(
-                    dataclasses.replace(line, notes=(*line.notes, *found))
-                    if found
-                    else line
-                )
+            lines = [noted_line(line) for line in category.lines]
             regrouped.categories.append(CategoryGroup(name=category.name, lines=lines))
         noted.sections.append(regrouped)
     return noted

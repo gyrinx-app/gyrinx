@@ -225,10 +225,10 @@ class HomedIn:
     family narrowing will reuse — "a Psychoteric Whispers power" is
     ``All(OfKind(Power), HomedIn(whispers))``.
 
-    **A weapon's firing line is the one thing with no home of its own.**
-    It is a line of a gun rather than an item that sorts anywhere, so it
-    takes its gun's category: "all Las weapons" reaches every profile of
-    every Las weapon. Both halves of the leaf say that — in memory by
+    **A weapon's profile is the one thing with no home of its own.**
+    It is a profile of a gun rather than an item that sorts anywhere, so
+    it takes its gun's category: "all Las weapons" reaches every profile
+    of every Las weapon. Both halves of the leaf say that — in memory by
     reading the gun, in SQL by filtering across to it — because a filter
     that found a profile the matching listing did not show would be two
     answers to one question.
@@ -256,7 +256,7 @@ class HomedIn:
 
 @dataclass(frozen=True)
 class LineOf:
-    """The target is a firing line of this weapon.
+    """The target is a profile of this weapon.
 
     Naming a gun, where ``Has`` names something a gun carries and
     ``HomedIn`` names where guns of its sort file. A weapon-scoped

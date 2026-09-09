@@ -62,10 +62,10 @@ Three standing rules are load-bearing here:
 
 * **Equipment** — the catalogue. One row per thing a gang can buy,
   typed by an ``Assignable`` column (a weapon, wargear, or one of a
-  weapon's priced firing lines), carrying its category and its price.
+  weapon's priced profiles), carrying its category and its price.
   The only place a reference price lives.
 * **Weapon profiles** — the statlines, and nothing else. A blank
-  ``Profile`` is the weapon's own firing line; a named one is an ammo
+  ``Profile`` is the weapon's own profile; a named one is an ammo
   type or a mode.
 * **Equipment lists** — a named collection per ``Title``, one entry per
   line, at this list's price where it differs from the catalogue's.
@@ -633,7 +633,7 @@ def plan_ingest(
     from n26.library.models import get_default_pack
 
     plan = IngestPlan(pack or get_default_pack())
-    # The catalogue pass needs to know which things have a firing line,
+    # The catalogue pass needs to know which things have a profile,
     # because that is what decides whether a "Wargear" row is really a
     # weapon (see _plan_equipment). The statlines themselves are planned
     # after, once there is something for them to hang on.
@@ -720,12 +720,12 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
 
     One row per thing a gang can buy, typed by its ``Assignable``
     column — a weapon, a piece of wargear, or one of a weapon's priced
-    firing lines. Statlines arrive on the weapon profiles sheet; this
+    profiles. Statlines arrive on the weapon profiles sheet; this
     pass fixes identity, home and price.
 
     **Grenades.** The sheet types them Wargear, and the game calls them
     that for one reason: they do not count against the weapons a fighter
-    is holding. But a thing with a firing line is a weapon — it has a
+    is holding. But a thing with a profile is a weapon — it has a
     range, a strength, traits — so a Wargear row that ``statlined``
     knows becomes a Weapon taking **no slots**, which is precisely the
     fact "wargear" was standing in for. Its category is untouched, so it
@@ -794,8 +794,8 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
         )
 
         if kind == "WeaponProfile":
-            # This sheet prices a firing line; the statline sheet is what
-            # says the line exists at all. Hold the price for that pass.
+            # This sheet prices a profile; the statline sheet is what
+            # says the profile exists at all. Hold the price for that pass.
             if not ident.profile:
                 plan.problem(
                     source,
@@ -809,7 +809,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
         category = _plan_category(plan, ident.section, ident.category, source)
 
         # A grenade: typed Wargear because it does not count against the
-        # weapons held, but it has a firing line, so it is a weapon that
+        # weapons held, but it has a profile, so it is a weapon that
         # takes no slots. Slots carry the fact the typing was standing in
         # for; the category is left alone, so it still homes as Wargear.
         holds_no_slot = kind == "Wargear" and ident.key in statlined
@@ -861,11 +861,11 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
 def _plan_weapon_profiles(plan, rows, prices):
     """The weapon profiles sheet: the statlines, and nothing else.
 
-    A row with a blank ``Profile`` is the weapon's own firing line — the
+    A row with a blank ``Profile`` is the weapon's own profile — the
     card prints it as the weapon itself, so it is stored unnamed, free
-    and first. A named row is a further line: an ammo type or a firing
-    mode, costing whatever the equipment sheet priced it at, and free
-    when that sheet does not list it.
+    and first. A named row is a further profile: an ammo type or a
+    firing mode, costing whatever the equipment sheet priced it at, and
+    free when that sheet does not list it.
 
     Resolve, never create: a statline whose weapon the catalogue does
     not define is a problem, not a new weapon.
@@ -1445,7 +1445,7 @@ def _override(item, list_price):
 def _resolve_by_id(plan, ident):
     """The catalogue row an ID names: planned, or already in the pack.
 
-    A listing that carries a ``Profile`` is offering one firing line of a
+    A listing that carries a ``Profile`` is offering one profile of a
     weapon — a grenade type, an ammo — which is its own listable thing;
     everything else is named directly.
 
@@ -1512,9 +1512,9 @@ def _plan_existing(plan, kind, found, ident):
     """A row the pack already holds, as a planned "exists" line.
 
     It carries what anything reading the plan will ask of it — the
-    qualifier that tells two same-named rows apart, and for a firing
-    line the weapon it hangs on, which is how an entry knows whether it
-    is already listed. A key left off here surfaces much later as a
+    qualifier that tells two same-named rows apart, and for a weapon
+    profile the weapon it hangs on, which is how an entry knows whether
+    it is already listed. A key left off here surfaces much later as a
     missing lookup on somebody else's line.
     """
     fields = {
@@ -1697,7 +1697,7 @@ SHEET_FIELDS = {
             "stats",
             "traits",
         ),
-        # A firing line has no qualifier of its own — its weapon tells
+        # A profile has no qualifier of its own — its weapon tells
         # it apart from the other weapon of the same name.
         ignored=("unpriced", "qualifier"),
     ),
@@ -1780,9 +1780,9 @@ def find_existing(planned, pack, resolve):
     measured against one row and written onto another.
 
     ``resolve`` answers a plan key with the row it names, or ``None``
-    where nothing holds it yet. Some identities need it: a firing
-    line's is the weapon it hangs on, an entry's is its collection and
-    the thing listed. Matching those by name instead would take
+    where nothing holds it yet. Some identities need it: a weapon
+    profile's is the weapon it hangs on, an entry's is its collection
+    and the thing listed. Matching those by name instead would take
     whichever row came first, and one printed name can belong to two
     weapons.
     """
@@ -2018,8 +2018,7 @@ def _note_restrictions_the_sheet_no_longer_names(plan, found):
 
     for item_key, named in wanted.items():
         item = found.get(item_key)
-        # Not everything listable can be narrowed: a firing line is
-        # bought through the weapon, which is where the restriction is.
+        # Only a kind that carries the use lists can have been narrowed.
         if not isinstance(item, UsableBy):
             continue
         stored = list(item.usable_by_profiles.all())

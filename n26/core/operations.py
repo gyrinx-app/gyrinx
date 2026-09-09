@@ -108,10 +108,11 @@ def detachable_children(assignment):
     into the stash first and fitted to another gun later, and the seller
     is asked which they meant.
 
-    Two sorts of child are never on offer. A firing line is the weapon's
-    own (:func:`n26.core.owned.is_detachable`). And anything the weapon
-    *brought* — a sight that came with it as standard — belongs to the
-    package rather than to the gang: what caused it goes, so it goes.
+    Two sorts of child are never on offer. A weapon profile is the
+    weapon's own (:func:`n26.core.owned.is_detachable`). And anything
+    the weapon *brought* — a sight that came with it as standard —
+    belongs to the package rather than to the gang: what caused it goes,
+    so it goes.
     """
     from n26.core.owned import can_unbolt
 
@@ -1771,11 +1772,11 @@ class Operation:
     def _ammo_rows_without_provenance(self, carrier, default_set, tagged):
         """The set's ammo grants among lines with no provenance recorded.
 
-        A granted firing line is written in the same shape as a weapon's
-        own free lines, so it is the one kind of grant never tagged with
+        A granted profile is written in the same shape as a weapon's own
+        free profiles, so it is the one kind of grant never tagged with
         provenance and the one kind still read by shape: the newest live
-        line on the host, caused by a gun, as many as the set granted and
-        provenance has not already accounted for. Every other kind
+        profile on the host, caused by a gun, as many as the set granted
+        and provenance has not already accounted for. Every other kind
         answers by provenance alone — an untagged copy of anything else
         is the owner's own business and is never seized.
 
@@ -2554,7 +2555,7 @@ class Operation:
         move with it.
 
         What cannot be re-homed is a part that *is* what it hangs off
-        (:func:`n26.core.owned.is_detachable`) — a weapon's firing line
+        (:func:`n26.core.owned.is_detachable`) — a weapon's profile
         names one gun and is nothing away from it.
         """
         from n26.core.models import Assignment, LedgerEvent, Miniature, Stash

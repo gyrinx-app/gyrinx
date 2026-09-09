@@ -1163,7 +1163,7 @@ GROUPS: list[Group] = [
                     "The inside of an equip row for something the fighter "
                     "already has, drawn the way a card draws the same lines — "
                     "the thing, what it contributed, its parts indented under "
-                    "it. The weapon's own firing line is not among them: it "
+                    "it. The weapon's own profile is not among them: it "
                     "*is* the weapon. Which act is red comes from the structure "
                     "rather than from this component, so an act added there "
                     "appears here in the right colour with nothing edited. A "

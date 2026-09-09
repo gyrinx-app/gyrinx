@@ -4,7 +4,7 @@ Reads the ledger's events and turns them into something a player can
 read: one act per line, in their own words — hired, bought, renamed,
 took away, put back. The machinery underneath stays underneath: nothing
 here says "assignment" or "batch", a bookkeeping row a player never saw
-is never shown, and a weapon's own firing line folds into the weapon
+is never shown, and a weapon's own profile folds into the weapon
 rather than earning a line of its own.
 
 Structures before renderers: the view gets a flat list of acts as plain
@@ -535,10 +535,10 @@ def _machinery(e, row):
     """True for records a player never saw a thing for.
 
     A bookkeeping carrier has no name a player recognises; a weapon's
-    own firing line folds into the weapon wordlessly. A *paid* firing
-    line is the exception in every event it has — bought in the story,
-    it must also leave in it — so the test is what its record says was
-    ever priced, not what this one event moved.
+    own profile folds into the weapon wordlessly. A *paid* profile is
+    the exception in every event it has — bought in the story, it must
+    also leave in it — so the test is what its record says was ever
+    priced, not what this one event moved.
 
     A hidden slot asks nothing and draws nothing, and the pick that
     settles it is a classification, never a choice the player saw — the

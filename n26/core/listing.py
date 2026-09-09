@@ -195,8 +195,8 @@ class Listing:
 class OwnedPartRow:
     """Something hanging off a copy the fighter holds: ammo, an accessory.
 
-    A firing line has no move among its actions: it *is* the weapon's
-    line, and ``Operation.move`` refuses it. An accessory the gang
+    A weapon profile has no move among its actions: it *is* the weapon's
+    own profile, and ``Operation.move`` refuses it. An accessory the gang
     bought can come off, so Detach and Fit sit with Refund and Remove
     when there is somewhere for them to go.
     """

@@ -328,7 +328,7 @@ class TestWhatACopyOffers:
         ]
 
     def test_a_part_is_offered_no_move(self, fighter, house_list, armed):
-        """A firing line belongs to the gun it names, and
+        """A weapon profile belongs to the gun it names, and
         ``Operation.move`` refuses it — so offering a move here would be
         offering a click that cannot work. It keeps the rest: buying the
         wrong ammunition is as easy a mistake as buying the wrong gun.

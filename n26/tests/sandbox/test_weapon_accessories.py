@@ -508,20 +508,20 @@ class TestFittingItToAnotherGun:
         stashed.refresh_from_db()
         assert stashed.parent == heavy
 
-    def test_a_weapons_own_firing_line_cannot_be_unbolted(
+    def test_a_weapons_own_profile_cannot_be_unbolted(
         self, gang, fighter, weapon_stats
     ):
-        """A firing line names one gun and is nothing away from it, so the
-        move is refused in a sentence rather than leaving a line
+        """A profile names one gun and is nothing away from it, so the
+        move is refused in a sentence rather than leaving a profile
         somewhere nothing can read it."""
         from n26.core.operations import Refusal
 
         gun = give_weapon(fighter, make_gun("Lasgun", weapon_stats), paid=15)
-        firing_line = gun.children.get()
+        profile = gun.children.get()
 
         with pytest.raises(Refusal) as refused:
-            move(firing_line, gang.stash)
+            move(profile, gang.stash)
 
         assert "is part of" in str(refused.value)
-        firing_line.refresh_from_db()
-        assert firing_line.parent == gun
+        profile.refresh_from_db()
+        assert profile.parent == gun

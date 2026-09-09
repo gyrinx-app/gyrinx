@@ -155,13 +155,15 @@ Fields of its own: **profile type** (Fighter or Vehicle — a closed set; Leader
 
 ### Weapon
 
-*A weapon. Always has at least one firing line, the first of which is free.*
+*A weapon. Always has at least one profile, the first of which is free.*
 
-Fields of its own: **slots** (weapon slots used on a card; asterisked weapons take 2) and a **statline shape** (SR, LR, Str, AP, L — set once on the weapon; every firing line reads it from there).
+Fields of its own: **slots** (weapon slots used on a card; asterisked weapons take 2) and a **statline shape** (SR, LR, Str, AP, L — set once on the weapon; every profile reads it from there).
 
-A weapon's firing lines are assignables in their own right (WeaponProfile): the unnamed first line *is* the weapon, a named line is an ammo type, and buying one is an assignment hung off the weapon's assignment, so a stashed or reassigned weapon keeps its lines. Traits live on the lines, not the weapon. A weapon-level question ("has the Melee trait?") is derived from them.
+A weapon's profiles are assignables in their own right (WeaponProfile): the weapon's own profile *is* the weapon, a named profile is an ammo type, and buying one is an assignment hung off the weapon's assignment, so a stashed or reassigned weapon keeps its profiles. Traits live on the profiles, not the weapon. A weapon-level question ("has the Melee trait?") is derived from them.
 
-**Weapon accessories** — sights, suspensors, focusing crystals — are their own type. They are assigned to a *weapon* rather than a model, hang off that weapon's assignment, and their effects land on its firing lines. The book's bracket restrictions ("Las Weapons Only", "Weapons Marked With * Only") are stored as data on the accessory. They are shown at browse and attach time and block nothing.
+A named profile can restrict who may use it, separately from its weapon: "krak grenades (Stimmer only)" sits under a launcher anyone may carry. The restriction is the profile's own and holds wherever it is offered. A listing marks the profile for a fighter the restriction leaves out, and blocks nothing.
+
+**Weapon accessories** — sights, suspensors, focusing crystals — are their own type. They are assigned to a *weapon* rather than a model, hang off that weapon's assignment, and their effects land on its profiles. The book's bracket restrictions ("Las Weapons Only", "Weapons Marked With * Only") are stored as data on the accessory. They are shown at browse and attach time and block nothing.
 
 ### Wargear
 
@@ -182,7 +184,7 @@ Both print on the card under their own headings. They arrive built in, given by 
 ### Other types
 
 - **Subtype** — *a model subtype: Leader, Ganger, Specialist, Mounted, Wyrd.* No fields of its own. Prints in the card's type line, and is what scopes match on ("Champion or Leader models").
-- **Trait** — *a weapon trait: Melee, Rapid Fire (1), Knockback (6+).* The parameter is the annotation, so Knockback (5+) and Knockback (6+) are two traits. Lives on firing lines, never on the weapon itself.
+- **Trait** — *a weapon trait: Melee, Rapid Fire (1), Knockback (6+).* The parameter is the annotation, so Knockback (5+) and Knockback (6+) are two traits. Lives on weapon profiles, never on the weapon itself.
 - **Skill tree** — *"Agility" as a thing a gang can pick.* Most gangs never need one: a fixed skill set is just a category. Venators pick four and rank them. A fact a gang owns has to be an assignment, and an assignment can only point at an assignable, so this type fills that gap. Everything else about the set (its skills, where it sits for a fighter) belongs to the category. Chosen, so it takes no built-ins.
 - **Counter** — *a named tally a model keeps: XP, Kill Count.* The definition is content. Who has one is an ordinary assignment (XP arrives through fighter built-ins, with its opening value on the set's member: the 61 in "Starting XP 61"). The running value is player-side and is changed only by tallying, which writes ledger events. A modifier can also add to a counter ("Adds to a counter"), which raises the reading for as long as its carrier is held and writes nothing down. A reading is then the tallied value plus whatever contributes to it, and a counter with contributions but no assignment still has a reading. **Drawn** off means the counter exists only for conditions to check: it appears on no card and no fighter page. The point of counters is that effects depend on values: "when XP is at least 5" reveals a promotion choice the moment the threshold is crossed, computed like everything else.
 
@@ -334,7 +336,7 @@ Not to be confused with collection sections — e.g. Primary and Secondary in th
 
 Fields: a name and a price — priced absolutely, not as a difference:
 plain talons 0, razor-sharp 25. Its members each name exactly one thing
-from a deliberately narrow list: weapons, firing lines, wargear,
+from a deliberately narrow list: weapons, weapon profiles, wargear,
 subtypes, skills, rules, hiddens, collections, counters. Not profiles (a
 fighter cannot come with a fighter — that is what brings-a-model is for)
 and not chosen kinds.
@@ -345,10 +347,10 @@ claws). Materialised when the holder arrives — hired, founded, or bought
 — free, and "caused by" the holder, so removing the holder removes them
 too.
 
-A member that is a firing line names which of the set's weapons it
-belongs to, and is added from that gun's own line rather than from the
+A member that is a weapon profile names which of the set's weapons it
+belongs to, and is added from that gun's own row rather than from the
 general picker. A set that brings no such weapon can still hold the
-line — it then lands on whatever matching gun the acquirer already
+profile — it then lands on whatever matching gun the acquirer already
 holds, which is how an option arms a weapon the built-ins bring.
 
 ### Offers a choice (an effect)

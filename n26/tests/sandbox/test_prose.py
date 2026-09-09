@@ -1543,7 +1543,7 @@ class TestTheDeletePageAndTheProseAgree:
 
         assert "n26.assignment" in protectors
 
-    def test_a_weapons_own_firing_lines_do_not_protect_it(self, default_pack):
+    def test_a_weapons_own_profiles_do_not_protect_it(self, default_pack):
         """A part of the thing is not a reference to it: deleting a
         weapon takes its lines with it."""
         from n26.library.authoring import add_weapon_profile

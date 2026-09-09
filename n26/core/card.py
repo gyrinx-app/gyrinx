@@ -197,7 +197,7 @@ class Card:
     #: varies by card — a weapon is bought once and counted once.
     full_rating: int = 0
 
-    #: Equipment a modifier granted, with free firing lines beneath
+    #: Equipment a modifier granted, with free profiles beneath
     #: weapons. Filled in by
     #: ``n26.core.effects.compute``, which clears and rebuilds the list on
     #: every run — a card nobody has computed has none. Apart from
@@ -504,7 +504,7 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         # reads it off the card it was built from.
         "slot__slot_type",
         "slot__picklist",
-        # A firing line's home is its gun's, so a scope narrowed to a
+        # A profile's home is its gun's, so a scope narrowed to a
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.
         "weapon_profile__weapon",
@@ -1056,7 +1056,7 @@ def build_modifier_index(assignables, max_depth=3):
         "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
         # A granted weapon is put on the card as lines, statlines and all,
-        # by ``compute``, which may not query. Its firing lines and what
+        # by ``compute``, which may not query. Its profiles and what
         # they are printed with therefore have to be here.
         "adds_assignable__weapon__profiles__traits",
         "adds_assignable__weapon__profiles__statline__stats__statline_type_stat__stat",
