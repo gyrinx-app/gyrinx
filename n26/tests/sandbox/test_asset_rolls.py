@@ -253,6 +253,24 @@ class TestThePoolRoll:
             "from a roll at the table"
         )
 
+    def test_a_staged_entry_is_a_gap_for_a_reader_who_may_not_see_it(
+        self, campaign, selection_table, arbitrator
+    ):
+        """The roll is where a territory is newly chosen, so staged content
+        is held back there as at every discovery surface: the band reads as
+        a gap, and a reader who may see staged content lands on it."""
+        from n26.library.models import Asset
+
+        farm = Asset.objects.get(name="Corpse Farm")
+        farm.staged = True
+        farm.save(update_fields=["staged"])
+
+        with pytest.raises(Refusal, match="covers a roll of 34"):
+            roll_asset(campaign, selection_table, rolled=34, actor=arbitrator)
+        staff = User.objects.create_user("staff", is_staff=True)
+        roll = roll_asset(campaign, selection_table, rolled=34, actor=staff)
+        assert roll.campaign_asset.asset == farm
+
     def test_the_same_roll_twice_adds_two_copies(self, campaign, selection_table):
         roll_asset(campaign, selection_table, rolled=34)
         roll_asset(campaign, selection_table, rolled=34)
@@ -321,7 +339,7 @@ class TestTheStartingRoll:
     def test_a_goliath_gang_rolls_on_its_house_table(
         self, campaign, journal, slag_kings, owner
     ):
-        assert journal in tables_held_by(slag_kings)
+        assert journal in tables_held_by(slag_kings, campaign)
         roll = roll_asset(campaign, journal, gang=slag_kings, rolled=1)
 
         kept = roll.campaign_asset
@@ -343,7 +361,7 @@ class TestTheStartingRoll:
     def test_an_escher_gang_is_refused_until_the_table_is_opened(
         self, campaign, journal, wild_cats, arbitrator, propagating, task_queue
     ):
-        assert journal not in tables_held_by(wild_cats)
+        assert journal not in tables_held_by(wild_cats, campaign)
         with pytest.raises(
             Refusal,
             match="Wild Cats cannot roll on Goliath Territories. Only a gang that "
@@ -357,7 +375,7 @@ class TestTheStartingRoll:
             open_table(campaign, journal)
         task_queue.deliver_all()
 
-        assert journal in tables_held_by(wild_cats)
+        assert journal in tables_held_by(wild_cats, campaign)
         roll = roll_asset(campaign, journal, gang=wild_cats, rolled=2)
         assert roll.campaign_asset.asset.name == "Slag Furnace"
         assert sentences(campaign_history(campaign))[-3:] == [
@@ -369,7 +387,7 @@ class TestTheStartingRoll:
 
         close_table(campaign, journal)
 
-        assert journal not in tables_held_by(wild_cats)
+        assert journal not in tables_held_by(wild_cats, campaign)
         with pytest.raises(Refusal, match="Wild Cats cannot roll on"):
             roll_asset(campaign, journal, gang=wild_cats, rolled=3)
         # Nothing taken back: the territory it rolled is still held.
@@ -487,7 +505,7 @@ class TestTheCatalogue:
         with task_queue.capture():
             first = open_table(campaign, journal)
         task_queue.deliver_all()
-        assert journal in tables_held_by(wild_cats)
+        assert journal in tables_held_by(wild_cats, campaign)
 
         # Wild Cats was given the table through the member, so every copy
         # names it as its provenance: closing archives rather than deletes,
@@ -531,7 +549,7 @@ class TestCreatingATable:
         assert [m.assignable for m in campaign.additions.built_in_members] == [table]
         assert table in tables_in_play(campaign)
         for gang in (slag_kings, wild_cats):
-            assert table in tables_held_by(gang)
+            assert table in tables_held_by(gang, campaign)
             assert gang.assignments.filter(asset_table=table, archived=False).exists()
             gang.refresh_from_db()
             assert_reconciled(gang)
@@ -548,8 +566,35 @@ class TestCreatingATable:
         join_campaign(stranger, elsewhere)
 
         assert table not in tables_in_play(elsewhere)
-        assert table not in tables_held_by(stranger)
+        assert table not in tables_held_by(stranger, elsewhere)
         assert core.built_in_members.filter(asset_table=table).count() == 0
+
+    def test_a_table_from_a_former_campaign_is_not_offered_in_the_next(
+        self, campaign, territory, core, arbitrator, goliath, owner
+    ):
+        """A gang keeps what a campaign gave it after it leaves, so the
+        last arbitrator's table is still on its card — but it is that
+        campaign's, and the next campaign never offers it."""
+        from n26.core.operations import operation
+
+        turf = create_campaign_table(campaign, territory, "Dust Falls Turf", dice="d6")
+        ruins = _holding_assets(campaign).get(name="Old Ruins")
+        add_asset_table_entry(turf, ruins, roll_low=1, roll_high=6)
+        rover = found_gang("Rover", goliath, owner=owner, budget=1000)
+        join_campaign(rover, campaign)
+        assert turf in tables_held_by(rover, campaign)
+
+        with operation(rover, actor=owner) as op:
+            op.leave_campaign()
+        elsewhere = found_campaign("Elsewhere", core, owner=arbitrator)
+        join_campaign(rover, elsewhere)
+
+        assert turf not in tables_held_by(rover, elsewhere)
+        assert "Dust Falls Turf" not in str(
+            render_campaign(elsewhere, viewer=arbitrator)
+        )
+        with pytest.raises(Refusal, match="cannot roll"):
+            roll_asset(elsewhere, turf, gang=rover, rolled=1)
 
     def test_a_name_the_campaign_already_uses_is_refused(self, campaign, territory):
         create_campaign_table(campaign, territory, "Turf", dice="d6")
@@ -735,6 +780,24 @@ class TestThePages:
         assert "You cannot roll 7 on a D66." in response.content.decode()
         assert CampaignAsset.objects.filter(campaign=campaign).count() == 2
 
+    def test_a_band_the_die_cannot_make_is_refused_on_the_tables_page(
+        self, client, campaign, territory, arbitrator
+    ):
+        """The band columns are small integers; a number nothing could roll
+        is refused in words on the form, never left for the database."""
+        turf = create_campaign_table(campaign, territory, "Turf", dice="d6")
+        ruins = _holding_assets(campaign).get(name="Old Ruins")
+        client.force_login(arbitrator)
+
+        response = client.post(
+            reverse("n26-campaign-table", args=[campaign.pk, turf.pk]),
+            {"asset": str(ruins.pk), "roll_low": "99999", "roll_high": "99999"},
+        )
+
+        assert response.status_code == 200
+        assert "You cannot roll 99999 on a D6." in response.content.decode()
+        assert not AssetTableEntry.objects.filter(table=turf).exists()
+
     def test_the_gang_owner_cannot_roll_or_open_and_a_stranger_finds_nothing(
         self, client, campaign, territory, journal, selection_table, slag_kings, owner
     ):
@@ -779,7 +842,7 @@ class TestThePages:
         task_queue.deliver_all()
         assert "Opened Goliath Territories to every gang." in response.content.decode()
         assert journal in tables_in_play(campaign)
-        assert journal in tables_held_by(wild_cats)
+        assert journal in tables_held_by(wild_cats, campaign)
 
         response = client.post(address, {}, follow=True)
         assert "Closed Goliath Territories." in response.content.decode()

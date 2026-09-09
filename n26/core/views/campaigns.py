@@ -384,7 +384,11 @@ def roll_asset(request, pk):
     again = _campaign_page(found) + (f"?roll={asset_type.pk}" if asset_type else "")
     if request.method != "POST" or asset_type is None:
         return redirect(again)
-    tables = tables_in_play(found).filter(asset_type=asset_type).exclude(dice="")
+    tables = (
+        tables_in_play(found, include_staged=sees_staged(request.user))
+        .filter(asset_type=asset_type)
+        .exclude(dice="")
+    )
     form = RollAssetForm(request.POST, tables=tables)
     if not form.is_valid():
         messages.error(request, _first_error(form))
@@ -448,7 +452,7 @@ def roll_starting_asset(request, pk, gang_pk):
         return redirect(again)
     held = [
         table.pk
-        for table in tables_held_by(membership.gang)
+        for table in tables_held_by(membership.gang, found)
         if table.dice and table.asset_type_id == asset_type.pk
     ]
     form = RollAssetForm(request.POST, tables=AssetTable.objects.filter(pk__in=held))
@@ -1686,7 +1690,7 @@ def campaign_table(request, pk, table_pk):
     offered = _holding_assets(found, include_staged=sees_staged(request.user)).filter(
         asset_type=table.asset_type
     )
-    form = TableEntryForm(request.POST or None, offered=offered)
+    form = TableEntryForm(request.POST or None, offered=offered, table=table)
     if request.method == "POST" and form.is_valid():
         try:
             with campaign_operation(found, actor=request.user) as act:

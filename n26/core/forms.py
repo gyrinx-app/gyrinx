@@ -805,6 +805,27 @@ class TableEntryForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, offered, **kwargs):
+    def __init__(self, *args, offered, table=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["asset"].queryset = offered
+        self.table = table
+
+    def clean(self):
+        """A band's ends are rolls the table's die can make.
+
+        The library checks that a band has both ends and runs upwards;
+        the column is a small integer, so a number nothing could roll has
+        to be refused here, in words, before it reaches the database.
+        """
+        from n26.library.models import Dice
+
+        cleaned = super().clean()
+        if self.table is None or not self.table.dice:
+            return cleaned
+        dice = Dice(self.table.dice)
+        faces = Dice.rolls(dice)
+        for name in ("roll_low", "roll_high"):
+            roll = cleaned.get(name)
+            if roll is not None and roll not in faces:
+                self.add_error(name, f"You cannot roll {roll} on a {dice.label}.")
+        return cleaned

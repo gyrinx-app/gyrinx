@@ -2857,6 +2857,7 @@ def render_campaign(campaign, viewer=None):
     from django.db.models import Prefetch
 
     from n26.core.campaigns import (
+        foreign_tables,
         over_budget,
         tables_in_play,
         tables_on,
@@ -2871,6 +2872,7 @@ def render_campaign(campaign, viewer=None):
     from n26.library.prose import GANG as GANG_CARRIAGE
     from n26.library.prose import sentence_for
     from n26.library.references import reading_sentences
+    from n26.library.staged import sees_staged
 
     reading = getattr(viewer, "id", None)
     memberships = list(
@@ -2931,9 +2933,7 @@ def render_campaign(campaign, viewer=None):
         # the card already computed: which tables its starting roll may
         # be made on.
         held_tables[membership.pk] = [
-            _held_table(table)
-            for table in tables_on(card, computed, withdrawn)
-            if table.dice
+            table for table in tables_on(card, computed, withdrawn) if table.dice
         ]
         # What the gang has picked for each choice it is asked, by the
         # choice's label. A label is a gang-level slot the arbitrator built
@@ -2942,6 +2942,17 @@ def render_campaign(campaign, viewer=None):
             line.kind_label: line.chosen or ""
             for line in choice_lines(computed, host=GANG_SLOT_HOST)
         }
+
+    # A table another campaign's arbitrator created stays on a gang that
+    # played there and is nobody else's to roll on: one query for every
+    # gang at once, and none where no gang carries one.
+    foreign = foreign_tables(
+        campaign, [table for held in held_tables.values() for table in held]
+    )
+    held_tables = {
+        pk: [_held_table(table) for table in held if table.pk not in foreign]
+        for pk, held in held_tables.items()
+    }
 
     # Which asset type each possessed asset is of, for the whole table at
     # once.
@@ -3008,7 +3019,9 @@ def render_campaign(campaign, viewer=None):
     # The rolled tables the campaign itself holds, by asset type: what the
     # pool of each type is generated from. One query for the whole page.
     in_play = {}
-    for table in tables_in_play(campaign).order_by("name"):
+    for table in tables_in_play(campaign, include_staged=sees_staged(viewer)).order_by(
+        "name"
+    ):
         if table.dice:
             in_play.setdefault(table.asset_type_id, []).append(_held_table(table))
     tables = {

@@ -380,6 +380,7 @@ class CampaignOperation:
         """
         from n26.core.operations import ROLL_ENTERED, Refusal
         from n26.library.models import Dice
+        from n26.library.staged import sees_staged
 
         if membership is not None and (
             membership.campaign_id != self.campaign.pk or not membership.playing
@@ -391,12 +392,20 @@ class CampaignOperation:
                 "list, chosen from rather than rolled."
             )
         if membership is None:
-            if not tables_in_play(self.campaign).filter(pk=table.pk).exists():
+            if (
+                not tables_in_play(
+                    self.campaign, include_staged=sees_staged(self.actor)
+                )
+                .filter(pk=table.pk)
+                .exists()
+            ):
                 raise Refusal(
                     f"You cannot roll on {table} for {self.campaign.name}. Only a "
                     "table built into the campaign can be rolled on for its pool."
                 )
-        elif table.pk not in {held.pk for held in tables_held_by(membership.gang)}:
+        elif table.pk not in {
+            held.pk for held in tables_held_by(membership.gang, self.campaign)
+        }:
             raise Refusal(
                 f"{membership.gang.name} cannot roll on {table}. Only a gang "
                 "that holds that table can."
@@ -409,8 +418,13 @@ class CampaignOperation:
         elif rolled not in Dice.rolls(dice):
             raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
 
-        entries = list(table.entries.select_related("asset__asset_type"))
-        entry = table.landing(rolled, entries)
+        # The roll is where an asset is newly chosen for the campaign, so a
+        # reader who may not see staged content cannot land on a staged
+        # entry: for them the band is a gap, and the refusal says so.
+        entries = table.entries.select_related("asset__asset_type")
+        if not sees_staged(self.actor):
+            entries = entries.live().filter(asset__staged=False)
+        entry = table.landing(rolled, list(entries))
         if entry is None:
             raise Refusal(
                 f"No entry on {table} covers a roll of {rolled}. Fill that gap in "
@@ -763,7 +777,11 @@ class CampaignOperation:
                 f"{table.asset_type.plural}, which {self.campaign.name} does "
                 "not deal in."
             )
-        if tables_in_play(self.campaign).filter(pk=table.pk).exists():
+        if (
+            tables_in_play(self.campaign, include_staged=True)
+            .filter(pk=table.pk)
+            .exists()
+        ):
             return None
         members = DefaultAssignment.objects.filter(
             default_set_id=self.campaign.additions.built_ins_id, asset_table=table
@@ -950,7 +968,7 @@ def addable_assets(campaign, *, include_staged=False):
     from n26.library.models import Asset
 
     tabled = Asset.objects.filter(
-        tabled__table__in=tables_in_play(campaign)
+        tabled__table__in=tables_in_play(campaign, include_staged=True)
     ).unarchived()
     if not include_staged:
         tabled = tabled.live()
@@ -977,14 +995,21 @@ def _on_a_held_table(campaign, asset):
     from n26.library.models import AssetTableEntry
 
     return AssetTableEntry.objects.filter(
-        table__in=tables_in_play(campaign), asset=asset
+        table__in=tables_in_play(campaign, include_staged=True), asset=asset
     ).exists()
 
 
-def tables_in_play(campaign):
+def tables_in_play(campaign, *, include_staged=False):
     """The asset tables the campaign itself holds, and so generates its
     pool from: the live built-in members of its type and of its
-    additions that name a table. One query."""
+    additions that name a table. One query.
+
+    ``include_staged`` is whether the reader may see staged content
+    (``n26.library.staged.sees_staged``). A roll is where an asset is
+    newly chosen for the campaign, so a reader who may not is not offered
+    a staged table; a check that asks what the campaign *holds* passes
+    True, since a staged table it holds is held all the same.
+    """
     from n26.library.models import AssetTable, CampaignType, DefaultAssignment
 
     # The two types' built-in sets are read by query rather than off the
@@ -997,7 +1022,8 @@ def tables_in_play(campaign):
     members = DefaultAssignment.objects.filter(
         default_set_id__in=sets, archived=False, asset_table__isnull=False
     )
-    return AssetTable.objects.filter(pk__in=members.values("asset_table_id"))
+    tables = AssetTable.objects.filter(pk__in=members.values("asset_table_id"))
+    return tables if include_staged else tables.live()
 
 
 def tables_on(card, computed, withdrawn=frozenset()):
@@ -1049,17 +1075,44 @@ def withdrawn_members(*cards):
     )
 
 
-def tables_held_by(gang):
-    """The asset tables one gang may roll on — its starting territory's
-    tables. Builds the gang's card and computes it, so this is for an act
-    on one gang; a page listing several reads ``tables_on`` off cards it
-    already has."""
+def tables_held_by(gang, campaign):
+    """The asset tables one gang may roll on in this campaign — its
+    starting territory's tables. Builds the gang's card and computes it,
+    so this is for an act on one gang; a page listing several reads
+    ``tables_on`` off cards it already has and asks :func:`foreign_tables`
+    once for all of them."""
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute
 
     card = build_gang_card(gang, with_statlines=False)
     computed = compute(card, build_modifier_index(carriers(card)))
-    return tables_on(card, computed, withdrawn_members(card))
+    held = tables_on(card, computed, withdrawn_members(card))
+    foreign = foreign_tables(campaign, held)
+    return [table for table in held if table.pk not in foreign]
+
+
+def foreign_tables(campaign, tables):
+    """The pks among ``tables`` that another campaign's arbitrator wrote.
+
+    A gang keeps the carriers a campaign gave it after it leaves, so a
+    table created for its last campaign is still on its card when it
+    joins the next. Such a table sits in that campaign's pack and is
+    nobody else's to roll on: only a system pack's tables and this
+    campaign's own are offered. One query for however many tables, and
+    none where every table is already in this campaign's pack.
+    """
+    from django.db.models import Q
+
+    from n26.library.models import AssetTable
+
+    elsewhere = {table.pk for table in tables if table.pack_id != campaign.pack_id}
+    if not elsewhere:
+        return frozenset()
+    return frozenset(
+        AssetTable.objects.filter(pk__in=elsewhere)
+        .exclude(Q(pack__owner__isnull=True) | Q(pack_id=campaign.pack_id))
+        .values_list("pk", flat=True)
+    )
 
 
 def _still_held_by(campaign_asset, membership_id):
