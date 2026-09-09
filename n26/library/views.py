@@ -3352,7 +3352,7 @@ def _perform_deletion(request, plan, label):
     deleted here and the caller decides where to lead.
     """
     from n26.library.deletion import Refused, apply
-    from n26.maintenance import start_test_content_deletion
+    from n26.maintenance import AnotherRunning, start_test_content_deletion
 
     if plan.refusals:
         messages.error(
@@ -3363,7 +3363,14 @@ def _perform_deletion(request, plan, label):
         )
         return redirect(request.path)
     if plan.touches_players:
-        record = start_test_content_deletion(plan, request.user)
+        try:
+            record = start_test_content_deletion(plan, request.user)
+        except AnotherRunning:
+            messages.error(
+                request,
+                "Another deletion is still running. Try again when it has finished.",
+            )
+            return redirect(request.path)
         return redirect("authoring-deletion", pk=record.pk)
     try:
         apply(plan)

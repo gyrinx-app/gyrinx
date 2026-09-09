@@ -138,6 +138,24 @@ class TestARowsDeletePage:
         assert not Weapon.objects.filter(pk=test_weapon.pk).exists()
         assert not Backfill.objects.exists()
 
+    def test_a_second_deletion_waits_for_the_first(
+        self, author, client, test_type, test_fighter, test_weapon
+    ):
+        """The runner holds one lock per operation and a second copy
+        stands down without writing an ending, so a second run is
+        refused at the page rather than left saying running for ever."""
+        gang = checked_by(author, test_type, test_fighter, test_weapon)
+        Backfill.objects.create(
+            operation="n26_delete_test_content", status=Backfill.Status.RUNNING
+        )
+
+        response = client.post(delete_page(test_weapon, "weapon"), follow=True)
+
+        assert "Another deletion is still running" in response.content.decode()
+        assert Weapon.objects.filter(pk=test_weapon.pk).exists()
+        assert Gang.objects.filter(pk=gang.pk).exists()
+        assert Backfill.objects.count() == 1
+
     def test_the_run_page_reloads_while_running(self, author, client):
         record = Backfill.objects.create(
             operation="n26_delete_test_content",
