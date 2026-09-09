@@ -4,7 +4,8 @@ Everything written but not yet put live, kind by kind. Each row leads to
 its own page and carries the one click that releases it alone; the button
 in the header leads to the page that releases all of it at once — a page,
 not a prompt, because releasing a whole book is worth reading a count
-first.
+first. Beside it, the page that deletes all of it: the way back from a
+book that did not work out.
 {% endcomment %}
 {% block head_title %}
     Staged content
@@ -22,6 +23,9 @@ first.
         </c-slot>
         {% if count %}
             <c-slot name="actions">
+                <c-ui.button href="{% url 'authoring-staged-delete' %}" variant="ghost">
+                    Delete everything staged
+                </c-ui.button>
                 <c-ui.button href="{% url 'authoring-staged-put-live' %}" variant="primary">
                     Put everything live
                 </c-ui.button>
@@ -42,15 +46,27 @@ first.
                                 {% include "authoring/_name_cell.html" with row=row %}
                                 <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
                                 <td class="whitespace-nowrap text-right">
-                                    <form method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="act" value="put_live">
-                                        <input type="hidden" name="model" value="{{ group.model }}">
-                                        <input type="hidden" name="pk" value="{{ row.pk }}">
-                                        <c-ui.button type="submit" size="sm" variant="ghost">
-                                            Put live
-                                        </c-ui.button>
-                                    </form>
+                                    <div class="flex items-center justify-end gap-3">
+                                        {% comment %}
+                                        A link to a page, not a button in a form: deleting has
+                                        its own address, its own question, and its own refusal
+                                        when anything still uses the row.
+                                        {% endcomment %}
+                                        {% if row.delete_url %}
+                                            <c-n26.link href="{{ row.delete_url }}" tone="danger" class="text-sm">
+                                                Delete…
+                                            </c-n26.link>
+                                        {% endif %}
+                                        <form method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="act" value="put_live">
+                                            <input type="hidden" name="model" value="{{ group.model }}">
+                                            <input type="hidden" name="pk" value="{{ row.pk }}">
+                                            <c-ui.button type="submit" size="sm" variant="ghost">
+                                                Put live
+                                            </c-ui.button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}

@@ -88,3 +88,34 @@ authoring pages, where a staged row carries a **Staged** badge.
 3. Want other people to try it? Put them in the "N26 Staged content"
    group and set the flag to the allowlist.
 4. When it is ready, open Staged content and put everything live.
+5. If the book is not going ahead, open Staged content and delete
+   everything staged. Your test gangs go with it. Live content is not
+   touched.
+
+## Deleting what you made
+
+Deleting is for the unused. Anything that has a thing — a gang that
+holds it, a list that offers it, an option that brings it — protects
+it, and a delete page says what those are instead of deleting.
+
+The one holder that goes with the thing is your own test gang. A gang
+counts as a test gang when its owner is staff and it shares no
+campaign and no battle with a player's gang. Deleting a gang from its
+own page only takes it off your list, so a test gang keeps holding
+everything you gave it until it is deleted with the content. The delete
+page lists the test gangs it would take, with their owners, and the
+button says how many. Each is deleted whole: its models, its gear, its
+ledger and its history.
+
+A delete that takes a gang runs after you confirm it, and the page you
+land on reloads until it says Deleted or Not deleted, with the reason.
+
+A player's gang is never deleted this way. If a player has a staged
+thing — a live fighter's kit brought it, or you let them in with the
+staged-content flag — the delete page names the gang and its owner, and
+nothing is deleted. The same goes for a campaign a player is in.
+
+A gang type refuses to be deleted while fighters are written for it.
+Delete the fighters first, or delete everything staged together, which
+plans the whole set at once so that nothing refuses because of another
+staged thing.

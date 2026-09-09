@@ -1,0 +1,37 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before everything staged is deleted at once, at an
+address of its own: it survives a reload, Back works, and so does a
+browser with scripting switched off. The form's POST is the act.
+{% endcomment %}
+{% block head_title %}
+    Delete everything staged
+{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-staged-delete' %}"
+                     title="Delete everything staged?"
+                     lead="Every staged thing leaves the library, with the test gangs founded to check it. Live content is not touched. You cannot undo this."
+                     submit_label="{{ submit_label }}"
+                     submit_variant="danger"
+                     cancel_url="{% url 'authoring-staged' %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-staged' %}">
+                    Staged content
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete everything staged
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if count %}
+            {% include "authoring/_deletion_plan.html" %}
+        {% else %}
+            <c-ui.description>
+                Nothing is staged, so there is nothing to delete.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}
