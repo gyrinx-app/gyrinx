@@ -311,8 +311,17 @@ test ends with `assert_reconciled(gang)`.
    `n26/tests/sandbox/test_spyrer_augmentations.py`: build the Orrus bolt
    launcher and the Jakara rig from the book, hire a Spyrer, take Tier 1 then
    Tier 2, assert the card shows Lethality 2, AP -2, Rapid Fire (2) in place
-   of Rapid Fire (1), and Strength up on the wearer. If the scopes hold this
-   ships no production code — which is the point of it.
+   of Rapid Fire (1), and Strength up on the wearer. The scopes held; one
+   line of production code did not: `Operation.buy` only reconciled built-ins
+   for `Optioned` kinds, and `Weapon` is not one, so a weapon's built-in
+   slot never materialised on purchase (hiring a profile whose default weapon
+   carries one nested correctly). Fixed in the same PR; `give_weapon`
+   reconciles too. A second gap followed: `Operation.move` re-derived roots
+   for a carrier's subtree but never re-homed what the carrier had brought
+   *alongside* itself, so a built-in slot (and its picks) bought into the
+   stash stayed stash-hosted when the gun went to a fighter. `move` now
+   carries hosted-alongside rows to the carrier's new host; gang-held picks
+   stay put. Same PR.
 3. **The Power Boost table.** Seeded in `standard_content.py` beside the
    glitch table, the slot attached to the Spyrer subtype, the stored spend on
    each result. Tests with loaded dice: band 1 offers two members, four Kill

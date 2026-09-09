@@ -2291,10 +2291,13 @@ class Operation:
         return assignment
 
     def give_weapon(self, miniature, weapon, paid=0, free_profiles=True, **kwargs):
-        """Assign a weapon to a model, copying its free profiles onto it."""
+        """Assign a weapon to a model, copying its free profiles onto it
+        and materialising what it has built in."""
         assignment = self.assign(weapon, miniature=miniature, paid=paid, **kwargs)
         if free_profiles:
             self._grant_free_profiles(weapon, assignment)
+        if weapon.built_ins_id is not None:
+            self.reconcile_defaults(assignment)
         return assignment
 
     def _grant_free_profiles(self, weapon, assignment, sold_separately=frozenset()):
@@ -2344,7 +2347,7 @@ class Operation:
 
         ``option`` names what was chosen where the thing offers a choice —
         a mount swapping its weapon. Its built-ins and the sets taken
-        materialise on the model, caused by the purchase, so selling the
+        materialise on the host, caused by the purchase, so selling the
         thing takes them with it. Pricing composes the same way a hire's
         does: the item's own price (or the list's override of it), plus
         its built-ins, plus every set taken.
@@ -2429,6 +2432,11 @@ class Operation:
             )
         if hasattr(thing, "resolve_selection"):
             self._record_options(bought, taken)
+        # Whatever the thing has built in arrives with it — a weapon's
+        # augmentation choice as much as a wargear's kit. A thing with
+        # nothing built in and no set taken has nothing to reconcile, and
+        # asking would read two empty sets on every purchase.
+        if getattr(thing, "built_ins_id", None) is not None or taken:
             self.reconcile_defaults(bought)
         return bought
 
@@ -2556,6 +2564,9 @@ class Operation:
                 f"{assignment.parent.assignable} — move that instead."
             )
         self.touched(assignment.miniature_root)
+        # Where the carrier's own grants were hosted: beside its root, so a
+        # sight bolted onto a gun hosts what it brings on the gun's model.
+        was_on = (assignment.miniature_root_id, assignment.stash_root_id)
         assignment.gang = None
         assignment.miniature = assignment.stash = assignment.parent = None
         if isinstance(to, Stash):
@@ -2574,7 +2585,24 @@ class Operation:
         else:
             raise ValueError(f"Cannot move something onto {to!r}.")
         assignment.save()
+        # What the thing brought and hosted beside itself — a built-in
+        # choice, the picks made for it — is hosted beside it still: a gun
+        # moving from the stash to a model takes its augmentation choice
+        # along, or the choice would stay where nobody can make it. Only
+        # what sat on the carrier's old host follows; a pick the gang
+        # holds stays the gang's. Parts hang off the carrier and re-derive
+        # their roots from it.
+        if isinstance(to, Assignment):
+            host = (to.miniature_root, to.stash_root)
+        else:
+            host = (assignment.miniature, assignment.stash)
         for row in subtree(assignment):
+            if (
+                row.parent_id is None
+                and row.gang_id is None
+                and (row.miniature_id, row.stash_id) == was_on
+            ):
+                row.miniature, row.stash = host
             row.save()  # roots re-derive from the parent chain
         self.touched(assignment.miniature_root)
         self.event(assignment, LedgerEvent.Kind.MOVED, note=note)
