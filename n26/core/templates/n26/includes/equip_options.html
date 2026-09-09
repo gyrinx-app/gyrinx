@@ -32,7 +32,19 @@ button is later made to say.
                    name="{{ option.field }}"
                    value="{{ option.index }}"
                    class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-            <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ option.name }}</span>
+            <span class="min-w-0 flex flex-col">
+                <span class="text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ option.name }}</span>
+                {% comment %}
+                A restriction on the round itself, drawn where the row above
+                draws its own: a mark and a heavier weight at most, never a
+                missing box.
+                {% endcomment %}
+                {% for note in option.notes %}
+                    <span class="text-xs {% if note.level == 'error' %}font-semibold{% endif %} text-ink-900 dark:text-ink-100">
+                        {% if note.level != "info" %}<span class="text-muted">!</span> {% endif %}{{ note.text }}
+                    </span>
+                {% endfor %}
+            </span>
         </label>
         {% comment %}
         Availability before price, as on the row above: the same facts in the

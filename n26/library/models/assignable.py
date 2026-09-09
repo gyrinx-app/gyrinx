@@ -289,9 +289,8 @@ class UsableBy(models.Model):
     Subtype"). The list is an OR: a profile type matches, or a subtype
     matches. **Empty means everyone** — default open, the house rule.
 
-    A mixin, so a kind opts in (weapons and their profiles, wargear,
-    weapon accessories, skills and powers today) and anything without it
-    is simply usable by all. And it informs, never polices:
+    A mixin, so a kind opts in and anything without it is simply usable
+    by all. And it informs, never polices:
     an unusable skill still shows in the listing, marked, and nothing
     stops the owner assigning it anyway.
 
