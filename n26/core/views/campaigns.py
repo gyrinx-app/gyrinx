@@ -492,7 +492,7 @@ def roll_asset(request, pk):
     asset_type = _asset_type_asked_for(found, asked)
     again = _campaign_page(found) + (f"?roll={asset_type.pk}" if asset_type else "")
     if request.method != "POST" or asset_type is None:
-        return redirect(again)
+        return _back_to_the_page(request, again)
     tables = (
         tables_in_play(found, include_staged=sees_staged(request.user))
         .filter(asset_type=asset_type)
@@ -521,6 +521,19 @@ def roll_asset(request, pk):
         f"Rolled {roll.roll}: {roll.campaign_asset} added to the campaign, unclaimed.",
     )
     return _roll_made(request, found)
+
+
+def _back_to_the_page(request, again):
+    """Leave a roll dialog for the page itself: a plain redirect, or over
+    htmx — where a redirect's body would be swallowed by ``hx-swap="none"``
+    and nothing would move — an ``HX-Redirect`` the browser follows."""
+    from n26.core.views.htmx import is_htmx
+
+    if not is_htmx(request):
+        return redirect(again)
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = again
+    return response
 
 
 def _roll_refused(request, campaign, form, again, question):
@@ -600,7 +613,7 @@ def roll_starting_asset(request, pk, gang_pk):
         f"?starting={gang_pk}&type={asset_type.pk}" if asset_type else ""
     )
     if request.method != "POST" or asset_type is None:
-        return redirect(again)
+        return _back_to_the_page(request, again)
     held = [
         table.pk
         for table in tables_held_by(

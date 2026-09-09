@@ -933,6 +933,23 @@ class TestThePages:
             "Rolled 4: Iron Forge assigned to Slag Kings."
         ]
 
+    def test_a_roll_for_a_type_that_has_gone_sends_the_page_over_htmx(
+        self, client, campaign, arbitrator
+    ):
+        """Over htmx a redirect's body is swallowed by hx-swap="none", so an
+        asset type the dialog named but that no longer resolves answers
+        with HX-Redirect and the browser goes to the page. Without htmx it
+        is the redirect it always was."""
+        client.force_login(arbitrator)
+        address = reverse("n26-campaign-roll-asset", args=[campaign.pk])
+
+        response = client.post(address, {"type": "nonsense"}, HTTP_HX_REQUEST="true")
+        assert response.status_code == 204
+        assert response["HX-Redirect"] == reverse("n26-campaign", args=[campaign.pk])
+
+        response = client.post(address, {"type": "nonsense"})
+        assert response.status_code == 302
+
     def test_a_refusal_over_htmx_comes_back_in_the_dialog_without_a_toast(
         self, client, campaign, territory, journal, selection_table, arbitrator
     ):

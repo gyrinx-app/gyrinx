@@ -3123,6 +3123,12 @@ def boon_said(modifier):
     from n26.library.prose import GANG as GANG_CARRIAGE
     from n26.library.prose import sentence_for
 
+    # The short form reads as "the holding gang gets this", so it is only
+    # right for a boon scoped to the gang. One aimed at the gang's models
+    # says who in its whole sentence, and loses that if shortened.
+    scope = modifier.targets_gang
+    if scope is None:
+        return sentence_for(modifier, carriage=GANG_CARRIAGE).text
     effect = modifier.effect
     if isinstance(effect, ContributesToCounter):
         said = f"+{effect.amount} {effect.counter.name}."
@@ -3131,8 +3137,7 @@ def boon_said(modifier):
         said = f"{getattr(thing, 'name', None) or thing}."
     else:
         return sentence_for(modifier, carriage=GANG_CARRIAGE).text
-    scope = modifier.targets_gang
-    if scope is not None and scope.is_conditional:
+    if scope.is_conditional:
         who = ", ".join(str(row) for row in scope._narrowing_rows())
         return f"{who[0].upper()}{who[1:]}: {said}"
     return said

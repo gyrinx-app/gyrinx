@@ -641,6 +641,24 @@ class TestAJournalTerritoryInPlay:
         assert income_reading(gangs["Goliath"]) == 20
         assert income_reading(gangs["Escher"]) == 20
 
+    def test_a_boon_aimed_at_the_models_keeps_its_whole_sentence(self, campaign):
+        """The short form reads as the holding gang gaining the thing, so a
+        boon scoped to the gang's models is not shortened to a bare name."""
+        from n26.core.render import boon_said
+        from n26.library.authoring import create_rule, targets_every_model
+        from n26.tests.sandbox.actions import adds, modifier
+
+        vats = Asset.objects.get(name="Amneo-vats")
+        catfall = create_rule("Catfall")
+        every = modifier(
+            "Amneo-vats: Catfall", targets_every_model(), adds(catfall), carried_by=vats
+        )
+
+        said = boon_said(every)
+
+        assert "Catfall" in said
+        assert said != "Catfall."
+
     def test_the_campaign_page_prints_each_boon_with_its_scope(self, campaign, gangs):
         for name in ("Amneo-vats", "Slug House"):
             add_asset(campaign, Asset.objects.get(name=name))
