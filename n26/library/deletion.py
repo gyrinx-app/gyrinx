@@ -137,13 +137,26 @@ class DeletionPlan:
             found[str(apps.get_model(label)._meta.verbose_name_plural)] += 1
         return dict(found)
 
+    def _counted(self):
+        """Each kind that goes, said with its number: "1 weapon", "3 skills"."""
+        from django.apps import apps
+
+        found = Counter()
+        names = {}
+        for label, _, _ in self.rows:
+            meta = apps.get_model(label)._meta
+            found[label] += 1
+            names[label] = (str(meta.verbose_name), str(meta.verbose_name_plural))
+        return sorted(
+            f"{count} {names[label][0] if count == 1 else names[label][1]}"
+            for label, count in found.items()
+        )
+
     def preview(self):
         """The act in plain sentences, for the page and the record."""
         if self.nothing_here:
             return ["nothing to delete"]
-        lines = []
-        for kind, count in sorted(self.counts().items()):
-            lines.append(f"delete {count} {kind}")
+        lines = [f"delete {said}" for said in self._counted()]
         for gang in self.test_gangs:
             state = "archived" if gang.archived else "live"
             lines.append(

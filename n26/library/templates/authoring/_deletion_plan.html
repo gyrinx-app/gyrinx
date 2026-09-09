@@ -12,7 +12,7 @@ n26/library/views.py. Nothing here changes anything.
         <p class="mt-2">Nothing is deleted while any of these stands.</p>
     </c-ui.alert>
 {% endif %}
-{% if counts %}
+{% if counts and not refusals %}
     <c-n26.form-section title="What goes">
         <c-ui.table>
             <tbody>
@@ -26,7 +26,7 @@ n26/library/views.py. Nothing here changes anything.
         </c-ui.table>
     </c-n26.form-section>
 {% endif %}
-{% if test_gangs %}
+{% if test_gangs and not refusals %}
     <c-n26.form-section title="Test gangs that go with it"
                         description="Each is owned by staff and shares no campaign or battle with a player's gang. It is deleted whole: its models, its gear, its ledger and its history.">
         <c-ui.table>
