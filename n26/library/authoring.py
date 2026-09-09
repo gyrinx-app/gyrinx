@@ -1186,12 +1186,16 @@ def add_weapon_profile(
     )
     if traits:
         profile.traits.set(traits)
-    return set_usable_by(
-        profile,
-        usable_by_profile_types=usable_by_profile_types,
-        usable_by_subtypes=usable_by_subtypes,
-        usable_by_profiles=usable_by_profiles,
-    )
+    # A new row's lists are already empty, so an import that names no
+    # restriction writes nothing rather than clearing three lists a row.
+    if usable_by_profile_types or usable_by_subtypes or usable_by_profiles:
+        set_usable_by(
+            profile,
+            usable_by_profile_types=usable_by_profile_types,
+            usable_by_subtypes=usable_by_subtypes,
+            usable_by_profiles=usable_by_profiles,
+        )
+    return profile
 
 
 def create_counter(name, qualifier="", drawn=True, library_author_help="", **kwargs):
