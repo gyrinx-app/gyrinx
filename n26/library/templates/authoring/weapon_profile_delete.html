@@ -5,17 +5,19 @@ of its own. A page rather than a prompt: it survives a reload, Back is a
 real answer, and it works with scripting switched off. Nothing here
 changes anything — the form's POST is the act.
 
-Deleting is for the unused. Every reference protects the line — a gang
-that holds it, a list that offers it, a hire that comes with it as an
-ammo type — so a line anybody relies on is refused in words, and the way
-to make it deletable is to remove those references first.
+Deleting is for the unused. Every reference protects the line — a list
+that offers it, a hire that comes with it as an ammo type, a fighter
+who paid for it — so a line anybody relies on is refused in words. The
+one holder that does not refuse is a fighter the weapon brought the
+line to for nothing: the page names those fighters, and the line is
+removed from them before it goes.
 {% endcomment %}
 {% block head_title %}Delete {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-weapon-profile-delete' thing.pk %}"
                      title="Delete {{ label }}?"
-                     lead="For good: the {{ verbose_name }} leaves {{ weapon }}, and its characteristics with it. There is no undo."
-                     submit_label="Delete it"
+                     lead="For good: the {{ verbose_name }} leaves {{ weapon }}, and its characteristics with it{% if lines %}. The fighters that have it lose the line{% endif %}. You cannot undo this."
+                     submit_label="{{ submit_label }}"
                      submit_variant="danger"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
@@ -36,11 +38,13 @@ to make it deletable is to remove those references first.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-ui.alert variant="info" title="Anything still using it refuses this">
-            A gang that holds it, a list that offers it, a hire that comes
-            with it as an ammo type — each protects it. If any exist,
-            nothing is deleted and this page says who they are.
-        </c-ui.alert>
+        {% include "authoring/_deletion_plan.html" %}
+        {% if not refusals and not lines and not test_gangs %}
+            <c-ui.alert variant="info" title="Nothing else holds it">
+                No fighter has it, no list offers it and no hire comes with
+                it, so only the line itself goes.
+            </c-ui.alert>
+        {% endif %}
         {% comment %}
         The weapon stands whatever happens here. Said because the control
         that leads here sits in a row of the weapon's own lines, where

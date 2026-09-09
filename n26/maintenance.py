@@ -214,6 +214,10 @@ class Operation(models.TextChoices):
         "n26_delete_test_content",
         "n26: content is deleted along with the test gangs holding it",
     )
+    DELETE_FIRING_LINE = (
+        "n26_delete_firing_line",
+        "n26: a firing line is removed from the fighters that have it and deleted",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -233,6 +237,7 @@ LOCK_KEYS = {
     Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS: 826_020_618,
     Operation.SEED_JOURNAL_CONTENT: 826_020_619,
     Operation.DELETE_TEST_CONTENT: 826_020_620,
+    Operation.DELETE_FIRING_LINE: 826_020_621,
 }
 
 
@@ -2089,37 +2094,80 @@ def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def delete_firing_line(backfill_id, **said_by_whoever_enqueued_it):
+    """Remove a free firing line from every fighter that has it, gang by
+    gang, and delete the row with the last of them.
+
+    Gang by gang because each gang is proved to reconcile around its
+    own commit, and a line a whole book of fighters carries is many
+    gangs; the walk records how far it got and hands the rest to a
+    fresh delivery.
+    """
+    from n26.library.deletion import (
+        DeletionPlan,
+        Refused,
+        free_line_removal,
+        remove_free_lines_from,
+    )
+
+    record = Backfill.objects.get(pk=backfill_id)
+    plan = DeletionPlan.from_record(record.summary)
+    run_per_gang(
+        backfill_id,
+        operation=Operation.DELETE_FIRING_LINE,
+        what="Firing line deletion",
+        find=lambda: free_line_removal(plan),
+        apply_one=lambda gang_id: remove_free_lines_from(gang_id, plan),
+        again=lambda: delete_firing_line.enqueue(backfill_id=backfill_id),
+        refusals=(Refused,),
+    )
+
+
+#: The operations the authoring delete pages ask for, and the task each
+#: runs on. A plan that removes a line from fighters walks gangs; one
+#: that deletes gangs holds everything in one transaction.
+AUTHORING_DELETIONS = {
+    Operation.DELETE_TEST_CONTENT: delete_test_content,
+    Operation.DELETE_FIRING_LINE: delete_firing_line,
+}
+
+
 class AnotherRunning(Exception):
     """A run of this operation is still going, so a second cannot start:
     the runner's lock would make it stand down without writing an
     ending, and its record would say running for ever."""
 
 
-def start_test_content_deletion(plan, user):
+def start_authoring_deletion(plan, user):
     """Record a deletion the authoring page asked for, and enqueue it.
 
     The record holds the plan as the page showed it, so the run can
     refuse if what stands has changed, and so the page that shows the
     outcome can say what was asked. Returns the record. Raises
-    :class:`AnotherRunning` while an earlier deletion is still going.
+    :class:`AnotherRunning` while an earlier run of the same kind is
+    still going.
     """
-    if running_guard(Operation.DELETE_TEST_CONTENT) is not None:
+    operation = (
+        Operation.DELETE_FIRING_LINE if plan.lines else Operation.DELETE_TEST_CONTENT
+    )
+    if running_guard(operation) is not None:
         raise AnotherRunning
     record = Backfill.objects.create(
-        operation=Operation.DELETE_TEST_CONTENT,
+        operation=operation,
         triggered_by=user,
         status=Backfill.Status.RUNNING,
         summary={**plan.as_record(), "attempts": 0},
     )
-    delete_test_content.enqueue(backfill_id=str(record.id))
+    AUTHORING_DELETIONS[operation].enqueue(backfill_id=str(record.id))
     return record
 
 
-def test_content_deletion(pk):
+def authoring_deletion(pk):
     """One deletion's record, for the page that shows its outcome — or
     None where no such record exists."""
     return Backfill.objects.filter(
-        pk=pk, operation=Operation.DELETE_TEST_CONTENT
+        pk=pk, operation__in=[op.value for op in AUTHORING_DELETIONS]
     ).first()
 
 
@@ -2137,10 +2185,25 @@ register_operation(
         ),
     )
 )
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.DELETE_FIRING_LINE.value,
+        name=Operation.DELETE_FIRING_LINE.label,
+        added=date(2026, 9, 9),
+        description=(
+            "Asked for from a firing line's delete page, not from here. "
+            "Removes a free firing line — one the weapon brought, that "
+            "nobody paid for — from every fighter that has it, gang by "
+            "gang, each gang proved to reconcile, and deletes the row "
+            "with the last of them."
+        ),
+    )
+)
 
 
 task_routes = [
     TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),
