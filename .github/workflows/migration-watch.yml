@@ -26,8 +26,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  statuses: write
 
 # A newer push to main supersedes an older run over the same open pull
 # requests; a pull request's own runs supersede each other.
@@ -38,6 +36,9 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       prs: ${{ steps.list.outputs.prs }}
     steps:
@@ -72,6 +73,10 @@ jobs:
     needs: plan
     if: needs.plan.outputs.prs != '' && needs.plan.outputs.prs != '[]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -215,5 +220,8 @@ jobs:
           LEAVES: ${{ steps.leaves.outcome }}
           OVERLAP: ${{ steps.overlap.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Branch code ran in the steps above and could have rewritten the
+        # script on disk; take main's copy again right before running it.
         run: |
+          git checkout origin/main -- scripts
           python3 scripts/migration_watch_report.py

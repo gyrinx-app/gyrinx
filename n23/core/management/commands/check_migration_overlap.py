@@ -69,6 +69,11 @@ class Command(BaseCommand):
         merge_base = _git("merge-base", options["base"], options["head"])
         base_keys = _added_migrations(merge_base, options["base"], prefixes)
         branch_keys = _added_migrations(merge_base, options["head"], prefixes)
+        # A file both sides added under one name is one migration after the
+        # merge, not a pair; a differing pair would have failed the merge.
+        shared = set(base_keys) & set(branch_keys)
+        base_keys = [key for key in base_keys if key not in shared]
+        branch_keys = [key for key in branch_keys if key not in shared]
 
         missing = [
             key

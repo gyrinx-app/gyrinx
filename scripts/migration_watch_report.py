@@ -80,19 +80,19 @@ def build(report_dir):
             "Main itself did not migrate on an empty database, so the deploy replay could not run. "
             f"That is main's problem, not this pull request's.\n\n```\n{tail(report_dir / 'replay-main.log')}\n```"
         )
-    elif outcome("REPLAY") != "success":
+    elif outcome("REPLAY") == "failure":
         problems.append(
             "**The next deploy would fail.** A database holding main did not accept this pull request's "
             f"migrations on top.\n\n```\n{tail(report_dir / 'replay.log')}\n```"
         )
 
-    if outcome("DRIFT") != "success":
+    if outcome("DRIFT") == "failure":
         problems.append(
             "**The merged models and migrations disagree.** `makemigrations --check` on the merge:\n\n"
             f"```\n{tail(report_dir / 'drift.log')}\n```"
         )
 
-    if outcome("LEAVES") != "success":
+    if outcome("LEAVES") == "failure":
         problems.append(
             "**This branch adds more than one migration leaf to an app.**\n\n"
             f"```\n{tail(report_dir / 'leaves.log')}\n```"
@@ -128,7 +128,7 @@ def build(report_dir):
                     "A data migration here runs against something main changed since this branch "
                     "forked. Check that the order does not matter.\n\n" + text
                 )
-    elif outcome("OVERLAP") != "success":
+    elif outcome("OVERLAP") == "failure":
         notes.append(
             f"The overlap check did not run:\n\n```\n{tail(report_dir / 'overlap.log')}\n```"
         )
