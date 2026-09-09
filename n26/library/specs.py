@@ -304,6 +304,13 @@ class Spec:
                 kwargs[name] = kind.coerce(value)
             else:
                 kwargs[name] = value
+        # What a union's kinds ask for beyond the pick — a slot's starting
+        # pick — rides the same data (``GeneratedForm.verb_data``). It is
+        # not a spec field, and the verb takes it by name, so it is handed
+        # on wherever the verb has a parameter for it.
+        for name, value in data.items():
+            if name not in self.fields and name in signature.parameters:
+                kwargs[name] = value
         return self.verb(*args, **kwargs)
 
 
@@ -342,6 +349,7 @@ def _build_registry():
     from n26.library import authoring
     from n26.library.income import INCOME_HELP
     from n26.library.models import (
+        AddsAssignable,
         Affiliation,
         AllowsAtMost,
         Asset,
@@ -564,22 +572,29 @@ def _build_registry():
             authoring.targets_gang_alone,
             {},
             label="The gang carrying it",
-            blurb="Applied only to the gang; does not reach the models.",
+            blurb=(
+                "Applied only to the gang; does not reach the models. A pick "
+                "given with a slot is still a fact about every model in the gang."
+            ),
             example=(
                 "A rule that prints on the gang sheet without touching the "
                 "fighters, or a gang-level counter."
             ),
         ),
         # -- effects, worked out at read time --------------------------
+        # What granting each kind asks for beyond the thing itself — a
+        # slot's starting pick — comes from the kind's own ATTACHMENT_ASKS,
+        # resolved through the union, so the pick control is drawn only
+        # when the chosen kind is a slot.
         Spec(
             authoring.ef_adds,
-            {"thing": Union(over=dict(GRANTABLE_FIELDS))},
+            {"thing": Union(over=dict(GRANTABLE_FIELDS), through=AddsAssignable)},
             label="Gives something",
             blurb=(
                 "The target gains a subtype, skill, power, rule, trait, "
                 "list, weapon or wargear — or a hidden item, which brings whatever "
                 "it gives. For as long as the item carrying this modifier "
-                "stays."
+                "stays. A hidden slot can be given with its pick already made."
             ),
             example=(
                 "The Cutter grants Mounted; Mounted grants Nerves of "

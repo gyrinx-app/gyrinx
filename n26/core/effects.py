@@ -581,6 +581,13 @@ class ComputedCard:
     #: Named special rules granted computedly — a gang type's "all our
     #: fighters may…", reaching each member through the broadcast.
     rules: list[Contribution] = field(default_factory=list)
+    #: Picks a grant dealt onto the card beside the slot they settle — a
+    #: Clan House choice that makes the gang count as a Goliath gang.
+    #: Facts, not lines: a granted slot is hidden, so nothing draws them,
+    #: but a condition asking "has picked Goliath" sees them exactly as
+    #: it sees a written pick. Their source is the slot, so they go the
+    #: moment it does.
+    picks: list[Contribution] = field(default_factory=list)
     #: Where skill sets and power families sit for this fighter — see
     #: ``CategoryPlacement``.
     placements: list[CategoryPlacement] = field(default_factory=list)
@@ -696,6 +703,7 @@ def compute(card, index):
     followed through the chain in one pass at the end — see ``_retract``
     and the module docstring.
     """
+    from n26.library.models import Pickable
     from n26.library.models.modifier import (
         AddsAssignable,
         AllowsAtMost,
@@ -819,11 +827,24 @@ def compute(card, index):
     # modifiers run once however many ways it reaches the card.
     # A grant whose scope keeps it the gang's alone never echoes: it
     # prints on the gang's card and touches no fighter.
+    from_the_gang = _from_the_gang(card, index)
     echoed = [
         contribution
-        for contribution in _from_the_gang(card, index)
+        for contribution in from_the_gang
         if contribution.echoes and ModifierIndex.key(contribution.thing) not in seen
     ]
+    # A pick the gang holds is a fact about every member, whichever way it
+    # arrived: a written gang pick already rides each card as a broadcast
+    # line and counts there, and a granted one must count the same. Read
+    # off the gang's whole grant list rather than the echoed part, because
+    # a grant kept the gang's alone still says what the gang *is* — a
+    # Clan House Goliath Outcast gang's fighters pass "has picked Goliath"
+    # exactly as a Goliath gang's do.
+    guest_picks = tuple(
+        contribution.thing
+        for contribution in from_the_gang
+        if isinstance(contribution.thing, Pickable)
+    )
     for contribution in echoed:
         seen.add(ModifierIndex.key(contribution.thing))
         # The gang's guest keeps the line it stands on: the gang wrote
@@ -842,7 +863,8 @@ def compute(card, index):
     edits = _own_removals(card)
     round_no = 0
     while (pending or edits) and round_no <= MAX_CHAIN_DEPTH:
-        facts = _Facts(card, computed)  # the snapshot every scope in this round sees
+        # The snapshot every scope in this round sees.
+        facts = _Facts(card, computed, guest_picks)
         adds, removes = [], []
         # The owner's removals settle with round 0, the reach an
         # unconditional content removal has.
@@ -970,6 +992,39 @@ def compute(card, index):
                             pending.extend(
                                 steps_for(thing, True, round_no, root_key=step.root_key)
                             )
+                        if effect.with_pick_id is not None:
+                            # The pick a granted slot arrives settled on.
+                            # Dealt as a second addition whose source is
+                            # the *slot*, not the carrier: the retraction
+                            # cascade then takes the pick the moment the
+                            # slot goes, whether a removal named the slot
+                            # or the carrier itself was taken away. A
+                            # carrier in its own right too, so what the
+                            # pick gives runs from here.
+                            pick = effect.with_pick
+                            adds.append(
+                                (
+                                    target,
+                                    Contribution(
+                                        thing=pick,
+                                        source=str(thing),
+                                        source_kind=kind_of(thing),
+                                        echoes=getattr(scope, "echoes", True),
+                                        root_key=step.root_key,
+                                    ),
+                                    step.node,
+                                    thing_key,
+                                )
+                            )
+                            step.granted = (*step.granted, str(pick))
+                            pick_key = ModifierIndex.key(pick)
+                            if pick_key not in seen:
+                                seen.add(pick_key)
+                                pending.extend(
+                                    steps_for(
+                                        pick, True, round_no, root_key=step.root_key
+                                    )
+                                )
                     elif isinstance(effect, RemovesAssignable):
                         removes.append(
                             (
@@ -1226,6 +1281,10 @@ class ComputedGang:
     choices: list = field(default_factory=list)
     rules: list = field(default_factory=list)
     collections: list = field(default_factory=list)
+    #: Picks a grant dealt onto the gang beside a hidden slot — what a
+    #: gang-scoped "has picked" condition reads, and what every member's
+    #: facts inherit.
+    picks: list = field(default_factory=list)
     counters: list = field(default_factory=list)
     #: Empty today — placements land on models — but present so anything
     #: reading placements (``n26.core.browse.offered_by`` shaping a gang-level
@@ -1311,6 +1370,7 @@ def compute_gang(gang_card, index):
         choices=computed.choices,
         rules=computed.rules,
         collections=computed.collections,
+        picks=computed.picks,
         counters=counter_readings(gang_card, computed),
         placements=computed.placements,
         effects=computed.stored_effects,
@@ -1514,7 +1574,7 @@ class _Facts:
     settled by earlier rounds. Built once per round, so every question in
     the round sees the same world."""
 
-    def __init__(self, card, computed):
+    def __init__(self, card, computed, guest_picks=()):
         from n26.core import select
 
         self._select = select
@@ -1523,9 +1583,15 @@ class _Facts:
         # Counter contributions are part of what a threshold reads, and
         # they settle round by round like everything else here: a
         # contribution made in one round is asked about from the next.
+        # Granted picks settle the same way, and the gang's granted picks
+        # (``guest_picks``) are facts about the member from the start.
         self._model = (
             card.model_matchable()
-            .also(*(contribution.thing for contribution in computed.subtypes))
+            .also(
+                *(contribution.thing for contribution in computed.subtypes),
+                *(contribution.thing for contribution in computed.picks),
+                *guest_picks,
+            )
             .counting(counter_totals(computed))
         )
 
@@ -1733,7 +1799,7 @@ def _bucket(computed, target, thing):
     (``card_row`` — subtypes, skills, powers, rules, collections, and
     the ComputedCard's buckets carry the same names), granted equipment,
     or a weapon's traits."""
-    from n26.library.models import Wargear, Weapon
+    from n26.library.models import Pickable, Wargear, Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
@@ -1742,6 +1808,10 @@ def _bucket(computed, target, thing):
         return computed, row
     if isinstance(thing, (Weapon, Wargear)):
         return computed, "granted_gear"
+    if isinstance(thing, Pickable):
+        # A granted pick draws no line — its slot is hidden — but it is a
+        # fact the next round's conditions read, so it is kept.
+        return computed, "picks"
     return None, None
 
 

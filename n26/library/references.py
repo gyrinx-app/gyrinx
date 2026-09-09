@@ -34,7 +34,9 @@ READ_WITH = {
     "library.defaultassignment": ("default_set", "slot"),
     "library.picklistmember": ("picklist", "pickable"),
     "library.option": ("default_set", "profile", "wargear"),
-    "library.addsassignable": ("modifier",),
+    # The slot rides along for the same reason: a grant naming a starting
+    # pick is read as "chosen from the start for that choice".
+    "library.addsassignable": ("modifier", "slot", "with_pick"),
     "library.removesassignable": ("modifier",),
     "library.offerschoice": ("modifier", "from_section__collection"),
     "library.placescategory": ("modifier", "section__collection", "category"),

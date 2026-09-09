@@ -1026,6 +1026,9 @@ def build_modifier_index(assignables, max_depth=3):
         "requires_companions__of",
         *(f"allows_at_most__{name}" for name in COUNTABLE_FIELDS),
         *(f"adds_assignable__{name}" for name in GRANTABLE_FIELDS),
+        # A granted slot's starting pick, dealt onto the card beside the
+        # slot — and a carrier in its own right, so it joins the frontier.
+        "adds_assignable__with_pick",
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
         "contributes_to_counter__counter",
@@ -1101,6 +1104,11 @@ def build_modifier_index(assignables, max_depth=3):
                     granted_thing = getattr(modifier.effect, "thing", None)
                     if granted_thing is not None:
                         granted.append(granted_thing)
+                    # The pick a granted slot arrives with runs its own
+                    # modifiers too; without this, they would never load.
+                    with_pick = getattr(modifier.effect, "with_pick", None)
+                    if with_pick is not None:
+                        granted.append(with_pick)
         frontier = granted
 
     return index

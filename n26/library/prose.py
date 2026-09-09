@@ -330,6 +330,12 @@ def _says_adds(effect, parts):
     who, thing = parts.who, effect.thing
     chain = parts.chain.get(_identity(thing), ())
     tail = f" — which itself gives {_and_then(chain)}" if chain else ""
+    # A slot given with its pick: the choice arrives already made.
+    settled = (
+        f", with {effect.with_pick} already picked"
+        if effect.with_pick_id is not None
+        else ""
+    )
     hint = (
         "Applies while the item carrying this modifier is assigned, and "
         "goes with it. Free — adds nothing to any rating."
@@ -339,11 +345,14 @@ def _says_adds(effect, parts):
     if parts.target == GANG_TARGET:
         landing = _ON_THE_GANG.get(type(thing)._meta.model_name, "held by the gang")
         return (
-            f"the gang gains {_gained(thing)}, {landing}{tail}.",
+            f"the gang gains {_gained(thing)}{settled}, {landing}{tail}.",
             f"{hint} {_GANG_REACH}",
         )
     verb = _agrees(who, "gains", "gain")
-    return f"{who.subject} {verb} {_gained(thing)}{_while(who)}{tail}.", hint
+    return (
+        f"{who.subject} {verb} {_gained(thing)}{settled}{_while(who)}{tail}.",
+        hint,
+    )
 
 
 @_renders("removes_assignable")
@@ -1177,6 +1186,7 @@ def _referenced_by(edges):
     said = [
         *_built_into(edges),
         *_started_with(edges),
+        *_granted_with_a_pick(edges),
         *_listed(edges),
         *_granted(edges),
         *_brought(edges),
@@ -1323,8 +1333,40 @@ def _started_with(edges):
     ]
 
 
+def _granted_with_a_pick(edges):
+    """The granted slots this arrives already settling — a grant with a
+    starting pick.
+
+    The grant-side twin of :func:`_started_with`: nothing gives the
+    pickable in its own right, it comes with the slot the grant hands
+    over, and it goes when that slot does. Read off the grant's own
+    ``with_pick`` column, never as "given by" — the grant gives the slot.
+    """
+    return [
+        Sentence(
+            text=f"Chosen from the start for {_named(reference.row.slot)}.",
+            hint=(
+                "Arrives already picked, with a slot that a modifier gives. "
+                "Players cannot change it. Goes when the slot does."
+            ),
+            key=_identity(reference.row.slot),
+        )
+        for reference in of_kind(
+            edges.references, "library.addsassignable", "with_pick"
+        )
+        if reference.row.slot_id is not None
+    ]
+
+
 def _granted(edges):
-    """Who gives it and who takes it away — the modifier routes."""
+    """Who gives it and who takes it away — the modifier routes.
+
+    Only the columns that name the thing given or taken: a grant also
+    names the pick a slot arrives with, and that is a route of its own
+    (:func:`_granted_with_a_pick`), not "given by".
+    """
+    from n26.library.models.modifier import GRANTABLE_FIELDS
+
     routes = [
         ("library.addsassignable", "Given", " to the gang", _GIVEN_HINT),
         ("library.removesassignable", "Taken away", " from the gang", _TAKEN_HINT),
@@ -1332,6 +1374,8 @@ def _granted(edges):
     said = []
     for label, verb, of_the_gang, hint in routes:
         for reference in of_kind(edges.references, label):
+            if reference.field not in GRANTABLE_FIELDS:
+                continue
             modifier = _modifier_of(reference.row)
             if modifier is None:
                 continue

@@ -79,6 +79,10 @@ The relationships after one hire, spelled out:
 
 Do not author a new kind for this. Create a **slot type** (Affiliation, Chaos God, Variant, or a new name), its **pickables**, a **picklist**, and a **slot** assigned to the gang. Grant that slot from a hidden built into the gang type, or from the gang type itself. Attach ordinary modifiers to each pickable to define its effects. For example, a pickable can open equipment lists to some ranks, or grant another slot while the pick remains assigned.
 
+A choice can arrive already made. Built into a gang type, a slot takes a **starting pick**. A modifier that gives a hidden slot can give it **with a pick**: the pick arrives with the slot, counts as picked wherever a condition asks "has picked", and goes when the slot goes. Only a hidden slot can be given this way, because a given pick has no Remove control of its own. This is how one gang-level choice settles another: picking a Clan House for an Outcast gang gives the gang's hidden Gang supertype slot with that House already picked, so the gang counts as a gang of that House wherever a rule asks.
+
+A pick the gang holds is a fact about every model in it, whether the pick was written or given. A condition on a model that asks "has picked Goliath" is true of every member of a gang that has picked Goliath, even when the grant is the gang's alone.
+
 The slot type's name is the word the card and the history use. The slot's label is the wording of the choice on one card. See **Slot type** below.
 
 ### Rule (special rule)
@@ -252,6 +256,8 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is never paid for: no credits move, and there is nothing to refund or sell. A pickable may still carry a rating contribution — a Spyrer's Power Boost result raises the model's value by the amount the table prints — and the pick carries that as its rating. Removing the pick removes that rating too. A pick the gang holds adds nothing, whatever its pickable says. Most pickables add 0.
 
 A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, including the fighter who made the pick. A pickable that carries the *draws the pick on the card* effect is displayed after all, on the cards its scope reaches. See below.
+
+A pick can also arrive with a slot a modifier gives (*gives* a hidden slot **with a pick**). That pick is not an assignment: it is worked out when the card is read, draws no line, and the player cannot change or remove it. It counts as picked wherever a condition asks, on the holder and, for a slot the gang holds, on every member. It goes when the slot goes. Only a hidden slot can be given this way.
 
 Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
 
