@@ -329,20 +329,118 @@ class CampaignOperation:
             )
         # A shared asset type may hold another campaign's own assets, written
         # into that campaign's pack. Only this campaign's pack and the type's
-        # own are this campaign's to deal in.
+        # own are this campaign's to deal in — plus whatever is on a table
+        # the campaign holds, wherever that is filed, which is the same rule
+        # the catalogue reads (``addable_assets``).
         if asset.pack_id not in (
             self.campaign.pack_id,
             self.campaign.campaign_type.pack_id,
-        ):
+        ) and not _on_a_held_table(self.campaign, asset):
             raise ValueError(
                 f"{asset} is in the {asset.pack} pack, which is not this "
-                "campaign's own or its type's."
+                "campaign's own or its type's, and no table this campaign "
+                "holds lists it."
             )
-        campaign_asset = CampaignAsset.objects.create(
-            campaign=self.campaign, asset=asset, name=(name or "").strip()
-        )
+        campaign_asset = self._keep(asset, name)
         self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
         return campaign_asset
+
+    def _keep(self, asset, name=""):
+        """The campaign asset itself, held by nobody. Written by the two
+        acts that bring an asset in — adding one by hand and rolling one —
+        each of which records itself."""
+        return CampaignAsset.objects.create(
+            campaign=self.campaign, asset=asset, name=(name or "").strip()
+        )
+
+    def roll_asset(self, table, *, membership=None, rolled=None, rng=None):
+        """Roll on an asset table and add what the roll lands on.
+
+        Without a membership this is the arbitrator generating the pool:
+        the table has to be one the campaign itself holds — built into
+        its type or into its additions — and the asset the roll lands on
+        is added held by nobody, exactly as :meth:`add_asset` adds one.
+        With a membership it is a gang's starting roll: the table has to
+        be one that gang holds, on its card as stored or granted, and the
+        asset is assigned to the gang as :meth:`assign` would, so the
+        gang's ledger gets its GAINED. The two rolls are independent, and
+        a roll may land on an asset the campaign already has: the rules
+        allow the same territory to come up more than once, and the
+        campaign asset's own name is what tells the two apart.
+
+        ``rolled`` is a roll made at the table and entered here rather
+        than generated; it has to be one the die can make, and the record
+        says it was entered. ``rng`` is for a test that wants the dice
+        loaded.
+
+        One log line for one act: the roll is recorded as ASSET_ROLLED
+        with the asset in its note, and no ASSET_ADDED beside it.
+        Refused in words where the table is not one the roller holds,
+        names no dice, or has no entry for the roll.
+        """
+        from n26.core.operations import ROLL_ENTERED, Refusal
+        from n26.library.models import Dice
+        from n26.library.staged import sees_staged
+
+        if membership is not None and (
+            membership.campaign_id != self.campaign.pk or not membership.playing
+        ):
+            raise ValueError(f"{membership} is not playing {self.campaign}.")
+        if not table.dice:
+            raise Refusal(
+                f"You cannot roll on {table}. It has no dice: it is an ordered "
+                "list, chosen from rather than rolled."
+            )
+        if membership is None:
+            if (
+                not tables_in_play(
+                    self.campaign, include_staged=sees_staged(self.actor)
+                )
+                .filter(pk=table.pk)
+                .exists()
+            ):
+                raise Refusal(
+                    f"You cannot roll on {table} for {self.campaign.name}. Only a "
+                    "table built into the campaign can be rolled on for its pool."
+                )
+        elif table.pk not in {
+            held.pk for held in tables_held_by(membership.gang, self.campaign)
+        }:
+            raise Refusal(
+                f"{membership.gang.name} cannot roll on {table}. Only a gang "
+                "that holds that table can."
+            )
+
+        dice = Dice(table.dice)
+        entered = rolled is not None
+        if not entered:
+            rolled = Dice.roll(dice, rng)
+        elif rolled not in Dice.rolls(dice):
+            raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
+
+        # The roll is where an asset is newly chosen for the campaign, so a
+        # reader who may not see staged content cannot land on a staged
+        # entry: for them the band is a gap, and the refusal says so.
+        entries = table.entries.select_related("asset__asset_type")
+        if not sees_staged(self.actor):
+            entries = entries.live().filter(asset__staged=False)
+        entry = table.landing(rolled, list(entries))
+        if entry is None:
+            raise Refusal(
+                f"No entry on {table} covers a roll of {rolled}. Fill that gap in "
+                "the table first."
+            )
+        campaign_asset = self._keep(entry.asset)
+        who = f" for {membership.gang.name}" if membership is not None else ""
+        note = f"Rolled {rolled} on {_table_named(table)}{who}: {campaign_asset}."
+        if entered:
+            note = f"{note} {ROLL_ENTERED}"
+        self.event(CampaignEvent.Kind.ASSET_ROLLED, note=note)
+        if membership is not None:
+            campaign_asset = self.assign(campaign_asset, membership)
+        return AssetRoll(
+            roll=rolled, dice=dice, table=table, campaign_asset=campaign_asset
+        )
 
     def remove_asset(self, campaign_asset):
         """Take an asset nobody holds out of the campaign.
@@ -651,6 +749,163 @@ class CampaignOperation:
         )
         return slot
 
+    def open_table(self, table):
+        """Let every gang in the campaign roll on an asset table, by
+        building it into the campaign's additions.
+
+        The table is one of a system pack's or the campaign's own, of an
+        asset type the campaign deals in. The member lands on the
+        additions type's built-ins, so gangs joining from now on hold the
+        table as they join and gangs already playing are given it by the
+        propagation pass every built-in edit files. A member closing took
+        out is revived rather than replaced, for the reason a possession's
+        is: every copy already on a gang names it as its provenance. A
+        table the campaign's own type already gives, or one already open,
+        changes nothing and says nothing.
+        """
+        from n26.core.operations import Refusal
+        from n26.core.propagation import file_propagation_task
+        from n26.library.authoring import add_built_in
+        from n26.library.models import DefaultAssignment
+
+        if table.asset_type.campaign_type_id not in (
+            self.campaign.campaign_type_id,
+            self.campaign.additions_id,
+        ):
+            raise Refusal(
+                f"You cannot open {table} here. It lists "
+                f"{table.asset_type.plural}, which {self.campaign.name} does "
+                "not deal in."
+            )
+        if (
+            tables_in_play(self.campaign, include_staged=True)
+            .filter(pk=table.pk)
+            .exists()
+        ):
+            return None
+        members = DefaultAssignment.objects.filter(
+            default_set_id=self.campaign.additions.built_ins_id, asset_table=table
+        )
+        closed = list(members.filter(archived=True))
+        if closed:
+            for member in closed:
+                member.unarchive()
+                file_propagation_task(member.default_set)
+            member = closed[0]
+        else:
+            member = add_built_in(
+                self.campaign.additions, table, pack=self.campaign.pack
+            )
+        self.event(CampaignEvent.Kind.TABLE_OPENED, note=str(table))
+        return member
+
+    def close_table(self, table):
+        """Stop every gang in the campaign rolling on a table the
+        arbitrator opened.
+
+        The additions' member is taken out the way any built-in is —
+        archived where a gang was given the table through it, deleted
+        where none was. Nothing is taken back: a gang that holds the
+        table keeps it, and a territory already rolled on it stays. A
+        table the campaign's type gives is not the arbitrator's to close,
+        and one not open changes nothing.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.authoring import remove_default_member
+        from n26.library.models import DefaultAssignment
+
+        if DefaultAssignment.objects.filter(
+            default_set_id=self.campaign.campaign_type.built_ins_id,
+            asset_table=table,
+            archived=False,
+        ).exists():
+            raise Refusal(
+                f"You cannot close {table}. {self.campaign.campaign_type} gives "
+                "it to every gang."
+            )
+        members = list(
+            DefaultAssignment.objects.filter(
+                default_set_id=self.campaign.additions.built_ins_id,
+                asset_table=table,
+                archived=False,
+            )
+        )
+        if not members:
+            return None
+        for member in members:
+            remove_default_member(member)
+        self.event(CampaignEvent.Kind.TABLE_CLOSED, note=str(table))
+        return members[0]
+
+    def create_table(self, asset_type, name, dice=""):
+        """Write a new asset table for this campaign alone.
+
+        The table lands in the campaign's pack under one of the Holding
+        asset types the campaign deals in, and is built into the
+        campaign's additions as it is made, so every gang at the table
+        holds it: a table an arbitrator writes is one they mean to roll
+        on. ``dice`` names the die; blank makes an ordered list. Entries
+        are added afterwards with :meth:`add_table_entry`. A name the
+        campaign's pack already uses is refused in words.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.authoring import create_asset_table
+        from n26.library.models import AssetTable
+
+        if asset_type.campaign_type_id not in (
+            self.campaign.campaign_type_id,
+            self.campaign.additions_id,
+        ):
+            raise ValueError(
+                f"{asset_type} is an asset type of {asset_type.campaign_type}, "
+                "not of this campaign's type or the campaign's own."
+            )
+        if not asset_type.is_holding:
+            raise Refusal(
+                f"You cannot make a table of {asset_type.plural}. Every gang has "
+                "its own, so there is nothing to roll for."
+            )
+        name = (name or "").strip()
+        if AssetTable.objects.filter(
+            pack=self.campaign.pack, name__iexact=name
+        ).exists():
+            raise Refusal(f"{self.campaign.name} already has a table called {name}.")
+        table = create_asset_table(
+            name,
+            asset_type,
+            dice=dice or "",
+            pack=self.campaign.pack,
+            given_by=self.campaign.additions,
+        )
+        self.event(CampaignEvent.Kind.TABLE_CREATED, note=str(table))
+        return table
+
+    def add_table_entry(self, table, asset, roll_low=None, roll_high=None):
+        """One more asset on one of the campaign's own tables.
+
+        Only a table in the campaign's pack: a system table is the
+        book's, and an arbitrator narrows it by writing their own. The
+        asset is one the campaign may add by hand (the catalogue reads
+        the same rule), and on a rolled table the band says which rolls
+        land here. What an entry is not allowed to be — another type's
+        asset, a band on an unrolled table, one running downwards — the
+        authoring verb refuses, and the words reach the form.
+        """
+        from n26.library.authoring import add_asset_table_entry
+
+        _own_table(self.campaign, table)
+        return add_asset_table_entry(
+            table, asset, roll_low=roll_low, roll_high=roll_high
+        )
+
+    def remove_table_entry(self, entry):
+        """Take one asset off one of the campaign's own tables. What was
+        already rolled stays in the campaign."""
+        from n26.library.authoring import remove_asset_table_entry
+
+        _own_table(self.campaign, entry.table)
+        remove_asset_table_entry(entry)
+
     def archive(self):
         """Take the campaign off the arbitrator's list, and say so.
 
@@ -663,6 +918,201 @@ class CampaignOperation:
         campaign.archive()
         self.event(CampaignEvent.Kind.ARCHIVED)
         return campaign
+
+
+@dataclass(frozen=True)
+class AssetRoll:
+    """What one roll on an asset table came to: the number, the die, the
+    table, and the campaign asset it added."""
+
+    roll: int
+    dice: object
+    table: object
+    campaign_asset: object
+
+
+def _table_named(table):
+    """A table as a sentence names it: "the Territory Selection Table",
+    but "Goliath Territories". The article follows the name's own last
+    word, since the name is the author's."""
+    name = str(table)
+    return f"the {name}" if name.lower().endswith("table") else name
+
+
+def _own_table(campaign, table):
+    """Refuse a write to a table that is not this campaign's own. A
+    system table is the book's; only what the arbitrator wrote into the
+    campaign's pack is theirs to change."""
+    if table.pack_id != campaign.pack_id:
+        raise ValueError(f"{table} is not one of {campaign}'s own tables.")
+
+
+def addable_assets(campaign, *, include_staged=False):
+    """The library assets this campaign can add by hand: those of the
+    Holding asset types of its type and of its own additions, plus every
+    entry of every table the campaign holds.
+
+    A possession is every member gang's own, given on joining, and is never
+    added here. Only the assets this campaign may see: the system pack's,
+    the shared type's pack's and the campaign's own — an asset another
+    campaign's arbitrator wrote under the same shared asset type sits in
+    that campaign's pack and is nobody else's to offer. A table the
+    campaign holds widens that by its entries, wherever they are filed: a
+    journal's territory becomes addable the moment its table is opened.
+    Additive only — nothing that was addable stops being so. Archived
+    assets are left out here, where a new campaign asset would be made —
+    archiving hides a thing from new additions and takes nothing back from
+    a campaign that already has the asset. ``add_asset`` refuses by the
+    same rule, so the picker and the act cannot drift apart.
+    """
+    from n26.library.models import Asset
+
+    tabled = Asset.objects.filter(
+        tabled__table__in=tables_in_play(campaign, include_staged=True)
+    ).unarchived()
+    if not include_staged:
+        tabled = tabled.live()
+    return (
+        (
+            (
+                campaign.campaign_type.holding_assets()
+                | campaign.additions.holding_assets()
+            ).selectable(
+                [campaign.pack_id, campaign.campaign_type.pack_id],
+                include_staged=include_staged,
+            )
+            | tabled
+        )
+        .distinct()
+        .select_related("asset_type")
+        .order_by("asset_type__position", "asset_type__label_singular", "name")
+    )
+
+
+def _on_a_held_table(campaign, asset):
+    """Whether a table the campaign holds lists this asset — what admits
+    an asset filed outside the campaign's own packs."""
+    from n26.library.models import AssetTableEntry
+
+    return AssetTableEntry.objects.filter(
+        table__in=tables_in_play(campaign, include_staged=True), asset=asset
+    ).exists()
+
+
+def tables_in_play(campaign, *, include_staged=False):
+    """The asset tables the campaign itself holds, and so generates its
+    pool from: the live built-in members of its type and of its
+    additions that name a table. One query.
+
+    ``include_staged`` is whether the reader may see staged content
+    (``n26.library.staged.sees_staged``). A roll is where an asset is
+    newly chosen for the campaign, so a reader who may not is not offered
+    a staged table; a check that asks what the campaign *holds* passes
+    True, since a staged table it holds is held all the same.
+    """
+    from n26.library.models import AssetTable, CampaignType, DefaultAssignment
+
+    # The two types' built-in sets are read by query rather than off the
+    # instances in hand: opening a table may have founded the additions'
+    # set a moment ago, on a copy of the type the caller never saw.
+    sets = CampaignType.objects.filter(
+        pk__in=(campaign.campaign_type_id, campaign.additions_id),
+        built_ins__isnull=False,
+    ).values("built_ins_id")
+    members = DefaultAssignment.objects.filter(
+        default_set_id__in=sets, archived=False, asset_table__isnull=False
+    )
+    tables = AssetTable.objects.filter(pk__in=members.values("asset_table_id"))
+    return tables if include_staged else tables.live()
+
+
+def tables_on(card, computed, withdrawn=frozenset()):
+    """The asset tables a gang may roll on, read off its card: the stored
+    assignments naming one and the tables a grant dealt onto it, each
+    once, in the order they stand. Query-free, so a page that has the
+    cards in hand asks this for every gang without another query.
+
+    ``withdrawn`` is what :func:`withdrawn_members` returns for these
+    cards. A copy given through a built-in member the arbitrator has
+    since closed stays on the gang — nothing is taken back — but the
+    offer is withdrawn, so it is not a table the gang may roll on.
+    """
+    from n26.library.models import AssetTable
+
+    held = {}
+    for node in card.all_nodes():
+        if not isinstance(node.assignable, AssetTable) or node.suppressed:
+            continue
+        given_by = getattr(node.assignment, "materialised_from_id", None)
+        if given_by is not None and given_by in withdrawn:
+            continue
+        held.setdefault(node.assignable.pk, node.assignable)
+    for contribution in computed.tables:
+        held.setdefault(contribution.thing.pk, contribution.thing)
+    return list(held.values())
+
+
+def withdrawn_members(*cards):
+    """The built-in members, since archived, that table copies on these
+    cards came from. One query for however many cards, and none where no
+    card holds a table by a member."""
+    from n26.library.models import AssetTable, DefaultAssignment
+
+    given_by = {
+        node.assignment.materialised_from_id
+        for card in cards
+        for node in card.all_nodes()
+        if isinstance(node.assignable, AssetTable)
+        and node.assignment is not None
+        and node.assignment.materialised_from_id is not None
+    }
+    if not given_by:
+        return frozenset()
+    return frozenset(
+        DefaultAssignment.objects.filter(pk__in=given_by, archived=True).values_list(
+            "pk", flat=True
+        )
+    )
+
+
+def tables_held_by(gang, campaign):
+    """The asset tables one gang may roll on in this campaign — its
+    starting territory's tables. Builds the gang's card and computes it,
+    so this is for an act on one gang; a page listing several reads
+    ``tables_on`` off cards it already has and asks :func:`foreign_tables`
+    once for all of them."""
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
+    from n26.core.effects import compute
+
+    card = build_gang_card(gang, with_statlines=False)
+    computed = compute(card, build_modifier_index(carriers(card)))
+    held = tables_on(card, computed, withdrawn_members(card))
+    foreign = foreign_tables(campaign, held)
+    return [table for table in held if table.pk not in foreign]
+
+
+def foreign_tables(campaign, tables):
+    """The pks among ``tables`` that another campaign's arbitrator wrote.
+
+    A gang keeps the carriers a campaign gave it after it leaves, so a
+    table created for its last campaign is still on its card when it
+    joins the next. Such a table sits in that campaign's pack and is
+    nobody else's to roll on: only a system pack's tables and this
+    campaign's own are offered. One query for however many tables, and
+    none where every table is already in this campaign's pack.
+    """
+    from django.db.models import Q
+
+    from n26.library.models import AssetTable
+
+    elsewhere = {table.pk for table in tables if table.pack_id != campaign.pack_id}
+    if not elsewhere:
+        return frozenset()
+    return frozenset(
+        AssetTable.objects.filter(pk__in=elsewhere)
+        .exclude(Q(pack__owner__isnull=True) | Q(pack_id=campaign.pack_id))
+        .values_list("pk", flat=True)
+    )
 
 
 def _still_held_by(campaign_asset, membership_id):

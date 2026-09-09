@@ -1,0 +1,97 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Which asset tables every gang in the campaign may roll on, by asset type.
+The campaign type's own tables are given and carry no control. Every other
+table of the type the arbitrator may open — a system pack's, or one written
+for this campaign — carries a tick. Ticked, the table is built into the
+campaign's own campaign type, so every gang holds it; unticked, it is taken
+out again, and nothing a gang already rolled is taken back.
+
+One form over every tick, saved together: the view reads the ticks against
+what stood before and opens or closes only what changed.
+{% endcomment %}
+{% block head_title %}Tables in {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-tables' campaign.pk %}"
+                     title="Tables"
+                     lead="The tables a gang rolls on for its starting territory, and the ones you roll on for the campaign's pool. A gang may roll on any table it holds: the ones the campaign type gives, the ones its gang type gives, and any you open here to every gang."
+                     submit_label="Save"
+                     submit_variant="primary"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Tables
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="header_actions">
+            <c-ui.button size="sm" variant="primary" href="{{ new_href }}">
+                Create table
+            </c-ui.button>
+        </c-slot>
+        {% csrf_token %}
+        {% for section in sections %}
+            <c-n26.form-section title="{{ section.asset_type.plural }}">
+                {% if section.given %}
+                    <div class="flex flex-col gap-2">
+                        {% for table in section.given %}
+                            <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-box border border-box-border p-4">
+                                <span>
+                                    <span class="font-semibold text-ink-900 dark:text-ink-100">{{ table.name }}</span>
+                                    <span class="block text-sm text-muted">{{ table.said }}</span>
+                                </span>
+                                <span class="text-sm text-muted">Given by {{ campaign.campaign_type }}. Every gang holds it.</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                {% if section.offered %}
+                    <fieldset>
+                        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">Every gang may roll here</legend>
+                        <p class="mb-2 text-muted">Tick a table to give it to every gang in the campaign. Untick to stop giving it. Anything already rolled on it stays in the campaign.</p>
+                        <div class="flex flex-col gap-2">
+                            {% for table in section.offered %}
+                                <div>
+                                    <c-n26.checkbox-card name="open"
+                                                         value="{{ table.value }}"
+                                                         label="{{ table.name }}"
+                                                         description="{{ table.said }}"
+                                                         :checked="table.checked" />
+                                    {% if table.href %}
+                                        <div class="mt-1 pl-4">
+                                            <c-n26.link href="{{ table.href }}" class="text-sm">
+                                                Entries
+                                            </c-n26.link>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                {% elif not section.given %}
+                    <p class="text-sm text-muted">No tables of {{ section.asset_type.plural|lower }} yet. Create one to roll on.</p>
+                {% endif %}
+            </c-n26.form-section>
+        {% empty %}
+            <c-ui.alert variant="info" title="Nothing to roll for">
+                {{ campaign.campaign_type }} has no asset types with Holding ownership, so there is nothing to put on a table.
+            </c-ui.alert>
+        {% endfor %}
+    </c-n26.form-page>
+{% endblock content %}

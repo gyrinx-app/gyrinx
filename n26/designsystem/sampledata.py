@@ -56,10 +56,12 @@ from n26.core.render import (
     EffectLine,
     GangSheet,
     GearGroup,
+    HeldTable,
     ModelCard,
     Provenance,
     RollResult,
     RollTable,
+    StartingRoll,
     StashLine,
     StatCell,
     Statline,
@@ -2315,6 +2317,16 @@ CAMPAIGN_ASSET_TYPES = [
 ]
 
 
+#: The one rolled table the sample campaign holds, so the Roll controls draw.
+SELECTION_TABLE = HeldTable(
+    table_id="territory-selection-table",
+    name="Territory Selection Table",
+    asset_type_id="territory",
+    dice="d66",
+    die="D66",
+)
+
+
 def campaign_sheet():
     """One campaign, with enough going on to exercise the sheet.
 
@@ -2457,10 +2469,20 @@ def campaign_sheet():
                 ],
                 labels=["Law Abiding"],
                 assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"]],
+                starting_rolls=[
+                    StartingRoll(
+                        asset_type_id="territory",
+                        label="Roll starting territory",
+                        tables=[SELECTION_TABLE],
+                        href="#",
+                    )
+                ],
                 href="#",
                 yours=True,
             ),
         ],
+        tables_href="#",
+        territories_to_generate=9,
         assets=[
             CampaignAssetTable(
                 asset_type_id="territory",
@@ -2468,6 +2490,8 @@ def campaign_sheet():
                 plural="Territories",
                 add_href="#",
                 create_href="#",
+                roll_href="#",
+                tables=[SELECTION_TABLE],
                 entries=[
                     CampaignAssetEntry(
                         campaign_asset_id="old-ruins",

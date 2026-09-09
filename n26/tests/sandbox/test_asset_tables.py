@@ -479,7 +479,11 @@ class TestNothingDrawsATable:
         assert "Settlement" in sheet
         for body in (sheet, paper, page):
             assert "Dominion Territories" not in body
-        assert "Dominion Territories" not in str(render_campaign(campaign))
+        # The campaign sheet carries the table for its Roll controls, and
+        # draws it nowhere: the gang's lines, rules and assets leave it out.
+        structure = render_campaign(campaign)
+        assert "Dominion Territories" not in str(structure.gangs[0].assets)
+        assert "Dominion Territories" not in str(structure.assets[0].entries)
 
     def test_the_founding_page_leaves_it_out(self, dominion, d6_table):
         """The one built-ins-enumerating surface a player reads: what

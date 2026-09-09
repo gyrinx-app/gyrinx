@@ -1,0 +1,116 @@
+{% comment %}
+The two roll questions the campaign page can ask: Roll territory for the
+campaign's pool when the address names an asset type (`?roll=`), and Roll
+starting territory for one gang when it names a gang and a type
+(`?starting=…&type=…`). Each control takes the asset type's own word, so
+a campaign of Rackets asks to roll a racket. Expects `rolling`, `starting`,
+`campaign` and `redrawn` from the view.
+
+Drawn inside a host of its own so a click can fetch the question alone: the
+Roll controls ask over htmx, the server sends back this host with the panel
+in it, and the page underneath is not rebuilt. Without a script the same
+click is a plain link and the whole page is served with the panel open.
+Fetched on its own the host is swapped in by id, and the panel counts as one
+this page opened, so dismissing it puts the address back rather than
+navigating.
+
+The form posts to the act's own address and the act redirects: what a roll
+adds is a new line in a table, which no partial update can put there.
+
+One table offered is not a choice: the panel names it and posts it hidden.
+Several are cards. Either way the roll may be entered from dice rolled at
+the table, and is otherwise made here.
+{% endcomment %}
+<div id="n26-roll-dialog-host"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    {% if rolling %}
+        <c-n26.dialog title="Roll {{ rolling.label }}"
+                      action="{% url 'n26-campaign-roll-asset' campaign.pk %}"
+                      cancel_url="{% url 'n26-campaign' campaign.pk %}#assets"
+                      submit_label="Roll"
+                      :redrawn="redrawn">
+            <c-slot name="lead">
+                The {{ rolling.label }} the roll lands on is added to the campaign,
+                unclaimed.{% if rolling.to_generate is not None %} The rules generate three per player: {{ rolling.to_generate }} for this campaign.{% endif %}
+            </c-slot>
+            {% csrf_token %}
+            <input type="hidden" name="type" value="{{ rolling.asset_type_id }}">
+            {% if rolling.only %}
+                <input type="hidden" name="table" value="{{ rolling.only.table_id }}">
+                <p class="text-base">
+                    On {{ rolling.only.name }}
+                    <span class="text-muted">({{ rolling.only.die }})</span>
+                </p>
+            {% else %}
+                <c-n26.radio-cards label="Table" name="table" min="12rem">
+                    {% for table in rolling.tables %}
+                        <c-n26.radio-cards.card name="table"
+                                                value="{{ table.table_id }}"
+                                                label="{{ table.name }}"
+                                                description="{{ table.die }}"
+                                                :checked="forloop.first"
+                                                :wrap="True" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            {% endif %}
+            <c-ui.field label="Enter the roll you made at the table"
+                        description="Optional. Leave blank and the roll is made here."
+                        for="roll-entered">
+                <c-ui.input id="roll-entered"
+                            name="rolled"
+                            type="number"
+                            min="1"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            class="max-w-32" />
+            </c-ui.field>
+        </c-n26.dialog>
+    {% endif %}
+    {% if starting %}
+        <c-n26.dialog title="Roll starting {{ starting.label }} for {{ starting.gang_name }}"
+                      action="{% url 'n26-campaign-roll-starting' campaign.pk starting.gang_id %}"
+                      cancel_url="{% url 'n26-campaign' campaign.pk %}#gangs"
+                      submit_label="Roll"
+                      :redrawn="redrawn">
+            <c-slot name="lead">
+                The {{ starting.label }} the roll lands on is assigned to
+                {{ starting.gang_name }}. This roll is separate from the campaign's
+                pool, so it may land on a {{ starting.label }} the pool already has.
+            </c-slot>
+            {% csrf_token %}
+            <input type="hidden" name="type" value="{{ starting.asset_type_id }}">
+            {% if starting.only %}
+                <input type="hidden" name="table" value="{{ starting.only.table_id }}">
+                <p class="text-base">
+                    On {{ starting.only.name }}
+                    <span class="text-muted">({{ starting.only.die }})</span>
+                </p>
+            {% else %}
+                <c-n26.radio-cards label="Table"
+                                   description="The tables {{ starting.gang_name }} holds."
+                                   name="table"
+                                   min="12rem">
+                    {% for table in starting.tables %}
+                        <c-n26.radio-cards.card name="table"
+                                                value="{{ table.table_id }}"
+                                                label="{{ table.name }}"
+                                                description="{{ table.die }}"
+                                                :checked="forloop.first"
+                                                :wrap="True" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            {% endif %}
+            <c-ui.field label="Enter the roll you made at the table"
+                        description="Optional. Leave blank and the roll is made here."
+                        for="starting-roll-entered">
+                <c-ui.input id="starting-roll-entered"
+                            name="rolled"
+                            type="number"
+                            min="1"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            class="max-w-32" />
+            </c-ui.field>
+        </c-n26.dialog>
+    {% endif %}
+</div>

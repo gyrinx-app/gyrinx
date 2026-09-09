@@ -503,3 +503,45 @@ def add_campaign_label(campaign, name, options, actor=None):
 
     with campaign_operation(campaign, actor=actor or campaign.owner) as act:
         return act.add_label(name, options)
+
+
+def roll_asset(campaign, table, gang=None, rolled=None, rng=None, actor=None):
+    """Roll on an asset table for the campaign's pool, or for one gang's
+    starting asset where a gang is named, as the campaign page's two Roll
+    dialogs do."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignMembership
+
+    membership = (
+        CampaignMembership.objects.get(campaign=campaign, gang=gang, left__isnull=True)
+        if gang is not None
+        else None
+    )
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.roll_asset(table, membership=membership, rolled=rolled, rng=rng)
+
+
+def open_table(campaign, table, actor=None):
+    """Let every gang in the campaign roll on a table, as the Tables page's
+    tick does."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.open_table(table)
+
+
+def close_table(campaign, table, actor=None):
+    """Stop every gang in the campaign rolling on a table the arbitrator
+    opened, as unticking does."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.close_table(table)
+
+
+def create_campaign_table(campaign, asset_type, name, dice="", actor=None):
+    """Write a table into the campaign's pack, built into its additions."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.create_table(asset_type, name, dice=dice)

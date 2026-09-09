@@ -10,6 +10,7 @@ itself say that something is there.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
@@ -192,6 +193,7 @@ def campaign(request, pk):
     from n26.core.history import campaign_history, campaign_history_size
     from n26.core.models import CampaignParticipant
     from n26.core.render import render_campaign
+    from n26.core.views.htmx import is_htmx
 
     accepted = CampaignParticipant.State.ACCEPTED
 
@@ -199,6 +201,25 @@ def campaign(request, pk):
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
     sheet = render_campaign(found, viewer=request.user)
+    # The two roll questions the address may ask — ``?roll=`` for the pool,
+    # ``?starting=`` for one gang — and only the arbitrator's to ask. Over
+    # htmx the panel alone is sent, in its host, and the page underneath
+    # stays as it is; the address is corrected so a reload draws it again.
+    rolling = _rolling(request, found, sheet) if yours else None
+    starting = _starting(request, found, sheet) if yours and not rolling else None
+    if (rolling or starting) and request.method == "GET" and is_htmx(request):
+        response = render(
+            request,
+            "n26/includes/campaign_roll_dialogs.html",
+            {
+                "campaign": found,
+                "rolling": rolling,
+                "starting": starting,
+                "redrawn": True,
+            },
+        )
+        response["HX-Replace-Url"] = request.get_full_path()
+        return response
     # The addresses are the view's to fill: the structure says who may act,
     # and only here is it known where each act is asked.
     here = reverse("n26-campaign", args=[found.pk])
@@ -221,6 +242,12 @@ def campaign(request, pk):
         )
         sheet.add_counter_href = reverse("n26-campaign-add-counter", args=[found.pk])
         sheet.add_label_href = reverse("n26-campaign-add-label", args=[found.pk])
+        sheet.tables_href = reverse("n26-campaign-tables", args=[found.pk])
+        # A starting roll is asked on this page, for one gang and one asset
+        # type; the address names both so a reload asks it again.
+        for line in sheet.gangs:
+            for roll in line.starting_rolls:
+                roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
     for table in sheet.assets:
         if yours:
             table.add_href = (
@@ -231,6 +258,10 @@ def campaign(request, pk):
                 reverse("n26-campaign-new-asset", args=[found.pk])
                 + f"?type={table.asset_type_id}"
             )
+            # Only where there is a rolled table to roll on: a control for
+            # a roll nothing can be rolled on would be a control saying no.
+            if table.tables:
+                table.roll_href = f"{here}?roll={table.asset_type_id}"
         for entry in table.entries:
             if entry.held:
                 entry.holder_href = reverse("n26-gang", args=[entry.holder_gang_id])
@@ -280,8 +311,186 @@ def campaign(request, pk):
             "battles": battles,
             "acts": list(reversed(recent)),
             "more_acts": max(campaign_history_size(found) - len(recent), 0),
+            "rolling": rolling,
+            "starting": starting,
         },
     )
+
+
+def _rolling(request, campaign, sheet):
+    """The pool roll ``?roll=`` asks for, where the address names one of
+    the campaign's Holding asset types with a rolled table to roll on.
+    Anything else is a page without the panel."""
+    from n26.library.territory_table import TERRITORY
+
+    asked = request.GET.get("roll", "")
+    table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
+    if table is None or not table.tables:
+        return None
+    # Three per player is the rulebook's figure for Territories. An asset
+    # type the arbitrator declared has no such rule, so its dialog says
+    # nothing about how many to generate.
+    territories = table.label == TERRITORY
+    return {
+        "asset_type_id": asked,
+        "label": table.label.lower(),
+        "tables": table.tables,
+        "only": table.tables[0] if len(table.tables) == 1 else None,
+        "to_generate": sheet.territories_to_generate if territories else None,
+    }
+
+
+def _starting(request, campaign, sheet):
+    """The starting roll ``?starting=`` asks for: one gang at the table,
+    and an asset type of which it holds a rolled table. Anything else is
+    a page without the panel."""
+    gang_id = request.GET.get("starting", "")
+    asked = request.GET.get("type", "")
+    line = next((g for g in sheet.gangs if g.gang_id == gang_id), None)
+    if line is None:
+        return None
+    roll = next((r for r in line.starting_rolls if r.asset_type_id == asked), None)
+    if roll is None:
+        return None
+    return {
+        "gang_id": gang_id,
+        "gang_name": line.name,
+        "asset_type_id": asked,
+        "label": roll.label.removeprefix("Roll starting "),
+        "tables": roll.tables,
+        "only": roll.tables[0] if len(roll.tables) == 1 else None,
+    }
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def roll_asset(request, pk):
+    """Roll on one of the campaign's tables for its pool: the act behind
+    the ``?roll=`` dialog.
+
+    The tables accepted are the rolled ones the campaign itself holds of
+    the asset type named, the same list the dialog offered. A refusal in
+    words lands as a message and the dialog opens again; the roll lands
+    the reader back at the assets, where what it added now stands. GET
+    reopens the dialog instead of acting.
+    """
+    from n26.core.campaigns import campaign_operation, tables_in_play
+    from n26.core.forms import RollAssetForm
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk)
+    asked = request.POST.get("type", "") or request.GET.get("type", "")
+    asset_type = _asset_type_asked_for(found, asked)
+    again = _campaign_page(found) + (f"?roll={asset_type.pk}" if asset_type else "")
+    if request.method != "POST" or asset_type is None:
+        return redirect(again)
+    tables = (
+        tables_in_play(found, include_staged=sees_staged(request.user))
+        .filter(asset_type=asset_type)
+        .exclude(dice="")
+    )
+    form = RollAssetForm(request.POST, tables=tables)
+    if not form.is_valid():
+        messages.error(request, _first_error(form))
+        return redirect(again)
+    try:
+        with campaign_operation(found, actor=request.user) as act:
+            roll = act.roll_asset(
+                form.cleaned_data["table"], rolled=form.cleaned_data["rolled"]
+            )
+    except Refusal as refused:
+        messages.error(request, str(refused))
+        return redirect(again)
+    messages.success(
+        request,
+        f"Rolled {roll.roll} on {roll.table}: {roll.campaign_asset} added to the "
+        "campaign, unclaimed.",
+    )
+    return redirect(_assets_anchor(found))
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def roll_starting_asset(request, pk, gang_pk):
+    """Roll one gang's starting asset on a table it holds: the act behind
+    the ``?starting=`` dialog.
+
+    The tables accepted are the rolled ones that gang holds of the asset
+    type named — stored or granted, the same list the dialog offered. The
+    asset lands assigned to the gang, and the reader back at the gangs
+    table, where the gang's line now names it.
+    """
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation, tables_held_by
+    from n26.core.forms import RollAssetForm
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import Refusal
+    from n26.library.models import AssetTable
+
+    found = _own_campaign_or_404(request, pk)
+    # A key that is not a key at all is a bad link, not a server error.
+    try:
+        membership = (
+            CampaignMembership.objects.filter(
+                campaign=found, gang_id=gang_pk, left__isnull=True
+            )
+            .select_related("gang")
+            .first()
+        )
+    except ValidationError:
+        raise Http404("No such gang in this campaign") from None
+    if membership is None:
+        raise Http404("No such gang in this campaign")
+    asked = request.POST.get("type", "") or request.GET.get("type", "")
+    asset_type = _asset_type_asked_for(found, asked)
+    again = _campaign_page(found) + (
+        f"?starting={gang_pk}&type={asset_type.pk}" if asset_type else ""
+    )
+    if request.method != "POST" or asset_type is None:
+        return redirect(again)
+    held = [
+        table.pk
+        for table in tables_held_by(membership.gang, found)
+        if table.dice and table.asset_type_id == asset_type.pk
+    ]
+    form = RollAssetForm(request.POST, tables=AssetTable.objects.filter(pk__in=held))
+    if not form.is_valid():
+        messages.error(request, _first_error(form))
+        return redirect(again)
+    try:
+        with campaign_operation(found, actor=request.user) as act:
+            roll = act.roll_asset(
+                form.cleaned_data["table"],
+                membership=membership,
+                rolled=form.cleaned_data["rolled"],
+            )
+    except Refusal as refused:
+        messages.error(request, str(refused))
+        return redirect(again)
+    messages.success(
+        request,
+        f"Rolled {roll.roll} on {roll.table} for {membership.gang.name}: "
+        f"{roll.campaign_asset}.",
+    )
+    return redirect(_gangs_anchor(found))
+
+
+def _campaign_page(campaign):
+    from django.urls import reverse
+
+    return reverse("n26-campaign", args=[campaign.pk])
+
+
+def _first_error(form):
+    """The first thing wrong with a dialog's form, as the one sentence a
+    message can carry: the dialog is drawn again and the reader tries
+    once more."""
+    for errors in form.errors.values():
+        for error in errors:
+            return str(error)
+    return "Check the form and try again."
 
 
 @requires_flag(CAMPAIGNS)
@@ -637,27 +846,11 @@ def remove_battle(request, pk, battle_pk):
 
 
 def _holding_assets(campaign, *, include_staged=False):
-    """The library assets this campaign can add: those of the Holding asset
-    types of its type and of its own additions.
+    """The assets the Add control offers — ``addable_assets``, which is
+    also the rule ``add_asset`` refuses by."""
+    from n26.core.campaigns import addable_assets
 
-    A possession is every member gang's own, given on joining, and is never
-    added here. Only the assets this campaign may see: the system pack's,
-    the shared type's pack's and the campaign's own — an asset another
-    campaign's arbitrator wrote under the same shared asset type sits in
-    that campaign's pack and is nobody else's to offer. Archived assets are
-    left out here, where a new campaign asset would be made — archiving
-    hides a thing from new additions and takes nothing back from a campaign
-    that already has the asset.
-    """
-    return (
-        (campaign.campaign_type.holding_assets() | campaign.additions.holding_assets())
-        .selectable(
-            [campaign.pack_id, campaign.campaign_type.pack_id],
-            include_staged=include_staged,
-        )
-        .select_related("asset_type")
-        .order_by("asset_type__position", "asset_type__label_singular", "name")
-    )
+    return addable_assets(campaign, include_staged=include_staged)
 
 
 def _assets_anchor(campaign):
@@ -1210,6 +1403,380 @@ def add_label(request, pk):
     return _addition_page(
         request, found, form, "n26/add_label.html", act, _gangs_anchor(found)
     )
+
+
+# --- The arbitrator's tables ---------------------------------------------------
+#
+# Which asset tables every gang in the campaign may roll on, beyond the ones
+# its type gives: the arbitrator opens a system table to the campaign, or
+# writes a table of their own and fills it from the catalogue. Every table
+# is held, never listed per campaign — opening one builds it into the
+# campaign's additions, and the roll controls read the holdings.
+
+
+def _tables_offered(campaign, *, include_staged=False):
+    """The tables of the campaign's Holding asset types the arbitrator
+    may open or close: a system pack's, or the campaign's own. Another
+    campaign's tables sit in that campaign's pack and are nobody else's.
+    Archived tables are left out, as at every surface where something
+    is newly chosen."""
+    from django.db.models import Q
+
+    from n26.library.models import AssetTable
+
+    offered = (
+        AssetTable.objects.filter(
+            asset_type__campaign_type_id__in=(
+                campaign.campaign_type_id,
+                campaign.additions_id,
+            )
+        )
+        .filter(Q(pack__owner__isnull=True) | Q(pack=campaign.pack))
+        .unarchived()
+        .annotate(entry_count=Count("entries"))
+        .select_related("asset_type")
+        .order_by("asset_type__position", "name")
+    )
+    return offered if include_staged else offered.live()
+
+
+def _given_tables(campaign):
+    """The tables the campaign's own type gives every gang — shown as
+    given, with no control, since they are not the arbitrator's to
+    close."""
+    from n26.library.models import DefaultAssignment
+
+    return set(
+        DefaultAssignment.objects.filter(
+            default_set_id=campaign.campaign_type.built_ins_id,
+            archived=False,
+            asset_table__isnull=False,
+        ).values_list("asset_table_id", flat=True)
+    )
+
+
+def _open_tables(campaign):
+    """The tables the arbitrator has opened: live members of the
+    additions' built-ins naming one."""
+    from n26.library.models import DefaultAssignment
+
+    return set(
+        DefaultAssignment.objects.filter(
+            default_set_id=campaign.additions.built_ins_id,
+            archived=False,
+            asset_table__isnull=False,
+        ).values_list("asset_table_id", flat=True)
+    )
+
+
+def _table_said(table):
+    """One table's facts under its name: the die and how many entries."""
+    die = f"rolled on a {table.get_dice_display()}" if table.dice else "not rolled"
+    count = table.entry_count
+    entries = (
+        "no entries yet"
+        if count == 0
+        else f"{count} entr{'y' if count == 1 else 'ies'}"
+    )
+    return f"{die} · {entries}"
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def campaign_tables(request, pk):
+    """The tables every gang in the campaign may roll on, by asset type,
+    and the ticks that open and close them.
+
+    Under each Holding asset type: the tables the campaign's type gives,
+    shown as given; then every other table of that type the arbitrator
+    may open — a system pack's, or one written for this campaign — each
+    with a tick saying every gang may roll on it. POST reads the ticks
+    against what stood before: newly ticked tables are opened, newly
+    unticked ones closed, and nothing else is touched.
+    """
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import OpenTablesForm
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk)
+    offered = _tables_offered(found, include_staged=sees_staged(request.user))
+    given = _given_tables(found)
+    was_open = _open_tables(found)
+    openable = offered.exclude(pk__in=given)
+
+    if request.method == "POST":
+        form = OpenTablesForm(request.POST, tables=openable)
+        if form.is_valid():
+            wanted = {table.pk: table for table in form.cleaned_data["open"]}
+            by_pk = {table.pk: table for table in openable}
+            opened, closed = [], []
+            try:
+                with campaign_operation(found, actor=request.user) as act:
+                    for table_pk, table in wanted.items():
+                        if table_pk not in was_open and act.open_table(table):
+                            opened.append(str(table))
+                    for table_pk in was_open - set(wanted):
+                        table = by_pk.get(table_pk)
+                        if table is not None and act.close_table(table):
+                            closed.append(str(table))
+            except Refusal as refused:
+                messages.error(request, str(refused))
+            else:
+                said = []
+                if opened:
+                    said.append(f"Opened {', '.join(opened)} to every gang.")
+                if closed:
+                    said.append(f"Closed {', '.join(closed)}.")
+                messages.success(request, " ".join(said) or "Nothing changed.")
+            return redirect("n26-campaign-tables", pk=found.pk)
+        messages.error(request, _first_error(form))
+        return redirect("n26-campaign-tables", pk=found.pk)
+
+    sections = []
+    for asset_type in _campaign_asset_types(found):
+        if not asset_type.is_holding:
+            continue
+        tables = [t for t in offered if t.asset_type_id == asset_type.pk]
+        sections.append(
+            {
+                "asset_type": asset_type,
+                "given": [
+                    {
+                        "name": str(t),
+                        "said": _table_said(t),
+                        "href": _table_href(found, t),
+                    }
+                    for t in tables
+                    if t.pk in given
+                ],
+                "offered": [
+                    {
+                        "value": str(t.pk),
+                        "name": str(t),
+                        "said": _table_said(t),
+                        "checked": t.pk in was_open,
+                        "href": _table_href(found, t),
+                    }
+                    for t in tables
+                    if t.pk not in given
+                ],
+            }
+        )
+    from django.urls import reverse
+
+    return render(
+        request,
+        "n26/campaign_tables.html",
+        {
+            "campaign": found,
+            "sections": sections,
+            "back": _assets_anchor(found),
+            "new_href": reverse("n26-campaign-new-table", args=[found.pk]),
+        },
+    )
+
+
+def _table_href(campaign, table):
+    """Where a table's entries are read and, for the campaign's own,
+    changed. A system table has no page here: it is the book's."""
+    from django.urls import reverse
+
+    if table.pack_id != campaign.pack_id:
+        return ""
+    return reverse("n26-campaign-table", args=[campaign.pk, table.pk])
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def new_table(request, pk):
+    """Write a new asset table for this campaign, then go and fill it."""
+    from django.urls import reverse
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import NewTableForm
+    from n26.core.operations import Refusal
+    from n26.library.models import AssetType
+
+    found = _own_campaign_or_404(request, pk)
+    asset_types = _campaign_asset_types(found).filter(
+        ownership=AssetType.Ownership.HOLDING
+    )
+    form = NewTableForm(request.POST or None, asset_types=asset_types)
+    if request.method == "POST" and form.is_valid():
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                table = act.create_table(
+                    form.cleaned_data["asset_type"],
+                    form.cleaned_data["name"],
+                    dice=form.cleaned_data["dice"],
+                )
+        except Refusal as refused:
+            form.add_error(None, str(refused))
+        else:
+            messages.success(
+                request,
+                f"Created the table {table}. Every gang in the campaign may roll "
+                "on it once it has entries.",
+            )
+            return redirect("n26-campaign-table", pk=found.pk, table_pk=table.pk)
+
+    picked = str(form["asset_type"].value() or request.GET.get("type", ""))
+    chosen = str(form["dice"].value() or "")
+    return render(
+        request,
+        "n26/new_table.html",
+        {
+            "form": form,
+            "campaign": found,
+            "back": reverse("n26-campaign-tables", args=[found.pk]),
+            "asset_types": [
+                {
+                    "value": str(asset_type.pk),
+                    "label": asset_type.label_singular,
+                    "description": f"A table of {asset_type.plural.lower()}.",
+                    "checked": str(asset_type.pk) == picked,
+                }
+                for asset_type in asset_types
+            ],
+            "dice": [
+                {"value": value, "label": label, "checked": value == chosen}
+                for value, label in form.fields["dice"].choices
+            ],
+        },
+    )
+
+
+def _own_table_or_404(campaign, table_pk):
+    """One of the campaign's own tables — written into its pack — with its
+    asset type along. A system table is not edited here, and a key that
+    is not a key is a bad link."""
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
+
+    from n26.library.models import AssetTable
+
+    try:
+        return get_object_or_404(
+            AssetTable.objects.select_related("asset_type"),
+            pk=table_pk,
+            pack=campaign.pack,
+        )
+    except ValidationError:
+        raise Http404("No such table in this campaign") from None
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def campaign_table(request, pk, table_pk):
+    """One of the campaign's own tables: its entries, whether its bands
+    cover its die, and the form that adds an entry from the catalogue.
+
+    The assets offered are the ones the campaign may add by hand, of the
+    table's asset type: the same list the Add control offers, so a table
+    lists nothing the campaign could not add. POST adds one entry; what
+    the library refuses — another type's asset, a band on an unrolled
+    table — lands on the form in words.
+    """
+    from django.core.exceptions import ValidationError
+    from django.db.models import F
+    from django.urls import reverse
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import TableEntryForm
+    from n26.library.views import _coverage_context
+
+    found = _own_campaign_or_404(request, pk)
+    table = _own_table_or_404(found, table_pk)
+    offered = _holding_assets(found, include_staged=sees_staged(request.user)).filter(
+        asset_type=table.asset_type
+    )
+    form = TableEntryForm(request.POST or None, offered=offered, table=table)
+    if request.method == "POST" and form.is_valid():
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                entry = act.add_table_entry(
+                    table,
+                    form.cleaned_data["asset"],
+                    roll_low=form.cleaned_data["roll_low"],
+                    roll_high=form.cleaned_data["roll_high"],
+                )
+        except ValidationError as refused:
+            for message in refused.messages:
+                form.add_error(None, message)
+        else:
+            messages.success(request, f"Added {entry.label} to {table}.")
+            return redirect("n26-campaign-table", pk=found.pk, table_pk=table.pk)
+
+    entries = list(
+        table.entries.select_related("asset").order_by(
+            F("roll_low").asc(nulls_last=True), "position", "asset__name"
+        )
+    )
+    coverage = (
+        _coverage_context(table.coverage(entries), lambda entry: entry.label)
+        if table.dice
+        else None
+    )
+    submitted = str(form["asset"].value() or "")
+    return render(
+        request,
+        "n26/campaign_table.html",
+        {
+            "form": form,
+            "campaign": found,
+            "table": table,
+            "entries": [
+                {
+                    "band": entry.band,
+                    "label": entry.label,
+                    "remove_href": reverse(
+                        "n26-campaign-table-entry-remove",
+                        args=[found.pk, table.pk, entry.pk],
+                    ),
+                }
+                for entry in entries
+            ],
+            "coverage": coverage,
+            "assets": [
+                {
+                    "value": str(asset.pk),
+                    "label": asset.name,
+                    "checked": str(asset.pk) == submitted,
+                }
+                for asset in offered
+            ],
+            "back": reverse("n26-campaign-tables", args=[found.pk]),
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def remove_table_entry(request, pk, table_pk, entry_pk):
+    """Take one entry off one of the campaign's own tables. POST is the
+    act; a GET is a plain link back to the table."""
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation
+    from n26.library.models import AssetTableEntry
+
+    found = _own_campaign_or_404(request, pk)
+    table = _own_table_or_404(found, table_pk)
+    if request.method == "POST":
+        try:
+            entry = get_object_or_404(
+                AssetTableEntry.objects.select_related("asset"),
+                pk=entry_pk,
+                table=table,
+            )
+        except ValidationError:
+            raise Http404("No such entry on this table") from None
+        label = entry.label
+        with campaign_operation(found, actor=request.user) as act:
+            act.remove_table_entry(entry)
+        messages.success(request, f"Removed {label} from {table}.")
+    return redirect("n26-campaign-table", pk=found.pk, table_pk=table.pk)
 
 
 def invitations_for(user):
