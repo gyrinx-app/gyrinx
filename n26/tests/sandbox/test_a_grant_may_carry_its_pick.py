@@ -573,6 +573,71 @@ class TestTheComposer:
         assert grant.slot == supertype_slot
         assert grant.with_pick == houses["Goliath"]
 
+    def test_a_pick_of_another_type_is_refused_on_its_field(
+        self, supertype_slot, default_pack
+    ):
+        """The row's own refusal lands on the pick control, so the page
+        redraws with it instead of failing the request."""
+        from n26.library.forms import generate_form
+        from n26.library.specs import specs
+
+        other = create_slot_type("Legacy", plural_name="Legacies")
+        stranger = create_pickable("Cawdor", other)
+        form = generate_form(specs()["ef_adds"])(
+            {
+                "thing_kind": "slot",
+                "thing_slot": str(supertype_slot.pk),
+                "with_pick": str(stranger.pk),
+            }
+        )
+
+        assert not form.is_valid()
+        (error,) = form.errors["with_pick"]
+        assert "offers Gang supertype pickables" in error
+
+    def test_a_pick_beside_a_shown_slot_is_refused_on_its_field(
+        self, shown_slot, houses
+    ):
+        from n26.library.forms import generate_form
+        from n26.library.specs import specs
+
+        form = generate_form(specs()["ef_adds"])(
+            {
+                "thing_kind": "slot",
+                "thing_slot": str(shown_slot.pk),
+                "with_pick": str(houses["Goliath"].pk),
+            }
+        )
+
+        assert not form.is_valid()
+        (error,) = form.errors["with_pick"]
+        assert "Only a hidden slot can be given with its pick" in error
+
+    def test_the_composer_page_redraws_a_refused_pick(self, client, shown_slot, houses):
+        """The modifier views catch a duplicate name and nothing else, so
+        the form has to hold the refusal itself for the page to show it."""
+        from n26.library.models import Modifier
+
+        client.force_login(User.objects.create_user("author", is_staff=True))
+        response = client.post(
+            "/n26/authoring/modifiers/new/",
+            {
+                "scope_kind": "targets_gang",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "slot",
+                "what-thing_slot": str(shown_slot.pk),
+                "what-with_pick": str(houses["Goliath"].pk),
+                "conditions-TOTAL_FORMS": "0",
+                "conditions-INITIAL_FORMS": "0",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "Only a hidden slot can be given with its pick" in (
+            response.content.decode()
+        )
+        assert Modifier.objects.count() == 0
+
     def test_editing_a_grant_opens_on_its_pick(self, supertype_slot, houses):
         from n26.library.forms import generate_form
         from n26.library.specs import specs

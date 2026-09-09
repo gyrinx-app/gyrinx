@@ -569,9 +569,35 @@ class GeneratedForm(forms.Form):
         # An ask typed for one kind must not survive switching to a
         # kind that never asked — the value only means what the chosen
         # kind says it means.
+        asks = {}
         for ask_name, options in self.union_asks.get(name, {}).items():
             if chosen not in options:
                 cleaned[ask_name] = None
+            elif cleaned.get(ask_name) is not None:
+                asks[ask_name] = cleaned[ask_name]
+        if asks and not isinstance(picked, PendingCreate):
+            self._refuse_as_the_row_would(name, kind, chosen, picked, asks)
+
+    def _refuse_as_the_row_would(self, name, kind, chosen, picked, asks):
+        """An ask the chosen kind declares is judged by the row it is
+        written into, before the verb runs.
+
+        The through row's own ``clean`` knows both ends — a starting
+        pick belongs to a hidden slot of its own type — and the verb
+        raises what it says. Asking the row here puts that refusal on
+        the ask's field instead of letting it surface as a failed
+        request. A newly named thing is not judged: it does not exist
+        yet, and the verb creates it as the kind's plain default.
+        """
+        try:
+            kind.through(**{chosen: picked}, **asks).clean()
+        except ValidationError as refused:
+            picker = f"{name}_{chosen}"
+            if not hasattr(refused, "error_dict"):
+                self.add_error(picker, refused)
+                return
+            for field, errors in refused.error_dict.items():
+                self.add_error(field if field in self.fields else picker, errors)
 
     def verb_data(self):
         """The spec-field values a valid form holds, ready for the verb:
