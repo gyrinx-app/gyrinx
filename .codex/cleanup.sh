@@ -26,7 +26,8 @@ if [ -n "$PG_BIN_DIR" ]; then
 fi
 
 # Use the local cluster, regardless of inherited production/test DB variables.
-# Explicit arguments also override a PG service's connection defaults.
+# libpq's hostaddr overrides --host, even when it names a Unix socket.
+unset PGHOSTADDR PGSERVICE PGSERVICEFILE
 DB_HOST="${GYRINX_DB_HOST:-localhost}"
 case "$DB_HOST" in
   localhost|127.0.0.1|/tmp|/private/tmp) ;;

@@ -71,14 +71,20 @@ class CodexLifecycleTests(unittest.TestCase):
             ]
         )
         self.write_script(self.bin / "brew", 'echo "$FAKE_TOOLS"\n')
+        reject_remote_settings = (
+            'if [ -n "${PGHOSTADDR:-}${PGSERVICE:-}${PGSERVICEFILE:-}" ]; then\n'
+            '  echo "Inherited connection override" >&2; exit 42\n'
+            "fi\n"
+        )
         self.write_script(
             self.bin / "psql",
-            'printf "psql|%s\\n" "$*" >> "$COMMAND_LOG"\n'
+            reject_remote_settings + 'printf "psql|%s\\n" "$*" >> "$COMMAND_LOG"\n'
             'printf "%s\\n" "${DATABASES:-}"\nexit "${QUERY_STATUS:-0}"\n',
         )
         self.write_script(
             self.bin / "dropdb",
-            'printf "dropdb|%s\\n" "$*" >> "$COMMAND_LOG"\nexit "${DROP_STATUS:-0}"\n',
+            reject_remote_settings
+            + 'printf "dropdb|%s\\n" "$*" >> "$COMMAND_LOG"\nexit "${DROP_STATUS:-0}"\n',
         )
         self.write_script(self.bin / "uname", "echo Darwin\n")
         self.write_script(
@@ -204,6 +210,20 @@ class CodexLifecycleTests(unittest.TestCase):
             self.assertIn("--host=/private/tmp --port=5432", line)
             self.assertNotIn("--force", line)
             self.assertNotIn("remote.invalid", line)
+
+    def test_cleanup_clears_inherited_address_and_service(self):
+        for host in ("localhost", "/private/tmp"):
+            with self.subTest(host=host):
+                result = self.run_script(
+                    "cleanup.sh",
+                    DATABASES=self.db,
+                    GYRINX_DB_HOST=host,
+                    PGHOSTADDR="192.0.2.1",
+                    PGSERVICE="remote",
+                    PGSERVICEFILE="/unused/remote-service.conf",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.commands().count("dropdb|"), 2)
 
     def test_cleanup_dry_run_and_empty_database_list(self):
         result = self.run_script("cleanup.sh", "--dry-run", DATABASES=self.db)
