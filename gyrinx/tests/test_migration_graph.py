@@ -25,21 +25,28 @@ from gyrinx.migration_overlap import overlaps, touches
 def _forked_graph():
     graph = MigrationGraph()
     for key in [
-        ("shop", "0001_initial"),
-        ("shop", "0002_a"),
-        ("shop", "0002_b"),
+        ("orchard", "0001_initial"),
+        ("orchard", "0002_a"),
+        ("orchard", "0002_b"),
         ("other", "0001_initial"),
     ]:
         graph.add_node(key, None)
-    graph.add_dependency("shop.0002_a", ("shop", "0002_a"), ("shop", "0001_initial"))
-    graph.add_dependency("shop.0002_b", ("shop", "0002_b"), ("shop", "0001_initial"))
+    graph.add_dependency(
+        "orchard.0002_a", ("orchard", "0002_a"), ("orchard", "0001_initial")
+    )
+    graph.add_dependency(
+        "orchard.0002_b", ("orchard", "0002_b"), ("orchard", "0001_initial")
+    )
     return graph
 
 
 def test_a_forked_graph_is_not_a_conflict():
     loader = MigrationLoader(None, load=False)
     loader.graph = _forked_graph()
-    assert loader.graph.leaf_nodes("shop") == [("shop", "0002_a"), ("shop", "0002_b")]
+    assert loader.graph.leaf_nodes("orchard") == [
+        ("orchard", "0002_a"),
+        ("orchard", "0002_b"),
+    ]
     assert loader.detect_conflicts() == {}
 
 
@@ -56,16 +63,16 @@ def test_a_generated_migration_depends_on_every_leaf():
     detector = MigrationAutodetector(
         ProjectState(), ProjectState(), NonInteractiveMigrationQuestioner()
     )
-    new = Migration("auto_1", "shop")
+    new = Migration("auto_1", "orchard")
     new.operations = [
         migrations.AddField("item", "weight", models.IntegerField(default=0))
     ]
     changes = detector.arrange_for_graph(
-        {"shop": [new]}, _forked_graph(), migration_name="weight"
+        {"orchard": [new]}, _forked_graph(), migration_name="weight"
     )
-    (migration,) = changes["shop"]
+    (migration,) = changes["orchard"]
     assert migration.name == "0003_weight"
-    assert set(migration.dependencies) == {("shop", "0002_a"), ("shop", "0002_b")}
+    assert set(migration.dependencies) == {("orchard", "0002_a"), ("orchard", "0002_b")}
 
 
 def test_a_dependency_on_a_forked_app_names_every_tip():
@@ -74,7 +81,9 @@ def test_a_dependency_on_a_forked_app_names_every_tip():
         ProjectState(), ProjectState(), NonInteractiveMigrationQuestioner()
     )
     new = Migration("auto_1", "other")
-    new.dependencies = [("shop", "0002_a")]  # what Django resolves a cross-app dep to
+    new.dependencies = [
+        ("orchard", "0002_a")
+    ]  # what Django resolves a cross-app dep to
     new.operations = [
         migrations.AddField("thing", "item", models.IntegerField(default=0))
     ]
@@ -82,15 +91,15 @@ def test_a_dependency_on_a_forked_app_names_every_tip():
     (migration,) = changes["other"]
     assert set(migration.dependencies) == {
         ("other", "0001_initial"),
-        ("shop", "0002_a"),
-        ("shop", "0002_b"),
+        ("orchard", "0002_a"),
+        ("orchard", "0002_b"),
     }
 
 
 def test_a_branch_may_add_one_leaf():
-    leaves = [("shop", "0002_a"), ("shop", "0002_b")]
+    leaves = [("orchard", "0002_a"), ("orchard", "0002_b")]
     assert leaves_added_since(leaves, {"0001_initial", "0002_a"}) == [
-        ("shop", "0002_b")
+        ("orchard", "0002_b")
     ]
     assert len(leaves_added_since(leaves, {"0001_initial"})) == 2
 
@@ -102,7 +111,7 @@ def _migration(app, name, *operations):
 
 
 def _backfill(apps, schema_editor):
-    Item = apps.get_model("shop", "Item")
+    Item = apps.get_model("orchard", "Item")
     Item.objects.update(weight=1)
 
 
@@ -110,7 +119,7 @@ def test_two_additive_fields_do_not_overlap():
     base = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_a",
                 migrations.AddField("item", "price", models.IntegerField()),
             )
@@ -119,7 +128,7 @@ def test_two_additive_fields_do_not_overlap():
     branch = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_b",
                 migrations.AddField("item", "colour", models.IntegerField()),
             )
@@ -130,12 +139,12 @@ def test_two_additive_fields_do_not_overlap():
 
 def test_a_rename_against_a_field_change_blocks():
     base = dict(
-        [_migration("shop", "0002_a", migrations.RenameModel("Item", "Product"))]
+        [_migration("orchard", "0002_a", migrations.RenameModel("Item", "Product"))]
     )
     branch = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_b",
                 migrations.AddField("item", "colour", models.IntegerField()),
             )
@@ -143,15 +152,15 @@ def test_a_rename_against_a_field_change_blocks():
     )
     (finding,) = overlaps(base, branch)
     assert finding.severity == "blocks"
-    assert finding.base == ("shop", "0002_a")
-    assert finding.branch == ("shop", "0002_b")
+    assert finding.base == ("orchard", "0002_a")
+    assert finding.branch == ("orchard", "0002_b")
 
 
 def test_the_same_field_changed_twice_blocks():
     base = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_a",
                 migrations.AlterField("item", "price", models.IntegerField()),
             )
@@ -160,7 +169,7 @@ def test_the_same_field_changed_twice_blocks():
     branch = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_b",
                 migrations.AlterField("item", "price", models.FloatField()),
             )
@@ -174,7 +183,7 @@ def test_a_data_migration_on_a_changed_model_needs_review():
     base = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_a",
                 migrations.AddField("item", "weight", models.IntegerField()),
             )
@@ -183,7 +192,7 @@ def test_a_data_migration_on_a_changed_model_needs_review():
     branch = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_b",
                 migrations.RunPython(_backfill, migrations.RunPython.noop),
             )
@@ -198,7 +207,7 @@ def test_a_data_migration_on_another_app_is_left_alone():
     base = dict(
         [
             _migration(
-                "shop",
+                "orchard",
                 "0002_a",
                 migrations.AddField("item", "weight", models.IntegerField()),
             )
@@ -213,7 +222,7 @@ def test_a_data_migration_on_another_app_is_left_alone():
             )
         ]
     )
-    # The function fetches shop.Item, so the app it lives in does not matter.
+    # The function fetches orchard.Item, so the app it lives in does not matter.
     assert len(overlaps(base, branch)) == 1
     unrelated = dict([_migration("other", "0002_c", migrations.RunSQL("select 1"))])
     assert overlaps(base, unrelated) == []
@@ -222,7 +231,9 @@ def test_a_data_migration_on_another_app_is_left_alone():
 def test_separate_database_and_state_is_read_through():
     op = migrations.SeparateDatabaseAndState(
         state_operations=[migrations.AddField("item", "weight", models.IntegerField())],
-        database_operations=[migrations.RunSQL("alter table shop_item add weight int")],
+        database_operations=[
+            migrations.RunSQL("alter table orchard_item add weight int")
+        ],
     )
-    kinds = {t.kind for t in touches("shop", op)}
+    kinds = {t.kind for t in touches("orchard", op)}
     assert kinds == {"add", "data"}

@@ -55,16 +55,22 @@ jobs:
             prs=$(gh pr view "$ASKED_PR" --repo "$GITHUB_REPOSITORY" --json number,headRefOid \
               | jq -c '[{number: .number, sha: .headRefOid}]')
           else
-            prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
-              --json number,headRefOid,files,isDraft \
-              | jq -c '[.[] | select(any(.files[]; .path | test("/migrations/[^/]+\\.py$"))) | {number: .number, sha: .headRefOid}]')
+            # One diff listing per open pull request: `--json files` stops at
+            # a hundred files and would hide a migration in a large change.
+            prs="[]"
+            for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number --jq '.[].number'); do
+              if gh pr diff "$pr" --repo "$GITHUB_REPOSITORY" --name-only | grep -Eq '/migrations/[^/]+\.py$'; then
+                sha=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+                prs=$(jq -cn --argjson list "$prs" --argjson n "$pr" --arg sha "$sha" '$list + [{number: $n, sha: $sha}]')
+              fi
+            done
           fi
           echo "prs=$prs" >> "$GITHUB_OUTPUT"
           echo "checking: $prs"
 
   check:
     needs: plan
-    if: needs.plan.outputs.prs != '[]'
+    if: needs.plan.outputs.prs != '' && needs.plan.outputs.prs != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -95,19 +101,29 @@ jobs:
       PR_SHA: ${{ matrix.pr.sha }}
       REPORT_DIR: ${{ github.workspace }}/.migration-watch
     steps:
+      # No token left in .git/config: the branch's own code runs in this job,
+      # and the repository is public, so fetching needs no credentials.
       - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Merge the pull request into main in a throwaway tree
-        id: merge
+      - name: Fetch the pull request
+        id: fetch
         continue-on-error: true
         run: |
           mkdir -p "$REPORT_DIR"
+          git fetch --no-tags origin "pull/$PR_NUMBER/head:refs/remotes/pr/$PR_NUMBER" 2>&1 | tee "$REPORT_DIR/fetch.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Merge the pull request into main in a throwaway tree
+        id: merge
+        if: steps.fetch.outcome == 'success'
+        continue-on-error: true
+        run: |
           git config user.name "migration-watch"
           git config user.email "migration-watch@users.noreply.github.com"
-          git fetch --no-tags origin "pull/$PR_NUMBER/head:refs/remotes/pr/$PR_NUMBER"
           git checkout -q -b merged origin/main
           git merge --no-edit --no-ff "refs/remotes/pr/$PR_NUMBER" 2>&1 | tee "$REPORT_DIR/merge.log"
           test "${PIPESTATUS[0]}" -eq 0
@@ -170,6 +186,7 @@ jobs:
         continue-on-error: true
         run: |
           source .venv/bin/activate
+          git checkout -q merged
           manage check_migration_conflicts --base origin/main 2>&1 | tee "$REPORT_DIR/leaves.log"
           test "${PIPESTATUS[0]}" -eq 0
 
@@ -179,6 +196,7 @@ jobs:
         continue-on-error: true
         run: |
           source .venv/bin/activate
+          git checkout -q merged
           manage check_migration_overlap --base origin/main --head "refs/remotes/pr/$PR_NUMBER" \
             --json "$REPORT_DIR/overlap.json" 2>&1 | tee "$REPORT_DIR/overlap.log"
           test "${PIPESTATUS[0]}" -eq 0
@@ -186,9 +204,10 @@ jobs:
       # A pull request from a fork runs with a read-only token, so its own
       # run cannot report; the fan-out from main covers it with a write token.
       - name: Report on the pull request
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         env:
           GH_TOKEN: ${{ github.token }}
+          FETCH: ${{ steps.fetch.outcome }}
           MERGE: ${{ steps.merge.outcome }}
           REPLAY_MAIN: ${{ steps.replay_main.outcome }}
           REPLAY: ${{ steps.replay.outcome }}

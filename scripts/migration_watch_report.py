@@ -51,10 +51,17 @@ def outcome(name):
     return os.environ.get(name, "skipped")
 
 
-def build(report_dir, pr_number, run_url):
-    """Return (state, headline, body). state is success | failure | pending."""
+def build(report_dir):
+    """Return (state, headline, problems, notes); state is a commit-status state."""
     problems = []
     notes = []
+
+    if outcome("FETCH") != "success":
+        notes.append(
+            "The branch could not be fetched, so nothing was checked.\n\n"
+            f"```\n{tail(report_dir / 'fetch.log')}\n```"
+        )
+        return "error", "could not fetch the branch", problems, notes
 
     if outcome("MERGE") != "success":
         problems.append(
@@ -63,7 +70,12 @@ def build(report_dir, pr_number, run_url):
         )
         return "failure", "conflicts with main", problems, notes
 
-    if outcome("REPLAY_MAIN") != "success":
+    if outcome("REPLAY_MAIN") == "skipped":
+        notes.append(
+            "The environment or the database could not be set up, so the deploy replay did not run. "
+            "That is the runner's problem, not this pull request's."
+        )
+    elif outcome("REPLAY_MAIN") != "success":
         notes.append(
             "Main itself did not migrate on an empty database, so the deploy replay could not run. "
             f"That is main's problem, not this pull request's.\n\n```\n{tail(report_dir / 'replay-main.log')}\n```"
@@ -130,11 +142,14 @@ def build(report_dir, pr_number, run_url):
 
 def render(state, headline, problems, notes, run_url, main_sha):
     lines = [MARKER, f"### Migration watch: {headline}", ""]
-    lines.append(
-        f"Checked against main at `{main_sha[:10]}`: merged this branch into main, migrated a database to "
-        "main and then to the merge, compared models with migrations, and read this branch's migrations "
-        f"against the ones main gained since it forked. [Run]({run_url})."
-    )
+    if state == "error":
+        lines.append(f"[Run]({run_url}).")
+    else:
+        lines.append(
+            f"Checked against main at `{main_sha[:10]}`: merged this branch into main, migrated a database to "
+            "main and then to the merge, compared models with migrations, and read this branch's migrations "
+            f"against the ones main gained since it forked. [Run]({run_url})."
+        )
     lines.append("")
     if problems:
         lines.append("\n\n".join(problems))
@@ -186,7 +201,7 @@ def main():
         or "main"
     )
 
-    state, headline, problems, notes = build(report_dir, pr_number, run_url)
+    state, headline, problems, notes = build(report_dir)
     body = render(state, headline, problems, notes, run_url, main_sha)
     print(body)
 

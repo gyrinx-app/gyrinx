@@ -23,7 +23,6 @@ from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.loader import MigrationLoader
 
 _django_arrange_for_graph = MigrationAutodetector.arrange_for_graph
-_django_detect_conflicts = MigrationLoader.detect_conflicts
 
 
 def detect_conflicts(self):
