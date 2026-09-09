@@ -32,9 +32,9 @@ def seed(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0099_asset_tables_are_held_by_gangs"),
+        ("library", "0104_asset_tables_are_held_by_gangs"),
         # The propagation task table, so the pass can be filed from here.
-        ("n26", "0063_an_assignment_can_name_an_asset_table"),
+        ("n26", "0064_an_assignment_can_name_an_asset_table"),
     ]
 
     operations = [

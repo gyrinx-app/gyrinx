@@ -16,8 +16,8 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0099_asset_tables_are_held_by_gangs"),
-        ("n26", "0062_credits_move_between_gangs"),
+        ("library", "0104_asset_tables_are_held_by_gangs"),
+        ("n26", "0063_print_notes_cover_pictures_and_writing_space"),
     ]
 
     operations = [
