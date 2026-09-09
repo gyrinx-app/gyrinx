@@ -1902,7 +1902,8 @@ def targets_every_model(*conditions):
 def _model_scope(reach, conditions):
     from n26.library.models import TargetsMiniature
 
-    scope = TargetsMiniature.objects.create(reach=reach)
+    # Every condition is judged before the scope row exists, so a refusal
+    # leaves nothing behind.
     for condition in conditions:
         if isinstance(condition, _weapon_conditions()):
             raise ValueError(
@@ -1914,6 +1915,8 @@ def _model_scope(reach, conditions):
                 "or targets_gang_alone; for the models of such a gang, use "
                 "has_pickable"
             )
+    scope = TargetsMiniature.objects.create(reach=reach)
+    for condition in conditions:
         _attach_condition(condition, scope)
     return scope
 
@@ -1929,10 +1932,11 @@ def targets_weapons(*conditions):
     """
     from n26.library.models import TargetsWeapons
 
-    scope = TargetsWeapons.objects.create()
     for condition in conditions:
         if not isinstance(condition, _weapon_conditions()):
             raise ValueError(f"targets_weapons cannot take {condition!r}")
+    scope = TargetsWeapons.objects.create()
+    for condition in conditions:
         _attach_condition(condition, scope)
     return scope
 
@@ -1970,7 +1974,6 @@ def targets_gang_alone(*conditions):
 def _gang_scope(echoes, conditions):
     from n26.library.models import TargetsGang
 
-    scope = TargetsGang.objects.create(echoes=echoes)
     for condition in conditions:
         if not isinstance(condition, _gang_conditions()):
             raise ValueError(
@@ -1978,6 +1981,8 @@ def _gang_scope(echoes, conditions):
                 "use targets_model or targets_every_model; for the gang, "
                 "use has_gang_pickable"
             )
+    scope = TargetsGang.objects.create(echoes=echoes)
+    for condition in conditions:
         _attach_condition(condition, scope)
     return scope
 

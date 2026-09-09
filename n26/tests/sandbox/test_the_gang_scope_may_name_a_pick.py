@@ -630,3 +630,16 @@ class TestAConditionBelongsToItsScope:
             targets_gang_alone(has_pickable(goliath))
         with pytest.raises(ValueError, match="narrows models, not the gang"):
             targets_gang(has_pickable(goliath))
+
+    def test_a_refusal_writes_no_scope(self, goliath):
+        """The conditions are judged before the scope row exists, so a
+        refused call outside a transaction leaves nothing behind."""
+        from n26.library.models import TargetsGang, TargetsMiniature
+
+        with pytest.raises(ValueError):
+            authoring_targets_model(has_gang_pickable(goliath))
+        with pytest.raises(ValueError):
+            targets_gang(has_pickable(goliath))
+
+        assert not TargetsMiniature.objects.exists()
+        assert not TargetsGang.objects.exists()
