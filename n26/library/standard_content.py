@@ -1397,6 +1397,109 @@ def _grants_escape(pickable, slot):
     pickable.modifiers.add(row)
 
 
+#: Suit Evolution's roll (Spyre Hunting Party gang list): a Spyrer spends
+#: four Kill Count and rolls a D6 on the Power Boost table. Each result
+#: raises the model's credit value by a printed figure, so each carries
+#: that figure as its rating contribution — a pick is never paid for, and
+#: this is what the model is worth once it lands. The first band lists two
+#: results, because the book lets the player raise Weapon Skill or
+#: Ballistic Skill; the two are told apart by annotation. Results 5 and 6
+#: are one line: raise one carried item's augmentation level, which the
+#: player does on that item's own choice.
+POWER_BOOST_SLOT_TYPE = "Power Boost"
+#: ``(low, high, result, annotation, credits the result adds to rating)``
+POWER_BOOST_TABLE = [
+    (1, 1, "Combat Neuroware", "WS", 20),
+    (1, 1, "Combat Neuroware", "BS", 20),
+    (2, 2, "Heightened Reactions", "", 10),
+    (3, 3, "Improved Motive Power", "", 10),
+    (4, 4, "Thickened Armour", "", 15),
+    (5, 6, "Hunting Rig Augmentation", "", 20),
+]
+
+
+def _power_boost_result(slot_type, name, annotation, rating):
+    """One result, matched by name and annotation under its own slot
+    type; a name another slot type already claims is refused in words,
+    as the lasting tables do. The annotation doubles as the qualifier so
+    two results of one name are two rows under the per-pack constraint."""
+    from n26.library.models import Pickable
+
+    own = Pickable.objects.filter(
+        name__iexact=name, annotation__iexact=annotation, slot_type=slot_type
+    ).first()
+    if own is not None:
+        return own
+    taken = Pickable.objects.filter(
+        name__iexact=name, qualifier__iexact=annotation
+    ).first()
+    if taken is not None:
+        raise RuntimeError(
+            f'A pickable named "{name}" already belongs to the '
+            f'"{taken.slot_type}" slot type, so the "{slot_type}" table '
+            "cannot claim the name."
+        )
+    return Pickable.objects.create(
+        name=name,
+        annotation=annotation,
+        qualifier=annotation,
+        slot_type=slot_type,
+        rating_contribution=rating,
+    )
+
+
+def _create_power_boost_table():
+    from n26.library.models import Picklist, PicklistMember, Slot, SlotType
+
+    slot_type = SlotType.objects.filter(name__iexact=POWER_BOOST_SLOT_TYPE).first()
+    if slot_type is None:
+        slot_type = SlotType.objects.create(
+            name=POWER_BOOST_SLOT_TYPE,
+            plural_name="Power Boosts",
+            allows_repeats=True,
+        )
+    table_name = f"{POWER_BOOST_SLOT_TYPE} Table"
+    table = Picklist.objects.filter(
+        slot_type=slot_type, name__iexact=table_name
+    ).first()
+    if table is None:
+        table = Picklist.objects.create(
+            name=table_name, slot_type=slot_type, dice="d6", roll_selects="band"
+        )
+    for position, (low, high, result, annotation, rating) in enumerate(
+        POWER_BOOST_TABLE
+    ):
+        pickable = _power_boost_result(slot_type, result, annotation, rating)
+        PicklistMember.objects.get_or_create(
+            picklist=table,
+            pickable=pickable,
+            defaults={"roll_low": low, "roll_high": high, "position": position},
+        )
+    _lasting_row(
+        Slot,
+        POWER_BOOST_SLOT_TYPE,
+        "",
+        slot_type,
+        {
+            "picklist": table,
+            "label": POWER_BOOST_SLOT_TYPE,
+            "min_picks": 0,
+            "max_picks": 20,
+        },
+    )
+
+
+def _check_power_boost_table():
+    from n26.library.models import PicklistMember, Slot, SlotType
+
+    present = _count(SlotType, name__iexact=POWER_BOOST_SLOT_TYPE)
+    present += _count(
+        PicklistMember, picklist__name__iexact=f"{POWER_BOOST_SLOT_TYPE} Table"
+    )
+    present += _count(Slot, name__iexact=POWER_BOOST_SLOT_TYPE)
+    return present, 1 + len(POWER_BOOST_TABLE) + 1
+
+
 def _status_modifier(pickable, status):
     """Attach "marks the model <status>" to a result, once.
 
@@ -1474,6 +1577,21 @@ STANDARD_CONTENT = {
             ),
             check=_check_lasting_effect_tables,
             create=_create_lasting_effect_tables,
+        ),
+        StandardContent(
+            key="power-boost-table",
+            name="Power Boost table",
+            help=(
+                "The Spyre Hunters' Power Boost as a roll table — a slot "
+                "type, its results at their bands, the credits each result "
+                "adds to the model's rating, and a standing choice. Names, "
+                "bands and ratings only: results that raise a characteristic "
+                "still need their modifiers attached, every result needs one "
+                "that moves the Kill Count down by four, and the Spyre "
+                "Hunters gang type a modifier that gives Spyrers the choice."
+            ),
+            check=_check_power_boost_table,
+            create=_create_power_boost_table,
         ),
         StandardContent(
             key="core-subtypes",
