@@ -30,7 +30,8 @@ export DB_NAME
 DB_NAME=$(worktree_db_name "$PROJECT_DIR")
 export DJANGO_PORT
 DJANGO_PORT=$(worktree_port "$PROJECT_DIR")
-export DB_HOST=localhost
+export DB_HOST="${GYRINX_DB_HOST:-localhost}"
+export PGHOST="$DB_HOST"
 export DB_PORT=5432
 export DB_CONFIG
 DB_CONFIG=$(db_config_for_local)

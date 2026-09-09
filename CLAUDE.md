@@ -29,6 +29,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   commands through `.codex/run.sh` (for example, `.codex/run.sh pytest` or
   `.codex/run.sh manage check`). The existing `scripts/dev.sh` and `scripts/fmt.sh` activate the
   worktree environment themselves.
+- **Codex local database access:** `.codex/config.toml` grants the local PostgreSQL
+  Unix socket (`/private/tmp/.s.PGSQL.5432`) and sets `GYRINX_DB_HOST` / `PGHOST`.
+  `.codex/run.sh` and `scripts/dev.sh` apply this after venv activation. The main
+  checkout uses `gyrinx_main`; child worktrees fork its curated content as usual.
+  Start a new Codex task after changing permission configuration. For a running
+  task with the old sandbox, request approved access for database commands when
+  they fail with `Operation not permitted`; do not replace PostgreSQL with SQLite
+  or skip real-data checks. Pytest still uses its separate test database; use the
+  worktree database for smoke tests against the copied content.
 
 **Key Principles:**
 

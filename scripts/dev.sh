@@ -147,6 +147,11 @@ else
   exit 1
 fi
 
+# Older venv activation hooks overwrite DB_HOST. Apply the selected transport
+# after activation so Django and the PostgreSQL CLI use the same connection.
+export DB_HOST="${GYRINX_DB_HOST:-localhost}"
+export PGHOST="$DB_HOST"
+
 # Ensure .env exists — copy from main worktree if missing
 if [ ! -f "${WT_ROOT}/.env" ] && [ "$WT_ROOT" != "$MAIN_WT" ] && [ -f "${MAIN_WT}/.env" ]; then
   echo "Copying .env from main worktree..."
@@ -182,7 +187,7 @@ if [ "$RESET_DB" = true ]; then
     echo "ERROR: Cannot reset the main worktree database (it's the template)."
     exit 1
   fi
-  if psql -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+  if psql -lqt | cut -d \| -f 1 | grep -w "$DB_NAME" >/dev/null; then
     echo "Dropping database '$DB_NAME'..."
     dropdb "$DB_NAME"
   fi
@@ -192,7 +197,9 @@ fi
 # Ensure database exists
 # ---------------------------------------------------------------------------
 db_exists() {
-  psql -lqt | cut -d \| -f 1 | grep -qw "$1"
+  # Consume the full list: grep -q can SIGPIPE cut under pipefail when many
+  # worktree databases exist, incorrectly reporting a present database missing.
+  psql -lqt | cut -d \| -f 1 | grep -w "$1" >/dev/null
 }
 
 if ! db_exists "$DB_NAME"; then

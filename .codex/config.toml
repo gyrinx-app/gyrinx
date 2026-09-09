@@ -1,2 +1,22 @@
+# Allow local PostgreSQL without opening outbound network access.
+default_permissions = "gyrinx-local"
+
+[permissions.gyrinx-local]
+extends = ":workspace"
+
+[permissions.gyrinx-local.network]
+enabled = true
+
+[permissions.gyrinx-local.network.unix_sockets]
+"/private/tmp/.s.PGSQL.5432" = "allow"
+
+# The proxy permits the socket above; no outbound hosts are allowed.
+[features.network_proxy]
+enabled = true
+
 [shell_environment_policy]
 inherit = "core"
+
+[shell_environment_policy.set]
+GYRINX_DB_HOST = "/private/tmp"
+PGHOST = "/private/tmp"
