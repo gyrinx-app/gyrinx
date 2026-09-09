@@ -1,0 +1,96 @@
+{% comment %}
+One roll question as a panel. Expects `question` (built by
+n26.core.views.campaigns._rolling or _starting and finished by
+_roll_context: kind, title, lead, action, asset_type_id, tables, only,
+chosen, choices), `form` (a RollAssetForm — unbound for a fresh panel, bound
+and carrying the refusal for one drawn again), `campaign` and `redrawn`.
+
+One table offered is not a choice: the panel names it as a settled fact and
+posts it hidden. Several are radio cards, and they stay live whether or not
+a roll is typed, because a manual roll still has to be read against one
+table's rows.
+
+The own-roll field is the form's own, drawn by the form components exactly
+as the campaign budget is. Typing a roll changes the act's name from Roll
+to Use my roll; the sentence under the field says what the selected table's
+die can make, and follows the radio. That is the whole of the script here —
+the server checks the roll against the die regardless, and without a
+script every sentence shows, each naming its die.
+
+The Alpine scope wraps the panel rather than sitting on it: the panel has a
+scope of its own for its open state, and a child scope can read this one,
+so the act's button in the footer and the field in the body share it.
+{% endcomment %}
+{% with chosen=question.chosen %}
+    <div x-data="{ table: '{{ chosen|escapejs }}', rolled: '{{ form.rolled.value|default_if_none:''|escapejs }}' }">
+        <c-n26.dialog title="{{ question.title }}"
+                      action="{{ question.action }}"
+                      cancel_url="{% url 'n26-campaign' campaign.pk %}"
+                      submit_label=""
+                      :redrawn="redrawn"
+                      :htmx="True">
+            <c-slot name="lead">
+                {{ question.lead }}
+            </c-slot>
+            <c-slot name="actions">
+                <c-ui.button type="submit"
+                             variant="success"
+                             x-text="rolled ? 'Use my roll' : 'Roll'">
+                    Roll
+                </c-ui.button>
+            </c-slot>
+            {% csrf_token %}
+            {% for error in form.non_field_errors %}
+                <c-ui.alert variant="error">
+                    {{ error }}
+                </c-ui.alert>
+            {% endfor %}
+            <input type="hidden" name="type" value="{{ question.asset_type_id }}">
+            {% if question.only %}
+                <input type="hidden" name="table" value="{{ question.only.table_id }}">
+                <c-n26.detail-list>
+                    <c-n26.detail-list.row label="Table" :editable="False">
+                        {{ question.only.name }} · {{ question.only.die }}
+                    </c-n26.detail-list.row>
+                </c-n26.detail-list>
+                {# A table posted that is not this one is refused in the form's words. #}
+                <c-ui.error :form="form" name="table" />
+            {% else %}
+                <c-n26.radio-cards label="Table"
+                                   name="table"
+                                   :form="form"
+                                   min="12rem"
+                                   @change="table = $event.target.value">
+                    {% for table, checked in question.choices %}
+                        <c-n26.radio-cards.card name="table"
+                                                value="{{ table.table_id }}"
+                                                label="{{ table.name }}"
+                                                description="{{ table.die }}"
+                                                :checked="checked"
+                                                :wrap="True" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            {% endif %}
+            <c-ui.field label="{{ form.rolled.label }}"
+                        error="x"
+                        :form="form"
+                        name="rolled"
+                        for="{{ question.kind }}-roll">
+                <c-slot name="description">
+                    {{ form.rolled.help_text }}
+                    {% for table in question.tables %}
+                        <span x-show="table === '{{ table.table_id }}'">A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
+                    {% endfor %}
+                </c-slot>
+                <c-ui.input id="{{ question.kind }}-roll"
+                            name="rolled"
+                            type="number"
+                            min="1"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            x-model="rolled"
+                            value="{{ form.rolled.value|default_if_none:'' }}" />
+            </c-ui.field>
+        </c-n26.dialog>
+    </div>
+{% endwith %}

@@ -1,0 +1,14 @@
+{% comment %}
+The gangs table, or the line saying there is none yet, in the host a roll's
+update replaces. Expects `sheet` with its addresses filled; `redrawn` marks
+the copy an update delivers. A starting roll writes a new name into one
+gang's cell, and the table is redrawn whole rather than the cell: what
+changed is decided by the sheet, not by the control that asked.
+{% endcomment %}
+<div id="n26-campaign-gangs" {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    {% if sheet.gangs %}
+        <c-n26.campaign-gangs :sheet="sheet" />
+    {% else %}
+        <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+    {% endif %}
+</div>

@@ -1,11 +1,14 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-One of the campaign's own tables: its entries in roll order, whether its
-bands cover its die, and the form that adds an entry. The assets offered are
-the ones the campaign may add by hand of the table's asset type, so a table
-lists nothing the campaign could not add. Removing an entry is a POST from
-its row; what was already rolled stays in the campaign.
+One of the campaign's own tables: what it contains in roll order, whether
+its bands cover its die, and the form that adds to it. The assets offered
+are the ones the campaign may add by hand of the table's asset type, so a
+table contains nothing the campaign could not add. Removing one is a POST
+from its row; what was already rolled stays in the campaign.
+
+Every word for what the table contains is the asset type's own — `label`
+and `plural` from the view — so a table of territories says territories.
 
 The coverage check is the authoring page's own include, so a table is judged
 the same way wherever it is edited.
@@ -21,9 +24,9 @@ the same way wherever it is edited.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-table' campaign.pk table.pk %}"
                      title="{{ table }}"
-                     lead="{% if table.dice %}Rolled on a {{ table.get_dice_display }}. Every roll the die can make should land on exactly one entry: give each entry the lowest and highest roll that lands on it.{% else %}An ordered list, chosen from rather than rolled.{% endif %}"
+                     lead="{% if table.dice %}Rolled with a {{ table.get_dice_display }}. Every roll the die can make should land on exactly one {{ label }}: give each {{ label }} the lowest and highest roll that lands on it.{% else %}A plain list, not rolled for.{% endif %}"
                      :form="form"
-                     submit_label="Add entry"
+                     submit_label="Add {{ label }}"
                      cancel_url="{{ back }}"
                      cancel_label="Back to tables">
         <c-slot name="breadcrumb">
@@ -42,7 +45,7 @@ the same way wherever it is edited.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="Entries">
+        <c-n26.form-section title="{{ table.asset_type.plural }}">
             {% if coverage %}
                 {% include "authoring/_coverage.html" with coverage=coverage.coverage unclaimed_said=coverage.unclaimed_said doubled_said=coverage.doubled_said bandless_said=coverage.bandless_said %}
             {% endif %}
@@ -65,7 +68,7 @@ the same way wherever it is edited.
                                                  type="submit"
                                                  form="remove-{{ forloop.counter }}"
                                                  aria-label="Remove {{ entry.label }}"
-                                                 title="Remove this entry">
+                                                 title="Remove this {{ label }}">
                                         <span class="n26-icon-only">
                                             <c-n26.icon name="x-mark" class="size-4" />
                                         </span>
@@ -76,13 +79,13 @@ the same way wherever it is edited.
                     </tbody>
                 </c-ui.table>
             {% else %}
-                <p class="text-sm text-muted">No entries yet. Add the {{ table.asset_type.plural|lower }} a roll on this table can land on.</p>
+                <p class="text-sm text-muted">No {{ plural }} yet. Add the {{ plural }} a roll can land on.</p>
             {% endif %}
         </c-n26.form-section>
-        <c-n26.form-section title="Add an entry">
+        <c-n26.form-section title="Add a {{ label }}">
             {% if assets %}
-                <c-n26.radio-cards label="{{ table.asset_type.label_singular }} *"
-                                   description="The {{ table.asset_type.plural|lower }} this campaign deals in."
+                <c-n26.radio-cards label="{{ table.asset_type.label_singular }}"
+                                   description="The {{ plural }} available to this campaign."
                                    :form="form"
                                    name="asset"
                                    min="12rem">
@@ -95,7 +98,7 @@ the same way wherever it is edited.
                 </c-n26.radio-cards>
             {% else %}
                 <c-ui.alert variant="info" title="Nothing to add">
-                    This campaign has no {{ table.asset_type.plural|lower }} yet. Create one from the campaign page first.
+                    This campaign has no {{ plural }} yet. Create one from the campaign page first.
                 </c-ui.alert>
             {% endif %}
             {% if table.dice %}

@@ -691,7 +691,7 @@ class AddLabelForm(forms.Form):
 
 class RollAssetForm(forms.Form):
     """A roll on one of the tables offered: which table, and the roll
-    made at the table where it was made there rather than here.
+    where the reader made it themselves rather than here.
 
     Whether an entered roll is one the die can make is the operation's
     question, since only it knows which table's die is being rolled by
@@ -702,15 +702,15 @@ class RollAssetForm(forms.Form):
         queryset=None,
         label="Table",
         error_messages={
-            "invalid_choice": "That table is not one you can roll on here.",
+            "invalid_choice": "That table is not available here.",
             "required": "Select a table.",
         },
     )
     rolled = forms.IntegerField(
         required=False,
         min_value=1,
-        label="Enter the roll you made at the table",
-        help_text="Optional. Leave blank and the roll is made here.",
+        label="Your own roll",
+        help_text="Optional. Leave blank and the roll is made for you.",
     )
 
     def __init__(self, *args, tables, **kwargs):
@@ -738,7 +738,7 @@ class OpenTablesForm(forms.Form):
         queryset=None,
         required=False,
         error_messages={
-            "invalid_choice": "That table is not one you can open here.",
+            "invalid_choice": "You cannot make that table available here.",
         },
     )
 
@@ -763,10 +763,7 @@ class NewTableForm(forms.Form):
     dice = forms.ChoiceField(
         required=False,
         label="Dice",
-        help_text=(
-            "The die the table is rolled on. Leave blank for an ordered "
-            "list that is chosen from rather than rolled."
-        ),
+        help_text="The table's die. Choose Not rolled for a plain list.",
     )
 
     def __init__(self, *args, asset_types, **kwargs):

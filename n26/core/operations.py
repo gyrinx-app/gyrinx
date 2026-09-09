@@ -286,9 +286,13 @@ class NotOnOffer(Refusal):
 #: campaign is asked about once rather than on every event it writes.
 _UNASKED = object()
 
-#: The note on a roll that was made at the table and entered, which is
+#: The note on a roll the reader made themselves and typed in, which is
 #: how the record tells one from a roll the page generated.
-ROLL_ENTERED = "Rolled at the table and entered here."
+ROLL_ENTERED = "Manual roll."
+
+#: What the same note said before the wording changed. Rolls recorded
+#: under it still read as manual ones.
+ROLL_ENTERED_BEFORE = "Rolled at the table and entered here."
 
 #: The reason on a status change Clean House made, which is how the
 #: history tells the cycle's end from the owner's own hand.

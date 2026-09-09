@@ -1,0 +1,9 @@
+{% comment %}
+The Log heading's count of acts not drawn, in the host a roll's update
+replaces. Expects `more_acts` from the view; `redrawn` marks the copy an
+update delivers. Sits on the section's heading, outside the list's own host,
+which is why it needs one: a roll writes a line, and on a campaign already
+showing its limit the count of what is not shown moves with it.
+{% endcomment %}
+<span id="n26-campaign-log-count"
+      {% if redrawn %}hx-swap-oob="true"{% endif %}>{% if more_acts %}{{ more_acts }} earlier act{{ more_acts|pluralize }} not shown{% endif %}</span>

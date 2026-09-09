@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
@@ -190,7 +191,6 @@ def campaign(request, pk):
     """
     from django.urls import reverse
 
-    from n26.core.history import campaign_history, campaign_history_size
     from n26.core.models import CampaignParticipant
     from n26.core.render import render_campaign
     from n26.core.views.htmx import is_htmx
@@ -205,89 +205,22 @@ def campaign(request, pk):
     # ``?starting=`` for one gang — and only the arbitrator's to ask. Over
     # htmx the panel alone is sent, in its host, and the page underneath
     # stays as it is; the address is corrected so a reload draws it again.
-    rolling = _rolling(request, found, sheet) if yours else None
-    starting = _starting(request, found, sheet) if yours and not rolling else None
+    rolling = _rolling(found, sheet, request.GET.get("roll", "")) if yours else None
+    starting = (
+        _starting(sheet, request.GET.get("starting", ""), request.GET.get("type", ""))
+        if yours and not rolling
+        else None
+    )
     if (rolling or starting) and request.method == "GET" and is_htmx(request):
         response = render(
             request,
             "n26/includes/campaign_roll_dialogs.html",
-            {
-                "campaign": found,
-                "rolling": rolling,
-                "starting": starting,
-                "redrawn": True,
-            },
+            _roll_context(found, rolling, starting),
         )
         response["HX-Replace-Url"] = request.get_full_path()
         return response
-    # The addresses are the view's to fill: the structure says who may act,
-    # and only here is it known where each act is asked.
-    here = reverse("n26-campaign", args=[found.pk])
-    for line in sheet.gangs:
-        line.href = reverse("n26-gang", args=[line.gang_id])
-        # The arbitrator may move a campaign counter on any gang at the
-        # table, and a gang's owner their own — the same act the gang sheet
-        # offers, posted from here and landing back here.
-        if yours or line.yours:
-            for counter in line.counters:
-                if counter is not None and counter.assignment_id:
-                    counter.href = reverse("n26-tally", args=[counter.assignment_id])
-                    counter.back = here + "#gangs"
-    if yours:
-        # What the arbitrator adds sits where it will show: an asset type
-        # becomes a table under Assets, a counter or a label becomes a
-        # column of the gangs table.
-        sheet.add_asset_type_href = reverse(
-            "n26-campaign-add-asset-type", args=[found.pk]
-        )
-        sheet.add_counter_href = reverse("n26-campaign-add-counter", args=[found.pk])
-        sheet.add_label_href = reverse("n26-campaign-add-label", args=[found.pk])
-        sheet.tables_href = reverse("n26-campaign-tables", args=[found.pk])
-        # A starting roll is asked on this page, for one gang and one asset
-        # type; the address names both so a reload asks it again.
-        for line in sheet.gangs:
-            for roll in line.starting_rolls:
-                roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
-    for table in sheet.assets:
-        if yours:
-            table.add_href = (
-                reverse("n26-campaign-add-asset", args=[found.pk])
-                + f"?type={table.asset_type_id}"
-            )
-            table.create_href = (
-                reverse("n26-campaign-new-asset", args=[found.pk])
-                + f"?type={table.asset_type_id}"
-            )
-            # Only where there is a rolled table to roll on: a control for
-            # a roll nothing can be rolled on would be a control saying no.
-            if table.tables:
-                table.roll_href = f"{here}?roll={table.asset_type_id}"
-        for entry in table.entries:
-            if entry.held:
-                entry.holder_href = reverse("n26-gang", args=[entry.holder_gang_id])
-            if entry.held and (yours or entry.holder_yours):
-                entry.unassign_href = reverse(
-                    "n26-campaign-asset-unassign",
-                    args=[found.pk, entry.campaign_asset_id],
-                )
-                entry.transfer_href = reverse(
-                    "n26-campaign-asset-transfer",
-                    args=[found.pk, entry.campaign_asset_id],
-                )
-                entry.transfer_label = "Transfer" if yours else "Hand over"
-            if not entry.held and yours:
-                entry.assign_href = reverse(
-                    "n26-campaign-asset-assign",
-                    args=[found.pk, entry.campaign_asset_id],
-                )
-                entry.remove_href = reverse(
-                    "n26-campaign-asset-remove",
-                    args=[found.pk, entry.campaign_asset_id],
-                )
-    # Only the acts that will be drawn are built; how many more there are is
-    # counted rather than read, so a campaign played for a year opens as
-    # quickly as one set up this morning.
-    recent = campaign_history(found, viewer=request.user, limit=LOG_ON_THE_PAGE)
+    _fill_addresses(sheet, found, yours=yours)
+    acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
@@ -309,70 +242,246 @@ def campaign(request, pk):
             "may_add_gang": yours or at_the_table,
             "players": players,
             "battles": battles,
-            "acts": list(reversed(recent)),
-            "more_acts": max(campaign_history_size(found) - len(recent), 0),
-            "rolling": rolling,
-            "starting": starting,
+            "acts": acts,
+            "more_acts": more_acts,
+            **_roll_context(found, rolling, starting, redrawn=False),
         },
     )
 
 
-def _rolling(request, campaign, sheet):
-    """The pool roll ``?roll=`` asks for, where the address names one of
-    the campaign's Holding asset types with a rolled table to roll on.
-    Anything else is a page without the panel."""
+def _fill_addresses(sheet, campaign, *, yours):
+    """Put the addresses on a campaign sheet. The structure says who may
+    act; only the view knows where each act is asked, so the same filling
+    serves the page and the partial update a roll delivers."""
+    from django.urls import reverse
+
+    here = reverse("n26-campaign", args=[campaign.pk])
+    for line in sheet.gangs:
+        line.href = reverse("n26-gang", args=[line.gang_id])
+        # The arbitrator may move a campaign counter on any gang in the
+        # campaign, and a gang's owner their own — the same act the gang
+        # sheet offers, posted from here and landing back here.
+        if yours or line.yours:
+            for counter in line.counters:
+                if counter is not None and counter.assignment_id:
+                    counter.href = reverse("n26-tally", args=[counter.assignment_id])
+                    counter.back = here + "#gangs"
+    if yours:
+        # What the arbitrator adds sits where it will show: an asset type
+        # becomes a table under Assets, a counter or a label becomes a
+        # column of the gangs table.
+        sheet.add_asset_type_href = reverse(
+            "n26-campaign-add-asset-type", args=[campaign.pk]
+        )
+        sheet.add_counter_href = reverse("n26-campaign-add-counter", args=[campaign.pk])
+        sheet.add_label_href = reverse("n26-campaign-add-label", args=[campaign.pk])
+        sheet.tables_href = reverse("n26-campaign-tables", args=[campaign.pk])
+        # A starting roll is asked on this page, for one gang and one asset
+        # type; the address names both so a reload asks it again.
+        for line in sheet.gangs:
+            for roll in line.starting_rolls:
+                roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
+    for table in sheet.assets:
+        if yours:
+            table.add_href = (
+                reverse("n26-campaign-add-asset", args=[campaign.pk])
+                + f"?type={table.asset_type_id}"
+            )
+            table.create_href = (
+                reverse("n26-campaign-new-asset", args=[campaign.pk])
+                + f"?type={table.asset_type_id}"
+            )
+            # Only where there is a rolled table: a control for a roll
+            # with nothing to roll from would be a control saying no.
+            if table.tables:
+                table.roll_href = f"{here}?roll={table.asset_type_id}"
+        for entry in table.entries:
+            if entry.held:
+                entry.holder_href = reverse("n26-gang", args=[entry.holder_gang_id])
+            if entry.held and (yours or entry.holder_yours):
+                entry.unassign_href = reverse(
+                    "n26-campaign-asset-unassign",
+                    args=[campaign.pk, entry.campaign_asset_id],
+                )
+                entry.transfer_href = reverse(
+                    "n26-campaign-asset-transfer",
+                    args=[campaign.pk, entry.campaign_asset_id],
+                )
+                entry.transfer_label = "Transfer" if yours else "Hand over"
+            if not entry.held and yours:
+                entry.assign_href = reverse(
+                    "n26-campaign-asset-assign",
+                    args=[campaign.pk, entry.campaign_asset_id],
+                )
+                entry.remove_href = reverse(
+                    "n26-campaign-asset-remove",
+                    args=[campaign.pk, entry.campaign_asset_id],
+                )
+
+
+def _recent_acts(campaign, viewer):
+    """The acts the campaign page draws, oldest first, and how many more
+    there are. Only the acts that will be drawn are built; the rest are
+    counted rather than read, so a campaign played for a year opens as
+    quickly as one set up this morning."""
+    from n26.core.history import campaign_history, campaign_history_size
+
+    recent = campaign_history(campaign, viewer=viewer, limit=LOG_ON_THE_PAGE)
+    more = max(campaign_history_size(campaign) - len(recent), 0)
+    return list(reversed(recent)), more
+
+
+def _rolling(campaign, sheet, asked):
+    """The pool roll ``?roll=`` asks for, where ``asked`` names one of the
+    campaign's Holding asset types with a rolled table. Anything else is
+    a page without the panel."""
+    from django.urls import reverse
+
     from n26.library.territory_table import TERRITORY
 
-    asked = request.GET.get("roll", "")
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
     # Three per player is the rulebook's figure for Territories. An asset
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
-    territories = table.label == TERRITORY
+    label = table.label.lower()
+    lead = f"The rolled {label} will be added to the campaign as unclaimed."
+    if table.label == TERRITORY:
+        lead += (
+            " The rules generate three per player: "
+            f"{sheet.territories_to_generate} for this campaign."
+        )
     return {
+        "kind": "pool",
+        "title": f"Roll {label}",
+        "lead": lead,
+        "action": reverse("n26-campaign-roll-asset", args=[campaign.pk]),
         "asset_type_id": asked,
-        "label": table.label.lower(),
+        "label": label,
         "tables": table.tables,
         "only": table.tables[0] if len(table.tables) == 1 else None,
-        "to_generate": sheet.territories_to_generate if territories else None,
     }
 
 
-def _starting(request, campaign, sheet):
-    """The starting roll ``?starting=`` asks for: one gang at the table,
-    and an asset type of which it holds a rolled table. Anything else is
-    a page without the panel."""
-    gang_id = request.GET.get("starting", "")
-    asked = request.GET.get("type", "")
+def _starting(sheet, gang_id, asked):
+    """The starting roll ``?starting=`` asks for: one gang in the
+    campaign, and an asset type of which it holds a rolled table.
+    Anything else is a page without the panel."""
+    from django.urls import reverse
+
     line = next((g for g in sheet.gangs if g.gang_id == gang_id), None)
     if line is None:
         return None
     roll = next((r for r in line.starting_rolls if r.asset_type_id == asked), None)
     if roll is None:
         return None
+    # The type's own word, off the sheet's columns rather than peeled off
+    # the control's wording, so a change to the button cannot reach here.
+    label = next(
+        column.label.lower()
+        for column in sheet.asset_types
+        if column.asset_type_id == asked
+    )
     return {
+        "kind": "starting",
+        "title": f"Roll starting {label} for {line.name}",
+        "lead": f"The rolled {label} will be assigned to {line.name}.",
+        "action": reverse(
+            "n26-campaign-roll-starting", args=[sheet.campaign_id, gang_id]
+        ),
         "gang_id": gang_id,
         "gang_name": line.name,
         "asset_type_id": asked,
-        "label": roll.label.removeprefix("Roll starting "),
+        "label": label,
         "tables": roll.tables,
         "only": roll.tables[0] if len(roll.tables) == 1 else None,
     }
 
 
+def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
+    """What the roll dialogs template draws from: the open question, its
+    form, and which table its cards show as chosen.
+
+    ``form`` is the bound form carrying a refusal, for a dialog drawn
+    again; without one the form is fresh, over the tables the dialog
+    offers. The chosen table is the one the form was posted with, or the
+    first offered — decided here rather than in the template, which
+    cannot compare two values inside a component's attribute. A posted
+    value that is not one of the tables offered falls back to the first,
+    so the cards still show one chosen and the script reads a known id.
+    """
+    from n26.core.forms import RollAssetForm
+    from n26.library.models import AssetTable
+
+    question = rolling or starting
+    if question is not None:
+        tables = question["tables"]
+        if form is None:
+            form = RollAssetForm(
+                tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables])
+            )
+        chosen = str(form["table"].value() or "")
+        if chosen not in {table.table_id for table in tables}:
+            chosen = tables[0].table_id
+        question["chosen"] = chosen
+        question["choices"] = [(table, table.table_id == chosen) for table in tables]
+    return {
+        "campaign": campaign,
+        "rolling": rolling,
+        "starting": starting,
+        "form": form,
+        "redrawn": redrawn,
+        # A dialog drawn again after a refusal replaces one still open.
+        "reopened": redrawn and form is not None and form.is_bound,
+    }
+
+
+def _roll_dialog(request, campaign, rolling, starting, form):
+    """A refused roll's dialog on its own, in its host, for a page that is
+    not rebuilt: drawn open again with the refusal inside it. ``form`` is
+    the bound form carrying the refusal."""
+    return render(
+        request,
+        "n26/includes/campaign_roll_dialogs.html",
+        _roll_context(campaign, rolling, starting, form),
+    )
+
+
+def _campaign_update(request, campaign):
+    """What a roll changed on the campaign page, delivered out of band:
+    the figures, the gangs table, the assets section and the log, each
+    redrawn whole from a fresh sheet, plus the dialog host emptied so the
+    panel closes. Whole sections rather than a row, because what a roll
+    adds is a new line, and no partial update can put one where there
+    was none. The address goes back to the plain campaign page, and the
+    queued message rides along as a toast."""
+    from n26.core.render import render_campaign
+    from n26.core.views.htmx import with_toasts
+
+    sheet = render_campaign(campaign, viewer=request.user)
+    _fill_addresses(sheet, campaign, yours=True)
+    acts, more_acts = _recent_acts(campaign, request.user)
+    response = render(
+        request,
+        "n26/includes/campaign_update.html",
+        {"campaign": campaign, "sheet": sheet, "acts": acts, "more_acts": more_acts},
+    )
+    response["HX-Replace-Url"] = _campaign_page(campaign)
+    return with_toasts(request, response)
+
+
 @requires_flag(CAMPAIGNS)
 @login_required
 def roll_asset(request, pk):
-    """Roll on one of the campaign's tables for its pool: the act behind
-    the ``?roll=`` dialog.
+    """Roll from one of the campaign's tables to add an unclaimed asset:
+    the act behind the ``?roll=`` dialog.
 
     The tables accepted are the rolled ones the campaign itself holds of
     the asset type named, the same list the dialog offered. A refusal in
-    words lands as a message and the dialog opens again; the roll lands
-    the reader back at the assets, where what it added now stands. GET
-    reopens the dialog instead of acting.
+    words is drawn into the dialog; a roll that happens updates the page
+    in place over htmx, and serves the plain campaign page without it.
+    GET reopens the dialog instead of acting.
     """
     from n26.core.campaigns import campaign_operation, tables_in_play
     from n26.core.forms import RollAssetForm
@@ -383,42 +492,97 @@ def roll_asset(request, pk):
     asset_type = _asset_type_asked_for(found, asked)
     again = _campaign_page(found) + (f"?roll={asset_type.pk}" if asset_type else "")
     if request.method != "POST" or asset_type is None:
-        return redirect(again)
+        return _back_to_the_page(request, again)
     tables = (
         tables_in_play(found, include_staged=sees_staged(request.user))
         .filter(asset_type=asset_type)
         .exclude(dice="")
     )
     form = RollAssetForm(request.POST, tables=tables)
-    if not form.is_valid():
-        messages.error(request, _first_error(form))
-        return redirect(again)
-    try:
-        with campaign_operation(found, actor=request.user) as act:
-            roll = act.roll_asset(
-                form.cleaned_data["table"], rolled=form.cleaned_data["rolled"]
-            )
-    except Refusal as refused:
-        messages.error(request, str(refused))
-        return redirect(again)
+    roll = None
+    if form.is_valid():
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                roll = act.roll_asset(
+                    form.cleaned_data["table"], rolled=form.cleaned_data["rolled"]
+                )
+        except Refusal as refused:
+            form.add_error(None, str(refused))
+    if roll is None:
+        return _roll_refused(
+            request,
+            found,
+            form,
+            again,
+            lambda sheet: _rolling(found, sheet, str(asset_type.pk)),
+        )
     messages.success(
         request,
-        f"Rolled {roll.roll} on {roll.table}: {roll.campaign_asset} added to the "
-        "campaign, unclaimed.",
+        f"Rolled {roll.roll}: {roll.campaign_asset} added to the campaign, unclaimed.",
     )
-    return redirect(_assets_anchor(found))
+    return _roll_made(request, found)
+
+
+def _back_to_the_page(request, again):
+    """Leave a roll dialog for the page itself: a plain redirect, or over
+    htmx — where a redirect's body would be swallowed by ``hx-swap="none"``
+    and nothing would move — an ``HX-Redirect`` the browser follows."""
+    from n26.core.views.htmx import is_htmx
+
+    if not is_htmx(request):
+        return redirect(again)
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = again
+    return response
+
+
+def _roll_refused(request, campaign, form, again, question):
+    """A roll that did not happen — the form did not hold up, or the
+    operation refused it in words. Over htmx the dialog is drawn back
+    into its host, open, with the reason inside it, and nothing else on
+    the page moves; without htmx the reason is queued and the page with
+    the dialog open is served again. ``question`` builds the dialog's
+    facts from a fresh sheet."""
+    from n26.core.render import render_campaign
+    from n26.core.views.htmx import is_htmx
+
+    if not is_htmx(request):
+        messages.error(request, _first_error(form))
+        return redirect(again)
+    sheet = render_campaign(campaign, viewer=request.user)
+    asked = question(sheet)
+    if asked is None:
+        # The dialog no longer has anything to offer — the table was
+        # withdrawn since it was drawn. The page is the only answer.
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = _campaign_page(campaign)
+        return response
+    if "gang_id" in asked:
+        return _roll_dialog(request, campaign, None, asked, form=form)
+    return _roll_dialog(request, campaign, asked, None, form=form)
+
+
+def _roll_made(request, campaign):
+    """A roll that happened. Over htmx the page is updated in place and
+    the message shows as a toast; without htmx the plain campaign page
+    is served, with no anchor, so the message at its top is seen."""
+    from n26.core.views.htmx import is_htmx
+
+    if is_htmx(request):
+        return _campaign_update(request, campaign)
+    return redirect(_campaign_page(campaign))
 
 
 @requires_flag(CAMPAIGNS)
 @login_required
 def roll_starting_asset(request, pk, gang_pk):
-    """Roll one gang's starting asset on a table it holds: the act behind
-    the ``?starting=`` dialog.
+    """Roll one gang's starting asset from a table it holds: the act
+    behind the ``?starting=`` dialog.
 
     The tables accepted are the rolled ones that gang holds of the asset
     type named — stored or granted, the same list the dialog offered. The
-    asset lands assigned to the gang, and the reader back at the gangs
-    table, where the gang's line now names it.
+    asset lands assigned to the gang, and the gangs table redrawn names it
+    on the gang's line.
     """
     from django.core.exceptions import ValidationError
     from django.http import Http404
@@ -449,7 +613,7 @@ def roll_starting_asset(request, pk, gang_pk):
         f"?starting={gang_pk}&type={asset_type.pk}" if asset_type else ""
     )
     if request.method != "POST" or asset_type is None:
-        return redirect(again)
+        return _back_to_the_page(request, again)
     held = [
         table.pk
         for table in tables_held_by(
@@ -458,25 +622,30 @@ def roll_starting_asset(request, pk, gang_pk):
         if table.dice and table.asset_type_id == asset_type.pk
     ]
     form = RollAssetForm(request.POST, tables=AssetTable.objects.filter(pk__in=held))
-    if not form.is_valid():
-        messages.error(request, _first_error(form))
-        return redirect(again)
-    try:
-        with campaign_operation(found, actor=request.user) as act:
-            roll = act.roll_asset(
-                form.cleaned_data["table"],
-                membership=membership,
-                rolled=form.cleaned_data["rolled"],
-            )
-    except Refusal as refused:
-        messages.error(request, str(refused))
-        return redirect(again)
+    roll = None
+    if form.is_valid():
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                roll = act.roll_asset(
+                    form.cleaned_data["table"],
+                    membership=membership,
+                    rolled=form.cleaned_data["rolled"],
+                )
+        except Refusal as refused:
+            form.add_error(None, str(refused))
+    if roll is None:
+        return _roll_refused(
+            request,
+            found,
+            form,
+            again,
+            lambda sheet: _starting(sheet, str(gang_pk), str(asset_type.pk)),
+        )
     messages.success(
         request,
-        f"Rolled {roll.roll} on {roll.table} for {membership.gang.name}: "
-        f"{roll.campaign_asset}.",
+        f"Rolled {roll.roll}: {roll.campaign_asset} assigned to {membership.gang.name}.",
     )
-    return redirect(_gangs_anchor(found))
+    return _roll_made(request, found)
 
 
 def _campaign_page(campaign):
@@ -1472,15 +1641,32 @@ def _open_tables(campaign):
 
 
 def _table_said(table):
-    """One table's facts under its name: the die and how many entries."""
-    die = f"rolled on a {table.get_dice_display()}" if table.dice else "not rolled"
+    """One table's facts under its name: its die, and how many of the
+    asset type it contains, in the type's own word — "D66 · 18
+    territories". An unrolled table says only what it contains."""
+    asset_type = table.asset_type
     count = table.entry_count
-    entries = (
-        "no entries yet"
-        if count == 0
-        else f"{count} entr{'y' if count == 1 else 'ies'}"
-    )
-    return f"{die} · {entries}"
+    if count == 0:
+        contains = f"no {asset_type.plural.lower()} yet"
+    elif count == 1:
+        contains = f"1 {asset_type.label_singular.lower()}"
+    else:
+        contains = f"{count} {asset_type.plural.lower()}"
+    if table.dice:
+        return f"{table.get_dice_display()} · {contains}"
+    return contains
+
+
+def _tables_lead(asset_types):
+    """The Tables page's lead, in the one word where the campaign has one
+    Holding asset type and it is Territory — the common case — and in
+    general words otherwise."""
+    from n26.library.territory_table import TERRITORY
+
+    holding = [t for t in asset_types if t.is_holding]
+    if len(holding) == 1 and holding[0].label_singular == TERRITORY:
+        return "Tables of territories the gangs in this campaign can use."
+    return "Tables the gangs in this campaign can use."
 
 
 @requires_flag(CAMPAIGNS)
@@ -1526,22 +1712,39 @@ def campaign_tables(request, pk):
             else:
                 said = []
                 if opened:
-                    said.append(f"Opened {', '.join(opened)} to every gang.")
+                    said.append(f"Made {', '.join(opened)} available to every gang.")
                 if closed:
-                    said.append(f"Closed {', '.join(closed)}.")
+                    said.append(f"Withdrew {', '.join(closed)}.")
                 messages.success(request, " ".join(said) or "Nothing changed.")
             return redirect("n26-campaign-tables", pk=found.pk)
         messages.error(request, _first_error(form))
         return redirect("n26-campaign-tables", pk=found.pk)
 
+    asset_types = list(_campaign_asset_types(found))
     sections = []
-    for asset_type in _campaign_asset_types(found):
+    for asset_type in asset_types:
         if not asset_type.is_holding:
             continue
         tables = [t for t in offered if t.asset_type_id == asset_type.pk]
+        label = asset_type.label_singular.lower()
+        plural = asset_type.plural.lower()
         sections.append(
             {
                 "asset_type": asset_type,
+                "label": label,
+                "plural": plural,
+                "intro": (
+                    f"Gangs can roll for a starting {label} from any of these. "
+                    f"You can also roll to add unclaimed {plural} to the campaign."
+                ),
+                "ticks_help": (
+                    "Tick a table to make it available to every gang. Untick to "
+                    f"withdraw it. {asset_type.plural} already rolled stay in the "
+                    "campaign."
+                ),
+                "empty": (
+                    f"No tables of {plural} yet. Create one and add {plural} to it."
+                ),
                 "given": [
                     {
                         "name": str(t),
@@ -1572,6 +1775,7 @@ def campaign_tables(request, pk):
         {
             "campaign": found,
             "sections": sections,
+            "lead": _tables_lead(asset_types),
             "back": _assets_anchor(found),
             "new_href": reverse("n26-campaign-new-table", args=[found.pk]),
         },
@@ -1617,8 +1821,8 @@ def new_table(request, pk):
         else:
             messages.success(
                 request,
-                f"Created the table {table}. Every gang in the campaign may roll "
-                "on it once it has entries.",
+                f"Created the table {table}. Add "
+                f"{table.asset_type.plural.lower()} to it next.",
             )
             return redirect("n26-campaign-table", pk=found.pk, table_pk=table.pk)
 
@@ -1747,6 +1951,8 @@ def campaign_table(request, pk, table_pk):
                 }
                 for asset in offered
             ],
+            "label": table.asset_type.label_singular.lower(),
+            "plural": table.asset_type.plural.lower(),
             "back": reverse("n26-campaign-tables", args=[found.pk]),
         },
     )

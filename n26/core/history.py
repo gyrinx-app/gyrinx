@@ -1357,23 +1357,32 @@ def _tell_campaign(e):
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"removed {what}"),), "campaign"
         case kinds.ASSET_ROLLED:
-            # The note is the whole sentence — "Rolled 34 on the Territory
-            # Selection Table: Old Ruins." — written to stand on its own.
+            # The note is the whole sentence — "Rolled 34 from the Territory
+            # Selection Table: Old Ruins." — written to stand on its own,
+            # with the manual-roll marker as a second sentence after it.
             # Here the actor's name leads, so it loses its capital and its
-            # stop, and the mark of an entered roll follows in its own words.
-            said, _, entered = e.note.partition(". ")
+            # stop, and a manual roll is marked in brackets after it. The
+            # marker is taken off the end by name: a gang or a table called
+            # "Dr. Skabb's" has a stop of its own inside the sentence.
+            from n26.core.operations import ROLL_ENTERED, ROLL_ENTERED_BEFORE
+
+            said, manual = e.note, False
+            for marker in (ROLL_ENTERED, ROLL_ENTERED_BEFORE):
+                if said.endswith(f" {marker}"):
+                    said, manual = said[: -(len(marker) + 1)], True
+                    break
             if not said:
-                return (Span("rolled on a table"),), "campaign"
+                return (Span("made a roll"),), "campaign"
             said = said[0].lower() + said[1:].removesuffix(".")
-            if entered:
-                said = f"{said}, entered from a roll at the table"
+            if manual:
+                said = f"{said} (manual roll)"
             return (Span(said),), "campaign"
         case kinds.TABLE_OPENED:
             what = f"the table {e.note}" if e.note else "a table"
-            return (Span(f"opened {what} to every gang"),), "campaign"
+            return (Span(f"made {what} available to every gang"),), "campaign"
         case kinds.TABLE_CLOSED:
             what = f"the table {e.note}" if e.note else "a table"
-            return (Span(f"closed {what}"),), "campaign"
+            return (Span(f"withdrew {what}"),), "campaign"
         case kinds.TABLE_CREATED:
             what = f"the table {e.note}" if e.note else "a table"
             return (Span(f"created {what}"),), "campaign"

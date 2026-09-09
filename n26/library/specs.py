@@ -570,8 +570,8 @@ def _build_registry():
             label="The gang carrying it and all models",
             blurb=(
                 "Affects the gang and all models, in a different way per "
-                "effect. Use with care. A condition can narrow it to gangs "
-                "that have picked a particular pickable."
+                "effect. Use with care. A condition can narrow it to the "
+                "gangs of one pick — Goliath gangs."
             ),
             example=(
                 "A rule given to the gang prints on the gang's sheet only, "
@@ -588,14 +588,13 @@ def _build_registry():
             blurb=(
                 "Applied only to the gang; does not reach the models. A pick "
                 "given with a slot is still a fact about every model in the "
-                "gang. A condition can narrow it to gangs that have picked a "
-                "particular pickable."
+                "gang. A condition can narrow it to the gangs of one pick — "
+                "Goliath gangs."
             ),
             example=(
                 "A rule that prints on the gang sheet without touching the "
-                "fighters, or a gang-level counter. A territory boon for "
-                "Goliath gangs: gangs that have picked Goliath add 10 to "
-                "Income."
+                "fighters, or a gang-level counter. A territory boon that "
+                "reads Goliath gangs: +10 Income."
             ),
         ),
         # -- effects, worked out at read time --------------------------

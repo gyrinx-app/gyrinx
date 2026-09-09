@@ -207,10 +207,10 @@ class TestARollGoesOnTheRecord:
         assert not Assignment.objects.filter(roll=event).exists()
         assert_reconciled(gang)
 
-    def test_a_roll_made_at_the_table_is_entered_and_says_so(self, gang, krago):
+    def test_a_manual_roll_is_entered_and_says_so(self, gang, krago):
         event = roll_for(krago, "Lasting Injuries", rolled=24)
         assert event.roll == 24
-        assert event.note == "Rolled at the table and entered here."
+        assert event.note == "Manual roll."
 
     def test_a_number_the_die_cannot_make_is_refused_in_words(self, gang, krago):
         with pytest.raises(Refusal, match="You cannot roll 37 on a D66"):
@@ -336,7 +336,7 @@ class TestTheHistoryTellsTheRoll:
         assert [(sub.name, sub.kind) for sub in act.subs] == [
             ("Out Cold", "lasting injury")
         ]
-        assert act.note == "Rolled at the table and entered here."
+        assert act.note == "Manual roll."
         assert not any("gained Out Cold" in said for said in sentences(gang))
 
     def test_a_roll_nothing_followed_stands_alone(self, gang, krago):
@@ -484,8 +484,8 @@ class TestThePickScreen:
         # Enter in the field must reach the Enter act, not Roll: the first
         # submit button in the form decides, so an unseen one comes first.
         assert page.index('value="enter"') < page.index('value="roll"')
-        assert 'min="' not in page.split("Your roll from the table")[0][-600:]
-        assert "The number you rolled at the table" in page
+        assert 'min="' not in page.split("Your own roll")[0][-600:]
+        assert "The roll you made yourself" in page
         assert "or add a result by hand" in page
         assert 'name="rolled"' in page
         # The range is a hint in the field, never a browser constraint —
@@ -538,7 +538,7 @@ class TestThePickScreen:
         page = client.get(f"{address}?roll={event.pk}").content.decode()
         assert "Rolled 24" in page
         assert re.search(r"Landed on <strong[^>]*>Out Cold</strong>\.", page)
-        assert "Rolled at the table and entered here." in page
+        assert "Manual roll." in page
         assert 'aria-label="A die showing 2"' in page
         assert 'aria-label="A die showing 4"' in page
         # One result: the panel carries its Add as the main act, and the

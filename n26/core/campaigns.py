@@ -368,9 +368,9 @@ class CampaignOperation:
         allow the same territory to come up more than once, and the
         campaign asset's own name is what tells the two apart.
 
-        ``rolled`` is a roll made at the table and entered here rather
-        than generated; it has to be one the die can make, and the record
-        says it was entered. ``rng`` is for a test that wants the dice
+        ``rolled`` is a roll the reader made themselves and typed in
+        rather than one generated here; it has to be one the die can
+        make, and the record says it was a manual roll. ``rng`` is for a test that wants the dice
         loaded.
 
         One log line for one act: the roll is recorded as ASSET_ROLLED
@@ -387,10 +387,7 @@ class CampaignOperation:
         ):
             raise ValueError(f"{membership} is not playing {self.campaign}.")
         if not table.dice:
-            raise Refusal(
-                f"You cannot roll on {table}. It has no dice: it is an ordered "
-                "list, chosen from rather than rolled."
-            )
+            raise Refusal(f"{table} cannot be rolled. It is a list with no dice.")
         if membership is None:
             if (
                 not tables_in_play(
@@ -399,10 +396,7 @@ class CampaignOperation:
                 .filter(pk=table.pk)
                 .exists()
             ):
-                raise Refusal(
-                    f"You cannot roll on {table} for {self.campaign.name}. Only a "
-                    "table built into the campaign can be rolled on for its pool."
-                )
+                raise Refusal(f"{table} is not available to {self.campaign.name}.")
         elif table.pk not in {
             held.pk
             for held in tables_held_by(
@@ -414,9 +408,10 @@ class CampaignOperation:
             # A staged table the gang holds is one the roller may use only
             # if they may see staged content: the roll is where a Territory
             # is newly chosen for the campaign.
+            gang = membership.gang.name
             raise Refusal(
-                f"{membership.gang.name} cannot roll on {table}. Only a gang "
-                "that holds that table can."
+                f"{gang} cannot roll for a {table.asset_type.label_singular.lower()} "
+                f"from {table}. That table is not available to {gang}."
             )
 
         dice = Dice(table.dice)
@@ -435,12 +430,11 @@ class CampaignOperation:
         entry = table.landing(rolled, list(entries))
         if entry is None:
             raise Refusal(
-                f"No entry on {table} covers a roll of {rolled}. Fill that gap in "
-                "the table first."
+                f"Nothing on {table} covers a roll of {rolled}. Fill that gap first."
             )
         campaign_asset = self._keep(entry.asset)
         who = f" for {membership.gang.name}" if membership is not None else ""
-        note = f"Rolled {rolled} on {_table_named(table)}{who}: {campaign_asset}."
+        note = f"Rolled {rolled} from {_table_named(table)}{who}: {campaign_asset}."
         if entered:
             note = f"{note} {ROLL_ENTERED}"
         self.event(CampaignEvent.Kind.ASSET_ROLLED, note=note)
@@ -781,9 +775,9 @@ class CampaignOperation:
             self.campaign.additions_id,
         ):
             raise Refusal(
-                f"You cannot open {table} here. It lists "
-                f"{table.asset_type.plural}, which {self.campaign.name} does "
-                "not deal in."
+                f"You cannot make {table} available here. It contains "
+                f"{table.asset_type.plural.lower()}, which {self.campaign.name} "
+                "does not deal in."
             )
         if (
             tables_in_play(self.campaign, include_staged=True)
@@ -828,8 +822,8 @@ class CampaignOperation:
             archived=False,
         ).exists():
             raise Refusal(
-                f"You cannot close {table}. {self.campaign.campaign_type} gives "
-                "it to every gang."
+                f"You cannot withdraw {table}. It is included with "
+                f"{self.campaign.campaign_type}."
             )
         members = list(
             DefaultAssignment.objects.filter(

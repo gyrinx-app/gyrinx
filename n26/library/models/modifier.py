@@ -806,8 +806,8 @@ class TargetsGang(models.Model):
     all-models reach.
 
     Narrowing is done by **condition rows** hanging off this scope, as
-    on the model scope: ``GangHasPickable`` for "gangs that have picked
-    Goliath". With no rows it reaches the gang, whatever the gang has
+    on the model scope: ``GangHasPickable`` for "Goliath gangs". With no
+    rows it reaches the gang, whatever the gang has
     picked. The rows are read against the gang's own facts — its
     assignments, and the picks it was given — so a boon for Goliath
     gangs reaches a Goliath gang and a Clan House Goliath Outcast gang
@@ -935,9 +935,10 @@ class TargetsGang(models.Model):
 class GangHasPickable(models.Model):
     """Condition: the gang has one of these picked.
 
-    "Gangs that have picked Goliath" — the shape of a boon that applies
-    only to some gangs. Any-of within the row; negated, it is every
-    gang except those.
+    "Goliath gangs" — the shape of a boon that applies only to some
+    gangs. Any-of within the row; negated, it is every gang except
+    those. Written as the pick's name alone: nobody picks a supertype,
+    so the wording never uses "picked".
 
     What was picked is an ordinary assignment the gang holds, or a pick
     given to it with a hidden slot, so one condition serves every slot
@@ -963,9 +964,11 @@ class GangHasPickable(models.Model):
 
     def __str__(self):
         wanted = list(self.pickables.all()) if self.pk else []
+        if not wanted:
+            return "every gang"
         if self.negate:
-            return "every gang except those that have picked " + _some_of(wanted)
-        return "gangs that have picked " + _some_of(wanted)
+            return f"every gang except {_some_of(wanted)} gangs"
+        return f"{_some_of(wanted)} gangs"
 
     def as_condition(self):
         from n26.core import select
