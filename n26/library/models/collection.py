@@ -129,18 +129,25 @@ def price_of(assignable, entry=None):
 TRADEABLE_PROFILES = "tradeable_profiles"
 
 
-def paid_profiles(with_trade_point_price=False, *, include_staged=False):
+def paid_profiles(
+    with_trade_point_price=False, *, include_staged=False, for_use_notes=False
+):
     """A weapon's named, paid profiles — the lines a listing prints under
     the gun.
 
-    Named, because a blank profile is the weapon's own firing line rather
-    than an alternative to it. Paid, because a free profile already rides
+    Named, because a blank profile is the weapon's own rather than an
+    alternative to it. Paid, because a free profile already rides
     along with the weapon wherever it goes: listing one would put the
     same ammo on the gun twice.
 
     ``with_trade_point_price`` narrows to what a trading trip deals in —
     membership at a Trading Post is having a TP price, and a sweep that
     said so means it of the ammo as well as of the gun.
+
+    ``for_use_notes`` loads each profile's use lists with it, so noting a
+    round under a gun costs no query per round — the same prefetch the
+    gun itself gets on a surface that notes. Off, a listing that never
+    notes pays nothing for lists it will not read.
 
     Archived lines are left out, as archived content is off every discovery
     surface; staged lines are left out unless ``include_staged``: a round an
@@ -149,6 +156,8 @@ def paid_profiles(with_trade_point_price=False, *, include_staged=False):
     from n26.library.models.assignable import WeaponProfile
 
     found = WeaponProfile.objects.filter(price__gt=0).exclude(name="").unarchived()
+    if for_use_notes:
+        found = found.prefetch_related(*USABLE_BY_LISTS)
     if with_trade_point_price:
         found = found.filter(trade_point_price__isnull=False)
     if not include_staged:
@@ -516,8 +525,12 @@ class CollectionSelector(Content):
             found = found.prefetch_related(
                 Prefetch(
                     "profiles",
+                    # A sweep always loads the gun's own use lists, so
+                    # its rounds come with theirs too.
                     queryset=paid_profiles(
-                        with_trade_point_price=True, include_staged=include_staged
+                        with_trade_point_price=True,
+                        include_staged=include_staged,
+                        for_use_notes=True,
                     ),
                     to_attr=TRADEABLE_PROFILES,
                 )

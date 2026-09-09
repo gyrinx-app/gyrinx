@@ -11,7 +11,7 @@ settles both, one gang at a time, inside one ``operation(gang)``:
    matched to the member it must have come from — a member of one of
    its carrier's sets (``sets_for``: the carrier's built-ins and the
    option sets it took) naming the same assignable — and the pair is
-   written onto it. A weapon's own free firing lines are not set
+   written onto it. A weapon's own free profiles are not set
    members and are left alone. Sets claim copies one at a time, never
    pooled — the option sets first, last recorded first, then the
    built-ins — so that where two sets name the same thing each gets
@@ -55,8 +55,8 @@ from n26.core.operations import operation
 from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
 #: The kinds a legacy grant may be: what a set can name, less a
-#: weapon's firing lines, which are its own free profiles rather than
-#: members of any set.
+#: weapon's profiles, which are its own and free rather than members
+#: of any set.
 TAGGABLE_KINDS = tuple(
     kind for kind in DEFAULT_ASSIGNABLE_FIELDS if kind != "weapon_profile"
 )
@@ -282,11 +282,11 @@ def _held_another_way(member, carrier, host_gang):
 
     For most kinds that is a live copy with no provenance and a reason
     other than ``DEFAULT``: bought, rewarded, edited in, or granted by
-    a modifier. Ammo is read differently: a firing line stacked on a
-    gun with no provenance is held whatever its reason, because a
-    weapon's own free lines and a legacy ammo grant are written in the
-    same shape, and a second line under the same gun is the duplicate
-    this check exists to prevent. The gun is the one the member would
+    a modifier. Ammo is read differently: a profile stacked on a gun
+    with no provenance is held whatever its reason, because a weapon's
+    own free profiles and a legacy ammo grant are written in the same
+    shape, and a second profile under the same gun is the duplicate this
+    check exists to prevent. The gun is the one the member would
     land under — its named gun member's live copy for this carrier, or
     any live gun of that weapon on the host where it names none.
     """

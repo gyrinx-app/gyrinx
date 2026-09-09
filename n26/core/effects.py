@@ -32,7 +32,7 @@ Order of evaluation, fixed:
 
 Most of what a modifier grants is a fact — a subtype, a skill, a trait —
 and lands on the ``ComputedCard``. A granted **weapon** is not a fact but
-a thing with firing lines, and those lines have to be on the card for a
+a thing with profiles, and those profiles have to be on the card for a
 weapon-scoped modifier to reach them and for a renderer to draw them. So
 ``compute`` writes them onto ``card.granted``, clearing it first: the
 list is this function's output, and computing a card twice must not leave
@@ -2120,7 +2120,7 @@ def _grant_gear(computed, contribution, carrier):
 
     No assignment means no sale, transfer, ledger entry or rating.
     Built-ins and option sets are materialised only at acquisition.
-    Weapons include their free firing lines; paid ammo and accessories
+    Weapons include their free profiles; paid ammo and accessories
     need a stored assignment to attach to.
     """
     from n26.core.card import Node
@@ -2151,7 +2151,7 @@ def _grant_gear(computed, contribution, carrier):
                 computed=True,
             )
             node.children.append(line)
-            # Later rounds may add traits to these firing lines.
+            # Later rounds may add traits to these profiles.
             computed.weapons[line.key] = ComputedWeapon(node=line)
     card.granted.append(node)
     return node

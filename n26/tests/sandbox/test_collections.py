@@ -1059,7 +1059,8 @@ class TestTradingPostMembership:
         post's *definition*, never its size. One for the selector rows,
         one per sweep, one for the weapon sweep's nested profiles, three
         use-restriction prefetches for each sweep whose kind can carry
-        them (an accessory cannot), one for the wargear sweep's options —
+        them (an accessory cannot) and three more for the nested
+        profiles, which carry their own, one for the wargear sweep's options —
         the one kind here that can offer alternatives at purchase — and
         one for the entries. Nothing stocked offers any, so the group and
         set rows behind an option are never asked for: an empty level
@@ -1067,7 +1068,7 @@ class TestTradingPostMembership:
         from n26.tests.sandbox.actions import create_trading_post
 
         post = create_trading_post()
-        with django_assert_num_queries(13):
+        with django_assert_num_queries(16):
             view = browse(post, TRADING_POST)
             for line in view.all_lines():
                 for part in line.parts:
@@ -1302,8 +1303,8 @@ class TestAmmoRidesUnderTheGun:
     A sweep catches what the criteria caught, of the rounds as much as
     of the gun. A curated list carries what the author wrote down and
     nothing else: a list shows only what it lists. Either way a blank
-    profile is never a part — it *is* the weapon's own firing line, and
-    it comes with the gun.
+    profile is never a part — it *is* the weapon's own, and it comes
+    with the gun.
     """
 
     @pytest.fixture

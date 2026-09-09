@@ -110,7 +110,7 @@ def render_model_card(card, indent=""):
 
 
 def _profile_suffix(profile):
-    """What a firing line says after its label: what buying it added,
+    """What a profile says after its label: what buying it added,
     then its stats and traits."""
     added = f" (+{profile.rating}cr)" if profile.rating else ""
     stats = "  ".join(

@@ -13,7 +13,7 @@ goes; ``TestTheClawsArriveAsFreeKit`` states each separately, because
 they are not all true of a built-in.
 
 As a **grant** — a modifier on the wargear whose effect adds the claws.
-Nothing is bought, so there is no row: the weapon and its firing lines
+Nothing is bought, so there is no row: the weapon and its profiles
 are worked out afresh on every read and written nowhere.
 ``TestTheGrantedClawsAreFreeKit`` states the same four properties of this
 route, where all four hold, and ``TestWhatTheTwoRoutesDiffer`` says what
@@ -358,7 +358,7 @@ class TestTheGrantedClawsAreFreeKit:
             "Helamite claws"
         ]
 
-    def test_the_claws_draw_their_firing_line(self, fighter, bought):
+    def test_the_claws_draw_their_profile(self, fighter, bought):
         """A weapon with no statline is a name, and a name is no use at
         the table. The granted claws print what they do: Strength 4,
         Armour Piercing -1, at engagement range."""
@@ -478,7 +478,7 @@ class TestTheWholeRuleAsTwoModifiers:
     def test_working_the_claws_out_costs_no_queries(
         self, django_assert_num_queries, fighter, bought
     ):
-        """Everything a granted weapon draws — its firing lines, their
+        """Everything a granted weapon draws — its profiles, their
         characteristics, the traits printed on them — is fetched before
         the computing starts, because the computing may not query. A card
         that reached back to the database here would do it once per
@@ -567,8 +567,8 @@ class TestWhatTheTwoRoutesDiffer:
         ]
 
     def test_a_granted_weapon_offers_no_paid_ammo(self, fighter, granting_helamite):
-        """A paid firing line is ammunition somebody bought, and nobody
-        bought this: the card draws the lines that come with the gun and
+        """A paid profile is ammunition somebody bought, and nobody
+        bought this: the card draws the profiles that come with the gun and
         no others, and there is no assignment for an accessory or an ammo
         type to hang off."""
         buy(fighter, thing=granting_helamite, paid=45)

@@ -104,7 +104,7 @@ NESTED_KINDS = frozenset({"asset", "asset-table"})
 #: Kinds whose page is a place you come back to: the thing, and the
 #: parts you add to it over time. ``kind -> the verb that adds a part``.
 def _describe_weapon_profile(profile):
-    """A firing line, as the author needs to check it: what it is
+    """A weapon profile, as the author needs to check it: what it is
     called, the stats they typed, its traits, and its price.
 
     An unnamed line is the weapon's own, so it is labelled with the
@@ -385,7 +385,7 @@ def _arrange_built_ins(pairs):
 
     ``pairs`` is ``(member, drawn row)`` in listing order. A member
     naming its gun nests under that gun's row — the grammar a card uses
-    for firing lines under weapons — and every weapon row gains the way
+    for profiles under weapons — and every weapon row gains the way
     to build one of its lines in beside it. A member naming no gun
     lists flat, its row saying where it lands.
     """
@@ -483,7 +483,7 @@ DETAIL_KINDS = {
         "statline": True,
         "describe": _describe_weapon_profile,
         "parts_hint": _weapon_parts,
-        # Where a row's name leads. A firing line is corrected on a page
+        # Where a row's name leads. A weapon profile is corrected on a page
         # of its own: its stats are a form of their own and its traits a
         # set, neither of which fits in a listing row.
         "opens": "authoring-weapon-profile",
@@ -662,7 +662,7 @@ def _gives_to_every_gang(thing):
 #: section. Every assignable can carry built-ins, so which pages draw
 #: it is read off the model (``_carries_built_ins``) rather than listed,
 #: and it sits alongside whatever else the kind carries: a weapon has
-#: firing lines *and* can come with something.
+#: profiles *and* can come with something.
 #:
 #: Naming itself in ``act`` is what lets it do that. A post that names
 #: no section is for the kind's own parts, of which there is at most
@@ -715,7 +715,7 @@ BUILT_INS_PART = {
         member.asset_id is None and member.asset_table_id is None
     ),
     # A gun's own lines nest under it, so the listing reads the way a
-    # card draws firing lines under weapons.
+    # card draws profiles under weapons.
     "arrange": _arrange_built_ins,
     # The add form does not offer weapon profiles: a line means nothing
     # apart from its gun, so the section carries the way to the page
@@ -876,7 +876,7 @@ def _statline_editor_for(thing):
 
     Which kinds may own a statline is read off the columns that hold
     one, never listed here: a weapon has a statline type but it is a
-    weapon's *firing lines* that carry values, and a new kind of owner
+    weapon's *profiles* that carry values, and a new kind of owner
     should get its editor without anyone remembering to come back. A
     shape with no characteristics in it yet draws no editor — there
     would be nothing to type in.
@@ -975,7 +975,7 @@ def _named_row(row, model, slugs):
     if kind:
         url = reverse("authoring-detail", args=[kind, row.pk])
     elif model is WeaponProfile:
-        # A firing line is a part of its weapon rather than a kind, so
+        # A weapon profile is a part of its weapon rather than a kind, so
         # its page is not one of the kind pages the slugs cover.
         url = reverse("authoring-weapon-profile", args=[row.pk])
     else:
@@ -2023,7 +2023,7 @@ def _prose_addresses(prose):
         label, pk = sentence.key
         if label == "library.modifier":
             return sentence.at(reverse("authoring-modifier", args=[pk]))
-        # A firing line is a part of its weapon rather than a kind, so
+        # A weapon profile is a part of its weapon rather than a kind, so
         # its page is not one of the kind pages the slugs cover.
         if label == "library.weaponprofile":
             return sentence.at(reverse("authoring-weapon-profile", args=[pk]))
@@ -2125,8 +2125,9 @@ def detail(request, kind, pk):
     the same form inside its edit form, so a fighter's characteristics
     are typed where its name and price are.
 
-    A page may carry more than one section of parts: a weapon has firing
-    lines of its own *and*, like every assignable, can come with things.
+    A page may carry more than one section of parts: a weapon has
+    profiles of its own *and*, like every assignable, can come with
+    things.
     Each section says which it is, so a post reaches the form that was
     clicked; the one saying nothing is the kind's own.
 
@@ -2322,7 +2323,7 @@ def detail(request, kind, pk):
                 "act": section.get("act", ""),
                 "editable": bool(section.get("editable")),
                 "part_verbose_name": part_name,
-                # "Add an option", "Add a firing line". Worked out rather
+                # "Add an option", "Add a weapon profile". Worked out rather
                 # than written beside each name, so a kind renamed on its
                 # model never leaves the heading ungrammatical. A section
                 # may say both in its own words instead.
@@ -2588,7 +2589,7 @@ def _staging_action(request, thing, act, back):
     """Hold a row back from players, or release it — one click on its page.
 
     ``back`` is the page the click came from: a kind's own detail page, or
-    a firing line's, which has an address of its own.
+    a weapon profile's, which has an address of its own.
     """
     from n26.library import authoring
 
@@ -2745,7 +2746,7 @@ def _modifier_action(request, kind, thing, act):
 
 
 def _refuse_the_line(form, spec, refused):
-    """Say a database refusal of a firing line on the box it is about.
+    """Say a database refusal of a weapon profile on the box it is about.
 
     Two constraints can refuse the form that writes a line, and each is
     said where the author was typing. A weapon has one line that *is*
@@ -2771,7 +2772,7 @@ def _refuse_the_line(form, spec, refused):
 
 @staff_member_required
 def weapon_profile(request, pk):
-    """One firing line, on a page of its own.
+    """One weapon profile, on a page of its own.
 
     A weapon's page lists its lines and adds new ones; correcting one
     happens here, where there is room for the whole of it — the name and
@@ -2826,7 +2827,7 @@ def weapon_profile(request, pk):
         request,
         "authoring/weapon_profile.html",
         {
-            # The bar stands in Weapons: a firing line has no listing of
+            # The bar stands in Weapons: a weapon profile has no listing of
             # its own, and the weapon is where its reader came from.
             "kind": "weapon",
             "thing": profile,
@@ -2845,7 +2846,7 @@ def weapon_profile(request, pk):
 
 @staff_member_required
 def weapon_profile_add(request, pk):
-    """One more firing line for a weapon, at an address of its own.
+    """One more profile for a weapon, at an address of its own.
 
     Addressed by the weapon, there being no line yet to name. The form
     is the spec-generated one that adds a line, with the characteristics
@@ -2910,7 +2911,7 @@ def weapon_profile_add(request, pk):
         "authoring/weapon_profile_add.html",
         {
             # The bar stands in Weapons, as the line's own page does:
-            # a firing line has no listing of its own.
+            # a weapon profile has no listing of its own.
             "kind": "weapon",
             "weapon": weapon,
             "weapons_plural": str(weapon._meta.verbose_name_plural),
@@ -2927,7 +2928,7 @@ def weapon_profile_add(request, pk):
 
 @staff_member_required
 def weapon_profile_delete(request, pk):
-    """The question asked before a firing line leaves its weapon.
+    """The question asked before a profile leaves its weapon.
 
     A line is a part of its weapon rather than an authored kind, so the
     generic delete page — which reads a kind out of the address — cannot

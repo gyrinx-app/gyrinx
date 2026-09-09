@@ -457,7 +457,7 @@ class TestEditingOne:
         assert wyrd.name == "Wyrd"  # and nothing was written
 
     def test_editing_leaves_the_parts_alone(self, author, client, default_pack):
-        """A weapon's page carries its firing lines as well as its own
+        """A weapon's page carries its profiles as well as its own
         fields. Saving the one must not disturb the other."""
         from n26.library.authoring import add_weapon_profile, create_weapon
 
@@ -1973,8 +1973,8 @@ def weapon_statline_type(make_stat):
 
 
 class TestWeapons:
-    """A weapon is the first thing with parts: the gun, then its firing
-    lines. Built here exactly as the book's table prints it —
+    """A weapon is the first thing with parts: the gun, then its
+    profiles. Built here exactly as the book's table prints it —
     Autogun, then its warp round at +10."""
 
     def make_autogun(self, client, weapon_statline_type):
@@ -1993,7 +1993,7 @@ class TestWeapons:
         return response, Weapon.objects.get(name="Autogun")
 
     def add_line(self, client, weapon, **payload):
-        """One firing line, added the way an author adds one — on the
+        """One profile, added the way an author adds one — on the
         page the weapon's own leads to."""
         return client.post(
             f"/n26/authoring/weapons/{weapon.pk}/add-profile/",
@@ -2404,10 +2404,10 @@ class TestTheQualifier:
         assert link_words(name_cell) == "Ferocious jaws"
         assert words_in(name_cell) == "Ferocious jaws — Sumpkroc"
 
-    def test_a_carried_firing_line_links_to_its_own_page(
+    def test_a_carried_weapon_profile_links_to_its_own_page(
         self, author, client, default_pack
     ):
-        """A firing line is not a kind with a listing of its own, but it
+        """A weapon profile is not a kind with a listing of its own, but it
         has a page, and a modifier's carrier table should lead there."""
         from n26.library.authoring import (
             add_weapon_profile,
@@ -2644,8 +2644,8 @@ class TestAWeaponsOwnLine:
         assert "(Autogun)" not in named
 
 
-class TestCorrectingAFiringLine:
-    """A firing line is corrected on a page of its own, reached from the
+class TestCorrectingAWeaponProfile:
+    """A weapon profile is corrected on a page of its own, reached from
     weapon's. The row on the weapon's page says what the line is; putting
     the whole of it — the stats in their boxes, the traits as a set —
     into that row would leave nowhere to read the weapon."""
@@ -2666,7 +2666,7 @@ class TestCorrectingAFiringLine:
         return Weapon.objects.get(name="Autogun")
 
     def add_line(self, client, weapon, **payload):
-        """One firing line, added the way an author adds one."""
+        """One profile, added the way an author adds one."""
         from n26.library.models import WeaponProfile
 
         client.post(
@@ -2867,7 +2867,7 @@ class TestCorrectingAFiringLine:
         )
 
 
-class TestTheFiringLinePageIsStaffed:
+class TestTheWeaponProfilePageIsStaffed:
     """The same door the weapon's own page has: staff, or the sign-in
     page — whoever you are already signed in as."""
 
@@ -2896,7 +2896,7 @@ def autogun(author, default_pack, weapon_statline_type):
     return create_weapon("Autogun", price=20, statline_type=weapon_statline_type)
 
 
-class TestAddingAFiringLine:
+class TestAddingAWeaponProfile:
     """A line is added at an address of its own, reached from the
     weapon's page. It is a form and a whole statline both, and the
     weapon's own fields sit above them on that page — a listing with all
@@ -3048,7 +3048,7 @@ class TestAddingAFiringLine:
         assert 'name="stat"' in body
 
 
-class TestRemovingAFiringLine:
+class TestRemovingAWeaponProfile:
     """A line is taken off from the weapon's page, where the rest of them
     are: what removing one means is read against the lines it leaves
     behind, not from inside one of them. Deleting is for the unused, as
@@ -3180,7 +3180,7 @@ class TestRemovingAFiringLine:
         assert client.get(address).status_code == 404
 
 
-class TestTheFiringLineActPagesAreStaffed:
+class TestTheWeaponProfileActPagesAreStaffed:
     """The same door the rest of the authoring surface has: staff, or
     the sign-in page — and a post gets no further than a read."""
 
@@ -5711,7 +5711,7 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
 
     Every authoring surface reads a set of rows and walks something off
     each one — a label through its section, a profile through its
-    built-ins, a firing line through its statline. Each walk must be
+    built-ins, a weapon profile through its statline. Each walk must be
     loaded with the set, so the budget is measured small and asserted
     unchanged after the content grows.
     """
@@ -5786,7 +5786,7 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
             client, "/n26/authoring/category/", grow, django_assert_num_queries
         )
 
-    def test_a_weapon_page_reads_flat_however_many_firing_lines(
+    def test_a_weapon_page_reads_flat_however_many_profiles(
         self, author, client, default_pack, django_assert_num_queries
     ):
         """Each line shows its typed stats and its traits; the page
@@ -6188,9 +6188,9 @@ class TestAnythingCanComeWithSomething:
         assert beast.built_ins.name == "Dustback Helamite (wargear) built-ins"
         assert twin.built_ins.name == "Dustback Helamite built-ins"
 
-    def test_a_weapon_keeps_its_firing_lines_and_gains_the_section(self, claws, client):
+    def test_a_weapon_keeps_its_profiles_and_gains_the_section(self, claws, client):
         """The first page to carry two sections of parts. A weapon's
-        firing lines are its own; coming with something is everyone's,
+        profiles are its own; coming with something is everyone's,
         and the two must not stand in for each other."""
         body = client.get(f"/n26/authoring/weapon/{claws.pk}/").content.decode()
 

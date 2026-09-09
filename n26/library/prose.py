@@ -289,7 +289,7 @@ def _while(who):
 def _gained(thing):
     """What arriving with a thing is called, in words that suit its kind.
 
-    A trait on a firing line needs no noun after it; a collection is
+    A trait on a weapon profile needs no noun after it; a collection is
     access rather than an object; a granted weapon is free kit and says
     so, because nothing about it is bought.
     """

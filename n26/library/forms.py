@@ -1636,8 +1636,8 @@ def statline_form_for(statline_type):
     def save(self, owner):
         """Record the characteristics that were typed.
 
-        Nothing typed means nothing to record: a firing line added with
-        every box empty is a line with no statline, not a statline of
+        Nothing typed means nothing to record: a profile added with
+        every box empty is a profile with no statline, not a statline of
         blanks.
         """
         from n26.library import authoring

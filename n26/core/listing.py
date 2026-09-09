@@ -112,6 +112,10 @@ class OptionRow:
     #: Where this part's own price is typed. A discount on the gun is not
     #: a discount on the rounds, so each is charged at its own figure.
     price_field: str
+    #: Remarks for the player about this part — a round restricted to a
+    #: fighter this one is not. The same channel as the row's own notes,
+    #: drawn under the part, and never a reason to leave it off.
+    notes: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -195,8 +199,8 @@ class Listing:
 class OwnedPartRow:
     """Something hanging off a copy the fighter holds: ammo, an accessory.
 
-    A firing line has no move among its actions: it *is* the weapon's
-    line, and ``Operation.move`` refuses it. An accessory the gang
+    A weapon profile has no move among its actions: it *is* the weapon's
+    own profile, and ``Operation.move`` refuses it. An accessory the gang
     bought can come off, so Detach and Fit sit with Refund and Remove
     when there is somewhere for them to go.
     """
@@ -321,6 +325,7 @@ def _options_of(line, key):
             is_exclusive=_shown_exclusive(part),
             field=parts_field(key),
             price_field=price_field(key, index),
+            notes=tuple(part.notes),
         )
         for index, part in enumerate(line.parts)
     )

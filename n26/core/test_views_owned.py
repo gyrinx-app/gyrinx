@@ -730,7 +730,7 @@ class TestSellingAGunWithSomethingBoltedToIt:
         assert stash.rating == 0
         assert_reconciled(gang)
 
-    def test_the_firing_line_is_sold_with_the_gun_either_way(
+    def test_the_profile_is_sold_with_the_gun_either_way(
         self, client, tester, gang, gun, bolted
     ):
         """A weapon's own profile is not gear that could be kept: it names
@@ -865,7 +865,9 @@ class TestFittingOneBackOntoAGun:
             f'data-row="{thing_key(gun.assignable)}"' not in response.content.decode()
         )
 
-    def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun, stash):
+    def test_a_weapon_profile_is_refused_in_words(
+        self, client, tester, gang, gun, stash
+    ):
         """The listing offers no control for this, so a click that reaches
         it is hand-made — and it is answered with a sentence rather than a
         traceback."""
@@ -1353,7 +1355,7 @@ class TestDetachingAnAccessory:
         assert loose.miniature_root_id == fighter.pk
         assert_reconciled(gang)
 
-    def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun):
+    def test_a_weapon_profile_is_refused_in_words(self, client, tester, gang, gun):
         client.force_login(tester)
         line = gun.children.exclude(weapon_profile=None).get()
 
@@ -1462,7 +1464,7 @@ def test_the_things_a_fighter_holds_are_counted_off_the_card(
 
 
 def test_a_part_is_offered_no_move(gang, fighter, tester):
-    """A firing line hangs off its parent and cannot be re-homed alone,
+    """A weapon profile hangs off its parent and cannot be re-homed alone,
     so the structure a row draws from has no move for it to offer."""
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key

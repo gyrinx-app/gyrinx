@@ -101,10 +101,10 @@ GRANTABLE_FIELDS = {
     # a fact on the card, gone when the granter goes.
     "power": "library.Power",
     # Free kit: a beast's claws, a vehicle's fixed gun. The weapon and its
-    # firing lines are worked out at read time, so they add nothing to the
+    # profiles are worked out at read time, so they add nothing to the
     # gang's rating, are never paid for, cannot be sold, and go when the
     # thing that granted them goes. ``n26.core.effects`` builds the
-    # card nodes for granted equipment and a weapon's firing lines.
+    # card nodes for granted equipment and a weapon's profiles.
     "weapon": "library.Weapon",
     "wargear": "library.Wargear",
     # A carrier that draws no row, so naming one is naming a *bundle*:
@@ -1080,12 +1080,12 @@ class AssignableChoice(models.Model):
         return None
 
     def accepts(self, target_kind):
-        """A trait goes on a firing line; most things go on a model; a
+        """A trait goes on a weapon profile; most things go on a model; a
         rule, a collection or a hidden carrier may also land on the gang
         itself.
 
         A weapon goes on a model only: it is the model that carries a
-        gun, and the gun's own firing lines are what a weapon-scoped
+        gun, and the gun's own profiles are what a weapon-scoped
         modifier reaches once the grant has put them on the card. The
         gang's card carries named rules, standing lists, and the hidden
         carriers its own rules hang off — an alliance's "the gang
@@ -1115,7 +1115,7 @@ class AddsAssignable(AssignableChoice):
     A subtype, skill, trait, collection, rule, weapon or wargear. Granted
     weapons and wargear are free kit: they add zero rating and last as
     long as their source is held. Each grant gives a separate copy.
-    Their modifiers apply, and weapons include their free firing lines.
+    Their modifiers apply, and weapons include their free profiles.
     Built-ins and option sets are only included when an item is acquired
     through an assignment. Granted kit cannot be sold or moved independently.
 

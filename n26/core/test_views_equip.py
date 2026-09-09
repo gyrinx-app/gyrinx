@@ -2410,6 +2410,26 @@ class TestTheLibraryTab:
             "usable by Walker only"
         ]
 
+    def test_a_restricted_round_under_a_gun_is_noted_on_its_own_box(
+        self, client, tester, fighter, house_list, library
+    ):
+        """The gun is open to everyone; one of its rounds is not. The
+        note sits on that round's tick box, and the box stays."""
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        launcher = create_weapon("Grenade launcher", price=55, profiles=[("", 0)])
+        add_weapon_profile(
+            launcher, name="krak grenades", price=30, usable_by_subtypes=[library]
+        )
+        client.force_login(tester)
+        response = client.get(f"{equip_url(fighter)}?list=all")
+        rows = {row.name: row for row in response.context["catalogue"].all_rows()}
+
+        assert rows["Grenade launcher"].notes == ()
+        (krak,) = rows["Grenade launcher"].options
+        assert [note.text for note in krak.notes] == ["usable by Walker only"]
+        assert "usable by Walker only" in response.content.decode()
+
     def test_the_page_says_where_it_is(
         self, client, tester, fighter, house_list, library
     ):

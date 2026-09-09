@@ -130,7 +130,7 @@ def siblings_switcher(kind, thing):
 
 @register.simple_tag
 def weapon_profiles_switcher(profile):
-    """The other firing lines of one weapon, from the page of one of them.
+    """The other profiles of one weapon, from the page of one of them.
 
     The same shortcut the kind pages offer over their rows, over the set
     that means something here: a gun's lines are read against each other

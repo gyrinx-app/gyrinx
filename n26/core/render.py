@@ -1991,7 +1991,7 @@ def card_to_model_card(
         )
 
     # What the model owns, and then what a modifier handed it. A granted
-    # line is drawn like any other — a weapon with its firing lines — and
+    # line is drawn like any other — a weapon with its profiles — and
     # tells itself apart by its provenance, which says it was computed.
     for node in (*card.roots, *card.granted):
         if node.key in chosen_keys:

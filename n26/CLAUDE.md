@@ -186,8 +186,8 @@ Concretely:
   copied. If referring to an assignment, say assignment.
 - The Python class is `Miniature` (to avoid Django's `Model`); every
   user-facing word is "model".
-- "Profile" on its own means a hireable fighter entry. A weapon's firing
-  line is a `WeaponProfile`.
+- "Profile" on its own means a hireable fighter entry. A weapon's
+  profile is a `WeaponProfile`.
 - Use the words in `n26/design/glossary.md` and `n26/library/concepts.md` —
   the latter is the rendered Core Concepts reference for what each kind
   is. If you need a term that is in neither, that is a design

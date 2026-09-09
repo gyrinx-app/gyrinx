@@ -392,10 +392,10 @@ urlpatterns = [
         authoring_views.picklist_table,
         name="authoring-picklist-table",
     ),
-    # A firing line belongs to its weapon rather than being an authored
+    # A weapon profile belongs to its weapon rather than being an authored
     # kind of its own — there is no listing of every profile in the
     # library, and no making one apart from the weapon it fires — so
-    # correcting one has an address here, by the line's own pk.
+    # correcting one has an address here, by the profile's own pk.
     path(
         "authoring/weapon-profiles/<str:pk>/",
         authoring_views.weapon_profile,

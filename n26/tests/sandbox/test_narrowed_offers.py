@@ -331,7 +331,7 @@ class TestTheItemsOwnBracketIsTypedOnItsPage:
         body = author.get("/n26/authoring/weapon/new/").content.decode()
 
         # Named for what an author is choosing, not for the column: on a
-        # weapon's page "profiles" would be taken for its firing lines.
+        # weapon's page "profiles" would be taken for the weapon's own.
         assert "Usable by fighter entries" in body
         assert "Usable by types" in body
         assert 'name="usable_by_profiles"' in body
@@ -594,6 +594,90 @@ class TestScaling:
                 noted = with_use_notes(browse(collection), buyer)
                 lines = list(noted.all_lines())
                 assert lines and all(line.notes for line in lines)
+            return len(captured.captured_queries)
+
+        assert measure(narrowed(2)) == measure(narrowed(12))
+
+
+class TestANamedProfileCanBeNarrowedOnItsOwn:
+    """The book restricts a round without restricting the gun: an
+    assault grenade launcher's "krak grenades (Stimmer only)" under a
+    launcher anyone may carry. The restriction is the profile's own —
+    true wherever that round is offered — and the line the listing
+    prints under the gun is noted like any other."""
+
+    @pytest.fixture
+    def launcher(self, default_pack):
+        from n26.library.authoring import add_weapon_profile
+
+        weapon = create_weapon(
+            "Assault grenade launcher",
+            profiles=[("", 0)],
+            price=65,
+            category=create_category("Ranged", "Grenade launchers"),
+        )
+        add_weapon_profile(weapon, name="krak grenades", price=30)
+        return weapon
+
+    @pytest.fixture
+    def krak(self, launcher):
+        from n26.library.models import WeaponProfile
+
+        return WeaponProfile.objects.get(weapon=launcher, name="krak grenades")
+
+    def test_the_round_under_the_gun_carries_its_own_note(
+        self, gang, ranks, launcher, krak
+    ):
+        listing = create_collection("Goliath Equipment List", entries=[launcher, krak])
+        restrict_use(krak, ranks["forge_born"])
+        bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
+
+        line = line_for(listing, bruiser, "Assault grenade launcher")
+
+        assert line.notes == ()
+        (part,) = line.parts
+        assert [note.text for note in part.notes] == [
+            "usable by Goliath Forge-born only"
+        ]
+
+    def test_the_named_rank_hears_nothing(self, gang, ranks, launcher, krak):
+        listing = create_collection("Goliath Equipment List", entries=[launcher, krak])
+        restrict_use(krak, ranks["forge_born"])
+        forge_born = hire_with_option(gang, ranks["forge_born"], "Slag")
+
+        (part,) = line_for(listing, forge_born, "Assault grenade launcher").parts
+
+        assert part.notes == ()
+
+    def test_noting_a_narrowed_round_costs_no_query_per_line(
+        self, gang, ranks, launcher, krak
+    ):
+        """The profile's lists load with the listing as every other
+        kind's do, so a list of restricted rounds costs what an open one
+        does."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
+        buyer = usability_for(computed_for(bruiser))
+
+        def narrowed(count):
+            from n26.library.authoring import add_weapon_profile
+
+            listing = create_collection(f"List of {count}")
+            for index in range(count):
+                weapon = create_weapon(f"Launcher {count}-{index}", profiles=[("", 0)])
+                round_ = add_weapon_profile(weapon, name="krak", price=30)
+                restrict_use(round_, ranks["forge_born"])
+                add_entry(listing, weapon)
+                add_entry(listing, round_)
+            return listing
+
+        def measure(collection):
+            with CaptureQueriesContext(connection) as captured:
+                noted = with_use_notes(browse(collection), buyer)
+                parts = [part for line in noted.all_lines() for part in line.parts]
+                assert parts and all(part.notes for part in parts)
             return len(captured.captured_queries)
 
         assert measure(narrowed(2)) == measure(narrowed(12))

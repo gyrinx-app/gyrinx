@@ -1017,6 +1017,10 @@ def _build_registry():
                     source=(WeaponProfile, "traits"),
                     replaced_by=authoring.set_traits,
                 ),
+                # A named profile can be narrowed on its own — "krak
+                # grenades (Stimmer only)" under a launcher — so the
+                # profile page asks who may use it, as the weapon's does.
+                **use_lists(WeaponProfile),
                 "qualifier": Text(source=(WeaponProfile, "qualifier")),
                 "library_author_help": Text(
                     source=(WeaponProfile, "library_author_help"), long=True

@@ -305,7 +305,7 @@ class TestImporting:
         assert UploadedSheet.objects.filter(owner=author).count() == len(SHEETS)
 
     def test_a_blocking_problem_writes_nothing(self, author, client, foundation):
-        """A catalogue row typed as a priced firing line but naming no
+        """A catalogue row typed as a priced weapon profile but naming no
         profile would lose its price on the way in, so the upload waits
         rather than landing something wrong."""
         equipment = """

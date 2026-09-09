@@ -289,8 +289,8 @@ class UsableBy(models.Model):
     Subtype"). The list is an OR: a profile type matches, or a subtype
     matches. **Empty means everyone** — default open, the house rule.
 
-    A mixin, so a kind opts in (skills and powers today) and anything
-    without it is simply usable by all. And it informs, never polices:
+    A mixin, so a kind opts in and anything without it is simply usable
+    by all. And it informs, never polices:
     an unusable skill still shows in the listing, marked, and nothing
     stops the owner assigning it anyway.
 
@@ -303,7 +303,8 @@ class UsableBy(models.Model):
     # Two of the four say what they call themselves, because their
     # column names read as something else in front of an author: a
     # profile type is a type, and "profiles" on a weapon's page would be
-    # taken for its firing lines. The other two are named what they are.
+    # taken for the weapon's own rather than for fighter entries. The
+    # other two are named what they are.
     usable_by_profile_types = models.ManyToManyField(
         "library.ProfileType",
         blank=True,
@@ -708,8 +709,8 @@ class Trait(Content, Assignable):
 class Weapon(Content, Assignable, UsableBy):
     """A weapon. Always has at least one profile, the first of which is free.
 
-    ``UsableBy`` because a shared house list narrows a few of its lines to
-    one fighter entry — "Wyld bow (Wyld Runner only)".
+    ``UsableBy`` because the book narrows some weapons to one fighter
+    entry wherever they are listed — "Wyld bow (Wyld Runner only)".
     """
 
     family = Family.GEAR
@@ -758,9 +759,15 @@ class Weapon(Content, Assignable, UsableBy):
         )
 
 
-class WeaponProfile(Content, Assignable):
+class WeaponProfile(Content, Assignable, UsableBy):
     """One of a weapon's profiles. Assignable in its own right — buying an
-    extra ammo type is an assignment hung off the weapon's assignment."""
+    extra ammo type is an assignment hung off the weapon's assignment.
+
+    ``UsableBy`` because a restriction can sit on one profile alone —
+    "krak grenades (Stimmer only)" under an assault grenade launcher
+    anyone may carry. The lists are the profile's own and hold wherever
+    it is offered; the weapon's own lists do not narrow it.
+    """
 
     family = Family.GEAR
     attaches_to_weapons = True

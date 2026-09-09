@@ -23,9 +23,9 @@ pass recognises them as satisfied. Nothing is priced, so no gang's rating
 or credits move and the ledger still reconciles.
 
 What an operation does beyond writing rows is not done here: no stored
-effect runs, and a weapon lands without its free firing lines. Nor are
-two shapes of built-in followed: an extra firing line, which needs a gun
-to land on, and a built-in with built-ins of its own. None of these is
+effect runs, and a weapon lands without its free profiles. Nor are
+two shapes of built-in followed: an extra weapon profile, which needs a
+gun to land on, and a built-in with built-ins of its own. None of these is
 in the Territory campaign type, whose built-ins are a counter and an
 asset. Each is reported rather than half-written, and the propagation pass
 catches up whatever it can.
@@ -153,7 +153,7 @@ def _carry(apps, membership, campaign_type, batch, lines):
         field = _names(member)
         if field is None or field == "weapon_profile":
             lines.append(
-                f"{campaign_type.name}: a built-in firing line for "
+                f"{campaign_type.name}: a built-in weapon profile for "
                 f"{gang.name} was not landed — nothing here is its gun"
             )
             continue

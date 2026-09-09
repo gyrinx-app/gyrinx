@@ -630,7 +630,7 @@ def put_everything_live():
 
 
 def set_traits(weapon_profile, traits):
-    """The traits printed on a firing line, replaced.
+    """The traits printed on a weapon profile, replaced.
 
     The statlines sheet is the whole statement about a line's traits,
     and a card prints them, so a trait the sheet stops naming goes.
@@ -1152,14 +1152,21 @@ def add_weapon_profile(
     position=None,
     qualifier="",
     library_author_help="",
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
     **kwargs,
 ):
-    """One firing line of a weapon — the gun's own, or a paid ammo type.
+    """One profile of a weapon — the gun's own, or a paid ammo type.
 
     ``name`` is only for a line the book names: leave it blank for the
     weapon's own line, which prints as the weapon. ``annotation``
     defaults to the weapon's name, which is what a named line prints in
     brackets. ``position`` defaults to the end.
+
+    The ``usable_by_*`` lists are the bracket the book prints after one
+    round and not the gun — "krak grenades (Stimmer only)" — true of
+    that profile wherever it is offered. Empty means everyone.
     """
     from n26.library.models import WeaponProfile
 
@@ -1179,6 +1186,15 @@ def add_weapon_profile(
     )
     if traits:
         profile.traits.set(traits)
+    # A new row's lists are already empty, so an import that names no
+    # restriction writes nothing rather than clearing three lists a row.
+    if usable_by_profile_types or usable_by_subtypes or usable_by_profiles:
+        set_usable_by(
+            profile,
+            usable_by_profile_types=usable_by_profile_types,
+            usable_by_subtypes=usable_by_subtypes,
+            usable_by_profiles=usable_by_profiles,
+        )
     return profile
 
 
@@ -1516,11 +1532,11 @@ def _something_materialised(member):
     """Whether any copy in any gang came from this membership.
 
     Provenance answers outright for every kind the estate tags. Ammo is
-    the one kind outside that regime — a granted firing line is written
-    in the same shape as a weapon's own free lines and never carries
-    provenance — so for a weapon-profile member any free-granted line of
+    the one kind outside that regime — a granted profile is written in
+    the same shape as a weapon's own free profiles and never carries
+    provenance — so for a weapon-profile member any free-granted copy of
     the same profile still counts, and the member is archived rather
-    than deleted so those lines keep their anchor.
+    than deleted so those copies keep their anchor.
     """
     from n26.core.models import Assignment, Reason
     from n26.library.models import WeaponProfile
@@ -2137,7 +2153,7 @@ def ef_adds(thing, with_pick=None):
 
     Granted weapons and wargear add zero rating and are removed when
     their source is removed. Their modifiers apply. Weapons include free
-    firing lines; built-ins and option sets require an assignment.
+    profiles; built-ins and option sets require an assignment.
 
     **A granted weapon arrives too late for its carrier's unfiltered
     rules.** Scopes are asked in order of how conditional they are, so a
