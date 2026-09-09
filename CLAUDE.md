@@ -475,6 +475,36 @@ manage migrate
 SQL_DEBUG=True
 ```
 
+### Migrations on parallel branches
+
+An app's migration graph **may have several leaves**. Two branches that each add
+a migration to the same app merge in any order and deploy in any order; nothing
+is renamed or repointed, and the next migration anyone generates depends on
+every leaf and so joins them (`gyrinx/migration_graph.py` switches off
+Django's refusal and teaches `makemigrations` to depend on all leaves). Two
+files sharing a number prefix on main is cosmetic.
+
+- **Generate migrations with `manage makemigrations <app> -n <name>`; never type
+  the `dependencies` list yourself.** Generated dependencies name every leaf in
+  your tree. A hand-typed list that omits one lets the migration run before the
+  state it assumes. Edit the operations and the docstring afterwards if you like.
+- **After rebasing onto main there is nothing to do.** Your migration keeps its
+  name and its parent. Do not renumber, do not repoint, do not `--merge`.
+- **A branch adds at most one leaf per app.** `manage check_migration_conflicts`
+  (pre-commit and CI) fails when a branch adds two, which only happens with a
+  hand-written dependency list.
+- **Rename, delete or alter something another open branch touches, or run a data
+  migration against it, and the order matters.** The `Migration watch` workflow
+  re-checks every open migration PR each time main gains a migration: it merges
+  the branch into main, migrates a database to main and then to the merge (what
+  the next container boot does), runs `makemigrations --check` on the merge, and
+  reads the branch's migrations against the ones main gained since it forked. It
+  comments on the PR and sets a non-required `migration-watch` status. A ❌ there
+  means the next deploy would fail or two migrations change the same thing;
+  regenerate the migration on a checkout that includes current main. Run the
+  overlap check yourself with `manage check_migration_overlap --base origin/main`.
+- No coordination over migration numbers or parents is needed between agents.
+
 ### Production Database Access
 
 ```bash

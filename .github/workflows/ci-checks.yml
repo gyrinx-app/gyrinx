@@ -59,7 +59,9 @@ jobs:
           bandit -c pyproject.toml -r . --baseline bandit/bandit-baseline.json
 
       - name: Check for migration conflicts
+        # The check tells a branch's own leaves from main's, so it needs main.
         run: |
+          git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
           source .venv/bin/activate && \
           ./scripts/check_migration_conflicts.sh
 

@@ -17,6 +17,12 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         """Import signal handlers when the app is ready."""
+        from gyrinx.migration_graph import allow_many_leaves
+
+        # Project-wide policy, installed here because this app owns the
+        # migration checks and every command runs after ready().
+        allow_many_leaves()
+
         import n23.core.checks  # noqa: F401
         import n23.core.events  # noqa: F401  — claims this edition's event nouns
         import n23.core.signals  # noqa: F401

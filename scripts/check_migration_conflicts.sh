@@ -1,17 +1,15 @@
 #!/bin/bash
 #
-# Check for conflicting Django migrations using Django's own
-# MigrationLoader.detect_conflicts().
+# Refuse a branch that adds more than one migration leaf to an app.
 #
-# This catches the real problem: multiple leaf nodes in a single app's
-# migration graph (i.e. two migrations that both claim to follow the
-# same parent, requiring a merge migration).  This is strictly better
-# than checking for duplicate numeric prefixes, because two PRs can
-# create migrations with *different* numbers that still conflict.
+# Several leaves per app are allowed on main (see gyrinx/migration_graph.py):
+# branches merge without renaming or repointing and the next generated
+# migration joins them. A single branch adding two leaves means a migration
+# was written by hand on a tree whose other leaf it ignored.
 #
-# Requires Django to be importable (run inside the virtualenv or CI
-# after `uv sync`).
+# Compares against origin/main unless MIGRATION_BASE says otherwise. Requires
+# Django to be importable (run inside the virtualenv or CI after `uv sync`).
 
 set -euo pipefail
 
-python scripts/manage.py check_migration_conflicts
+python scripts/manage.py check_migration_conflicts --base "${MIGRATION_BASE:-origin/main}"
