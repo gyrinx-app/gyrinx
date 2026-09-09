@@ -83,6 +83,8 @@ A choice can arrive already made. Built into a gang type, a slot takes a **start
 
 A pick the gang holds is a fact about every model in it, whether the pick was written or given. A condition on a model that asks "has picked Goliath" is true of every member of a gang that has picked Goliath, even when the grant is the gang's alone.
 
+The gang scope takes the same condition, about the gang itself. A modifier that targets the gang, or the gang alone, can be narrowed to **gangs that have picked** one of the pickables you name, or to every gang except those. The condition reads the gang's own picks, written or given, so a boon written for Goliath gangs reaches a Goliath gang and a Clan House Goliath Outcast gang alike. With no condition the gang scope reaches the gang as before.
+
 The slot type's name is the word the card and the history use. The slot's label is the wording of the choice on one card. See **Slot type** below.
 
 ### Rule (special rule)

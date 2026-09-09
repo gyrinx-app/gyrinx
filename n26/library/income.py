@@ -61,10 +61,19 @@ def ensure_income_counter():
 
 
 def is_income_contribution(modifier):
-    """Whether a modifier is an asset's income: gang-scoped, and adding to
-    the Income counter. Reads the effect and its counter off the row, so a
-    caller loading many should ``select_related`` both."""
+    """Whether a modifier is an asset's income: gang-scoped, unconditional,
+    and adding to the Income counter. Reads the effect and its counter off
+    the row, so a caller loading many should ``select_related`` both, and
+    the scope's condition rows, which ``with_income`` prefetches.
+
+    A contribution that applies only to some gangs — "gangs that have
+    picked Goliath: 10 more Income" — is a boon, not the figure: it
+    prints with its scope wording, and applies to the gangs it names
+    through the effects engine, like any other modifier.
+    """
     if modifier.targets_gang_id is None or modifier.contributes_to_counter_id is None:
+        return False
+    if modifier.targets_gang.is_conditional:
         return False
     return is_income_counter(modifier.contributes_to_counter.counter)
 
@@ -111,7 +120,9 @@ def with_income(assets):
     return assets.prefetch_related(
         Prefetch(
             "modifiers",
-            queryset=Modifier.objects.select_related("contributes_to_counter__counter"),
+            queryset=Modifier.objects.select_related(
+                "contributes_to_counter__counter", "targets_gang"
+            ).prefetch_related("targets_gang__has_gang_pickable__pickables"),
         )
     )
 

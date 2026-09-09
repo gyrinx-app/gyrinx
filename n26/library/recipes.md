@@ -214,13 +214,14 @@ fills the supertype slot.
 1. Create a **slot type** named "Gang supertype" and a **pickable** for
    each House — Goliath, Escher, Orlock, Van Saar, Delaque, Cawdor.
    These pickables carry no modifiers of their own. A rule reaches them
-   through the *has pickable* condition instead.
+   through a *has pickable* condition instead.
 2. Add a **picklist** of the six, and a **slot** named "Gang supertype",
    taking 1 pick, assigned to the gang, with *hidden* turned on. Hidden
    means the gang sheet never prints a "Gang supertype" line.
-3. Build that slot into every gang type. On each Clan House gang type,
-   name the matching House as the **starting pick**. On Outcast,
-   Enforcers and the rest, build it in with no starting pick.
+3. Build that slot into each of the six Clan House gang types, naming
+   the matching House as the **starting pick**. Outcast, Enforcers and
+   the rest do not build it in, so those gangs start with no supertype
+   pick.
 4. The Clan House choice is its own slot type, with its own pickables
    carrying the equipment access and the rest of what the choice gives.
    On each "Clan House: X" pickable, add a **modifier**: targets the gang
@@ -229,15 +230,19 @@ fills the supertype slot.
    slot can take one.
 
 A Goliath gang and a Clan House Goliath Outcast gang now both have
-Goliath picked for their Gang supertype. A rule written as *targets
-every model, where it has picked Goliath* reaches every fighter in both.
-Taking the Clan House pick back takes the supertype pick with it, and
-the rule stops applying.
+Goliath picked for their Gang supertype. Two conditions read it:
 
-One step is not yet possible: a condition on the gang itself (*targets
-the gang, where it has picked Goliath*). Until the gang scope takes
-conditions, a rule meant for the gang alone has to be written on the
-model scope and reach the gang's fighters instead.
+- On the gang: *targets the gang alone, where the gang has picked
+  Goliath*. Use this for a territory boon for Goliath gangs — "gangs
+  that have picked Goliath: adds 10 to Income" — or for a rule that
+  prints on the gang sheet only.
+- On the models: *targets every model, where the model has picked
+  Goliath*. A pick the gang holds is a fact about every model in it, so
+  this reaches every fighter in both gangs.
+
+Taking the Clan House pick back takes the supertype pick with it, and
+both conditions stop matching. An Escher gang, or a Clanless Outcast
+gang that picked no Clan House, never matches either.
 
 Nothing new shows on the gang sheet. The given pick is a fact about the
 gang, not a line: it adds nothing to the rating and does not appear in

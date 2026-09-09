@@ -366,6 +366,7 @@ def _build_registry():
         CounterAtLeast,
         DefaultAssignment,
         DefaultAssignmentSet,
+        GangHasPickable,
         GangType,
         HasPickable,
         HasSubtypes,
@@ -516,6 +517,15 @@ def _build_registry():
             },
         ),
         Spec(
+            authoring.has_gang_pickable,
+            {
+                "pickables": Many(
+                    model=Pickable, source=(GangHasPickable, "pickables")
+                ),
+                "negate": Bool(source=(GangHasPickable, "negate")),
+            },
+        ),
+        Spec(
             authoring.has_traits,
             {"traits": Many(model=Trait, source=(HasTraits, "traits"))},
         ),
@@ -554,11 +564,12 @@ def _build_registry():
         ),
         Spec(
             authoring.targets_gang,
-            {},
+            {"conditions": Conditions(kinds=("has_gang_pickable",))},
             label="The gang carrying it and all models",
             blurb=(
                 "Affects the gang and all models, in a different way per "
-                "effect. Use with care."
+                "effect. Use with care. A condition can narrow it to gangs "
+                "that have picked a particular pickable."
             ),
             example=(
                 "A rule given to the gang prints on the gang's sheet only, "
@@ -570,15 +581,19 @@ def _build_registry():
         ),
         Spec(
             authoring.targets_gang_alone,
-            {},
+            {"conditions": Conditions(kinds=("has_gang_pickable",))},
             label="The gang carrying it",
             blurb=(
                 "Applied only to the gang; does not reach the models. A pick "
-                "given with a slot is still a fact about every model in the gang."
+                "given with a slot is still a fact about every model in the "
+                "gang. A condition can narrow it to gangs that have picked a "
+                "particular pickable."
             ),
             example=(
                 "A rule that prints on the gang sheet without touching the "
-                "fighters, or a gang-level counter."
+                "fighters, or a gang-level counter. A territory boon for "
+                "Goliath gangs: gangs that have picked Goliath add 10 to "
+                "Income."
             ),
         ),
         # -- effects, worked out at read time --------------------------

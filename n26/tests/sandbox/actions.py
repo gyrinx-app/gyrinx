@@ -58,6 +58,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     ef_places_choice,
     ef_removes,
     ef_requires_companions,
+    has_gang_pickable,
     has_pickable,
     has_subtypes,
     has_traits,

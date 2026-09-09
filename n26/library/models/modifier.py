@@ -299,7 +299,7 @@ _EXCEPT = "every model except "
 _THESE = " models"
 
 
-def _negatable():
+def _negatable(of="model"):
     """The column a condition carries to mean "everything but these".
 
     Most scoping names the ranks it reaches, and naming a further one is
@@ -308,11 +308,14 @@ def _negatable():
     stale the day a subtype is added. It sits on the conditions naming a
     *membership* (a subtype, an entry, a pick); a threshold's opposite
     is a different question and is not written this way.
+
+    ``of`` is the word for what the scope reaches — a model, or the
+    gang — so the help text says what is left out.
     """
     return models.BooleanField(
         default=False,
         help_text=(
-            "Reach everything this does not name — every model except "
+            f"Reach everything this does not name — every {of} except "
             "these. Other conditions still narrow it further."
         ),
     )
@@ -797,7 +800,22 @@ class TargetsGang(models.Model):
     never swallows the other. A modifier reaching *members* from a
     gang-hosted carrier says so instead: ``TargetsMiniature`` with the
     all-models reach.
+
+    Narrowing is done by **condition rows** hanging off this scope, as
+    on the model scope: ``GangHasPickable`` for "gangs that have picked
+    Goliath". With no rows it reaches the gang, whatever the gang has
+    picked. The rows are read against the gang's own facts — its
+    assignments, and the picks it was given — so a boon for Goliath
+    gangs reaches a Goliath gang and a Clan House Goliath Outcast gang
+    alike.
     """
+
+    #: Reverse relations ``as_selector()`` folds, in order. The boot
+    #: check (n26.E003/E004) verifies this names exactly the condition
+    #: models that FK this scope. Each name is also the authoring verb
+    #: that builds the row, which is how the composer reads a scope's
+    #: narrowing back (library/forms.py).
+    CONDITIONS = ("has_gang_pickable",)
 
     #: Whether what this modifier gives the gang also rides every
     #: member's card as the gang's guest. On, this is the ordinary
@@ -821,27 +839,138 @@ class TargetsGang(models.Model):
         verbose_name_plural = "target the gang"
 
     def __str__(self):
-        return "the gang" if self.echoes else "the gang alone"
+        parts = [str(row) for row in self._narrowing_rows()]
+        if not parts:
+            return "the gang" if self.echoes else "the gang alone"
+        described = ", ".join(parts)
+        if not self.echoes:
+            described += " (the gang alone)"
+        return described
 
     @property
     def narrows(self):
         """Whether this scope says anything worth keeping in a name.
 
-        There is one gang, so nothing narrows — but keeping a grant the
-        gang's alone is the fact telling two otherwise identical rows
-        on one carrier apart.
+        There is one gang, so only a condition narrows — but keeping a
+        grant the gang's alone is also a fact telling two otherwise
+        identical rows on one carrier apart.
         """
-        return not self.echoes
+        return self.is_conditional or not self.echoes
+
+    @property
+    def is_conditional(self):
+        """Whether a condition row narrows this scope.
+
+        What tells a gang's plain income figure from a boon that applies
+        only to some gangs (library/income.py). Decided the way the
+        selector is: a row naming nothing narrows nothing.
+        """
+        return bool(self._narrowing_rows())
+
+    def _condition_rows(self):
+        return [
+            row for related in self.CONDITIONS for row in getattr(self, related).all()
+        ]
+
+    def _narrowing_rows(self):
+        """The condition rows that say something.
+
+        A row naming no pickable folds to nothing, so the selector
+        ignores it — and so must every sentence about the scope, or the
+        words would claim a narrowing the reach does not have.
+        """
+        if not self.pk:
+            return []
+        return [row for row in self._condition_rows() if row.as_condition() is not None]
 
     def as_selector(self):
-        from n26.core import select
+        """What this scope's conditions say, compiled once per instance,
+        as on ``TargetsMiniature``. No rows compiles to ``Anything``, so
+        a condition-less scope keeps its round and its reach."""
+        compiled = getattr(self, "_compiled_selector", None)
+        if compiled is None:
+            from n26.core import select
 
-        return select.Anything()
+            conditions = [
+                folded
+                for row in self._condition_rows()
+                if (folded := row.as_condition()) is not None
+            ]
+            if not conditions:
+                compiled = select.Anything()
+            elif len(conditions) == 1:
+                compiled = conditions[0]
+            else:
+                compiled = select.All(*conditions)
+            self._compiled_selector = compiled
+        return compiled
 
     def targets(self, card, facts, carrier=None, echoed=False):
+        """The gang, when its facts match.
+
+        On a gang's card ``facts.model()`` is the gang's matchable — its
+        own assignments and the picks it was given, settled by the
+        rounds before this one.
+        """
         if getattr(card, "host_kind", MODEL) != GANG:
             return []
-        return [Target(kind=GANG)]
+        if self.as_selector().matches(facts.model()):
+            return [Target(kind=GANG)]
+        return []
+
+
+# --- Conditions on the gang scope -----------------------------------------
+#
+# The same grammar the model scope's conditions use: one row per way of
+# narrowing, any-of within a row, all rows ANDed, each saying itself as
+# a clause the scope's sentence and a modifier's auto-name are built
+# from. The gang has no type or subtypes, so the one fact worth asking
+# about is what it has picked.
+
+
+class GangHasPickable(models.Model):
+    """Condition: the gang has one of these picked.
+
+    "Gangs that have picked Goliath" — the shape of a boon that applies
+    only to some gangs. Any-of within the row; negated, it is every
+    gang except those.
+
+    What was picked is an ordinary assignment the gang holds, or a pick
+    given to it with a hidden slot, so one condition serves every slot
+    type ever authored, and a Clan House Goliath Outcast gang matches it
+    exactly as a Goliath gang does.
+    """
+
+    scope = models.ForeignKey(
+        TargetsGang,
+        on_delete=models.CASCADE,
+        related_name="has_gang_pickable",
+    )
+    pickables = models.ManyToManyField(
+        "library.Pickable",
+        related_name="+",
+        help_text="The gang must have picked at least one of these.",
+    )
+    negate = _negatable(of="gang")
+
+    class Meta:
+        verbose_name = "gang has pickable"
+        verbose_name_plural = "gang has pickable"
+
+    def __str__(self):
+        wanted = list(self.pickables.all()) if self.pk else []
+        if self.negate:
+            return "every gang except those that have picked " + _some_of(wanted)
+        return "gangs that have picked " + _some_of(wanted)
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.pickables.all())
+        if not wanted:
+            return None
+        matched = select.Any(*(select.Has(pickable) for pickable in wanted))
+        return select.Not(matched) if self.negate else matched
 
 
 # --- Effects: what a modifier does to them ------------------------------
