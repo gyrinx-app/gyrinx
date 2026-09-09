@@ -14,7 +14,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0063_an_assignment_can_name_an_asset_table"),
+        ("n26", "0064_an_assignment_can_name_an_asset_table"),
     ]
 
     operations = [
