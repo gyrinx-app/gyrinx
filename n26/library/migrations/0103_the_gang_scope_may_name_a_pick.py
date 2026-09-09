@@ -16,7 +16,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0097_a_grant_may_carry_its_pick"),
+        ("library", "0102_a_grant_may_carry_its_pick"),
     ]
 
     operations = [
