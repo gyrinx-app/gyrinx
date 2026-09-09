@@ -385,6 +385,59 @@ page. The reverse is a valid setup rather than a mistake: place the
 family and offer nothing, and the model may select powers from it at any
 time but is not given a first one.
 
+## Suit Evolution: the Power Boost table
+
+> Draft, for review.
+
+A Spyrer's suit keeps a Kill Count. After a battle, a Spyrer with a Kill
+Count of four or more may spend four and roll a D6 for a Power Boost.
+Rolls of 1 to 4 raise a characteristic; a 5 or 6 raises one carried
+item's augmentation level. Each result raises the model's rating by a
+printed figure. The app rolls only when asked, and never checks the Kill
+Count: the Power Boost line is on the card whatever the count is, and
+the owner decides when to roll.
+
+1. On **Foundations**, create the **Power Boost table**. One click
+   creates the slot type with *allows repeats* on, every result at its
+   band with the credits it adds to the model's rating, and a standing
+   choice of up to twenty picks. The first band contains two results,
+   one for Weapon Skill and one for Ballistic Skill, because the book
+   lets the player raise either. The table's page says a roll of 1 is
+   claimed by more than one result. That is the book, not a mistake.
+2. Give Spyrers a **Kill Count** counter if they do not have one: create
+   the counter and build it into each Spyrer entry, starting at 0. The
+   Glitch Count is built the same way.
+3. Standard content carries names and numbers only, so finish the
+   results by hand. On each result that raises a characteristic, attach
+   a **modifier**: targets the model, improves that characteristic by
+   one (Weapon Skill or Ballistic Skill for the two Combat Neuroware
+   results, Initiative, Movement, Save). The characteristic's own
+   maximum stops the change. When that happens the book counts the
+   result as Hunting Rig Augmentation instead; that is the player's to
+   apply. The picker offers every result whatever was rolled.
+4. On every result, attach a **modifier** as well: targets the model,
+   *moves a counter* — the Kill Count, down by four. It runs once, when
+   the result is picked, and taking the result back later does not give
+   the four back.
+5. On the Spyre Hunters gang type, attach a **modifier**: targets *all
+   models in the gang*, narrowed to those that have the **Spyrer**
+   subtype, and *gives* the Power Boost choice. Do not narrow it by the
+   Kill Count: if the choice disappeared when the count dropped below
+   four, every result already picked would go with it.
+
+A Spyrer's card then shows a Power Boost line, and its picker offers to
+roll. Rolling writes the roll to the gang's history; picking a result
+adds it to the card, takes four from the Kill Count, and raises the
+model's rating by the result's figure. Hunting Rig Augmentation raises
+no characteristic on its own: the player then opens the augmentation
+choice on one of the Spyrer's items and adds a tier there. Rolling again
+is a second pick; taking a result back removes its rating and nothing
+else.
+
+Clearing all glitches instead of rolling is not yet a single action:
+take the glitch results off the card by hand and move the Kill Count
+down by four.
+
 ## The Lasting Injury and Lasting Damage tables
 
 > Draft, for review.

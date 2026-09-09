@@ -323,10 +323,19 @@ test ends with `assert_reconciled(gang)`.
    carries hosted-alongside rows to the carrier's new host; gang-held picks
    stay put. Same PR.
 3. **The Power Boost table.** Seeded in `standard_content.py` beside the
-   glitch table, the slot attached to the Spyrer subtype, the stored spend on
-   each result. Tests with loaded dice: band 1 offers two members, four Kill
-   Count goes, the rating moves by the table's figure, a capped result can be
-   substituted, and the slot survives the count dropping below four.
+   glitch table as `power-boost-table`: slot type, D6 band table, the two
+   Combat Neuroware results told apart by annotation, `rating_contribution`
+   on each result, a standing choice of up to twenty picks. Following the
+   lasting-tables doctrine (names and numbers only), the characteristic
+   modifiers, the stored Kill Count spend and the gang-type grant are
+   authoring steps written into `recipes.md` ("Suit Evolution"), and
+   `n26/tests/sandbox/test_power_boost.py` performs them with the verbs and
+   proves the flow: band 1 offers two members, four Kill Count goes, the
+   rating moves by the table's figure, a capped result is substituted by
+   the player, the choice survives the count dropping below four, and a
+   result taken back drops its rating but not the spend. Stat limits
+   (library 0093) now clamp a capped characteristic, so a wasted result
+   reads as no change rather than a breach.
 4. **Clear glitches.** Route, dialog, the two tallies and the removals.
    Tests: the count zeroes, the penalty picks go, the history reads.
 5. **Words and drawing.** The note on the augmentation choice, the Hunt
