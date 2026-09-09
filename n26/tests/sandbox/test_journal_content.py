@@ -701,7 +701,7 @@ class TestTheHouseTable:
         escher = AssetTable.objects.get(name=ESCHER_TABLE)
         selection = AssetTable.objects.get(name=TABLE)
         held = {
-            house: set(tables_held_by(gang, include_staged=True))
+            house: set(tables_held_by(gang, campaign, include_staged=True))
             for house, gang in gangs.items()
         }
         assert held == {"Goliath": {goliath, selection}, "Escher": {escher, selection}}
@@ -729,7 +729,7 @@ class TestTheHouseTable:
 
         client.force_login(staff_arbitrator)
         assert GOLIATH_TABLE in self.dialog(client, campaign, gangs["Escher"])
-        assert goliath in tables_held_by(gangs["Escher"], include_staged=True)
+        assert goliath in tables_held_by(gangs["Escher"], campaign, include_staged=True)
 
     def test_a_reader_who_may_not_see_staged_content_is_not_offered_a_staged_table(
         self, client, campaign, gangs, staff_arbitrator
@@ -739,8 +739,10 @@ class TestTheHouseTable:
         the campaign, so the dialog holds a staged table back from a
         reader who may not see staged content."""
         goliath = AssetTable.objects.get(name=GOLIATH_TABLE)
-        assert goliath in tables_held_by(gangs["Goliath"], include_staged=True)
-        assert goliath not in tables_held_by(gangs["Goliath"])
+        assert goliath in tables_held_by(
+            gangs["Goliath"], campaign, include_staged=True
+        )
+        assert goliath not in tables_held_by(gangs["Goliath"], campaign)
 
         player = User.objects.create_user("arbitrator-player")
         campaign.owner = player

@@ -1978,7 +1978,13 @@ def seed_journal_content_view(request):
             return HttpResponseRedirect(
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
-        lines = preview()
+        try:
+            lines = preview()
+        except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+            # The same library shape the GET shows in words: a POST made by
+            # hand against it gets the message, not an error page.
+            messages.error(request, f"The seed cannot run: {broke}")
+            return HttpResponseRedirect(address)
         if lines[0] == NOTHING_TO_DO:
             messages.info(request, NOTHING_TO_DO)
             return HttpResponseRedirect(address)
