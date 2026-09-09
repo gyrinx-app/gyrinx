@@ -724,6 +724,57 @@ class TestSections:
         assert made.section == heading
         assert str(made) == "Ranged Weapons: Auto/Stub Weapons"
 
+    def test_a_category_can_be_told_to_draw_its_own_row(
+        self, author, client, default_pack
+    ):
+        """Whether a category's items draw under their own heading on a
+        card is an authoring decision, so it has to be on the authoring
+        form — on the page that makes a category and the one that changes
+        it, since the same form serves both."""
+        from n26.library.authoring import create_category
+        from n26.library.models import Category
+
+        home = create_category("Wargear", "Gene-smithing")
+        assert not home.draws_its_own_row
+
+        page = f"/n26/authoring/category/{home.pk}/"
+        body = client.get(page).content.decode()
+        assert 'name="edit-draws_its_own_row"' in body
+        assert "switchInput(false, true)" not in body  # drawn off, as stored
+
+        edit = {
+            "act": "edit",
+            "edit-section": str(home.section.pk),
+            "edit-name": "Gene-smithing",
+            "edit-position": "0",
+        }
+        client.post(page, {**edit, "edit-draws_its_own_row": "on"})
+        home.refresh_from_db()
+        assert home.draws_its_own_row
+
+        # Reopened, the switch shows the value it has. Without this an
+        # author saving an unrelated change would clear the flag and
+        # never know.
+        body = client.get(page).content.decode()
+        assert "switchInput(false, true)" in body
+
+        # Unticking is the direction that loses an author's work, so it
+        # is held as well as ticking: an absent box on an edit means off.
+        client.post(page, edit)
+        home.refresh_from_db()
+        assert not home.draws_its_own_row
+
+        client.post(
+            "/n26/authoring/category/new/",
+            {
+                "name": "Chem-alchemy Elixirs",
+                "section": str(home.section.pk),
+                "position": "1",
+                "draws_its_own_row": "on",
+            },
+        )
+        assert Category.objects.get(name="Chem-alchemy Elixirs").draws_its_own_row
+
     def test_named_headings_are_founded_once(self, default_pack):
         """The example suites still say create_category("Skills", …) —
         the heading is found or founded, never forked."""

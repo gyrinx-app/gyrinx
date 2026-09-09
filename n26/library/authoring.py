@@ -1664,17 +1664,29 @@ def create_section(name, position=0, **kwargs):
     return Section.objects.create(name=name, position=position, **kwargs)
 
 
-def create_category(section, name, position=0, **kwargs):
+def create_category(section, name, position=0, draws_its_own_row=False, **kwargs):
     """A category under its heading. ``section`` is a Section row, or a
     name — named headings are found or founded, so the example suites
-    keep reading ``create_category("Skills", "Combat")``."""
+    keep reading ``create_category("Skills", "Combat")``.
+
+    ``draws_its_own_row`` puts the category's items under their own
+    heading on a model's card rather than in with the rest of the gear.
+    A named parameter rather than a pass-through, because the authoring
+    form reads a switch off this signature — its starting state, and
+    whether it must be filled — and a name the catch-all absorbs is not
+    there to read.
+    """
     from n26.library.models import Category, Section
 
     if not isinstance(section, Section):
         shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
         section, _ = Section.objects.get_or_create(name=section, **shared)
     return Category.objects.create(
-        section=section, name=name, position=position, **kwargs
+        section=section,
+        name=name,
+        position=position,
+        draws_its_own_row=draws_its_own_row,
+        **kwargs,
     )
 
 
