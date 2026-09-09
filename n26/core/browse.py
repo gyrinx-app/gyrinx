@@ -460,7 +460,9 @@ def all_gear(name, terms=EQUIPMENT_LIST, *, for_use_notes=False, include_staged=
             found = found.prefetch_related(
                 Prefetch(
                     "profiles",
-                    queryset=paid_profiles(include_staged=include_staged),
+                    queryset=paid_profiles(
+                        include_staged=include_staged, for_use_notes=for_use_notes
+                    ),
                     to_attr=TRADEABLE_PROFILES,
                 )
             )
