@@ -48,12 +48,11 @@ from n26.library.staged import sees_staged
 #: without a budget has nothing else to stop it.
 PRICE_CEILING = 100_000
 
-#: A price is a whole number of credits, written in plain digits.
-#: Python's own ``int`` would also take "-5", "+5", "1_0" and digits from
-#: other scripts, none of which a price field should quietly accept.
-#: A whole number of credits, optionally below zero. Whether a minus is
-#: allowed for one particular purchase is ``price_floor``'s question, not
-#: the shape's.
+#: A price is a whole number of credits in plain digits, with at most a
+#: leading minus. Python's own ``int`` would also take "+5", "1_0" and
+#: digits from other scripts, none of which a price field should quietly
+#: accept. Whether the minus is allowed for one particular purchase is
+#: ``price_floor``'s question, not the shape's.
 _WHOLE_CREDITS = re.compile(r"-?[0-9]+")
 
 
@@ -145,12 +144,13 @@ def price_typed(data, field, quoted, name):
         return quoted
     raw = raw.strip()
     floor = price_floor(quoted)
-    if not _WHOLE_CREDITS.fullmatch(raw) or not floor <= int(raw) <= PRICE_CEILING:
+    typed = int(raw) if _WHOLE_CREDITS.fullmatch(raw) else None
+    if typed is None or not floor <= typed <= PRICE_CEILING:
         raise BadPrice(
             f"{name}: a price is a whole number of credits, "
             f"from {floor} to {PRICE_CEILING}."
         )
-    return int(raw)
+    return typed
 
 
 def price_floor(quoted):
