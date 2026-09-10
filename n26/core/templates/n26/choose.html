@@ -54,6 +54,10 @@ survives a reload and can be linked to; nothing is rolled by drawing.
         names one card's carrier and one offer, so there is no such page for
         anybody else; the kit screen is the fighter page they all have.
         {% endcomment %}
+        {% if returning %}
+            {# The screen this page was opened from, carried through the post so the reader lands back on it. #}
+            <input type="hidden" name="return" value="{{ returning }}">
+        {% endif %}
         {% if miniature %}
             <c-slot name="trailing">
                 {% fighter_switcher gang miniature as fighter_switcher_ %}

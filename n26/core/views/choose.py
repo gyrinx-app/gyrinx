@@ -30,6 +30,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from n26.core.owned import with_query
 from n26.core.views.permissions import _own_gang_or_404
 from n26.library.staged import sees_staged
 
@@ -46,13 +47,19 @@ class _Found:
     miniature: object = None
 
 
-def link_slots(gang, *holders):
+def link_slots(gang, *holders, back=""):
     """Point every choice slot on these structures at its picker.
 
     Costs no queries: a slot's address is already on the line, and this
     only turns it into a URL. A slot with no address keeps an empty href
     and draws as a fact with nothing to click — which is right for a card
     depicting nobody.
+
+    ``back`` is the screen the card is drawn on, carried on every link
+    so the picker returns the reader there once the choice is settled
+    rather than to the gang. Passed rather than read off a request, as
+    ``link_counters`` has it: a card redrawn after an act is rendered
+    under that act's own address.
 
     A card files some of its questions into rows of their own — the ones
     drawn beside the skills and the powers the model already has — so what
@@ -61,10 +68,14 @@ def link_slots(gang, *holders):
     every one of them is chosen for at the same address, and a holder that
     grows another row is linked by the same line.
     """
+    from n26.core.owned import with_query
+
     for holder in holders:
         for line in holder.questions:
             if line.key:
                 line.href = reverse("n26-choose", args=[gang.pk, line.key])
+                if back:
+                    line.href = with_query(line.href, **{"return": back})
 
 
 def _find_slot(gang, key):
@@ -311,8 +322,15 @@ def choose(request, pk, slot):
     # roll panel are read against the same list.
     shown = sees_staged(request.user)
     offer = build_choice_offer(found.slot, found.computed, include_staged=shown)
-    back = reverse("n26-gang", args=[gang.pk])
+    # Where the reader came from, forwarded by the link that opened this
+    # page and carried through the form, so settling the choice lands
+    # them back on the screen they were reading. Only this site's own
+    # addresses are honoured; anything else falls back to the gang.
+    returning = request.POST.get("return") or request.GET.get("return", "")
+    back = _own_address(request, returning) or reverse("n26-gang", args=[gang.pk])
     here = reverse("n26-choose", args=[gang.pk, slot])
+    if returning:
+        here = with_query(here, **{"return": returning})
 
     if request.method == "POST" and request.POST.get("act") in {"roll", "enter"}:
         # Rolling writes before anything is picked: the roll is on the
@@ -355,7 +373,7 @@ def choose(request, pk, slot):
             action="roll",
             entered=rolled is not None,
         )
-        return redirect(f"{here}?roll={event.pk}")
+        return redirect(with_query(here, roll=event.pk))
 
     if request.method == "POST":
         dropped = request.POST.get("remove", "")
@@ -506,6 +524,7 @@ def choose(request, pk, slot):
             offer = lift_landing(offer, landed, threshold=roll.threshold)
 
     bearer = found.miniature.name if found.miniature is not None else gang.name
+    item = _item_behind(found)
     return render(
         request,
         "n26/choose.html",
@@ -527,6 +546,42 @@ def choose(request, pk, slot):
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page happens
             # to have under it.
-            "pick_lead": f"For {bearer}.",
+            "pick_lead": f"{item}, for {bearer}." if item else f"For {bearer}.",
+            "returning": returning,
         },
     )
+
+
+def _own_address(request, url):
+    """``url`` if it is one of this site's own pages, else an empty string.
+
+    A return address arrives in the query and the form, so it is checked
+    against this request's host before anything redirects to it."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    if url and url_has_allowed_host_and_scheme(
+        url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return url
+    return ""
+
+
+def _item_behind(found):
+    """The piece of kit whose own choice this is — the launchers an
+    augmentation ladder is built into — or None for a choice the model
+    or the gang carries itself. Read off the slot's cause: a choice
+    built into an item is materialised beside the model and caused by
+    the item's assignment."""
+    from n26.library.models import Wargear, Weapon, WeaponAccessory
+
+    if found.slot.slot is None:
+        # An offer's cause is whatever brought the offerer, not an item
+        # the choice is about.
+        return None
+    cause = getattr(found.anchor, "caused_by", None)
+    if cause is None:
+        return None
+    thing = cause.assignable
+    if isinstance(thing, (Weapon, Wargear, WeaponAccessory)):
+        return str(thing)
+    return None

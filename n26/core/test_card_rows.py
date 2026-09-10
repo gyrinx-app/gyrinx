@@ -77,6 +77,33 @@ class TestTheCardRows:
                 f"card. Give the row the Choose treatment the Skills row has."
             )
 
+    def test_a_question_a_weapon_carries_is_linked_and_drawn(self):
+        """An item's own choice draws under the item, so it is not in any
+        bucket — and it still has to reach the picker and the template."""
+        from n26.core.render import ChoiceLine, Statline, WeaponLine
+        from n26.core.views.choose import link_slots
+
+        card = ModelCard(
+            name="Nobody",
+            rating=0,
+            statline=Statline(),
+            weapons=[
+                WeaponLine(
+                    name="Gun",
+                    base_rating=0,
+                    choices=[
+                        ChoiceLine(kind_label="Augmentation", chosen=None, key="a:b:1")
+                    ],
+                )
+            ],
+        )
+        assert card.questions == card.weapons[0].choices
+        assert card.row_questions == []
+        link_slots(SimpleNamespace(pk="a-gang"), card)
+        assert card.weapons[0].choices[0].href
+        template = "".join(t.read_text() for t in CARD_TEMPLATES)
+        assert "weapon.choices" in template
+
     def test_every_question_row_is_pointed_at_its_picker(self):
         """Drawn is not enough. A question carries its address and a view
         turns it into a URL, so a bucket nothing links draws a control with

@@ -336,10 +336,91 @@ test ends with `assert_reconciled(gang)`.
    result taken back drops its rating but not the spend. Stat limits
    (library 0093) now clamp a capped characteristic, so a wasted result
    reads as no change rather than a breach.
-4. **Clear glitches.** Route, dialog, the two tallies and the removals.
+4. **The tier draws under its weapon, and an item holds one level.**
+   Decided by Tom 2026-09-10: the rules give each item one augmentation
+   level, and n23's content restates the lower rungs' effects on each
+   higher rung, so the slot takes one pick (`max_picks=1`) and each tier
+   pickable carries the whole effect of being at that level. Picking a
+   tier replaces the one held (the picker's one-pick behaviour). The
+   card sub-row reads one name. §1's "one pick per rung, stacking" is
+   withdrawn. The credit figure stays on the Power Boost result.
+   Weapons only in this PR; a wargear's ladder still draws as its own
+   row under Gear until the gear line carries it. Decided by Tom 2026-09-09 after
+   seeing PRs 1-3 on a local gang: the augmentation choice must sit on the
+   weapon table under its weapon, as n23 prints "Augmentation: Tier 1"
+   under the Bolt launcher row — display-only on the gang-sheet card, with
+   controls on the model's edit page — and not as a choice line under
+   Gear. The plumbing already says which weapon: a slot built into a
+   weapon is materialised beside the model with `caused_by` the weapon's
+   assignment (`operations.py:1958-1966`), so its card node's
+   `caused_by_key` is the weapon node's key, and the choice's anchor is
+   that slot node (`effects.py:1703-1766`). The work:
+   - `WeaponLine.choices: list[ChoiceLine]` plus a `choices_have_actions`
+     property like `accessories_have_actions` (`render.py:321, 412`).
+   - In `card_to_model_card` (`render.py:1835-2240`): record the weapon
+     lines by node key at the two `weapon_line(...)` calls (`:2034,
+     :2037`); a `weapon_home(slot, weapons_by_key)` beside `question_row`
+     — true when `slot.anchor.key` or `slot.anchor.caused_by_key` is a
+     weapon's key — files the line on that weapon and keeps it out of
+     `choices` (`:2182-2187`, check before `question_row`).
+   - `ModelCard.questions` (`render.py:823-839`) must include weapon
+     choices, or `link_slots` (`views/choose.py:49-67`) never fills the
+     href and `printing.detail_groups` (`printing.py:97`) drops the row;
+     `n26/core/test_card_rows.py:80` guards this.
+   - Card template `cotton/n26/model_card/body.html`, after the
+     accessories block (`:315-350`): a `<tr><td colspan="99">` sub-row,
+     `pl-2`, reading "{kind_label}: {chosen}", "—" when nothing is picked.
+     Display-only by default; the Add/Choose link wrapped in
+     `<c-n26.model-card.mode when="edit">` as the Skills row does
+     (`body.html:69-112`). The model's edit page draws the card in edit
+     mode (`cotton/n26/view/model_edit.html:94`) and already links
+     weapon actions through `link_possession_actions`
+     (`views/owned.py:655-709`); the equip page is the catalogue and a
+     slot is `Family.CHOICE`, so it has no row there (`owned.py:316-386`).
+   - Phase A controls are links to the picker only. Inline "Add Tier 2"
+     / "Remove Tier 1" buttons need the next option key, which is
+     `build_choice_offer` → `offered_by` → one query per weapon choice
+     and would break the gang sheet's flat query budget
+     (`n26/tests/sandbox/test_render.py:217`); if wanted, phase B does it
+     on the single-model edit page only, reusing `choose()`'s
+     `thing=`/`remove=` POST with an `is_htmx` branch returning
+     `render_card_update` — `tally_counter` (`views/owned.py:1356`) plus
+     `counter_controls.html` is the precedent.
+   - Slot label: author it "Augmentation" (n23's stack name), not the
+     item's name — under the weapon the item is already said. The picker
+     page then names the weapon in its subtitle from the anchor's cause.
+   - No credit figure on the sub-row: n26 puts the money on the Power
+     Boost result, so a tier carries nothing to print. If Tom wants
+     "(+20¢)" beside the tier as n23 prints it, that reopens money on
+     the rung (§2, §4), and `WeaponLine.extras_rating` (`render.py:347`)
+     would have to fold it in or the figure would show while not being
+     counted.
+   - Print: append the picks to the weapon's `n26-print-subname` run
+     (`cotton/n26/print/weapons.html:54`) and drop them from
+     `printing.detail_groups` or they print twice. Text card
+     (`render_text.py:46-94`) moves them into the weapon block.
+   - Power Boost stays a row of its own under Gear: it is the model's
+     roll, not an item's.
+   - Tests: `test_card_rows.py`, `test_spyrer_augmentations.py` (the
+     ladder reads on `weapon.choices` and not in `card.choices`),
+     `test_render.py:217` budget, `test_printing.py`,
+     `test_views_owned.py`, `designsystem/sampledata.py:1386-1547` plus a
+     gallery demo (which fails silently — screenshot it).
+   - Known gap, pre-existing: a hire preview builds built-ins with
+     `caused_by_key=root.key` and never materialises a weapon's own
+     built-ins (`card.py:928-964`), so a preview shows no ladder.
+5. **Clear glitches.** Route, dialog, the two tallies and the removals.
    Tests: the count zeroes, the penalty picks go, the history reads.
-5. **Words and drawing.** The note on the augmentation choice, the Hunt
+6. **Words and drawing.** The note on the augmentation choice, the Hunt
    Master sentence, `recipes.md`, a gallery sample. Copywriter pass.
+   **Tom, 2026-09-10, after using it:** it is not clear at all that a
+   Power Boost result spends four Kill Count. The Power Boost line and
+   the pick screen must say so before a pick is made — the counter, the
+   four, and that a result taken back does not give them back. Also
+   from the same session: the picker now returns the reader to the
+   screen it was opened from (a `return` address carried on the link and
+   through the form, checked against this host), which every picker
+   link should pass — the gang sheet's do not yet.
 
 A feature flag is probably unnecessary — nothing draws until the content
 exists — but `n26/flags.py` is one line if 3 and 4 must land ahead of it.
@@ -387,6 +468,4 @@ exists — but `n26/flags.py` is one line if 3 and 4 must land ahead of it.
    something for it?
 4. Which printing of the glitch table is canon, and is correcting the seeded
    one part of this issue?
-5. Should an item's augmentation choice draw under that item on the card, or
-   among the model's other choices? The second is free today; the first is a
-   change to `WeaponLine` (`n26/core/render.py:280-303`).
+5. *(Decided 2026-09-09: under the item, as n23 does — see §8 item 4.)*

@@ -1437,6 +1437,19 @@ def model_card():
                 # is the whole point of the accessory scope: "the weapon I am
                 # attached to". A card has to be able to say which weapon.
                 accessories=[AssignableLine(name="Telescopic sight")],
+                # A choice the weapon itself brought: an augmentation ladder at
+                # its second level. Drawn under the weapon, never as a row of
+                # the card's own.
+                choices=[
+                    ChoiceLine(
+                        kind_label="Augmentation",
+                        chosen="Tier 2",
+                        key="vesna-krail:lasgun:augmentation",
+                        provenance=Provenance(
+                            source="Lasgun", source_kind="weapon", computed=True
+                        ),
+                    )
+                ],
             ),
             WeaponLine(
                 # Two profiles, both free, neither named after the weapon — so the
@@ -2169,6 +2182,7 @@ def model_card_editable():
         weapon.sell = sell
         weapon.more = more
         weapon.accessorise = accessorise
+        weapon.choices = [replace(choice, href="#") for choice in weapon.choices]
         weapon.accessories = [
             replace(line, sell=sell, more=part_more) for line in weapon.accessories
         ]

@@ -385,6 +385,49 @@ page. The reverse is a valid setup rather than a mistake: place the
 family and offer nothing, and the model may select powers from it at any
 time but is not given a first one.
 
+## An item's augmentation tiers
+
+> Draft, for review.
+
+The book prints augmentation tiers for each of a Spyrer's weapons and
+for the hunting rig. An item has one augmentation level. Suit Evolution
+raises it by one, a glitch can lower it by one, and each level carries
+the changes of every level below it. The level shows under the item on
+the model's card.
+
+1. Create a **slot type** named "Augmentation", plural "Augmentations",
+   with *allows repeats* off. One slot type serves every item.
+2. For each item, add a **pickable** per tier — "Tier 1", "Tier 2",
+   "Tier 3" — with the item's name as the qualifier, so each item has
+   tiers of its own. Players never see the qualifier.
+3. On each tier's page, attach the **modifiers** that apply at that
+   level. Tier 2 carries Tier 1's modifiers as well as its own, and
+   Tier 3 carries the modifiers of all three. A weapon's modifier
+   targets *weapons named* that weapon: set Lethality to 2, set Armour
+   Piercing to -2. A rig's modifier targets *the model*: improve
+   Strength by 1. Swapping a trait takes two modifiers: one that takes
+   the old trait away, one that gives the new. Where a later tier
+   changes what an earlier tier changed — a 6+ field save at Tier 1
+   and a 5+ field save at Tier 3 — the later tier carries the later
+   value only. Nothing from Tier 1 is in play once Tier 3 is picked.
+4. Add a **picklist** of that item's tiers, in order.
+5. Add a **slot** on that picklist, labelled "Augmentation", taking 0 to
+   1 picks, assigned to the bearer.
+6. Build the slot into the item. The card of a model carrying the item
+   then draws an "Augmentation" line under the item, holding the tier
+   picked or a dash.
+
+Picking a tier replaces the one held. The player picks the next tier
+after a Hunting Rig Augmentation result, and the tier below after a
+System Downgrade glitch. Every tier is offered whatever the level, so a
+player who reads the book differently is not stopped. Tiers carry no
+price and add nothing to the rating: the credits sit on the Power Boost
+result that raised the level.
+
+A rig's tiers are not yet drawn under the rig: they show as a line of
+their own under Gear, because only a weapon draws its tiers under the
+item itself.
+
 ## Suit Evolution: the Power Boost table
 
 > Draft, for review.

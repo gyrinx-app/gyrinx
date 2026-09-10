@@ -61,6 +61,7 @@ def _weapons(lines):
                 for profile in weapon.profiles
             ),
             tuple(sorted(a.name for a in weapon.accessories)),
+            tuple(_choices(weapon.choices)),
         )
         for weapon in lines
     )
@@ -97,7 +98,9 @@ def _model_state(card):
             (group.name, _rated(group.lines)) for group in card.gear_groups
         ],
         "collections": _names(card.collections),
-        "choices": _choices([*card.choices, *card.skill_choices, *card.power_choices]),
+        # The card's own rows; a question a weapon carries is captured with
+        # the weapon, where the page draws it.
+        "choices": _choices(card.row_questions),
         "remarks": _remarks(card.remarks),
         "xp": card.xp,
         "xp_target": card.xp_target,

@@ -343,6 +343,12 @@ class WeaponLine:
     #: weapon has one; it stays off ``more`` because it adds something
     #: rather than taking it away.
     accessorise: object = None
+    #: The choices this weapon brought with it — an augmentation ladder
+    #: built into a Spyrer's launchers. Drawn under the weapon, as the
+    #: book prints a tier beside the item it is on, and not among the
+    #: card's own rows. Each holds one pick at most: an item is at one
+    #: level.
+    choices: list[ChoiceLine] = field(default_factory=list)
 
     @property
     def extras_rating(self):
@@ -836,7 +842,18 @@ class ModelCard:
         these into controls reads the address on the line rather than
         assuming one.
         """
+        return [*self.row_questions, *self.weapon_questions]
+
+    @property
+    def row_questions(self):
+        """The questions drawn as rows of the card — every question but
+        the ones an item carries under itself."""
         return [*self.choices, *self.skill_choices, *self.power_choices]
+
+    @property
+    def weapon_questions(self):
+        """The questions drawn under a weapon: what its own choices ask."""
+        return [choice for weapon in self.weapons for choice in weapon.choices]
 
     @property
     def weapon_columns(self):
@@ -1569,6 +1586,31 @@ def question_row(slot):
     return row if row in ModelCard.QUESTION_BUCKETS else None
 
 
+def id_of(slot):
+    """What tells one computed question from another while a card is
+    built: the object itself. Computed rows carry no key of their own."""
+    return id(slot)
+
+
+def weapon_home(slot, weapons_by_key):
+    """The weapon line a question is drawn under, or None for a row of the
+    card's own.
+
+    A slot built into a weapon is materialised beside the model and
+    caused by the weapon's assignment, so the slot node's cause is the
+    weapon's key; an offer a weapon's own modifier makes anchors on the
+    weapon itself. Either way the question belongs to that weapon, and a
+    card draws it there — the tier beside the launchers it is on — rather
+    than as a row about the model.
+    """
+    anchor = slot.anchor
+    if anchor is None:
+        return None
+    return weapons_by_key.get(anchor.key) or weapons_by_key.get(
+        getattr(anchor, "caused_by_key", None)
+    )
+
+
 def choice_lines(computed, host=""):
     """A computed card's choice slots as lines a renderer draws.
 
@@ -1864,6 +1906,9 @@ def card_to_model_card(
     """
     primary = None
     equipment, weapons = [], []
+    #: Weapon lines by their node's key, so a question a weapon brought
+    #: can be filed under it.
+    weapons_by_key = {}
     #: Lines diverted out of Gear, by the category that asked for them.
     #: Keyed by category pk, holding the category itself so the groups
     #: can be put in the taxonomy's order once the walk is done.
@@ -2031,10 +2076,17 @@ def card_to_model_card(
                 AssignableLine(name=node.name, provenance=provenance_of(node))
             )
         elif isinstance(thing, Weapon):
-            weapons.append(weapon_line(node, node.children))
+            line = weapon_line(node, node.children)
+            weapons.append(line)
+            # A part bolted onto the weapon — a sight with a ladder of its
+            # own — hangs off it, so a choice the part brought is drawn
+            # under the weapon too.
+            for key in (node.key, *(child.key for child in node.children)):
+                weapons_by_key[key] = line
         elif isinstance(thing, WeaponProfile):
             # A profile assigned straight to the model rather than to a weapon.
-            weapons.append(weapon_line(node, [node]))
+            weapons_by_key[node.key] = weapon_line(node, [node])
+            weapons.append(weapons_by_key[node.key])
         elif isinstance(thing, Counter):
             # A counter is a running number, not a possession, so it is
             # never drawn as a piece of kit: it draws a line of its own.
@@ -2130,6 +2182,19 @@ def card_to_model_card(
                 counted_xp = standing
 
     vehicle = primary is not None and primary.profile_type.name == "Vehicle"
+    # A question a weapon brought is drawn under the weapon and nowhere
+    # else — unless a named row takes it, as a skill offer a weapon makes
+    # still belongs in the Skills row. Decided once per question here;
+    # the rows below leave out what was filed.
+    weapon_hosted = set()
+    for slot in computed.choices if computed else []:
+        if question_row(slot) is not None:
+            continue
+        home = weapon_home(slot, weapons_by_key)
+        if home is not None:
+            home.choices.append(_choice_line(slot, id))
+            weapon_hosted.add(id_of(slot))
+
     return ModelCard(
         name=name,
         id=id,
@@ -2183,7 +2248,7 @@ def card_to_model_card(
             *(
                 _choice_line(slot, id)
                 for slot in (computed.choices if computed else [])
-                if question_row(slot) is None
+                if question_row(slot) is None and id_of(slot) not in weapon_hosted
             ),
             # What the gang picked, where a modifier says this model's
             # card draws it. After the card's own questions: they are

@@ -348,6 +348,30 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                 </td>
                             </tr>
                         {% endif %}
+                        {% comment %}
+                        A choice the weapon brought — its augmentation level —
+                        is drawn under the weapon, as the book prints the tier
+                        beside the item. The gang sheet states the level; only
+                        the model's own page offers a way to change it.
+                        {% endcomment %}
+                        {% if weapon.choices %}
+                            <tr>
+                                <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
+                                    <ul class="flex flex-col gap-1 pl-2">
+                                        {% for choice in weapon.choices %}
+                                            <li class="flex items-center gap-2">
+                                                <span class="min-w-0">{{ choice.kind_label }}: {% if choice.is_resolved %}{{ choice.chosen }}{% else %}&mdash;{% endif %}</span>
+                                                <c-n26.model-card.mode when="edit">
+                                                    {% if choice.href %}
+                                                        <c-n26.link href="{{ choice.href }}" underline="always" class="text-xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-n26.link>
+                                                    {% endif %}
+                                                </c-n26.model-card.mode>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                        {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
