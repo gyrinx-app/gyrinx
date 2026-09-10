@@ -26,6 +26,15 @@ reader, and sorts each into one of three:
   that stays). The author edits those first: content that has been used
   is history, and content something else names is a decision.
 
+A firing line has one more ending, asked for with ``remove_free_lines``.
+A weapon's free lines ride along with it onto every fighter that has the
+weapon: nobody chose them and nobody paid. Deleting such a line is not
+taking history away from anyone, it is reversing a grant the content
+made, so the plan names the fighters that have it and the line is
+removed from each, gang by gang, before the row goes
+(:func:`remove_free_lines_from`). A line somebody paid for, or one with
+something under it, refuses as any held row does.
+
 The plan is the contract. The page draws it, and :func:`apply` reads it
 again under locks and performs exactly it, or refuses because what stood
 has changed since it was read. Nothing here writes outside ``apply``.
@@ -91,6 +100,41 @@ class Holder:
 
 
 @dataclass(frozen=True)
+class Line:
+    """The fighters on one gang that have a free firing line."""
+
+    pk: str
+    name: str
+    owner: str
+    archived: bool
+    #: The fighters' names, one per line held.
+    fighters: tuple = ()
+    #: The assignments that are the lines, one per fighter.
+    assignment_ids: tuple = ()
+
+    def as_dict(self):
+        return {
+            "pk": str(self.pk),
+            "name": self.name,
+            "owner": self.owner,
+            "archived": self.archived,
+            "fighters": list(self.fighters),
+            "assignment_ids": [str(pk) for pk in self.assignment_ids],
+        }
+
+    @classmethod
+    def from_dict(cls, held):
+        return cls(
+            pk=held["pk"],
+            name=held["name"],
+            owner=held["owner"],
+            archived=bool(held.get("archived")),
+            fighters=tuple(held.get("fighters", ())),
+            assignment_ids=tuple(held.get("assignment_ids", ())),
+        )
+
+
+@dataclass(frozen=True)
 class DeletionPlan:
     """What deleting the rows asked for would take, and what stops it."""
 
@@ -108,6 +152,9 @@ class DeletionPlan:
     modifier_ids: tuple = ()
     gangs: tuple = ()
     campaigns: tuple = ()
+    #: Gangs whose fighters have a free firing line that is going, and
+    #: from which it is removed first.
+    lines: tuple = ()
     refusals: tuple = ()
     nothing_here: bool = False
 
@@ -117,9 +164,14 @@ class DeletionPlan:
 
     @property
     def touches_players(self):
-        """Whether the act deletes any gang or campaign, and so belongs
-        on the recorded task runner rather than in a request."""
-        return bool(self.gangs or self.campaigns)
+        """Whether the act changes any gang — deleting one, or removing
+        a line from its fighters — and so belongs on the recorded task
+        runner rather than in a request."""
+        return bool(self.gangs or self.campaigns or self.lines)
+
+    @property
+    def fighters_with_lines(self):
+        return sum(len(line.fighters) for line in self.lines)
 
     @property
     def test_gangs(self):
@@ -170,6 +222,15 @@ class DeletionPlan:
                 f"which holds {_and(campaign.holds)}, with its own campaign "
                 "type and pack"
             )
+        if self.lines:
+            fighters = self.fighters_with_lines
+            gangs = len(self.lines)
+            lines.append(
+                f"remove the firing line from {fighters} "
+                f"fighter{'' if fighters == 1 else 's'} on {gangs} "
+                f"gang{'' if gangs == 1 else 's'} first: nobody paid for it, "
+                "the weapon brought it"
+            )
         for refusal in self.refusals:
             lines.append(f"refused: {refusal}")
         return lines
@@ -182,6 +243,7 @@ class DeletionPlan:
             "rows": [[label, str(pk), said] for label, pk, said in self.rows],
             "gangs": [gang.as_dict() for gang in self.gangs],
             "campaigns": [campaign.as_dict() for campaign in self.campaigns],
+            "lines": [line.as_dict() for line in self.lines],
             "refusals": list(self.refusals),
             "preview": list(self.preview()),
         }
@@ -198,6 +260,7 @@ class DeletionPlan:
             ),
             gangs=tuple(Holder.from_dict(h) for h in summary.get("gangs", [])),
             campaigns=tuple(Holder.from_dict(h) for h in summary.get("campaigns", [])),
+            lines=tuple(Line.from_dict(line) for line in summary.get("lines", [])),
             refusals=tuple(summary.get("refusals", [])),
             nothing_here=not summary.get("targets"),
         )
@@ -212,6 +275,8 @@ class DeletionPlan:
             == {str(gang.pk) for gang in other.test_gangs}
             and {str(campaign.pk) for campaign in self.test_campaigns}
             == {str(campaign.pk) for campaign in other.test_campaigns}
+            and {str(pk) for line in self.lines for pk in line.assignment_ids}
+            == {str(pk) for line in other.lines for pk in line.assignment_ids}
             and self.refusals == other.refusals
         )
 
@@ -273,12 +338,14 @@ class _Planner:
     """One reading. Everything doomed is queued, its references read
     and sorted, and anything those bring down queued in turn."""
 
-    def __init__(self, things):
+    def __init__(self, things, remove_free_lines=False):
         self.targets = [thing for thing in things]
+        self.remove_free_lines = remove_free_lines
         self.doomed = {}
         self.roots = []
         self.modifiers = {}
         self.holders = {}
+        self.lines = {}
         self.refusals = []
         self.queue = []
 
@@ -322,6 +389,24 @@ class _Planner:
         if holds not in holder.holds:
             holder = replace(holder, holds=(*holder.holds, holds))
         self.holders[key] = holder
+
+    def line(self, gang, assignment):
+        """One fighter's free firing line, to be removed before the row goes."""
+        key = str(gang.pk)
+        held = self.lines.get(key)
+        if held is None:
+            held = Line(
+                pk=key,
+                name=gang.name,
+                owner=gang.owner.username if gang.owner_id else "",
+                archived=gang.archived,
+            )
+        fighter = assignment.miniature_root.name if assignment.miniature_root_id else ""
+        self.lines[key] = replace(
+            held,
+            fighters=(*held.fighters, fighter),
+            assignment_ids=(*held.assignment_ids, str(assignment.pk)),
+        )
 
     def refuse(self, words):
         if words not in self.refusals:
@@ -459,6 +544,24 @@ class _Planner:
         gang = campaign = None
         if label == "n26.assignment":
             gang = self.gang_of_assignment(row)
+            if (
+                self.remove_free_lines
+                and reference.field == "weapon_profile"
+                and gang is not None
+            ):
+                why_not = _why_not_a_free_line(row)
+                if not why_not:
+                    self.line(gang, row)
+                    return
+                fighter = (
+                    row.miniature_root.name if row.miniature_root_id else "a fighter"
+                )
+                self.refuse(
+                    f"“{gang.name}” ({gang.owner.username if gang.owner_id else ''}) "
+                    f"has {what} on {fighter} and {why_not}; refund or remove "
+                    "it first"
+                )
+                return
         elif label == "n26.gang":
             gang = row
         elif label == "n26.campaign":
@@ -572,6 +675,9 @@ class _Planner:
             modifier_ids=tuple(pk for _, pk in self.modifiers),
             gangs=tuple(sorted(gangs, key=lambda h: (h.owner, h.name))),
             campaigns=tuple(sorted(campaigns, key=lambda h: (h.owner, h.name))),
+            lines=tuple(
+                sorted(self.lines.values(), key=lambda line: (line.owner, line.name))
+            ),
             refusals=tuple(self.refusals),
             nothing_here=not self.targets,
         )
@@ -623,9 +729,54 @@ def _why_not_a_test_gang(gang):
     return ""
 
 
-def plan_deletion(things):
-    """Read what deleting these rows would take. Never writes."""
-    planner = _Planner(list(things))
+def _why_not_a_free_line(assignment):
+    """Why a firing line on a fighter is not one the weapon merely
+    brought — or empty where it is.
+
+    A free line sits under its weapon's own assignment, its books say
+    nothing was paid and nothing counts, and nothing hangs off it. Any
+    of those failing means somebody chose or paid for it, and it is
+    history.
+    """
+    from n26.core.models import Assignment
+
+    if assignment.parent_id is None:
+        return "is not under a weapon"
+    try:
+        entry = assignment.ledger_entry
+    except Assignment.ledger_entry.RelatedObjectDoesNotExist:
+        return "has no ledger entry"
+    if (
+        entry.list_price,
+        entry.discount,
+        entry.paid,
+        entry.trade_points,
+        entry.rating_contribution,
+    ) != (0, 0, 0, 0, 0):
+        return "was paid for"
+    if any(
+        (event.credits_delta, event.trade_points_delta, event.rating_delta) != (0, 0, 0)
+        for event in assignment.ledger_events.all()
+    ):
+        return "has moved money"
+    if (
+        assignment.children.exists()
+        or assignment.caused.exists()
+        or assignment.picks.exists()
+        or assignment.chosen_options.exists()
+        or Assignment.objects.filter(materialised_for=assignment).exists()
+    ):
+        return "has something under it"
+    return ""
+
+
+def plan_deletion(things, *, remove_free_lines=False):
+    """Read what deleting these rows would take. Never writes.
+
+    ``remove_free_lines`` asks for a firing line's fourth ending: the
+    free lines fighters have are named for removal rather than refusing.
+    """
+    planner = _Planner(list(things), remove_free_lines=remove_free_lines)
     planner.read()
     return planner.plan()
 
@@ -640,7 +791,107 @@ def plan_again(plan):
         if row is None:
             raise Refused(f"nothing was deleted: {label} {pk} is already gone")
         things.append(row)
-    return plan_deletion(things)
+    return plan_deletion(things, remove_free_lines=bool(plan.lines))
+
+
+class FreeLineRemoval:
+    """A plan with lines, as the gang-by-gang runner reads one: the gangs
+    to visit, the problems that refuse the whole run, and the preview."""
+
+    def __init__(self, plan):
+        self.plan = plan
+
+    @property
+    def gangs(self):
+        return [(line.pk,) for line in self.plan.lines]
+
+    @property
+    def problems(self):
+        return list(self.plan.refusals)
+
+    @property
+    def nothing_here(self):
+        return not self.plan.lines
+
+    def preview(self):
+        return list(self.plan.preview())
+
+
+def free_line_removal(plan):
+    """Read the plan again, under the runner's lock, for the walk.
+
+    What stood when the page was read is what the author confirmed. A
+    gang that gained or paid for the line since refuses the whole run in
+    words rather than being walked past.
+    """
+    now = plan_again(plan)
+    if not now.same_as(plan):
+        return FreeLineRemoval(
+            replace(
+                now,
+                refusals=(
+                    *now.refusals,
+                    "what holds this line has changed since the page was "
+                    "read — read it again",
+                ),
+            )
+        )
+    return FreeLineRemoval(now)
+
+
+def remove_free_lines_from(gang_id, plan):
+    """Take the plan's firing line off one gang's fighters, committed on
+    its own, and delete the row once no fighter anywhere has it.
+
+    The line is read again under the gang's lock — deliveries may be
+    minutes apart — and a fighter who has since paid for it, or whose
+    line has something under it, leaves the gang alone and named. The
+    assignments go with their zero-value entries and events, and the
+    gang is proved to reconcile before and after. The last gang visited
+    finds nothing else naming the row and deletes it.
+    """
+    from django.apps import apps
+
+    from n26.core.models import Assignment, Gang
+    from n26.core.reconcile import check_gang
+    from n26.library import authoring
+
+    with transaction.atomic():
+        gang = Gang.objects.select_for_update().get(pk=gang_id)
+        now = plan_again(plan)
+        if now.refusals:
+            return f"gang {gang.name}: skipped — " + "; ".join(now.refusals)
+        mine = [line for line in now.lines if str(line.pk) == str(gang.pk)]
+        if not mine:
+            return f"gang {gang.name}: nothing left to remove"
+        ids = [pk for pk in mine[0].assignment_ids]
+        list(Assignment.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
+        problems = check_gang(gang)
+        if problems:
+            return (
+                f"gang {gang.name}: skipped — it did not reconcile before the "
+                "removal: " + "; ".join(problems)
+            )
+        Assignment.objects.filter(pk__in=ids).delete()
+        problems = check_gang(gang)
+        if problems:
+            raise Refused(
+                f"gang {gang.name} did not reconcile after removing the line: "
+                + "; ".join(problems)
+            )
+        fighters = len(ids)
+        said = f"gang {gang.name}: removed the line from {fighters} fighter{'' if fighters == 1 else 's'}"
+        # The row goes with the last fighter: after this gang, nothing
+        # may name it any more.
+        for label, pk in plan.targets:
+            row = apps.get_model(label).objects.filter(pk=pk).first()
+            if row is None:
+                continue
+            if not plan_deletion([row]).ok:
+                continue
+            authoring.delete_content(row)
+            said += f"; deleted {_said(row)}"
+        return said
 
 
 def apply(plan, actor=None):
@@ -663,6 +914,11 @@ def apply(plan, actor=None):
 
     if plan.refusals:
         raise Refused("nothing was deleted: " + "; ".join(plan.refusals))
+    if plan.lines:
+        raise Refused(
+            "nothing was deleted: fighters have this line, and it is removed "
+            "from them gang by gang, not here"
+        )
     if plan.nothing_here:
         return list(plan.preview())
 

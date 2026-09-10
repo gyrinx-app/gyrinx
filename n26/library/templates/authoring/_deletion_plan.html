@@ -1,7 +1,8 @@
 {% comment %}
 What a delete would take, drawn on every page that asks the question:
-what goes, the test gangs that go with it, and what refuses it. Takes
-`counts`, `test_gangs` and `refusals` from _deletion_words in
+what goes, the fighters a firing line is removed from, the test gangs
+that go with it, and what refuses it. Takes `counts`, `lines`,
+`test_gangs` and `refusals` from _deletion_words in
 n26/library/views.py. Nothing here changes anything.
 {% endcomment %}
 {% if refusals %}
@@ -20,6 +21,36 @@ n26/library/views.py. Nothing here changes anything.
                     <tr>
                         <td class="w-full">{{ kind|capfirst }}</td>
                         <td class="text-right tabular-nums">{{ count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    </c-n26.form-section>
+{% endif %}
+{% if lines and not refusals %}
+    <c-n26.form-section title="Fighters that have this line"
+                        description="Nobody paid for it: the weapon brought it. Deleting the line removes it from these fighters. Their gangs are not otherwise touched.">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">Gang</th>
+                    <th scope="col">Owner</th>
+                    <th scope="col" class="w-full">Fighters</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in lines %}
+                    <tr>
+                        <td class="whitespace-nowrap">
+                            {{ line.name }}
+                            {% if line.archived %}
+                                <c-ui.badge color="gray" size="sm" class="ml-1">
+                                    Archived
+                                </c-ui.badge>
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap">{{ line.owner }}</td>
+                        <td class="text-muted">{{ line.fighters }}</td>
                     </tr>
                 {% endfor %}
             </tbody>

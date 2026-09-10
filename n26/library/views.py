@@ -2949,25 +2949,29 @@ def weapon_profile_delete(request, pk):
 
     A line is a part of its weapon rather than an authored kind, so the
     generic delete page — which reads a kind out of the address — cannot
-    ask for one. This is the same question at an address of its own.
-
-    Deleting is for the unused, and the act itself is the one every
-    delete page performs (``_deleting``): a line a gang holds, a list
-    offers, or a hire comes with as an ammo type is refused in words,
-    and nothing half-happens.
+    ask for one. This is the same question at an address of its own,
+    with one more ending: a weapon's free lines ride onto every fighter
+    that has the weapon, so a line only fighters have — nobody paid, and
+    nothing hangs off it — is removed from them, gang by gang, and then
+    deleted. A line a list offers, a hire comes with as an ammo type, or
+    anyone paid for is refused in words, as any held row is.
 
     The characteristics go with the line. The weapon and its other lines
     are untouched, and a weapon with none is a legitimate thing to have
     — an author part-way through correcting a table.
     """
+    from n26.library.deletion import plan_deletion
     from n26.library.models import WeaponProfile
 
     profile = get_object_or_404(WeaponProfile.objects.select_related("weapon"), pk=pk)
     weapon = profile.weapon
     back = reverse("authoring-detail", args=["weapon", weapon.pk])
+    label = _label_for(profile)
+    plan = plan_deletion([profile], remove_free_lines=True)
 
     if request.method == "POST":
-        return redirect(back if _deleting(request, profile) else request.path)
+        elsewhere = _perform_deletion(request, plan, label)
+        return elsewhere or redirect(back)
 
     return render(
         request,
@@ -2975,11 +2979,12 @@ def weapon_profile_delete(request, pk):
         {
             "kind": "weapon",
             "thing": profile,
-            "label": _label_for(profile),
+            "label": label,
             "weapon": weapon,
             "weapons_plural": str(weapon._meta.verbose_name_plural),
             "verbose_name": str(WeaponProfile._meta.verbose_name),
             "back": back,
+            **_deletion_words(plan, label),
         },
     )
 
@@ -3322,8 +3327,23 @@ def _deletion_words(plan, label):
         for holder in (*plan.test_gangs, *plan.test_campaigns)
     ]
     campaigns = sum(1 for holder in plan.test_campaigns)
+    lines = [
+        {
+            "name": line.name,
+            "owner": line.owner,
+            "archived": line.archived,
+            "fighters": ", ".join(line.fighters),
+        }
+        for line in plan.lines
+    ]
     if plan.refusals:
         submit_label = ""
+    elif lines:
+        n = plan.fighters_with_lines
+        submit_label = (
+            f"Delete the firing line and remove it from {n} "
+            f"fighter{'' if n == 1 else 's'}"
+        )
     elif gangs:
         n = len(plan.test_gangs)
         parts = [f"{n} test gang{'' if n == 1 else 's'}"] if n else []
@@ -3335,6 +3355,8 @@ def _deletion_words(plan, label):
     return {
         "plan": plan,
         "test_gangs": gangs,
+        "lines": lines,
+        "fighters_with_lines": plan.fighters_with_lines,
         "refusals": list(plan.refusals),
         "counts": sorted(plan.counts().items()),
         "submit_label": submit_label,
@@ -3353,7 +3375,7 @@ def _perform_deletion(request, plan, label):
     deleted here and the caller decides where to lead.
     """
     from n26.library.deletion import Refused, apply
-    from n26.maintenance import AnotherRunning, start_test_content_deletion
+    from n26.maintenance import AnotherRunning, start_authoring_deletion
 
     if plan.refusals:
         messages.error(
@@ -3365,7 +3387,7 @@ def _perform_deletion(request, plan, label):
         return redirect(request.path)
     if plan.touches_players:
         try:
-            record = start_test_content_deletion(plan, request.user)
+            record = start_authoring_deletion(plan, request.user)
         except AnotherRunning:
             messages.error(
                 request,
@@ -3463,9 +3485,9 @@ def deletion(request, pk):
     that asked for it cannot say how it ended. This one can, and it
     reloads itself until there is an ending to say.
     """
-    from n26.maintenance import test_content_deletion
+    from n26.maintenance import authoring_deletion
 
-    record = test_content_deletion(pk)
+    record = authoring_deletion(pk)
     if record is None:
         raise Http404("No such deletion")
     summary = record.summary or {}

@@ -3089,7 +3089,7 @@ class TestRemovingAWeaponProfile:
         body = client.get(self.address(warp)).content.decode()
 
         assert "Delete Warp round (Autogun)?" in body
-        assert "no undo" in body
+        assert "cannot undo" in body
         assert f'href="/n26/authoring/weapon/{autogun.pk}/"' in body
         assert WeaponProfile.objects.filter(pk=warp.pk).exists()
 
@@ -3132,7 +3132,7 @@ class TestRemovingAWeaponProfile:
 
         assert refused.redirect_chain[-1][0] == self.address(warp)
         assert "still in use" in body
-        assert f"— {member.default_set.name} point at it" in body
+        assert f"the built-in set “{member.default_set.name}” brings" in body
         assert "Ganger built-ins" == member.default_set.name
         assert WeaponProfile.objects.filter(pk=warp.pk).exists()
 
@@ -3167,9 +3167,10 @@ class TestRemovingAWeaponProfile:
 
         assert refused.redirect_chain[-1][0] == self.address(warp)
         assert "still in use" in body
-        assert "history, not clutter" in body
-        # An assignment's own words already name a second thing — whose
-        # it is — so it is said plainly rather than through a set.
+        # A paid line is history: the refusal names the gang and the
+        # fighter, and says what was paid for.
+        assert "paid for" in body
+        assert "The Armed" in body
         assert "Yolanda" in body
         assert WeaponProfile.objects.filter(pk=warp.pk).exists()
 
