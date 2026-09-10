@@ -541,6 +541,10 @@ def _item_behind(found):
     the item's assignment."""
     from n26.library.models import Wargear, Weapon, WeaponAccessory
 
+    if found.slot.slot is None:
+        # An offer's cause is whatever brought the offerer, not an item
+        # the choice is about.
+        return None
     cause = getattr(found.anchor, "caused_by", None)
     if cause is None:
         return None

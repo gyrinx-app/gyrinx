@@ -72,14 +72,13 @@ def render_model_card(card, indent=""):
             lines.append(f"{indent}    {label}")
             for accessory in weapon.accessories:
                 lines.append(f"{indent}      + {accessory.name}")
-            for choice in weapon.choices:
-                lines.append(
-                    f"{indent}      {choice.kind_label}: {choice.chosen or '—'}"
-                )
             for profile in weapon.named_profiles:
                 lines.append(
                     f"{indent}      - {profile.name}{_profile_suffix(profile)}"
                 )
+            for choice in weapon.choices:
+                chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
+                lines.append(f"{indent}      {choice.kind_label}: {chosen}")
     if card.skills:
         names = ", ".join(line.name for line in card.skills)
         lines.append(f"{indent}  Skills: {names}")

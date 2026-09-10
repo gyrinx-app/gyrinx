@@ -351,13 +351,6 @@ class WeaponLine:
     choices: list[ChoiceLine] = field(default_factory=list)
 
     @property
-    def choices_have_actions(self):
-        """Whether any of the weapon's choices leads somewhere. Only a
-        card drawn for the owner's own page links them; the gang sheet
-        and the print sheet draw the level as a fact."""
-        return any(choice.href for choice in self.choices)
-
-    @property
     def extras_rating(self):
         """What rides on the weapon: its paid profiles and its accessories.
 
@@ -1593,6 +1586,12 @@ def question_row(slot):
     return row if row in ModelCard.QUESTION_BUCKETS else None
 
 
+def id_of(slot):
+    """What tells one computed question from another while a card is
+    built: the object itself. Computed rows carry no key of their own."""
+    return id(slot)
+
+
 def weapon_home(slot, weapons_by_key):
     """The weapon line a question is drawn under, or None for a row of the
     card's own.
@@ -2077,8 +2076,13 @@ def card_to_model_card(
                 AssignableLine(name=node.name, provenance=provenance_of(node))
             )
         elif isinstance(thing, Weapon):
-            weapons_by_key[node.key] = weapon_line(node, node.children)
-            weapons.append(weapons_by_key[node.key])
+            line = weapon_line(node, node.children)
+            weapons.append(line)
+            # A part bolted onto the weapon — a sight with a ladder of its
+            # own — hangs off it, so a choice the part brought is drawn
+            # under the weapon too.
+            for key in (node.key, *(child.key for child in node.children)):
+                weapons_by_key[key] = line
         elif isinstance(thing, WeaponProfile):
             # A profile assigned straight to the model rather than to a weapon.
             weapons_by_key[node.key] = weapon_line(node, [node])
@@ -2178,10 +2182,18 @@ def card_to_model_card(
                 counted_xp = standing
 
     vehicle = primary is not None and primary.profile_type.name == "Vehicle"
+    # A question a weapon brought is drawn under the weapon and nowhere
+    # else — unless a named row takes it, as a skill offer a weapon makes
+    # still belongs in the Skills row. Decided once per question here;
+    # the rows below leave out what was filed.
+    weapon_hosted = set()
     for slot in computed.choices if computed else []:
+        if question_row(slot) is not None:
+            continue
         home = weapon_home(slot, weapons_by_key)
         if home is not None:
             home.choices.append(_choice_line(slot, id))
+            weapon_hosted.add(id_of(slot))
 
     return ModelCard(
         name=name,
@@ -2236,8 +2248,7 @@ def card_to_model_card(
             *(
                 _choice_line(slot, id)
                 for slot in (computed.choices if computed else [])
-                if question_row(slot) is None
-                and weapon_home(slot, weapons_by_key) is None
+                if question_row(slot) is None and id_of(slot) not in weapon_hosted
             ),
             # What the gang picked, where a modifier says this model's
             # card draws it. After the card's own questions: they are

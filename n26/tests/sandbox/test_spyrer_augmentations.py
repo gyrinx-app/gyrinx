@@ -539,6 +539,13 @@ class TestTheLadderIsTheModelsOwn:
         set_level(choice_behind(other, bolted), tier)
         assert stat_of(gun_of(other, "Bolt launchers"), "L") == "3"
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "1"
+        # The part hangs off the gun, so its choice draws under the gun
+        # beside the gun's own — and nowhere else on the card.
+        drawn, _ = card_for(other)
+        gun = next(w for w in drawn.weapons if w.name == "Bolt launchers")
+        assert sorted(c.chosen or "" for c in gun.choices) == ["", "Tier 1"]
+        assert drawn.row_questions == []
+        assert len(gun_of(orrus, "Bolt launchers").choices) == 1
         assert_reconciled(gang)
 
     def test_a_climbed_ladder_goes_back_to_the_stash_with_the_item(
