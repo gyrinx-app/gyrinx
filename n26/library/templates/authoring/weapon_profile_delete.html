@@ -16,7 +16,7 @@ removed from them before it goes.
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-weapon-profile-delete' thing.pk %}"
                      title="Delete {{ label }}?"
-                     lead="For good: the {{ verbose_name }} leaves {{ weapon }}, and its characteristics with it{% if lines %}. The fighters that have it lose the line{% endif %}. You cannot undo this."
+                     lead="For good: the {{ verbose_name }} leaves {{ weapon }}, and its characteristics with it{% if lines and not refusals %}. The fighters that have it lose the line{% endif %}. You cannot undo this."
                      submit_label="{{ submit_label }}"
                      submit_variant="danger"
                      cancel_url="{{ back }}">

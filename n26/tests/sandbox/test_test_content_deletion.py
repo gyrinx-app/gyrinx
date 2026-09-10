@@ -108,6 +108,34 @@ class TestNamingTheTestGangs:
         assert any(gang.name in words and "player" in words for words in plan.refusals)
         assert any("not staff" in words for words in plan.refusals)
 
+    def test_a_purchase_through_a_list_line_does_not_hold_the_line(
+        self, player, test_type, test_fighter, test_weapon
+    ):
+        """A purchase names the line it was bought through, and the
+        column is emptied when the line goes: the payment still
+        happened. So a player's purchase does not hold a staged line."""
+        from n26.library.authoring import create_collection
+        from n26.library.models import CollectionEntry
+        from n26.tests.sandbox.actions import buy
+
+        listing = create_collection("Test list", entries=[(test_weapon, {})])
+        entry = CollectionEntry.objects.get(collection=listing)
+        entry.staged = True
+        entry.save()
+        gang = found_gang("Theirs", test_type, owner=player)
+        model = hire(gang, test_fighter, "One", paid=50)
+        buy(model, thing=test_weapon, entry=entry, paid=15)
+
+        plan = plan_deletion([entry])
+
+        assert plan.ok
+        assert not plan.gangs
+        apply(plan)
+        assert not CollectionEntry.objects.filter(pk=entry.pk).exists()
+        assert Assignment.objects.filter(
+            gang_root=gang, weapon=test_weapon, ledger_entry__bought_from=None
+        ).exists()
+
     def test_a_gang_type_refuses_while_its_fighters_stand(
         self, test_type, test_fighter
     ):

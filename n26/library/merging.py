@@ -458,9 +458,9 @@ def merge_gang(gang_id, plan):
             return f"gang {gang.name}: nothing left to move"
         problems = check_gang(gang)
         if problems:
-            return (
-                f"gang {gang.name}: skipped — it did not reconcile before the "
-                "merge: " + "; ".join(problems)
+            raise Refused(
+                f"gang {gang.name} did not reconcile before the merge: "
+                + "; ".join(problems)
             )
 
         moved = 0

@@ -432,16 +432,20 @@ class _Planner:
         if _key(row) in self.doomed:
             return
         label = reference.label
-        if label.startswith("n26."):
-            self.sort_player_row(reference)
-            return
-        if reference.cascades:
+        if reference.cascades and label.startswith("library."):
             # A part of the thing: it goes, and what it holds is read.
             self.doom(row)
             return
-        if not reference.protects and not reference.empties:
+        if not reference.protects:
             # A list membership — a trait on a firing line, a modifier
-            # on a carrier — is forgotten, not deleted.
+            # on a carrier — is forgotten, not deleted. A column that is
+            # emptied — a purchase's list line, a pick's offer — was
+            # declared that way because the row it names may go while
+            # the row naming it stays true. A player-side row that
+            # cascades goes with the thing.
+            return
+        if label.startswith("n26."):
+            self.sort_player_row(reference)
             return
         self.sort_library_row(reference, thing_model)
 
@@ -572,12 +576,6 @@ class _Planner:
             gang = self.gang_of_assignment(row.assignment)
         elif label == "n26.statoverride":
             gang = row.miniature.gang
-        elif label == "n26.ledgerentry":
-            gang = self.gang_of_assignment(row.assignment)
-        elif label == "n26.ledgerevent":
-            gang = row.gang
-        elif reference.cascades:
-            return
         if gang is not None:
             self.hold("gang", gang, f"{what} ({_kind(self.doomed_row(reference))})")
             return
@@ -860,7 +858,9 @@ def remove_free_lines_from(gang_id, plan):
         gang = Gang.objects.select_for_update().get(pk=gang_id)
         now = plan_again(plan)
         if now.refusals:
-            return f"gang {gang.name}: skipped — " + "; ".join(now.refusals)
+            # Raised rather than returned: a gang left alone is a run
+            # that did not finish, and the record must not end as done.
+            raise Refused(f"gang {gang.name}: " + "; ".join(now.refusals))
         mine = [line for line in now.lines if str(line.pk) == str(gang.pk)]
         if not mine:
             return f"gang {gang.name}: nothing left to remove"
@@ -868,9 +868,9 @@ def remove_free_lines_from(gang_id, plan):
         list(Assignment.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
         problems = check_gang(gang)
         if problems:
-            return (
-                f"gang {gang.name}: skipped — it did not reconcile before the "
-                "removal: " + "; ".join(problems)
+            raise Refused(
+                f"gang {gang.name} did not reconcile before the removal: "
+                + "; ".join(problems)
             )
         Assignment.objects.filter(pk__in=ids).delete()
         problems = check_gang(gang)
@@ -927,6 +927,14 @@ def apply(plan, actor=None):
         list(
             Gang.objects.select_for_update()
             .filter(pk__in=[gang.pk for gang in plan.test_gangs])
+            .order_by("pk")
+        )
+        # The campaigns as well: joining one takes a key-share lock on
+        # its row, which this conflicts with, so no player can join
+        # between the second reading and the delete.
+        list(
+            Campaign.objects.select_for_update()
+            .filter(pk__in=[campaign.pk for campaign in plan.test_campaigns])
             .order_by("pk")
         )
         for label, pk in plan.targets:

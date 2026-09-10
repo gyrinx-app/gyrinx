@@ -82,6 +82,25 @@ class TestARowsDeletePage:
         assert "Delete Test lasgun and 1 test gang" in body
         assert Weapon.objects.filter(pk=test_weapon.pk).exists()
 
+    def test_a_test_campaign_is_named_apart_from_the_gangs(
+        self, author, client, default_pack, test_type, test_fighter, test_weapon
+    ):
+        from n26.library.authoring import create_campaign_type
+        from n26.tests.sandbox.actions import found_campaign, join_campaign
+
+        staged_type = create_campaign_type("Test campaign type", staged=True)
+        mine = checked_by(author, test_type, test_fighter, test_weapon, "Mine")
+        found_campaign("Rehearsal", staged_type, owner=author)
+        campaign = found_campaign("Rehearsal", staged_type, owner=author)
+        join_campaign(mine, campaign)
+
+        body = client.get(delete_page(staged_type, "campaign-type")).content.decode()
+
+        assert "Test campaigns that go with it" in body
+        assert "Rehearsal" in body
+        assert "Test gangs that go with it" in body
+        assert "Delete Test campaign type and 1 test gang and 2 test campaigns" in body
+
     def test_a_players_gang_refuses_before_the_click(
         self, author, client, player, test_type, test_fighter, test_weapon
     ):
