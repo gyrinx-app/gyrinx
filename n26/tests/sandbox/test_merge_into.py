@@ -305,6 +305,26 @@ class TestThePage:
         assert "line “scatter ammo” becomes" in shown
         assert f"Merge {duplicate.authoring_label} into Shotgun" in shown
 
+    def test_a_survivor_that_is_not_an_id_asks_again(self, author, client, duplicate):
+        body = client.get(merge_page(duplicate) + "?into=not-an-id").content.decode()
+        assert "Read the plan" in body
+        assert "What merging does" not in body
+
+    def test_a_replayed_delivery_finds_nothing_left_to_move(
+        self, author, player, escher, ganger, shotgun, duplicate
+    ):
+        from n26.library.merging import merge_gang
+
+        theirs = armed_with(player, "Theirs", escher, ganger, duplicate)
+        plan = plan_merge(duplicate, shotgun)
+        first = merge_gang(theirs.pk, plan)
+        assert "deleted" in first
+
+        again = merge_gang(theirs.pk, plan)
+
+        assert "already gone" in again
+        assert Weapon.objects.filter(pk=shotgun.pk).exists()
+
     def test_the_weapon_page_offers_the_way_there(self, author, client, duplicate):
         body = client.get(f"/n26/authoring/weapon/{duplicate.pk}/").content.decode()
         assert merge_page(duplicate) in body

@@ -16,7 +16,7 @@ from django.contrib.auth.models import User
 from gyrinx.maintenance.models import Backfill
 from n26.core.models import Assignment, Gang
 from n26.core.reconcile import assert_reconciled
-from n26.library.deletion import plan_deletion
+from n26.library.deletion import DeletionPlan, Line, plan_deletion
 from n26.library.models import WeaponProfile
 from n26.tests.sandbox.actions import (
     buy_weapon_profile,
@@ -201,6 +201,64 @@ class TestThePage:
         assert "paid for" in response.content.decode()
         assert WeaponProfile.objects.filter(pk=incisor.pk).exists()
         assert not Backfill.objects.exists()
+
+    def test_a_replayed_delivery_finds_nothing_left_to_remove(
+        self, author, player, escher, ganger, claw, incisor
+    ):
+        from n26.library.deletion import remove_free_lines_from
+
+        theirs = armed(player, "Theirs", escher, ganger, claw)
+        plan = plan_deletion([incisor], remove_free_lines=True)
+        first = remove_free_lines_from(theirs.pk, plan)
+        assert "deleted" in first
+
+        again = remove_free_lines_from(theirs.pk, plan)
+
+        assert "already gone" in again
+
+    def test_a_fighter_who_paid_mid_run_fails_the_gang_in_words(
+        self, author, player, escher, ganger, claw, incisor
+    ):
+        from n26.library.authoring import revise
+        from n26.library.deletion import Refused, remove_free_lines_from
+
+        theirs = armed(player, "Theirs", escher, ganger, claw)
+        plan = plan_deletion([incisor], remove_free_lines=True)
+        # A second fighter buys the line, paid, after the plan was read.
+        revise(incisor, price=10)
+        second = hire(theirs, ganger, "Late", paid=50)
+        weapon_line = give_weapon(second, claw, paid=30)
+        buy_weapon_profile(weapon_line, incisor)
+        plan_now = plan_deletion([incisor], remove_free_lines=True)
+        assert not plan_now.ok
+
+        # The gang's own stored lines are still free, so this gang is
+        # settled; the paid one is on a fighter the plan never named,
+        # and the row stays because something still names it.
+        said = remove_free_lines_from(theirs.pk, plan)
+        assert "removed the line from 1 fighter" in said
+        assert "deleted" not in said
+        assert WeaponProfile.objects.filter(pk=incisor.pk).exists()
+
+        # A stored line that was paid for since fails the gang.
+        paid_line = Assignment.objects.get(
+            gang_root=theirs, weapon_profile=incisor, parent=weapon_line
+        )
+        stale = DeletionPlan(
+            targets=plan.targets,
+            lines=(
+                Line(
+                    pk=str(theirs.pk),
+                    name=theirs.name,
+                    owner="player",
+                    archived=False,
+                    fighters=("Late",),
+                    assignment_ids=(str(paid_line.pk),),
+                ),
+            ),
+        )
+        with pytest.raises(Refused):
+            remove_free_lines_from(theirs.pk, stale)
 
     def test_an_unused_line_is_deleted_in_the_request(self, author, client, incisor):
         body = client.get(delete_page(incisor)).content.decode()

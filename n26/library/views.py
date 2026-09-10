@@ -2971,7 +2971,9 @@ def weapon_profile_delete(request, pk):
     plan = plan_deletion([profile], remove_free_lines=True)
 
     if request.method == "POST":
-        elsewhere = _perform_deletion(request, plan, label)
+        elsewhere = _perform_deletion(
+            request, plan, label, reverse("authoring-weapon-profile-delete", args=[pk])
+        )
         return elsewhere or redirect(back)
 
     return render(
@@ -3318,16 +3320,18 @@ def _deletion_words(plan, label):
     is a question with one answer. A plan taking gangs names them on the
     button, so the count is read before the click, not after.
     """
-    gangs = [
-        {
+
+    def drawn(holder):
+        return {
             "name": holder.name,
             "owner": holder.owner,
             "archived": holder.archived,
             "holds": ", ".join(holder.holds),
         }
-        for holder in (*plan.test_gangs, *plan.test_campaigns)
-    ]
-    campaigns = sum(1 for holder in plan.test_campaigns)
+
+    gangs = [drawn(holder) for holder in plan.test_gangs]
+    test_campaigns = [drawn(holder) for holder in plan.test_campaigns]
+    campaigns = len(test_campaigns)
     lines = [
         {
             "name": line.name,
@@ -3337,7 +3341,7 @@ def _deletion_words(plan, label):
         }
         for line in plan.lines
     ]
-    if plan.refusals:
+    if plan.refusals or plan.nothing_here:
         submit_label = ""
     elif lines:
         n = plan.fighters_with_lines
@@ -3345,7 +3349,7 @@ def _deletion_words(plan, label):
             f"Delete the firing line and remove it from {n} "
             f"fighter{'' if n == 1 else 's'}"
         )
-    elif gangs:
+    elif gangs or campaigns:
         n = len(plan.test_gangs)
         parts = [f"{n} test gang{'' if n == 1 else 's'}"] if n else []
         if campaigns:
@@ -3356,6 +3360,7 @@ def _deletion_words(plan, label):
     return {
         "plan": plan,
         "test_gangs": gangs,
+        "test_campaigns": test_campaigns,
         "lines": lines,
         "fighters_with_lines": plan.fighters_with_lines,
         "refusals": list(plan.refusals),
@@ -3364,7 +3369,7 @@ def _deletion_words(plan, label):
     }
 
 
-def _perform_deletion(request, plan, label):
+def _perform_deletion(request, plan, label, here):
     """Do what a delete page's plan says, and say where to go next.
 
     Three endings. A refusal is said on the page and nothing is
@@ -3372,8 +3377,10 @@ def _perform_deletion(request, plan, label):
     on the task runner, and the reader is sent to the record. A plan
     that takes only library rows is done here, now.
 
-    Returns a redirect for the first two, or ``None`` when the rows were
-    deleted here and the caller decides where to lead.
+    ``here`` is the delete page's own address, reversed by the caller,
+    which is where a refusal leads back to. Returns a redirect for the
+    first two endings, or ``None`` when the rows were deleted here and
+    the caller decides where to lead.
     """
     from n26.library.deletion import Refused, apply
     from n26.maintenance import AnotherRunning, start_authoring_deletion
@@ -3385,7 +3392,7 @@ def _perform_deletion(request, plan, label):
             + "; ".join(plan.refusals)
             + ".",
         )
-        return redirect(request.path)
+        return redirect(here)
     if plan.touches_players:
         try:
             record = start_authoring_deletion(plan, request.user)
@@ -3394,13 +3401,13 @@ def _perform_deletion(request, plan, label):
                 request,
                 "Another deletion is still running. Try again when it has finished.",
             )
-            return redirect(request.path)
+            return redirect(here)
         return redirect("authoring-deletion", pk=record.pk)
     try:
         apply(plan)
     except Refused as refused:
         messages.error(request, f"{label} was not deleted: {refused}.")
-        return redirect(request.path)
+        return redirect(here)
     messages.success(request, f"Deleted {label}.")
     return None
 
@@ -3429,7 +3436,12 @@ def thing_delete(request, kind, pk):
     parent = _parent_of(kind, thing) if kind in NESTED_KINDS else None
 
     if request.method == "POST":
-        elsewhere = _perform_deletion(request, plan_deletion([thing]), label)
+        elsewhere = _perform_deletion(
+            request,
+            plan_deletion([thing]),
+            label,
+            reverse("authoring-thing-delete", args=[kind, pk]),
+        )
         if elsewhere is not None:
             return elsewhere
         if parent is not None:
@@ -3478,21 +3490,30 @@ def thing_merge(request, kind, pk):
     model = _model_for(spec)
     thing = get_object_or_404(model, pk=pk)
     back = reverse("authoring-detail", args=[kind, pk])
+    here = reverse("authoring-thing-merge", args=[kind, pk])
     label = _label_for(thing)
     into = request.POST.get("into") or request.GET.get("into") or ""
-    survivor = model.objects.filter(pk=into).first() if into else None
+    try:
+        survivor = model.objects.filter(pk=into).first() if into else None
+    except ValidationError, ValueError, TypeError:
+        # Anything that is not an id at all: the field refuses it while
+        # the query is being built, before any row is read.
+        survivor = None
     plan = plan_merge(thing, survivor) if survivor is not None else None
+    # The way back to a chosen plan: the survivor is a row this view
+    # found, so the address names its stored id, never what was typed.
+    chosen = f"{here}?into={survivor.pk}" if survivor is not None else here
 
     if request.method == "POST":
         if plan is None:
             messages.error(request, "Choose what to merge it into.")
-            return redirect(request.path)
+            return redirect(here)
         if plan.refusals:
             messages.error(
                 request,
                 f"{label} was not merged: " + "; ".join(plan.refusals) + ".",
             )
-            return redirect(f"{request.path}?into={survivor.pk}")
+            return redirect(chosen)
         if plan.touches_players:
             try:
                 record = start_authoring_deletion(plan, request.user)
@@ -3501,7 +3522,7 @@ def thing_merge(request, kind, pk):
                     request,
                     "Another merge is still running. Try again when it has finished.",
                 )
-                return redirect(f"{request.path}?into={survivor.pk}")
+                return redirect(chosen)
             return redirect("authoring-deletion", pk=record.pk)
         from n26.library.merging import Refused, merge_library
 
@@ -3509,7 +3530,7 @@ def thing_merge(request, kind, pk):
             merge_library(plan)
         except Refused as refused:
             messages.error(request, f"{label} was not merged: {refused}.")
-            return redirect(f"{request.path}?into={survivor.pk}")
+            return redirect(chosen)
         messages.success(request, f"Merged {label} into {plan.survivor_said}.")
         return redirect("authoring-detail", kind=kind, pk=survivor.pk)
 
@@ -3565,7 +3586,12 @@ def staged_delete(request):
     label = "everything staged"
 
     if request.method == "POST":
-        elsewhere = _perform_deletion(request, plan, label)
+        if plan.nothing_here:
+            messages.info(request, "Nothing is staged, so nothing was deleted.")
+            return redirect("authoring-staged")
+        elsewhere = _perform_deletion(
+            request, plan, label, reverse("authoring-staged-delete")
+        )
         return elsewhere or redirect("authoring-staged")
 
     return render(
@@ -3583,13 +3609,13 @@ def deletion(request, pk):
     that asked for it cannot say how it ended. This one can, and it
     reloads itself until there is an ending to say.
     """
-    from n26.maintenance import authoring_deletion
+    from n26.maintenance import Operation, authoring_deletion
 
     record = authoring_deletion(pk)
     if record is None:
         raise Http404("No such deletion")
     summary = record.summary or {}
-    merging = record.operation == "n26_merge_into"
+    merging = record.operation == Operation.MERGE_INTO.value
     return render(
         request,
         "authoring/deletion.html",

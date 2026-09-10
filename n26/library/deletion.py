@@ -348,6 +348,7 @@ class _Planner:
         self.lines = {}
         self.refusals = []
         self.queue = []
+        self._gangs = {}
 
     # -- what goes -------------------------------------------------------
 
@@ -432,16 +433,20 @@ class _Planner:
         if _key(row) in self.doomed:
             return
         label = reference.label
-        if label.startswith("n26."):
-            self.sort_player_row(reference)
-            return
-        if reference.cascades:
+        if reference.cascades and label.startswith("library."):
             # A part of the thing: it goes, and what it holds is read.
             self.doom(row)
             return
-        if not reference.protects and not reference.empties:
+        if not reference.protects:
             # A list membership — a trait on a firing line, a modifier
-            # on a carrier — is forgotten, not deleted.
+            # on a carrier — is forgotten, not deleted. A column that is
+            # emptied — a purchase's list line, a pick's offer — was
+            # declared that way because the row it names may go while
+            # the row naming it stays true. A player-side row that
+            # cascades goes with the thing.
+            return
+        if label.startswith("n26."):
+            self.sort_player_row(reference)
             return
         self.sort_library_row(reference, thing_model)
 
@@ -572,12 +577,6 @@ class _Planner:
             gang = self.gang_of_assignment(row.assignment)
         elif label == "n26.statoverride":
             gang = row.miniature.gang
-        elif label == "n26.ledgerentry":
-            gang = self.gang_of_assignment(row.assignment)
-        elif label == "n26.ledgerevent":
-            gang = row.gang
-        elif reference.cascades:
-            return
         if gang is not None:
             self.hold("gang", gang, f"{what} ({_kind(self.doomed_row(reference))})")
             return
@@ -596,11 +595,17 @@ class _Planner:
         return reference.row._meta.get_field(reference.field).related_model
 
     def gang_of_assignment(self, assignment):
+        """The gang an assignment is rooted on, read once per gang: a
+        line a hundred fighters have is a hundred references to the
+        same few gangs."""
         from n26.core.models import Gang
 
-        if assignment.gang_root_id:
-            return Gang.objects.select_related("owner").get(pk=assignment.gang_root_id)
-        return None
+        gang_id = assignment.gang_root_id
+        if not gang_id:
+            return None
+        if gang_id not in self._gangs:
+            self._gangs[gang_id] = Gang.objects.select_related("owner").get(pk=gang_id)
+        return self._gangs[gang_id]
 
     def campaign_goes(self, campaign):
         """A campaign that goes takes its own type, its pack and every
@@ -843,12 +848,15 @@ def remove_free_lines_from(gang_id, plan):
     """Take the plan's firing line off one gang's fighters, committed on
     its own, and delete the row once no fighter anywhere has it.
 
-    The line is read again under the gang's lock — deliveries may be
-    minutes apart — and a fighter who has since paid for it, or whose
-    line has something under it, leaves the gang alone and named. The
-    assignments go with their zero-value entries and events, and the
-    gang is proved to reconcile before and after. The last gang visited
-    finds nothing else naming the row and deletes it.
+    Only this gang's lines are read again, under its lock — deliveries
+    may be minutes apart — and a line since paid for, or with something
+    under it, fails the gang in words, so the run ends as not done
+    rather than as done with the row still standing. The estate as a
+    whole was read once, when the run began. The assignments go with
+    their zero-value entries and events, and the gang is proved to
+    reconcile before and after. The last gang visited finds nothing
+    else naming the row and deletes it. A row already gone means a
+    delivery replayed after the work: nothing left to do.
     """
     from django.apps import apps
 
@@ -856,36 +864,56 @@ def remove_free_lines_from(gang_id, plan):
     from n26.core.reconcile import check_gang
     from n26.library import authoring
 
+    targets = [
+        apps.get_model(label).objects.filter(pk=pk).first()
+        for label, pk in plan.targets
+    ]
+    if all(row is None for row in targets):
+        return "nothing left to remove: the line is already gone"
     with transaction.atomic():
         gang = Gang.objects.select_for_update().get(pk=gang_id)
-        now = plan_again(plan)
-        if now.refusals:
-            return f"gang {gang.name}: skipped — " + "; ".join(now.refusals)
-        mine = [line for line in now.lines if str(line.pk) == str(gang.pk)]
+        mine = [line for line in plan.lines if str(line.pk) == str(gang.pk)]
         if not mine:
             return f"gang {gang.name}: nothing left to remove"
-        ids = [pk for pk in mine[0].assignment_ids]
-        list(Assignment.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
+        held = list(
+            Assignment.objects.select_for_update()
+            .filter(pk__in=list(mine[0].assignment_ids))
+            .order_by("pk")
+        )
+        for line in held:
+            why_not = _why_not_a_free_line(line)
+            if why_not:
+                fighter = (
+                    line.miniature_root.name if line.miniature_root_id else "a fighter"
+                )
+                # Raised rather than returned: a gang left alone is a run
+                # that did not finish, and the record must not end as done.
+                raise Refused(
+                    f"gang {gang.name}: the line on {fighter} {why_not}; refund "
+                    "or remove it first"
+                )
+        if not held:
+            return f"gang {gang.name}: nothing left to remove"
         problems = check_gang(gang)
         if problems:
-            return (
-                f"gang {gang.name}: skipped — it did not reconcile before the "
-                "removal: " + "; ".join(problems)
+            raise Refused(
+                f"gang {gang.name} did not reconcile before the removal: "
+                + "; ".join(problems)
             )
-        Assignment.objects.filter(pk__in=ids).delete()
+        Assignment.objects.filter(pk__in=[line.pk for line in held]).delete()
         problems = check_gang(gang)
         if problems:
             raise Refused(
                 f"gang {gang.name} did not reconcile after removing the line: "
                 + "; ".join(problems)
             )
-        fighters = len(ids)
+        fighters = len(held)
         said = f"gang {gang.name}: removed the line from {fighters} fighter{'' if fighters == 1 else 's'}"
         # The row goes with the last fighter: after this gang, nothing
-        # may name it any more.
-        for label, pk in plan.targets:
-            row = apps.get_model(label).objects.filter(pk=pk).first()
-            if row is None:
+        # may name it any more. Asked cheaply first; the full reading
+        # only once the last line is gone.
+        for row in targets:
+            if row is None or Assignment.objects.filter(weapon_profile=row).exists():
                 continue
             if not plan_deletion([row]).ok:
                 continue
@@ -927,6 +955,14 @@ def apply(plan, actor=None):
         list(
             Gang.objects.select_for_update()
             .filter(pk__in=[gang.pk for gang in plan.test_gangs])
+            .order_by("pk")
+        )
+        # The campaigns as well: joining one takes a key-share lock on
+        # its row, which this conflicts with, so no player can join
+        # between the second reading and the delete.
+        list(
+            Campaign.objects.select_for_update()
+            .filter(pk__in=[campaign.pk for campaign in plan.test_campaigns])
             .order_by("pk")
         )
         for label, pk in plan.targets:

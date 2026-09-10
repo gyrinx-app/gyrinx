@@ -1,9 +1,9 @@
 {% comment %}
 What a delete would take, drawn on every page that asks the question:
 what goes, the fighters a firing line is removed from, the test gangs
-that go with it, and what refuses it. Takes `counts`, `lines`,
-`test_gangs` and `refusals` from _deletion_words in
-n26/library/views.py. Nothing here changes anything.
+and test campaigns that go with it, and what refuses it. Takes
+`counts`, `lines`, `test_gangs`, `test_campaigns` and `refusals` from
+_deletion_words in n26/library/views.py. Nothing here changes anything.
 {% endcomment %}
 {% if refusals %}
     <c-ui.alert variant="error" title="Something still holds it">
@@ -44,13 +44,47 @@ n26/library/views.py. Nothing here changes anything.
                         <td class="whitespace-nowrap">
                             {{ line.name }}
                             {% if line.archived %}
-                                <c-ui.badge color="gray" size="sm" class="ml-1">
-                                    Archived
-                                </c-ui.badge>
+                                <span class="ml-1">
+                                    <c-ui.badge color="zinc" size="sm">
+                                        Archived
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                         </td>
                         <td class="whitespace-nowrap">{{ line.owner }}</td>
                         <td class="text-muted">{{ line.fighters }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    </c-n26.form-section>
+{% endif %}
+{% if test_campaigns and not refusals %}
+    <c-n26.form-section title="Test campaigns that go with it"
+                        description="Each is run by staff and every gang in it is a test gang. It is deleted whole: its log, its battles, its assets, and the campaign type and pack of its own.">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">Campaign</th>
+                    <th scope="col">Arbitrator</th>
+                    <th scope="col" class="w-full">Holds</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for campaign in test_campaigns %}
+                    <tr>
+                        <td class="whitespace-nowrap">
+                            {{ campaign.name }}
+                            {% if campaign.archived %}
+                                <span class="ml-1">
+                                    <c-ui.badge color="zinc" size="sm">
+                                        Archived
+                                    </c-ui.badge>
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap">{{ campaign.owner }}</td>
+                        <td class="text-muted">{{ campaign.holds }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -74,9 +108,11 @@ n26/library/views.py. Nothing here changes anything.
                         <td class="whitespace-nowrap">
                             {{ gang.name }}
                             {% if gang.archived %}
-                                <c-ui.badge color="gray" size="sm" class="ml-1">
-                                    Archived
-                                </c-ui.badge>
+                                <span class="ml-1">
+                                    <c-ui.badge color="zinc" size="sm">
+                                        Archived
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                         </td>
                         <td class="whitespace-nowrap">{{ gang.owner }}</td>

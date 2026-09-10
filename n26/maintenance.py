@@ -2061,21 +2061,6 @@ register_operation(
 )
 
 
-#: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
-#: The deadline is the longest Pub/Sub allows, because a repair holds one
-#: transaction for as long as proving what it touched takes. It is also
-#: the request timeout the service is deployed with, and the two belong
-#: together: a run outliving its deadline is delivered again while the first
-#: copy is still working, and the second — standing down at the lock — answers
-#: successfully and acknowledges the message out from under it. Change one and
-#: change the other (``--timeout`` in ``cloudbuild.yaml``).
-#:
-#: The propagation tasks live with the rest of that machinery in
-#: ``n26.core.propagation``; their routes are declared here because this
-#: module is the edition's one door onto the task framework. The sweep
-#: is scheduled work: the framework provisions a Cloud Scheduler job
-#: from the declaration, and only there — the local backend fires no
-#: schedules, so dev and tests invoke the sweep function directly.
 @task
 def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
     """Delete content and the test gangs holding it, exactly as the
@@ -2243,6 +2228,21 @@ register_operation(
 )
 
 
+#: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
+#: The deadline is the longest Pub/Sub allows, because a repair holds one
+#: transaction for as long as proving what it touched takes. It is also
+#: the request timeout the service is deployed with, and the two belong
+#: together: a run outliving its deadline is delivered again while the first
+#: copy is still working, and the second — standing down at the lock — answers
+#: successfully and acknowledges the message out from under it. Change one and
+#: change the other (``--timeout`` in ``cloudbuild.yaml``).
+#:
+#: The propagation tasks live with the rest of that machinery in
+#: ``n26.core.propagation``; their routes are declared here because this
+#: module is the edition's one door onto the task framework. The sweep
+#: is scheduled work: the framework provisions a Cloud Scheduler job
+#: from the declaration, and only there — the local backend fires no
+#: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
     TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),

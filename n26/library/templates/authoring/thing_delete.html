@@ -14,7 +14,7 @@ the author's own test gang, and the page lists those before the click.
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-thing-delete' kind thing.pk %}"
                      title="Delete {{ label }}?"
-                     lead="For good: the {{ verbose_name }} leaves the library{% if test_gangs %}, and so do the test gangs holding it{% endif %}. You cannot undo this."
+                     lead="For good: the {{ verbose_name }} leaves the library{% if test_gangs or test_campaigns %}, and so do the test gangs holding it{% endif %}. You cannot undo this."
                      submit_label="{{ submit_label }}"
                      submit_variant="danger"
                      cancel_url="{{ back }}">
@@ -31,7 +31,7 @@ the author's own test gang, and the page lists those before the click.
         </c-slot>
         {% csrf_token %}
         {% include "authoring/_deletion_plan.html" %}
-        {% if not refusals and not test_gangs %}
+        {% if not refusals and not test_gangs and not test_campaigns %}
             <c-ui.alert variant="info" title="Nothing else holds it">
                 No gang has it, no list offers it and no option brings it,
                 so only the {{ verbose_name }} itself goes.

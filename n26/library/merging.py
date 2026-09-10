@@ -428,11 +428,19 @@ def merge_gang(gang_id, plan):
     was read is repointed like the rest — it names the same thing —
     and a line that has no counterpart refuses, naming it. The books
     are checked before and after; the entries are untouched, so the
-    numbers cannot move, and the check is what proves it.
+    numbers cannot move, and the check is what proves it. A duplicate
+    already gone means a delivery replayed after the work: nothing left
+    to do.
     """
+    from django.apps import apps
+
     from n26.core.models import Assignment, Gang, LedgerEntry, Reason
     from n26.core.reconcile import check_gang
 
+    label, pk = plan.duplicate
+    if not apps.get_model(label).objects.filter(pk=pk).exists():
+        # A delivery replayed after the last gang finished the merge.
+        return "nothing left to move: the duplicate is already gone"
     with transaction.atomic():
         gang = Gang.objects.select_for_update().get(pk=gang_id)
         duplicate, survivor = _rows(plan)
@@ -458,9 +466,9 @@ def merge_gang(gang_id, plan):
             return f"gang {gang.name}: nothing left to move"
         problems = check_gang(gang)
         if problems:
-            return (
-                f"gang {gang.name}: skipped — it did not reconcile before the "
-                "merge: " + "; ".join(problems)
+            raise Refused(
+                f"gang {gang.name} did not reconcile before the merge: "
+                + "; ".join(problems)
             )
 
         moved = 0
@@ -493,6 +501,10 @@ def merge_gang(gang_id, plan):
         # have with the survivor bought outright. Written directly: the
         # gang's history must not say its owner did something today.
         granted = 0
+        # Every free line of the survivor, as an outright purchase grants
+        # them. A list that prices one of those lines on its own is not
+        # known here — the purchase's list is not read — so such a line
+        # arrives free where the list would have charged for it.
         free = [line for line in _lines_of(survivor) if line.price == 0]
         for weapon in Assignment.objects.filter(pk__in=[a.pk for a in held]):
             has = set(
@@ -577,6 +589,7 @@ def merge_library(plan):
             )
         to_line = {dup: survivor_pk for dup, _, survivor_pk in mapping}
         things = [duplicate, *_lines_of(duplicate)]
+        survivor_lines = {str(line.pk): line for line in _lines_of(survivor)}
         by_model = {}
         for thing in things:
             by_model.setdefault(type(thing), []).append(thing)
@@ -585,11 +598,11 @@ def merge_library(plan):
             for reference in references_to(*rows):
                 row = reference.row
                 label = reference.label
-                target = (
-                    _line_target(row, reference.field, to_line)
-                    if reference.field == "weapon_profile"
-                    else survivor
-                )
+                if reference.field == "weapon_profile":
+                    current = str(getattr(row, "weapon_profile_id", ""))
+                    target = survivor_lines.get(to_line.get(current, ""))
+                else:
+                    target = survivor
                 if label == "n26.assignment":
                     raise Refused(
                         f"a fighter still has {_said(duplicate)}; run the merge again"
@@ -611,10 +624,17 @@ def merge_library(plan):
                 if reference.cascades:
                     continue
                 if not reference.protects and not reference.empties:
-                    # A many-to-many listing the duplicate: swapped.
+                    # A many-to-many listing the duplicate: swapped, each
+                    # member for its own counterpart.
                     manager = getattr(row, reference.field)
-                    manager.remove(*[t for t in things if isinstance(t, model)])
-                    manager.add(target)
+                    listed = [t for t in things if isinstance(t, model)]
+                    manager.remove(*listed)
+                    for member in listed:
+                        manager.add(
+                            survivor_lines[to_line[str(member.pk)]]
+                            if str(member.pk) in to_line
+                            else survivor
+                        )
                     moved += 1
                     continue
                 if (
@@ -636,10 +656,3 @@ def merge_library(plan):
         if dropped:
             said += f", dropped {dropped} list line{'' if dropped == 1 else 's'} already offered"
         return said + f"; deleted {plan.duplicate_said}"
-
-
-def _line_target(row, field, to_line):
-    from n26.library.models import WeaponProfile
-
-    current = getattr(row, f"{field}_id")
-    return WeaponProfile.objects.get(pk=to_line[str(current)])

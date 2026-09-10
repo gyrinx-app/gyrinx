@@ -115,7 +115,7 @@ thing — a live fighter's kit brought it, or you let them in with the
 staged-content flag — the delete page names the gang and its owner, and
 nothing is deleted. The same goes for a campaign a player is in.
 
-A gang type refuses to be deleted while fighters are written for it.
+A gang type cannot be deleted while fighters are written for it.
 Delete the fighters first, or delete everything staged together, which
 plans the whole set at once so that nothing refuses because of another
 staged thing.
