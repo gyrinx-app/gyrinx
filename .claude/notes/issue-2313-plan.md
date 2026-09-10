@@ -336,7 +336,16 @@ test ends with `assert_reconciled(gang)`.
    result taken back drops its rating but not the spend. Stat limits
    (library 0093) now clamp a capped characteristic, so a wasted result
    reads as no change rather than a breach.
-4. **The tier draws under its weapon.** Decided by Tom 2026-09-09 after
+4. **The tier draws under its weapon, and an item holds one level.**
+   Decided by Tom 2026-09-10: the rules give each item one augmentation
+   level, and n23's content restates the lower rungs' effects on each
+   higher rung, so the slot takes one pick (`max_picks=1`) and each tier
+   pickable carries the whole effect of being at that level. Picking a
+   tier replaces the one held (the picker's one-pick behaviour). The
+   card sub-row reads one name. §1's "one pick per rung, stacking" is
+   withdrawn. The credit figure stays on the Power Boost result.
+   Weapons only in this PR; a wargear's ladder still draws as its own
+   row under Gear until the gear line carries it. Decided by Tom 2026-09-09 after
    seeing PRs 1-3 on a local gang: the augmentation choice must sit on the
    weapon table under its weapon, as n23 prints "Augmentation: Tier 1"
    under the Bolt launcher row — display-only on the gang-sheet card, with

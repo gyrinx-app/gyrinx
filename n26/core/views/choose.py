@@ -506,6 +506,7 @@ def choose(request, pk, slot):
             offer = lift_landing(offer, landed, threshold=roll.threshold)
 
     bearer = found.miniature.name if found.miniature is not None else gang.name
+    item = _item_behind(found)
     return render(
         request,
         "n26/choose.html",
@@ -527,6 +528,23 @@ def choose(request, pk, slot):
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page happens
             # to have under it.
-            "pick_lead": f"For {bearer}.",
+            "pick_lead": f"{item}, for {bearer}." if item else f"For {bearer}.",
         },
     )
+
+
+def _item_behind(found):
+    """The piece of kit whose own choice this is — the launchers an
+    augmentation ladder is built into — or None for a choice the model
+    or the gang carries itself. Read off the slot's cause: a choice
+    built into an item is materialised beside the model and caused by
+    the item's assignment."""
+    from n26.library.models import Wargear, Weapon, WeaponAccessory
+
+    cause = getattr(found.anchor, "caused_by", None)
+    if cause is None:
+        return None
+    thing = cause.assignable
+    if isinstance(thing, (Weapon, Wargear, WeaponAccessory)):
+        return str(thing)
+    return None

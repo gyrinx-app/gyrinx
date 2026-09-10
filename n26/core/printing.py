@@ -94,9 +94,10 @@ def detail_groups(card) -> list[DetailGroup]:
                 gear_group.name, ", ".join(line.name for line in gear_group.lines)
             )
         )
-    for choice in card.questions:
+    for choice in card.row_questions:
         # What it holds, or a blank. The Add on the screen card is a way
-        # into the picker, and nothing on paper can be added.
+        # into the picker, and nothing on paper can be added. A question
+        # a weapon carries prints beside the weapon instead.
         groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
     for effect in card.effects:
         # "(when taken)" on paper as on screen. A printed card is read away

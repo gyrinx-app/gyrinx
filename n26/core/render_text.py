@@ -72,6 +72,10 @@ def render_model_card(card, indent=""):
             lines.append(f"{indent}    {label}")
             for accessory in weapon.accessories:
                 lines.append(f"{indent}      + {accessory.name}")
+            for choice in weapon.choices:
+                lines.append(
+                    f"{indent}      {choice.kind_label}: {choice.chosen or '—'}"
+                )
             for profile in weapon.named_profiles:
                 lines.append(
                     f"{indent}      - {profile.name}{_profile_suffix(profile)}"
@@ -85,7 +89,7 @@ def render_model_card(card, indent=""):
     if card.powers:
         names = ", ".join(line.name for line in card.powers)
         lines.append(f"{indent}  Powers: {names}")
-    for choice in card.questions:
+    for choice in card.row_questions:
         # Drawn like any other assignable's row; a real UI hangs the picker
         # link here. The provenance is deliberately not shown.
         chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
