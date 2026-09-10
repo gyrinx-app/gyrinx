@@ -3340,7 +3340,7 @@ def _deletion_words(plan, label):
         }
         for line in plan.lines
     ]
-    if plan.refusals:
+    if plan.refusals or plan.nothing_here:
         submit_label = ""
     elif lines:
         n = plan.fighters_with_lines
@@ -3492,7 +3492,12 @@ def thing_merge(request, kind, pk):
     here = reverse("authoring-thing-merge", args=[kind, pk])
     label = _label_for(thing)
     into = request.POST.get("into") or request.GET.get("into") or ""
-    survivor = model.objects.filter(pk=into).first() if into else None
+    try:
+        survivor = model.objects.filter(pk=into).first() if into else None
+    except ValidationError, ValueError, TypeError:
+        # Anything that is not an id at all: the field refuses it while
+        # the query is being built, before any row is read.
+        survivor = None
     plan = plan_merge(thing, survivor) if survivor is not None else None
     # The way back to a chosen plan: the survivor is a row this view
     # found, so the address names its stored id, never what was typed.
@@ -3580,6 +3585,9 @@ def staged_delete(request):
     label = "everything staged"
 
     if request.method == "POST":
+        if plan.nothing_here:
+            messages.info(request, "Nothing is staged, so nothing was deleted.")
+            return redirect("authoring-staged")
         elsewhere = _perform_deletion(
             request, plan, label, reverse("authoring-staged-delete")
         )
@@ -3600,13 +3608,13 @@ def deletion(request, pk):
     that asked for it cannot say how it ended. This one can, and it
     reloads itself until there is an ending to say.
     """
-    from n26.maintenance import authoring_deletion
+    from n26.maintenance import Operation, authoring_deletion
 
     record = authoring_deletion(pk)
     if record is None:
         raise Http404("No such deletion")
     summary = record.summary or {}
-    merging = record.operation == "n26_merge_into"
+    merging = record.operation == Operation.MERGE_INTO.value
     return render(
         request,
         "authoring/deletion.html",

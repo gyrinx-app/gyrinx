@@ -84,9 +84,11 @@ would then post the act. Nothing here changes anything until the act.
                                             <td class="whitespace-nowrap">
                                                 {{ gang.name }}
                                                 {% if gang.archived %}
-                                                    <c-ui.badge color="gray" size="sm" class="ml-1">
-                                                        Archived
-                                                    </c-ui.badge>
+                                                    <span class="ml-1">
+                                                        <c-ui.badge color="zinc" size="sm">
+                                                            Archived
+                                                        </c-ui.badge>
+                                                    </span>
                                                 {% endif %}
                                             </td>
                                             <td class="whitespace-nowrap">{{ gang.owner }}</td>

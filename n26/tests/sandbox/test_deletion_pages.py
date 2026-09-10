@@ -226,6 +226,11 @@ class TestTheStagedContentPage:
         create_weapon("Lasgun")
         body = client.get(STAGED_DELETE_URL).content.decode()
         assert "Nothing is staged" in body
+        assert "Delete it" not in body
+
+        response = client.post(STAGED_DELETE_URL, follow=True)
+        assert "nothing was deleted" in response.content.decode()
+        assert not Backfill.objects.exists()
 
     def test_it_is_for_staff(self, client, db):
         client.force_login(User.objects.create_user("player"))

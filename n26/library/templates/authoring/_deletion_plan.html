@@ -44,9 +44,11 @@ _deletion_words in n26/library/views.py. Nothing here changes anything.
                         <td class="whitespace-nowrap">
                             {{ line.name }}
                             {% if line.archived %}
-                                <c-ui.badge color="gray" size="sm" class="ml-1">
-                                    Archived
-                                </c-ui.badge>
+                                <span class="ml-1">
+                                    <c-ui.badge color="zinc" size="sm">
+                                        Archived
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                         </td>
                         <td class="whitespace-nowrap">{{ line.owner }}</td>
@@ -74,9 +76,11 @@ _deletion_words in n26/library/views.py. Nothing here changes anything.
                         <td class="whitespace-nowrap">
                             {{ campaign.name }}
                             {% if campaign.archived %}
-                                <c-ui.badge color="gray" size="sm" class="ml-1">
-                                    Archived
-                                </c-ui.badge>
+                                <span class="ml-1">
+                                    <c-ui.badge color="zinc" size="sm">
+                                        Archived
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                         </td>
                         <td class="whitespace-nowrap">{{ campaign.owner }}</td>
@@ -104,9 +108,11 @@ _deletion_words in n26/library/views.py. Nothing here changes anything.
                         <td class="whitespace-nowrap">
                             {{ gang.name }}
                             {% if gang.archived %}
-                                <c-ui.badge color="gray" size="sm" class="ml-1">
-                                    Archived
-                                </c-ui.badge>
+                                <span class="ml-1">
+                                    <c-ui.badge color="zinc" size="sm">
+                                        Archived
+                                    </c-ui.badge>
+                                </span>
                             {% endif %}
                         </td>
                         <td class="whitespace-nowrap">{{ gang.owner }}</td>
