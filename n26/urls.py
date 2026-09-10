@@ -470,6 +470,11 @@ urlpatterns = [
         name="authoring-thing-delete",
     ),
     path(
+        "authoring/<slug:kind>/<str:pk>/merge/",
+        authoring_views.thing_merge,
+        name="authoring-thing-merge",
+    ),
+    path(
         "authoring/<slug:kind>/<str:pk>/",
         authoring_views.detail,
         name="authoring-detail",

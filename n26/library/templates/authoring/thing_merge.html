@@ -1,0 +1,107 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+Merging a duplicate into the row it duplicates, at an address of its
+own. The survivor is named in the address (?into=), so the plan can be
+reloaded and sent; choosing one is a GET form of its own, and the POST
+from a chosen plan is the act. Two forms rather than one form-page,
+because a form inside a form is dropped by the browser and the chooser
+would then post the act. Nothing here changes anything until the act.
+{% endcomment %}
+{% block head_title %}Merge {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Merge {{ label }} into another {{ verbose_name }}?"
+                       lead="Everything that names {{ label }} — fighters' kit, list lines, built-ins, modifiers — is pointed at the {{ verbose_name }} you choose, and {{ label }} is deleted. Nobody's money moves. You cannot undo this.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ label }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Merge
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <div class="mt-8 max-w-3xl space-y-10">
+        <c-n26.form-section title="Merge into"
+                            description="The {{ verbose_name }} that stays. Choose it, then read what merging would do before you confirm.">
+            <form method="get"
+                  action="{% url 'authoring-thing-merge' kind thing.pk %}"
+                  class="flex flex-wrap items-end gap-3">
+                <div class="min-w-64">
+                    <c-ui.label for="into">
+                        Keep
+                    </c-ui.label>
+                    <c-ui.select.native name="into"
+                                        id="into"
+                                        placeholder="Choose a {{ verbose_name }}"
+                                        :value="into">
+                        {% for other in others %}
+                            <option value="{{ other.pk }}"
+                                    {% if other.pk|stringformat:"s" == into %}selected{% endif %}>{{ other.label }}</option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </div>
+                <c-ui.button type="submit" variant="primary">
+                    Read the plan
+                </c-ui.button>
+            </form>
+        </c-n26.form-section>
+        {% if plan %}
+            <form method="post"
+                  action="{% url 'authoring-thing-merge' kind thing.pk %}"
+                  class="space-y-10">
+                {% csrf_token %}
+                <input type="hidden" name="into" value="{{ into }}">
+                {% if refusals %}
+                    <c-ui.alert variant="error" title="Something stands in the way">
+                        <ul class="list-disc space-y-1 pl-5">
+                            {% for words in refusals %}<li>{{ words|capfirst }}.</li>{% endfor %}
+                        </ul>
+                        <p class="mt-2">Nothing is merged while any of these stands.</p>
+                    </c-ui.alert>
+                {% else %}
+                    <c-n26.form-section title="What merging does">
+                        <ul class="list-disc space-y-1 pl-5">
+                            {% for line in preview %}<li>{{ line|capfirst }}.</li>{% endfor %}
+                        </ul>
+                    </c-n26.form-section>
+                    {% if gangs %}
+                        <c-n26.form-section title="Gangs whose fighters have it"
+                                            description="Each is pointed at {{ survivor }} on its own, and its books are checked before and after. Nothing is bought, sold or refunded.">
+                            <c-ui.table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Gang</th>
+                                        <th scope="col">Owner</th>
+                                        <th scope="col" class="w-full text-right">Assignments</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for gang in gangs %}
+                                        <tr>
+                                            <td class="whitespace-nowrap">
+                                                {{ gang.name }}
+                                                {% if gang.archived %}
+                                                    <c-ui.badge color="gray" size="sm" class="ml-1">
+                                                        Archived
+                                                    </c-ui.badge>
+                                                {% endif %}
+                                            </td>
+                                            <td class="whitespace-nowrap">{{ gang.owner }}</td>
+                                            <td class="text-right tabular-nums">{{ gang.assignments }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </c-ui.table>
+                        </c-n26.form-section>
+                    {% endif %}
+                {% endif %}
+                <c-n26.form-actions submit_label="{{ submit_label }}"
+                                    submit_variant="danger"
+                                    cancel_url="{{ back }}" />
+            </form>
+        {% endif %}
+    </div>
+{% endblock content %}

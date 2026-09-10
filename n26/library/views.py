@@ -2395,6 +2395,7 @@ def detail(request, kind, pk):
             "prose": said,
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
+            "mergeable": kind in MERGEABLE_KINDS,
             "edit_form": edit_form,
             "statline_cells": statline_edit.cells() if statline_edit else None,
             "part_sections": drawn,
@@ -3451,6 +3452,103 @@ def thing_delete(request, kind, pk):
     )
 
 
+#: The kinds a row can be merged into another of. Kinds whose rows are
+#: bought and carried on fighters, where two rows for one thing leave
+#: fighters holding the wrong one.
+MERGEABLE_KINDS = frozenset({"weapon", "wargear", "weapon-accessory"})
+
+
+@staff_member_required
+def thing_merge(request, kind, pk):
+    """Merge a duplicate into the row it duplicates.
+
+    The survivor is chosen in the address, so a chosen plan can be
+    reloaded, sent, and returned to. Without one the page asks for it;
+    with one it says what merging would do — the gangs whose fighters
+    are pointed at the survivor, the lines that follow by name, the list
+    lines and built-ins that move — or what refuses it. The act runs
+    gang by gang on the task runner, and the reader lands on its outcome.
+    """
+    from n26.library.merging import plan_merge
+    from n26.maintenance import AnotherRunning, start_authoring_deletion
+
+    if kind not in MERGEABLE_KINDS:
+        raise Http404("This kind cannot be merged")
+    spec = _spec_for(kind)
+    model = _model_for(spec)
+    thing = get_object_or_404(model, pk=pk)
+    back = reverse("authoring-detail", args=[kind, pk])
+    label = _label_for(thing)
+    into = request.POST.get("into") or request.GET.get("into") or ""
+    survivor = model.objects.filter(pk=into).first() if into else None
+    plan = plan_merge(thing, survivor) if survivor is not None else None
+
+    if request.method == "POST":
+        if plan is None:
+            messages.error(request, "Choose what to merge it into.")
+            return redirect(request.path)
+        if plan.refusals:
+            messages.error(
+                request,
+                f"{label} was not merged: " + "; ".join(plan.refusals) + ".",
+            )
+            return redirect(f"{request.path}?into={survivor.pk}")
+        if plan.touches_players:
+            try:
+                record = start_authoring_deletion(plan, request.user)
+            except AnotherRunning:
+                messages.error(
+                    request,
+                    "Another merge is still running. Try again when it has finished.",
+                )
+                return redirect(f"{request.path}?into={survivor.pk}")
+            return redirect("authoring-deletion", pk=record.pk)
+        from n26.library.merging import Refused, merge_library
+
+        try:
+            merge_library(plan)
+        except Refused as refused:
+            messages.error(request, f"{label} was not merged: {refused}.")
+            return redirect(f"{request.path}?into={survivor.pk}")
+        messages.success(request, f"Merged {label} into {plan.survivor_said}.")
+        return redirect("authoring-detail", kind=kind, pk=survivor.pk)
+
+    others = [
+        {"pk": row.pk, "label": _label_for(row)}
+        for row in _rows(model, kind).exclude(pk=thing.pk)
+    ]
+    return render(
+        request,
+        "authoring/thing_merge.html",
+        {
+            "thing": thing,
+            "kind": kind,
+            "label": label,
+            "verbose_name": model._meta.verbose_name,
+            "back": back,
+            "others": others,
+            "into": str(survivor.pk) if survivor is not None else "",
+            "survivor": survivor,
+            "plan": plan,
+            "gangs": [part.__dict__ for part in plan.gangs] if plan else [],
+            "line_names": [name or "its own line" for _, name, _ in plan.lines]
+            if plan
+            else [],
+            "refusals": list(plan.refusals) if plan else [],
+            "preview": [
+                line for line in plan.preview() if not line.startswith("refused")
+            ]
+            if plan
+            else [],
+            "submit_label": (
+                f"Merge {label} into {plan.survivor_said}"
+                if plan is not None and plan.ok
+                else ""
+            ),
+        },
+    )
+
+
 @staff_member_required
 def staged_delete(request):
     """The question asked before everything staged is deleted at once.
@@ -3491,11 +3589,17 @@ def deletion(request, pk):
     if record is None:
         raise Http404("No such deletion")
     summary = record.summary or {}
+    merging = record.operation == "n26_merge_into"
     return render(
         request,
         "authoring/deletion.html",
         {
             "record": record,
+            "words": (
+                {"running": "Merging", "done": "Merged", "failed": "Not merged"}
+                if merging
+                else {"running": "Deleting", "done": "Deleted", "failed": "Not deleted"}
+            ),
             "running": record.status == record.Status.RUNNING,
             "done": record.status == record.Status.DONE,
             "preview": summary.get("preview", []),

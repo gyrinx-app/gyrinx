@@ -14,14 +14,11 @@ script is needed, and a reader who leaves and comes back sees the same.
     {% endif %}
 {% endblock extra_head %}
 {% block content %}
-    <c-n26.page-header title="{% if running %}Deleting{% elif done %}Deleted{% else %}Not deleted{% endif %}"
-                       lead="{% if running %}Still running. This page reloads until it is done.{% elif done %}Everything below is gone.{% else %}Nothing was deleted.{% endif %}">
+    <c-n26.page-header title="{% if running %}{{ words.running }}{% elif done %}{{ words.done }}{% else %}{{ words.failed }}{% endif %}"
+                       lead="{% if running %}Still running. This page reloads until it is done.{% elif done %}Everything below is done.{% else %}Nothing was changed.{% endif %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-staged' %}">
-                    Staged content
-                </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Deletion
                 </c-ui.breadcrumbs.item>
@@ -33,11 +30,13 @@ script is needed, and a reader who leaves and comes back sees the same.
             {{ error }}
         </c-ui.alert>
     {% endif %}
-    <c-n26.form-section title="{% if done %}What went{% else %}What was asked{% endif %}"
+    <c-n26.form-section title="{% if done %}What was done{% else %}What was asked{% endif %}"
                         class="mt-8">
         <ul class="list-disc space-y-1 pl-5">
             {% for line in report|default:preview %}<li>{{ line|capfirst }}.</li>{% endfor %}
         </ul>
     </c-n26.form-section>
-    <p class="mt-8 text-sm text-muted">Asked for by {{ record.triggered_by|default:"—" }} at {{ record.created }}.</p>
+    <p class="mt-8 text-sm text-muted">
+        Asked for by {{ record.triggered_by|default:"—" }}, {{ record.created|date:"j M Y, H:i" }}.
+    </p>
 {% endblock content %}

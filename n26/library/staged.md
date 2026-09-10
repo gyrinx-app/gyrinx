@@ -119,3 +119,33 @@ A gang type refuses to be deleted while fighters are written for it.
 Delete the fighters first, or delete everything staged together, which
 plans the whole set at once so that nothing refuses because of another
 staged thing.
+
+### A firing line fighters already have
+
+A weapon's free lines arrive on every fighter that has the weapon:
+nobody chose them and nobody paid. So a line added by mistake can be
+deleted even after fighters have it. Its delete page lists the fighters,
+by gang and owner, and the button says how many. The line is removed
+from each of them, gang by gang, and then deleted. Their gangs are not
+otherwise touched, and no money moves.
+
+A line somebody paid for, or one with something under it, is not
+removed this way: the page names the gang and the fighter, and nothing
+is deleted.
+
+### Two rows for one thing
+
+Content imported twice, or a first attempt kept beside the corrected
+one, leaves two rows that fighters have bought and lists offer. Open
+the duplicate, choose **Merge it into another…**, and pick the row that
+stays. The page says what merging would do: the gangs whose fighters
+are pointed at the row that stays, the lines that follow by name, the
+list lines and built-ins that move. Nobody's money moves, and each gang
+is checked before and after.
+
+A firing line follows by name, so every line on the duplicate needs a
+line of the same name on the row that stays. One without stops the
+merge and is named: add it to the row that stays, or delete it from the
+duplicate first. Modifiers, use restrictions and built-ins on the
+duplicate itself are yours to move or detach before merging; the merge
+does not guess at them.
