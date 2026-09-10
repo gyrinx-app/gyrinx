@@ -34,6 +34,7 @@ reason: a scope naming a weapon reaches every copy the model carries.
 
 import pytest
 from django.contrib.auth.models import User
+from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
@@ -703,3 +704,20 @@ class TestALaterTierWinsOverAnEarlierOne:
         assert self.rules_of(jakara) == ["Field armour save (6+)"]
         assert stat_of(gun_of(jakara, "Mirror shield"), "LR") == '8"'
         assert_reconciled(gang)
+
+
+class TestThePickerNamesTheItem:
+    """Opened from the weapon's sub-row, the pick screen says which item
+    the level is on as well as whose card it is."""
+
+    def test_the_lead_names_the_launchers_and_the_bearer(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        ladder = ladder_of(orrus, "Bolt launchers")
+        key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+        client.force_login(owner)
+
+        page = client.get(reverse("n26-choose", args=[gang.pk, key])).content.decode()
+
+        assert "Bolt launchers, for Orrus." in page
+        assert 'aria-label="Add Tier 1"' in page or "Tier 1" in page
