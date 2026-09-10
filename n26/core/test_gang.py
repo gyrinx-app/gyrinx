@@ -29,11 +29,19 @@ def test_rating_and_credits_default_to_zero(gang_type):
     assert (gang.rating, gang.credits) == (0, 0)
 
 
-@pytest.mark.parametrize("field", ["rating", "credits"])
-def test_rejects_negatives(gang_type, field):
-    gang = Gang(name="Skint", gang_type=gang_type, **{field: -1})
-    with pytest.raises(ValidationError, match=field):
+def test_rejects_negative_credits(gang_type):
+    gang = Gang(name="Skint", gang_type=gang_type, credits=-1)
+    with pytest.raises(ValidationError, match="credits"):
         gang.full_clean()
+
+
+def test_rating_may_be_below_zero(gang_type):
+    """A pinned rating is a sum over a signed ledger, and gear priced
+    below nothing makes a contribution negative. The column holds what
+    the ledger holds; whether the sum ever should be negative is the
+    content's business, not the column's."""
+    gang = Gang(name="Skint", gang_type=gang_type, rating=-1)
+    gang.full_clean(exclude=["owner"])
 
 
 def test_can_be_archived(gang_type):

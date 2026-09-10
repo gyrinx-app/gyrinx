@@ -81,9 +81,15 @@ class Rated(models.Model):
     that touches the thing (see ``n26.operations``), and ``n26.reconcile``
     proves it still matches a fresh recompute. Subclasses say what the sum
     is over.
+
+    Signed, because a contribution can be: gear priced below nothing takes
+    credits off what its holder is worth, and a stash holding only such a
+    thing is worth less than nothing. The ledger the sum is taken from has
+    always been signed, so an unsigned column here could only refuse a
+    total the ledger already holds.
     """
 
-    rating = models.PositiveIntegerField(
+    rating = models.IntegerField(
         default=0,
         help_text="Pinned. Rewritten at operation boundaries, checked by reconcile.",
     )

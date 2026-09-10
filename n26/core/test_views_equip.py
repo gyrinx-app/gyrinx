@@ -902,6 +902,123 @@ def test_a_price_that_is_not_whole_credits_in_range_buys_nothing(
     assert gang.credits == 100
 
 
+@pytest.fixture
+def weakening_list(gang, tester):
+    """A list holding gear priced below nothing: taking it makes the
+    model worth less, and the gang is paid the difference."""
+    brittle = create_wargear("Reduced bone density", price=-10)
+    collection = create_collection("Gene-smithing", entries=[brittle])
+    with operation(gang, actor=tester) as op:
+        op.assign(collection, gang=gang)
+    return collection
+
+
+def test_the_box_for_gear_priced_below_nothing_opens_at_its_own_price(
+    client, tester, fighter, weakening_list
+):
+    """A floor of zero on the box would have the browser refuse the form
+    before the server saw it, and the quote is the one figure a reader
+    must be able to submit untouched."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, weakening_list)).content.decode()
+    assert 'value="-10"' in body
+    assert 'min="-10"' in body
+
+
+def test_gear_priced_below_nothing_is_bought_at_its_quote(
+    client, tester, gang, fighter, weakening_list
+):
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    brittle = Wargear.objects.get(name="Reduced bone density")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, weakening_list),
+        {"thing": key_of(brittle), price_field(brittle): "-10"},
+    )
+
+    gang.refresh_from_db()
+    assert gang.credits == 110
+    assert_reconciled(gang)
+
+
+def test_the_quote_stands_when_the_box_is_left_alone(
+    client, tester, gang, fighter, weakening_list
+):
+    from n26.library.models import Wargear
+
+    brittle = Wargear.objects.get(name="Reduced bone density")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, weakening_list),
+        {"thing": key_of(brittle), price_field(brittle): ""},
+    )
+    gang.refresh_from_db()
+    assert gang.credits == 110
+
+
+def test_a_buyer_may_accept_less_of_the_discount_but_never_more(
+    client, tester, gang, fighter, weakening_list
+):
+    """Typing a higher figure than a below-zero quote is the buyer
+    forgoing part of what they were owed, which is theirs to do. A lower
+    one would have the gang paying itself credits no content grants."""
+    from n26.core.models import Assignment
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    brittle = Wargear.objects.get(name="Reduced bone density")
+    client.force_login(tester)
+
+    client.post(
+        equip_url(fighter, weakening_list),
+        {"thing": key_of(brittle), price_field(brittle): "-15"},
+    )
+    assert not Assignment.objects.filter(wargear=brittle).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 100
+
+    client.post(
+        equip_url(fighter, weakening_list),
+        {"thing": key_of(brittle), price_field(brittle): "-5"},
+    )
+    gang.refresh_from_db()
+    assert gang.credits == 105
+    assert_reconciled(gang)
+
+
+def test_gear_priced_below_nothing_may_sit_alone_in_the_stash(
+    client, tester, gang, gang_type, make_profile, make_statline, weakening_list
+):
+    """A stash holding only such a thing is worth less than nothing, and
+    its pinned rating has to be able to say so rather than the move
+    failing on a column that cannot hold the sum. Founded first, because
+    founding is what writes the stash."""
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    profile = make_profile("Bruiser", price=100)
+    make_statline(profile, movement=5, weapon_skill=4, toughness=3)
+    with operation(gang, actor=tester) as op:
+        op.found(gang_type)
+        fighter = op.hire(profile, "Krath", paid=100)
+
+    brittle = Wargear.objects.get(name="Reduced bone density")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, weakening_list),
+        {"thing": key_of(brittle), price_field(brittle): "-10"},
+    )
+    held = Assignment.objects.get(wargear=brittle)
+    with operation(gang, actor=tester) as op:
+        op.move(held, gang.stash)
+
+    gang.stash.refresh_from_db()
+    assert gang.stash.rating == -10
+    assert_reconciled(gang)
+
+
 def test_an_overridden_price_the_gang_cannot_afford_is_still_refused(
     client, tester, gang, fighter, house_list
 ):

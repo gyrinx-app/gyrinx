@@ -51,7 +51,10 @@ PRICE_CEILING = 100_000
 #: A price is a whole number of credits, written in plain digits.
 #: Python's own ``int`` would also take "-5", "+5", "1_0" and digits from
 #: other scripts, none of which a price field should quietly accept.
-_WHOLE_CREDITS = re.compile(r"[0-9]+")
+#: A whole number of credits, optionally below zero. Whether a minus is
+#: allowed for one particular purchase is ``price_floor``'s question, not
+#: the shape's.
+_WHOLE_CREDITS = re.compile(r"-?[0-9]+")
 
 
 class BadPrice(Exception):
@@ -124,10 +127,15 @@ def price_typed(data, field, quoted, name):
     page's listing and a hire — the box is the same control on both.
 
     The number arrives from the browser, so it is read as a whole number
-    of credits and nothing else. A negative one would hand the gang
-    credits and an enormous one would not fit the ledger; both are
-    refused rather than trimmed, because with money, charging a figure
-    nobody typed is worse than charging nothing and saying so.
+    of credits and nothing else. An enormous one would not fit the
+    ledger, and a negative one would hand the gang credits — except
+    where the listing itself prices the thing below nothing, which some
+    gear is: taking it makes the model worth less, and the gang is paid
+    the difference. So the floor is the quote where the quote is below
+    zero and zero otherwise. A figure under the floor manufactures
+    credits no content grants, and is refused rather than trimmed,
+    because with money, charging a figure nobody typed is worse than
+    charging nothing and saying so.
 
     An empty box is not an override — the quote stands, which is the
     number the reader saw before anyone touched it.
@@ -136,11 +144,24 @@ def price_typed(data, field, quoted, name):
     if raw is None or not raw.strip():
         return quoted
     raw = raw.strip()
-    if not _WHOLE_CREDITS.fullmatch(raw) or int(raw) > PRICE_CEILING:
+    floor = price_floor(quoted)
+    if not _WHOLE_CREDITS.fullmatch(raw) or not floor <= int(raw) <= PRICE_CEILING:
         raise BadPrice(
-            f"{name}: a price is a whole number of credits, from 0 to {PRICE_CEILING}."
+            f"{name}: a price is a whole number of credits, "
+            f"from {floor} to {PRICE_CEILING}."
         )
     return int(raw)
+
+
+def price_floor(quoted):
+    """The least a buyer may type against a quote.
+
+    Nothing below zero for ordinary gear, whatever was typed. Gear the
+    listing prices below nothing may be taken at that price and at any
+    higher one, which is the buyer accepting less of the discount — never
+    at less, which would be the gang paying itself.
+    """
+    return min(0, quoted)
 
 
 def _price_typed(data, field, line):

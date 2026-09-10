@@ -20,6 +20,11 @@ the number rather than a second number: nobody is charged it.
 Hand-written rather than the kit's input: it has to be narrow, and the kit's
 takes its width and padding as classes it renders before the caller's, so the
 caller's would be the pair the browser drops.
+
+The box's floor is the quote where the quote is below zero, and zero
+otherwise — the same rule the server applies. Gear priced below nothing has to
+be submittable at its own price, and a floor of zero would have the browser
+refuse the form before the server ever saw it.
 {% endcomment %}
 <span class="flex items-center justify-end gap-1.5">
     <span x-show="Number.isFinite(price) &amp;&amp; price !== quoted"
@@ -30,7 +35,7 @@ caller's would be the pair the browser drops.
     <input type="number"
            name="{{ field }}"
            value="{{ quoted }}"
-           min="0"
+           min="{% if quoted < 0 %}{{ quoted }}{% else %}0{% endif %}"
            max="{{ price_cap }}"
            step="1"
            inputmode="numeric"
