@@ -413,6 +413,14 @@ test ends with `assert_reconciled(gang)`.
    Tests: the count zeroes, the penalty picks go, the history reads.
 6. **Words and drawing.** The note on the augmentation choice, the Hunt
    Master sentence, `recipes.md`, a gallery sample. Copywriter pass.
+   **Tom, 2026-09-10, after using it:** it is not clear at all that a
+   Power Boost result spends four Kill Count. The Power Boost line and
+   the pick screen must say so before a pick is made — the counter, the
+   four, and that a result taken back does not give them back. Also
+   from the same session: the picker now returns the reader to the
+   screen it was opened from (a `return` address carried on the link and
+   through the form, checked against this host), which every picker
+   link should pass — the gang sheet's do not yet.
 
 A feature flag is probably unnecessary — nothing draws until the content
 exists — but `n26/flags.py` is one line if 3 and 4 must land ahead of it.

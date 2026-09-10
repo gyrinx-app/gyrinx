@@ -300,7 +300,7 @@ def render_card_update(request, miniature, at):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
     card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card)
+    link_slots(gang, card, back=at)
     link_skills(card, among=model_collections())
     link_counters(card, back=at)
     # The card is drawn in edit mode, and edit mode's card carries the
@@ -672,7 +672,7 @@ def edit_fighter(request, pk):
     # the roster tally below. The card's own build carries the gang's
     # assignments already, so what the gang grants still reaches it.
     card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card)
+    link_slots(gang, card, back=request.get_full_path())
     link_skills(card, among=sets)
     # Only here. A counter is drawn wherever a card is; the model's own
     # page is the one place it is moved, so this is the one place the

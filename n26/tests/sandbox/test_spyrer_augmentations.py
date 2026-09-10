@@ -40,7 +40,7 @@ from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import build_model_card
+from n26.core.render import build_model_card, option_key
 from n26.library.authoring import is_one_of, targets_weapons
 from n26.library.models import Stat, StatlineType, StatlineTypeStat
 from n26.tests.sandbox.actions import (
@@ -721,3 +721,60 @@ class TestThePickerNamesTheItem:
 
         assert "Bolt launchers, for Orrus." in page
         assert 'aria-label="Add Tier 1"' in page or "Tier 1" in page
+
+
+class TestThePickerReturnsWhereItWasOpened:
+    """A link from the model's own page carries that page's address, and
+    settling the choice lands the reader back there. An address that is
+    not this site's own falls back to the gang."""
+
+    def picker(self, gang, orrus):
+        ladder = ladder_of(orrus, "Bolt launchers")
+        key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+        return reverse("n26-choose", args=[gang.pk, key])
+
+    def test_the_edit_page_links_its_choice_with_its_own_address(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        client.force_login(owner)
+        edit = reverse("n26-edit-fighter", args=[orrus.pk])
+
+        page = client.get(edit).content.decode()
+
+        assert f"return={edit}" in page.replace("%2F", "/")
+
+    def test_saving_from_the_edit_page_lands_back_on_it(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        client.force_login(owner)
+        edit = reverse("n26-edit-fighter", args=[orrus.pk])
+        picker = self.picker(gang, orrus)
+
+        page = client.get(f"{picker}?return={edit}").content.decode()
+        assert f'name="return" value="{edit}"' in page
+
+        reply = client.post(
+            picker,
+            {"thing": option_key(bolt_launcher_tiers["Tier 2"]), "return": edit},
+        )
+
+        assert reply.status_code == 302
+        assert reply.url == edit
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 2"]
+
+    def test_an_address_that_is_not_ours_falls_back_to_the_gang(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        client.force_login(owner)
+        picker = self.picker(gang, orrus)
+
+        reply = client.post(
+            picker,
+            {
+                "thing": option_key(bolt_launcher_tiers["Tier 1"]),
+                "return": "https://elsewhere.example/steal",
+            },
+        )
+
+        assert reply.status_code == 302
+        assert reply.url == reverse("n26-gang", args=[gang.pk])
