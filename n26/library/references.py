@@ -93,6 +93,13 @@ class Reference:
     #: row stands. False for a part of the thing (a weapon's own firing
     #: lines) and for a list membership, which is simply forgotten.
     protects: bool
+    #: Whether this row goes with the thing — a part of it, deleted by
+    #: the database along with it. False for a list membership, which is
+    #: forgotten rather than deleted, and for a column that is emptied.
+    cascades: bool = False
+    #: Whether this row keeps standing with the column emptied: a
+    #: ledger line that bought from an entry no longer there.
+    empties: bool = False
 
     @property
     def label(self):
@@ -161,9 +168,16 @@ def references_to(thing, *more):
         with_them = READ_WITH.get(rel.related_model._meta.label_lower)
         if with_them:
             rows = rows.select_related(*with_them)
-        protects = getattr(rel, "on_delete", None) is models.PROTECT
+        on_delete = getattr(rel, "on_delete", None)
         found.extend(
-            Reference(row=row, field=rel.field.name, protects=protects) for row in rows
+            Reference(
+                row=row,
+                field=rel.field.name,
+                protects=on_delete is models.PROTECT,
+                cascades=on_delete is models.CASCADE,
+                empties=on_delete is models.SET_NULL,
+            )
+            for row in rows
         )
     return tuple(found)
 

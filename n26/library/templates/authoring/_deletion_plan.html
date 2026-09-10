@@ -1,0 +1,58 @@
+{% comment %}
+What a delete would take, drawn on every page that asks the question:
+what goes, the test gangs that go with it, and what refuses it. Takes
+`counts`, `test_gangs` and `refusals` from _deletion_words in
+n26/library/views.py. Nothing here changes anything.
+{% endcomment %}
+{% if refusals %}
+    <c-ui.alert variant="error" title="Something still holds it">
+        <ul class="list-disc space-y-1 pl-5">
+            {% for words in refusals %}<li>{{ words|capfirst }}.</li>{% endfor %}
+        </ul>
+        <p class="mt-2">Nothing is deleted while any of these stands.</p>
+    </c-ui.alert>
+{% endif %}
+{% if counts and not refusals %}
+    <c-n26.form-section title="What goes">
+        <c-ui.table>
+            <tbody>
+                {% for kind, count in counts %}
+                    <tr>
+                        <td class="w-full">{{ kind|capfirst }}</td>
+                        <td class="text-right tabular-nums">{{ count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    </c-n26.form-section>
+{% endif %}
+{% if test_gangs and not refusals %}
+    <c-n26.form-section title="Test gangs that go with it"
+                        description="Each is owned by staff and shares no campaign or battle with a player's gang. It is deleted whole: its models, its gear, its ledger and its history.">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">Gang</th>
+                    <th scope="col">Owner</th>
+                    <th scope="col" class="w-full">Holds</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gang in test_gangs %}
+                    <tr>
+                        <td class="whitespace-nowrap">
+                            {{ gang.name }}
+                            {% if gang.archived %}
+                                <c-ui.badge color="gray" size="sm" class="ml-1">
+                                    Archived
+                                </c-ui.badge>
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap">{{ gang.owner }}</td>
+                        <td class="text-muted">{{ gang.holds }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    </c-n26.form-section>
+{% endif %}

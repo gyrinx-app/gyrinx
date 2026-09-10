@@ -2652,7 +2652,11 @@ def staged(request):
                 "kind_name_plural": str(model._meta.verbose_name_plural),
                 "model": model._meta.model_name,
                 "rows": [
-                    {**_named_row(row, model, slugs), "notes": describe(row)}
+                    {
+                        **_named_row(row, model, slugs),
+                        "notes": describe(row),
+                        "delete_url": _delete_url(row, model, slugs),
+                    }
                     for row in rows
                 ],
             }
@@ -2662,6 +2666,19 @@ def staged(request):
         "authoring/staged.html",
         {"groups": groups, "count": total},
     )
+
+
+def _delete_url(row, model, slugs):
+    """Where one row's delete page is, or empty for a kind with none —
+    a list's line, say, which is removed from its list's page."""
+    from n26.library.models import WeaponProfile
+
+    kind = slugs.get(model)
+    if kind:
+        return reverse("authoring-thing-delete", args=[kind, row.pk])
+    if model is WeaponProfile:
+        return reverse("authoring-weapon-profile-delete", args=[row.pk])
+    return ""
 
 
 @staff_member_required
@@ -3287,6 +3304,84 @@ def _carrier_page(carrier):
     return reverse("authoring-detail", args=[kind, carrier.pk])
 
 
+def _deletion_words(plan, label):
+    """What a delete page says about a plan: the test gangs it takes,
+    what refuses it, and the one button.
+
+    A refused plan draws no button — a click that could only be refused
+    is a question with one answer. A plan taking gangs names them on the
+    button, so the count is read before the click, not after.
+    """
+    gangs = [
+        {
+            "name": holder.name,
+            "owner": holder.owner,
+            "archived": holder.archived,
+            "holds": ", ".join(holder.holds),
+        }
+        for holder in (*plan.test_gangs, *plan.test_campaigns)
+    ]
+    campaigns = sum(1 for holder in plan.test_campaigns)
+    if plan.refusals:
+        submit_label = ""
+    elif gangs:
+        n = len(plan.test_gangs)
+        parts = [f"{n} test gang{'' if n == 1 else 's'}"] if n else []
+        if campaigns:
+            parts.append(f"{campaigns} test campaign{'' if campaigns == 1 else 's'}")
+        submit_label = f"Delete {label} and {' and '.join(parts)}"
+    else:
+        submit_label = "Delete it"
+    return {
+        "plan": plan,
+        "test_gangs": gangs,
+        "refusals": list(plan.refusals),
+        "counts": sorted(plan.counts().items()),
+        "submit_label": submit_label,
+    }
+
+
+def _perform_deletion(request, plan, label):
+    """Do what a delete page's plan says, and say where to go next.
+
+    Three endings. A refusal is said on the page and nothing is
+    deleted. A plan that takes a gang or a campaign is recorded and run
+    on the task runner, and the reader is sent to the record. A plan
+    that takes only library rows is done here, now.
+
+    Returns a redirect for the first two, or ``None`` when the rows were
+    deleted here and the caller decides where to lead.
+    """
+    from n26.library.deletion import Refused, apply
+    from n26.maintenance import AnotherRunning, start_test_content_deletion
+
+    if plan.refusals:
+        messages.error(
+            request,
+            f"{label} is still in use, so nothing was deleted: "
+            + "; ".join(plan.refusals)
+            + ".",
+        )
+        return redirect(request.path)
+    if plan.touches_players:
+        try:
+            record = start_test_content_deletion(plan, request.user)
+        except AnotherRunning:
+            messages.error(
+                request,
+                "Another deletion is still running. Try again when it has finished.",
+            )
+            return redirect(request.path)
+        return redirect("authoring-deletion", pk=record.pk)
+    try:
+        apply(plan)
+    except Refused as refused:
+        messages.error(request, f"{label} was not deleted: {refused}.")
+        return redirect(request.path)
+    messages.success(request, f"Deleted {label}.")
+    return None
+
+
 @staff_member_required
 def thing_delete(request, kind, pk):
     """The question asked before an authored row leaves the library.
@@ -3294,26 +3389,31 @@ def thing_delete(request, kind, pk):
     Deleting is for the unused: the database protects every reference —
     a gang's assignment, a list's entry, an option's kit — so a row
     anybody relies on is refused, in words, and nothing half-happens.
-    A page rather than a prompt, as every destructive act here is. The
-    act itself is ``_deleting``, shared with the pages that delete
-    something which is not an authored kind.
+    The one holder that is not history is the author's own test gang,
+    and the page says so: it lists the test gangs the delete would take
+    with the row, and the button counts them. A page rather than a
+    prompt, as every destructive act here is.
     """
+    from n26.library.deletion import plan_deletion
+
     spec = _spec_for(kind)
     model = _model_for(spec)
     thing = get_object_or_404(model, pk=pk)
     back = reverse("authoring-detail", args=[kind, pk])
+    label = _label_for(thing)
     # Read before the delete: a kind with no listing of its own goes back
     # to the page it was made on, and the row is what names that page.
     parent = _parent_of(kind, thing) if kind in NESTED_KINDS else None
 
     if request.method == "POST":
-        if _deleting(request, thing):
-            if parent is not None:
-                return redirect(
-                    "authoring-detail", kind=parent["kind"], pk=parent["thing"].pk
-                )
-            return redirect("authoring-leaf", kind=kind)
-        return redirect(request.path)
+        elsewhere = _perform_deletion(request, plan_deletion([thing]), label)
+        if elsewhere is not None:
+            return elsewhere
+        if parent is not None:
+            return redirect(
+                "authoring-detail", kind=parent["kind"], pk=parent["thing"].pk
+            )
+        return redirect("authoring-leaf", kind=kind)
 
     return render(
         request,
@@ -3321,9 +3421,65 @@ def thing_delete(request, kind, pk):
         {
             "thing": thing,
             "kind": kind,
-            "label": _label_for(thing),
+            "label": label,
             "verbose_name": model._meta.verbose_name,
             "back": back,
+            **_deletion_words(plan_deletion([thing]), label),
+        },
+    )
+
+
+@staff_member_required
+def staged_delete(request):
+    """The question asked before everything staged is deleted at once.
+
+    The way back from a book that did not work out: every staged row,
+    the test gangs founded to check it, and nothing else. One plan over
+    all of it, so a row one staged thing depends on is deleted beside it
+    rather than refusing alone; one confirmation; one act.
+    """
+    from n26.library.deletion import plan_deletion
+
+    things = [row for _, rows in staged_rows() for row in rows]
+    plan = plan_deletion(things)
+    label = "everything staged"
+
+    if request.method == "POST":
+        elsewhere = _perform_deletion(request, plan, label)
+        return elsewhere or redirect("authoring-staged")
+
+    return render(
+        request,
+        "authoring/staged_delete.html",
+        {"count": len(things), **_deletion_words(plan, label)},
+    )
+
+
+@staff_member_required
+def deletion(request, pk):
+    """One deletion's outcome: what was asked, and what came of it.
+
+    A deletion that takes a gang runs on the task runner, so the page
+    that asked for it cannot say how it ended. This one can, and it
+    reloads itself until there is an ending to say.
+    """
+    from n26.maintenance import test_content_deletion
+
+    record = test_content_deletion(pk)
+    if record is None:
+        raise Http404("No such deletion")
+    summary = record.summary or {}
+    return render(
+        request,
+        "authoring/deletion.html",
+        {
+            "record": record,
+            "running": record.status == record.Status.RUNNING,
+            "done": record.status == record.Status.DONE,
+            "preview": summary.get("preview", []),
+            "report": summary.get("report", []),
+            "gangs": summary.get("gangs", []),
+            "error": record.error,
         },
     )
 
@@ -5016,53 +5172,6 @@ def ingest_preview(request):
                 label for name, label, _holds in INGEST_SHEETS if name not in held
             ],
         },
-    )
-
-
-@staff_member_required
-def ingest_clear(request):
-    """Undo an import, having said first what that means.
-
-    The count is the whole page: a confirmation that did not name what
-    it was about to take would be a checkbox with extra steps. Posting
-    is the act — a link can be followed by accident, and something has
-    to be irreversible somewhere.
-    """
-    from django.db.models import ProtectedError
-
-    from n26.library.ingest import clear_imported, count_imported
-
-    if request.method == "POST":
-        try:
-            with transaction.atomic():
-                gone = clear_imported()
-        except ProtectedError as protected:
-            # Anything may hold imported content: a gang that bought a
-            # weapon, an authored modifier that names a trait. Saying
-            # which is the difference between a dead end and a next
-            # step, so the holders are counted by kind and named.
-            holders = Counter(
-                str(type(held)._meta.verbose_name)
-                for held in protected.protected_objects
-            )
-            said = ", ".join(
-                f"{count} {kind}" for kind, count in sorted(holders.items())
-            )
-            messages.error(
-                request,
-                f"Nothing was removed. Some of this content is held by "
-                f"{said}, which protects it — remove those first.",
-            )
-            return redirect("authoring-ingest-clear")
-        said = ", ".join(f"{count} {kind}" for kind, count in sorted(gone.items()))
-        messages.success(request, f"Cleared {said}." if said else "Nothing to clear.")
-        return redirect("authoring-ingest")
-
-    standing = count_imported()
-    return render(
-        request,
-        "authoring/ingest_clear.html",
-        {"standing": standing, "total": sum(standing.values())},
     )
 
 

@@ -210,6 +210,10 @@ class Operation(models.TextChoices):
         "n26_seed_journal_content",
         "n26: the Gang supertype and the Underhive Journal territories are created",
     )
+    DELETE_TEST_CONTENT = (
+        "n26_delete_test_content",
+        "n26: content is deleted along with the test gangs holding it",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -228,6 +232,7 @@ LOCK_KEYS = {
     Operation.OPEN_FOUNDING_ACTIONS: 826_020_617,
     Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS: 826_020_618,
     Operation.SEED_JOURNAL_CONTENT: 826_020_619,
+    Operation.DELETE_TEST_CONTENT: 826_020_620,
 }
 
 
@@ -2061,7 +2066,81 @@ register_operation(
 #: is scheduled work: the framework provisions a Cloud Scheduler job
 #: from the declaration, and only there — the local backend fires no
 #: schedules, so dev and tests invoke the sweep function directly.
+@task
+def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
+    """Delete content and the test gangs holding it, exactly as the
+    authoring page showed it.
+
+    Asked for from the authoring pages rather than the console: an
+    author deleting a staged gang type is deleting their own test gang
+    with it, and that is player data, so it runs here — recorded, locked,
+    and read again under the lock before anything goes.
+    """
+    from n26.library.deletion import DeletionPlan, Refused, apply
+
+    record = Backfill.objects.get(pk=backfill_id)
+    plan = DeletionPlan.from_record(record.summary)
+    _run_recorded(
+        backfill_id,
+        Operation.DELETE_TEST_CONTENT,
+        "Test content deletion",
+        lambda: apply(plan, actor=_who_asked(backfill_id)),
+        Refused,
+    )
+
+
+class AnotherRunning(Exception):
+    """A run of this operation is still going, so a second cannot start:
+    the runner's lock would make it stand down without writing an
+    ending, and its record would say running for ever."""
+
+
+def start_test_content_deletion(plan, user):
+    """Record a deletion the authoring page asked for, and enqueue it.
+
+    The record holds the plan as the page showed it, so the run can
+    refuse if what stands has changed, and so the page that shows the
+    outcome can say what was asked. Returns the record. Raises
+    :class:`AnotherRunning` while an earlier deletion is still going.
+    """
+    if running_guard(Operation.DELETE_TEST_CONTENT) is not None:
+        raise AnotherRunning
+    record = Backfill.objects.create(
+        operation=Operation.DELETE_TEST_CONTENT,
+        triggered_by=user,
+        status=Backfill.Status.RUNNING,
+        summary={**plan.as_record(), "attempts": 0},
+    )
+    delete_test_content.enqueue(backfill_id=str(record.id))
+    return record
+
+
+def test_content_deletion(pk):
+    """One deletion's record, for the page that shows its outcome — or
+    None where no such record exists."""
+    return Backfill.objects.filter(
+        pk=pk, operation=Operation.DELETE_TEST_CONTENT
+    ).first()
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.DELETE_TEST_CONTENT.value,
+        name=Operation.DELETE_TEST_CONTENT.label,
+        added=date(2026, 9, 9),
+        description=(
+            "Asked for from the content library's delete pages, not from "
+            "here. Deletes library rows together with the test gangs "
+            "holding them — gangs owned by staff that share no campaign "
+            "or battle with a player's gang. Refuses in words if a "
+            "player's gang holds any of it."
+        ),
+    )
+)
+
+
 task_routes = [
+    TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),

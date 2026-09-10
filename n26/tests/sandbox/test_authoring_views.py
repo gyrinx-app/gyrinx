@@ -3567,7 +3567,7 @@ class TestDeletingAThing:
 
         asked = client.get(page).content.decode()
         assert "Delete Never Chosen?" in asked
-        assert "no undo" in asked
+        assert "cannot undo" in asked
 
         done = client.post(page)
         assert done["Location"] == "/n26/authoring/affiliation/"

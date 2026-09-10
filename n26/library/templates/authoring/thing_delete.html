@@ -7,15 +7,15 @@ Nothing here changes anything — the form's POST is the act.
 
 Deleting is for the unused. Every reference protects its target — a
 gang's assignment, a list's entry, an option's kit — so a row anybody
-relies on is refused in words, and the way to make it deletable is to
-remove those references first.
+relies on is refused in words. The one holder that goes with the row is
+the author's own test gang, and the page lists those before the click.
 {% endcomment %}
 {% block head_title %}Delete {{ label }}{% endblock head_title %}
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-thing-delete' kind thing.pk %}"
                      title="Delete {{ label }}?"
-                     lead="For good: the {{ verbose_name }} leaves the library. There is no undo."
-                     submit_label="Delete it"
+                     lead="For good: the {{ verbose_name }} leaves the library{% if test_gangs %}, and so do the test gangs holding it{% endif %}. You cannot undo this."
+                     submit_label="{{ submit_label }}"
                      submit_variant="danger"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
@@ -30,10 +30,12 @@ remove those references first.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-ui.alert variant="info" title="Anything still using it refuses this">
-            A gang that holds it, a list that offers it, an option that
-            brings it — each protects it. If any exist, nothing is
-            deleted and this page says who they are.
-        </c-ui.alert>
+        {% include "authoring/_deletion_plan.html" %}
+        {% if not refusals and not test_gangs %}
+            <c-ui.alert variant="info" title="Nothing else holds it">
+                No gang has it, no list offers it and no option brings it,
+                so only the {{ verbose_name }} itself goes.
+            </c-ui.alert>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}

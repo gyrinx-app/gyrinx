@@ -27,7 +27,6 @@ pytestmark = pytest.mark.django_db
 
 URL = "/n26/authoring/ingest/"
 PREVIEW_URL = "/n26/authoring/ingest/preview/"
-CLEAR_URL = "/n26/authoring/ingest/clear/"
 
 
 def sheet_url(sheet):
@@ -363,106 +362,6 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
         client.post(PREVIEW_URL, follow=True)
 
         assert Weapon.objects.count() == weapons
-
-
-class TestTheDangerZone:
-    """Undoing an import is its own page: it says what would go, and
-    only a post takes it."""
-
-    def test_the_ingest_page_only_links_to_it(self, author, client, foundation):
-        """Counting is real work, and a page that did it on every visit
-        would charge everyone for a button almost nobody clicks."""
-        body = client.get(URL).content.decode()
-        assert "Danger zone" in body
-        assert CLEAR_URL in body
-        # The count belongs on the confirmation, not here.
-        assert "What would go" not in body
-
-    def test_it_says_what_would_go_before_taking_it(self, author, client, foundation):
-        hold_all(client)
-        client.post(PREVIEW_URL, follow=True)
-
-        body = client.get(CLEAR_URL).content.decode()
-
-        assert "What would go" in body
-        assert "weapons" in body
-        assert Weapon.objects.count() == 6  # and looking took nothing
-
-    def test_the_count_is_what_actually_goes(self, author, client, foundation):
-        """A confirmation promising different numbers from the ones that
-        went would be worse than none — so both read one definition."""
-        from n26.library.ingest import count_imported
-
-        hold_all(client)
-        client.post(PREVIEW_URL, follow=True)
-        promised = count_imported()
-
-        client.post(CLEAR_URL, follow=True)
-
-        assert promised["weapons"] == 6
-        assert count_imported() == {}
-
-    def test_clearing_leaves_the_foundations_standing(self, author, client, foundation):
-        hold_all(client)
-        client.post(PREVIEW_URL, follow=True)
-        assert Weapon.objects.exists()
-
-        client.post(CLEAR_URL, follow=True)
-
-        assert Weapon.objects.count() == 0
-        assert Profile.objects.count() == 0
-        for key, seed in STANDARD_CONTENT.items():
-            assert seed.status() == "complete", key
-
-    def test_a_clear_leaves_the_held_sheets_alone(self, author, client, foundation):
-        """The files are not content: they are what the content was made
-        from, and clearing is how a half-right spreadsheet is tried
-        again."""
-        hold_all(client)
-        client.post(PREVIEW_URL, follow=True)
-
-        client.post(CLEAR_URL, follow=True)
-
-        assert UploadedSheet.objects.filter(owner=author).count() == len(SHEETS)
-
-    def test_it_says_what_went(self, author, client, foundation):
-        hold_all(client)
-        client.post(PREVIEW_URL, follow=True)
-        body = client.post(CLEAR_URL, follow=True).content.decode()
-        assert "Cleared" in body
-        assert "weapons" in body
-
-    def test_an_empty_library_offers_nothing_to_delete(
-        self, author, client, foundation
-    ):
-        body = client.get(CLEAR_URL).content.decode()
-        assert "Nothing to delete" in body
-        assert "Yes, delete" not in body
-
-    def test_content_a_gang_holds_is_refused_in_words(self, author, client, foundation):
-        """The content does not go out from under a gang holding it, and
-        the page says why rather than showing a database error."""
-        from n26.library.models import GangType
-
-        from .actions import found_gang, give_weapon, hire
-
-        hold_all(client)
-        client.post(PREVIEW_URL, follow=True)
-        gang = found_gang(
-            "Clearing",
-            GangType.objects.get(name="Escher"),
-            owner=author,
-            budget=1000,
-        )
-        model = hire(gang, Profile.objects.get(name="Gang Queen"), "Yolanda")
-        give_weapon(model, Weapon.objects.get(name="Autogun"))
-
-        body = client.post(CLEAR_URL, follow=True).content.decode()
-
-        assert "protects it" in body
-        assert "Nothing was removed" in body
-        assert "assignment" in body  # names what holds it, not a guess
-        assert Weapon.objects.exists()
 
 
 class TestItIsStaffOnly:

@@ -427,16 +427,23 @@ urlpatterns = [
         authoring_views.staged_put_live,
         name="authoring-staged-put-live",
     ),
+    path(
+        "authoring/staged/delete/",
+        authoring_views.staged_delete,
+        name="authoring-staged-delete",
+    ),
+    # A deletion that takes a gang runs after the page that asked for it
+    # has answered, so its outcome has an address of its own.
+    path(
+        "authoring/deletions/<uuid:pk>/",
+        authoring_views.deletion,
+        name="authoring-deletion",
+    ),
     path("authoring/ingest/", authoring_views.ingest, name="authoring-ingest"),
     path(
         "authoring/ingest/preview/",
         authoring_views.ingest_preview,
         name="authoring-ingest-preview",
-    ),
-    path(
-        "authoring/ingest/clear/",
-        authoring_views.ingest_clear,
-        name="authoring-ingest-clear",
     ),
     path(
         "authoring/ingest/sheet/<slug:sheet>/",
