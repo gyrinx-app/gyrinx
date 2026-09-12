@@ -2282,6 +2282,9 @@ def card_to_model_card(
         ]
 
     def weapon_line(node, children):
+        # Neither the weapon's line nor an accessory's names what it
+        # brought: the kit that brings a model is wargear, drawn in the
+        # Gear row and the category rows, and only those lines ask.
         profiles = []
         # A weapon's children are its profiles and, now, its accessories.
         profile_nodes = [child for child in children if child.is_weapon_profile]

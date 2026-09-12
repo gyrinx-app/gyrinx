@@ -2137,26 +2137,48 @@ CARD_IMAGE = (
 )
 
 
+def model_card_as(variant, **changes):
+    """The sample card under another id, with ``changes`` applied.
+
+    Every stored card carries an anchor built from its id, and the
+    gallery draws the sample many times over on one page — so each
+    drawing is a variant with an id of its own, and an id appears on
+    the page once. The pet demo's owner link points at the plain
+    ``model_card()``, which is drawn exactly once.
+    """
+    return replace(model_card(), id=f"vesna-krail-{variant}", **changes)
+
+
+def model_card_digital():
+    """The sample card as the digital-first demo draws it — the same
+    card again, under its own anchor."""
+    return model_card_as("digital")
+
+
+def model_card_unwritten():
+    """The sample card with its Lore and Notes tabs empty, and an Edit
+    on each."""
+    return model_card_as("unwritten")
+
+
 def model_card_founding():
     """The sample card while the gang is still being founded: what this
     model has left of the Trade Points its books give it to spend as it
     joins, ahead of its rating."""
-    return replace(model_card(), founding_budget=True, trade_points_left=3)
+    return model_card_as("founding", founding_budget=True, trade_points_left=3)
 
 
 def model_card_written():
     """The sample card with its picture and its Lore and Notes tabs filled."""
-    return replace(model_card(), notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE)
+    return model_card_as(
+        "written", notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE
+    )
 
 
 def model_card_in_recovery():
     """The sample card with a status: In Recovery, badged beside the
     controls, the way a card reads after a Grievous Wound."""
-    return replace(
-        model_card(),
-        status="recovery",
-        status_label="In Recovery",
-    )
+    return model_card_as("in-recovery", status="recovery", status_label="In Recovery")
 
 
 def model_card_pet():
@@ -2184,13 +2206,19 @@ def model_card_pet():
 def model_card_in_the_stash():
     """The same pet where its collar was bought into the stash: nobody
     owns it, and the card says where the collar is."""
-    return replace(model_card_pet(), owned_by=None, owned_by_id="", in_stash=True)
+    return replace(
+        model_card_pet(),
+        id="fang-in-the-stash",
+        owned_by=None,
+        owned_by_id="",
+        in_stash=True,
+    )
 
 
 def model_card_dead():
     """The sample card dead: greyed, badged, counting nothing."""
-    return replace(
-        model_card(),
+    return model_card_as(
+        "dead",
         rating=0,
         status="dead",
         status_label="Dead",
@@ -2222,7 +2250,7 @@ def model_card_editable():
     )
     accessorise = Action("Add accessory", LINK, "#", SECONDARY)
 
-    card = replace(model_card())
+    card = model_card_as("edit")
     card.counters = [replace(line, href="#") for line in card.counters]
     # The base card draws several of one thing as one line with a count.
     # The model's own page draws one line per assignment, each with the

@@ -242,7 +242,18 @@ class TestThePetOnAModelCard:
         page = reader.get("/n26/design/c/model-card/").content.decode()
         assert "Owned by" in page
         assert 'href="#model-vesna-krail"' in page
-        assert 'id="model-vesna-krail"' in page
+        assert page.count('id="model-vesna-krail"') == 1
+
+    def test_every_card_on_the_page_has_an_anchor_of_its_own(self, reader):
+        """The sample card is drawn many times over; each drawing is a
+        variant under its own id, so the owner link lands on one card
+        and the page holds no id twice."""
+        import re
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        anchors = re.findall(r'id="(model-[^"]+)"', page)
+        assert len(anchors) >= 8
+        assert sorted(anchors) == sorted(set(anchors))
 
     def test_the_stashed_pet_demo_says_where_the_collar_is(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
