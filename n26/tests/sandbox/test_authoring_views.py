@@ -3980,6 +3980,46 @@ class TestTheCollectionPage:
         assert "Nothing defined yet" in body
         assert "Empty — nothing matches the definition yet" in body
 
+    def test_a_collection_is_given_its_position_on_the_page(
+        self, author, client, default_pack
+    ):
+        """The number that orders a fighter's lists on Equip is asked
+        for beside the name, with the model's own words, and written."""
+        from n26.library.models import Collection
+
+        page = client.get("/n26/authoring/collection/new/").content.decode()
+        assert 'name="position"' in page
+        assert "The lowest number comes first, and Equip opens on it." in page
+
+        response = client.post(
+            "/n26/authoring/collection/new/",
+            {"name": "Chaos Corrupted Equipment List", "position": "100"},
+        )
+        assert response.status_code == 302
+        made = Collection.objects.get(name="Chaos Corrupted Equipment List")
+        assert made.position == 100
+
+        response = client.post(
+            "/n26/authoring/collection/new/", {"name": "Escher Equipment List"}
+        )
+        assert response.status_code == 302
+        assert Collection.objects.get(name="Escher Equipment List").position == 0
+
+    def test_a_negative_position_is_refused_in_words(
+        self, author, client, default_pack
+    ):
+        """The column refuses negatives, so the form must first: a
+        number below every list would open Equip on it."""
+        from n26.library.models import Collection
+
+        response = client.post(
+            "/n26/authoring/collection/new/",
+            {"name": "Sup-Pets Equipment List", "position": "-1"},
+        )
+        assert response.status_code == 200
+        assert "greater than or equal to 0" in response.content.decode()
+        assert not Collection.objects.filter(name="Sup-Pets Equipment List").exists()
+
     def test_the_trading_post_previews_its_membership(
         self, author, client, default_pack
     ):

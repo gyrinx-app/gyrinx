@@ -38,6 +38,7 @@ from n26.maintenance import (
     delete_legacy_affiliation_assignments_view,
     delete_nameless_gang_type_view,
     open_founding_actions_view,
+    order_collections_view,
     task_routes,
 )
 
@@ -315,6 +316,127 @@ class TestTheRunnerDiscipline:
         assert record.status == Backfill.Status.DONE
         assert record.summary["seconds"] == 0
         assert "warning" not in record.summary
+
+
+class TestTheCollectionOrdering:
+    """The repair that sinks the variant equipment lists: every
+    collection on the page with how it reaches a card, one column
+    written, one transaction."""
+
+    @pytest.fixture
+    def variant_world(self, default_pack):
+        """A house list a gang type grants, and a variant's list a pick
+        of a slot type that is not a gang archetype grants."""
+        from n26.library.authoring import (
+            create_collection,
+            create_gang_type,
+            create_pickable,
+            create_slot_type,
+            ef_adds,
+            modifier,
+            targets_every_model,
+        )
+
+        house = create_collection("Escher Equipment List")
+        escher = create_gang_type("Escher")
+        modifier(
+            "Escher: its fighters buy from the Escher list",
+            targets_every_model(),
+            ef_adds(house),
+            attach_to=escher,
+        )
+        variant = create_collection("Chaos Corrupted Equipment List")
+        corrupted = create_pickable("Chaos Corrupted", create_slot_type("Variant"))
+        modifier(
+            "Chaos Corrupted: its fighters buy from the Chaos Corrupted list",
+            targets_every_model(),
+            ef_adds(variant),
+            attach_to=corrupted,
+        )
+        return {"house": house, "variant": variant}
+
+    def test_its_lock_is_not_shared(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert LOCK_KEYS[Operation.ORDER_COLLECTIONS] == 826_020_625
+        assert Operation.ORDER_COLLECTIONS.value == "n26_order_collections"
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.ORDER_COLLECTIONS.value in registered
+        found = resolve_operation(Operation.ORDER_COLLECTIONS.value)
+        assert found.name == Operation.ORDER_COLLECTIONS.label
+        assert found.view is order_collections_view
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(reverse("admin:maintenance_n26_order_collections"))
+
+        assert response.status_code in (302, 403)
+
+    def test_its_page_lists_every_collection_and_writes_nothing(
+        self, client, superuser, variant_world
+    ):
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_order_collections"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Escher Equipment List" in page
+        assert "granted by gang type Escher" in page
+        assert "Chaos Corrupted Equipment List" in page
+        assert "granted by pickable Chaos Corrupted (Variant)" in page
+        assert "set to 100" in page
+        assert "1 list would be set to 100" in page
+        assert "Set position 100 on the variant lists" in page
+        assert not Backfill.objects.exists()
+        variant_world["variant"].refresh_from_db()
+        assert variant_world["variant"].position == 0
+
+    def test_applying_records_what_it_set(self, client, superuser, variant_world):
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_order_collections"))
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.ORDER_COLLECTIONS)
+        assert run.status == Backfill.Status.DONE
+        assert run.triggered_by == superuser
+        assert run.summary["preview"] == [
+            "Chaos Corrupted Equipment List (N26): granted by pickable "
+            "Chaos Corrupted (Variant) — set to 100"
+        ]
+        assert run.summary["report"] == [
+            "Chaos Corrupted Equipment List (N26): set to 100",
+            "Set 1 list.",
+        ]
+        variant_world["variant"].refresh_from_db()
+        variant_world["house"].refresh_from_db()
+        assert variant_world["variant"].position == 100
+        assert variant_world["house"].position == 0
+
+        page = client.get(response["Location"]).content.decode()
+        assert "What it did" in page
+        assert "Chaos Corrupted Equipment List (N26): set to 100" in page
+
+    def test_its_page_says_when_there_is_nothing_to_set(
+        self, client, superuser, variant_world
+    ):
+        from n26.library.models import Collection
+
+        Collection.objects.filter(pk=variant_world["variant"].pk).update(position=100)
+        client.force_login(superuser)
+
+        page = client.get(reverse("admin:maintenance_n26_order_collections"))
+        assert "Nothing to set" in page.content.decode()
+        assert "left at 100, already set" in page.content.decode()
+
+        response = client.post(reverse("admin:maintenance_n26_order_collections"))
+        assert response.status_code == 302
+        assert not Backfill.objects.exists()
 
 
 @pytest.fixture
