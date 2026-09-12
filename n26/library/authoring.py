@@ -1725,6 +1725,7 @@ def create_collection(
     entries=(),
     contains=(),
     prices_its_entries=True,
+    position=0,
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -1732,7 +1733,8 @@ def create_collection(
     """A collection. ``entries`` are assignables, or
     ``(assignable, {overrides})`` pairs for priced ones; ``contains``
     are selector sweeps — model classes, or ``(model, category)`` to
-    narrow."""
+    narrow. ``position`` orders it among the lists a fighter or gang
+    holds, lowest first."""
     from n26.library.models import Collection, CollectionEntry, CollectionSelector
 
     # Extra kwargs describe the collection; only the
@@ -1741,6 +1743,7 @@ def create_collection(
     collection = Collection.objects.create(
         name=name,
         prices_its_entries=prices_its_entries,
+        position=position,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **kwargs,

@@ -222,6 +222,10 @@ class Operation(models.TextChoices):
         "n26_merge_into",
         "n26: a duplicate row is merged into the row it duplicates",
     )
+    ORDER_COLLECTIONS = (
+        "n26_order_collections",
+        "n26: variant equipment lists are moved after the gang's own on Equip",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -243,6 +247,7 @@ LOCK_KEYS = {
     Operation.DELETE_TEST_CONTENT: 826_020_620,
     Operation.DELETE_FIRING_LINE: 826_020_621,
     Operation.MERGE_INTO: 826_020_622,
+    Operation.ORDER_COLLECTIONS: 826_020_625,
 }
 
 
@@ -1954,6 +1959,113 @@ register_operation(
 
 
 @task
+def order_collections(backfill_id, **said_by_whoever_enqueued_it):
+    """Give the lists variant picks add a position after the gang's own,
+    and record it.
+
+    The runner discipline around work that writes one column of library
+    rows and nothing else. No gang is touched, so there is nothing to
+    prove beyond the numbers written.
+    """
+    from n26.library.collection_positions import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.ORDER_COLLECTIONS,
+        "Collection ordering",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+ORDER_COLLECTIONS_WORDS = {
+    "intro": (
+        "This sets the order of the equipment lists a fighter or gang holds. "
+        "The Equip screen opens on the list with the lowest position. Every "
+        "list starts at 0, so a list added by a variant can open before the "
+        "gang's own. This sets position 100 on every list that is granted "
+        "only by picks that are not gang archetypes, and leaves every other "
+        "list as it is. The table lists every collection, how it reaches a "
+        "card, and what applying does to it. Check it against the lists in "
+        "production before applying. You can change any list's position on "
+        "its authoring page afterwards."
+    ),
+    "nothing_heading": "Nothing to set",
+    "nothing_flash": "There was nothing to set.",
+    "nothing_words": (
+        "Every list granted only by variant picks already has a position above 0."
+    ),
+    "refuses_heading": "The positions cannot be set",
+    "button": "Set position 100 on the variant lists",
+    "confirm": (
+        "Set position 100 on the lists marked in the table? You can change "
+        "any list's position on its authoring page afterwards."
+    ),
+}
+
+
+def order_collections_view(request):
+    """Preview the positions (GET), or record a run and enqueue it."""
+    from n26.library.collection_positions import VARIANT_POSITION, find
+
+    operation = Operation.ORDER_COLLECTIONS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That run is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        plan = find()
+        if plan.nothing_here:
+            messages.info(request, ORDER_COLLECTIONS_WORDS["nothing_flash"])
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(plan.preview()), "attempts": 0},
+        )
+        order_collections.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The run has started. The result will appear below.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+    plan = find()
+    context = page_context(
+        request,
+        operation.label,
+        plan=plan,
+        readings=plan.readings,
+        variant_position=VARIANT_POSITION,
+        words=ORDER_COLLECTIONS_WORDS,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/order_collections.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.ORDER_COLLECTIONS.value,
+        name=Operation.ORDER_COLLECTIONS.label,
+        added=date(2026, 9, 12),
+        description=(
+            "Set position 100 on every equipment list that is granted only "
+            "by picks that are not gang archetypes, so it sorts after the "
+            "gang's own list on the Equip screen. Every other list keeps "
+            "its position. The page lists every collection with how it "
+            "reaches a card, for checking before applying."
+        ),
+        view=order_collections_view,
+        detail_template="admin/maintenance/n26/_order_collections_detail.html",
+    )
+)
+
+
+@task
 def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
     """Create the Gang supertype and the two Underhive Journals' territories
     and tables, once, and record what was created.
@@ -2267,6 +2379,7 @@ task_routes = [
     TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     TaskRoute(open_founding_actions, ack_deadline=600),
     TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
 ]
 
 

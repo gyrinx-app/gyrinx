@@ -1288,6 +1288,7 @@ def _build_registry():
             {
                 "name": Text(source=(Collection, "name")),
                 "prices_its_entries": Bool(source=(Collection, "prices_its_entries")),
+                "position": Int(source=(Collection, "position")),
                 "qualifier": Text(source=(Collection, "qualifier")),
                 "library_author_help": Text(
                     source=(Collection, "library_author_help"), long=True
