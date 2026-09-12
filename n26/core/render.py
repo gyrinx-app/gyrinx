@@ -650,7 +650,7 @@ class ArrivalScreen:
         ]
 
     @property
-    def outstanding_said(self):
+    def outstanding_words(self):
         """The open questions as a sentence names them: "Archetype",
         "Archetype and Creed", "Archetype, Creed and Path"."""
         labels = self.outstanding
