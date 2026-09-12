@@ -131,14 +131,15 @@ def fighter_options(request, pk):
     members = roster(gang)
     # The card, read the way the Edit face reads it — this one model, with
     # the options each copy was bought with, so the kit acts can describe
-    # every copy. Those acts open over the model's own page: this screen
-    # has no dialog host of its own.
+    # every copy. Every act on it lands on the model's own page — the kit
+    # acts, the status badge, and the choice and counter controls alike —
+    # because this screen holds no host for any of them and is not where
+    # a reader who has just acted on the card wants to be left.
     own = build_card(miniature, with_statlines=True, with_options=True)
     computed = compute(own, build_modifier_index(carriers(own)))
-    host = EquipHost.fighter(
-        gang, own, miniature, reverse("n26-edit-fighter", args=[miniature.pk])
-    )
-    card = link_model_card(gang, miniature, own, computed, host, back=here)
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
+    host = EquipHost.fighter(gang, own, miniature, edit)
+    card = link_model_card(gang, miniature, own, computed, host, back=edit)
     return render(
         request,
         "n26/fighter_options.html",
