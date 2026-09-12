@@ -853,12 +853,16 @@ $width-em-sizes: (
     }
 }
 
-// The optional contents block: a nested, numbered list of the page's headings.
+// The optional contents block: the page's headings, nested by indent alone.
+// No markers, 1em per level — the same shape as the sidebar page nav, which
+// indents by page depth and carries no bullets either.
 .flatpage-contents-list {
-    padding-inline-start: 1.5em;
+    list-style: none;
+    padding-inline-start: 0;
     margin-bottom: 0;
 
     .flatpage-contents-list {
+        padding-inline-start: 1em;
         margin-top: 0.25em;
     }
 

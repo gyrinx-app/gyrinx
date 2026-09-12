@@ -134,7 +134,7 @@ def test_page_contents_renders_nested_list_with_deduplicated_links(site):
     setup2 = html.index('href="#setup-2"')
     outro = html.index('href="#outro"')
     assert intro < setup2 < outro
-    assert html.count("<ol") == 2
+    assert html.count("<ul") == 2
 
 
 @pytest.mark.django_db
