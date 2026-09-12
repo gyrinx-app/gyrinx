@@ -1,0 +1,96 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The collection ordering's console page: every collection, how it reaches
+a card, and the position applying gives it; an apply button; the recent
+runs. Context from order_collections_view (n26/maintenance.py): title,
+plan, readings, variant_position, words, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-table td { vertical-align: top; }
+    .mt-set { font-weight: bold; }
+    .mt-problems { color: var(--error-fg, #ba2121); }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>{{ words.intro }}</p>
+    {% if not plan.ok %}
+        <h2 class="mt-problems">{{ words.refuses_heading }}</h2>
+        <ul class="mt-problems">
+            {% for problem in plan.problems %}<li>{{ problem }}</li>{% endfor %}
+        </ul>
+        <p>Nothing can be applied while any of these stands.</p>
+    {% elif plan.nothing_here %}
+        <h2>{{ words.nothing_heading }}</h2>
+        <p>{{ words.nothing_words }}</p>
+    {% else %}
+        <h2>What it would do</h2>
+        <p>{{ plan.to_set|length }} list{{ plan.to_set|length|pluralize }} would be set to {{ variant_position }}. The rest are left as they are.</p>
+        <form method="post"
+              class="mt-form"
+              onsubmit="return confirm('{{ words.confirm|escapejs }}')">
+            {% csrf_token %}
+            <button type="submit" class="button default">{{ words.button }}</button>
+        </form>
+    {% endif %}
+    <h2>Every collection</h2>
+    {% if readings %}
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>Collection</th>
+                    <th>Pack</th>
+                    <th>Reaches a card by</th>
+                    <th>Position now</th>
+                    <th>After applying</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reading in readings %}
+                    <tr>
+                        <td>{{ reading.name }}</td>
+                        <td>{{ reading.pack }}</td>
+                        <td>{{ reading.granted }}</td>
+                        <td>{{ reading.position }}</td>
+                        <td {% if reading.changes %}class="mt-set"{% endif %}>{{ reading.outcome }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No collections in the library yet.</p>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

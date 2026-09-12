@@ -1,5 +1,5 @@
 {# title: Two strips, one visible #}
-{# note: The caller fills both slots with its own tabs. Narrow the window below the sm breakpoint and the full strip gives way to the current tab with the rest behind the switcher; the box around a strip changes nothing, since the split reads the window. #}
+{# note: The caller fills both slots with its own tabs. Narrow the window below the sm breakpoint and the full strip gives way to the narrow one — here the current tab with the other two behind the switcher, since a caller with two tabs or fewer fills the narrow slot with both instead. The box around a strip changes nothing, since the split reads the window. #}
 {# layout: full #}
 <c-n26.tab-strip>
     <c-slot name="full">

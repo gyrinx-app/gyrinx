@@ -334,6 +334,10 @@ def _tab_label(collection):
 def buyable_lists(held):
     """The lists among those held that are somewhere to buy kit, in the
     order they were come by, with the standard Trading Post after them.
+    The post is last whether or not something holds it: a held post sits
+    among the lists at whatever position it carries, and a screen that
+    opened on it would open on the whole catalogue rather than the gang's
+    own list.
 
     Holding a collection and buying from it are different things: a
     set of skills is carried exactly as an equipment list is, and only
@@ -362,8 +366,8 @@ def buyable_lists(held):
     post = Collection.objects.filter(
         name=TRADING_POST_COLLECTION, pack=get_default_pack()
     ).first()
-    if post is not None and post.pk not in {c.pk for c in collections}:
-        collections.append(post)
+    if post is not None:
+        collections = [c for c in collections if c.pk != post.pk] + [post]
     return collections
 
 

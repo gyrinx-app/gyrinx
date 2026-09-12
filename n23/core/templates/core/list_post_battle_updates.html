@@ -4,7 +4,7 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:list' list.id as list_url %}
-    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" hide_post_battle=True %}
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3 mb-0">Post-battle updates</h1>
         <p class="text-secondary mb-0">

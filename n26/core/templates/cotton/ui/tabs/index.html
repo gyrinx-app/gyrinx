@@ -2,11 +2,13 @@
 <c-ui.tabs> — in-page panels with a generated tab bar.
 
 Overrides the kit's strip. The default variant's strip is two blocks switched
-at the sm breakpoint by c-n26.tab-strip: every tab from sm up, below it the
-open tab alone with the rest behind a c-n26.quick-switcher — so the strip
-never wraps to a second row and never scrolls sideways. The kit's single
-strip pairs overflow-x-auto with buttons that overhang their box by a pixel,
-which is exactly the shape that grows a scrollbar.
+at the sm breakpoint by c-n26.tab-strip: every tab from sm up, below it at
+most two — two tabs or fewer drawn whole, three or more as the open tab with
+the rest behind a c-n26.quick-switcher — so the strip never wraps to a second
+row and never scrolls sideways, and the switcher's menu never holds fewer
+than two. The kit's single strip pairs overflow-x-auto with buttons that
+overhang their box by a pixel, which is exactly the shape that grows a
+scrollbar.
 
 The segmented variant keeps the kit's own strip and DOM shape: .n26-card-tabs
 addresses it by position (root div, then first-child div), so an extra
@@ -45,9 +47,6 @@ dispatches quick-switcher-choose for the strip to act on.
     },
     isActive(name) {
         return this.activeTab === name;
-    },
-    get current() {
-        return this.tabs.find(tab => tab.name === this.activeTab) || null;
     }
 }"
 class="w-full space-y-4"
@@ -118,19 +117,48 @@ class="w-full space-y-4"
                 </template>
             </c-slot>
             <c-slot name="narrow">
-                <span x-show="current" x-cloak
-                      class="inline-flex max-w-full items-center whitespace-nowrap border-b-2 font-medium
-                             {% if size == 'sm' %}text-xs px-2.5 py-1
-                             {% elif size == 'lg' %}text-base px-4 py-2
-                             {% else %}text-sm px-3 py-1.5{% endif %}
-                             {% if accent %}border-accent text-accent
-                             {% else %}border-ink-900 text-ink-900 dark:border-ink-100 dark:text-ink-100{% endif %}">
-                    <span x-show="current && current.icon" x-html="current && current.icon" class="mr-2 [&>svg]:size-4 flex shrink-0 items-center"></span>
-                    <span class="min-w-0 truncate" x-text="activeTab"></span>
-                </span>
-                <span x-show="tabs.length > 1" x-cloak
+                {% comment %}
+                Up to two tabs drawn whole, and from three the open tab with
+                the rest behind the switcher: "+1 more" takes the room the
+                other tab would and says less, and a menu of one is not worth
+                opening. The same buttons as the wide strip, with the name
+                allowed to truncate, since here it may have the width alone.
+                {% endcomment %}
+                <template x-for="tab in tabs" :key="tab.name">
+                    <button type="button"
+                        x-show="tabs.length <= 2 || isActive(tab.name)"
+                        @click="activeTab = tab.name"
+                        class="
+                            inline-flex max-w-full items-center justify-center whitespace-nowrap transition-all focus-ring
+                            border-b-2 font-medium rounded-t-md
+                            {% if fill %}flex-1{% endif %}
+                            disabled:pointer-events-none disabled:opacity-50
+                            {% if size == 'sm' %}text-xs px-2.5 py-1
+                            {% elif size == 'lg' %}text-base px-4 py-2
+                            {% else %}text-sm px-3 py-1.5{% endif %}
+                        "
+                        :class="{
+                            {% if accent %}
+                                'border-accent text-accent': isActive(tab.name),
+                            {% else %}
+                                'border-ink-900 text-ink-900 dark:border-ink-100 dark:text-ink-100': isActive(tab.name),
+                            {% endif %}
+                            'border-box-border text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200': !isActive(tab.name)
+                        }"
+                    >
+                        <span x-show="tab.icon" x-html="tab.icon" class="mr-2 [&>svg]:size-4 flex shrink-0 items-center"></span>
+                        <span class="min-w-0 truncate" x-text="tab.name"></span>
+                    </button>
+                </template>
+                {% comment %}
+                order-last, as on the skeleton's spacer: the tabs above are
+                x-for clones, which Alpine appends at the end of the
+                container, and this span is written before the spacer so the
+                two keep their order.
+                {% endcomment %}
+                <span x-show="tabs.length > 2" x-cloak
                       @quick-switcher-choose="activeTab = $event.detail.value"
-                      class="flex shrink-0 items-center border-b-2 border-box-border"
+                      class="order-last flex shrink-0 items-center border-b-2 border-box-border"
                 >
                     <c-n26.quick-switcher heading="Which tab"
                                           menu_label="Other tabs"

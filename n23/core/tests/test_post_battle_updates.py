@@ -765,12 +765,11 @@ def test_post_battle_link_visible_to_arbitrator_on_list_page(
     campaign.lists.add(plist)
     post_battle_url = reverse("core:list-post-battle", args=[plist.id])
 
-    # Arbitrator (campaign owner = user) sees the menu item on a gang they
+    # Arbitrator (campaign owner = user) sees the button on a gang they
     # don't own — the view lets them edit, so the link must be discoverable.
     client.force_login(user)
     resp = client.get(reverse("core:list", args=[plist.id]))
     assert resp.status_code == 200
-    assert resp.context["is_campaign_arbitrator"] is True
     assert post_battle_url in resp.content.decode()
 
     # An unrelated viewer is not the arbitrator and does not see it.
@@ -780,7 +779,6 @@ def test_post_battle_link_visible_to_arbitrator_on_list_page(
     client.force_login(outsider)
     resp = client.get(reverse("core:list", args=[plist.id]))
     assert resp.status_code == 200
-    assert resp.context["is_campaign_arbitrator"] is False
     assert post_battle_url not in resp.content.decode()
 
 
@@ -812,3 +810,113 @@ def test_post_battle_arbitrator_can_edit_and_outsider_cannot(
     client.force_login(outsider)
     resp = client.get(reverse("core:list-post-battle", args=[plist.id]))
     assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_post_battle_button_on_gang_page_once_and_not_in_dropdown(
+    client, user, list_with_campaign
+):
+    # The owner of a campaign-mode gang gets the sequence as a primary button in
+    # the action bar. The dropdown entry is gone and the common header (which the
+    # gang page also includes) does not repeat it, so the URL appears exactly once.
+    client.force_login(user)
+    resp = client.get(reverse("core:list", args=[list_with_campaign.id]))
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    post_battle_url = reverse("core:list-post-battle", args=[list_with_campaign.id])
+    assert html.count(f'href="{post_battle_url}"') == 1
+    assert f'class="btn btn-primary btn-sm" href="{post_battle_url}"' in html, (
+        "expected a primary c-btn, not a dropdown item"
+    )
+
+
+@pytest.mark.django_db
+def test_post_battle_button_absent_for_list_building_gang(client, user, make_list):
+    # Not in campaign mode: neither the gang page nor a sub-page offers the sequence.
+    lst = make_list("Builder")
+    client.force_login(user)
+    post_battle_url = reverse("core:list-post-battle", args=[lst.id])
+    for name in ("core:list", "core:list-about"):
+        resp = client.get(reverse(name, args=[lst.id]))
+        assert resp.status_code == 200
+        assert post_battle_url not in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_post_battle_icon_in_common_header_on_sub_pages(
+    client, user, make_user, campaign, make_list
+):
+    from n23.core.models.list import List
+
+    player = make_user("player_pb_header", "password")
+    plist = make_list(
+        "Player Gang",
+        owner=player,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+        public=True,
+    )
+    campaign.lists.add(plist)
+    post_battle_url = reverse("core:list-post-battle", args=[plist.id])
+    about_url = reverse("core:list-about", args=[plist.id])
+    # The header renders the icon-only button with a visually-hidden label.
+    icon_button = f'href="{post_battle_url}"'
+    hidden_label = '<span class="visually-hidden">Post-battle updates</span>'
+
+    # Owner sees it on a sub-page.
+    client.force_login(player)
+    html = client.get(about_url).content.decode()
+    assert icon_button in html
+    assert hidden_label in html
+    assert 'data-bs-title="Post-battle updates"' in html
+
+    # The campaign arbitrator (campaign owner = user) sees it on a gang they
+    # do not own, matching what the post-battle view lets them do.
+    client.force_login(user)
+    html = client.get(about_url).content.decode()
+    assert icon_button in html
+    assert hidden_label in html
+
+    # An unrelated viewer of the public gang does not.
+    outsider = make_user("outsider_pb_header", "password")
+    client.force_login(outsider)
+    html = client.get(about_url).content.decode()
+    assert post_battle_url not in html
+
+    # The post-battle page itself does not offer a link to itself in the header.
+    client.force_login(player)
+    html = client.get(post_battle_url).content.decode()
+    assert hidden_label not in html
+
+
+@pytest.mark.django_db
+def test_post_battle_button_visible_to_shared_campaign_admin(
+    client, make_user, campaign, make_list
+):
+    """A shared campaign admin can open the post-battle view, so both the
+    gang-page button and the sub-page header icon show for them."""
+    from n23.core.models.list import List
+
+    player = make_user("player_pb_shared_admin", "password")
+    shared_admin = make_user("shared_admin_pb", "password")
+    campaign.admins.add(shared_admin)
+    plist = make_list(
+        "Player Gang",
+        owner=player,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+        public=True,
+    )
+    campaign.lists.add(plist)
+    post_battle_url = reverse("core:list-post-battle", args=[plist.id])
+
+    client.force_login(shared_admin)
+    # The link must lead somewhere the shared admin may go.
+    assert client.get(post_battle_url).status_code == 200
+    html = client.get(reverse("core:list", args=[plist.id])).content.decode()
+    assert html.count(post_battle_url) == 1
+    assert "Post-battle updates" in html
+
+    html = client.get(reverse("core:list-about", args=[plist.id])).content.decode()
+    assert post_battle_url in html
+    assert '<span class="visually-hidden">Post-battle updates</span>' in html

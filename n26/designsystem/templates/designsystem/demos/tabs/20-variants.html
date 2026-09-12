@@ -1,5 +1,5 @@
 {# title: Segmented, sizes and a default #}
-{# note: :default_tab takes the name of the panel to open first; without it the first one registered wins. :fill stretches the tabs across the full width. #}
+{# note: :default_tab takes the name of the panel to open first; without it the first one registered wins. :fill stretches the tabs across the full width. The small strip has two panels, so below the sm breakpoint both stay drawn: a chevron saying "+1 more" would take the room the other tab takes. #}
 {# layout: col #}
 <c-ui.tabs variant="segmented" default_tab="Shooting" :fill="True">
     <c-ui.tabs.tab name="Movement">
