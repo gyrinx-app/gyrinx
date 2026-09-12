@@ -33,8 +33,9 @@ What it leaves alone, and why:
 
 It is one transaction, and it strips exactly what the preview showed.
 The plan is written onto the record when the run is asked for; the run
-locks the items it names, reads them again, and refuses if what stands
-differs from what was approved. One difference is not a refusal: every
+locks the items it names and the listings that make them eligible,
+reads them again, and refuses if what stands differs from what was
+approved. One difference is not a refusal: every
 approved item carrying nothing at all is the plan carried out — the
 clearing committed but its ending was never written, or an author took
 the same links off by hand — and that run ends done, writing nothing.
@@ -258,6 +259,25 @@ def _lock(approved):
     return locked
 
 
+def _lock_entries(approved):
+    """The listings that make each approved item eligible, locked for
+    the rest of the transaction — one query per kind.
+
+    A listing taken off between the reading and the clearing would
+    have the run strip an item no list carries any more. Held, the
+    removal waits for the run to end, and the reading holds.
+    """
+    from n26.library.models import CollectionEntry
+
+    columns = {model._meta.label_lower: column for column, model in listable_kinds()}
+    for label, pks in _by_model(approved).items():
+        list(
+            CollectionEntry.objects.select_for_update()
+            .filter(**{f"{columns[label]}__in": pks})
+            .values_list("pk", flat=True)
+        )
+
+
 def _any_still_restricted(approved):
     """Whether any item the plan names still carries a restriction to
     fighter entries — one query per kind, asked after the rows are
@@ -311,6 +331,7 @@ def apply(approved):
     planned = _approved_identities(approved)
     with transaction.atomic():
         locked = _lock(approved)
+        _lock_entries(approved)
         # The clearing commits, then the record is written. A worker cut
         # off between the two leaves the record running, and the queue
         # delivers the task again to a world where the approved items

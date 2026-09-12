@@ -996,9 +996,10 @@ class TestIdempotency:
     ):
         """An unchanged listing line has nothing waiting to be told
         where it landed: a restriction looks its entry up when it is
-        written, so an upload of lists that gained none reads no entry
-        at all — the lists are the long sheets, and a query per line
-        is what made a re-upload slow."""
+        written, so performing an upload of lists that gained none
+        reads no entry at all — the lists are the long sheets, and a
+        query per line is what made a re-upload slow. Planning is
+        measured separately, below: it looks every line up by design."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -1014,6 +1015,43 @@ class TestIdempotency:
 
         table = CollectionEntry._meta.db_table
         assert [q["sql"] for q in captured if table in q["sql"]] == []
+
+    def test_replanning_reads_the_entries_lists_in_one_batch(self, foundation, sheets):
+        """Planning looks every line up, one query each, by design. What
+        it must not do is read each entry's own use list on its own
+        besides — so the reads of that list stay the same however many
+        lines the sheets carry."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        through = CollectionEntry.usable_by_profiles.through._meta.db_table
+
+        def list_reads(sheets):
+            with CaptureQueriesContext(connection) as captured:
+                plan_ingest(pack=None, **sheets)
+            return len([q for q in captured if through in q["sql"]])
+
+        perform(plan_ingest(pack=None, **sheets))
+        small = list_reads(sheets)
+
+        more = {
+            **sheets,
+            "equipment_lists": read_csv(
+                EQUIPMENT_LISTS_CSV.rstrip()
+                + """
+Equipment List,Cawdor,Ranged weapons,Auto/stub weapons,Autogun,,20,,
+Equipment List,Cawdor,Wargear,Grenades,Frag grenades,,30,,
+Equipment List,Goliath,Wargear,Grenades,Frag grenades,,30,,
+Equipment List,Goliath,Wargear,Weapon accessories,Suspensors,,40,,
+Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
+"""
+            ),
+        }
+        perform(plan_ingest(pack=None, **more))
+        assert CollectionEntry.objects.count() >= len(sheets["equipment_lists"]) + 5
+        large = list_reads(more)
+
+        assert large == small
 
     def test_replanning_finds_back_exactly_the_rows_the_import_made(
         self, foundation, sheets

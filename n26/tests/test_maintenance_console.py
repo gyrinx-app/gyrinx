@@ -1412,6 +1412,106 @@ class TestTheItemRestrictionClearing:
 
         assert "What it did" in page
         assert "cleared Long las (weapon): was usable by" in page
+        assert f"Took {run.summary['seconds']} second" in page
+
+    def test_the_record_page_shows_the_deadline_warning(
+        self, client, superuser, restricted_world
+    ):
+        """A run that used more than half of one delivery is written up
+        on its record, and the page has to show it, or nobody moves
+        the work before running it again."""
+        client.force_login(superuser)
+        client.post(reverse("admin:maintenance_n26_clear_item_restrictions"))
+        run = Backfill.objects.get(operation=Operation.CLEAR_ITEM_RESTRICTIONS)
+        warning = "This run took 400 of the 600 seconds one delivery may take"
+        Backfill.objects.filter(pk=run.pk).update(
+            summary={**run.summary, "seconds": 400, "warning": warning}
+        )
+
+        page = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[run.id])
+        ).content.decode()
+
+        assert "Took 400 seconds." in page
+        assert warning in page
+
+    def test_the_record_page_of_a_refused_run_says_what_it_planned(
+        self, client, superuser, restricted_world
+    ):
+        """A refusal ends the record failed with its preview still on it
+        and no report. The page must not call that a run in progress."""
+        from n26.library.authoring import restrict_use
+        from n26.library.item_restrictions import find
+
+        found = find()
+        record = Backfill.objects.create(
+            operation=Operation.CLEAR_ITEM_RESTRICTIONS,
+            triggered_by=superuser,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(found.preview()), **found.recorded()},
+        )
+        restrict_use(restricted_world["armour"], restricted_world["leader"])
+        maintenance.clear_item_restrictions.call(backfill_id=str(record.id))
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.FAILED
+        assert "report" not in record.summary
+        client.force_login(superuser)
+
+        page = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[record.id])
+        ).content.decode()
+
+        assert "What it planned to do" in page
+        assert "ended without clearing" in page
+        assert "What it is doing" not in page
+        assert "What it did" not in page
+        assert "clear Long las (weapon): usable by" in page
+
+    def test_the_record_page_of_a_running_run_says_what_it_is_doing(
+        self, client, superuser, restricted_world
+    ):
+        from n26.library.item_restrictions import find
+
+        found = find()
+        record = Backfill.objects.create(
+            operation=Operation.CLEAR_ITEM_RESTRICTIONS,
+            triggered_by=superuser,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(found.preview()), **found.recorded()},
+        )
+        client.force_login(superuser)
+
+        page = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[record.id])
+        ).content.decode()
+
+        assert "What it is doing" in page
+        assert "What it planned to do" not in page
+
+    def test_the_run_holds_the_listings_that_make_an_item_eligible(
+        self, restricted_world
+    ):
+        """The items are locked, and so are the entries that list them:
+        a listing taken off while the run is reading would leave it
+        stripping an item no list carries. The proof is the lock on the
+        entry table itself, not a race — one query per kind."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.item_restrictions import apply, find
+        from n26.library.models import CollectionEntry
+
+        approved = find().recorded()["plan"]
+
+        with CaptureQueriesContext(connection) as captured:
+            apply(approved)
+
+        table = CollectionEntry._meta.db_table
+        held = [
+            q["sql"] for q in captured if table in q["sql"] and "FOR UPDATE" in q["sql"]
+        ]
+        assert len(held) == 1
+        assert restricted_world["long_las"].usable_by_words() == ""
 
     def test_applying_a_second_time_records_no_run(
         self, client, superuser, restricted_world

@@ -9,16 +9,31 @@
     <ul>
         {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
     </ul>
+    {% if backfill.summary.seconds is not None %}
+        <p>Took {{ backfill.summary.seconds }} second{{ backfill.summary.seconds|pluralize }}.</p>
+    {% endif %}
 {% elif backfill.summary.preview %}
-    <h2>What it is doing</h2>
-    <p>
-        These are the items it planned to clear. The removal is one transaction,
-        so a run still working has cleared nothing yet, and a run that fails or
-        is interrupted leaves every restriction as it was.
-    </p>
+    {% if backfill.status == "running" %}
+        <h2>What it is doing</h2>
+        <p>
+            These are the items it planned to clear. The removal is one transaction,
+            so a run still working has cleared nothing yet, and a run that fails or
+            is interrupted leaves every restriction as it was.
+        </p>
+    {% else %}
+        <h2>What it planned to do</h2>
+        <p>
+            These are the items it planned to clear. The run ended without clearing
+            them: the removal is one transaction, so every restriction is as it was.
+            The reason is above.
+        </p>
+    {% endif %}
     <ul>
         {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
     </ul>
+{% endif %}
+{% if backfill.summary.warning %}
+    <p>{{ backfill.summary.warning }}</p>
 {% endif %}
 {% if backfill.summary.attempts %}
     <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>

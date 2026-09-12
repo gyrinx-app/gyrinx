@@ -2023,10 +2023,16 @@ def _note_restrictions_the_sheet_no_longer_names(plan, found):
                     (type(allows).__name__, allows.pk)
                 )
 
-    for entry_key, named in wanted.items():
-        entry = found.get(entry_key)
-        if entry is None:
-            continue  # founded by this upload: it carries only what this says
+    from django.db.models import prefetch_related_objects
+
+    # The lists are the long sheets, so the entries' own lists are read
+    # in one batch rather than once per line.
+    entries = {
+        key: found[key] for key in wanted if found.get(key) is not None
+    }  # absent: founded by this upload, and carries only what this says
+    prefetch_related_objects(list(entries.values()), "usable_by_profiles")
+    for entry_key, entry in entries.items():
+        named = wanted[entry_key]
         stored = list(entry.usable_by_profiles.all())
         unnamed = [row for row in stored if (type(row).__name__, row.pk) not in named]
         if not unnamed:
