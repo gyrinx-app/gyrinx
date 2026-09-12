@@ -23,7 +23,8 @@
                     {% for choice in form.card_style %}
                         <div class="form-check">
                             {{ choice.tag }}
-                            <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                            <label class="form-check-label"
+                                   for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                         </div>
                     {% endfor %}
                 </div>
@@ -39,7 +40,8 @@
                 <div class="vstack gap-2">
                     <div class="form-check">
                         {{ form.include_assets }}
-                        <label class="form-check-label" for="{{ form.include_assets.id_for_label }}">Include Asset Card</label>
+                        <label class="form-check-label"
+                               for="{{ form.include_assets.id_for_label }}">Include Asset Card</label>
                     </div>
                     <div class="form-check">
                         {{ form.include_attributes }}
@@ -48,7 +50,8 @@
                     </div>
                     <div class="form-check">
                         {{ form.include_stash }}
-                        <label class="form-check-label" for="{{ form.include_stash.id_for_label }}">Include Stash Card</label>
+                        <label class="form-check-label"
+                               for="{{ form.include_stash.id_for_label }}">Include Stash Card</label>
                     </div>
                     <div class="form-check">
                         {{ form.include_actions }}
@@ -77,7 +80,8 @@
                         {% for choice in form.fighter_selection_mode %}
                             <div class="form-check">
                                 {{ choice.tag }}
-                                <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                <label class="form-check-label"
+                                       for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                             </div>
                         {% endfor %}
                     </div>
