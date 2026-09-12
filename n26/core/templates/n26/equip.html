@@ -94,7 +94,23 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 {% endif %}
             </div>
         </c-slot>
+        {% comment %}
+        The model's card above the tabs, as the Edit face draws it: what
+        they hold, and what it makes of them, in view while buying. Its
+        controls post through htmx — this page holds every host an update
+        of theirs names — and a purchase below sends the card back with
+        the row (n26/includes/equip_update.html).
+        {% endcomment %}
+        <c-slot name="card">
+            {% include "n26/includes/model_card_host.html" with htmx=True %}
+        </c-slot>
     </c-n26.model-header>
+    {% comment %}
+    Where the Mark as… and Pay ransom questions land when asked from the
+    card's status badge: the sheet sends back this host with the question
+    in it, and the act lands on the model's own page.
+    {% endcomment %}
+    <div id="n26-status-dialog-host"></div>
     {% comment %}
     What the fighter already owns is a *state of a row*, not a list of its own:
     a row for something they are carrying draws the count where Buy would be,

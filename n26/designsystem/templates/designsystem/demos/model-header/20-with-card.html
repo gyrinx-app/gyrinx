@@ -1,0 +1,29 @@
+{# title: With the model's card #}
+{# note: The card slot, filled the way every one of the model's screens fills it: the card in edit mode, in the host an act on it swaps the card back into, between the page header and the tab strip. The screen's own content starts under the strip. #}
+{# layout: full #}
+<c-n26.model-header :miniature="sample_miniature" lead="Leader" active="equip">
+    <c-slot name="switcher">
+        <c-n26.quick-switcher.of :switcher="sample_fighter_switcher" />
+    </c-slot>
+    <c-slot name="breadcrumb">
+        <c-ui.breadcrumbs>
+            <c-ui.breadcrumbs.item href="#">
+                {{ gang_owner }}
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item href="#">
+                The Ashen Choir
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item :current="True">
+                Vesna Krail
+            </c-ui.breadcrumbs.item>
+        </c-ui.breadcrumbs>
+    </c-slot>
+    <c-slot name="actions">
+        <c-n26.gang-figures :gang="gang" :summary="sample_roster_summary" />
+    </c-slot>
+    <c-slot name="card">
+        <div id="n26-model-card-host">
+            <c-n26.model-card :card="model_card_editable" mode="edit" />
+        </div>
+    </c-slot>
+</c-n26.model-header>

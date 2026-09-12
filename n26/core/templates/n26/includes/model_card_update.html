@@ -7,17 +7,10 @@ The whole card, not the line that changed. Redrawing all of it is what keeps
 a tally honest where a value crosses a threshold: an effect conditioned on a
 counter can confer a rule, reveal a choice or shift a characteristic, and
 every one of those is drawn on this card. The boxes a player writes in sit
-beside the card rather than inside it, so replacing it leaves their editors
+under the card rather than inside it, so replacing it leaves their editors
 alone.
+
+The host is the one every per-model screen draws (model_card_host.html), so
+this lands on whichever of them the act came from.
 {% endcomment %}
-<div id="n26-model-card-host" hx-swap-oob="true">
-    <c-n26.model-card :card="card"
-                      mode="edit"
-                      :htmx="True"
-                      status_href="{{ status_href }}"
-                      :status_hx="True">
-        <c-slot name="name_action">
-            {% include "n26/includes/model_name_action.html" %}
-        </c-slot>
-    </c-n26.model-card>
-</div>
+{% include "n26/includes/model_card_host.html" with redrawn=True htmx=True %}
