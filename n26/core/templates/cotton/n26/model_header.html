@@ -4,11 +4,17 @@
     <c-n26.model-header :miniature="miniature" lead="Leader" active="equip">
         <c-slot name="switcher">…quick-switcher…</c-slot>
         <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
+        <c-slot name="card">…the model's card, in its host…</c-slot>
     </c-n26.model-header>
 
 The header every per-model screen draws, so that a model's screens read as
 tabs of one place. The title is the model's name plain — the tab strip is what
 says which screen is open.
+
+The card sits between the page header and the tab strip, so the model's state
+is on every screen before the screen's own content starts. The header draws
+whatever the slot holds and nothing without it: which card, in which mode and
+in which host is the screen's decision (see n26/includes/model_card_host.html).
 
 The tab strip comes from the model_screen_tabs tag rather than from the
 caller, so adding a screen to a model is one edit to n26.core.navigation and no
@@ -16,11 +22,13 @@ screen can invent a strip of its own.
 
   :miniature — the model. Only ``pk`` and ``name`` are read.
   lead — the model's rank, under the name. Empty draws nothing.
-  active — which tab this screen is: ``edit`` or ``equip``.
+  active — which tab this screen is: ``edit``, ``equip`` or ``options``.
   switcher — a control after the name, for the gang's other models.
   breadcrumb — the trail above the name; the pages build it.
   actions — the header's far end: the gang's figures and the roster tally, in
     the corner the gang sheet keeps its wealth strip in.
+  card — the model's card, drawn between the page header and the tab strip.
+    Empty draws nothing.
   tab_actions — controls at the right-hand end of the tab strip.
 {% endcomment %}
 <c-vars
@@ -30,6 +38,7 @@ screen can invent a strip of its own.
     switcher=""
     breadcrumb=""
     actions=""
+    card=""
     tab_actions=""
     class=""
 />
@@ -47,6 +56,7 @@ screen can invent a strip of its own.
             <c-slot name="actions">{{ actions }}</c-slot>
         {% endif %}
     </c-n26.page-header>
+    {% if card.strip %}{{ card }}{% endif %}
     {% model_screen_tabs miniature active as screen_tabs_ %}
     <div class="flex items-stretch">
         <c-n26.tab-links label="This model's screens" :tabs="screen_tabs_" class="min-w-0 flex-1" />

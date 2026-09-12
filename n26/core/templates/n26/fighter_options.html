@@ -36,6 +36,15 @@ the price difference lands on the hire's own line in either direction.
                                 :summary="summary"
                                 trade_points_href="{{ trade_points_href }}" />
         </c-slot>
+        {% comment %}
+        The model's card above the tabs, as the Edit face draws it, so what
+        the options change is in view while they are changed. No host on
+        this page takes a partial update, so every control on the card is
+        a plain link or form and lands its act on the model's own page.
+        {% endcomment %}
+        <c-slot name="card">
+            {% include "n26/includes/model_card_host.html" with htmx=False %}
+        </c-slot>
     </c-n26.model-header>
     <div class="mt-4 grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
         <c-ui.card>

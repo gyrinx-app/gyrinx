@@ -112,15 +112,6 @@ is named by the page's own heading directly below.
             </c-ui.dropdown>
         </c-slot>
         {% comment %}
-        The rename pencil — a link, so the dialog is an address;
-        ?back=edit brings the act back to this page. The gang sheet
-        does not carry one: next to the name it is too easy to take
-        for Edit.
-        {% endcomment %}
-        <c-slot name="name_action">
-            {% include "n26/includes/model_name_action.html" %}
-        </c-slot>
-        {% comment %}
         Save is a success button because it ends the form; the outlined
         controls on the card beside it all start one.
         {% endcomment %}

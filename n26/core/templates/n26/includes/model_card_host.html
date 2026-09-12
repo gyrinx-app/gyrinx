@@ -1,0 +1,41 @@
+{% comment %}
+One model's card in edit mode, in the host an act on it swaps the card back
+into. Expects `card`, `miniature`, `status_href` and `htmx` from the view;
+`redrawn` marks the copy an update delivers, which carries hx-swap-oob and
+replaces the one on the page by id.
+
+Every per-model screen draws this in the model header's card slot, above the
+tab strip, so the model's state is in view whichever tab is open — the Edit
+face through <c-n26.view.model-edit>, the Equip and Options faces directly,
+and the partial updates with `redrawn`. One host, one id, whichever screen:
+an update addressed to it lands on all of them.
+
+`name_action`, where given, is drawn beside the name instead of the rename
+pencil. The gallery passes one: it draws this with no model to rename.
+
+`htmx` says whether the card's own controls — the counters, the kit menus,
+the status badge — post through htmx and take back the card alone. Only a
+page holding the host, the dialog host and the status dialog host may say so;
+htmx drops an out-of-band element whose id is missing from the page, silently.
+A screen without those hosts passes False, and every control is then an
+ordinary link or form that lands the act on the model's own page.
+
+The rename pencil rides along whichever screen draws it; its address is the
+Edit face's, the one page that draws the rename question.
+{% endcomment %}
+<div id="n26-model-card-host"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    <c-n26.model-card :card="card"
+                      mode="edit"
+                      :htmx="htmx"
+                      status_href="{{ status_href }}"
+                      :status_hx="htmx">
+        <c-slot name="name_action">
+            {% if name_action %}
+                {{ name_action }}
+            {% else %}
+                {% include "n26/includes/model_name_action.html" %}
+            {% endif %}
+        </c-slot>
+    </c-n26.model-card>
+</div>

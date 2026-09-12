@@ -1,5 +1,5 @@
 {# title: One model, whole #}
-{# note: The Edit face of a model's own page. The header names the model, keeps Clone in its overflow, and offers Equip as the second tab; the grid is the card in edit mode — choice buttons out, outlined, and one menu beside each piece of kit holding Add accessory, Sell and the rest of the listing's acts — and the notes box with the editor. One column on a phone. The Save is the only filled commit on the page, which is why the card's controls are outlined. #}
+{# note: The Edit face of a model's own page. The header names the model, keeps Clone in its overflow, and carries the card in edit mode above the tabs — choice buttons out, outlined, and one menu beside each piece of kit holding Add accessory, Sell and the rest of the listing's acts. Under the tabs the grid runs Picture, Notes, Skills & Powers; then the characteristics full width; then Lore alone on the bottom row. One column on a phone. The Save is the only filled commit on the page, which is why the card's controls are outlined. #}
 {# layout: full #}
 <c-n26.view.model-edit :miniature="sample_miniature"
                        :card="model_card_editable"
@@ -56,12 +56,33 @@
             </span>
         </c-ui.button>
     </c-slot>
+    <c-slot name="picture">
+        <c-n26.picture-box action="#"
+                           id="demo-model-picture"
+                           crop="{{ sample_picture_shape }}"
+                           max="{{ sample_picture_max }}"
+                           alt="A picture of Vesna Krail"
+                           img_class="w-40">
+            Shown from the card's picture control and printed in the card's
+            corner. Picking a file opens the crop, and using it saves.
+        </c-n26.picture-box>
+    </c-slot>
     <c-slot name="notes">
         <form>
             <c-n26.rich-text :field="rich_text_form.notes" />
             <div class="mt-3 flex justify-end">
                 <c-ui.button type="submit" variant="success" size="sm">
                     Save notes
+                </c-ui.button>
+            </div>
+        </form>
+    </c-slot>
+    <c-slot name="lore">
+        <form>
+            <c-n26.rich-text :field="rich_text_form.lore" />
+            <div class="mt-3 flex justify-end">
+                <c-ui.button type="submit" variant="success" size="sm">
+                    Save lore
                 </c-ui.button>
             </div>
         </form>

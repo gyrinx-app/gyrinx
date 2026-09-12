@@ -1,5 +1,6 @@
 from django import forms
 
+from n26.core.forms import NOTES_EDITOR_HEIGHT
 from n26.core.widgets import RichText
 
 from . import sampledata
@@ -217,7 +218,10 @@ class RichTextForm(forms.Form):
         ),
     )
 
-    notes = forms.CharField(widget=RichText(), required=False)
+    # The model's page draws these two side by side, so each is a field of
+    # its own. Notes wears the cap the real form wears; lore does not.
+    notes = forms.CharField(widget=RichText(height=NOTES_EDITOR_HEIGHT), required=False)
+    lore = forms.CharField(widget=RichText(), required=False)
 
 
 # What a hostile editor payload looks like on the way out. Rendered through

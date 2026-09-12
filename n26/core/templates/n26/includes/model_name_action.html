@@ -3,13 +3,15 @@ The way to rename a model, drawn beside their name on the card. Shared
 between the page and the partial update an act on the card sends back, so a
 redrawn card cannot come back without it.
 
-The address is the page's own with ?rename= on it: opening the question is
-server state, so it survives a reload and can be sent to somebody.
+The address is the Edit face's with ?rename= on it: opening the question is
+server state, so it survives a reload and can be sent to somebody. The card
+is drawn on every one of the model's screens, and the Edit face is the one
+that draws the question, so from the others this is a plain link there.
 {% endcomment %}
 <c-ui.button variant="ghost"
              size="xs"
              class="ms-1 -mt-0.5 px-1! align-middle"
-             href="?rename={{ miniature.pk }}"
+             href="{% url 'n26-edit-fighter' miniature.pk %}?rename={{ miniature.pk }}"
              aria-label="Rename {{ miniature.name }}"
              title="Rename">
     <span class="n26-icon-only">

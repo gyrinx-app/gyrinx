@@ -2065,13 +2065,16 @@ GROUPS: list[Group] = [
                 summary="One model's name and rank, and the tabs of their screens.",
                 needs=(ALPINE, FOCUS),
                 notes=(
-                    "The one header every per-model screen wears, so Edit and "
-                    "Equip read as tabs of one place. The title is the model's "
-                    "name plain, not the verb — the tab strip already says which "
-                    "face is open. The strip is built by the model_screen_tabs tag "
-                    "rather than passed in, so a screen cannot invent one of its "
-                    "own; adding a screen to a model is one edit to "
-                    "n26.core.navigation."
+                    "The one header every per-model screen wears, so Edit, "
+                    "Equip and Options read as tabs of one place. The title is "
+                    "the model's name plain, not the verb — the tab strip already "
+                    "says which face is open. The strip is built by the "
+                    "model_screen_tabs tag rather than passed in, so a screen "
+                    "cannot invent one of its own; adding a screen to a model is "
+                    "one edit to n26.core.navigation. The card slot sits between "
+                    "the page header and the strip: every screen fills it with "
+                    "the model's card in its host (n26/includes/model_card_host.html), "
+                    "so the model's state is above the tabs whichever is open."
                 ),
             ),
             Component(
@@ -2592,21 +2595,25 @@ GROUPS: list[Group] = [
                 tag="c-n26.view.model-edit",
                 template="n26/view/model_edit.html",
                 summary="One model, whole: their card, editable, and the notes.",
-                needs=(ALPINE, KIT_JS, FOCUS),
+                needs=(ALPINE, KIT_JS, FOCUS, "n26/imagecrop.js", "Cropper.js"),
                 notes=(
-                    "The Edit face of a model's own page; Equip is the same "
-                    "header's second tab, so the two screens read as one place. "
-                    "Under the header, a grid that is one column on a phone: the "
-                    "card in edit mode — the same card, structure and renderer "
-                    "the gang sheet draws — then the notes box, with the skills "
-                    "beside it. The form arrives as a slot, fields and submit "
-                    "together, because saving is the page's business and the "
-                    "gallery has no database to save to. Save is the page's only "
-                    "filled commit, which is why the card's own controls are "
-                    "outlined. The characteristics an owner sets by hand sit "
-                    "under the grid, full width and in the same columns the "
-                    "card's own strip draws, since what is set shows there "
-                    "marked as changed."
+                    "The Edit face of a model's own page; Equip and Options are "
+                    "the same header's other tabs, so the three screens read as "
+                    "one place. The card — in edit mode, the same card, structure "
+                    "and renderer the gang sheet draws — fills the header's card "
+                    "slot, above the tab strip, where the other two faces draw "
+                    "it too. Under the strip, a grid that is one column on a "
+                    "phone: Picture, Notes, Skills & Powers, Subtypes & Rules, "
+                    "Buy from; then the characteristics an owner sets by hand, "
+                    "full width and in the same columns the card's own strip "
+                    "draws, since what is set shows there marked as changed; "
+                    "then Lore alone on the bottom row. Each form arrives as a "
+                    "slot, fields and submit together, because saving is the "
+                    "page's business and the gallery has no database to save "
+                    "to. Save is the page's only filled commit, which is why the "
+                    "card's own controls are outlined. The notes editor is "
+                    "capped short and scrolls (n26.core.forms.NOTES_EDITOR_HEIGHT); "
+                    "what is written has no limit."
                 ),
             ),
             Component(

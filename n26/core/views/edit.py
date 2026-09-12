@@ -1,6 +1,7 @@
 """One model's own page — the card, editable, and the owner's notes."""
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -269,46 +270,143 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
     return added, taken, restored
 
 
+def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
+    """The model's card with every control addressed — the card each of
+    the model's own screens draws above its tabs.
+
+    One place turns the reading into the card and points its controls
+    somewhere, so the Edit, Equip and Options faces, and the card an act
+    sends back, cannot offer different things: the choice slots, the
+    Skills control, the counters, and on each piece of kit the acts the
+    equip listing offers. Costs one query, for which collections hold
+    skills — or none where the caller has already asked (``among``).
+
+    ``back`` is the screen the card is drawn on, carried on the choice
+    and counter controls so the act returns the reader there. ``host``
+    decides where the kit acts open: on ``host.at``, which is the
+    screen's own address where it holds the dialog host, and the model's
+    own page otherwise.
+    """
+    from n26.core.access import model_collections
+    from n26.core.render import build_model_card
+    from n26.core.views.choose import link_slots
+    from n26.core.views.owned import link_counters, link_possession_actions
+    from n26.core.views.skills import link_skills
+
+    card = build_model_card(miniature, card=own, computed=computed)
+    link_slots(gang, card, back=back)
+    link_skills(card, among=model_collections() if among is None else among)
+    link_counters(card, back=back)
+    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    return card
+
+
+class CardScreen(NamedTuple):
+    """One of the screens a model's card is drawn on, as the card sent
+    back to it needs to know it."""
+
+    #: Whether the screen holds the dialog host the kit acts open in. Where
+    #: it does not, the acts open over the Edit face.
+    hosts_dialogs: bool
+    #: The query parameters the screen's address carries as a place to
+    #: return to: the state that outlives an act, and nothing that names a
+    #: question mid-ask. Anything else in the posted address is dropped.
+    carries: tuple[str, ...]
+
+
+#: The screens a model's card is drawn on, by route name. A card sent back
+#: to one of them is addressed the way that screen addresses its own card,
+#: so the controls it carries keep opening where the screen's own do.
+#:
+#: The Edit face carries which skills tab is open, and not the rename or
+#: the kit panel its address may also name: a question stood open is not
+#: somewhere to come back to once it is settled. The Equip face carries
+#: which list is open, which section, and which row stands open. Options
+#: carries nothing, and its card's acts land on Edit.
+CARD_SCREENS = {
+    "n26-edit-fighter": CardScreen(hosts_dialogs=True, carries=("skills",)),
+    "n26-equip": CardScreen(hosts_dialogs=True, carries=("list", "section", "owned")),
+    "n26-fighter-options": CardScreen(hosts_dialogs=False, carries=()),
+}
+
+
+def card_screen(miniature, back):
+    """The screen an act on this model's card came from: its address, and
+    where its kit acts open. Both are built here.
+
+    ``back`` is what the control posted, and is trusted for one thing
+    only: naming which of the model's own screens it was drawn on. Its
+    path is resolved against the URL table and must name one of
+    :data:`CARD_SCREENS` for this very model; the address is then rebuilt
+    from the route and the query parameters that screen carries, so
+    nothing the request sent reaches an href as written. Anything else —
+    a stale link, another model's page, an address from elsewhere — is
+    read as the Edit face, where a card's acts open by default.
+
+    Returns ``(address, host_at)``: the screen's own address, which the
+    choice and counter controls return to, and where the kit acts open —
+    the screen itself where it holds the dialog host, the Edit face
+    otherwise.
+    """
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    from django.urls import Resolver404, resolve
+
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
+    try:
+        parts = urlsplit(back or "")
+        match = resolve(parts.path)
+    except ValueError, Resolver404:
+        # Not an address at all — an unclosed IPv6 bracket is what
+        # urlsplit refuses — or not a page of this app. A crafted value
+        # posted as ``back`` is read as the Edit face like any other
+        # stranger, never as an error.
+        return edit, edit
+    screen = CARD_SCREENS.get(match.url_name)
+    if screen is None or match.kwargs.get("pk") != str(miniature.pk):
+        return edit, edit
+    address = reverse(match.url_name, args=[miniature.pk])
+    kept = [
+        (key, value) for key, value in parse_qsl(parts.query) if key in screen.carries
+    ]
+    if kept:
+        address = f"{address}?{urlencode(kept)}"
+    return address, (address if screen.hosts_dialogs else edit)
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
     Why the whole card is sent back rather than the part that moved is
     the template's own comment.
 
-    ``at`` is the screen the act came from, and reaches the counter
-    controls as the address they return to. Nothing else needs it: the
-    rename is relative and the browser resolves it against whatever page
-    it lands on.
+    ``at`` is what the control posted as the screen the act came from.
+    It is read through :func:`card_screen` and never used as written:
+    the card sent back carries the addresses that screen's own card
+    carries, so a tally on the Equip face hands back kit menus that
+    still open over the listing.
 
     The model is read again rather than trusted from the request, because
     the act changed what this reports on — and read the way the page
     itself reads it, from this one model rather than from the gang
     around it, so an act costs what the page costs and not more.
     """
-    from n26.core.access import model_collections
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.owned import EquipHost
-    from n26.core.render import build_model_card
-    from n26.core.views.choose import link_slots
     from n26.core.views.htmx import with_toasts
-    from n26.core.views.owned import link_counters, link_possession_actions
-    from n26.core.views.skills import link_skills
 
     gang = miniature.membership.gang
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
-    card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card, back=at)
-    link_skills(card, among=model_collections())
-    link_counters(card, back=at)
     # The card is drawn in edit mode, and edit mode's card carries the
-    # kit acts. They open over the model's own page, whatever screen
-    # the act came from: ``at`` is untrusted and never becomes an href.
-    edit = reverse("n26-edit-fighter", args=[miniature.pk])
-    host = EquipHost.fighter(gang, own, miniature, edit)
-    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    # kit acts. They open where the screen the act came from opens its
+    # own: over the listing on Equip, over the model's own page from
+    # anywhere else. Neither address is the one the request sent.
+    back, host_at = card_screen(miniature, at)
+    host = EquipHost.fighter(gang, own, miniature, host_at)
+    card = link_model_card(gang, miniature, own, computed, host, back=back)
 
     response = render(
         request,
@@ -375,19 +473,16 @@ def edit_fighter(request, pk):
     from n26.core.images import MAX_PX, PORTRAIT
     from n26.core.operations import Refusal, operation, trade_points_carried_by
     from n26.core.owned import DIALOGS, EquipHost
-    from n26.core.render import build_model_card, roster, summarise_roster
-    from n26.core.views.choose import link_slots
+    from n26.core.render import roster, summarise_roster
     from n26.core.views.equip import _tab_label, buyable_lists
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
     from n26.core.views.owned import (
         accessorise_dialogs,
-        link_counters,
-        link_possession_actions,
         owned_dialog,
         panel_response,
     )
-    from n26.core.views.skills import apply_ticks, link_skills, skills_offer
+    from n26.core.views.skills import apply_ticks, skills_offer
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -671,14 +766,9 @@ def edit_fighter(request, pk):
     # asked for only what the gang alone can answer, which on this page is
     # the roster tally below. The card's own build carries the gang's
     # assignments already, so what the gang grants still reaches it.
-    card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card, back=request.get_full_path())
-    link_skills(card, among=sets)
-    # Only here. A counter is drawn wherever a card is; the model's own
-    # page is the one place it is moved, so this is the one place the
-    # lines are given addresses.
-    link_counters(card, back=request.get_full_path())
-    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    card = link_model_card(
+        gang, miniature, own, computed, host, back=request.get_full_path(), among=sets
+    )
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes", include_staged=shown

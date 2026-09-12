@@ -37,6 +37,7 @@ from n26.core.views.permissions import (
     _own_gang_or_404,
     _own_miniature_or_404,
     may_see_founding,
+    status_href,
     trade_points_href,
 )
 from n26.library.staged import sees_staged
@@ -479,7 +480,9 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
     if miniature is not None:
         # The options ride along because these screens name what each copy
         # was bought with, which no other surface built from a card does.
-        card = build_card(miniature, with_options=True)
+        # The statlines too: the screen draws the model's card above the
+        # listing, and a card without them has no characteristics strip.
+        card = build_card(miniature, with_statlines=True, with_options=True)
         index = build_modifier_index(carriers(card))
         computed = compute(card, index)
         # A model with an allowance of its own buys every list on the
@@ -601,11 +604,14 @@ def render_update(
     from n26.core.owned import possessions
     from n26.core.views.owned import accessorise_dialogs
 
+    # Read once: the founding budgets and the status control are one
+    # flag, and the screen and the card both ask it.
+    founding_seen = may_see_founding(gang, request.user)
     screen = _screen(
         gang,
         miniature=miniature,
         list_param=list_param,
-        budgets=may_see_founding(gang, request.user),
+        budgets=founding_seen,
         include_staged=sees_staged(request.user),
     )
     host = screen.host(at)
@@ -656,6 +662,9 @@ def render_update(
         {
             "rows": rows,
             "gang": gang,
+            # The model's card, redrawn from the same reading as the rows:
+            # what was bought is on it. The gang's own screen draws none.
+            **_card_context(request, screen, host, founding_seen, at=at),
             # The strip this delivers replaces the one on the page, so it
             # is drawn with what that one had: without this the Trade
             # Points figure comes back as a number that leads nowhere.
@@ -1000,6 +1009,13 @@ def equip(request, pk):
     if (panel := panel_response(request, dialog)) is not None:
         return panel
 
+    # The card above the tabs, drawn from the reading the rows are drawn
+    # from, with its acts pointed at this page: the kit menus open over
+    # the listing, the same panels the rows open. After the panel's early
+    # return, so a click asking for a panel alone pays nothing for a card
+    # it is not sent.
+    card = _card_context(request, screen, host, founding_seen, at=at)
+
     # The whole screen, as one structure: the browsed list joined to what
     # the fighter holds. A row is a row for something on sale or a row for
     # something they are carrying, and which it is is the structure's
@@ -1105,9 +1121,38 @@ def equip(request, pk):
                 if picker["post_is_shut"]
                 else False
             ),
+            **card,
             **picker,
         },
     )
+
+
+def _card_context(request, screen, host, founding_seen, *, at):
+    """The model's card for a screen that is a model's, with every control
+    addressed, and where its status badge leads — or nothing for the
+    gang's own screen, which draws no card.
+
+    The same card the Edit face draws, from the reading the rows are
+    drawn from, so a page and the update a purchase sends back cannot
+    say different things about what the model holds. ``at`` is this
+    screen's address, which the choice and counter controls return to.
+    """
+    from n26.core.views.edit import link_model_card
+
+    if screen.miniature is None:
+        return {}
+    gang, miniature = screen.gang, screen.miniature
+    return {
+        "card": link_model_card(
+            gang, miniature, screen.card, screen.computed, host, back=at
+        ),
+        # The act lands on the model's own page — a named place the sheet
+        # knows — and the badge asks for the question over htmx, since
+        # this screen holds the status dialog host.
+        "status_href": (
+            status_href(gang, miniature, back="edit") if founding_seen else ""
+        ),
+    }
 
 
 def picker_context(catalogue, view, gang=None, budget=None):
