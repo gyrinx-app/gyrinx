@@ -351,7 +351,8 @@
                                                         {% endif %}
                                                         <div class="row g-3">
                                                             {% for entry in house_group.list %}
-                                                                <div id="item-{{ entry.pack_item.id }}" class="col-12 col-lg-6">
+                                                                <div id="item-{{ entry.pack_item.id }}"
+                                                                     class="col-12 col-lg-6">
                                                                     {% with content_fighter=entry.content_object preview_statline=entry.preview_statline preview_rules=entry.preview_rules preview_skills=entry.preview_skills preview_weapons=entry.preview_weapons preview_gear=entry.preview_gear preview_disciplines=entry.preview_disciplines preview_default_powers=entry.preview_default_powers auto_equipment=entry.auto_equipment %}
                                                                         {% if can_edit %}
                                                                             {% url 'core:pack-edit-item' pack.id entry.pack_item.id as edit_url %}

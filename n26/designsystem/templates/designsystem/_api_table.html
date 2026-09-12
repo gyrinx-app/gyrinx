@@ -35,7 +35,7 @@
                                             <span class="flex flex-wrap gap-1">
                                                 {% for choice in choices %}<code class="rounded bg-ink-500/10 px-1.5 py-0.5">{{ choice }}</code>{% endfor %}
                                             </span>
-                                        {% elif prop.default == 'True' or prop.default == 'False' %}
+                                        {% elif prop.default == "True" or prop.default == "False" %}
                                             boolean
                                         {% elif prop.dynamic %}
                                             expression

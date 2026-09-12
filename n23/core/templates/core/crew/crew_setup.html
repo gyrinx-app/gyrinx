@@ -47,7 +47,8 @@
             </div>
             {% if form.shows_count %}
                 <div>
-                    <label class="form-label" for="{{ form.custom_count.id_for_label }}">{{ form.custom_count.label }}</label>
+                    <label class="form-label"
+                           for="{{ form.custom_count.id_for_label }}">{{ form.custom_count.label }}</label>
                     {{ form.custom_count }}
                     <div class="form-text">{{ form.custom_count.help_text }}</div>
                     {{ form.custom_count.errors }}
@@ -100,7 +101,8 @@
                                     {% for radio in row.field %}
                                         <div class="form-check form-check-inline mb-0 me-0">
                                             {{ radio.tag }}
-                                            <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                                            <label class="form-check-label"
+                                                   for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
                                         </div>
                                     {% endfor %}
                                 </div>
@@ -115,7 +117,8 @@
                 {% endif %}
             </div>
             <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">{% if is_create %}Create crew{% else %}Save setup{% endif %}</button>
+                <button type="submit"
+                        class="btn btn-success">{% if is_create %}Create crew{% else %}Save setup{% endif %}</button>
                 <a href="{{ parent_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>

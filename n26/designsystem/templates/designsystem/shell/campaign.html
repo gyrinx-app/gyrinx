@@ -13,7 +13,7 @@ be judged side by side.
     <c-n26.quick-switcher.of :switcher="campaign_switcher" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'designsystem/shell/_nav.html' with here='campaign' %}
+    {% include "designsystem/shell/_nav.html" with here="campaign" %}
 {% endblock %}
 {% block content %}
     <c-n26.view.campaign-sheet :sheet="campaign_sheet"
@@ -87,7 +87,7 @@ be judged side by side.
                         <tr>
                             <td class="font-semibold text-ink-900 dark:text-ink-100">{{ player.username }}</td>
                             <td class="text-right">
-                                {% if player.state == 'accepted' %}
+                                {% if player.state == "accepted" %}
                                     <c-ui.badge color="green" size="sm">
                                         Accepted
                                     </c-ui.badge>

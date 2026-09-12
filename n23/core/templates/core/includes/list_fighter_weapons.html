@@ -1,5 +1,5 @@
 {% load custom_tags %}
-{% if mode == 'add' %}
+{% if mode == "add" %}
     {% for assign in weapons %}
         <form action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring flash=None %}"
               method="post"
@@ -44,7 +44,7 @@
             <th class="text-center" scope="col">Ap</th>
             <th class="text-center" scope="col">D</th>
             <th class="text-center" scope="col">Am</th>
-            {% if mode == 'add' %}<th class="text-center border-start" scope="col">AL</th>{% endif %}
+            {% if mode == "add" %}<th class="text-center border-start" scope="col">AL</th>{% endif %}
         </tr>
     </thead>
     {% for assign in weapons %}
@@ -52,14 +52,14 @@
                id="assign-{{ assign.id }}">
             <!-- {{ assign.id }} ({{ assign.kind }}) -->
             {% include "core/includes/list_fighter_weapon_rows.html" with list=list fighter=fighter assign=assign mode=mode %}
-            {% if mode == 'add' %}
+            {% if mode == "add" %}
                 {% if assign.upgrades_display|length > 0 %}
                     <tr>
                         <td colspan="9">{% include "core/includes/list_fighter_weapon_assign_upgrade_form.html" with assign=assign %}</td>
                     </tr>
                 {% endif %}
             {% endif %}
-            {% if mode == 'add' %}
+            {% if mode == "add" %}
                 <tr>
                     <td colspan="10">
                         <div class="d-flex btn-group">
@@ -73,7 +73,7 @@
                     </td>
                 </tr>
             {% endif %}
-            {% if mode == 'edit' %}
+            {% if mode == "edit" %}
                 {% include "core/includes/fighter_card_weapon_menu.html" with assign=assign fighter=fighter list=list %}
             {% endif %}
         </tbody>
