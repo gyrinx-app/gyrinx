@@ -51,6 +51,11 @@ class DetailGroup:
         return estimate_lines(self.text, self.chars_per_line, self.label)
 
 
+def _run(lines) -> str:
+    """A run of names, one standing for several written with its count."""
+    return ", ".join(line.name + line.count_mark for line in lines)
+
+
 def detail_groups(card) -> list[DetailGroup]:
     """A model card's loose assignables, as labelled runs.
 
@@ -78,22 +83,20 @@ def detail_groups(card) -> list[DetailGroup]:
         # card whose lines can be moved — nothing on paper can be.
         if not counter.is_xp:
             groups.append(DetailGroup(counter.name, str(counter.value)))
+    # A line standing for several of one thing is written once with its
+    # count, as the screen card writes it.
     if card.skills:
-        groups.append(DetailGroup("Skills", ", ".join(s.name for s in card.skills)))
+        groups.append(DetailGroup("Skills", _run(card.skills)))
     if card.rules:
-        groups.append(DetailGroup("Rules", ", ".join(r.name for r in card.rules)))
+        groups.append(DetailGroup("Rules", _run(card.rules)))
     if card.powers:
-        groups.append(DetailGroup("Powers", ", ".join(p.name for p in card.powers)))
+        groups.append(DetailGroup("Powers", _run(card.powers)))
     if card.equipment:
-        groups.append(DetailGroup("Gear", ", ".join(e.name for e in card.equipment)))
+        groups.append(DetailGroup("Gear", _run(card.equipment)))
     for gear_group in card.gear_groups:
         # Under the category's own name, as on screen. A group with
         # nothing in it is not built, so there is no empty one to skip.
-        groups.append(
-            DetailGroup(
-                gear_group.name, ", ".join(line.name for line in gear_group.lines)
-            )
-        )
+        groups.append(DetailGroup(gear_group.name, _run(gear_group.lines)))
     for choice in card.row_questions:
         # What it holds, or a blank. The Add on the screen card is a way
         # into the picker, and nothing on paper can be added. A question

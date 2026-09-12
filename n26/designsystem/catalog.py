@@ -2051,7 +2051,10 @@ GROUPS: list[Group] = [
                     "Items are "
                     "grouped by kind, run on and wrap rather than taking a row "
                     "each, with each rating against its own item and the total on "
-                    "the header line. An empty stash still draws the card — a slot "
+                    "the header line. Two of one thing read once, as Stub gun (x2), "
+                    "with the rating of one beside it; the owner's sheet keeps one "
+                    "line per item, since each carries a menu naming that item. "
+                    "An empty stash still draws the card — a slot "
                     "that came and went with the contents would move every fighter "
                     "after it around the grid. Drawn through "
                     "c-n26.assignable-lines, so something a modifier put there "
@@ -2114,7 +2117,8 @@ GROUPS: list[Group] = [
                         "c-n26.assignable-lines",
                         "n26/assignable_lines.html",
                         "A run of assignables — skills, gear, weapon traits — "
-                        "marking the ones that were granted rather than bought.",
+                        "marking the ones that were granted rather than bought, "
+                        "and writing several of one thing once, as Name (x2).",
                         required=True,
                     ),
                     Part(

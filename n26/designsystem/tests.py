@@ -199,6 +199,17 @@ class TestTheStashPage:
         page = reader.get("/n26/design/c/stash/").content.decode()
         assert "Set up TP visit" not in page
 
+    def test_two_of_one_thing_read_once_with_the_rating_of_one(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        assert 'Stub gun (x2)</span><span>&nbsp;<span class="tabular-nums">5¢' in page
+        assert "Stub gun, Stub gun" not in page
+
+
+class TestTheCountOnAModelCardLine:
+    def test_the_gallery_card_draws_two_of_one_thing_once(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "Stimm-slug (25¢) (x2)" in page
+
 
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
