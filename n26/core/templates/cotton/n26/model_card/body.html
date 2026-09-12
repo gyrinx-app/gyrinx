@@ -409,6 +409,14 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                                     {% if choice.href and not choice.dismissed %}
                                                         <c-n26.link href="{{ choice.href }}" underline="always" class="text-xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-n26.link>
                                                     {% endif %}
+                                                </c-n26.model-card.mode>
+                                                {% comment %}
+                                                Dismissing is offered wherever the owner reads the
+                                                card, as it is for the card's other offers: the
+                                                sheet as well as the model's own page. Only the
+                                                way to change the level is the page's alone.
+                                                {% endcomment %}
+                                                <c-n26.model-card.mode when="gang edit">
                                                     <c-n26.choice-dismiss :choice="choice" />
                                                 </c-n26.model-card.mode>
                                             </li>

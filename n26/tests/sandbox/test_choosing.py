@@ -1233,7 +1233,9 @@ class TestShowingDismissedOffers:
         from n26.core.status import Status
 
         client.force_login(owner)
-        line = sheet_slots(gang)["Sorrow: Archetype"]
+        slots = sheet_slots(gang)
+        line = slots["Sorrow: Archetype"]
+        still_open = slots["Sorrow: Primary skill"]
         client.post(dismiss_url(gang, line))
         with operation(gang, actor=owner) as op:
             op.set_status(crew["leader"], Status.DEAD)
@@ -1243,6 +1245,9 @@ class TestShowingDismissedOffers:
             assert line.href not in page
             assert restore_url(gang, line) not in page
             assert "Dismissed choices" not in page
+            # Nor an X on the offer still open: a dead card cannot show
+            # the way back from a dismissal, so it offers none.
+            assert dismiss_url(gang, still_open) not in page
 
     def test_a_dead_models_dismissed_offers_only_go(self, client, owner, gang, crew):
         """A dead model's card has nothing to click, so its dismissed
