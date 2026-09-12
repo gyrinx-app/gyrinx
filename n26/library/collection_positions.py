@@ -11,12 +11,18 @@ gang's on a fresh gang.
 
 This reads every collection and says how each one reaches a card:
 built into a gang type or a profile, or granted by a modifier and, if
-so, what carries that modifier. Then it applies one rule. A list
-reached **only** through pickables that are not gang archetypes — the
-Outcast archetypes named in ``archetype_display`` — is a variant's
-list, and is given :data:`VARIANT_POSITION` so it sinks. Everything
-else is left where it is: the gang's own lists at 0, and any list an
-author has already numbered at that number.
+so, what carries that modifier. A hidden assignable is a carrier that
+is itself granted or built in — a bundle a pick hands over — so a route
+through one is followed back to whatever grants the bundle, and named
+with the bundle it passed through. A bundle nothing grants is reported
+as exactly that, so it is seen before anything is applied.
+
+Then one rule is applied. A list reached **only** through pickables
+that are not gang archetypes — the Outcast archetypes named in
+``archetype_display`` — is a variant's list, and is given
+:data:`VARIANT_POSITION` so it sinks. Everything else is left where it
+is: the gang's own lists at 0, and any list an author has already
+numbered at that number.
 
 The rule is a reading of the library's shape, not a survey of the
 rows, so the preview shows every collection and every route — the
@@ -29,7 +35,7 @@ Library-only: no gang, no assignment and no ledger entry is touched,
 and the whole write is one transaction.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from django.db import transaction
 
@@ -39,6 +45,10 @@ from n26.library.archetype_display import GANG_ARCHETYPE_IDS
 #: which stays at 0. Well clear of 0, so ordering the low numbers by
 #: hand afterwards never meets it.
 VARIANT_POSITION = 100
+
+#: What the hidden kind calls itself — the one carrier a route is
+#: followed through rather than stopped at.
+HIDDEN_KIND = "hidden assignable"
 
 
 class Refused(Exception):
@@ -55,11 +65,19 @@ class Route:
     kind: str
     #: The carrier's name.
     name: str
+    #: The carrier's pk, so a hidden carrier's own routes can be found.
+    pk: str = ""
     #: The pickable's slot type — "Variant", "Gang Archetype" — where
     #: the carrier is one; empty otherwise.
     slot_type: str = ""
     #: Whether the carrier is one of the Outcast gang archetypes.
     gang_archetype: bool = False
+    #: The hidden assignables the route passed through on its way from
+    #: the carrier to the collection, nearest the carrier first.
+    via: tuple = ()
+    #: A hidden carrier nothing grants or builds in: the route stops at
+    #: it, and the collection is reached by nobody this way.
+    unresolved: bool = False
 
     @property
     def variant_pick(self):
@@ -76,7 +94,12 @@ class Route:
         if self.slot_type:
             detail = f" ({self.slot_type}"
             detail += ", an Outcast gang archetype)" if self.gang_archetype else ")"
-        return f"{verb} {self.kind} {self.name}{detail}"
+        said = f"{verb} {self.kind} {self.name}{detail}"
+        if self.unresolved:
+            return f"{said}, which nothing grants or builds in"
+        if self.via:
+            return f"{said} through {HIDDEN_KIND} {' and '.join(self.via)}"
+        return said
 
 
 @dataclass(frozen=True)
@@ -172,34 +195,35 @@ def _pickable_details(rows):
     }
 
 
-def _routes_by_collection():
-    """Every route to every collection, keyed by collection pk.
+def _routes_to(field):
+    """Every direct route to every row of one kind, keyed by that row's
+    pk. ``field`` is the column an effect or a built-in names the kind
+    by — ``"collection"``, ``"hidden"``.
 
-    A fixed number of queries however many collections there are: two
-    per carrier kind for the modifier grants, one per kind for the
+    A fixed number of queries however many rows there are: two per
+    carrier kind for the modifier grants, one per kind for the
     built-ins, and one for the pickables' slot types.
     """
     from n26.library.models import AddsAssignable, DefaultAssignment
 
     routes = {}
 
-    def add(collection_pk, route):
-        routes.setdefault(str(collection_pk), []).append(route)
+    def add(target_pk, route):
+        routes.setdefault(str(target_pk), []).append(route)
 
-    # Modifier grants: the effect names the collection, the modifier
-    # holds the effect, and a carrier holds the modifier.
+    # Modifier grants: the effect names the row, the modifier holds the
+    # effect, and a carrier holds the modifier.
     granting = dict(
         AddsAssignable.objects.filter(
-            collection__isnull=False, modifier__isnull=False
-        ).values_list("modifier__pk", "collection__pk")
+            **{f"{field}__isnull": False}, modifier__isnull=False
+        ).values_list("modifier__pk", f"{field}__pk")
     )
-    # Built-ins: the member names the collection, and a carrier names
-    # the set.
+    # Built-ins: the member names the row, and a carrier names the set.
     built_in = {}
-    for set_pk, collection_pk in DefaultAssignment.objects.filter(
-        collection__isnull=False
-    ).values_list("default_set__pk", "collection__pk"):
-        built_in.setdefault(str(set_pk), []).append(collection_pk)
+    for set_pk, target_pk in DefaultAssignment.objects.filter(
+        **{f"{field}__isnull": False}
+    ).values_list("default_set__pk", f"{field}__pk"):
+        built_in.setdefault(str(set_pk), []).append(target_pk)
 
     for model in sorted(_carriers(), key=lambda m: m._meta.label_lower):
         kind = str(model._meta.verbose_name)
@@ -232,14 +256,50 @@ def _routes_by_collection():
                     "modifier",
                     kind,
                     named[str(carrier_pk)],
+                    pk=str(carrier_pk),
                     slot_type=slot_type,
                     gang_archetype=archetype,
                 ),
             )
         for carrier_pk, set_pk in sorted(holders, key=lambda p: named[str(p[0])]):
-            for collection_pk in built_in[str(set_pk)]:
-                add(collection_pk, Route("built-in", kind, named[str(carrier_pk)]))
+            for target_pk in built_in[str(set_pk)]:
+                add(
+                    target_pk,
+                    Route("built-in", kind, named[str(carrier_pk)], pk=str(carrier_pk)),
+                )
     return routes
+
+
+def _resolved(route, hidden_routes, seen=frozenset()):
+    """The route with any hidden carrier followed back to what grants
+    it — a pick, a gang type, a profile — and named as passed through.
+
+    A hidden carrier nothing grants, or one reached round in a circle,
+    is where the route stops: it is kept, marked unresolved, so the
+    page shows it rather than losing it.
+    """
+    if route.kind != HIDDEN_KIND:
+        return [route]
+    upstream = [] if route.pk in seen else hidden_routes.get(route.pk, [])
+    if not upstream:
+        return [replace(route, unresolved=True)]
+    return [
+        replace(beyond, via=(*beyond.via, route.name))
+        for up in upstream
+        for beyond in _resolved(up, hidden_routes, seen | {route.pk})
+    ]
+
+
+def _routes_by_collection():
+    """Every route to every collection, keyed by collection pk, with
+    the routes through hidden carriers followed back to their source."""
+    hidden_routes = _routes_to("hidden")
+    return {
+        collection_pk: [
+            resolved for route in routes for resolved in _resolved(route, hidden_routes)
+        ]
+        for collection_pk, routes in _routes_to("collection").items()
+    }
 
 
 def find():
@@ -258,7 +318,9 @@ def find():
                 position=collection.position,
                 # A carrier granting a list twice — to the gang and to
                 # every member — is one route, said once.
-                routes=tuple(sorted(set(found), key=lambda r: (r.how, r.kind, r.name))),
+                routes=tuple(
+                    sorted(set(found), key=lambda r: (r.how, r.kind, r.name, r.via))
+                ),
             )
         )
     return Plan(readings=tuple(readings))

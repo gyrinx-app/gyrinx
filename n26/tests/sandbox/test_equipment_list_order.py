@@ -38,6 +38,7 @@ from n26.tests.sandbox.actions import (
     choose,
     create_collection,
     create_gang_type,
+    create_hidden,
     create_pickable,
     create_picklist,
     create_profile,
@@ -190,16 +191,19 @@ class TestWhichListComesFirst:
         assert all(access.computed for access in held)
 
     def test_a_tie_keeps_the_order_the_walk_found_them_in(
-        self, gang, fighter, variant, lists
+        self, gang, sister, variant, lists
     ):
-        take_the_variant(gang, variant)
-        assert lists["house"].position == lists["variant"].position == 0
+        """Two lists at 0 stay in the walk's order — the card's own
+        built-in before the computed grant — even where a sort by name
+        would swap them, so the tie-break is the walk and not the name."""
+        last_by_name = create_collection("Zeta Equipment List")
+        add_entry(last_by_name, create_wargear("Zeta blade", price=20))
+        add_built_in(sister, last_by_name)
+        fighter = hire(gang, sister, "Vex")
+        assert last_by_name.position == lists["house"].position == 0
 
-        before = names(collections_for(fighter))
-        # Nothing about the numbers changed, so nothing about the order does.
-        assert names(collections_for(fighter)) == before
-        assert sorted(before) == [
-            "Chaos Corrupted Equipment List",
+        assert names(collections_for(fighter)) == [
+            "Zeta Equipment List",
             "Escher Equipment List",
         ]
 
@@ -362,8 +366,18 @@ class TestTheOrderingRepair:
     def library(self, escher, sister, variant, lists):
         """Beside the house and the variant: an Outcast gang archetype's
         list, a list a variant and an archetype both grant, a list an
-        author has already numbered, and a menu nothing grants."""
+        author has already numbered, a menu nothing grants, a list the
+        variant hands over inside a hidden bundle, and a list inside a
+        bundle nothing hands over."""
         add_built_in(sister, lists["house"])
+        bundle = create_hidden("Corruption bundle")
+        modifier(
+            "Chaos Corrupted: the gang is handed the Corruption bundle",
+            targets_gang_alone(),
+            ef_adds(bundle),
+            carried_by=variant,
+        )
+        orphan = create_hidden("Orphan bundle")
         archetypes = create_slot_type("Gang Archetype", allows_repeats=False)
         beastmasters = create_pickable(
             "Beastmasters", archetypes, pk=GANG_ARCHETYPE_IDS[0]
@@ -374,9 +388,23 @@ class TestTheOrderingRepair:
             ("shared", "Outcast Wanderers Equipment List"),
             ("numbered", "Sup-Pets Equipment List"),
             ("menu", "Variants Menu"),
+            ("bundled", "Corruption Bundle Equipment List"),
+            ("orphaned", "Orphan Bundle Equipment List"),
         ]:
             lists[key] = create_collection(name)
         set_position(lists["numbered"], 7)
+        modifier(
+            "Corruption bundle: its fighters buy from the bundle's list",
+            targets_every_model(),
+            ef_adds(lists["bundled"]),
+            carried_by=bundle,
+        )
+        modifier(
+            "Orphan bundle: its fighters buy from the orphan's list",
+            targets_every_model(),
+            ef_adds(lists["orphaned"]),
+            carried_by=orphan,
+        )
         modifier(
             "Beastmasters: its fighters buy from the Beastmasters list",
             targets_every_model(),
@@ -414,6 +442,8 @@ class TestTheOrderingRepair:
             "Outcast Wanderers Equipment List",
             "Sup-Pets Equipment List",
             "Variants Menu",
+            "Corruption Bundle Equipment List",
+            "Orphan Bundle Equipment List",
         }
         # A carrier granting a list twice — to the gang and to every
         # member — is one route, said once.
@@ -430,20 +460,43 @@ class TestTheOrderingRepair:
             "not built into anything and granted by nothing"
         )
 
+    def test_a_route_through_a_hidden_bundle_is_followed_back_to_the_pick(
+        self, library
+    ):
+        """A pick that hands over a bundle whose modifier adds a list
+        reaches that list as surely as one that adds it outright; the
+        bundle is named on the way. A bundle nothing hands over stops
+        the route, and the page says so."""
+        by_name = {reading.name: reading for reading in find().readings}
+
+        assert by_name["Corruption Bundle Equipment List"].granted == (
+            "granted by pickable Chaos Corrupted (Variant) through hidden "
+            "assignable Corruption bundle"
+        )
+        assert by_name["Corruption Bundle Equipment List"].variant_list
+        assert by_name["Orphan Bundle Equipment List"].granted == (
+            "granted by hidden assignable Orphan bundle, which nothing grants "
+            "or builds in"
+        )
+        assert not by_name["Orphan Bundle Equipment List"].variant_list
+
     def test_only_lists_reached_by_variant_picks_alone_are_set(self, library):
         plan = find()
 
         assert [reading.name for reading in plan.to_set] == [
-            "Chaos Corrupted Equipment List"
+            "Chaos Corrupted Equipment List",
+            "Corruption Bundle Equipment List",
         ]
         outcomes = {reading.name: reading.outcome for reading in plan.readings}
         assert outcomes == {
             "Chaos Corrupted Equipment List": f"set to {VARIANT_POSITION}",
+            "Corruption Bundle Equipment List": f"set to {VARIANT_POSITION}",
             "Escher Equipment List": "left at 0",
             "Beastmasters Equipment List": "left at 0",
             "Outcast Wanderers Equipment List": "left at 0",
             "Sup-Pets Equipment List": "left at 7, already set",
             "Variants Menu": "left at 0",
+            "Orphan Bundle Equipment List": "left at 0",
         }
         assert plan.ok
         assert not plan.nothing_here
@@ -455,11 +508,13 @@ class TestTheOrderingRepair:
 
         assert report == [
             f"Chaos Corrupted Equipment List (N26): set to {VARIANT_POSITION}",
-            "Set 1 list.",
+            f"Corruption Bundle Equipment List (N26): set to {VARIANT_POSITION}",
+            "Set 2 lists.",
         ]
-        library["variant"].refresh_from_db()
-        assert library["variant"].position == VARIANT_POSITION
-        for key in ("house", "archetype", "shared", "menu"):
+        for key in ("variant", "bundled"):
+            library[key].refresh_from_db()
+            assert library[key].position == VARIANT_POSITION
+        for key in ("house", "archetype", "shared", "menu", "orphaned"):
             library[key].refresh_from_db()
             assert library[key].position == 0
         library["numbered"].refresh_from_db()
@@ -502,5 +557,5 @@ class TestTheOrderingRepair:
                 ef_adds(extra),
                 carried_by=variant,
             )
-        assert len(find().to_set) == 7
+        assert len(find().to_set) == 8
         assert measure() == few
