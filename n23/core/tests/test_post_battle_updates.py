@@ -765,12 +765,11 @@ def test_post_battle_link_visible_to_arbitrator_on_list_page(
     campaign.lists.add(plist)
     post_battle_url = reverse("core:list-post-battle", args=[plist.id])
 
-    # Arbitrator (campaign owner = user) sees the menu item on a gang they
+    # Arbitrator (campaign owner = user) sees the button on a gang they
     # don't own — the view lets them edit, so the link must be discoverable.
     client.force_login(user)
     resp = client.get(reverse("core:list", args=[plist.id]))
     assert resp.status_code == 200
-    assert resp.context["is_campaign_arbitrator"] is True
     assert post_battle_url in resp.content.decode()
 
     # An unrelated viewer is not the arbitrator and does not see it.
@@ -780,7 +779,6 @@ def test_post_battle_link_visible_to_arbitrator_on_list_page(
     client.force_login(outsider)
     resp = client.get(reverse("core:list", args=[plist.id]))
     assert resp.status_code == 200
-    assert resp.context["is_campaign_arbitrator"] is False
     assert post_battle_url not in resp.content.decode()
 
 
@@ -913,6 +911,8 @@ def test_post_battle_button_visible_to_shared_campaign_admin(
     post_battle_url = reverse("core:list-post-battle", args=[plist.id])
 
     client.force_login(shared_admin)
+    # The link must lead somewhere the shared admin may go.
+    assert client.get(post_battle_url).status_code == 200
     html = client.get(reverse("core:list", args=[plist.id])).content.decode()
     assert html.count(post_battle_url) == 1
     assert "Post-battle updates" in html
