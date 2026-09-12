@@ -703,17 +703,24 @@ def restore_offer(request, pk, slot):
 
     The row is deleted whether or not the slot still exists: a key left
     behind by a carrier since sold hides nothing, and taking it off is
-    harmless. The slot is then found again only to name the offer in the
-    confirmation — the same derivation opening its pick screen pays.
-    Lands where the control was clicked, or on the gang with its
-    dismissed offers still showing, since the reader was in the middle of
-    looking at them.
+    harmless. Deleted with the gang's line held, as a dismissal is
+    written, so a dismiss and a restore arriving together are read one
+    after the other and the reply says what stands. The slot is then
+    found again only to name the offer in the confirmation — the same
+    derivation opening its pick screen pays. Lands where the control was
+    clicked, or on the gang with its dismissed offers still showing,
+    since the reader was in the middle of looking at them.
     """
+    from django.db import transaction
+
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import DismissedOffer
+    from n26.core.operations import _hold
 
     gang = _own_gang_or_404(request, pk)
-    DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
+    with transaction.atomic():
+        _hold(gang)
+        DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
     try:
         label = _find_slot(gang, slot).slot.kind_label
     except Http404:
