@@ -10,6 +10,8 @@ from n26.library.models import (
     CampaignType,
     ContentPack,
     GangType,
+    Interstitial,
+    InterstitialSlot,
     Pickable,
     Picklist,
     PicklistMember,
@@ -265,6 +267,31 @@ class SlotAdmin(admin.ModelAdmin):
     list_filter = ["pack", "slot_type", "assigned_to", "hidden", "archived"]
     search_fields = ["name", "label"]
     list_select_related = ["pack", "slot_type", "picklist"]
+
+
+class InterstitialSlotInline(admin.TabularInline):
+    model = InterstitialSlot
+    extra = 1
+    fields = ["slot", "position"]
+    ordering = ["position"]
+    autocomplete_fields = ["slot"]
+
+
+@admin.register(Interstitial)
+class InterstitialAdmin(admin.ModelAdmin):
+    list_display = ["name", "title", "skippable", "position", "pack", "archived"]
+    list_filter = ["pack", "skippable", "archived"]
+    search_fields = ["name", "title"]
+    inlines = [InterstitialSlotInline]
+    list_select_related = ["pack"]
+
+
+@admin.register(InterstitialSlot)
+class InterstitialSlotAdmin(admin.ModelAdmin):
+    list_display = ["interstitial", "slot", "position", "archived"]
+    list_filter = ["interstitial", "archived"]
+    search_fields = ["interstitial__name", "slot__name"]
+    list_select_related = ["interstitial", "slot"]
 
 
 @admin.register(Profile)

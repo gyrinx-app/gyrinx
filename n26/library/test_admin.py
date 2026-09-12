@@ -94,6 +94,8 @@ def test_admin_also_accepts_the_uuid_form_in_a_url(admin_client, make_profile):
         "picklist",
         "picklistmember",
         "slot",
+        "interstitial",
+        "interstitialslot",
     ],
 )
 @pytest.mark.parametrize("page", ["", "add/"])
