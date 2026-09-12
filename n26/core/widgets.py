@@ -20,8 +20,17 @@ class RichText(TinyMCE):
     Remember ``{{ form.media }}``. The editor is inert without it — the widget
     only renders a textarea carrying its config in a data attribute, and the
     JavaScript that turns it into an editor arrives through the form's media.
+
+    ``height`` fixes the editor at that many pixels, scrolling inside.
+    Set as both ``height`` and ``max_height``: the first is only where an
+    editor starts, and an editor running the autoresize plugin grows past
+    it with what is typed until the second stops it. The bundled TinyMCE
+    is version 7, whose autoresize reads ``max_height``.
     """
 
-    def __init__(self, attrs=None, mce_attrs=None, **kwargs):
+    def __init__(self, attrs=None, mce_attrs=None, height=None, **kwargs):
         attrs = {"rows": 10, **(attrs or {})}
-        super().__init__(attrs=attrs, mce_attrs=mce_attrs or {}, **kwargs)
+        mce_attrs = dict(mce_attrs or {})
+        if height is not None:
+            mce_attrs = {"height": height, "max_height": height, **mce_attrs}
+        super().__init__(attrs=attrs, mce_attrs=mce_attrs, **kwargs)

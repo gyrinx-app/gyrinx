@@ -211,7 +211,7 @@ class FighterNotesForm(forms.Form):
 
     notes = forms.CharField(
         required=False,
-        widget=RichText(attrs={"rows": 4}, mce_attrs={"height": NOTES_EDITOR_HEIGHT}),
+        widget=RichText(attrs={"rows": 4}, height=NOTES_EDITOR_HEIGHT),
     )
 
 

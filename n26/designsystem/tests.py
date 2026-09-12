@@ -572,14 +572,15 @@ class TestTheModelEditPage:
         card = page.index('id="n26-model-card-host"')
         assert page.index("<h1") < card < page.index("This model")
 
-    def test_the_boxes_run_notes_skills_characteristics_lore(self, reader):
+    def test_the_boxes_run_picture_notes_skills_characteristics_lore(self, reader):
         page = reader.get("/n26/design/view/view-model-edit/").content.decode()
 
         def heading(name):
             return page.index(f'<span class="font-semibold">{name}</span>')
 
         assert (
-            heading("Notes")
+            heading("Picture")
+            < heading("Notes")
             < heading("Skills &amp; Powers")
             < heading("Characteristics")
             < heading("Lore")

@@ -6,10 +6,12 @@ replaces the one on the page by id.
 
 Every per-model screen draws this in the model header's card slot, above the
 tab strip, so the model's state is in view whichever tab is open — the Edit
-face through <c-n26.view.model-edit>, which draws the same host itself so the
-gallery can show it with no database, and the Equip and Options faces through
-this include. One element, one id, whichever screen: an update addressed to
-the host lands on all three.
+face through <c-n26.view.model-edit>, the Equip and Options faces directly,
+and the partial updates with `redrawn`. One host, one id, whichever screen:
+an update addressed to it lands on all of them.
+
+`name_action`, where given, is drawn beside the name instead of the rename
+pencil. The gallery passes one: it draws this with no model to rename.
 
 `htmx` says whether the card's own controls — the counters, the kit menus,
 the status badge — post through htmx and take back the card alone. Only a
@@ -29,7 +31,11 @@ Edit face's, the one page that draws the rename question.
                       status_href="{{ status_href }}"
                       :status_hx="htmx">
         <c-slot name="name_action">
-            {% include "n26/includes/model_name_action.html" %}
+            {% if name_action %}
+                {{ name_action }}
+            {% else %}
+                {% include "n26/includes/model_name_action.html" %}
+            {% endif %}
         </c-slot>
     </c-n26.model-card>
 </div>

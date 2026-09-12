@@ -2792,6 +2792,77 @@ class TestTheCardAboveTheListing:
         assert "More for Sword" in card
         assert 'id="n26-status-dialog-host"' in body
 
+    def counter_on(self, gang, tester, fighter):
+        """The fighter's XP counter, given once."""
+        from n26.library.authoring import create_counter
+
+        with operation(gang, actor=tester) as op:
+            op.assign(create_counter("XP"), miniature=fighter)
+        return Assignment.objects.get(miniature=fighter, counter__name="XP")
+
+    def tallied_from(self, client, counter, back):
+        """The counter moved over htmx, the control posting ``back`` as
+        the screen it was drawn on — and the card sent back."""
+        response = client.post(
+            reverse("n26-tally", args=[counter.pk]),
+            {"change": "1", "back": back},
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
+        return body[body.index('id="n26-model-card-host"') :]
+
+    def test_a_tally_from_here_sends_back_a_card_addressed_to_here(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """The card an act sends back replaces the one on the page, kit
+        menus and all. A card addressed to the Edit face would leave the
+        Equip screen with a Sell that opens somewhere else."""
+        from n26.library.models import Wargear
+
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        here = equip_url(fighter, house_list)
+
+        card = self.tallied_from(client, self.counter_on(gang, tester, fighter), here)
+
+        assert f'href="{here}&amp;sell=' in card
+        assert f"{reverse('n26-edit-fighter', args=[fighter.pk])}?sell=" not in card
+
+    def test_a_tally_naming_another_screen_is_answered_for_the_edit_face(
+        self, client, tester, gang, fighter, house_list, make_profile, make_statline
+    ):
+        """What the control posted names a screen and nothing more: the
+        address is rebuilt from the route, so another model's page, a
+        page elsewhere, or a query nobody's screen carries never reaches
+        a link on the card."""
+        from n26.library.models import Wargear
+
+        juve = make_profile("Juve", price=0)
+        make_statline(juve)
+        with operation(gang, actor=tester) as op:
+            other = op.hire(juve, "Kid")
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        edit = reverse("n26-edit-fighter", args=[fighter.pk])
+        counter = self.counter_on(gang, tester, fighter)
+
+        # Another model's Equip screen, and a page that is not this app's:
+        # neither is a screen of this model, so the Edit face is drawn.
+        for back in (equip_url(other, house_list), "https://elsewhere.example/n26/"):
+            card = self.tallied_from(client, counter, back)
+            assert f'href="{edit}?sell=' in card
+            assert "elsewhere.example" not in card
+            assert str(other.pk) not in card
+
+        # This model's own Equip screen with a parameter no screen carries:
+        # the screen is recognised and the parameter is dropped.
+        here = equip_url(fighter, house_list)
+        card = self.tallied_from(client, counter, f"{here}&evil=1")
+        assert f'href="{here}&amp;sell=' in card
+        assert "evil" not in card
+
     def test_the_options_face_draws_it_too(self, client, tester, fighter):
         client.force_login(tester)
         body = client.get(

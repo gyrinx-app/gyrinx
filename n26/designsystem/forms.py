@@ -220,9 +220,7 @@ class RichTextForm(forms.Form):
 
     # The model's page draws these two side by side, so each is a field of
     # its own. Notes wears the cap the real form wears; lore does not.
-    notes = forms.CharField(
-        widget=RichText(mce_attrs={"height": NOTES_EDITOR_HEIGHT}), required=False
-    )
+    notes = forms.CharField(widget=RichText(height=NOTES_EDITOR_HEIGHT), required=False)
     lore = forms.CharField(widget=RichText(), required=False)
 
 

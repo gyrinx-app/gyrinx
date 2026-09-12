@@ -300,16 +300,71 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     return card
 
 
+#: The screens a model's card is drawn on, by route name, and whether each
+#: holds the dialog host the kit acts open in. A card sent back to one of
+#: them is addressed the way that screen addresses its own card, so the
+#: controls it carries keep opening where the screen's own do.
+CARD_SCREENS = {
+    "n26-edit-fighter": True,
+    "n26-equip": True,
+    "n26-fighter-options": False,
+}
+
+#: What an equip screen's address carries besides the route — which list is
+#: open, which section, which row stands open. Anything else is dropped.
+CARRIED = ("list", "section", "owned")
+
+
+def card_screen(miniature, back):
+    """The screen an act on this model's card came from: its address, and
+    where its kit acts open. Both are built here.
+
+    ``back`` is what the control posted, and is trusted for one thing
+    only: naming which of the model's own screens it was drawn on. Its
+    path is resolved against the URL table and must name one of
+    :data:`CARD_SCREENS` for this very model; the address is then rebuilt
+    from the route and the query parameters in :data:`CARRIED`, so
+    nothing the request sent reaches an href as written. Anything else —
+    a stale link, another model's page, an address from elsewhere — is
+    read as the Edit face, where a card's acts open by default.
+
+    Returns ``(address, host_at)``: the screen's own address, which the
+    choice and counter controls return to, and where the kit acts open —
+    the screen itself where it holds the dialog host, the Edit face
+    otherwise.
+    """
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    from django.urls import Resolver404, resolve
+
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
+    parts = urlsplit(back or "")
+    try:
+        match = resolve(parts.path)
+    except Resolver404:
+        return edit, edit
+    if match.url_name not in CARD_SCREENS or match.kwargs.get("pk") != str(
+        miniature.pk
+    ):
+        return edit, edit
+    address = reverse(match.url_name, args=[miniature.pk])
+    kept = [(key, value) for key, value in parse_qsl(parts.query) if key in CARRIED]
+    if kept:
+        address = f"{address}?{urlencode(kept)}"
+    return address, (address if CARD_SCREENS[match.url_name] else edit)
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
     Why the whole card is sent back rather than the part that moved is
     the template's own comment.
 
-    ``at`` is the screen the act came from, and reaches the counter
-    controls as the address they return to. Nothing else needs it: the
-    rename is relative and the browser resolves it against whatever page
-    it lands on.
+    ``at`` is what the control posted as the screen the act came from.
+    It is read through :func:`card_screen` and never used as written:
+    the card sent back carries the addresses that screen's own card
+    carries, so a tally on the Equip face hands back kit menus that
+    still open over the listing.
 
     The model is read again rather than trusted from the request, because
     the act changed what this reports on — and read the way the page
@@ -326,11 +381,12 @@ def render_card_update(request, miniature, at):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
     # The card is drawn in edit mode, and edit mode's card carries the
-    # kit acts. They open over the model's own page, whatever screen
-    # the act came from: ``at`` is untrusted and never becomes an href.
-    edit = reverse("n26-edit-fighter", args=[miniature.pk])
-    host = EquipHost.fighter(gang, own, miniature, edit)
-    card = link_model_card(gang, miniature, own, computed, host, back=at)
+    # kit acts. They open where the screen the act came from opens its
+    # own: over the listing on Equip, over the model's own page from
+    # anywhere else. Neither address is the one the request sent.
+    back, host_at = card_screen(miniature, at)
+    host = EquipHost.fighter(gang, own, miniature, host_at)
+    card = link_model_card(gang, miniature, own, computed, host, back=back)
 
     response = render(
         request,
