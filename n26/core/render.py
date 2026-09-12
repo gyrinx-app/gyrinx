@@ -39,6 +39,7 @@ from n26.library.models import (
     Weapon,
     WeaponProfile,
     slot_mark,
+    slots_of,
 )
 from n26.library.standard_content import XP_COUNTER
 
@@ -965,6 +966,15 @@ class StashLine:
     #: Empty is a name with nothing to click, which is what a print-out
     #: and a reader who does not own the gang want.
     menu: tuple = ()
+    #: Weapon slots this takes on a card — the library's number for a
+    #: weapon, 1 for anything else — so the stash marks a two-slot
+    #: weapon the way a card does.
+    slots: int = 1
+
+    @property
+    def slot_mark(self):
+        """The book's asterisk after a two-slot weapon's name, or nothing."""
+        return slot_mark(self.slots)
 
 
 @dataclass(frozen=True)
@@ -2796,6 +2806,7 @@ def stash_lines(gang_card):
             id=str(node.assignment.pk) if node.assignment is not None else "",
             is_accessory=isinstance(node.assignable, WeaponAccessory),
             paid_trade_points=node.paid_trade_points,
+            slots=slots_of(node.assignable),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen

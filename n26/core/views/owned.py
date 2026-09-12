@@ -76,6 +76,7 @@ from n26.core.owned import (
 )
 from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
+from n26.library.models import marked_name
 from n26.library.staged import sees_staged
 
 #: The largest step this address will take, either way. Far above any
@@ -302,7 +303,9 @@ def _panel(request, assignment, kind, at):
     """What every one of these dialogs says, whatever it is asking."""
     return {
         "kind": kind,
-        "name": str(assignment.assignable),
+        # With the book's asterisk where this is a two-slot weapon, as
+        # the line the reader clicked draws it.
+        "name": marked_name(assignment.assignable),
         "cancel_url": at,
         "action": reverse(f"n26-{ROUTES.get(kind, kind)}", args=[assignment.pk]),
         "list": request.GET.get("list", ""),
@@ -433,7 +436,7 @@ def owned_dialog(request, host: EquipHost):
     if kind == "refund" and gang.credits_unlimited and not points:
         kind = "remove"
 
-    name = str(assignment.assignable)
+    name = marked_name(assignment.assignable)
     # A part is what hangs off something else — ammo in a gun, a sight
     # bolted to it. It is removed rather than deleted, because what is
     # left afterwards is still the fighter's gun.
@@ -505,9 +508,10 @@ def owned_dialog(request, host: EquipHost):
                     {
                         "pk": str(weapon.pk),
                         "label": (
-                            f"{weapon.assignable} ({weapon.miniature_root.name})"
+                            f"{marked_name(weapon.assignable)} "
+                            f"({weapon.miniature_root.name})"
                             if weapon.miniature_root_id
-                            else f"{weapon.assignable} (stash)"
+                            else f"{marked_name(weapon.assignable)} (stash)"
                         ),
                     }
                     for weapon in weapons
@@ -554,7 +558,8 @@ def owned_dialog(request, host: EquipHost):
         return dialog | {
             "title": f"Fit {name} to a weapon",
             "weapons": [
-                {"pk": str(node.assignment.pk), "label": node.name} for node in weapons
+                {"pk": str(node.assignment.pk), "label": marked_name(node.assignable)}
+                for node in weapons
             ],
             "submit_label": "Fit" if weapons else "",
             "submit_variant": "primary",

@@ -11,6 +11,8 @@ mark means "this takes two". Nothing explains the mark; the book's
 readers know it.
 """
 
+import re
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -241,18 +243,144 @@ class TestTheEquipPicker:
         assert 'aria-label="Add accessory to Heavy stubber*"' in body
 
 
-class TestTheStash:
-    def test_a_stashed_weapon_is_marked_on_the_gangs_own_page(
-        self, client, gang, stubber, grenades
+class TestThePriceBoxes:
+    """The box a price is typed into is named the way its row is, so a
+    screen reader hears the mark there too."""
+
+    def test_a_listings_price_box_is_named_with_the_mark(
+        self, client, gang, fighter, house_list
     ):
-        assign(stubber, stash=gang.stash, paid=130)
-        assign(grenades, stash=gang.stash, paid=30)
         client.force_login(gang.owner)
-        url = reverse("n26-equip-gang", args=[gang.pk])
+        url = reverse("n26-equip", args=[fighter.pk])
+        body = client.get(f"{url}?list={house_list.pk}").content.decode()
+
+        assert 'aria-label="Price for Heavy stubber*"' in body
+        assert 'aria-label="Price for Autogun"' in body
+
+    def test_buy_anothers_price_box_is_named_with_the_mark(
+        self, client, gang, fighter, house_list, armed, stubber
+    ):
+        client.force_login(gang.owner)
+        url = reverse("n26-equip", args=[fighter.pk])
+        key = f"{stubber._meta.label_lower}:{stubber.pk}"
+        body = client.get(f"{url}?list={house_list.pk}&owned={key}").content.decode()
+
+        # Owning one replaces the listing's row, so the only price box
+        # for the stubber on this page is the one under "Buy another".
+        assert "Buy another" in body
+        assert 'aria-label="Price for Heavy stubber*"' in body
+
+
+class TestThePrintSetupPicker:
+    def test_the_weapon_to_tick_is_named_with_the_mark(self, client, gang, armed):
+        client.force_login(gang.owner)
+        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
+
+        assert "Heavy stubber*" in setup
+        # Beside the mark, the picker still counts the slots in words.
+        assert "2 slots" in setup
+        assert "Autogun*" not in setup
+        assert "Frag grenades*" not in setup
+
+
+@pytest.fixture
+def stashed(gang, stubber, grenades):
+    """A two-slot weapon and a grenade in the gang's stash."""
+    assign(stubber, stash=gang.stash, paid=130)
+    assign(grenades, stash=gang.stash, paid=30)
+    return gang
+
+
+class TestTheStash:
+    """The stash draws a line's name the way a card does — on the gang's
+    equip page, on the gang sheet with its actions, and on paper."""
+
+    def test_the_stash_line_carries_its_slots(self, stashed):
+        from n26.core.render import render_gang
+
+        stashed.refresh_from_db()
+        lines = {line.name: line for line in render_gang(stashed).stash}
+
+        assert lines["Heavy stubber"].slots == 2
+        assert lines["Heavy stubber"].slot_mark == "*"
+        assert lines["Frag grenades"].slot_mark == ""
+
+    def test_a_stashed_weapon_is_marked_on_the_gangs_own_page(self, client, stashed):
+        client.force_login(stashed.owner)
+        url = reverse("n26-equip-gang", args=[stashed.pk])
         body = client.get(f"{url}?list=stash").content.decode()
 
         assert "Heavy stubber*" in body
         assert "Frag grenades" in body and "Frag grenades*" not in body
+
+    def test_the_gang_sheet_marks_it_and_its_actions(self, client, stashed):
+        client.force_login(stashed.owner)
+        body = client.get(reverse("n26-gang", args=[stashed.pk])).content.decode()
+
+        assert "Heavy stubber*" in body
+        assert 'aria-label="Actions for Heavy stubber*"' in body
+        assert 'aria-label="Actions for Frag grenades"' in body
+        assert "Frag grenades*" not in body
+
+    def test_the_printed_stash_marks_it(self, client, stashed):
+        client.force_login(stashed.owner)
+        paper = client.get(reverse("n26-print", args=[stashed.pk])).content.decode()
+
+        assert "Heavy stubber*" in paper
+        assert "Frag grenades*" not in paper
+
+
+class TestTheDialogs:
+    """A dialog opened from a marked line names the weapon the same way,
+    in its title and wherever it offers the weapon as somewhere to go."""
+
+    def test_selling_asks_with_the_mark(
+        self, client, gang, fighter, house_list, stubber
+    ):
+        held = give_weapon(fighter, stubber, paid=130)
+        client.force_login(gang.owner)
+        url = reverse("n26-equip", args=[fighter.pk])
+        body = client.get(f"{url}?list={house_list.pk}&sell={held.pk}").content.decode()
+
+        assert "Sell Heavy stubber*?" in body
+
+    def test_a_loose_accessory_is_offered_the_marked_gun(
+        self, client, gang, fighter, house_list, stubber, autogun
+    ):
+        from n26.tests.sandbox.actions import create_weapon_accessory
+
+        give_weapon(fighter, stubber, paid=130)
+        give_weapon(fighter, autogun, paid=15)
+        loose = assign(
+            create_weapon_accessory("Telescopic sight", price=25),
+            miniature=fighter,
+            paid=25,
+        )
+        client.force_login(gang.owner)
+        url = reverse("n26-equip", args=[fighter.pk])
+        body = client.get(f"{url}?list={house_list.pk}&fit={loose.pk}").content.decode()
+
+        assert "Fit Telescopic sight to a weapon" in body
+        assert re.search(r"<option[^>]*>\s*Heavy stubber\*\s*</option>", body)
+        assert re.search(r"<option[^>]*>\s*Autogun\s*</option>", body)
+
+    def test_a_stashed_accessory_is_offered_the_marked_gun(
+        self, client, gang, fighter, stubber
+    ):
+        from n26.tests.sandbox.actions import create_weapon_accessory
+
+        give_weapon(fighter, stubber, paid=130)
+        loose = assign(
+            create_weapon_accessory("Telescopic sight", price=25),
+            stash=gang.stash,
+            paid=25,
+        )
+        client.force_login(gang.owner)
+        url = reverse("n26-equip-gang", args=[gang.pk])
+        body = client.get(f"{url}?list=stash&reassign={loose.pk}").content.decode()
+
+        assert "Fit Telescopic sight to a weapon" in body
+        assert re.search(r"<option[^>]*>\s*Heavy stubber\* \(Vex\)\s*</option>", body)
 
 
 class TestAuthoringAWeapon:

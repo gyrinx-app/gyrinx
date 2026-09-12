@@ -27,7 +27,7 @@ lines.
         <div class="flex min-h-9 items-center gap-2">
             <span class="flex min-w-0 flex-1 flex-col justify-center">
                 <span class="text-sm text-ink-900 dark:text-ink-100">
-                    {{ copy.name }}{{ copy.slot_mark }}
+                    {{ copy.marked_name }}
                     {% comment %}
                     Only a weapon carries this, which is the structure's word
                     and not a test made here. Its own x-data, because Alpine
@@ -39,7 +39,7 @@ lines.
                                      size="xs"
                                      class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
                                      href="{{ copy.accessorise.target }}"
-                                     aria-label="{{ copy.accessorise.label }} to {{ copy.name }}{{ copy.slot_mark }}"
+                                     aria-label="{{ copy.accessorise.label }} to {{ copy.marked_name }}"
                                      x-data
                                      x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
                             {% comment %}
@@ -79,7 +79,7 @@ lines.
             <c-n26.owned-actions :sell="copy.sell"
                                  :more="copy.more"
                                  :htmx="htmx"
-                                 label="{{ copy.name }}{{ copy.slot_mark }}" />
+                                 label="{{ copy.marked_name }}" />
         </div>
 
         {% for part in copy.parts %}

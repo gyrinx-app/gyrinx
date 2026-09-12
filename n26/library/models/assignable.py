@@ -723,6 +723,23 @@ def slot_mark(slots):
     return TWO_SLOT_MARK if slots >= 2 else ""
 
 
+def slots_of(thing):
+    """The weapon slots a piece of content takes on a card.
+
+    A weapon says for itself — 2 for an asterisked one, 0 for a grenade.
+    Anything else takes one, which is the number that draws no mark, so a
+    line for a wargear and a line for an ordinary gun read the same way.
+    """
+    return thing.slots if isinstance(thing, Weapon) else 1
+
+
+def marked_name(thing):
+    """What a player reads, with the book's asterisk where the thing is
+    a two-slot weapon — for a dialog's title or an option's label, which
+    name content by its own ``str`` rather than through a card line."""
+    return f"{thing}{slot_mark(slots_of(thing))}"
+
+
 class Weapon(Content, Assignable, UsableBy):
     """A weapon. Always has at least one profile, the first of which is free.
 

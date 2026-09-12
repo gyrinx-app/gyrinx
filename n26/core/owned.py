@@ -8,7 +8,7 @@ on the page that supplied the card.
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
-from n26.library.models.assignable import Family, Weapon
+from n26.library.models.assignable import Family, Weapon, slots_of
 
 
 @dataclass(frozen=True)
@@ -129,16 +129,6 @@ def thing_key(thing):
     the assignable tables: a weapon and a wargear may share one.
     """
     return f"{thing._meta.label_lower}:{thing.pk}"
-
-
-def slots_of(thing):
-    """The weapon slots a piece of content takes on a card.
-
-    A weapon says for itself — 2 for an asterisked one, 0 for a grenade.
-    Anything else takes one, which is the number that draws no mark, so a
-    row for a wargear and a row for an ordinary gun read the same way.
-    """
-    return thing.slots if isinstance(thing, Weapon) else 1
 
 
 @dataclass(frozen=True)

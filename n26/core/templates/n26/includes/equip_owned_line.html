@@ -12,7 +12,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
     {% querystring owned=row.key as owned_toggle_href %}
 {% endif %}
 {% if row.buy %}
-    <c-n26.collection-picker.item name="{{ row.name }}{{ row.slot_mark }}"
+    <c-n26.collection-picker.item name="{{ row.marked_name }}"
                                   :price="row.buy.price"
                                   :trade_points="row.buy.trade_points"
                                   :exclusive="row.buy.is_exclusive"
@@ -35,7 +35,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
                     <div class="flex min-h-9 items-center gap-2">
                         <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
                         <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
-                            {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.name %}
+                            {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.marked_name %}
                         </span>
                         <span class="flex shrink-0 items-center gap-1">
                             {% include "n26/includes/row_action.html" with action=row.buy.buy %}
@@ -52,7 +52,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
         </c-slot>
     </c-n26.collection-picker.item>
 {% else %}
-    <c-n26.collection-picker.item name="{{ row.name }}{{ row.slot_mark }}"
+    <c-n26.collection-picker.item name="{{ row.marked_name }}"
                                   :price="0"
                                   :disclosure="False"
                                   :open="row.expanded"

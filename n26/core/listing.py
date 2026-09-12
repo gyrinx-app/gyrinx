@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 
 from django.utils.text import slugify
 
-from n26.core.owned import slots_of, thing_key
+from n26.core.owned import thing_key
 from n26.core.taxonomy import UNCATEGORISED
-from n26.library.models import slot_mark
+from n26.library.models import slot_mark, slots_of
 
 #: The affirmative act on a row: buying the thing it names.
 PRIMARY = "primary"
@@ -179,13 +179,18 @@ class SlotMarked:
     """A row that draws the book's asterisk after a two-slot weapon's name.
 
     The rows carry ``slots`` — the library's number, 1 for anything that
-    is not a weapon — and a template draws ``name`` then ``slot_mark``,
-    so the mark is never written into a name and never lost from one.
+    is not a weapon — and a template draws ``marked_name``, the name with
+    the mark after it, so the mark is never written into a name and never
+    lost from one. ``name`` stays the bare name a catalogue is keyed by.
     """
 
     @property
     def slot_mark(self):
         return slot_mark(self.slots)
+
+    @property
+    def marked_name(self):
+        return f"{self.name}{self.slot_mark}"
 
 
 @dataclass(frozen=True)
