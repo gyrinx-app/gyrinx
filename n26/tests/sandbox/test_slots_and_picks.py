@@ -1702,6 +1702,27 @@ class TestAChoiceThatHoldsSeveral:
         ] == [("Cawdor", True, "remove"), ("Escher", True, "remove")]
         assert_reconciled(gang)
 
+    def test_dismissing_it_while_it_holds_two_says_to_take_them_all_back(
+        self, gang, wanderer, houses, client
+    ):
+        """The refusal counts what is held: one pick is taken back, several
+        are all taken back, and the sentence says which."""
+        from n26.core.models import DismissedOffer
+
+        href = picker_href(gang)
+        for name in ("Cawdor", "Escher"):
+            client.post(href, {"thing": pickable_key_of(houses[name])})
+        dismiss = href.replace("/choose/", "/offers/") + "dismiss/"
+
+        reply = client.post(dismiss, follow=True)
+
+        assert (
+            "You cannot dismiss Gang Legacies. It has picks. Take them all back first."
+            in reply.content.decode()
+        )
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
+        assert_reconciled(gang)
+
     def test_a_full_choice_stops_offering_the_rest(
         self, gang, wanderer, houses, client
     ):

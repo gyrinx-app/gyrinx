@@ -678,10 +678,14 @@ def dismiss_offer(request, pk, slot):
         _hold(gang)
         found = _find_slot(gang, slot)
         if found.slot.is_resolved:
-            messages.error(
-                request,
-                f"You cannot dismiss {label}. It has a pick. Take the pick back first.",
+            # Counted, because a choice worked at a pick at a time may
+            # hold several, and every one of them has to go first.
+            held = (
+                "It has a pick. Take the pick back first."
+                if len(found.slot.picks) == 1
+                else "It has picks. Take them all back first."
             )
+            messages.error(request, f"You cannot dismiss {label}. {held}")
             return _safe_redirect(request, request.POST.get("back"), fallback)
         if found.slot.is_full:
             # Full with nothing chosen: a choice authored to take no
