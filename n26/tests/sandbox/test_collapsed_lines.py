@@ -219,7 +219,7 @@ class TestTheStash:
         gang.refresh_from_db()
         return gang
 
-    def test_the_sheet_holds_one_line_with_one_items_rating(self, stashed):
+    def test_the_sheet_holds_one_line_with_the_rating_of_one_item(self, stashed):
         sheet = render_gang(stashed)
 
         (kept,) = sheet.stash
@@ -255,7 +255,7 @@ class TestTheStash:
         assert "(x2)" not in body
         assert body.count('aria-label="Actions for Respirator"') == 2
 
-    def test_the_print_page_writes_the_count_and_one_items_rating(
+    def test_the_print_page_writes_the_count_and_the_rating_of_one_item(
         self, client, stashed
     ):
         client.force_login(stashed.owner)
@@ -471,3 +471,68 @@ class TestTheTypeLineReadsASubtypeOnce:
         card = drawn(gang, "Vex")
         assert card.type_line == "Fighter (Mounted)"
         assert [line.name for line in card.subtypes] == ["Mounted"]
+
+
+class TestTwoSkillsOfOneName:
+    """Skills are unique only within a pack, so two packs can each hold a
+    "Nerves of Steel". A model granted both is granted one skill, by
+    name: the effects layer folds same-named grants (one skill from two
+    givers is one skill), and the card's own guard reads the same way, so
+    the two never disagree about what the fighter knows."""
+
+    def test_both_granted_read_as_one_skill(
+        self, gang, fighter, nerves, other_pack, default_pack
+    ):
+        twin = create_skill("Nerves of Steel", pack=other_pack)
+        assert twin.pk != nerves.pk
+        for name, skill in (("Rebreather kit", nerves), ("Steadying harness", twin)):
+            kit = create_wargear(name, price=20)
+            modifier(f"{name} steadies", targets_model(), adds(skill), carried_by=kit)
+            assign(kit, miniature=fighter, paid=20)
+
+        (kept,) = drawn(gang, "Vex").skills
+        assert (kept.name, kept.count, kept.provenance.computed) == (
+            "Nerves of Steel",
+            1,
+            True,
+        )
+
+
+class TestWeaponsInTheStash:
+    """A weapon in the stash is never stacked. Its name and its total can
+    agree while the guns differ — one carrying a sight priced at nothing
+    reads the same figure as one without — and the configuration that
+    tells them apart is not this line's to key."""
+
+    @pytest.fixture
+    def lasgun(self, default_pack):
+        from n26.tests.sandbox.actions import create_weapon
+
+        return create_weapon("Lasgun", profiles=[("", 0)], price=15)
+
+    def test_two_lasguns_with_equal_totals_but_different_kit_are_two_lines(
+        self, gang, lasgun, default_pack
+    ):
+        from n26.tests.sandbox.actions import attach, create_weapon_accessory
+
+        plain = assign(lasgun, stash=gang.stash, paid=15)
+        sighted = assign(lasgun, stash=gang.stash, paid=15)
+        attach(sighted, create_weapon_accessory("Iron sights", price=0), paid=0)
+        gang.refresh_from_db()
+
+        weapons = [line for line in render_gang(gang).stash if line.kind == "weapon"]
+        assert [(line.name, line.rating, line.count) for line in weapons] == [
+            ("Lasgun", 15, 1),
+            ("Lasgun", 15, 1),
+        ]
+        assert {line.id for line in weapons} == {str(plain.pk), str(sighted.pk)}
+
+    def test_two_bare_lasguns_are_two_lines_too(self, gang, lasgun):
+        assign(lasgun, stash=gang.stash, paid=15)
+        assign(lasgun, stash=gang.stash, paid=15)
+        gang.refresh_from_db()
+
+        assert [(line.name, line.count) for line in render_gang(gang).stash] == [
+            ("Lasgun", 1),
+            ("Lasgun", 1),
+        ]

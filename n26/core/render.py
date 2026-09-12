@@ -2916,6 +2916,13 @@ def stash_lines(gang_card, collapse_repeats=True):
     ``collapse_repeats`` draws identical lines once with a count
     (:func:`collapse`), each keeping the rating of one. Off for the
     owner's sheet, whose lines carry a menu naming one assignment.
+
+    A weapon stands alone however many are alike. What a weapon is
+    includes the profiles bought onto it, the accessories bolted to it
+    and the choices settled on it, and its name and total can agree
+    while the guns differ — a sight priced at nothing leaves the total
+    where it was. No key over that configuration is built here, so no
+    two weapons are ever called the same.
     """
     from n26.library.models import WeaponAccessory
 
@@ -2929,7 +2936,11 @@ def stash_lines(gang_card, collapse_repeats=True):
             id=str(node.assignment.pk) if node.assignment is not None else "",
             is_accessory=isinstance(node.assignable, WeaponAccessory),
             paid_trade_points=node.paid_trade_points,
-            key=thing_key(node.assignable),
+            key=(
+                ""
+                if isinstance(node.assignable, Weapon)
+                else thing_key(node.assignable)
+            ),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen

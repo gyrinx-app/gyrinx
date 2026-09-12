@@ -2049,7 +2049,7 @@ GROUPS: list[Group] = [
                     "roster grid, so moving something between a card and the "
                     "stash is a move between two like things on one screen. "
                     "Items are "
-                    "grouped by kind, run on and wrap rather than taking a row "
+                    "grouped by kind, run on and wrap rather than taking a line "
                     "each, with each rating against its own item and the total on "
                     "the header line. Two of one thing read once, as Stub gun (x2), "
                     "with the rating of one beside it; the owner's sheet keeps one "
