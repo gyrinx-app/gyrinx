@@ -7,6 +7,7 @@
 | 2026-03-28 | Initial spec: principles, colour, typography, spacing, icons, containers, feedback, buttons, tables, forms, page shells, empty states |
 | 2026-03-28 | v2: Remove `bi-plus-circle`/`bi-check-circle` — use `bi-plus-lg` and `bi-check-lg` only. Button colours: `btn-success` for create/confirm, `btn-primary` for navigation/open. Section header bar now includes padded inner content. Alert heading uses body font size. Unify list/detail page shells. Add search pattern, list header, campaign info columns. |
 | 2026-07-24 | Section header actions: a `.section-actions` row with `·` between items. Links to a management page are `bi-pencil` + the noun ("Attributes"), not "Manage Attributes →". |
+| 2026-09-12 | Flat page (help) headings: weight and colour per level inside `.flatpage-content` (bold gold h2, emphasis-grey h3/h4), no underline on heading anchors, optional contents block. |
 
 ---
 
@@ -68,6 +69,21 @@
 ### Heading hierarchy
 
 Every page: one `<h1>`. Index pages use full `<h1>`. Sub-pages use `<h1 class="h3">`. Sections use `<h2 class="h5 mb-0">`. Card headers use `<h3 class="h5 mb-0">`.
+
+### Flat page (help) headings
+
+Help pages are long prose, so inside `.flatpage-content` heading levels differ by weight and colour as well as size — size alone is not enough for a dyslexic reader to tell a heading from body text. These rules apply only inside `.flatpage-content`; the rest of the app keeps Bootstrap's headings.
+
+| Level | Weight | Colour | Contrast (light / dark) |
+|-------|--------|--------|-------------------------|
+| `h2` | bold (700) | `--gy-flatpage-h2-color` — gold `#8a6000` light, `#f0b02a` dark | 5.59:1 / 8.04:1 |
+| `h3` | bold (700) | `--bs-secondary-text-emphasis` | 13.5:1 / 6.7:1 |
+| `h4` | semibold (600) | `--bs-secondary-text-emphasis` | 13.5:1 / 6.7:1 |
+| `h5`, `h6` | semibold (600) | body | — |
+
+All pass WCAG AA (4.5:1) for normal text in both themes. `$yellow` itself is 2.2:1 on white and is also the injured-state colour, so the gold is a separate per-theme custom property, never `$warning`. Heading anchors (`add_heading_links`) never underline; the link icon on hover is the affordance.
+
+A page's options in the admin can tick **Show contents** to render a nested list of its headings (`{% page_contents %}`) above the content. Heading ids are slugs of their text, de-duplicated with `-2`, `-3`… so the contents links always resolve.
 
 ### Caps label
 
