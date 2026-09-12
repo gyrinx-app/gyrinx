@@ -353,10 +353,14 @@ def card_screen(miniature, back):
     from django.urls import Resolver404, resolve
 
     edit = reverse("n26-edit-fighter", args=[miniature.pk])
-    parts = urlsplit(back or "")
     try:
+        parts = urlsplit(back or "")
         match = resolve(parts.path)
-    except Resolver404:
+    except ValueError, Resolver404:
+        # Not an address at all — an unclosed IPv6 bracket is what
+        # urlsplit refuses — or not a page of this app. A crafted value
+        # posted as ``back`` is read as the Edit face like any other
+        # stranger, never as an error.
         return edit, edit
     screen = CARD_SCREENS.get(match.url_name)
     if screen is None or match.kwargs.get("pk") != str(miniature.pk):
