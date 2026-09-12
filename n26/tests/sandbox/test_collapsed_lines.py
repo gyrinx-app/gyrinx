@@ -447,3 +447,27 @@ class TestABoughtAndAGrantedSkill:
             1,
             True,
         )
+
+
+class TestTheTypeLineReadsASubtypeOnce:
+    """The type line states what the model is. A subtype the owner added
+    that a modifier also grants is one fact, and reads once — unlike a
+    skill, where the granted line keeps its place beside the bought one
+    so its tooltip can name what gave it."""
+
+    def test_a_subtype_both_added_and_granted_reads_once(
+        self, gang, fighter, default_pack
+    ):
+        from n26.tests.sandbox.actions import create_subtype
+
+        mounted = create_subtype("Mounted")
+        cutter = create_wargear("Cutter", price=75)
+        modifier(
+            "Cutter grants Mounted", targets_model(), adds(mounted), carried_by=cutter
+        )
+        assign(mounted, miniature=fighter)
+        assign(cutter, miniature=fighter, paid=75)
+
+        card = drawn(gang, "Vex")
+        assert card.type_line == "Fighter (Mounted)"
+        assert [line.name for line in card.subtypes] == ["Mounted"]

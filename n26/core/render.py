@@ -1866,6 +1866,13 @@ def _choosable(
     )
 
 
+#: The named rows whose repeats :func:`collapse` stacks, and in which a
+#: granted line keeps its place beside a bought one of the same name.
+#: The type line (subtypes) and the lists a model buys from are not
+#: among them: each states a fact, and reads a name once.
+STACKED_ROWS = ("skills", "rules", "powers")
+
+
 def identity(line):
     """What makes two lines the same line, for :func:`collapse`.
 
@@ -2255,18 +2262,24 @@ def card_to_model_card(
         # Computed grants join the same rows the stored lines chose —
         # the mapping is the one the kinds declared, so a grant can
         # never land in a different row than a purchase of the same
-        # thing. Deduplicated by name against the other grants: two
-        # sources granting one skill leave the fighter knowing it once.
-        # A grant of something the fighter also bought keeps a line of
-        # its own — the two are different facts, and the grant's line is
-        # the one whose tooltip names what gave it; ``collapse`` keeps
-        # them apart by provenance.
+        # thing. Two sources granting one skill leave the fighter knowing
+        # it once. In the rows ``collapse`` stacks, a grant of something
+        # the fighter also bought keeps a line of its own — the two are
+        # different facts, told apart by provenance, and the grant's line
+        # is the one whose tooltip names what gave it. The type line and
+        # the lists a model buys from state facts, and a fact stated twice
+        # reads as two: a granted subtype the model already holds reads
+        # once, by name.
         for row_name, lines in line_rows.items():
-            granted = {line.name for line in lines if line.provenance.computed}
+            seen = {
+                line.name
+                for line in lines
+                if row_name not in STACKED_ROWS or line.provenance.computed
+            }
             for contribution in getattr(computed, row_name):
-                if contribution.name in granted:
+                if contribution.name in seen:
                     continue
-                granted.add(contribution.name)
+                seen.add(contribution.name)
                 lines.append(
                     AssignableLine(
                         name=contribution.name,
@@ -2302,7 +2315,7 @@ def card_to_model_card(
         # Just before the sort, so the first of each keeps its place and
         # the count lands on the line the sort then files.
         equipment = collapse(equipment)
-        for row_name in ("skills", "rules", "powers"):
+        for row_name in STACKED_ROWS:
             line_rows[row_name] = collapse(line_rows[row_name])
         for _, lines in apart.values():
             lines[:] = collapse(lines)
