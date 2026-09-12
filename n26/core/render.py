@@ -649,6 +649,15 @@ class ArrivalScreen:
             if not question.settled
         ]
 
+    @property
+    def outstanding_said(self):
+        """The open questions as a sentence names them: "Archetype",
+        "Archetype and Creed", "Archetype, Creed and Path"."""
+        labels = self.outstanding
+        if len(labels) <= 1:
+            return "".join(labels)
+        return f"{', '.join(labels[:-1])} and {labels[-1]}"
+
 
 @dataclass(frozen=True)
 class RollTable:

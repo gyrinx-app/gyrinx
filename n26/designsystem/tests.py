@@ -6,6 +6,8 @@ raising. Registering a component and never loading its page is therefore
 indistinguishable from registering it wrongly — which is what this asks.
 """
 
+from html import unescape
+
 import pytest
 from django.contrib.auth import get_user_model
 
@@ -685,7 +687,7 @@ class TestTheArrivalBlockPage:
         body = reader.get("/n26/design/shell/next/").content.decode()
         assert "Choices for The Forgotten" in body
         assert "Founded The Forgotten." in body
-        assert "Choose Archetype, Hunter&#x27;s path to continue." in body
+        assert "Choose Archetype and Hunter's path to continue." in unescape(body)
         assert "nterstitial" not in body
 
     def test_the_shells_forms_post_nowhere(self, reader):
