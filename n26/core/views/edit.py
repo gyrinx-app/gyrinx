@@ -1,6 +1,7 @@
 """One model's own page — the card, editable, and the owner's notes."""
 
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -300,19 +301,33 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     return card
 
 
-#: The screens a model's card is drawn on, by route name, and whether each
-#: holds the dialog host the kit acts open in. A card sent back to one of
-#: them is addressed the way that screen addresses its own card, so the
-#: controls it carries keep opening where the screen's own do.
-CARD_SCREENS = {
-    "n26-edit-fighter": True,
-    "n26-equip": True,
-    "n26-fighter-options": False,
-}
+class CardScreen(NamedTuple):
+    """One of the screens a model's card is drawn on, as the card sent
+    back to it needs to know it."""
 
-#: What an equip screen's address carries besides the route — which list is
-#: open, which section, which row stands open. Anything else is dropped.
-CARRIED = ("list", "section", "owned")
+    #: Whether the screen holds the dialog host the kit acts open in. Where
+    #: it does not, the acts open over the Edit face.
+    hosts_dialogs: bool
+    #: The query parameters the screen's address carries as a place to
+    #: return to: the state that outlives an act, and nothing that names a
+    #: question mid-ask. Anything else in the posted address is dropped.
+    carries: tuple[str, ...]
+
+
+#: The screens a model's card is drawn on, by route name. A card sent back
+#: to one of them is addressed the way that screen addresses its own card,
+#: so the controls it carries keep opening where the screen's own do.
+#:
+#: The Edit face carries which skills tab is open, and not the rename or
+#: the kit panel its address may also name: a question stood open is not
+#: somewhere to come back to once it is settled. The Equip face carries
+#: which list is open, which section, and which row stands open. Options
+#: carries nothing, and its card's acts land on Edit.
+CARD_SCREENS = {
+    "n26-edit-fighter": CardScreen(hosts_dialogs=True, carries=("skills",)),
+    "n26-equip": CardScreen(hosts_dialogs=True, carries=("list", "section", "owned")),
+    "n26-fighter-options": CardScreen(hosts_dialogs=False, carries=()),
+}
 
 
 def card_screen(miniature, back):
@@ -323,7 +338,7 @@ def card_screen(miniature, back):
     only: naming which of the model's own screens it was drawn on. Its
     path is resolved against the URL table and must name one of
     :data:`CARD_SCREENS` for this very model; the address is then rebuilt
-    from the route and the query parameters in :data:`CARRIED`, so
+    from the route and the query parameters that screen carries, so
     nothing the request sent reaches an href as written. Anything else —
     a stale link, another model's page, an address from elsewhere — is
     read as the Edit face, where a card's acts open by default.
@@ -343,15 +358,16 @@ def card_screen(miniature, back):
         match = resolve(parts.path)
     except Resolver404:
         return edit, edit
-    if match.url_name not in CARD_SCREENS or match.kwargs.get("pk") != str(
-        miniature.pk
-    ):
+    screen = CARD_SCREENS.get(match.url_name)
+    if screen is None or match.kwargs.get("pk") != str(miniature.pk):
         return edit, edit
     address = reverse(match.url_name, args=[miniature.pk])
-    kept = [(key, value) for key, value in parse_qsl(parts.query) if key in CARRIED]
+    kept = [
+        (key, value) for key, value in parse_qsl(parts.query) if key in screen.carries
+    ]
     if kept:
         address = f"{address}?{urlencode(kept)}"
-    return address, (address if CARD_SCREENS[match.url_name] else edit)
+    return address, (address if screen.hosts_dialogs else edit)
 
 
 def render_card_update(request, miniature, at):

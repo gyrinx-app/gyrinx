@@ -93,7 +93,7 @@ sits and what its heading says.
         lets the whole card be replaced without rebuilding them.
         {% endcomment %}
         <c-slot name="card">
-            {% include "n26/includes/model_card_host.html" %}
+            {% include "n26/includes/model_card_host.html" with name_action=name_action %}
         </c-slot>
         {% if tab_actions.strip %}
             <c-slot name="tab_actions">{{ tab_actions }}</c-slot>

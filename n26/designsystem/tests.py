@@ -572,6 +572,16 @@ class TestTheModelEditPage:
         card = page.index('id="n26-model-card-host"')
         assert page.index("<h1") < card < page.index("This model")
 
+    def test_the_demos_name_action_reaches_the_card(self, reader):
+        """The demo passes a rename link of its own — there is no model
+        to rename — and the host include draws it in place of the real
+        pencil. A slot that went unforwarded would draw the pencil
+        pointing at an Edit page for a model that does not exist."""
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page[page.index('id="n26-model-card-host"') : page.index("This model")]
+        assert 'href="#rename"' in card
+        assert "?rename=" not in card
+
     def test_the_boxes_run_picture_notes_skills_characteristics_lore(self, reader):
         page = reader.get("/n26/design/view/view-model-edit/").content.decode()
 
