@@ -943,11 +943,15 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
                 f"The {words['noun']} cannot run: " + "; ".join(plan.problems) + ".",
             )
             return HttpResponseRedirect(address)
+        # A plan that keeps more than its lines — the rows it named, so
+        # the run can hold its own reading against what was approved —
+        # writes that onto the record beside the preview.
+        recorded = getattr(plan, "recorded", dict)()
         backfill = Backfill.objects.create(
             operation=operation,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"preview": list(plan.preview()), "attempts": 0},
+            summary={"preview": list(plan.preview()), "attempts": 0, **recorded},
         )
         task_fn.enqueue(backfill_id=str(backfill.id))
         messages.success(
@@ -1962,22 +1966,30 @@ register_operation(
 @task
 def clear_item_restrictions(backfill_id, **said_by_whoever_enqueued_it):
     """Strip the item-level restriction to fighter entries from every
-    item some collection entry lists, and record it.
+    item the record's plan names, and record it.
 
     Library-only work in one transaction under the runner discipline:
     the equipment-lists upload wrote each list's "<Fighter> only" onto
-    the item every list shares. Nothing a player holds is
-    touched.
+    the item every list shares. The plan is the one the page previewed
+    and wrote onto the record, so nothing that appeared after the
+    preview is swept up. Nothing a player holds is touched.
     """
-    from n26.library.item_restrictions import Refused, apply, find
+    from n26.library.item_restrictions import Refused, apply
 
     _run_recorded(
         backfill_id,
         Operation.CLEAR_ITEM_RESTRICTIONS,
         "Item restriction clearing",
-        lambda: apply(find()),
+        lambda: apply(_approved_plan(backfill_id)),
         Refused,
     )
+
+
+def _approved_plan(backfill_id):
+    """The plan written onto a record when its run was asked for, or
+    ``None`` for a record that holds none."""
+    record = Backfill.objects.filter(pk=backfill_id).first()
+    return None if record is None else record.summary.get("plan")
 
 
 CLEAR_ITEM_RESTRICTIONS_WORDS = {

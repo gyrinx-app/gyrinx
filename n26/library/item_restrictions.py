@@ -31,9 +31,10 @@ What it leaves alone, and why:
 * Every entry's own lists. Those are the right place, and the upload's
   fixed reading writes there.
 
-It is one transaction, and it strips exactly what the preview showed:
-the items are locked, read a second time, and the run refuses if the
-second reading differs from the plan somebody approved.
+It is one transaction, and it strips exactly what the preview showed.
+The plan is written onto the record when the run is asked for; the run
+locks the items it names, reads them again, and refuses if what stands
+differs from what was approved.
 """
 
 from dataclasses import dataclass
@@ -54,7 +55,7 @@ class Restricted:
     model: str
     pk: str
     #: How the item reads: its label and kind.
-    said: str
+    label: str
     #: The pack's name where it is not the default pack, else empty.
     pack: str
     profile_ids: tuple
@@ -65,6 +66,15 @@ class Restricted:
     @property
     def identity(self):
         return (self.model, self.pk, frozenset(self.profile_ids))
+
+    def recorded(self):
+        """This item as the record holds it: enough to find the row
+        again and to tell whether its restriction has moved."""
+        return {
+            "model": self.model,
+            "pk": self.pk,
+            "profile_ids": list(self.profile_ids),
+        }
 
 
 @dataclass(frozen=True)
@@ -94,11 +104,17 @@ class Restrictions:
         )
         return lines
 
+    def recorded(self):
+        """What the record keeps beyond the preview's lines: the plan
+        itself, so the run can hold its own reading against what was
+        approved rather than against a second live scan."""
+        return {"plan": [item.recorded() for item in self.items]}
+
 
 def _line(item):
     where = f" [{item.pack}]" if item.pack else ""
     return (
-        f"clear {item.said}{where}: usable by {', '.join(item.profiles)} only — "
+        f"clear {item.label}{where}: usable by {', '.join(item.profiles)} only — "
         f"listed in {', '.join(item.lists)}"
     )
 
@@ -121,7 +137,7 @@ def listable_kinds():
 
 def _restricted_and_listed(column, model):
     """The rows of one kind that some entry lists and that name at least
-    one fighter entry, with their lists and profiles read alongside."""
+    one fighter entry, with their packs and profiles read alongside."""
     from n26.library.models import CollectionEntry
 
     listed = CollectionEntry.objects.filter(**{f"{column}__isnull": False}).values(
@@ -136,22 +152,22 @@ def _restricted_and_listed(column, model):
     )
 
 
-def _lists_naming(column, row):
+def _lists_naming(column, rows):
+    """The collections listing each of these rows, one query for the
+    kind: ``{pk: (collection name, ...)}``."""
     from n26.library.models import CollectionEntry
 
-    return tuple(
-        sorted(
-            {
-                entry.collection.name
-                for entry in CollectionEntry.objects.filter(
-                    **{column: row}
-                ).select_related("collection")
-            }
-        )
-    )
+    naming = {}
+    for pk, name in (
+        CollectionEntry.objects.filter(**{f"{column}__in": rows})
+        .values_list(column, "collection__name")
+        .distinct()
+    ):
+        naming.setdefault(str(pk), set()).add(name)
+    return {pk: tuple(sorted(names)) for pk, names in naming.items()}
 
 
-def _said(row):
+def _label(row):
     label = getattr(row, "authoring_label", None) or str(row)
     return f"{label} ({row._meta.verbose_name})"
 
@@ -160,14 +176,16 @@ def find():
     """Read every listed item that names a fighter entry. Never writes."""
     items = []
     for column, model in listable_kinds():
-        for row in _restricted_and_listed(column, model):
+        rows = list(_restricted_and_listed(column, model))
+        lists = _lists_naming(column, rows)
+        for row in rows:
             profiles = sorted(row.usable_by_profiles.all(), key=str)
             pack = row.pack
             items.append(
                 Restricted(
                     model=model._meta.label_lower,
                     pk=str(row.pk),
-                    said=_said(row),
+                    label=_label(row),
                     pack=(
                         ""
                         if pack is None
@@ -176,24 +194,32 @@ def find():
                     ),
                     profile_ids=tuple(str(profile.pk) for profile in profiles),
                     profiles=tuple(str(profile) for profile in profiles),
-                    lists=_lists_naming(column, row),
+                    lists=lists.get(str(row.pk), ()),
                 )
             )
     return Restrictions(items=tuple(items), nothing_here=not items)
 
 
-def _lock(found):
-    """Every item the plan names, locked for the rest of the transaction.
+def _approved_identities(approved):
+    """The plan as the record holds it, as identities."""
+    return {
+        (item["model"], item["pk"], frozenset(item["profile_ids"])) for item in approved
+    }
+
+
+def _lock(approved):
+    """Every item the approved plan names, locked for the rest of the
+    transaction.
 
     An insert into an item's use list checks its key against the item,
     which the row lock blocks, so nothing can be added to a locked
-    item's lists between the second reading and the clearing.
+    item's lists between the reading and the clearing.
     """
     from django.apps import apps
 
     by_model = {}
-    for item in found.items:
-        by_model.setdefault(item.model, []).append(item.pk)
+    for item in approved:
+        by_model.setdefault(item["model"], []).append(item["pk"])
     locked = {}
     for label in sorted(by_model):
         model = apps.get_model(label)
@@ -207,40 +233,53 @@ def _lock(found):
     return locked
 
 
-def apply(found):
-    """Strip exactly what was read, or refuse and strip nothing."""
-    if found.problems:
-        raise Refused(
-            "The removal cannot run because " + "; ".join(found.problems) + "."
-        )
-    if found.nothing_here:
-        return list(found.preview())
+def apply(approved):
+    """Strip exactly what was approved, or refuse and strip nothing.
 
+    ``approved`` is the plan the record holds — what the preview showed
+    when the run was asked for. The reading the run makes for itself is
+    held against that, not against another live scan: a restriction
+    added, or an item newly listed, after the preview was read was never
+    approved, and a run that met one would sweep it up without anybody
+    having seen it.
+    """
+    if approved is None:
+        raise Refused(
+            "This record holds no plan, so there is nothing to check the "
+            "run's own reading against. Ask for the removal again from its "
+            "page."
+        )
+    if not approved:
+        return list(Restrictions(nothing_here=True).preview())
+
+    planned = _approved_identities(approved)
     with transaction.atomic():
-        locked = _lock(found)
-        again = find()
-        planned = {item.identity for item in found.items}
-        standing = {item.identity for item in again.items}
-        if planned != standing or len(locked) != len(found.items):
+        locked = _lock(approved)
+        standing = find()
+        if planned != {item.identity for item in standing.items} or len(locked) != len(
+            planned
+        ):
             raise Refused(
                 "The restrictions have changed since the preview was read: "
                 f"the preview named {len(planned)} item"
                 f"{'' if len(planned) == 1 else 's'} and there are now "
-                f"{len(standing)}. Nothing was cleared. Open the page again "
+                f"{len(standing.items)}, or one of them names different "
+                "fighter entries. Nothing was cleared. Open the page again "
                 "to read the current plan."
             )
-        for item in found.items:
+        for item in standing.items:
             locked[(item.model, item.pk)].usable_by_profiles.clear()
 
-    count = len(found.items)
+    count = len(standing.items)
     report = [
         f"Cleared the restriction to fighter entries from {count} listed "
         f"item{'' if count == 1 else 's'}."
     ]
-    for item in found.items:
+    for item in standing.items:
         where = f" [{item.pack}]" if item.pack else ""
         report.append(
-            f"cleared {item.said}{where}: was usable by {', '.join(item.profiles)} only"
+            f"cleared {item.label}{where}: was usable by "
+            f"{', '.join(item.profiles)} only"
         )
     report.append(
         "Upload the equipment lists again to write each list's own "

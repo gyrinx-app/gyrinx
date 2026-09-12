@@ -4734,7 +4734,6 @@ def entry_edit(request, pk):
     as the item's own page replaces them: a multi-select carries the
     whole set.
     """
-    from n26.library import authoring
     from n26.library.models import CollectionEntry
     from n26.library.models.assignable import UsableBy
     from n26.library.models.collection import ENTRY_ASKS, ENTRY_ASSIGNABLE_FIELDS
@@ -4775,15 +4774,15 @@ def entry_edit(request, pk):
     if request.method == "POST":
         form = opened(request.POST)
         if form.is_valid():
-            written = {name: form.cleaned_data.get(name) for name in overrides}
             try:
                 with transaction.atomic():
-                    for name, value in written.items():
-                        setattr(entry, name, value)
-                    # The row's own sense check, in words on the form: a
-                    # fighter cannot be priced below nothing.
-                    entry.clean()
-                    authoring.revise(entry, **written)
+                    # The overrides ride the union as asks rather than
+                    # being spec fields, so ``apply_to`` does not carry
+                    # them: they go onto the row first, and its one
+                    # write — the row's own sense check, the save, the
+                    # use lists replaced — takes them with it.
+                    for name in overrides:
+                        setattr(entry, name, form.cleaned_data.get(name))
                     form.apply_to(entry)
             except ValidationError as refused:
                 form.add_error(None, refused)

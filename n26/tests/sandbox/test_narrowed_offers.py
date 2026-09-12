@@ -369,9 +369,7 @@ class TestTheItemsOwnBracketIsNotedOnTheCollectionPage:
         assert "The item itself is usable by Goliath Forge-born only" in body
         assert f"/n26/authoring/weapon-profiles/{krak.pk}/" in body
 
-    def test_noting_the_items_costs_no_more_queries_as_a_list_grows(
-        self, author, ranks
-    ):
+    def test_noting_the_items_adds_no_queries_as_a_list_grows(self, author, ranks):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 

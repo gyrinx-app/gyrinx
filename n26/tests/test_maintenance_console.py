@@ -1162,7 +1162,7 @@ class TestTheItemRestrictionClearing:
 
         assert not found.nothing_here
         (item,) = found.items
-        assert item.said == "Long las (weapon)"
+        assert item.label == "Long las (weapon)"
         assert item.profiles == ("Van Saar Champion", "Van Saar Leader")
         assert item.lists == ("Trading Post", "Van Saar Equipment List")
         assert item.pack == ""
@@ -1194,7 +1194,33 @@ class TestTheItemRestrictionClearing:
         assert not Backfill.objects.exists()
         assert restricted_world["long_las"].usable_by_words() != ""
 
-    def test_applying_records_what_it_cleared_and_leaves_the_rest(
+    def test_reading_the_plan_takes_no_more_queries_as_the_items_grow(
+        self, restricted_world, make_profile
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_collection, create_weapon, restrict_use
+        from n26.library.item_restrictions import find
+
+        def queries():
+            with CaptureQueriesContext(connection) as captured:
+                found = find()
+            return len(captured), found
+
+        small, _ = queries()
+        listing = create_collection("Another list")
+        for index in range(9):
+            weapon = create_weapon(f"Las {index}", profiles=[("", 0)], price=10)
+            restrict_use(weapon, restricted_world["leader"])
+            listing.entries.create(weapon=weapon, position=index)
+
+        large, found = queries()
+
+        assert len(found.items) == 10
+        assert large == small
+
+    def test_applying_records_the_plan_and_what_it_cleared_and_leaves_the_rest(
         self, client, superuser, restricted_world
     ):
         client.force_login(superuser)
@@ -1204,6 +1230,13 @@ class TestTheItemRestrictionClearing:
         assert response.status_code == 302
         run = Backfill.objects.get(operation=Operation.CLEAR_ITEM_RESTRICTIONS)
         assert run.status == Backfill.Status.DONE
+        (planned,) = run.summary["plan"]
+        assert planned["model"] == "library.weapon"
+        assert planned["pk"] == str(restricted_world["long_las"].pk)
+        assert set(planned["profile_ids"]) == {
+            str(restricted_world["leader"].pk),
+            str(restricted_world["champion"].pk),
+        }
         assert run.summary["report"][0] == (
             "Cleared the restriction to fighter entries from 1 listed item."
         )
@@ -1242,7 +1275,7 @@ class TestTheItemRestrictionClearing:
 
         assert Backfill.objects.count() == 1
 
-    def test_it_refuses_when_the_restrictions_moved_since_the_preview(
+    def test_it_refuses_when_an_item_was_restricted_after_the_preview(
         self, restricted_world
     ):
         """The plan somebody approved is the plan that runs. An item
@@ -1250,13 +1283,68 @@ class TestTheItemRestrictionClearing:
         from n26.library.authoring import restrict_use
         from n26.library.item_restrictions import Refused, apply, find
 
-        found = find()
+        approved = find().recorded()["plan"]
         restrict_use(restricted_world["armour"], restricted_world["leader"])
 
         with pytest.raises(Refused, match="changed since the preview was read"):
-            apply(found)
+            apply(approved)
 
         assert restricted_world["long_las"].usable_by_words() != ""
+        assert restricted_world["armour"].usable_by_words() != "Champion"
+
+    def test_it_refuses_when_a_previewed_items_restriction_moved(
+        self, restricted_world
+    ):
+        from n26.library.authoring import restrict_use
+        from n26.library.item_restrictions import Refused, apply, find
+
+        approved = find().recorded()["plan"]
+        restricted_world["long_las"].usable_by_profiles.remove(
+            restricted_world["champion"]
+        )
+        restrict_use(restricted_world["long_las"], restricted_world["leader"])
+
+        with pytest.raises(Refused, match="changed since the preview was read"):
+            apply(approved)
+
+        assert restricted_world["long_las"].usable_by_words() == "Van Saar Leader"
+
+    def test_a_record_without_a_plan_is_refused(self, restricted_world):
+        from n26.library.item_restrictions import Refused, apply
+
+        with pytest.raises(Refused, match="holds no plan"):
+            apply(None)
+
+        assert restricted_world["long_las"].usable_by_words() != ""
+
+    def test_the_task_reads_the_plan_off_its_own_record(
+        self, restricted_world, superuser
+    ):
+        """What the task clears is what its record says was approved,
+        not whatever a fresh scan finds when it starts."""
+        from n26.library.authoring import restrict_use
+        from n26.library.item_restrictions import find
+
+        found = find()
+        record = Backfill.objects.create(
+            operation=Operation.CLEAR_ITEM_RESTRICTIONS,
+            triggered_by=superuser,
+            status=Backfill.Status.RUNNING,
+            summary={
+                "preview": list(found.preview()),
+                "attempts": 0,
+                **found.recorded(),
+            },
+        )
+        restrict_use(restricted_world["armour"], restricted_world["leader"])
+
+        maintenance.clear_item_restrictions.call(backfill_id=str(record.id))
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.FAILED
+        assert "changed since the preview was read" in record.error
+        assert restricted_world["long_las"].usable_by_words() != ""
+        assert restricted_world["armour"].usable_by_words() != "Champion"
 
     def test_a_refusal_ends_the_record_in_its_own_words(
         self, restricted_world, superuser
@@ -1277,7 +1365,7 @@ class TestTheItemRestrictionClearing:
             record.id,
             Operation.CLEAR_ITEM_RESTRICTIONS,
             "Item restriction clearing",
-            lambda: apply(found),
+            lambda: apply(found.recorded()["plan"]),
             Refused,
         )
 
@@ -1285,14 +1373,6 @@ class TestTheItemRestrictionClearing:
         assert record.status == Backfill.Status.FAILED
         assert "changed since the preview was read" in record.error
         assert restricted_world["long_las"].usable_by_words() != ""
-
-    def test_a_plan_with_problems_is_refused_before_anything_is_locked(
-        self, restricted_world
-    ):
-        from n26.library.item_restrictions import Refused, Restrictions, apply
-
-        with pytest.raises(Refused, match="cannot run because it is a test"):
-            apply(Restrictions(items=(), problems=("it is a test",)))
 
     def test_an_item_in_another_pack_says_which(
         self, restricted_world, other_pack, make_profile
