@@ -849,22 +849,22 @@ class TestWhatTheScreenSays:
         )
 
     def test_one_open_question_is_named_alone(self):
-        assert self.screen("Archetype").outstanding_said == "Archetype"
+        assert self.screen("Archetype").outstanding_words == "Archetype"
 
     def test_two_are_joined_with_and(self):
         assert (
-            self.screen("Archetype", "Creed").outstanding_said == "Archetype and Creed"
+            self.screen("Archetype", "Creed").outstanding_words == "Archetype and Creed"
         )
 
     def test_three_are_listed_with_and_before_the_last(self):
         assert (
-            self.screen("Archetype", "Creed", "Path").outstanding_said
+            self.screen("Archetype", "Creed", "Path").outstanding_words
             == "Archetype, Creed and Path"
         )
 
     def test_settled_questions_are_left_out(self):
         screen = self.screen("Archetype", "Creed", "Path", settled=("Creed",))
-        assert screen.outstanding_said == "Archetype and Path"
+        assert screen.outstanding_words == "Archetype and Path"
         assert screen.may_continue is False
         assert self.screen("Archetype", settled=("Archetype",)).may_continue is True
 
