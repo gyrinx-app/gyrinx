@@ -671,25 +671,35 @@ class Slot(Content, Assignable):
         """What the card calls this choice."""
         return self.label or self.name
 
-    @property
-    def interstitials(self):
-        """The interstitials this slot carries, in the order they are
-        attached — the screens shown when this slot arrives. Archived
-        ones are left out, on the same terms ``unarchived()`` applies to
-        any content: an archived interstitial, or one in an archived
-        pack, is withdrawn from every slot at once, and an archived
-        attachment, or one in an archived pack, from this one. Staged
-        ones stay, as on every authoring surface; the screen a player
-        sees narrows further."""
-        return (
-            Interstitial.objects.filter(
-                attachments__slot=self,
-                attachments__archived=False,
-                attachments__pack__archived=False,
-            )
-            .unarchived()
-            .order_by("attachments__position", "position", "name")
-        )
+    def interstitials(self, *, include_archived=False):
+        """The interstitials this slot carries — the screens shown when it
+        arrives — in their own order: an interstitial's ``position`` is
+        its place among the screens shown together.
+
+        Two readers, on two terms. An authoring or discovery surface —
+        the slot's page, the listing, a count — takes the default and
+        sees only live ones: an archived interstitial, or one in an
+        archived pack, is withdrawn from every slot at once, and an
+        archived attachment, or one in an archived pack, from this one.
+        A player path passes ``include_archived=True``: archiving is a
+        pack owner's soft delete and never retracts content from a gang
+        already holding the slot, so the screen goes on showing there.
+        Staged ones are included either way; a player path narrows them
+        by whether the reader may see staged content.
+        """
+        # One filter call, so every condition on the attachment reads
+        # the same join; a second call would join the attachments again
+        # and match a live attachment against an archived one's pack.
+        carried = {"attachments__slot": self}
+        if not include_archived:
+            carried |= {
+                "attachments__archived": False,
+                "attachments__pack__archived": False,
+            }
+        found = Interstitial.objects.filter(**carried)
+        if not include_archived:
+            found = found.unarchived()
+        return found.order_by("position", "name")
 
     def clean(self):
         super().clean()
