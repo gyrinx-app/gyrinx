@@ -812,6 +812,63 @@ class TestTheAddress:
         )
 
 
+# --- The structure ------------------------------------------------------------
+
+
+class TestWhatTheScreenSays:
+    """The structure names what is still to choose the way a sentence
+    would, so the line under a withheld Continue reads as one."""
+
+    def screen(self, *labels, settled=()):
+        from n26.core.render import (
+            ArrivalBlock,
+            ArrivalQuestion,
+            ArrivalScreen,
+            ChoiceOffer,
+        )
+
+        return ArrivalScreen(
+            blocks=tuple(
+                ArrivalBlock(
+                    heading=label,
+                    description="",
+                    questions=(
+                        ArrivalQuestion(
+                            key=f"gang:{index}:{index}",
+                            label=label,
+                            bearer="The Forgotten",
+                            chosen=None,
+                            settled=label in settled,
+                            offer=ChoiceOffer(label=label),
+                        ),
+                    ),
+                )
+                for index, label in enumerate(labels)
+            ),
+            next_url="/n26/gangs/1/",
+        )
+
+    def test_one_open_question_is_named_alone(self):
+        assert self.screen("Archetype").outstanding_said == "Archetype"
+
+    def test_two_are_joined_with_and(self):
+        assert (
+            self.screen("Archetype", "Creed").outstanding_said == "Archetype and Creed"
+        )
+
+    def test_three_are_listed_with_and_before_the_last(self):
+        assert (
+            self.screen("Archetype", "Creed", "Path").outstanding_said
+            == "Archetype, Creed and Path"
+        )
+
+    def test_settled_questions_are_left_out(self):
+        screen = self.screen("Archetype", "Creed", "Path", settled=("Creed",))
+        assert screen.outstanding_said == "Archetype and Path"
+        assert screen.may_continue is False
+        assert self.screen("Archetype", settled=("Archetype",)).may_continue is True
+
+
 # --- The other renderers know nothing of this ---------------------------------
 
 
