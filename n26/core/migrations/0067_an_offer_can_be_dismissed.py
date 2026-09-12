@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
                 (
                     "slot_key",
                     models.CharField(
-                        help_text="The slot's address: the card it is drawn on, the assignment carrying the offer, and the offer itself.",
+                        help_text="The slot's address: the card it is drawn on, the assignment carrying the choice, and the choice itself.",
                         max_length=200,
                     ),
                 ),
@@ -44,8 +44,8 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                "verbose_name": "dismissed offer",
-                "verbose_name_plural": "dismissed offers",
+                "verbose_name": "dismissed choice",
+                "verbose_name_plural": "dismissed choices",
                 "constraints": [
                     models.UniqueConstraint(
                         fields=("gang", "slot_key"),

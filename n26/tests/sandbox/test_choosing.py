@@ -1101,12 +1101,12 @@ class TestShowingDismissedOffers:
         self, client, owner, gang, crew
     ):
         client.force_login(owner)
-        assert "Dismissed offers" not in sheet_body(client, gang)
+        assert "Dismissed choices" not in sheet_body(client, gang)
         slots = sheet_slots(gang)
         for label in ("Affiliation", "Sorrow: Archetype"):
             client.post(dismiss_url(gang, slots[label]))
         body = sheet_body(client, gang)
-        assert "Dismissed offers" in body
+        assert "Dismissed choices" in body
         assert "?dismissed=show" in body
         # Neither offer is drawn, and neither Restore is.
         assert restore_url(gang, slots["Affiliation"]) not in body
@@ -1133,7 +1133,7 @@ class TestShowingDismissedOffers:
         line = sheet_slots(gang)["Sorrow: Archetype"]
         client.post(dismiss_url(gang, line))
         page = edit_body(client, crew["leader"])
-        assert "Dismissed offers" in page
+        assert "Dismissed choices" in page
         assert line.href not in page
         page = edit_body(client, crew["leader"], dismissed="show")
         assert restore_url(gang, line) in page
@@ -1170,8 +1170,13 @@ class TestShowingDismissedOffers:
         response = client.post(
             dismiss_url(gang, slots["Favoured set"]),
             {"back": f"{sheet}?dismissed=show"},
+            follow=True,
         )
-        assert response["Location"] == f"{sheet}?dismissed=show"
+        assert response.redirect_chain == [(f"{sheet}?dismissed=show", 302)]
+        landed = response.content.decode()
+        # Still showing: both dismissed offers, each with its way back.
+        assert restore_url(gang, slots["Affiliation"]) in landed
+        assert restore_url(gang, slots["Favoured set"]) in landed
 
     def test_a_pick_landing_on_a_dismissed_offer_takes_the_dismissal_off(
         self, client, owner, gang, crew, affiliations
@@ -1189,6 +1194,55 @@ class TestShowingDismissedOffers:
         assert dismissed_keys(gang) == set()
         client.post(line.href, {"thing": NONE_KEY})
         assert line.href in sheet_body(client, gang)
+
+    def test_a_skill_ticked_on_the_models_page_takes_the_dismissal_off(
+        self, client, owner, gang, crew, skills, archetypes
+    ):
+        """The pick screen is not the only way to settle an offer: a tick
+        in the skills box on the model's own page writes the same pick,
+        where the skill is on the question's own list. Whichever way it
+        lands, the dismissal goes with it."""
+        from n26.core.views.skills import _key
+
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        # Brawler opens Combat as Primary, which is what puts Berserker
+        # on the Primary skill question's list rather than beside it.
+        client.post(
+            slots["Sorrow: Archetype"].href,
+            {"thing": f"library.affiliation:{archetypes['Brawler'].pk}"},
+        )
+        line = slots["Sorrow: Primary skill"]
+        client.post(dismiss_url(gang, line))
+        assert dismissed_keys(gang) == {line.key}
+        response = client.post(
+            reverse("n26-edit-fighter", args=[crew["leader"].pk]),
+            {"act": "skills", "skills": [_key(skills["Berserker"])]},
+        )
+        assert response.status_code == 302
+        assert _skills_of(gang, "Sorrow") == ["Berserker"]
+        # The tick settled the question rather than standing beside it.
+        assert "Sorrow: Primary skill" not in sheet_slots(gang)
+        assert dismissed_keys(gang) == set()
+
+    def test_a_dead_models_own_page_only_hides_them(self, client, owner, gang, crew):
+        """The model's page draws the same dead card the sheet does: the
+        dismissed offers go, and neither a way to show them nor a
+        Restore is drawn."""
+        from n26.core.operations import operation
+        from n26.core.status import Status
+
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        with operation(gang, actor=owner) as op:
+            op.set_status(crew["leader"], Status.DEAD)
+        edit_body(client, crew["leader"])
+        for query in ({}, {"dismissed": "show"}):
+            page = edit_body(client, crew["leader"], **query)
+            assert line.href not in page
+            assert restore_url(gang, line) not in page
+            assert "Dismissed choices" not in page
 
     def test_a_dead_models_dismissed_offers_only_go(self, client, owner, gang, crew):
         """A dead model's card has nothing to click, so its dismissed
@@ -1209,7 +1263,7 @@ class TestShowingDismissedOffers:
         assert "Sorrow" in body
         assert line.href not in body
         assert restore_url(gang, line) not in body
-        assert "Dismissed offers" not in body
+        assert "Dismissed choices" not in body
 
     def test_the_redrawn_card_builds_its_control_from_this_site_only(
         self, rf, owner, gang, crew
@@ -1258,7 +1312,7 @@ class TestShowingDismissedOffers:
         client.force_login(django_user_model.objects.create_user("reader"))
         body = sheet_body(client, gang, dismissed="show")
         assert "Affiliation" not in body
-        assert "Dismissed offers" not in body
+        assert "Dismissed choices" not in body
 
 
 class TestWhatItCosts:

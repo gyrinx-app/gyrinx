@@ -502,7 +502,6 @@ def choose(request, pk, slot):
     roll visible to whoever reads the history.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.models import DismissedOffer
     from n26.core.operations import Refusal, operation
     from n26.core.render import build_choice_offer
 
@@ -637,27 +636,35 @@ def dismiss_offer(request, pk, slot):
     The slot is found again rather than trusted from the address, the
     way the pick screen finds it: an offer that no longer exists is a
     404, and one holding a pick is refused in words — the page that
-    drew the control was drawn before the pick landed. Nothing is
-    written for a dismissal already on record; a second click is the
+    drew the control was drawn before the pick landed. That second look
+    is taken with the gang's line held, as every pick is written, so a
+    pick landing at the same moment is read either before the row is
+    written and refuses it, or after and takes the row off again. Nothing
+    is written for a dismissal already on record; a second click is the
     same act.
 
     Lands back where the control was clicked, given as ``back`` and
     honoured only for this site's own addresses; the gang otherwise.
     """
+    from django.db import transaction
+
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import DismissedOffer
+    from n26.core.operations import _hold
 
     gang = _own_gang_or_404(request, pk)
-    found = _find_slot(gang, slot)
-    label = found.slot.kind_label
+    label = _find_slot(gang, slot).slot.kind_label
     fallback = reverse("n26-gang", args=[gang.pk])
-    if found.slot.is_resolved:
-        messages.error(
-            request,
-            f"You cannot dismiss {label}. It has a pick. Take the pick back first.",
-        )
-        return _safe_redirect(request, request.POST.get("back"), fallback)
-    DismissedOffer.objects.get_or_create(gang=gang, slot_key=slot)
+    with transaction.atomic():
+        _hold(gang)
+        found = _find_slot(gang, slot)
+        if found.slot.is_resolved:
+            messages.error(
+                request,
+                f"You cannot dismiss {label}. It has a pick. Take the pick back first.",
+            )
+            return _safe_redirect(request, request.POST.get("back"), fallback)
+        DismissedOffer.objects.get_or_create(gang=gang, slot_key=slot)
     record(
         request,
         N26Noun.CHOICE,
@@ -667,7 +674,7 @@ def dismiss_offer(request, pk, slot):
         action="dismiss",
     )
     messages.success(
-        request, f"Dismissed {label}. You can bring it back from Dismissed offers."
+        request, f"Dismissed {label}. You can bring it back from Dismissed choices."
     )
     return _safe_redirect(request, request.POST.get("back"), fallback)
 
@@ -693,7 +700,7 @@ def restore_offer(request, pk, slot):
     try:
         label = _find_slot(gang, slot).slot.kind_label
     except Http404:
-        label = "the offer"
+        label = "the choice"
     record(
         request,
         N26Noun.CHOICE,

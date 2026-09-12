@@ -241,7 +241,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
         {% endcomment %}
         <c-n26.model-card.mode when="gang edit">
             {% if card.dismissed_href %}
-                <dt class="font-semibold text-ink-900 dark:text-ink-100">Dismissed offers</dt>
+                <dt class="font-semibold text-ink-900 dark:text-ink-100">Dismissed choices</dt>
                 <dd class="min-w-0 text-ink-900 dark:text-ink-100">
                     <c-n26.link href="{{ card.dismissed_href }}" underline="always" class="text-xs">{% if card.dismissed_shown %}Hide{% else %}Show {{ card.dismissed_count }}{% endif %}</c-n26.link>
                 </dd>

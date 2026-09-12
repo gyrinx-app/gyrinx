@@ -299,7 +299,13 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     card = build_model_card(
         miniature, card=own, computed=computed, collapse_repeats=False
     )
-    settle_dismissed(gang, card, at=back, showing=showing_dismissed(back))
+    settle_dismissed(
+        gang,
+        *_dismissal_holders(miniature, card),
+        at=back,
+        showing=showing_dismissed(back),
+        hide_only=_dismissal_hidden(miniature, card),
+    )
     link_slots(gang, card, back=back)
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)
@@ -380,6 +386,24 @@ def card_screen(miniature, back):
     return address, (address if screen.hosts_dialogs else edit)
 
 
+def _dismissal_holders(miniature, card):
+    """The card, as something whose dismissed offers may be shown and
+    restored — or nothing, for a dead model. A dead model's card draws
+    no Choose, so a dismissed offer kept on it to be restored would be a
+    line with nowhere to lead; the gang sheet draws the dead the same way.
+    """
+    from n26.core.status import Status
+
+    return () if miniature.status == Status.DEAD else (card,)
+
+
+def _dismissal_hidden(miniature, card):
+    """The complement of ``_dismissal_holders``: the card, when its
+    dismissed offers only go."""
+    from n26.core.status import Status
+
+    return (card,) if miniature.status == Status.DEAD else ()
+
 
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
@@ -407,6 +431,7 @@ def render_card_update(request, miniature, at):
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
+
     # The card is drawn in edit mode, and edit mode's card carries the
     # kit acts. They open where the screen the act came from opens its
     # own: over the listing on Equip, over the model's own page from

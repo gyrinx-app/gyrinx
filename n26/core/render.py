@@ -25,6 +25,8 @@ from n26.core.effects import (
     stacked_names,
 )
 from n26.core.owned import thing_key
+from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
+from n26.core.models.dismissed_offer import slot_key as _address
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -534,9 +536,10 @@ class WeaponLine(SlotMarked):
 
 
 #: What a gang's own choice slots are addressed under, where a model's are
-#: addressed under the model's id. A ULID is never this word, so the two
-#: kinds of host cannot collide in a slot key.
-GANG_SLOT_HOST = "gang"
+#: addressed under the model's id. Owned by the dismissed-offer row, which
+#: is keyed on the address; re-exported here because this is where a slot
+#: is addressed.
+GANG_SLOT_HOST = _GANG_SLOT_HOST
 
 
 @dataclass
@@ -1894,7 +1897,7 @@ def slot_key(slot, host):
     anchor = getattr(slot.anchor, "assignment", None)
     if not host or anchor is None or slot.identity is None:
         return ""
-    return f"{host}:{anchor.pk}:{slot.identity.pk}"
+    return _address(host, anchor.pk, slot.identity.pk)
 
 
 def _choice_line(slot, host):
