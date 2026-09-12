@@ -14,7 +14,7 @@ already went wrong, and nothing has yet.
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='campaigns' %}
+    {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-remove-gang' campaign.pk gang.pk %}"

@@ -48,12 +48,11 @@ from n26.library.staged import sees_staged
 #: without a budget has nothing else to stop it.
 PRICE_CEILING = 100_000
 
-#: A price is a whole number of credits, written in plain digits.
-#: Python's own ``int`` would also take "-5", "+5", "1_0" and digits from
-#: other scripts, none of which a price field should quietly accept.
-#: A whole number of credits, optionally below zero. Whether a minus is
-#: allowed for one particular purchase is ``price_floor``'s question, not
-#: the shape's.
+#: A price is a whole number of credits in plain digits, with at most a
+#: leading minus. Python's own ``int`` would also take "+5", "1_0" and
+#: digits from other scripts, none of which a price field should quietly
+#: accept. Whether the minus is allowed for one particular purchase is
+#: ``price_floor``'s question, not the shape's.
 _WHOLE_CREDITS = re.compile(r"-?[0-9]+")
 
 
@@ -145,12 +144,13 @@ def price_typed(data, field, quoted, name):
         return quoted
     raw = raw.strip()
     floor = price_floor(quoted)
-    if not _WHOLE_CREDITS.fullmatch(raw) or not floor <= int(raw) <= PRICE_CEILING:
+    typed = int(raw) if _WHOLE_CREDITS.fullmatch(raw) else None
+    if typed is None or not floor <= typed <= PRICE_CEILING:
         raise BadPrice(
             f"{name}: a price is a whole number of credits, "
             f"from {floor} to {PRICE_CEILING}."
         )
-    return int(raw)
+    return typed
 
 
 def price_floor(quoted):
@@ -334,6 +334,10 @@ def _tab_label(collection):
 def buyable_lists(held):
     """The lists among those held that are somewhere to buy kit, in the
     order they were come by, with the standard Trading Post after them.
+    The post is last whether or not something holds it: a held post sits
+    among the lists at whatever position it carries, and a screen that
+    opened on it would open on the whole catalogue rather than the gang's
+    own list.
 
     Holding a collection and buying from it are different things: a
     set of skills is carried exactly as an equipment list is, and only
@@ -362,8 +366,8 @@ def buyable_lists(held):
     post = Collection.objects.filter(
         name=TRADING_POST_COLLECTION, pack=get_default_pack()
     ).first()
-    if post is not None and post.pk not in {c.pk for c in collections}:
-        collections.append(post)
+    if post is not None:
+        collections = [c for c in collections if c.pk != post.pk] + [post]
     return collections
 
 

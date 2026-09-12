@@ -1,3 +1,4 @@
+{% load arith %}
 {% comment %}
 The price of one buyable line, as a box you can type in, with what changing it
 did printed beside it. Expects `field` (the input's name), `quoted` (the price
@@ -35,7 +36,7 @@ refuse the form before the server ever saw it.
     <input type="number"
            name="{{ field }}"
            value="{{ quoted }}"
-           min="{% if quoted < 0 %}{{ quoted }}{% else %}0{% endif %}"
+           min="{{ quoted|at_most:0 }}"
            max="{{ price_cap }}"
            step="1"
            inputmode="numeric"

@@ -22,7 +22,7 @@ places — the same pattern a gang's screens use for their siblings.
     <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='home' %}
+    {% include "n26/_nav.html" with here="home" %}
 {% endblock %}
 {% block content %}
     {% comment %}
@@ -79,7 +79,7 @@ places — the same pattern a gang's screens use for their siblings.
         {% endcomment %}
         {% if campaigns_open %}
             <c-slot name="campaigns">
-                {% include 'n26/includes/campaign_invitations.html' with back=request.get_full_path %}
+                {% include "n26/includes/campaign_invitations.html" with back=request.get_full_path %}
                 <c-n26.record-table noun="campaigns"
                                     singular="campaign"
                                     action="{% url 'n26-campaigns' %}">

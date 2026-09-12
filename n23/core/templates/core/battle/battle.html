@@ -73,7 +73,8 @@
                     <span class="fst-italic"><i class="bi-calendar"></i> Date TBC</span>
                 {% endif %}
                 <span><i class="bi-flag"></i> {{ battle.mission }}</span>
-                <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a></span>
+                <span><i class="bi-person"></i> <a class="linked"
+    href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a></span>
             </div>
         </div>
         <!-- Two-column layout on wide screens -->
@@ -98,7 +99,9 @@
                                     <thead>
                                         <tr>
                                             {# An empty th here can be announced as the first column's header. #}
-                                            <th rowspan="2" scope="col" class="caps-label align-bottom border-bottom">Gang</th>
+                                            <th rowspan="2"
+                                                scope="col"
+                                                class="caps-label align-bottom border-bottom">Gang</th>
                                             <th colspan="2"
                                                 scope="colgroup"
                                                 class="caps-label text-center border-bottom">Before balancing</th>
@@ -126,11 +129,14 @@
                                             {% for p in group.participants %}
                                                 <tr>
                                                     <td>
-                                                        <a href="{% url 'core:list' p.list.id %}" class="linked fw-semibold">{% list_with_theme p.list %}</a>
+                                                        <a href="{% url 'core:list' p.list.id %}"
+                                                           class="linked fw-semibold">{% list_with_theme p.list %}</a>
                                                         {% if p.list.owner %}
                                                             {# Owned.owner is nullable; the url tag would raise on an ownerless gang. #}
-                                                            <span class="text-secondary fs-7"><i class="bi-person" aria-hidden="true"></i>
-                                                                <c-user-link :user="p.list.owner" class="linked-secondary" />
+                                                            <span class="text-secondary fs-7"><i class="bi-person"
+   aria-hidden="true"></i>
+                                                                <c-user-link :user="p.list.owner"
+                                                                             class="linked-secondary" />
                                                             </span>
                                                         {% endif %}
                                                         {% if p.is_winner %}
@@ -155,7 +161,8 @@
                                                     <tr>
                                                         <td>
                                                             <i class="bi-arrow-return-right text-secondary"></i>
-                                                            <a href="{% url 'core:crew' battle.id p.crew.crew.id %}" class="linked">{{ p.crew.crew }}</a>
+                                                            <a href="{% url 'core:crew' battle.id p.crew.crew.id %}"
+                                                               class="linked">{{ p.crew.crew }}</a>
                                                             <c-badge state="{{ p.crew.crew.status }}">
                                                                 {{ p.crew.crew.get_status_display }}
                                                             </c-badge>
@@ -286,7 +293,8 @@
                                         <div class="d-flex justify-content-between align-items-start mb-1">
                                             <div class="text-secondary fs-7">
                                                 <i class="bi-person"></i>
-                                                <a href="{% url 'core:user' note.owner.username %}" class="linked">{{ note.owner }}</a>
+                                                <a href="{% url 'core:user' note.owner.username %}"
+                                                   class="linked">{{ note.owner }}</a>
                                                 · {{ note.created|date:"M d, Y g:i A" }}
                                             </div>
                                             {% if note.owner == user %}

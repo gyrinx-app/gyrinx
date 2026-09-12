@@ -17,7 +17,9 @@
                     <li class="mb-2">Designed and built in the UK.</li>
                     {% if user.is_staff %}
                         <li class="mb-2">
-                            <a class="linked-secondary" href="{% url 'admin:index' %}" target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
+                            <a class="linked-secondary"
+                               href="{% url 'admin:index' %}"
+                               target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
                         </li>
                     {% endif %}
                     <li class="mb-2">

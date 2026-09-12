@@ -52,7 +52,8 @@
                                                    value="1"
                                                    data-gy-toggle-submit
                                                    {% if pack.is_required %}checked{% endif %}>
-                                            <label class="form-check-label fs-7 mb-0" for="required-{{ pack.id }}">Required</label>
+                                            <label class="form-check-label fs-7 mb-0"
+                                                   for="required-{{ pack.id }}">Required</label>
                                         </form>
                                     {% endif %}
                                     {% if user_campaign_lists %}
@@ -65,12 +66,20 @@
                                                 {% if pack.unsubscribed_user_lists %}
                                                     {% for lst in pack.unsubscribed_user_lists %}
                                                         <li>
-                                                            <form method="post" action="{% url 'core:pack-subscribe' pack.id %}">
+                                                            <form method="post"
+                                                                  action="{% url 'core:pack-subscribe' pack.id %}">
                                                                 {% csrf_token %}
-                                                                <input type="hidden" name="list_id" value="{{ lst.id }}">
-                                                                <input type="hidden" name="return_url" value="campaign-packs">
-                                                                <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
-                                                                <button type="submit" class="dropdown-item">{{ lst.name }}</button>
+                                                                <input type="hidden"
+                                                                       name="list_id"
+                                                                       value="{{ lst.id }}">
+                                                                <input type="hidden"
+                                                                       name="return_url"
+                                                                       value="campaign-packs">
+                                                                <input type="hidden"
+                                                                       name="campaign_id"
+                                                                       value="{{ campaign.id }}">
+                                                                <button type="submit"
+                                                                        class="dropdown-item">{{ lst.name }}</button>
                                                             </form>
                                                         </li>
                                                     {% endfor %}
@@ -83,7 +92,8 @@
                                                     <hr class="dropdown-divider">
                                                 </li>
                                                 <li>
-                                                    <a href="{% url 'core:pack-lists' pack.id %}" class="dropdown-item">Other…</a>
+                                                    <a href="{% url 'core:pack-lists' pack.id %}"
+                                                       class="dropdown-item">Other…</a>
                                                 </li>
                                             </ul>
                                         </div>
@@ -150,7 +160,8 @@
                             {% for pack in available_packs %}
                                 <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                     <div>
-                                        <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                        <a href="{% url 'core:pack' pack.id %}"
+                                           class="linked fw-medium">{{ pack.name }}</a>
                                         {% if pack.owner %}
                                             <span class="text-secondary fs-7">by
                                                 <c-user-link :user="pack.owner" class="linked-secondary" />

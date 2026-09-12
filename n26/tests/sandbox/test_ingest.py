@@ -403,6 +403,10 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
         assert entry.fields["collection"] == CAWDOR_LIST
         restriction = plan.get(f"Restriction:{entry.key}")
         assert restriction.fields["allows"] == "Profile:way-brethren"
+        # The bracket narrows this list's line, so the plan names the
+        # entry and not the lance every list shares.
+        assert restriction.fields["entry"] == entry.key
+        assert "item" not in restriction.fields
 
         # A listing that names a Profile sells one profile of a gun.
         assert plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
@@ -822,8 +826,39 @@ class TestPerform:
             is None
         )
 
+        # "(Way-Brethren only)" is printed beside the Cawdor list's line,
+        # so it narrows that list's offer — never the lance every list
+        # shares.
         lance = Weapon.objects.get(name="Frag lance")
-        assert [p.name for p in lance.usable_by_profiles.all()] == ["Way-Brethren"]
+        cawdor_list = Collection.objects.get(name="Cawdor Equipment List")
+        listed = CollectionEntry.objects.get(collection=cawdor_list, weapon=lance)
+        assert [p.name for p in listed.usable_by_profiles.all()] == ["Way-Brethren"]
+        assert lance.usable_by_words() == ""
+
+    def test_a_restriction_stays_on_the_list_that_prints_it(self, foundation, sheets):
+        """The same item on two lists, one of them bracketed: the other
+        list offers it plainly, and uploading again writes the bracket
+        onto nothing new."""
+        lists = read_csv(
+            EQUIPMENT_LISTS_CSV.replace(
+                "Equipment List,Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,,",
+                "Equipment List,Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,"
+                "Way-Brethren only,",
+            )
+        )
+        perform(plan_ingest(**{**sheets, "equipment_lists": lists}))
+        perform(plan_ingest(**{**sheets, "equipment_lists": lists}))
+
+        autogun = Weapon.objects.get(name="Autogun")
+        escher = CollectionEntry.objects.get(
+            collection__name="Escher Equipment List", weapon=autogun
+        )
+        goliath = CollectionEntry.objects.get(
+            collection__name="Goliath Equipment List", weapon=autogun
+        )
+        assert escher.usable_by_words() == "Way-Brethren"
+        assert goliath.usable_by_words() == ""
+        assert autogun.usable_by_words() == ""
 
     def test_categories_land_under_their_sections(self, plan):
         perform(plan)
@@ -955,6 +990,68 @@ class TestIdempotency:
         assert Weapon.objects.count() == weapons
         assert Trait.objects.count() == traits
         assert Profile.objects.count() == profiles
+
+    def test_a_second_upload_reads_no_entry_it_leaves_unchanged(
+        self, foundation, sheets
+    ):
+        """An unchanged listing line has nothing waiting to be told
+        where it landed: a restriction looks its entry up when it is
+        written, so performing an upload of lists that gained none
+        reads no entry at all — the lists are the long sheets, and a
+        query per line is what made a re-upload slow. Planning is
+        measured separately, below: it looks every line up by design."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        perform(plan_ingest(pack=None, **sheets))
+        again = plan_ingest(pack=None, **sheets)
+        unchanged = [
+            p for p in again.planned if p.kind == "CollectionEntry" and p.existing
+        ]
+        assert len(unchanged) > 1
+
+        with CaptureQueriesContext(connection) as captured:
+            perform(again)
+
+        table = CollectionEntry._meta.db_table
+        assert [q["sql"] for q in captured if table in q["sql"]] == []
+
+    def test_replanning_reads_the_entries_lists_in_one_batch(self, foundation, sheets):
+        """Planning looks every line up, one query each, by design. What
+        it must not do is read each entry's own use list on its own
+        besides — so the reads of that list stay the same however many
+        lines the sheets carry."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        through = CollectionEntry.usable_by_profiles.through._meta.db_table
+
+        def list_reads(sheets):
+            with CaptureQueriesContext(connection) as captured:
+                plan_ingest(pack=None, **sheets)
+            return len([q for q in captured if through in q["sql"]])
+
+        perform(plan_ingest(pack=None, **sheets))
+        small = list_reads(sheets)
+
+        more = {
+            **sheets,
+            "equipment_lists": read_csv(
+                EQUIPMENT_LISTS_CSV.rstrip()
+                + """
+Equipment List,Cawdor,Ranged weapons,Auto/stub weapons,Autogun,,20,,
+Equipment List,Cawdor,Wargear,Grenades,Frag grenades,,30,,
+Equipment List,Goliath,Wargear,Grenades,Frag grenades,,30,,
+Equipment List,Goliath,Wargear,Weapon accessories,Suspensors,,40,,
+Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
+"""
+            ),
+        }
+        perform(plan_ingest(pack=None, **more))
+        assert CollectionEntry.objects.count() >= len(sheets["equipment_lists"]) + 5
+        large = list_reads(more)
+
+        assert large == small
 
     def test_replanning_finds_back_exactly_the_rows_the_import_made(
         self, foundation, sheets
@@ -1351,10 +1448,11 @@ class TestApplyingWhatChanged:
         assert entry.price_override == 40
         assert entry.price.credits == 40
 
-    def test_a_restriction_added_later_finally_reaches_the_item(self, imported):
+    def test_a_restriction_added_later_reaches_the_entry(self, imported):
         """It never did before: the restriction took the entry's "already
         there" and was skipped, so a list that gained a "<Fighter> only"
-        after its first import stayed open to everyone."""
+        after its first import stayed open to everyone. It lands on the
+        entry that gained it, and the item stays open."""
         plan = plan_ingest(
             **{
                 **imported,
@@ -1368,12 +1466,18 @@ class TestApplyingWhatChanged:
         )
         perform(plan)
         autogun = Weapon.objects.get(name="Autogun")
-        assert [p.name for p in autogun.usable_by_profiles.all()] == ["Way-Brethren"]
+        entry = CollectionEntry.objects.get(
+            collection__name="Escher Equipment List", weapon=autogun
+        )
+        assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
+        assert autogun.usable_by_words() == ""
 
-    def test_a_restriction_on_a_named_profile_lands_on_that_profile(self, imported):
+    def test_a_restriction_on_a_named_profile_lands_on_the_entry_for_that_line(
+        self, imported
+    ):
         """The launcher is open to everyone; one of its rounds is not.
-        "Autogun (warp round) — Sumpkroc only" restricts the round, and
-        the gun's own lists stay empty."""
+        "Autogun (warp round) — Sumpkroc only" narrows the list's offer
+        of the round, and neither the round nor the gun is touched."""
         plan = plan_ingest(
             **{
                 **imported,
@@ -1390,7 +1494,11 @@ class TestApplyingWhatChanged:
 
         autogun = Weapon.objects.get(name="Autogun")
         warp_round = autogun.profiles.get(name="warp round")
-        assert [p.name for p in warp_round.usable_by_profiles.all()] == ["Sumpkroc"]
+        entry = CollectionEntry.objects.get(
+            collection__name="Goliath Equipment List", weapon_profile=warp_round
+        )
+        assert [p.name for p in entry.usable_by_profiles.all()] == ["Sumpkroc"]
+        assert warp_round.usable_by_words() == ""
         assert autogun.usable_by_words() == ""
 
     def test_a_restricted_profile_previews_again_as_unchanged(self, imported):
@@ -1540,8 +1648,8 @@ class TestWhatASheetStopsNaming:
     content lives. A list's lines and a fighter's skill grid are wholly
     the sheets'. A fighter's built-in kit is not — the kit no sheet
     defines is added by hand, precisely because an import cannot bring
-    it — and a restriction is stored on the item, shared by every list
-    that carries it.
+    it — and a restriction, though it is the entry's own, is never
+    taken off by an upload that stops printing it.
     """
 
     @pytest.fixture
@@ -1626,17 +1734,21 @@ Equipment List,Cawdor,Close combat weapons,Lances,Frag lance,,35,Way-Brethren on
         )
 
     def test_a_restriction_the_sheet_drops_is_kept_and_said(self, imported):
-        """Restrictions are stored on the item, so they are shared by
-        every list carrying it. One list falling silent is not a
-        retraction — another list may be the reason it is there."""
+        """Ingest is add-only: a list falling silent about a bracket is
+        said, and the entry keeps it until an author takes it off on
+        the collection page."""
         without = read_csv(EQUIPMENT_LISTS_CSV.replace("Way-Brethren only", ""))
         plan = plan_ingest(**{**imported, "equipment_lists": without})
         perform(plan)
 
-        lance = Weapon.objects.get(name="Frag lance")
-        assert [p.name for p in lance.usable_by_profiles.all()] == ["Way-Brethren"]
+        entry = CollectionEntry.objects.get(
+            collection__name="Cawdor Equipment List", weapon__name="Frag lance"
+        )
+        assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
         assert any(
-            "nothing was retracted" in problem.message for problem in plan.problems
+            "nothing was retracted" in problem.message
+            and "collection page" in problem.message
+            for problem in plan.problems
         )
 
     def test_a_blank_stat_cell_leaves_the_stored_value_alone(self, imported):

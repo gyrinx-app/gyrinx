@@ -12,7 +12,8 @@
                 switching mode or applying a theme updates the whole table.
             </p>
             <p class="mt-3 text-sm text-muted">
-                Currently showing <span class="font-medium text-accent" x-text="isDark ? 'dark' : 'light'">light</span> mode.
+                Currently showing <span class="font-medium text-accent"
+       x-text="isDark ? 'dark' : 'light'">light</span> mode.
             </p>
         </header>
         <div class="space-y-10">
@@ -33,13 +34,13 @@
                                 {% for token in bucket.tokens %}
                                     <tr>
                                         <td class="w-12 py-2.5 pl-4">
-                                            {% if token.kind == 'color' %}
+                                            {% if token.kind == "color" %}
                                                 <span class="block size-6 rounded border border-box-border"
                                                       style="background: var({{ token.name }})"></span>
-                                            {% elif token.kind == 'font' %}
+                                            {% elif token.kind == "font" %}
                                                 <span class="block text-lg leading-6"
                                                       style="font-family: var({{ token.name }})">Ag</span>
-                                            {% elif token.kind == 'shadow' %}
+                                            {% elif token.kind == "shadow" %}
                                                 <span class="block size-6 rounded bg-surface"
                                                       style="box-shadow: var({{ token.name }})"></span>
                                             {% else %}

@@ -292,6 +292,21 @@ class Collection(Content, Assignable):
         ),
     )
 
+    # The inherited order column, re-presented: a collection stands in
+    # no category, so on this kind the number orders the lists a fighter
+    # or gang holds — and so which one Equip opens on. Every list read
+    # off a card is sorted by it once (``n26.core.access``).
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Order among the lists a fighter or gang holds. The lowest "
+            "number comes first, and Equip opens on it. Keep a gang's own "
+            "list at 0. Give a higher number, like 100, to a list that a "
+            "variant adds, so it sits after the gang's own. Lists with "
+            "the same number keep the order they were granted in."
+        ),
+    )
+
     def entry_asks(self):
         """The extra fields an entry of *this* collection takes.
 

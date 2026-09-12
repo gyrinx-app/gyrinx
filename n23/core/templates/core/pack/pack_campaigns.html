@@ -45,7 +45,8 @@
                         {% for campaign in subscribed_campaigns %}
                             <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                 <span>
-                                    <a href="{% url 'core:campaign' campaign.id %}" class="linked">{{ campaign.name }}</a>
+                                    <a href="{% url 'core:campaign' campaign.id %}"
+                                       class="linked">{{ campaign.name }}</a>
                                 </span>
                                 <form method="post"
                                       action="{% url 'core:pack-campaign-unsubscribe' pack.id %}"

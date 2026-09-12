@@ -33,7 +33,8 @@
                         <div class="flex-grow-1">
                             <div class="fw-medium small">
                                 {{ pack.name }}
-                                {% if pack.is_required %}<c-badge variant="warning" class="ms-1">Required</c-badge>{% endif %}
+                                {% if pack.is_required %}<c-badge variant="warning"
+         class="ms-1">Required</c-badge>{% endif %}
                             </div>
                             <div class="text-muted small">by {{ pack.owner }}</div>
                             {% if pack.summary %}<div class="text-muted small mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}

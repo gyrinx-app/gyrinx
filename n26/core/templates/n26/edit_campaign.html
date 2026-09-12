@@ -23,7 +23,7 @@ django-tinymce reads its config.
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='campaigns' %}
+    {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-edit-campaign' campaign.pk %}"
@@ -46,6 +46,6 @@ django-tinymce reads its config.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% include 'n26/includes/campaign_form_fields.html' %}
+        {% include "n26/includes/campaign_form_fields.html" %}
     </c-n26.form-page>
 {% endblock content %}

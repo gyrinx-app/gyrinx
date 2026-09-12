@@ -47,7 +47,8 @@
                                             {% for radio in form.price_method %}
                                                 <div class="form-check">
                                                     {{ radio.tag }}
-                                                    <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                                                    <label class="form-check-label"
+                                                           for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
                                                 </div>
                                                 {% if radio.data.value == "roll_manual" %}
                                                     <div class="pb-2">

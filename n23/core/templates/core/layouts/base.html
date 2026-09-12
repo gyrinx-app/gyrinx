@@ -133,7 +133,8 @@
                             {% endwith %}
                         {% else %}
                             <a href="{{ login_url_ }}" class="btn btn-outline-light">Sign In</a>
-                            {% if signup_url_ %}<a href="{{ signup_url_ }}" class="btn btn-success">Sign Up</a>{% endif %}
+                            {% if signup_url_ %}<a href="{{ signup_url_ }}"
+   class="btn btn-success">Sign Up</a>{% endif %}
                         {% endif %}
                     {% endif %}
                 </div>
@@ -183,7 +184,9 @@
                         <li class="mb-2">Designed and built in the UK.</li>
                         {% if user.is_staff %}
                             <li class="mb-2">
-                                <a class="linked-secondary" href="{% url 'admin:index' %}" target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
+                                <a class="linked-secondary"
+                                   href="{% url 'admin:index' %}"
+                                   target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
                             </li>
                         {% endif %}
                         <li class="mb-2">

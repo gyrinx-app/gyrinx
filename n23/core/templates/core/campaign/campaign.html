@@ -250,7 +250,8 @@
                                 {% spaceless %}
                                     {% for pack in campaign_packs %}
                                         {% if pack.listed or pack.owner == request.user %}
-                                            <a href="{% url 'core:pack' pack.id %}" class="linked-body">{{ pack.name }}</a>
+                                            <a href="{% url 'core:pack' pack.id %}"
+                                               class="linked-body">{{ pack.name }}</a>
                                         {% else %}
                                             <span>{{ pack.name }}</span>
                                         {% endif %}
@@ -412,11 +413,13 @@
                         <p class="text-secondary fs-7 mb-0">
                             No asset types defined yet.
                             {% if is_admin and not campaign.archived %}
-                                <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}"
+                                   class="linked">Copy from another Campaign</a>
                                 or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
     class="linked">add an asset type →</a>
                             {% elif is_admin %}
-                                <a href="{% url 'core:campaign-assets' campaign.id %}" class="linked">Manage Assets →</a>
+                                <a href="{% url 'core:campaign-assets' campaign.id %}"
+                                   class="linked">Manage Assets →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -443,13 +446,15 @@
                             {% endfor %}
                         </div>
                         {% if battles_count > battles_limit %}
-                            <a href="{% url 'core:campaign-battles' campaign.id %}" class="fs-7">View all {{ battles_count }} battles →</a>
+                            <a href="{% url 'core:campaign-battles' campaign.id %}"
+                               class="fs-7">View all {{ battles_count }} battles →</a>
                         {% endif %}
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No battles yet.
                             {% if can_log_actions %}
-                                <a href="{% url 'core:battle-new' campaign.id %}" class="linked">Create first battle →</a>
+                                <a href="{% url 'core:battle-new' campaign.id %}"
+                                   class="linked">Create first battle →</a>
                             {% endif %}
                         </p>
                     {% endif %}

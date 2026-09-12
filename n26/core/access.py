@@ -97,6 +97,13 @@ def _collections_on(card, computed, gang, gang_hosted=False):
     away is not somewhere to buy from: the card no longer shows it, so it
     opens nothing either.
 
+    The walk's order is then settled by each collection's ``position``,
+    lowest first, and a tie keeps the walk's own order. The gang's own
+    list and the list a variant adds arrive by the same route — a grant a
+    pick carries — so nothing about how a list was come by can say which
+    is the gang's; the number an author writes on the list can. Sorted
+    here, once, so equip, hire and edit agree on which list comes first.
+
     A held list names whatever brought it, which after founding is the
     gang *type*; assigned by hand it has no cause, so the gang itself
     answers for it. ``gang_hosted`` says the card's own assignments are
@@ -138,7 +145,8 @@ def _collections_on(card, computed, gang, gang_hosted=False):
         if isinstance(contribution.thing, Collection):
             add(contribution.thing, contribution.source, is_computed=True)
 
-    return list(found.values())
+    # A stable sort, so ties keep the order the walk found them in.
+    return sorted(found.values(), key=lambda access: access.collection.position)
 
 
 def model_collections():

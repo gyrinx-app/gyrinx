@@ -147,7 +147,8 @@
                             {% for choice in form.asset_types %}
                                 <div class="form-check">
                                     {{ choice.tag }}
-                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                    <label class="form-check-label"
+                                           for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                                 </div>
                             {% endfor %}
                             {% if form.asset_types.errors %}
@@ -169,7 +170,8 @@
                             {% for choice in form.resource_types %}
                                 <div class="form-check">
                                     {{ choice.tag }}
-                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                    <label class="form-check-label"
+                                           for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                                 </div>
                             {% endfor %}
                             {% if form.resource_types.errors %}
@@ -191,7 +193,8 @@
                             {% for choice in form.attribute_types %}
                                 <div class="form-check">
                                     {{ choice.tag }}
-                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                    <label class="form-check-label"
+                                           for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                                 </div>
                             {% endfor %}
                             {% if form.attribute_types.errors %}
@@ -213,7 +216,8 @@
                             {% for choice in form.packs %}
                                 <div class="form-check">
                                     {{ choice.tag }}
-                                    <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                    <label class="form-check-label"
+                                           for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                                 </div>
                             {% endfor %}
                             {% if form.packs.errors %}
