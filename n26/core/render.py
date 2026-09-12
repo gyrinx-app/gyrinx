@@ -1126,7 +1126,11 @@ class CampaignGangLine:
     gang_id: str
     name: str
     gang_type: str
-    owner: str
+    #: Whose gang it is — the person, not their name, because the table draws
+    #: the badge they hold after it, and which badge that is belongs to the
+    #: platform's registry rather than to this sheet. None for a gang nobody
+    #: owns.
+    owner: object | None
     rating: int
     credits: int
     wealth: int
@@ -2955,7 +2959,15 @@ def render_campaign(campaign, viewer=None):
     reading = getattr(viewer, "id", None)
     memberships = list(
         CampaignMembership.objects.filter(campaign=campaign, left__isnull=True)
-        .select_related("gang", "gang__gang_type", "gang__owner", "gang__stash")
+        .select_related(
+            "gang",
+            "gang__gang_type",
+            "gang__owner",
+            # Each owner's badge reads their profile and their grants.
+            "gang__owner__profile",
+            "gang__stash",
+        )
+        .prefetch_related("gang__owner__badge_grants")
         .order_by("gang__name")
     )
     by_membership = {membership.pk: membership for membership in memberships}
@@ -3086,7 +3098,7 @@ def render_campaign(campaign, viewer=None):
                 gang_id=str(gang.pk),
                 name=gang.name,
                 gang_type=gang.gang_type.name,
-                owner=gang.owner.username if gang.owner_id else "",
+                owner=gang.owner if gang.owner_id else None,
                 rating=gang.rating,
                 credits=gang.credits,
                 credits_unlimited=gang.credits_unlimited,

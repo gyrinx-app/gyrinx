@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load custom_tags color_tags badge_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     {{ battle.name }} - Battle
 {% endblock head_title %}
@@ -129,8 +129,9 @@
                                                         <a href="{% url 'core:list' p.list.id %}" class="linked fw-semibold">{% list_with_theme p.list %}</a>
                                                         {% if p.list.owner %}
                                                             {# Owned.owner is nullable; the url tag would raise on an ownerless gang. #}
-                                                            <span class="text-secondary fs-7"><i class="bi-person" aria-hidden="true"></i> <a href="{% url 'core:user' p.list.owner.username %}"
-    class="linked-secondary">{{ p.list.owner }}</a>{% user_badge p.list.owner %}</span>
+                                                            <span class="text-secondary fs-7"><i class="bi-person" aria-hidden="true"></i>
+                                                                <c-user-link :user="p.list.owner" class="linked-secondary" />
+                                                            </span>
                                                         {% endif %}
                                                         {% if p.is_winner %}
                                                             <i class="bi-trophy-fill text-warning"

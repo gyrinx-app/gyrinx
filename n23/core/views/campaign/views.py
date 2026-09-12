@@ -1,5 +1,6 @@
 """Campaign list and detail views."""
 
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import Count, Max, Q
 from django.db.models.functions import Coalesce, Lower
@@ -172,13 +173,29 @@ class CampaignDetailView(generic.DetailView):
             ).prefetch_related(
                 "owner__badge_grants",
                 "packs",
-                "lists",
-                "admins",
+                # Every name on the page carries its badge, which reads the
+                # profile and the grants: prefetched here for the gang owners,
+                # the arbitrators and the action authors, or it is two queries
+                # per name.
+                models.Prefetch(
+                    "lists",
+                    queryset=List.objects.select_related(
+                        "owner", "owner__profile"
+                    ).prefetch_related("owner__badge_grants"),
+                ),
+                models.Prefetch(
+                    "admins",
+                    queryset=get_user_model()
+                    .objects.select_related("profile")
+                    .prefetch_related("badge_grants"),
+                ),
                 models.Prefetch(
                     "actions",
                     queryset=CampaignAction.objects.select_related(
-                        "user", "list", "template_campaign"
-                    ).order_by("-created"),
+                        "user", "user__profile", "list", "template_campaign"
+                    )
+                    .prefetch_related("user__badge_grants")
+                    .order_by("-created"),
                 ),
             ),
             id=self.kwargs["id"],

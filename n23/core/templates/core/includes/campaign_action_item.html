@@ -10,7 +10,9 @@
 <div class="list-group-item px-0">
     <small class="text-secondary hstack w-100 justify-content-between">
         <div class="flex-grow-1">
-            <strong><i class="bi-person"></i> {{ action.user.username }}</strong>
+            <strong><i class="bi-person"></i>
+                {% if action.user %}<c-user-link :user="action.user" class="linked-secondary" />{% endif %}
+            </strong>
             {% if action.list and show_list_link|default:True %}
                 •
                 <a href="{% url 'core:list' action.list.id %}" class="linked">{% list_with_theme action.list %}</a>

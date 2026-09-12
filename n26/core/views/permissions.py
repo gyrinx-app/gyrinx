@@ -223,8 +223,13 @@ def _any_campaign_or_404(request, pk):
     try:
         campaign = get_object_or_404(
             Campaign.objects.select_related(
-                "owner", "campaign_type", "additions__built_ins"
-            ),
+                # The page names the arbitrator with the badge they hold,
+                # which reads their profile and their grants.
+                "owner",
+                "owner__profile",
+                "campaign_type",
+                "additions__built_ins",
+            ).prefetch_related("owner__badge_grants"),
             pk=pk,
             archived=False,
         )

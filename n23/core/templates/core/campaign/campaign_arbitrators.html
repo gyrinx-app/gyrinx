@@ -18,13 +18,12 @@
         </p>
         <div class="vstack gap-2">
             <div class="d-flex align-items-center gap-2 border rounded p-2">
-                <a href="{% url 'core:user' campaign.owner.username %}"
-                   class="linked-body">{{ campaign.owner }}</a>
+                <c-user-link :user="campaign.owner" class="linked-body" />
                 <span class="text-secondary fs-7 ms-auto">Owner — always an arbitrator</span>
             </div>
             {% for admin in admins %}
                 <div class="d-flex align-items-center gap-2 border rounded p-2">
-                    <a href="{% url 'core:user' admin.username %}" class="linked-body">{{ admin }}</a>
+                    <c-user-link :user="admin" class="linked-body" />
                     <form method="post"
                           action="{% url 'core:campaign-arbitrator-remove' campaign.id admin.id %}"
                           class="ms-auto">

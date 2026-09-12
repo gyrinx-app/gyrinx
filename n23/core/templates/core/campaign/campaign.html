@@ -214,12 +214,11 @@
                     <div class="caps-label">Arbitrators</div>
                     <div>
                         {% spaceless %}
-                            <a href="{% url 'core:user' campaign.owner.username %}"
-                               class="linked-body">{{ campaign.owner }}</a>
+                            <c-user-link :user="campaign.owner" class="linked-body" />
                             {% for admin in campaign.admins.all %}
                                 {# ", " as a template literal: djlint trims literal trailing spaces and rejects entities (H023) #}
                                 <span>{{ ", " }}</span>
-                                <a href="{% url 'core:user' admin.username %}" class="linked-body">{{ admin }}</a>
+                                <c-user-link :user="admin" class="linked-body" />
                             {% endfor %}
                         {% endspaceless %}
                     </div>

@@ -77,9 +77,11 @@ def campaign_arbitrators(request, id):
             "campaign": campaign,
             # The owner should never be in admins, but exclude defensively so
             # weird data can't render them twice or make them removable.
-            "admins": campaign.admins.exclude(id=campaign.owner_id).order_by(
-                "username"
-            ),
+            # Each name carries its badge, which reads the profile and grants.
+            "admins": campaign.admins.exclude(id=campaign.owner_id)
+            .select_related("profile")
+            .prefetch_related("badge_grants")
+            .order_by("username"),
             "form": form,
         },
     )

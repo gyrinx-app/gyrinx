@@ -70,7 +70,10 @@ def campaigns(request):
     listed = (
         Campaign.objects.involving(request.user)
         .filter(archived=False)
-        .select_related("owner")
+        # A row names its arbitrator with the badge they hold, which reads
+        # their profile and their grants.
+        .select_related("owner", "owner__profile")
+        .prefetch_related("owner__badge_grants")
         .order_by("name", "pk")
     )
     found = search_queryset(listed, query, ["name"])
@@ -116,7 +119,7 @@ def campaign_rows(listed, user):
     rows = list(listed)
     for row in rows:
         arbitrated = row.owner_id == getattr(user, "id", None)
-        row.owner_name = "" if arbitrated else row.owner.username
+        row.arbitrator = None if arbitrated else row.owner
         row.action_label = "Edit" if arbitrated else ""
     return rows
 
@@ -2049,7 +2052,10 @@ def _players(campaign):
 
     return (
         CampaignParticipant.objects.filter(campaign=campaign)
-        .select_related("user")
+        # Each player is drawn with the badge they hold, which reads their
+        # profile and their grants.
+        .select_related("user", "user__profile")
+        .prefetch_related("user__badge_grants")
         .order_by("user__username")
     )
 

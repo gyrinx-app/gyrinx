@@ -19,10 +19,14 @@ from pathlib import Path
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import STAFF_BADGE, badge_by_slug
+from gyrinx.site.models import Availability, FeatureFlag
 from gyrinx.site.templatetags.badge_tags import badge_svg
+from n26.flags import CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
 
@@ -232,6 +236,122 @@ class TestTheOwnerOfAGang:
         body = client.get(f"/n26/gangs/{gang.pk}/").content.decode()
         sheet = body.split("</header>")[-1]
         assert sheet.count(FLAIR_WRAPPER) == 1
+
+
+class TestTheNamesOnACampaign:
+    """A campaign names its arbitrator, its players and every gang's owner,
+    and each name carries the badge that person holds — read once for the
+    whole page, not once per name."""
+
+    @pytest.fixture
+    def campaigns_open(self):
+        """The flag rows are seeded by a data migration, which does not run
+        under --nomigrations."""
+        return FeatureFlag.objects.create(
+            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+        )
+
+    @pytest.fixture
+    def table(self, supporter, campaign_type, campaigns_open):
+        """A campaign the supporter arbitrates."""
+        from n26.tests.sandbox.actions import found_campaign
+
+        return found_campaign("Dust Falls", campaign_type, owner=supporter, budget=1000)
+
+    @pytest.fixture
+    def player(self, gang_type, default_pack):
+        """Somebody entitled to the same badge, seated at a campaign's table
+        with a gang of their own."""
+        from n26.core.campaigns import campaign_operation
+        from n26.tests.sandbox.actions import found_gang, join_campaign
+
+        def _seat(campaign, name):
+            person = User.objects.create_user(name)
+            UserProfile.objects.create(
+                user=person,
+                patreon_status=PatreonStatus.ACTIVE,
+                patreon_tier="Guilder",
+                selected_badge="guilder",
+            )
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.invite(person)
+            with campaign_operation(campaign, actor=person) as act:
+                act.answer_invitation(person, accepted=True)
+            join_campaign(
+                found_gang(f"{name}'s gang", gang_type, owner=person), campaign
+            )
+            return person
+
+        return _seat
+
+    @staticmethod
+    def _queries(client, path):
+        """How many queries a page costs, once the session has settled — the
+        first request after signing in records the session, which is a
+        cost of signing in and not of the page."""
+        client.get(path)
+        with CaptureQueriesContext(connection) as context:
+            response = client.get(path)
+        assert response.status_code == 200
+        return len(context.captured_queries)
+
+    def test_each_player_is_marked_at_the_table_and_on_their_gang(
+        self, table, player, client
+    ):
+        """Below the bar, which names the reader. A player's name is drawn
+        twice — in the players table and under their gang — and the mark
+        follows it both times."""
+        before = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
+        player(table, "vex")
+        player(table, "kesh")
+        after = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
+
+        mark = badge_svg(GUILDER).strip()
+        assert after.split("</header>")[-1].count(mark) == (
+            before.split("</header>")[-1].count(mark) + 4
+        )
+
+    def test_the_page_reads_the_badges_once_for_everybody(self, table, player, client):
+        player(table, "vex")
+        with_one = self._queries(client, f"/n26/campaigns/{table.pk}/")
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        assert self._queries(client, f"/n26/campaigns/{table.pk}/") == with_one
+
+    def test_a_campaign_row_marks_its_arbitrator(self, table, player, client):
+        """The list a player reads names whoever runs each campaign, and
+        the name carries their badge."""
+        person = player(table, "vex")
+        client.force_login(person)
+        body = client.get("/n26/campaigns/").content.decode()
+        rows = body.split("</header>")[-1]
+        assert "arbitrated by" in rows
+        assert badge_svg(GUILDER).strip() in rows
+
+    def test_the_list_reads_the_badges_once_for_every_campaign(
+        self, supporter, campaign_type, campaigns_open, player, client
+    ):
+        from n26.tests.sandbox.actions import found_campaign
+
+        campaigns = [
+            found_campaign(f"Campaign {index}", campaign_type, owner=supporter)
+            for index in range(4)
+        ]
+        person = player(campaigns[0], "vex")
+        client.force_login(person)
+        with_one = self._queries(client, "/n26/campaigns/")
+        for campaign in campaigns[1:]:
+            player(campaign, f"vex-in-{campaign.name[-1]}")
+        # Seat the same reader at the other three tables.
+        from n26.core.campaigns import campaign_operation
+
+        for campaign in campaigns[1:]:
+            with campaign_operation(campaign, actor=supporter) as act:
+                act.invite(person)
+            with campaign_operation(campaign, actor=person) as act:
+                act.answer_invitation(person, accepted=True)
+        assert self._queries(client, "/n26/campaigns/") == with_one
 
 
 class TestNoPageDecidesForItself:

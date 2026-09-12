@@ -48,7 +48,12 @@ def campaign_packs(request, id):
     if not is_admin and not is_member:
         raise Http404
 
-    campaign_packs_qs = campaign.packs.select_related("owner").order_by("name")
+    # Each pack names its owner with their badge, which reads the profile and grants.
+    campaign_packs_qs = (
+        campaign.packs.select_related("owner", "owner__profile")
+        .prefetch_related("owner__badge_grants")
+        .order_by("name")
+    )
     required_pack_ids = set(
         campaign.pack_links.filter(required=True).values_list("pack_id", flat=True)
     )
@@ -91,7 +96,8 @@ def campaign_packs(request, id):
                 archived=False,
             )
             .exclude(id__in=campaign_packs_qs.values_list("id", flat=True))
-            .select_related("owner")
+            .select_related("owner", "owner__profile")
+            .prefetch_related("owner__badge_grants")
             .order_by("name")
         )
 

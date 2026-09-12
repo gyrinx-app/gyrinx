@@ -1,0 +1,26 @@
+{% comment %}
+    c-user-link — a link to a user's page followed by their supporter badge.
+
+        <c-user-link :user="list.owner" />
+        <c-user-link :user="campaign.owner" class="linked-body" />
+
+    Every username on a page carries the person's badge, and the badge is easy
+    to forget when hand-writing the link, so the two travel together.
+
+    Honours ambient `print` and drops the badge when printing, as
+    c-breadcrumb.user does: a supporter badge is pixel art and earns nothing on
+    a printed sheet.
+
+    Renders inline, so the markup is packed tight and the file ends without a
+    newline: any whitespace here becomes a space in the surrounding sentence.
+
+    Call sites rendering this over a queryset of users MUST
+    select_related("…__profile").prefetch_related("…__badge_grants"), or the
+    badge is a query per name.
+
+    Props
+      user   a User. Pass it with the colon — user="{{ x }}" stringifies it and
+             the url tag then has no username to build from.
+      class  the link's classes. `linked` by default; `linked-body` and
+             `linked-secondary` are the other two in use.
+{% endcomment %}{% load badge_tags %}<c-vars user="" class="linked" /><a href="{% url "core:user" user.username %}" class="{{ class }}">{{ user.username }}</a>{% if not print %}{% user_badge user %}{% endif %}

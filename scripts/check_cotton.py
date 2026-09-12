@@ -43,6 +43,9 @@ OBJECT_PROPS = {
     "form.stepper": "field",
     "form.errors": "form",
     "errors": "form",
+    # A username link stringified has no `.username` for the url tag to read,
+    # and the badge tag then looks up a profile on a string.
+    "user-link": "user",
 }
 
 # Controls whose accessible name is not derivable from anything else on the

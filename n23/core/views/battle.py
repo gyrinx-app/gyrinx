@@ -123,7 +123,12 @@ class BattleDetailView(generic.DetailView):
         context["notes"] = battle.notes.select_related("owner").order_by("created")
 
         # Get associated campaign actions with related data
-        context["actions"] = battle.get_actions().select_related("user", "list")
+        # The author's badge reads their profile and grants.
+        context["actions"] = (
+            battle.get_actions()
+            .select_related("user", "user__profile", "list")
+            .prefetch_related("user__badge_grants")
+        )
 
         # Where the battle has got to, as ordered steps. Read-only.
         context["timeline"] = battle_timeline(battle)

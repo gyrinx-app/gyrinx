@@ -30,7 +30,9 @@
                         {% for list in lists %}
                             <tr>
                                 <td>{{ list.name }}</td>
-                                <td class="text-secondary">{{ list.owner.username }}</td>
+                                <td class="text-secondary">
+                                    <c-user-link :user="list.owner" class="linked-secondary" />
+                                </td>
                                 {% if campaign.budget > 0 %}
                                     <td class="text-end">
                                         {% with credits_to_add=campaign.budget|subtract:list.wealth_current %}

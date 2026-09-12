@@ -138,7 +138,7 @@
                                         {% if list.owner == request.user %}
                                             Your gang
                                         {% else %}
-                                            {{ list.owner.username }}
+                                            <c-user-link :user="list.owner" class="linked-secondary" />
                                         {% endif %}
                                         · R: {% credits list.rating_current %} Cr: {% credits list.credits_current %} St: {% credits list.stash_current %} W: {% credits list.wealth_current %}
                                     </div>
