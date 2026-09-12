@@ -37,7 +37,7 @@
         </c-breadcrumb>
     {% endif %}
     <div class="d-flex flex-column flex-xl-row gap-2 column-gap-xl-3 align-items-xl-center">
-        <div class="vstack">
+        <div class="d-flex align-items-center column-gap-2">
             <h2 class="mb-0 h2">
                 {% if link_list %}
                     <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
@@ -45,6 +45,25 @@
                     {% list_with_theme list %}
                 {% endif %}
             </h2>
+            {% comment %}
+                The gang page shows the post-battle sequence as a full button in its
+                action bar and the post-battle page is the sequence, so both pass
+                hide_post_battle; every other gang sub-page gets this icon. The
+                owner-or-campaign-admin rule mirrors get_list_for_edit, which is what
+                the post-battle view checks.
+            {% endcomment %}
+            {% if not print and not hide_post_battle and list.is_campaign_mode %}
+                {% if list.owner_cached.id == request.user.id or list.campaign|is_campaign_admin:request.user %}
+                    <c-btn variant="primary"
+                           size="sm"
+                           class="flex-shrink-0"
+                           href="{% url 'core:list-post-battle' list.id %}"
+                           tooltip="Post-battle updates"
+                           label="Post-battle updates">
+                        <c-icon name="clipboard-check" />
+                    </c-btn>
+                {% endif %}
+            {% endif %}
         </div>
         <div class="d-flex flex-row flex-nowrap align-items-center column-gap-3 fs-7 ms-xl-auto">
             <div class="d-flex flex-column align-items-start align-items-xl-end text-xl-end">
