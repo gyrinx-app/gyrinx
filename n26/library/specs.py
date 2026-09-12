@@ -1188,6 +1188,8 @@ def _build_registry():
                 "position": Int(source=(InterstitialSlot, "position")),
             },
             model=InterstitialSlot,
+            # A part of the interstitial, written into its pack.
+            joins_carrier_pack=True,
         ),
         Spec(
             authoring.create_section,

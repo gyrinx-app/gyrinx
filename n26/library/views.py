@@ -1359,9 +1359,14 @@ def _describe_interstitial(interstitial):
     carries is never shown to anyone.
     """
     # Read with ``.all()`` so a listing that prefetched the attachments
-    # counts without a query per row; an archived attachment shows the
-    # screen nowhere, so it is not counted.
-    attached = sum(1 for a in interstitial.attachments.all() if not a.archived)
+    # counts without a query per row; an archived attachment, or one in
+    # an archived pack, shows the screen nowhere, so it is not counted —
+    # the same terms ``Slot.interstitials`` reads by.
+    attached = sum(
+        1
+        for a in interstitial.attachments.all()
+        if not a.archived and not a.pack.archived
+    )
     return [
         *_interstitial_notes(interstitial),
         f"on {attached} slot{'' if attached == 1 else 's'}"
@@ -1402,6 +1407,21 @@ def _profile_listing(rows):
     )
 
 
+def _interstitial_listing(rows):
+    """What ``_describe_interstitial`` walks, loaded for the whole listing
+    at once: the attachments, each with its pack, since the count reads
+    whether that pack is archived."""
+    from django.db.models import Prefetch
+
+    from n26.library.models import InterstitialSlot
+
+    return rows.prefetch_related(
+        Prefetch(
+            "attachments", queryset=InterstitialSlot.objects.select_related("pack")
+        )
+    )
+
+
 #: Kinds whose describer — or whose own name — reads beyond the row.
 LEAF_LISTING_HINTS = {
     "profile": _profile_listing,
@@ -1418,7 +1438,7 @@ LEAF_LISTING_HINTS = {
         "members"
     ),
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
-    "interstitial": lambda rows: rows.prefetch_related("attachments"),
+    "interstitial": _interstitial_listing,
     # A campaign type says its asset types and counts the assets under
     # them. A campaign's own campaign type — the one its arbitrator adds
     # to — is left out: it is the campaign's machinery, not a type anybody
@@ -2140,7 +2160,8 @@ DETAIL_RELATED = {
             "one on the interstitial's own page."
         ),
         "nothing_yet": (
-            "No interstitial is attached to this slot, so it arrives without a screen of its own."
+            "No interstitial is attached to this slot yet, so it arrives "
+            "without a screen of its own."
         ),
         "rows": lambda slot: slot.interstitials,
         "notes": _interstitial_notes,

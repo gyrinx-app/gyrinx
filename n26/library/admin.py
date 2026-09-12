@@ -272,9 +272,17 @@ class SlotAdmin(admin.ModelAdmin):
 class InterstitialSlotInline(admin.TabularInline):
     model = InterstitialSlot
     extra = 1
-    fields = ["slot", "position"]
+    fields = ["slot", "position", "pack"]
     ordering = ["position"]
     autocomplete_fields = ["slot"]
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """A new attachment starts in its interstitial's pack, as the
+        authoring verb puts it, rather than in the default pack."""
+        formset = super().get_formset(request, obj, **kwargs)
+        if obj is not None:
+            formset.form.base_fields["pack"].initial = obj.pack_id
+        return formset
 
 
 @admin.register(Interstitial)
