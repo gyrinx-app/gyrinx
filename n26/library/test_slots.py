@@ -598,21 +598,37 @@ class TestAnInterstitialOnASlot:
             "Outcast archetype on House legacy"
         )
 
-    def test_a_slot_reads_its_interstitials_in_the_order_they_were_attached(
-        self, house_legacy
-    ):
-        later = create_interstitial("Said later", position=0)
-        first = create_interstitial("Said first", position=5)
-        attach_interstitial(first, house_legacy, position=0)
-        attach_interstitial(later, house_legacy, position=1)
+    def test_a_slot_reads_its_interstitials_in_their_own_order(self, house_legacy):
+        """An interstitial's position is its place among the screens
+        shown together; the attachment's position orders the slots
+        under one interstitial, and says nothing here."""
+        later = create_interstitial("Shown later", position=5)
+        first = create_interstitial("Shown first", position=0)
+        attach_interstitial(later, house_legacy, position=0)
+        attach_interstitial(first, house_legacy, position=1)
 
-        assert list(house_legacy.interstitials) == [first, later]
+        assert list(house_legacy.interstitials()) == [first, later]
+
+    def test_a_player_path_reads_archived_ones_too(self, house_legacy, homebrew):
+        """Archiving is a pack owner's soft delete: a gang already holding
+        the slot goes on being shown the screen, so the player-side read
+        keeps what the authoring read leaves out."""
+        packed = create_interstitial("Packed away", slots=[house_legacy], pack=homebrew)
+        withdrawn = create_interstitial("Withdrawn", slots=[house_legacy])
+        revise(homebrew, archived=True)
+        revise(withdrawn, archived=True)
+
+        assert list(house_legacy.interstitials()) == []
+        assert set(house_legacy.interstitials(include_archived=True)) == {
+            packed,
+            withdrawn,
+        }
 
     def test_an_archived_interstitial_is_not_read_off_the_slot(self, house_legacy):
         shown = create_interstitial("Outcast archetype", slots=[house_legacy])
         revise(shown, archived=True)
 
-        assert list(house_legacy.interstitials) == []
+        assert list(house_legacy.interstitials()) == []
 
     def test_an_attachment_in_an_archived_pack_is_not_read_off_the_slot(
         self, house_legacy, homebrew
@@ -621,7 +637,7 @@ class TestAnInterstitialOnASlot:
         attach_interstitial(shown, house_legacy, pack=homebrew)
         revise(homebrew, archived=True)
 
-        assert list(house_legacy.interstitials) == []
+        assert list(house_legacy.interstitials()) == []
 
     def test_an_attachment_lands_in_its_interstitials_pack(
         self, house_legacy, homebrew
@@ -656,7 +672,7 @@ class TestAnInterstitialOnASlot:
         attachment = attach_interstitial(shown, house_legacy)
         revise(attachment, archived=True)
 
-        assert list(house_legacy.interstitials) == []
+        assert list(house_legacy.interstitials()) == []
         # Withdrawn from this slot only: the interstitial itself stands.
         assert Interstitial.objects.filter(pk=shown.pk).exists()
 
@@ -666,7 +682,7 @@ class TestAnInterstitialOnASlot:
         shown = create_interstitial("Outcast archetype")
         detach_interstitial(attach_interstitial(shown, house_legacy))
 
-        assert list(house_legacy.interstitials) == []
+        assert list(house_legacy.interstitials()) == []
         assert Interstitial.objects.filter(pk=shown.pk).exists()
         assert Slot.objects.filter(pk=house_legacy.pk).exists()
 

@@ -1918,7 +1918,8 @@ def create(request, kind):
                 named = spec.identity
                 form.add_error(
                     named,
-                    f"A {model._meta.verbose_name} named "
+                    f"{_article_for(model._meta.verbose_name).capitalize()} "
+                    f"{model._meta.verbose_name} named "
                     f"“{form.cleaned_data[named]}” already exists in this pack.",
                 )
             else:
@@ -2167,7 +2168,7 @@ DETAIL_RELATED = {
             "No interstitial is attached to this slot yet, so it arrives "
             "without a screen of its own."
         ),
-        "rows": lambda slot: slot.interstitials,
+        "rows": lambda slot: slot.interstitials(),
         "notes": _interstitial_notes,
     },
 }

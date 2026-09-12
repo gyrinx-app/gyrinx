@@ -7487,7 +7487,8 @@ class TestTheInterstitialsOwnPage:
             },
         ).content.decode()
 
-        assert "already" in body
+        assert "An interstitial named" in body
+        assert "A interstitial" not in body
         assert Interstitial.objects.count() == 1
 
     def test_a_slot_is_attached_from_its_own_page(self, author, client, legacy):
@@ -7630,7 +7631,7 @@ class TestTheInterstitialsOwnPage:
 
         assert "on no slot yet" in body
         assert "on 1 slot" not in body
-        assert list(self.slot().interstitials) == []
+        assert list(self.slot().interstitials()) == []
 
     def test_the_listing_says_an_archived_interstitial_is_shown_nowhere(
         self, author, client, legacy, homebrew
@@ -7648,7 +7649,7 @@ class TestTheInterstitialsOwnPage:
 
         assert "shown nowhere" in body
         assert "on 1 slot" not in body and "on no slot yet" not in body
-        assert list(self.slot().interstitials) == []
+        assert list(self.slot().interstitials()) == []
 
     def test_the_listing_reads_flat_as_the_attachments_grow(
         self, author, client, legacy
