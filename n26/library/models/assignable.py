@@ -706,6 +706,23 @@ class Trait(Content, Assignable):
         ]
 
 
+#: The book's mark for a weapon that takes two of a card's three weapon
+#: slots. Drawn after the name wherever a weapon's name is drawn; never
+#: part of the stored name, which ingest strips it from.
+TWO_SLOT_MARK = "*"
+
+
+def slot_mark(slots):
+    """The asterisk the book prints after a two-slot weapon's name, or
+    nothing.
+
+    Two or more slots is marked. One is the ordinary weapon and reads
+    bare; a grenade takes no slot at all and reads bare too — the mark
+    means "this takes two", and a grenade is not an exception to that.
+    """
+    return TWO_SLOT_MARK if slots >= 2 else ""
+
+
 class Weapon(Content, Assignable, UsableBy):
     """A weapon. Always has at least one profile, the first of which is free.
 
@@ -730,6 +747,11 @@ class Weapon(Content, Assignable, UsableBy):
             "once on the weapon; every profile's statline reads it from here."
         ),
     )
+
+    @property
+    def slot_mark(self):
+        """See :func:`slot_mark`: ``*`` for a two-slot weapon, else nothing."""
+        return slot_mark(self.slots)
 
     class Meta:
         verbose_name = "weapon"

@@ -8,7 +8,7 @@ on the page that supplied the card.
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
-from n26.library.models.assignable import Family
+from n26.library.models.assignable import Family, Weapon
 
 
 @dataclass(frozen=True)
@@ -131,6 +131,16 @@ def thing_key(thing):
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
+def slots_of(thing):
+    """The weapon slots a piece of content takes on a card.
+
+    A weapon says for itself — 2 for an asterisked one, 0 for a grenade.
+    Anything else takes one, which is the number that draws no mark, so a
+    row for a wargear and a row for an ordinary gun read the same way.
+    """
+    return thing.slots if isinstance(thing, Weapon) else 1
+
+
 @dataclass(frozen=True)
 class OwnedPart:
     """Something hanging off a thing the model owns: ammo, an accessory.
@@ -196,6 +206,11 @@ class OwnedThing:
     #: whose content offers a choice has one: everything else would be a
     #: click onto a panel with nothing to pick.
     rechoose_href: str = ""
+    #: Weapon slots this takes on a card — the library's number for a
+    #: weapon (2 for an asterisked one, 0 for a grenade), 1 for anything
+    #: that is not a weapon. Read off the loaded content, so it costs no
+    #: query.
+    slots: int = 1
     #: What this copy was taken with, named as the buyer was offered it.
     #: Per copy and not per content: two of the same mount may carry
     #: different guns. Empty for anything that offered no choice, which
@@ -323,7 +338,7 @@ def possessions(host: EquipHost):
     confirmations open over it and Cancel returns to it, so the list they
     were reading is still the list underneath.
     """
-    from n26.library.models import Weapon, WeaponAccessory
+    from n26.library.models import WeaponAccessory
 
     # Whether this card has anywhere to fit an accessory, asked once for
     # the whole of it. A fighter carrying no gun is offered no fitting:
@@ -365,6 +380,7 @@ def possessions(host: EquipHost):
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
                 paid_trade_points=node.paid_trade_points,
+                slots=slots_of(node.assignable),
                 accessorise_href=(
                     with_query(at, accessorise=pk)
                     if isinstance(node.assignable, Weapon)

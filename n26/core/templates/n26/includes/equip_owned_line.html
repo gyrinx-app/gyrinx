@@ -12,7 +12,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
     {% querystring owned=row.key as owned_toggle_href %}
 {% endif %}
 {% if row.buy %}
-    <c-n26.collection-picker.item name="{{ row.name }}"
+    <c-n26.collection-picker.item name="{{ row.name }}{{ row.slot_mark }}"
                                   :price="row.buy.price"
                                   :trade_points="row.buy.trade_points"
                                   :exclusive="row.buy.is_exclusive"
@@ -52,7 +52,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
         </c-slot>
     </c-n26.collection-picker.item>
 {% else %}
-    <c-n26.collection-picker.item name="{{ row.name }}"
+    <c-n26.collection-picker.item name="{{ row.name }}{{ row.slot_mark }}"
                                   :price="0"
                                   :disclosure="False"
                                   :open="row.expanded"

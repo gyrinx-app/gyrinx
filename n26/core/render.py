@@ -38,6 +38,7 @@ from n26.library.models import (
     Subtype,
     Weapon,
     WeaponProfile,
+    slot_mark,
 )
 from n26.library.standard_content import XP_COUNTER
 
@@ -349,6 +350,15 @@ class WeaponLine:
     #: card's own rows. Each holds one pick at most: an item is at one
     #: level.
     choices: list[ChoiceLine] = field(default_factory=list)
+
+    @property
+    def slot_mark(self):
+        """The book's asterisk after a two-slot weapon's name, or nothing.
+
+        Drawn beside the name on every card — screen, print, text — so
+        the three cannot disagree about which weapons take two slots.
+        """
+        return slot_mark(self.slots)
 
     @property
     def extras_rating(self):

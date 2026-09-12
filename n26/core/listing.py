@@ -13,8 +13,9 @@ from dataclasses import dataclass, field
 
 from django.utils.text import slugify
 
-from n26.core.owned import thing_key
+from n26.core.owned import slots_of, thing_key
 from n26.core.taxonomy import UNCATEGORISED
+from n26.library.models import slot_mark
 
 #: The affirmative act on a row: buying the thing it names.
 PRIMARY = "primary"
@@ -174,8 +175,21 @@ class PickGroup:
     nothing_taken: bool = True
 
 
+class SlotMarked:
+    """A row that draws the book's asterisk after a two-slot weapon's name.
+
+    The rows carry ``slots`` — the library's number, 1 for anything that
+    is not a weapon — and a template draws ``name`` then ``slot_mark``,
+    so the mark is never written into a name and never lost from one.
+    """
+
+    @property
+    def slot_mark(self):
+        return slot_mark(self.slots)
+
+
 @dataclass(frozen=True)
-class Listing:
+class Listing(SlotMarked):
     """Something for sale, and what buying it here asks for."""
 
     key: str
@@ -193,6 +207,8 @@ class Listing:
     #: The questions buying this asks — a mount's weapon swap. Empty for
     #: everything that asks none, which is most of a catalogue.
     choices: tuple[PickGroup, ...] = ()
+    #: Weapon slots this takes on a card; see :class:`SlotMarked`.
+    slots: int = 1
 
 
 @dataclass(frozen=True)
@@ -215,7 +231,7 @@ class OwnedPartRow:
 
 
 @dataclass(frozen=True)
-class OwnedCopyRow:
+class OwnedCopyRow(SlotMarked):
     """One copy the fighter holds, with whatever hangs off it."""
 
     id: str
@@ -239,10 +255,12 @@ class OwnedCopyRow:
     #: already inside the copy's rating, so no figure is said again
     #: beside them. Empty where nothing was ever asked.
     chosen: tuple[str, ...] = ()
+    #: Weapon slots this takes on a card; see :class:`SlotMarked`.
+    slots: int = 1
 
 
 @dataclass(frozen=True)
-class OwnedRow:
+class OwnedRow(SlotMarked):
     """A row for something the fighter is already carrying.
 
     ``count`` is copies, not pieces: two Autoguns with a paid round on
@@ -259,6 +277,9 @@ class OwnedRow:
     #: by the list being read.
     buy: Listing | None = None
     expanded: bool = False
+    #: Weapon slots this takes on a card; see :class:`SlotMarked`. The
+    #: listing's where there is one, else the held copies'.
+    slots: int = 1
 
 
 @dataclass
@@ -393,6 +414,7 @@ def listing_row(line):
         # name nothing that is not on the list.
         buy=Action(label="Buy", kind=SUBMIT, target=key, tone=PRIMARY),
         choices=pick_groups(line.choices, key),
+        slots=slots_of(line.thing),
     )
 
 
@@ -450,6 +472,7 @@ def copy_row(copy, refunds=True):
         ),
         sell=Action("Sell", LINK, copy.sell_href, DANGER),
         chosen=copy.chosen,
+        slots=copy.slots,
         accessorise=(
             Action("Add accessory", LINK, copy.accessorise_href, SECONDARY)
             if copy.accessorise_href
@@ -492,6 +515,7 @@ def owned_row(row, copies, refunds=True, expanded=False):
         copies=tuple(copy_row(copy, refunds=refunds) for copy in copies),
         buy=row,
         expanded=expanded,
+        slots=row.slots,
     )
 
 
@@ -503,6 +527,7 @@ def owned_row_manage_only(key, copies, refunds=True, expanded=False):
         copies=tuple(copy_row(copy, refunds=refunds) for copy in copies),
         buy=None,
         expanded=expanded,
+        slots=copies[0].slots,
     )
 
 

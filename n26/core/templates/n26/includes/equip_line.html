@@ -24,7 +24,7 @@ The number the row arrived quoting is kept beside it, so a changed box can say
 by how much. The delta grows leftwards out of the price column, which leaves
 every input in the list on the same column however many rows have one.
 {% endcomment %}
-<c-n26.collection-picker.item name="{{ row.name }}"
+<c-n26.collection-picker.item name="{{ row.name }}{{ row.slot_mark }}"
                               :price="row.price"
                               :trade_points="row.trade_points"
                               :exclusive="row.is_exclusive"

@@ -50,7 +50,7 @@ def render_model_card(card, indent=""):
             # "added nothing here" — never "this was free". Kit that came
             # with the hire reads zero while being worth plenty, so the
             # number is simply left off rather than claimed.
-            label = weapon.name
+            label = weapon.name + weapon.slot_mark
             if weapon.total_rating:
                 total = f"{weapon.total_rating}cr"
                 if weapon.extras_rating:
