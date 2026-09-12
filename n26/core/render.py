@@ -2255,18 +2255,25 @@ def card_to_model_card(
         # Computed grants join the same rows the stored lines chose —
         # the mapping is the one the kinds declared, so a grant can
         # never land in a different row than a purchase of the same
-        # thing. Deduplicated by name: two sources granting one skill
-        # leave the fighter knowing it once.
+        # thing. Deduplicated by name against the other grants: two
+        # sources granting one skill leave the fighter knowing it once.
+        # A grant of something the fighter also bought keeps a line of
+        # its own — the two are different facts, and the grant's line is
+        # the one whose tooltip names what gave it; ``collapse`` keeps
+        # them apart by provenance.
         for row_name, lines in line_rows.items():
+            granted = {line.name for line in lines if line.provenance.computed}
             for contribution in getattr(computed, row_name):
-                if contribution.name not in {line.name for line in lines}:
-                    lines.append(
-                        AssignableLine(
-                            name=contribution.name,
-                            provenance=_computed_provenance(contribution),
-                            key=thing_key(contribution.thing),
-                        )
+                if contribution.name in granted:
+                    continue
+                granted.add(contribution.name)
+                lines.append(
+                    AssignableLine(
+                        name=contribution.name,
+                        provenance=_computed_provenance(contribution),
+                        key=thing_key(contribution.thing),
                     )
+                )
         # A counter nothing on the card assigns, contributed to all the
         # same. It reads as the sum and carries no assignment, so there
         # is nothing to tally: the figure follows from what the model is.

@@ -388,3 +388,62 @@ class TestTheCapture:
 
         (model,) = gang_state(gang)["models"].values()
         assert model["skills"] == ["Nerves of Steel", "Nerves of Steel"]
+
+
+class TestABoughtAndAGrantedSkill:
+    """A skill the fighter selected and is also granted by a modifier is
+    two facts, drawn as two lines: the bought one plain, the granted one
+    with the tooltip naming what gave it. They are never stacked into
+    one, since a count would hide which was which, and the grant is
+    never dropped for sharing the bought line's name."""
+
+    @pytest.fixture
+    def both(self, fighter, nerves):
+        kit = create_wargear("Rebreather kit", price=20)
+        modifier(
+            "The kit steadies its wearer",
+            targets_model(),
+            adds(nerves),
+            carried_by=kit,
+        )
+        select(fighter, nerves)
+        assign(kit, miniature=fighter, paid=20)
+        return fighter
+
+    def test_the_card_holds_both_lines_apart(self, gang, both):
+        lines = [
+            (line.count, line.provenance.computed, line.provenance.source)
+            for line in drawn(gang, "Vex").skills
+        ]
+        assert lines == [(1, False, None), (1, True, "Rebreather kit")]
+
+    def test_the_gang_sheet_draws_the_granted_one_with_its_source(
+        self, client, gang, both
+    ):
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "(x2)" not in body
+        assert body.count("Nerves of Steel") >= 2
+        assert (
+            'Nerves of Steel<span class="sr-only"> (from Rebreather kit)</span>' in body
+        )
+
+    def test_the_text_card_writes_both(self, gang, both):
+        text = "\n".join(render_model_card(drawn(gang, "Vex")))
+        print("\n" + text)
+
+        assert "Skills: Nerves of Steel, Nerves of Steel" in text
+
+    def test_two_grants_of_one_skill_still_read_once(self, gang, fighter, nerves):
+        for name in ("Rebreather kit", "Steadying harness"):
+            kit = create_wargear(name, price=20)
+            modifier(f"{name} steadies", targets_model(), adds(nerves), carried_by=kit)
+            assign(kit, miniature=fighter, paid=20)
+
+        (kept,) = drawn(gang, "Vex").skills
+        assert (kept.name, kept.count, kept.provenance.computed) == (
+            "Nerves of Steel",
+            1,
+            True,
+        )
