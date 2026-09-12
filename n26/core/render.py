@@ -34,6 +34,7 @@ from n26.library.models import (
     Counter,
     Dice,
     Hidden,
+    OpAddsMiniature,
     Pickable,
     Rule,
     Slot,
@@ -874,6 +875,12 @@ class ModelCard:
     #: two cards. None and empty for a model hired in its own right.
     owned_by: str | None = None
     owned_by_id: str = ""
+    #: Where the owner's name leads — the owner's card, on a sheet that
+    #: draws it. Filled in by whoever draws the sheet, like a choice's
+    #: own href: this module knows who the owner is and not where their
+    #: card is. Empty draws the name as words, which is what the model's
+    #: own page, a print, and a sheet the owner has left all want.
+    owner_href: str = ""
     #: Whether the purchase that brought this model in sits in the
     #: stash: a pet bought there has no owner, and the card says where
     #: its collar is instead.
@@ -2010,33 +2017,52 @@ def brought_in_by(members):
     Built once from the roster, whose members arrive with the cause
     already joined, so a whole gang's worth costs no query.
 
-    A pet its owner has not named yet is left out: its name is still its
-    profile's, and "Phyrr Cat (Phyrr Cat)" says nothing the bare line
-    does not. So is a dead one — the line is what the model carries,
-    and a dead pet is not that any more. Keyed by the pk written as a
-    string, and read the same way, so a node's key and a membership's
-    cause agree however either is typed.
+    Every collar on the roster is in the map, because being in it is
+    what keeps a line from stacking: two collars are two pets, whatever
+    the pets are called. The *name* is empty for a pet its owner has
+    not named yet — its name is still its profile's, and "Phyrr Cat
+    (Phyrr Cat)" says nothing the bare line does not — and for a dead
+    one, since the line is what the model carries and a dead pet is not
+    that any more. Keyed by the pk written as a string, and read the
+    same way, so a node's key and a membership's cause agree however
+    either is typed.
     """
     brought = {}
     for member in members:
         membership = member.membership
         if membership is None or membership.caused_by_id is None:
             continue
-        if member.status == Status.DEAD:
-            continue
         profile = membership.profile
-        if profile is not None and member.name == str(profile):
-            continue
-        brought[str(membership.caused_by_id)] = member.name
+        unnamed = profile is not None and member.name == str(profile)
+        brought[str(membership.caused_by_id)] = (
+            "" if unnamed or member.status == Status.DEAD else member.name
+        )
     return brought
+
+
+def _brought_in_of(node, brought_in):
+    """The name of the model this line's kit brought, off the map
+    :func:`brought_in_by` builds — or nothing. The whole of the line is
+    asked, since the purchase a pet names may be a hidden part riding
+    under the visible kit."""
+    if not brought_in:
+        return ""
+    return next(
+        (
+            brought_in[key]
+            for each in node.walk()
+            if (key := str(each.key)) in brought_in
+        ),
+        "",
+    )
 
 
 def _brought_in_by_one(miniature):
     """The same map, for the models one model's purchases brought in.
 
     One query, for a card built on its own — the model's own page —
-    where no roster is to hand. Asked only of a card whose kit brings
-    something (``_brings``), so every other card costs nothing more.
+    where no roster is to hand. Asked only of a card whose kit brings a
+    model (``_brings_a_model``), so every other card costs nothing more.
     """
     from n26.core.models import Miniature
 
@@ -2058,6 +2084,18 @@ def _brings(computed):
         for step in computed.plan
         if getattr(step.modifier.effect, "is_stored", False)
     }
+
+
+def _brings_a_model(computed):
+    """Whether anything on this card brings a model onto the roster.
+
+    Narrower than :func:`_brings`: a stored effect may move a counter or
+    set a status instead, and a card carrying one of those has no pet
+    to look up.
+    """
+    return bool(computed) and any(
+        isinstance(step.modifier.effect, OpAddsMiniature) for step in computed.plan
+    )
 
 
 def build_model_card(
@@ -2093,7 +2131,7 @@ def build_model_card(
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
-    if brought_in is None and _brings(computed):
+    if brought_in is None and _brings_a_model(computed):
         brought_in = _brought_in_by_one(miniature)
 
     # A pet's owner is the model whose purchase caused its membership;
@@ -2223,8 +2261,13 @@ def card_to_model_card(
     def key_of(node):
         # Everything under the line counts, not only the thing it names:
         # a hidden carrier riding a piece of kit brings its pet through
-        # that kit's line, and two such lines are two pets.
-        if any(thing_key(each.assignable) in brings for each in node.walk()):
+        # that kit's line, and two such lines are two pets. Asked of what
+        # the kit does and of what it has done: a collar whose pet is on
+        # the roster stands alone whatever the pet is called.
+        if any(
+            thing_key(each.assignable) in brings or str(each.key) in brought_in
+            for each in node.walk()
+        ):
             return ""
         return thing_key(node.assignable)
 
@@ -2232,16 +2275,7 @@ def card_to_model_card(
         # The purchase the pet's membership names may be the line itself
         # or a hidden part riding under it, so the whole of the line is
         # asked — the same walk that keeps such a line from stacking.
-        if not brought_in:
-            return ""
-        return next(
-            (
-                brought_in[key]
-                for each in node.walk()
-                if (key := str(each.key)) in brought_in
-            ),
-            "",
-        )
+        return _brought_in_of(node, brought_in)
 
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
@@ -3124,16 +3158,14 @@ def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
     stash_provenance = _provenance_within(gang_card)
     brought_in = brought_in or {}
 
-    def brought_in_of(node):
-        # The whole of the line, as a card asks: the purchase a pet
-        # names may be a hidden part riding under the collar.
-        return next(
-            (
-                brought_in[key]
-                for each in node.walk()
-                if (key := str(each.key)) in brought_in
-            ),
-            "",
+    def stands_alone(node):
+        # A weapon, for the reason above; and kit that brought a model
+        # onto the roster — two collars are two pets, whatever the pets
+        # are called, so a line for one never stands for the other. The
+        # whole of the line is asked, as a card asks: the purchase a
+        # pet names may be a hidden part riding under the collar.
+        return isinstance(node.assignable, Weapon) or any(
+            str(each.key) in brought_in for each in node.walk()
         )
 
     lines = [
@@ -3146,12 +3178,8 @@ def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
             is_accessory=isinstance(node.assignable, WeaponAccessory),
             paid_trade_points=node.paid_trade_points,
             slots=slots_of(node.assignable),
-            brought_in=brought_in_of(node),
-            key=(
-                ""
-                if isinstance(node.assignable, Weapon)
-                else thing_key(node.assignable)
-            ),
+            brought_in=_brought_in_of(node, brought_in),
+            key="" if stands_alone(node) else thing_key(node.assignable),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen

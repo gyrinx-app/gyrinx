@@ -1512,8 +1512,9 @@ def model_card():
             # the one shape where a line's count is drawn. The gallery
             # must hold a specimen or that arm is drawn nowhere.
             AssignableLine(name="Stimm-slug (25¢)", count=2),
-            # Kit that brought a pet onto the roster, named after the
-            # name: the pet's card is model_card_pet().
+            # Kit that brought a pet onto the roster. The specimen carries
+            # the pet's name, drawn after the kit's; the pet's own card is
+            # model_card_pet().
             AssignableLine(name="Phyrr Cat (pet) (120¢)", brought_in="Fang"),
         ],
         # Gear whose category asks for a heading of its own. Bought and
@@ -2388,8 +2389,18 @@ def gang_sheet_context():
         # library profile it was hired from. Vex and Sull are both Gangers, which
         # is the case worth having in the sample — one content entry, two
         # miniatures, and a card header that has to say which is which.
+        #
+        # Each copy under an id of its own, since a stored card's id is its
+        # anchor on the page and the same anchor five times would be no
+        # anchor at all.
         "gang_members": [
-            replace(sheet.models[0], name=name, profile_name=profile, rating=rating)
+            replace(
+                sheet.models[0],
+                id=slugify(name),
+                name=name,
+                profile_name=profile,
+                rating=rating,
+            )
             for name, profile, rating in members
         ],
         "gang_owner": OWNER,

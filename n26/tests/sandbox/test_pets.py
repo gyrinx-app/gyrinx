@@ -25,6 +25,7 @@ from n26.core.status import Status
 from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
+    create_counter,
     create_wargear,
     create_weapon,
     found_gang,
@@ -32,6 +33,7 @@ from n26.tests.sandbox.actions import (
     hire,
     modifier,
     op_adds_model,
+    op_changes_counter,
     remove,
     targets_model,
 )
@@ -304,7 +306,7 @@ def pet_lines(card):
 
 class TestThePetCardNamesItsOwner:
     """The link between a pet and its keeper is derived, and both cards
-    say it: the pet's names its owner, under the profile name, and the
+    say it: the pet names its owner, under the profile name, and the
     gang sheet makes that name a link to the owner's card. Where the
     collar was bought into the stash there is no owner, and the card
     says where the collar is instead."""
@@ -356,6 +358,21 @@ class TestThePetCardNamesItsOwner:
         assert (pet.owned_by, pet.owned_by_id, pet.in_stash) == (None, "", True)
         assert pet.owner_line == "In the stash"
         assert "Cyber-mastiff — 0cr  (In the stash)" in gang_to_text(gang)
+
+    def test_an_owner_who_has_left_the_roster_is_named_in_words(
+        self, client, gang, bought, yolanda
+    ):
+        """The collar stays live when its bearer leaves, and the pet still
+        names them — but a link to a card the sheet does not draw lands
+        nowhere, so the name is words."""
+        remove(yolanda.membership)
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Owned by" in body
+        assert "Yolanda" in body
+        assert f'href="#model-{yolanda.pk}"' not in body
+        assert "Yolanda" not in [card.name for card in render_gang(gang).models]
 
     def test_the_print_page_and_the_text_card_say_the_same_words(
         self, client, gang, bought
@@ -490,6 +507,88 @@ class TestTheWargearLineNamesThePet:
             build_model_card(owner, card=own, computed=computed)
         assert len(alone.captured_queries) == 0
 
+    def test_two_collars_with_unnamed_pets_are_two_lines(
+        self, gang, bought, yolanda, mastiff_wargear
+    ):
+        """A line for one collar never stands for another: what each
+        brought is on the roster under its own card, whatever it is
+        called. So two collars whose pets are still named for their
+        profile stay apart, on the card and in the stash alike."""
+        assign(mastiff_wargear, miniature=yolanda, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+
+        sheet = render_gang(gang)
+        assert [line.count for line in pet_lines(card_of(sheet, "Yolanda"))] == [1, 1]
+        assert [line.count for line in sheet.stash] == [1, 1]
+        assert all(line.brought_in == "" for line in sheet.stash)
+        assert "(x2)" not in gang_to_text(gang)
+
+    def test_two_collars_with_pets_of_one_name_are_two_lines(
+        self, gang, bought, yolanda, mastiff_wargear
+    ):
+        assign(mastiff_wargear, miniature=yolanda, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        for pet in Miniature.objects.filter(
+            membership__gang=gang, membership__caused_by__isnull=False
+        ):
+            rename(gang, pet, "Fang")
+
+        sheet = render_gang(gang)
+        on_card = pet_lines(card_of(sheet, "Yolanda"))
+        assert [(line.brought_in, line.count) for line in on_card] == [
+            ("Fang", 1),
+            ("Fang", 1),
+        ]
+        assert [(line.brought_in, line.count) for line in sheet.stash] == [
+            ("Fang", 1),
+            ("Fang", 1),
+        ]
+
+    def test_two_collars_whose_pets_have_died_are_two_lines_in_the_stash(
+        self, gang, mastiff_wargear
+    ):
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        with operation(gang, actor=gang.owner) as op:
+            for pet in Miniature.objects.filter(membership__gang=gang):
+                op.set_status(pet, Status.DEAD)
+
+        assert [line.count for line in render_gang(gang).stash] == [1, 1]
+
+    def test_a_card_with_a_stored_effect_but_no_pet_looks_nothing_up(
+        self, gang, yolanda, default_pack
+    ):
+        """Moving a counter is a stored effect too, and a card carrying
+        one has no pet to ask after."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        kills = create_counter("Kill Count")
+        trophy = create_wargear("Trophy rack", price=10)
+        modifier(
+            "The rack marks a kill",
+            targets_model(),
+            op_changes_counter(kills, "add", 1),
+            carried_by=trophy,
+        )
+        assign(kills, miniature=yolanda)
+        assign(trophy, miniature=yolanda, paid=10)
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+        assert any(
+            getattr(step.modifier.effect, "is_stored", False) for step in computed.plan
+        )
+
+        with CaptureQueriesContext(connection) as alone:
+            build_model_card(owner, card=own, computed=computed)
+        assert len(alone.captured_queries) == 0
+
     def test_two_named_pets_are_two_lines_on_the_card_and_in_the_stash(
         self, gang, bought, yolanda, mastiff_wargear
     ):
@@ -525,7 +624,7 @@ class TestTheWargearLineNamesThePet:
 
 
 class TestAPetBroughtByAHiddenPart:
-    """The purchase a pet's membership names may be a hidden carrier
+    """The purchase that a pet's membership names may be a hidden carrier
     riding under the visible kit rather than the kit itself. The kit's
     line names the pet all the same: the whole of the line is asked."""
 

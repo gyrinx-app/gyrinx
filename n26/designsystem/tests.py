@@ -244,15 +244,26 @@ class TestThePetOnAModelCard:
         assert 'href="#model-vesna-krail"' in page
         assert page.count('id="model-vesna-krail"') == 1
 
-    def test_every_card_on_the_page_has_an_anchor_of_its_own(self, reader):
-        """The sample card is drawn many times over; each drawing is a
-        variant under its own id, so the owner link lands on one card
-        and the page holds no id twice."""
+    @pytest.mark.parametrize(
+        "url, at_least",
+        [
+            ("/n26/design/c/model-card/", 8),
+            ("/n26/design/c/view-gang-sheet/", 5),
+            ("/n26/design/shell/gang/", 5),
+        ],
+    )
+    def test_every_card_on_the_page_has_an_anchor_of_its_own(
+        self, reader, url, at_least
+    ):
+        """The sample card is drawn many times over — the card page's
+        variants, the gang sheet's five members — and each drawing is a
+        copy under its own id, so the owner link lands on one card and
+        no page holds an id twice."""
         import re
 
-        page = reader.get("/n26/design/c/model-card/").content.decode()
+        page = reader.get(url).content.decode()
         anchors = re.findall(r'id="(model-[^"]+)"', page)
-        assert len(anchors) >= 8
+        assert len(anchors) >= at_least
         assert sorted(anchors) == sorted(set(anchors))
 
     def test_the_stashed_pet_demo_says_where_the_collar_is(self, reader):
