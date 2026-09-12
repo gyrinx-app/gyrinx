@@ -301,7 +301,12 @@ def gang_sheet(request, pk):
     # left of its founding Trade Points — for the readers the feature
     # reaches, and is what keeps everyone else's read from paying for
     # figures they are not shown.
-    sheet = render_gang(gang, card=card, for_owner=founding_seen)
+    # The owner's stash lines each carry a menu naming one assignment,
+    # so theirs stay one to an assignment; everyone else reads repeats
+    # stacked as one line with a count.
+    sheet = render_gang(
+        gang, card=card, for_owner=founding_seen, collapse_repeats=not yours
+    )
     dialog = None
     link_campaign(sheet.campaign, request.user)
     if yours:

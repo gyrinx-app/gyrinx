@@ -1506,9 +1506,13 @@ def model_card():
             _granted("Overseer", "Leader", "subtype"),
             *_printed("Spring Up"),
         ],
-        equipment=_printed(
-            "Mesh armour (15¢)", "Bio-booster (35¢)", "Photo-goggles (35¢)"
-        ),
+        equipment=[
+            *_printed("Mesh armour (15¢)", "Bio-booster (35¢)", "Photo-goggles (35¢)"),
+            # Two of one thing, drawn once with the count after the name —
+            # the one shape where a line's count is drawn. The gallery
+            # must hold a specimen or that arm is drawn nowhere.
+            AssignableLine(name="Stimm-slug (25¢)", count=2),
+        ],
         # Gear whose category asks for a heading of its own. Bought and
         # priced like the rest, and held apart because it reads as what
         # the model is rather than as what they are carrying.
@@ -1943,7 +1947,12 @@ STASH = [
     StashLine(name="Lasgun", rating=15, kind="weapon"),
     StashLine(name="Shotgun", rating=30, kind="weapon"),
     StashLine(name="Stub gun", rating=5, kind="weapon"),
-    StashLine(name="Mesh armour", rating=15, kind="wargear"),
+    # Two suits of mesh armour, drawn once with the count after the name
+    # and the rating of one beside it — what the equip listing's held
+    # rows say. Wargear only: a weapon in the stash is never stacked,
+    # since what it is includes the profiles, accessories and choices on
+    # it, and two of one name can differ in all of those.
+    StashLine(name="Mesh armour", rating=15, kind="wargear", count=2),
     StashLine(name="Photo-goggles", rating=35, kind="wargear"),
     # Nobody bought this one: a modifier put it there, and it carries the mark a
     # granted skill carries on a card.
@@ -2177,7 +2186,14 @@ def model_card_editable():
 
     card = replace(model_card())
     card.counters = [replace(line, href="#") for line in card.counters]
-    card.equipment = [replace(line, sell=sell, more=more) for line in card.equipment]
+    # The base card draws several of one thing as one line with a count.
+    # The model's own page draws one line per assignment, each with the
+    # menu that names it, so a stacked line is opened back out here.
+    card.equipment = [
+        replace(line, sell=sell, more=more, count=1)
+        for line in card.equipment
+        for _ in range(line.count)
+    ]
     for weapon in card.weapons:
         weapon.sell = sell
         weapon.more = more

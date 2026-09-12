@@ -184,8 +184,20 @@ class ComputedWeapon:
         return sorted((printed | added) - removed)
 
 
+def count_mark(count):
+    """What follows a name that stands for more than one: ``" (x3)"``.
+
+    The book's own way of writing a repeat, so a card reads as the
+    book does. Nothing for one — a single line is the ordinary case
+    and reads bare. One rule for every surface that stacks repeats: a
+    slot's picks, a tooltip's sources, a card's gear and skills, the
+    stash.
+    """
+    return f" (x{count})" if count > 1 else ""
+
+
 def stacked_names(names):
-    """Collapse repeated names to ``Name (n)``.
+    """Collapse repeated names to ``Name (xn)``.
 
     A several-pick slot can hold the same result more than once. The
     card lists each distinct name once, with a count when it lands
@@ -200,9 +212,7 @@ def stacked_names(names):
             order.append(name)
             counts[name] = 0
         counts[name] += 1
-    return ", ".join(
-        name if counts[name] == 1 else f"{name} ({counts[name]})" for name in order
-    )
+    return ", ".join(f"{name}{count_mark(counts[name])}" for name in order)
 
 
 @dataclass

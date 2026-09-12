@@ -20,8 +20,22 @@ capture cannot agree with a broken page.
 from n26.core.render import render_gang
 
 
+def _each(lines):
+    """Every assignment a run of lines stands for.
+
+    A card draws several of one thing as one line with a count; the
+    capture writes that line once per assignment, so a gang holding two
+    of a thing never compares equal to a gang holding one, and a
+    conversion that lost the second is a difference rather than a
+    silence.
+    """
+    for line in lines:
+        for _ in range(line.count):
+            yield line
+
+
 def _names(lines):
-    return sorted(str(line.name) for line in lines)
+    return sorted(str(line.name) for line in _each(lines))
 
 
 def _assets(lines):
@@ -34,7 +48,7 @@ def _assets(lines):
 
 def _rated(lines):
     """Lines whose printed figure matters as much as their name."""
-    return sorted((str(line.name), line.rating) for line in lines)
+    return sorted((str(line.name), line.rating) for line in _each(lines))
 
 
 def _choices(lines):
