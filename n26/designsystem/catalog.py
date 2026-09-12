@@ -119,6 +119,20 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="share",
+                tag="c-n26.share",
+                template="n26/share.html",
+                summary="A Share button: the device's share sheet, or the clipboard.",
+                needs=(ALPINE,),
+                notes=(
+                    "A link to the page itself, so it works with no script. Alpine "
+                    "takes over the click: navigator.share where the browser has it, "
+                    "navigator.clipboard.writeText otherwise, then the message for a "
+                    "few seconds. The clipboard API needs a secure origin, so over "
+                    "plain http the button navigates instead of copying."
+                ),
+            ),
+            Component(
                 slug="dropdown",
                 tag="c-ui.dropdown",
                 template="dropdown/index.html",

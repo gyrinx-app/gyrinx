@@ -71,6 +71,13 @@ that said it twice would be spending the width the name needs.
                 {% badge_svg owner_badge %}
             </c-slot>
         {% endif %}
+        {% comment %}
+        Anybody holding the address may read the sheet, so anybody may pass
+        it on: the button is for every reader, owner or not.
+        {% endcomment %}
+        <c-slot name="share">
+            <c-n26.share url="{% url 'n26-gang' gang.pk %}" />
+        </c-slot>
         <c-slot name="type_flair">
             <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
         </c-slot>

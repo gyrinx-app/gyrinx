@@ -1,0 +1,29 @@
+{% comment %}
+    <c-share> — a Share control for a page other people can open.
+
+        <c-share url="{% url 'core:list' list.id %}" />
+        <c-share url="{% url 'core:campaign' campaign.id %}"
+                 message="Link copied. This gang is unlisted, so only people with the link can open it." />
+
+    A <c-btn> LINK TO THE PAGE ITSELF, so without JavaScript it is a plain link
+    the reader can copy or right-click. With JavaScript, the [data-share-url]
+    handler in n23/core/static/core/js/index.js takes over the click: it opens
+    the device's share sheet where there is one (navigator.share), copies the
+    address to the clipboard otherwise, and then shows `message` beside the
+    button for a few seconds. A dismissed share sheet copies nothing and says
+    nothing.
+
+    The message sits in the same wrapper as the button, which is how the handler
+    finds it — no ids, so several of these can share a page.
+
+    PROPS
+      url      The page to share. A path is fine: the handler resolves it
+               against the document, as the link itself does.
+      message  Said once the address is on the clipboard. Default "Link copied."
+      variant, size, class
+               Passed to <c-btn>. Default secondary / sm. variant="link" with
+               class="p-0 linked-secondary" makes it read as one of the icon
+               links in a meta row.
+
+    Everything else flows through {{ attrs }} to the <c-btn>.
+{% endcomment %}<c-vars url="" message="Link copied." variant="secondary" size="sm" class="" /><span class="d-inline-flex align-items-center column-gap-2"><c-btn variant="{{ variant }}" size="{{ size }}" class="{{ class }}" href="{{ url }}" data-share-url="{{ url }}" :attrs="attrs"><i class="bi-share" aria-hidden="true"></i> Share</c-btn><span class="d-none fs-7 text-secondary" role="status" data-share-message>{{ message }}</span></span>
