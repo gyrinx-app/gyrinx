@@ -193,7 +193,10 @@ custom_blocks = "element,slot,setvar,is_active"
 # with no such tags in the rendered body. The rule cannot distinguish prose from
 # markup, so it is off rather than sprinkling djlint:off through comments — that
 # file deliberately removed one such hack.
-ignore = "H006,H026,T038"
+# H021: 1.46.1 reports the existing inline-style sites as lint errors (1.44.2
+# left them at 0). The 21 remaining hits are colour swatches, status dots and
+# print widths; they are not a conversion this bump should take on.
+ignore = "H006,H021,H026,T038"
 # django-cotton components (<c-btn>, <c-slot>, <c-forms.field>, <c-vars />).
 # Without this djlint treats them as unknown inline tags and FLATTENS the
 # indentation of their children instead of nesting it.
