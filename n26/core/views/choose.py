@@ -157,15 +157,17 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
             # Only the owner's structures come through here, so the way
             # to dismiss an offer is drawn for nobody else. An open offer
             # can be dismissed; one holding a pick cannot, since what
-            # was chosen is drawn and there is nothing to hide; a
-            # dismissed one, kept on the structure to be shown, offers
+            # was chosen is drawn and there is nothing to hide; one full
+            # from the start — authored to take no picks — draws no
+            # Choose, so it gets no X beside a control it does not have;
+            # a dismissed one, kept on the structure to be shown, offers
             # only the way back.
             line.back = dismiss_back
             if line.dismissed:
                 line.restore_href = reverse(
                     "n26-restore-offer", args=[gang.pk, line.key]
                 )
-            elif not line.is_resolved:
+            elif not line.is_resolved and not line.is_full:
                 line.dismiss_href = reverse(
                     "n26-dismiss-offer", args=[gang.pk, line.key]
                 )
@@ -679,6 +681,14 @@ def dismiss_offer(request, pk, slot):
             messages.error(
                 request,
                 f"You cannot dismiss {label}. It has a pick. Take the pick back first.",
+            )
+            return _safe_redirect(request, request.POST.get("back"), fallback)
+        if found.slot.is_full:
+            # Full with nothing chosen: a choice authored to take no
+            # picks. No page draws an X for it, so this is a hand-built
+            # post; it draws no Choose either, so there is nothing to hide.
+            messages.error(
+                request, f"You cannot dismiss {label}. It offers nothing to choose."
             )
             return _safe_redirect(request, request.POST.get("back"), fallback)
         DismissedOffer.objects.get_or_create(gang=gang, slot_key=slot)

@@ -2752,12 +2752,19 @@ def _clear_dismissal(anchor, identity, kwargs):
     changing their mind about it, so the row that hid it goes here, on
     the one path every route runs through. The slot is addressed as the
     card that drew it addresses it: the model named to receive the pick
-    or bearing the carrier, and the gang's own word where there is none.
+    or bearing the carrier — read off the root where the carrier is
+    nested, a sight on a weapon on a model — and the gang's own word
+    where there is none.
     """
     from n26.core.models import DismissedOffer
     from n26.core.models.dismissed_offer import GANG_SLOT_HOST
 
-    bearer = kwargs.get("miniature") or anchor.miniature or anchor.member_or_none()
+    bearer = (
+        kwargs.get("miniature")
+        or anchor.miniature
+        or anchor.member_or_none()
+        or anchor.miniature_root
+    )
     DismissedOffer.clear(
         anchor.gang or anchor.gang_root,
         host=str(bearer.pk) if bearer is not None else GANG_SLOT_HOST,

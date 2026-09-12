@@ -1837,6 +1837,45 @@ class TestAChoiceThatHoldsNone:
         assert ">Choose</" not in row
         assert ">Add</" not in row
 
+    def dismiss_href(self, gang, miniature):
+        from django.urls import reverse
+
+        (slot,) = choices_of(miniature)
+        key = f"{miniature.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
+        return reverse("n26-dismiss-offer", args=[gang.pk, key])
+
+    def test_the_card_offers_no_way_to_dismiss_it_either(
+        self, gang, asks_nothing, client, owner
+    ):
+        """An X sits beside a Choose. A choice with no Choose to scroll
+        past has nothing worth putting out of sight."""
+        from django.urls import reverse
+
+        kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
+        client.force_login(owner)
+        for url in (
+            reverse("n26-gang", args=[gang.pk]),
+            reverse("n26-edit-fighter", args=[kaustos.pk]),
+        ):
+            assert (
+                self.dismiss_href(gang, kaustos) not in client.get(url).content.decode()
+            )
+
+    def test_a_post_that_reached_it_anyway_is_refused(
+        self, gang, asks_nothing, client, owner
+    ):
+        from n26.core.models import DismissedOffer
+
+        kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
+        client.force_login(owner)
+
+        reply = client.post(self.dismiss_href(gang, kaustos), follow=True)
+
+        assert "You cannot dismiss Gang Legacy. It offers nothing to choose." in (
+            reply.content.decode()
+        )
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
+
 
 class TestARollTableInThePicker:
     """A player who rolled on the physical table finds their result by
