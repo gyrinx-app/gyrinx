@@ -38,8 +38,12 @@ def campaign_arbitrators(request, id):
 
     :template:`core/campaign/campaign_arbitrators.html`
     """
-    # The page names the owner with their badge at the top of its list.
-    campaign = get_campaign_admin_or_404(request, id, with_owner_badge=True)
+    # The page names the owner with their badge at the top of its list; a
+    # POST redirects, and only re-draws the page for an invalid form, so it
+    # is not worth the grants query up front.
+    campaign = get_campaign_admin_or_404(
+        request, id, with_owner_badge=request.method == "GET"
+    )
 
     if request.method == "POST":
         form = AddArbitratorForm(request.POST, campaign=campaign)

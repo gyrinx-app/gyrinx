@@ -30,9 +30,11 @@
                             <li class="py-2 d-flex justify-content-between align-items-center gap-2 border-bottom">
                                 <div>
                                     <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
-                                    <span class="text-secondary fs-7">by
-                                        <c-user-link :user="pack.owner" class="linked-secondary" />
-                                    </span>
+                                    {% if pack.owner %}
+                                        <span class="text-secondary fs-7">by
+                                            <c-user-link :user="pack.owner" class="linked-secondary" />
+                                        </span>
+                                    {% endif %}
                                     {% if pack.is_required and not can_edit_required %}<span class="badge text-bg-warning ms-1">Required</span>{% endif %}
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
@@ -149,9 +151,11 @@
                                 <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                     <div>
                                         <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
-                                        <span class="text-secondary fs-7">by
-                                            <c-user-link :user="pack.owner" class="linked-secondary" />
-                                        </span>
+                                        {% if pack.owner %}
+                                            <span class="text-secondary fs-7">by
+                                                <c-user-link :user="pack.owner" class="linked-secondary" />
+                                            </span>
+                                        {% endif %}
                                     </div>
                                     <form method="post"
                                           action="{% url 'core:campaign-pack-add' campaign.id pack.id %}">

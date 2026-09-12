@@ -200,7 +200,7 @@ def _any_gang_or_404(request, pk):
     return gang
 
 
-def _any_campaign_or_404(request, pk):
+def _any_campaign_or_404(request, pk, *, with_owner_badge=False):
     """The campaign, whoever arbitrates it — a table its players may read.
 
     Not owner-scoped: the address an arbitrator sends round shows the same
@@ -217,22 +217,23 @@ def _any_campaign_or_404(request, pk):
     Archived campaigns stay out, as archived rosters do: one its arbitrator
     has put away is not something a link should keep alive. A pk that is
     not a ULID is a bad URL rather than a server error.
+
+    ``with_owner_badge`` loads what naming the arbitrator with their badge
+    reads — the profile, joined, and the badge grants, one prefetch query.
+    For the pages that draw the campaign; the views that act on it and
+    redirect would pay the grants query for nothing.
     """
     from n26.core.models import Campaign
 
     try:
-        campaign = get_object_or_404(
-            Campaign.objects.select_related(
-                # The page names the arbitrator with the badge they hold,
-                # which reads their profile and their grants.
-                "owner",
-                "owner__profile",
-                "campaign_type",
-                "additions__built_ins",
-            ).prefetch_related("owner__badge_grants"),
-            pk=pk,
-            archived=False,
+        campaigns = Campaign.objects.select_related(
+            "owner", "campaign_type", "additions__built_ins"
         )
+        if with_owner_badge:
+            campaigns = campaigns.select_related("owner__profile").prefetch_related(
+                "owner__badge_grants"
+            )
+        campaign = get_object_or_404(campaigns, pk=pk, archived=False)
     except ValidationError:
         raise Http404("No such campaign") from None
     note_page_subject(request, campaign.owner)

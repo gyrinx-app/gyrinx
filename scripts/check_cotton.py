@@ -107,7 +107,10 @@ def blank_comments(src):
 
 def declared_props(component):
     """Prop names declared in <c-vars> of cotton/<component>.html, or None if absent."""
-    rel = component.replace(".", "/") + ".html"
+    # A hyphen in the tag is an underscore in the file: <c-n26.user-link> is
+    # cotton/n26/user_link.html. Left as hyphens, every such component read as
+    # undefined and its call sites were never checked for undeclared props.
+    rel = component.replace(".", "/").replace("-", "_") + ".html"
     for base in COTTON_DIRS:
         path = base / rel
         if path.is_file():

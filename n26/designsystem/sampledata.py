@@ -839,6 +839,9 @@ def context():
     return {
         "houses": HOUSES,
         "gang_owner": OWNER,
+        # Somebody for a demo to name who is not the reader: a fixed name,
+        # so the gallery reads the same whoever opens it.
+        "sample_user": SampleUser("kesh"),
         "campaign_sheet": campaign_sheet(),
         "sample_miniature": sample_miniature(),
         "sample_roster_summary": roster_summary(),

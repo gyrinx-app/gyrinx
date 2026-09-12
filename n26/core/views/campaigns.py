@@ -200,7 +200,7 @@ def campaign(request, pk):
 
     accepted = CampaignParticipant.State.ACCEPTED
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
     sheet = render_campaign(found, viewer=request.user)
@@ -686,7 +686,7 @@ def campaign_log(request, pk):
     from n26.core.views.gangs import _pages
     from n26.core.views.history import by_day
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     acts = campaign_history(found, viewer=request.user)
     total = len(acts)
     # Newest first before paging, so page one is the latest screenful

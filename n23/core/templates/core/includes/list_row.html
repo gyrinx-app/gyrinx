@@ -7,10 +7,12 @@ Expects `list` in context.{% endcomment %}
             <h2 class="mb-0 h5">
                 <a href="{% url 'core:list' list.id %}" class="linked">{{ list.name }}</a>
             </h2>
-            <div>
-                <i class="bi-person"></i>
-                <c-user-link :user="list.owner_cached" />
-            </div>
+            {% if list.owner_cached %}
+                <div>
+                    <i class="bi-person"></i>
+                    <c-user-link :user="list.owner_cached" />
+                </div>
+            {% endif %}
         </div>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
             <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
