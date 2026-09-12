@@ -38,7 +38,8 @@ def render(source: str, **context) -> str:
 
 class TestTheDefaultStrip:
     """The default variant never wraps and never scrolls sideways: two strips
-    switched at the sm breakpoint, the narrow one holding a switcher."""
+    switched at the sm breakpoint, the narrow one holding up to two tabs and
+    a switcher for the rest."""
 
     def test_both_strips_are_in_the_html_for_css_to_pick_between(self):
         html = render(DEFAULT)
@@ -55,13 +56,23 @@ class TestTheDefaultStrip:
     def test_the_narrow_strip_holds_a_switcher_for_the_other_tabs(self):
         html = render(DEFAULT)
         assert "data-quick-switcher" in html
-        # Three generated loops over the tabs: the wide strip's buttons,
-        # then the switcher's rows drawn twice — once in its panel and once
-        # in its noscript strip. One occurrence would mean the switcher
-        # lost its copies.
-        assert html.count('x-for="tab in tabs"') == 3
+        # Four generated loops over the tabs: the wide strip's buttons, the
+        # narrow strip's, then the switcher's rows drawn twice — once in its
+        # panel and once in its noscript strip. Fewer would mean the
+        # switcher lost its copies.
+        assert html.count('x-for="tab in tabs"') == 4
         # The rows report a choice the strip acts on rather than navigating.
         assert "$dispatch('quick-switcher-choose'" in html
+
+    def test_the_narrow_strip_draws_two_tabs_whole_and_folds_from_three(self):
+        html = render(DEFAULT)
+        # The tabs exist only in the browser, so the rule is in the
+        # bindings: every tab shows while there are two or fewer, and the
+        # switcher — with the tabs beyond the open one — only from three.
+        # "+1 more" would take the room the other tab does and say less.
+        assert 'x-show="tabs.length <= 2 || isActive(tab.name)"' in html
+        assert 'x-show="tabs.length > 2"' in html
+        assert "'+' + (tabs.length - 1) + ' more'" in html
 
     def test_the_panels_still_register_themselves(self):
         html = render(DEFAULT)

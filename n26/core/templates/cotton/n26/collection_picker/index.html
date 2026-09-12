@@ -266,8 +266,9 @@ event and is told to clear itself by `filter-reset`.
         filter that empties a section takes its tab away with it.
 
         Two strips, and a breakpoint picks one: from sm up every section is a
-        tab, below it the section on screen stands alone with the rest behind a
-        switcher. Both draw the rule under the strip from the tabs' own 2px
+        tab; below it, two live sections or fewer are both tabs, and from three
+        the section on screen stands alone with the rest behind a switcher.
+        Both draw the rule under the strip from the tabs' own 2px
         bottom borders plus a trailing span across the width they do not fill —
         a rule on the strip with the active tab pulled over it lands the
         indicator a pixel proud and reads as a double line.
@@ -303,21 +304,30 @@ event and is told to clear itself by `filter-reset`.
             </div>
 
             {% comment %}
-            The narrow strip: the section on screen, then every section behind
-            the switcher's chevron, which appears only while more than one is
-            live. The tab is bound to what is shown rather than drawn per
-            section, so there is only ever one of it.
+            The narrow strip: up to two live sections drawn as tabs, and from
+            three the section on screen with every other live section behind
+            the switcher's chevron. "+1 more" would take the room the other
+            tab takes and say less, and a menu of one is not worth opening.
+            Filtering changes how many are live, so which shape the strip
+            takes is bound rather than decided at render.
             {% endcomment %}
             <div role="tablist" class="relative flex flex-wrap gap-x-1 sm:hidden"
                  @quick-switcher-choose="chooseSection($event.detail.value)">
-                <span role="tab" aria-selected="true"
-                      x-show="visibleSection !== null"
-                      x-cloak
-                      class="flex min-h-11 items-center gap-2 border-b-2 border-accent px-3 text-sm font-semibold text-ink-900 dark:text-ink-100">
-                    <span x-text="visibleSection"></span>
-                    <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
-                          x-text="countInSection(visibleSection)"></span>
-                </span>
+                <template x-for="name in sections" :key="name">
+                    <button type="button" role="tab"
+                            x-show="countInSection(name) > 0 && (liveSections.length <= 2 || visibleSection === name)"
+                            x-cloak
+                            :aria-selected="visibleSection === name ? 'true' : 'false'"
+                            @click="chooseSection(name)"
+                            class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
+                            :class="visibleSection === name
+                                ? 'border-accent font-semibold text-ink-900 dark:text-ink-100'
+                                : 'border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
+                        <span x-text="name"></span>
+                        <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
+                              x-text="countInSection(name)"></span>
+                    </button>
+                </template>
                 {% comment %}
                 This component's state under a name of its own, so the rows
                 inside the panel can reach it. The switcher's panel has a scope
@@ -327,10 +337,15 @@ event and is told to clear itself by `filter-reset`.
                 listing's. $data is this scope before the panel's is stacked on
                 top of it.
                 {% endcomment %}
+                {% comment %}
+                order-last on this span and the spacer after it, as on the
+                wide strip: Alpine appends the x-for clones at the end of the
+                container, and both are written before the generated tabs.
+                {% endcomment %}
                 <span x-data="{ picker: $data }"
-                      x-show="liveSections.length > 1"
+                      x-show="liveSections.length > 2"
                       x-cloak
-                      class="flex shrink-0 items-center border-b-2 border-box-border">
+                      class="order-last flex shrink-0 items-center border-b-2 border-box-border">
                     <c-n26.quick-switcher heading="Which section"
                                           menu_label="Other sections"
                                           placeholder="Search sections"
@@ -360,7 +375,7 @@ event and is told to clear itself by `filter-reset`.
                         {% endfor %}
                     </c-n26.quick-switcher>
                 </span>
-                <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
+                <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
             </div>
         {% endif %}
     </div>

@@ -15,11 +15,13 @@ a screen reader expects arrow keys and a panel swapping underneath.
 aria-current="page" says which one they are on.
 
 The strip never wraps to a second row: c-n26.tab-strip draws every tab from the
-sm breakpoint up, and below it only the current tab, with the rest behind a
-c-n26.quick-switcher whose rows are the same real links. The switcher's panel
-needs script; without it, the switcher's own <noscript> strip lists the links
-flat. A name too long for the width truncates rather than pushing the strip
-wider than the page.
+sm breakpoint up, and below it at most two. Two tabs or fewer are drawn whole —
+"+1 more" would take the room the other tab takes, and say less. Three or more
+leave the current tab standing with the rest behind a c-n26.quick-switcher whose
+rows are the same real links, so the menu always holds at least two. The
+switcher's panel needs script; without it, the switcher's own <noscript> strip
+lists the links flat. A name too long for the width truncates rather than
+pushing the strip wider than the page.
 
   :tabs — [{label, href, current, title}]. `title` is optional and is the full
     name when `label` has been shortened to fit; it becomes the link's tooltip.
@@ -42,9 +44,9 @@ wider than the page.
     n26/core/views/htmx.py. Off by default, and without script or on a page
     that has not opted in the same links navigate as usual. A click holding a
     modifier is left to the browser, so a tab still opens in a new window.
-    Below the sm breakpoint the other tabs sit in the switcher's menu, whose
-    rows are plain links: that width changes tab by loading the page, which
-    is the same address and the same result.
+    Below the sm breakpoint a strip of three or more puts the other tabs in
+    the switcher's menu, whose rows are plain links: that width changes tab
+    by loading the page, which is the same address and the same result.
   busy — a CSS selector. While the chosen tab's page loads, that element's
     contents give way to a small centred spinner, so a click on a strip whose
     pages take seconds to build is seen to have landed. Modified clicks are
@@ -111,17 +113,25 @@ wider than the page.
             {% endfor %}
         </c-slot>
         <c-slot name="narrow">
+            {% comment %}
+            Up to two tabs drawn whole, and from three the current tab with
+            the rest behind the switcher: "+1 more" takes the room the other
+            tab would and says less, and a menu of one is not worth opening.
+            {% endcomment %}
             {% for tab in tabs %}
-                {% if tab.current %}
+                {% if tab.current or tabs|length <= 2 %}
                     <a href="{{ tab.href }}"
+                       {% if htmx and not tab.current %}hx-get="{{ tab.href }}" hx-swap="none" hx-trigger="click[!ctrlKey&amp;&amp;!metaKey&amp;&amp;!shiftKey&amp;&amp;!altKey]"{% endif %}
                        {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
-                       aria-current="page"
-                       class="flex min-h-11 max-w-full items-center border-b-2 border-accent px-3 text-sm font-semibold text-ink-900 no-underline focus-ring dark:text-ink-100">
+                       {% if tab.current %}aria-current="page"{% endif %}
+                       class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
+                              {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
+                              {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
                         <span class="truncate">{{ tab.label }}</span>
                     </a>
                 {% endif %}
             {% endfor %}
-            {% if tabs|length > 1 %}
+            {% if tabs|length > 2 %}
                 <span class="flex shrink-0 items-center border-b-2 border-box-border">
                     <c-n26.quick-switcher heading="{{ label }}"
                                           menu_label="Other tabs"
