@@ -2863,6 +2863,25 @@ class TestTheCardAboveTheListing:
         assert f'href="{here}&amp;sell=' in card
         assert "evil" not in card
 
+    def test_a_tally_naming_no_address_at_all_is_answered_for_the_edit_face(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """``back`` is a hidden field anybody can type into. A value that
+        is not an address — an unclosed IPv6 bracket — is read as the
+        Edit face like any other stranger, and never as an error."""
+        from n26.library.models import Wargear
+
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        edit = reverse("n26-edit-fighter", args=[fighter.pk])
+        counter = self.counter_on(gang, tester, fighter)
+
+        for back in ("http://[::1/edit/", "http://[::1/n26/fighters/x/equip/"):
+            card = self.tallied_from(client, counter, back)
+            assert f'href="{edit}?sell=' in card
+            assert "[::1" not in card
+
     def test_the_options_face_draws_it_too(self, client, tester, fighter):
         client.force_login(tester)
         body = client.get(
