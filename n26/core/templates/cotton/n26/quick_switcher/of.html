@@ -31,7 +31,7 @@ alone (`switcher.unnamed`).
                       min_width="{{ min_width }}"
                       hotkey="{{ hotkey }}"
                       class="{{ class }}"
-                      {{ attrs }}>
+                      :attrs="attrs">
     {% for item in switcher.items %}
         <c-n26.quick-switcher.item label="{{ item.label }}"
                                    href="{{ item.href }}"

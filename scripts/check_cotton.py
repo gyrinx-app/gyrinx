@@ -19,43 +19,6 @@ COTTON_DIRS = [
     ROOT / "gyrinx" / "templates" / "cotton",
     ROOT / "n26" / "core" / "templates" / "cotton",
 ]
-# Calls the gate would fail that predate the n26 root joining the scan: n26
-# component sources putting cotton's own attrs passthrough, or an if block, in
-# attribute position on a nested component call. Each is pinned to the exact
-# source of the call (whitespace collapsed), so the entry stops matching the
-# moment the call is edited and everything else in the file is checked as
-# normal; an entry that matches no failing call fails the gate, so a fixed call
-# must take its entry with it. Fix them (or prove them harmless) and delete.
-PRE_EXISTING = {
-    (
-        "n26/core/templates/cotton/n26/quick_switcher/of.html",
-        '<c-n26.quick-switcher label="{{ switcher.label }}" href="{{ switcher.href }}" '
-        'icon="{{ switcher.icon }}" heading="{{ switcher.heading }}" '
-        'menu_label="{{ switcher.menu_label }}" placeholder="{{ switcher.placeholder }}" '
-        'empty="{{ switcher.empty }}" align="{{ align }}" min_width="{{ min_width }}" '
-        'hotkey="{{ hotkey }}" class="{{ class }}" {{ attrs }}>',
-    ),
-    (
-        "n26/core/templates/cotton/n26/range_menu.html",
-        '<c-n26.range-slider {% if model_min and model_max %} model_min="{{ model_min }}" '
-        'model_max="{{ model_max }}" {% else %} model="{{ model }}" {% endif %} '
-        'min="{{ min }}" max="{{ max }}" step="{{ step }}" />',
-    ),
-    (
-        "n26/core/templates/cotton/n26/view/create_gang.html",
-        '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
-        'title="{{ heading }}" lead="Required fields are marked with an asterisk (*)." '
-        'submit_label="{{ submit_label }}" class="{{ class }}">',
-    ),
-    (
-        "n26/core/templates/cotton/n26/view/fighter_hire.html",
-        '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
-        'title="{{ heading }}" lead="Pick a profile and click Hire, then name the '
-        "fighter. The options under each one change what you get and what you pay, "
-        'and you can hire as many as you like without leaving this page." '
-        'class="{{ class }}">',
-    ),
-}
 
 COMMENT = re.compile(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.S)
 TAG = re.compile(r"<c-([\w.-]+)((?:\"[^\"]*\"|'[^']*'|[^>\"'])*?)/?>", re.S)
@@ -138,7 +101,6 @@ def line_of(src, pos):
 
 def main():
     problems = []
-    used = set()
     cache = {}
     for path in sorted(p for root in TEMPLATE_ROOTS for p in root.rglob("*.html")):
         # The component test harness writes uuid-named host templates into
@@ -160,16 +122,13 @@ def main():
             name, attrs = match.group(1), match.group(2)
             line = line_of(src, match.start())
             unquoted = re.sub(r"\"[^\"]*\"|'[^']*'", "", attrs)
-            # What this one call fails on; kept apart from the page's problems
-            # until the call has been checked against PRE_EXISTING.
-            found = []
 
             # 1. any template tag ({% %} or {{ }}) in attribute position
             # Both forms are equally hazardous in attribute position, and the pytest
             # gate has always checked both — this half only checked {%, so a
             # `<c-btn {{ x }}>` passed the hook and failed only in CI.
             if "{%" in unquoted or "{{" in unquoted:
-                found.append(
+                problems.append(
                     f"{rel}:{line}: template tag in attribute position inside "
                     f"<c-{name}> -- cotton emits the raw source and the attribute "
                     f"is lost.\n"
@@ -190,7 +149,7 @@ def main():
                     if prop in PROXY_ATTRS:
                         continue
                     if prop.replace("-", "_") not in declared and prop not in declared:
-                        found.append(
+                        problems.append(
                             f"{rel}:{line}: <c-{name} :{prop}=...> is not declared in that "
                             f"component's <c-vars>, so it renders through {{{{ attrs }}}}, which "
                             f"is NOT html-escaped.\n"
@@ -203,14 +162,14 @@ def main():
             prop = OBJECT_PROPS.get(name)
             if prop is not None:
                 if re.search(rf"(?:^|\s){prop}=", attrs):
-                    found.append(
+                    problems.append(
                         f'{rel}:{line}: <c-{name} {prop}="…"> needs the COLON: '
                         f':{prop}="…". Without it the value stringifies to rendered '
                         f"HTML, every attribute lookup resolves to nothing, and the "
                         f"label, help text and ERRORS are silently dropped (#2001)."
                     )
                 elif not re.search(rf"(?:^|\s):{prop}=", attrs):
-                    found.append(
+                    problems.append(
                         f'{rel}:{line}: <c-{name}> is missing :{prop}="…". The '
                         f"<c-vars> default shadows any ambient `{prop}` from an "
                         f"enclosing loop, so this renders an EMPTY wrapper and the "
@@ -219,29 +178,12 @@ def main():
 
             # 4. a search control with no accessible name
             if name in NEEDS_LABEL and not re.search(r"(?:^|\s):?label=", attrs):
-                found.append(
+                problems.append(
                     f'{rel}:{line}: <c-{name}> needs label="…" — the specific '
                     f'accessible name ("Search campaigns"), not the generic '
                     f"placeholder. It falls back to the placeholder so a bar is "
                     f"never nameless, but the fallback is not how a call site ships."
                 )
-
-            if found:
-                key = (rel.as_posix(), " ".join(match.group(0).split()))
-                if key in PRE_EXISTING:
-                    used.add(key)
-                else:
-                    problems.extend(found)
-
-    # A suppression that matches nothing is either a call somebody fixed, or a
-    # call somebody edited: either way the entry is stale, and leaving it
-    # would let the next bad call in that file through.
-    for rel, call in sorted(PRE_EXISTING - used):
-        problems.append(
-            f"{rel}: PRE_EXISTING entry no longer matches a failing call "
-            f"({call[:60]}...). Delete the entry, or re-pin it to the call's "
-            f"current source if the call is still knowingly wrong."
-        )
 
     if problems:
         print("cotton checks FAILED:\n")

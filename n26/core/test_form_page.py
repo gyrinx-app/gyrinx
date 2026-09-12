@@ -13,6 +13,9 @@ happens to hold under that name, so an undeclared `trailing` would draw
 something the page never asked for, on a page that still serves 200.
 """
 
+import re
+
+from django import forms
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -106,3 +109,53 @@ class TestNothingArrivesUninvited:
             )
 
             assert "SMUGGLED" not in html, f"`{name}` fell through from the page"
+
+
+class GangForm(forms.Form):
+    """The fields the create-gang screen reads. Unbound: the screen is the
+    thing under test, not the validation."""
+
+    name = forms.CharField()
+    starting_credits = forms.IntegerField(required=False)
+    colour = forms.CharField(required=False)
+
+
+class TestTheScreensBuiltOnIt:
+    """A view screen wraps c-n26.form-page from inside itself and hands on
+    the attributes it was given that it does not declare.
+
+    That hand-over has to be cotton's own `:attrs="attrs"` proxy. Written as
+    `{{ attrs }}` in the tag, cotton reads the three words as three attribute
+    names: the caller's attributes vanish, and the text `{{ attrs }}` is
+    printed into the <form> tag in their place.
+    """
+
+    def form_tag(self, html: str) -> str:
+        return re.search(r"<form[^>]*>", html).group(0)
+
+    def test_the_create_gang_screen_passes_an_attribute_to_its_form(self):
+        html = render(
+            '<c-n26.view.create-gang action="/gangs/new/" :form="form" '
+            ':gang_types="types" id="new-gang" data-testid="create" />',
+            form=GangForm(),
+            types=[],
+        )
+
+        form_tag = self.form_tag(html)
+        assert 'action="/gangs/new/"' in form_tag
+        assert 'id="new-gang"' in form_tag
+        assert 'data-testid="create"' in form_tag
+        assert "{{" not in html
+
+    def test_the_fighter_hire_screen_passes_an_attribute_to_its_form(self):
+        html = render(
+            '<c-n26.view.fighter-hire action="/gangs/1/hire/" gang="Doug" '
+            ':form="form" id="hire" data-testid="hire" />',
+            form=forms.Form(),
+        )
+
+        form_tag = self.form_tag(html)
+        assert 'action="/gangs/1/hire/"' in form_tag
+        assert 'id="hire"' in form_tag
+        assert 'data-testid="hire"' in form_tag
+        assert "{{" not in html

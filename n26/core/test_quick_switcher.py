@@ -9,13 +9,15 @@ import re
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
+from n26.core.navigation import Switcher, SwitcherItem
+
 ITEMS = """
     <c-n26.quick-switcher.item label="The Ashen Choir" href="/n26/gangs/1/" :current="True" />
     <c-n26.quick-switcher.item label="Pit of Teeth" href="/n26/gangs/2/" />
 """
 
 
-def render(source: str) -> str:
+def render(source: str, **context) -> str:
     """Compile a call site the way the template loader would, then render it.
 
     Cotton's `<c-…>` tags are rewritten by a loader, so a template built from a
@@ -23,7 +25,7 @@ def render(source: str) -> str:
     write the call site it is testing instead of keeping a fixture file beside
     it.
     """
-    return Template(CottonCompiler().process(source)).render(Context({}))
+    return Template(CottonCompiler().process(source)).render(Context(context))
 
 
 def panel() -> str:
@@ -479,3 +481,62 @@ class TestTheDirectivesCompile:
                     "it, so the rest of the expression is commented out:\n"
                     f"{expr}"
                 )
+
+
+class TestTheSwitcherBuiltFromAStructure:
+    """<c-n26.quick-switcher.of> is the same control, drawn from a Switcher.
+
+    It draws by calling <c-n26.quick-switcher> from inside itself, and hands
+    on whatever attributes it was given that it does not declare. That
+    hand-over has to be cotton's own `:attrs="attrs"` proxy: written as
+    `{{ attrs }}` in the tag, cotton reads the three words as three attribute
+    names, so the caller's attributes vanish and the text `{{ attrs }}` is
+    printed into the page in their place.
+    """
+
+    def switcher(self):
+        return Switcher(
+            heading="Switch gang",
+            menu_label="Switch gang",
+            placeholder="Search gangs",
+            label="The Ashen Choir",
+            href="/n26/gangs/1/",
+            items=(
+                SwitcherItem(
+                    label="The Ashen Choir", href="/n26/gangs/1/", current=True
+                ),
+                SwitcherItem(label="Pit of Teeth", href="/n26/gangs/2/"),
+            ),
+        )
+
+    def test_an_attribute_handed_to_it_reaches_the_control(self):
+        html = render(
+            '<c-n26.quick-switcher.of :switcher="switcher" id="gang-switcher" '
+            'data-testid="switcher" />',
+            switcher=self.switcher(),
+        )
+
+        root = re.search(r"<div[^>]*data-quick-switcher[^>]*>", html).group(0)
+        assert 'id="gang-switcher"' in root
+        assert 'data-testid="switcher"' in root
+
+    def test_no_template_source_is_printed_into_the_page(self):
+        html = render(
+            '<c-n26.quick-switcher.of :switcher="switcher" />',
+            switcher=self.switcher(),
+        )
+
+        assert "{{ attrs }}" not in html
+        assert "{{" not in html
+
+    def test_the_structure_s_own_words_still_arrive(self):
+        """The proxy carries the extras; the declared props must not be lost
+        to it."""
+        html = render(
+            '<c-n26.quick-switcher.of :switcher="switcher" hotkey="f" />',
+            switcher=self.switcher(),
+        )
+
+        assert 'href="/n26/gangs/1/"' in html
+        assert "Pit of Teeth" in html
+        assert "Search gangs" in html
