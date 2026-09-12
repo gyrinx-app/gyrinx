@@ -152,6 +152,27 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
     });
 })();
 
+// Put text on the clipboard, resolving once it is there. The execCommand path
+// is for browsers with no navigator.clipboard (and insecure origins).
+function copyText(text) {
+    if (navigator.clipboard) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand("copy");
+            resolve();
+        } catch (err) {
+            reject(err);
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
 // Enable copy to clipboard
 document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
     element.addEventListener("click", (event) => {
@@ -162,8 +183,10 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
 
         const messageElemId = element.getAttribute("data-clipboard-message");
 
-        const success = () => {
-            if (messageElemId) {
+        copyText(textToCopy).then(
+            () => {
+                console.log("Text copied to clipboard", textToCopy);
+                if (!messageElemId) return;
                 const messageElem = document.getElementById(messageElemId);
                 if (messageElem) {
                     messageElem.classList.remove("d-none");
@@ -171,31 +194,51 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
                         messageElem.classList.add("d-none");
                     }, 2000);
                 }
-            }
-        };
-
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(textToCopy).then(
-                () => {
-                    console.log("Text copied to clipboard", textToCopy);
-                    success();
-                },
-                (err) => {
-                    console.error("Could not copy text: ", err);
-                },
-            );
-        } else {
-            const textArea = document.createElement("textarea");
-            textArea.value = textToCopy;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand("copy");
-                success();
-            } catch (err) {
+            },
+            (err) => {
                 console.error("Could not copy text: ", err);
-            }
-            document.body.removeChild(textArea);
+            },
+        );
+    });
+});
+
+// Share the page (<c-share>): the device's share sheet where there is one,
+// the clipboard otherwise. The control is a plain link to the page, so with
+// no script it still works — it navigates. A share sheet the reader closed
+// (AbortError) copies nothing and says nothing.
+document.querySelectorAll("[data-share-url]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+        const raw = element.getAttribute("data-share-url");
+        if (!raw) return;
+
+        event.preventDefault();
+
+        const url = new URL(raw, document.baseURI).href;
+        const message = element.parentElement
+            ? element.parentElement.querySelector("[data-share-message]")
+            : null;
+
+        const copied = () => {
+            if (!message) return;
+            message.classList.remove("d-none");
+            setTimeout(() => {
+                message.classList.add("d-none");
+            }, 4000);
+        };
+        const copy = () =>
+            copyText(url).then(copied, (err) => {
+                console.error("Could not copy link: ", err);
+            });
+
+        if (
+            navigator.share &&
+            (!navigator.canShare || navigator.canShare({ url }))
+        ) {
+            navigator.share({ url }).catch((err) => {
+                if (err.name !== "AbortError") copy();
+            });
+        } else {
+            copy();
         }
     });
 });

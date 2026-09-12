@@ -15,6 +15,8 @@ opens with the Actions square, then the stash, then `members`.
   owner_flair_label, type_flair_label — what each badge means, for a screen
     reader and as its title. Left empty the badge is aria-hidden, which is right
     when it only repeats the text beside it.
+  switcher, share — controls after the title, outside the h1: the reader's
+    other gangs, and <c-n26.share> for this one. Either, both, or neither.
   secondary_actions — Print, and a dropdown holding Delete. A run of its own,
     after the primary actions rather than sorted in among them.
   actions_square — what the gang has open, as the first square of the grid;
@@ -34,6 +36,7 @@ opens with the Actions square, then the stash, then `members`.
     type_flair_label=""
     gangs_href="#"
     switcher=""
+    share=""
     owner_flair=""
     type_flair=""
     details=""
@@ -64,8 +67,10 @@ opens with the Actions square, then the stash, then `members`.
         Trailing rather than leading: the leading slot is inside the h1 and is
         read out as part of the page's name, which a control must not be.
         {% endcomment %}
-        {% if switcher.strip %}
-            <c-slot name="trailing">{{ switcher }}</c-slot>
+        {% if switcher.strip or share.strip %}
+            <c-slot name="trailing">
+                <div class="flex items-center gap-2">{{ switcher }}{{ share }}</div>
+            </c-slot>
         {% endif %}
         <c-slot name="breadcrumb">
             {% comment %}

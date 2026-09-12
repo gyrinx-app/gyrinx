@@ -1,0 +1,54 @@
+{% comment %}
+<c-n26.share> — a Share button for a page other people can open.
+
+    <c-n26.share url="{% url 'n26-gang' gang.pk %}" />
+    <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" message="Link copied." />
+
+A link to the page itself, so without JavaScript it is a plain link the
+reader can copy or right-click. With Alpine it takes over the click: the
+device's share sheet where there is one (navigator.share), the clipboard
+otherwise, and then the message beside the button for a few seconds. A
+dismissed share sheet copies nothing and says nothing.
+
+The address handed to the share sheet is the link's own href, which the
+browser has already made absolute — so a path is enough here, and the
+button shares the same address it would navigate to.
+
+  url — the page to share. A path is fine.
+  message — said once the address is on the clipboard. Default "Link copied."
+  size, variant — passed to <c-ui.button>. Default sm / default.
+{% endcomment %}
+<c-vars
+    url=""
+    message="Link copied."
+    size="sm"
+    variant="default"
+    class=""
+/>
+
+<span class="inline-flex items-center gap-2 {{ class }}"
+      x-data="{
+          copied: false,
+          timer: null,
+          said() {
+              this.copied = true;
+              clearTimeout(this.timer);
+              this.timer = setTimeout(() => { this.copied = false; }, 4000);
+          },
+          share(url) {
+              const copy = () => navigator.clipboard.writeText(url).then(() => this.said());
+              if (navigator.share && (!navigator.canShare || navigator.canShare({ url }))) {
+                  navigator.share({ url }).catch((err) => { if (err.name !== 'AbortError') copy(); });
+              } else {
+                  copy();
+              }
+          }
+      }">
+    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" @click.prevent="share($el.href)">
+        <span class="inline-flex items-center gap-1.5">
+            <c-n26.icon name="share" class="size-4" />
+            Share
+        </span>
+    </c-ui.button>
+    <span x-cloak x-show="copied" role="status" class="text-sm text-muted">{{ message }}</span>
+</span>
