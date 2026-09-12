@@ -889,3 +889,34 @@ def test_post_battle_icon_in_common_header_on_sub_pages(
     client.force_login(player)
     html = client.get(post_battle_url).content.decode()
     assert hidden_label not in html
+
+
+@pytest.mark.django_db
+def test_post_battle_button_visible_to_shared_campaign_admin(
+    client, make_user, campaign, make_list
+):
+    """A shared campaign admin can open the post-battle view, so both the
+    gang-page button and the sub-page header icon show for them."""
+    from n23.core.models.list import List
+
+    player = make_user("player_pb_shared_admin", "password")
+    shared_admin = make_user("shared_admin_pb", "password")
+    campaign.admins.add(shared_admin)
+    plist = make_list(
+        "Player Gang",
+        owner=player,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+        public=True,
+    )
+    campaign.lists.add(plist)
+    post_battle_url = reverse("core:list-post-battle", args=[plist.id])
+
+    client.force_login(shared_admin)
+    html = client.get(reverse("core:list", args=[plist.id])).content.decode()
+    assert html.count(post_battle_url) == 1
+    assert "Post-battle updates" in html
+
+    html = client.get(reverse("core:list-about", args=[plist.id])).content.decode()
+    assert post_battle_url in html
+    assert '<span class="visually-hidden">Post-battle updates</span>' in html

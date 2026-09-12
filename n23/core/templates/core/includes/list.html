@@ -99,15 +99,22 @@
                                     {{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}
                                 </a>
                             {% endif %}
-                            {% if is_campaign_arbitrator or list.is_campaign_mode and list.owner_cached == user %}
-                                <c-btn variant="primary"
-                                       size="sm"
-                                       href="{% url 'core:list-post-battle' list.id %}"
-                                       title="Record XP, injuries and gains after a battle">
-                                    <c-icon name="clipboard-check" />
-                                    <span class="d-none d-sm-inline">Post-battle updates</span>
-                                    <span class="visually-hidden d-sm-none">Post-battle updates</span>
-                                </c-btn>
+                            {% comment %}
+                                Owner or campaign admin (owner or shared admin) in campaign
+                                mode: the same rule get_list_for_edit applies to the
+                                post-battle view, and the same one the common header uses.
+                            {% endcomment %}
+                            {% if list.is_campaign_mode %}
+                                {% if list.owner_cached == user or list.campaign|is_campaign_admin:user %}
+                                    <c-btn variant="primary"
+                                           size="sm"
+                                           href="{% url 'core:list-post-battle' list.id %}"
+                                           title="Record XP, injuries and gains after a battle">
+                                        <c-icon name="clipboard-check" />
+                                        <span class="d-none d-sm-inline">Post-battle updates</span>
+                                        <span class="visually-hidden d-sm-none">Post-battle updates</span>
+                                    </c-btn>
+                                {% endif %}
                             {% endif %}
                             {% if list.owner_cached == user and not list.archived %}
                                 <c-btn variant="primary"
