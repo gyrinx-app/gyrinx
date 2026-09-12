@@ -1103,7 +1103,7 @@ def restricted_world(default_pack, make_profile):
 
 
 class TestTheItemRestrictionClearing:
-    """The repair for #2537: the "<Fighter> only" brackets the upload
+    """The repair: the "<Fighter> only" brackets the upload
     wrote onto items every list shares come off, item by item, and
     nothing written by hand or on an entry moves."""
 

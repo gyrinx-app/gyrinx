@@ -1560,7 +1560,7 @@ def _plan_restrictions(plan, pending):
     (Forge-born only)" on the Goliath list, where other gangs list the
     same saw plainly — so writing it onto the item would narrow every
     list that carries the item, and every re-upload would write it
-    again (#2537).
+    again.
 
     The regex only proposes a name; what decides is whether that name
     resolves to something real. Nothing is ever restricted on a guess.

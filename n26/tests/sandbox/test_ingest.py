@@ -828,7 +828,7 @@ class TestPerform:
 
         # "(Way-Brethren only)" is printed beside the Cawdor list's line,
         # so it narrows that list's offer — never the lance every list
-        # shares (#2537).
+        # shares.
         lance = Weapon.objects.get(name="Frag lance")
         cawdor_list = Collection.objects.get(name="Cawdor Equipment List")
         listed = CollectionEntry.objects.get(collection=cawdor_list, weapon=lance)

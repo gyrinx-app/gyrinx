@@ -14,7 +14,7 @@ only" it met was written onto the item, and an item one gang's list
 narrowed was narrowed for every gang. The upload is add-only, so every
 re-upload wrote the same links again, and the collection page — where
 an author working a list looks — showed only the entry's own narrowing,
-so the restriction seemed to come from nowhere (#2537).
+so the restriction seemed to come from nowhere.
 
 This is the repair: strip the item-level restriction to fighter entries
 from every item that appears in at least one collection entry. The

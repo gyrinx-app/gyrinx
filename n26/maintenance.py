@@ -1966,7 +1966,7 @@ def clear_item_restrictions(backfill_id, **said_by_whoever_enqueued_it):
 
     Library-only work in one transaction under the runner discipline:
     the equipment-lists upload wrote each list's "<Fighter> only" onto
-    the item every list shares (#2537). Nothing a player holds is
+    the item every list shares. Nothing a player holds is
     touched.
     """
     from n26.library.item_restrictions import Refused, apply, find

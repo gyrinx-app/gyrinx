@@ -4374,8 +4374,8 @@ def collection_page(request, pk):
     so a post says which form was clicked.
     """
     from n26.core.browse import EQUIPMENT_LIST, browse
-    from n26.library.models import Collection
-    from n26.library.models.assignable import USABLE_BY_LISTS
+    from n26.library.models import Collection, CollectionEntry
+    from n26.library.models.assignable import USABLE_BY_LISTS, UsableBy
     from n26.library.models.collection import ENTRY_ASKS, ENTRY_ASSIGNABLE_FIELDS
 
     collection = get_object_or_404(Collection, pk=pk)
@@ -4503,25 +4503,51 @@ def collection_page(request, pk):
             }
         )
 
+    # The item's own use lists, read alongside the entry's, so a long
+    # list notes every item's restriction without a query per line.
+    item_use_lists = [
+        f"{column}__{arm}"
+        for column in ENTRY_ASSIGNABLE_FIELDS
+        if issubclass(CollectionEntry._meta.get_field(column).related_model, UsableBy)
+        for arm in USABLE_BY_LISTS
+    ]
+    slugs = _kind_slugs()
+    editable = bool(collection.entry_asks())
     entries = []
     for entry in collection.entries.prefetch_related(
-        *ENTRY_ASSIGNABLE_FIELDS, *USABLE_BY_LISTS
+        *ENTRY_ASSIGNABLE_FIELDS, *USABLE_BY_LISTS, *item_use_lists
     ):
         notes = []
         if entry.price_override is not None:
             notes.append(f"{entry.price_override}cr here")
         if entry.trade_point_override is not None:
             notes.append(f"TP {entry.trade_point_override} here")
-        # Who this list offers the row to, where it says. The item's own
-        # restriction is not repeated here: it belongs to the item, and
-        # this table is the list's own word about its own lines.
+        # Who this list offers the row to, where it says: the list's own
+        # word about its own line.
         offered_to = entry.usable_by_words()
         if offered_to:
             notes.append(f"offered to {offered_to} only")
+        # The item's own restriction is the other fact, and holds
+        # wherever the item is listed. It is set on the item's page, not
+        # here — but an author working this list meets it here, so it is
+        # said beside the line, with the way to the page that changes it.
+        item = entry.assignable
+        item_restriction = None
+        if isinstance(item, UsableBy):
+            usable_by = item.usable_by_words()
+            if usable_by:
+                item_restriction = {
+                    "words": usable_by,
+                    "url": _named_row(item, type(item), slugs)["url"],
+                }
         entries.append(
             {
-                "label": _label_for(entry.assignable),
+                "label": _label_for(item),
                 "notes": notes,
+                "item_restriction": item_restriction,
+                "edit_url": (
+                    reverse("authoring-entry-edit", args=[entry.pk]) if editable else ""
+                ),
                 "remove_url": reverse("authoring-entry-remove", args=[entry.pk]),
             }
         )
@@ -4683,6 +4709,107 @@ def asset_type_remove(request, pk):
                 }
                 for asset in held
             ],
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
+def entry_edit(request, pk):
+    """One listing row, corrected on a page of its own.
+
+    The form is the spec-generated one that *adds* an entry, opened on
+    an entry that already exists, so the two cannot come to ask for
+    different things. The thing listed is left off: an entry is its
+    collection and the thing it names, and the way to a different thing
+    is another entry. What remains is what this collection's entries
+    take (``Collection.entry_asks``) — the overrides and who this list
+    offers the line to. A menu's entries take nothing, so a menu's
+    entry has no page here.
+
+    Editing means something different by an empty box than adding does.
+    An override left blank is written as blank, because blank means "at
+    reference price" and clearing a price this list once set is the
+    very correction this page is for. The use lists are replaced whole,
+    as the item's own page replaces them: a multi-select carries the
+    whole set.
+    """
+    from n26.library import authoring
+    from n26.library.models import CollectionEntry
+    from n26.library.models.assignable import UsableBy
+    from n26.library.models.collection import ENTRY_ASKS, ENTRY_ASSIGNABLE_FIELDS
+
+    entry = get_object_or_404(
+        CollectionEntry.objects.select_related("collection", *ENTRY_ASSIGNABLE_FIELDS),
+        pk=pk,
+    )
+    collection = entry.collection
+    back = reverse("authoring-detail", args=["collection", collection.pk])
+    asks = collection.entry_asks()
+    if not asks:
+        messages.info(
+            request,
+            f"{collection} is a menu, so its entries have nothing to edit. "
+            "Remove the entry and add another to change what it names.",
+        )
+        return redirect(back)
+
+    form_class = generate_form(specs()["add_entry"])
+    overrides = tuple(
+        ask for ask in ("price_override", "trade_point_override") if ask in asks
+    )
+
+    def opened(data=None):
+        form = form_class.opened_on(entry, data)
+        # The union that picks the thing listed, and the pickers that
+        # ride it, are what the entry *is* — left off, not offered.
+        for name in list(form.fields):
+            if name.startswith("thing_"):
+                form.fields.pop(name)
+        for ask in ENTRY_ASKS:
+            if ask not in asks:
+                form.fields.pop(ask, None)
+        return form
+
+    label = _label_for(entry.assignable)
+    if request.method == "POST":
+        form = opened(request.POST)
+        if form.is_valid():
+            written = {name: form.cleaned_data.get(name) for name in overrides}
+            try:
+                with transaction.atomic():
+                    for name, value in written.items():
+                        setattr(entry, name, value)
+                    # The row's own sense check, in words on the form: a
+                    # fighter cannot be priced below nothing.
+                    entry.clean()
+                    authoring.revise(entry, **written)
+                    form.apply_to(entry)
+            except ValidationError as refused:
+                form.add_error(None, refused)
+            else:
+                messages.success(request, f"Saved {label} in {collection}.")
+                return redirect(back)
+    else:
+        form = opened()
+
+    item = entry.assignable
+    item_restriction = None
+    if isinstance(item, UsableBy) and item.usable_by_words():
+        item_restriction = {
+            "words": item.usable_by_words(),
+            "url": _named_row(item, type(item), _kind_slugs())["url"],
+        }
+
+    return render(
+        request,
+        "authoring/entry_edit.html",
+        {
+            "thing": entry,
+            "label": label,
+            "collection": collection,
+            "form": form,
+            "item_restriction": item_restriction,
             "back": back,
         },
     )

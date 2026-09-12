@@ -317,6 +317,211 @@ class TestNarrowingAnOfferThroughThePages:
         assert "offered to Goliath Forge-born only" in body
 
 
+class TestTheItemsOwnBracketIsNotedOnTheCollectionPage:
+    """The definition table is the list's own word about its own lines,
+    and the item's restriction is not the list's — but an author working
+    a list meets it there, as a line marked for a gang the list never
+    named. So the table says it, and says where it is changed."""
+
+    def test_a_restricted_items_line_says_so_and_links_the_items_page(
+        self, author, saw, ranks, cult_list
+    ):
+        restrict_use(saw, ranks["forge_born"])
+
+        body = author.get(f"/n26/authoring/collection/{cult_list.pk}/").content.decode()
+
+        assert "The item itself is usable by Goliath Forge-born only" in body
+        assert "Change this on the item" in body
+        assert f"/n26/authoring/weapon/{saw.pk}/" in body
+
+    def test_an_open_items_line_carries_no_such_note(self, author, cult_list):
+        body = author.get(f"/n26/authoring/collection/{cult_list.pk}/").content.decode()
+
+        assert "The item itself is usable by" not in body
+
+    def test_the_lists_own_narrowing_and_the_items_are_told_apart(
+        self, author, saw, ranks, goliath_list
+    ):
+        restrict_use(saw, ranks["bruiser"])
+
+        body = author.get(
+            f"/n26/authoring/collection/{goliath_list.pk}/"
+        ).content.decode()
+
+        assert "offered to Goliath Forge-born only" in body
+        assert "The item itself is usable by Goliath Bruiser only" in body
+
+    def test_a_listed_rounds_note_links_the_rounds_own_page(self, author, ranks):
+        from n26.library.authoring import add_weapon_profile
+
+        launcher = create_weapon(
+            "Assault grenade launcher",
+            profiles=[("", 0)],
+            price=65,
+            category=create_category("Ranged", "Grenade launchers"),
+        )
+        krak = add_weapon_profile(launcher, name="krak grenades", price=30)
+        restrict_use(krak, ranks["forge_born"])
+        listing = create_collection("Rounds", entries=[krak])
+
+        body = author.get(f"/n26/authoring/collection/{listing.pk}/").content.decode()
+
+        assert "The item itself is usable by Goliath Forge-born only" in body
+        assert f"/n26/authoring/weapon-profiles/{krak.pk}/" in body
+
+    def test_noting_the_items_costs_no_more_queries_as_a_list_grows(
+        self, author, ranks
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.tests.sandbox.actions import create_wargear
+
+        def listing_of(size):
+            listing = create_collection(f"List of {size}")
+            for index in range(size):
+                item = create_wargear(f"Gear {size}-{index}", price=10)
+                restrict_use(item, ranks["forge_born"])
+                add_entry(listing, item)
+            return listing
+
+        def queries_for(listing):
+            with CaptureQueriesContext(connection) as captured:
+                body = author.get(
+                    f"/n26/authoring/collection/{listing.pk}/"
+                ).content.decode()
+            return len(captured), body
+
+        # The first request of a session pays for the session itself,
+        # so it is not the one measured.
+        small_listing = listing_of(3)
+        queries_for(small_listing)
+        small, _ = queries_for(small_listing)
+        large, body = queries_for(listing_of(12))
+
+        assert body.count("The item itself is usable by Goliath Forge-born only") == 12
+        assert large == small
+
+
+class TestAnEntryIsEditedOnItsOwnPage:
+    """Correcting a line — its price here, who this list offers it to —
+    without taking it off and listing it again."""
+
+    def entry_of(self, listing):
+        from n26.library.models import CollectionEntry
+
+        return CollectionEntry.objects.get(collection=listing)
+
+    def test_the_definition_offers_to_edit_each_line(self, author, goliath_list):
+        entry = self.entry_of(goliath_list)
+
+        body = author.get(
+            f"/n26/authoring/collection/{goliath_list.pk}/"
+        ).content.decode()
+
+        assert f"/n26/authoring/entries/{entry.pk}/edit/" in body
+
+    def test_the_page_opens_with_what_is_there_already_chosen(
+        self, author, saw, ranks, goliath_list
+    ):
+        import re
+
+        entry = self.entry_of(goliath_list)
+        entry.price_override = 75
+        entry.save()
+
+        body = author.get(f"/n26/authoring/entries/{entry.pk}/edit/").content.decode()
+
+        assert "Heavy rock saw in Goliath Equipment List" in body
+        assert re.search(rf'value="{ranks["forge_born"].pk}"\s+selected', body)
+        assert not re.search(rf'value="{ranks["bruiser"].pk}"\s+selected', body)
+        assert 'value="75"' in body
+        # The thing listed is the entry's identity, not a field.
+        assert 'name="edit-thing_kind"' not in body
+        assert 'name="edit-thing_weapon"' not in body
+
+    def test_saving_replaces_the_narrowing_and_the_price(
+        self, author, saw, ranks, goliath_list
+    ):
+        entry = self.entry_of(goliath_list)
+
+        saved = author.post(
+            f"/n26/authoring/entries/{entry.pk}/edit/",
+            {
+                "edit-price_override": "75",
+                "edit-usable_by_profiles": [str(ranks["bruiser"].pk)],
+            },
+        )
+
+        assert saved.status_code == 302
+        assert saved["Location"] == f"/n26/authoring/collection/{goliath_list.pk}/"
+        entry.refresh_from_db()
+        assert entry.price_override == 75
+        assert entry.usable_by_words() == "Goliath Bruiser"
+        # The saw itself is untouched, wherever else it is offered.
+        assert saw.usable_by_words() == ""
+
+    def test_clearing_the_boxes_opens_the_line_at_reference_price(
+        self, author, saw, ranks, goliath_list
+    ):
+        entry = self.entry_of(goliath_list)
+        entry.price_override = 75
+        entry.save()
+
+        author.post(f"/n26/authoring/entries/{entry.pk}/edit/", {})
+
+        entry.refresh_from_db()
+        assert entry.price_override is None
+        assert entry.usable_by_words() == ""
+        assert entry.price.credits == 90
+
+    def test_a_fighter_priced_below_nothing_is_refused_in_words(self, author, ranks):
+        listing = create_collection("Hired guns")
+        add_entry(listing, ranks["bruiser"])
+        entry = self.entry_of(listing)
+
+        refused = author.post(
+            f"/n26/authoring/entries/{entry.pk}/edit/",
+            {"edit-price_override": "-5"},
+        )
+
+        assert refused.status_code == 200
+        assert "cannot be below zero" in refused.content.decode()
+        entry.refresh_from_db()
+        assert entry.price_override is None
+
+    def test_the_page_says_when_the_item_itself_is_restricted(
+        self, author, saw, ranks, goliath_list
+    ):
+        restrict_use(saw, ranks["bruiser"])
+        entry = self.entry_of(goliath_list)
+
+        body = author.get(f"/n26/authoring/entries/{entry.pk}/edit/").content.decode()
+
+        assert "The item itself is restricted" in body
+        assert "usable by Goliath Bruiser only" in body
+        assert f"/n26/authoring/weapon/{saw.pk}/" in body
+
+    def test_a_menus_entry_has_nothing_to_edit(self, author, saw):
+        menu = create_collection("A menu", prices_its_entries=False, entries=[saw])
+        entry = self.entry_of(menu)
+
+        body = author.get(f"/n26/authoring/collection/{menu.pk}/").content.decode()
+        sent_back = author.get(f"/n26/authoring/entries/{entry.pk}/edit/")
+
+        assert f"/n26/authoring/entries/{entry.pk}/edit/" not in body
+        assert sent_back.status_code == 302
+        assert sent_back["Location"] == f"/n26/authoring/collection/{menu.pk}/"
+
+    def test_only_staff_may_reach_it(self, client, saw, goliath_list):
+        entry = self.entry_of(goliath_list)
+
+        assert client.get(f"/n26/authoring/entries/{entry.pk}/edit/").status_code in (
+            302,
+            403,
+        )
+
+
 class TestTheItemsOwnBracketIsTypedOnItsPage:
     """The other half of the pair, and where it is written.
 
