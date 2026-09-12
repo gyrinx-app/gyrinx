@@ -329,11 +329,20 @@ titles, which should freely name model classes, functions and flags.
    banner) so changes can be tested in the browser as they land.
    If the page needs a signed-in user, **mint a session cookie** — do not submit
    `/accounts/login/`. See **Logging in locally** below, or load the `dev-server` skill.
-3. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
+3. **Agent board:** other agents working on this repo share a message board (the `board`
+   CLI). It joins you on your first prompt through hooks and prints your name and the
+   protocol; say your name in full in your first reply. On a workstation the hooks live in
+   `~/.claude/settings.json` (installed by the board's own `install.sh`). In Claude Code on
+   the Web `~/.claude` is created fresh at session start, so the hooks run from this repo's
+   `.claude/settings.json` through `scripts/board_hook.sh`, which is a no-op elsewhere. Do
+   not set `BOARD_SESSION_ID` under Claude Code — `CLAUDE_CODE_SESSION_ID` already names
+   the session, and a second id registers a second agent. `board join` is only for runtimes
+   without hooks. Write-up: `.claude/notes/board-on-claude-code-web.md`.
+4. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
    (`CLAUDE_CODE_REMOTE=true`), label it so the team knows it's being handled:
    `gh issue edit <NUMBER> --add-label claude-code-web`
    The label definition is created automatically by `scripts/setup_web.sh` during session start; you still need to add this label to the issue manually.
-4. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
+5. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
    writing code
 
 ### Before Push
@@ -428,11 +437,13 @@ staleness, so you'll need a one-off `--create-db` run after changing a model.
 - CI gates pull requests on `pytest -m core` plus the tests the PR touched; the full suite
   runs but does not block. Mark a file `core` only for fundamental behaviour, a critical
   flow, or a safety/performance check. See `docs/developing-gyrinx/testing.md`.
-- **The Postgres cluster is shared by every agent on this machine.** Per-worktree `DB_NAME`
-  isolates data, not the cluster's lock table: two `-n auto` runs at once exhaust it and
-  *both* fail on every test with `out of shared memory`. Before a full run, check
-  `board who` — an agent with ⚙ has a run live — and use `pytest -n 4` while anyone else
-  is testing (the board's PreToolUse guard refuses a full run once while another is live).
+- **On a workstation the Postgres cluster is shared by every agent on the machine.**
+  Per-worktree `DB_NAME` isolates data, not the cluster's lock table: two `-n auto` runs at
+  once exhaust it and *both* fail on every test with `out of shared memory`. Before a full
+  run, check `board who` — an agent with ⚙ has a run live — and use `pytest -n 4` while
+  anyone else is testing. The board's PreToolUse guard refuses a full run once while another
+  is live; it only exists where the board hooks run (see **Agent board** below). In Claude
+  Code on the Web each container has its own Postgres, so none of this applies there.
 - A killed xdist run leaves `test_<DB_NAME>_gw<N>` databases behind; the next run then
   fails on every test with `already exists` / `being accessed by other users`. List them
   with `psql -l | grep test_` and drop them, or run `./scripts/cleanup-worktree-dbs.sh`.

@@ -145,7 +145,13 @@ _gyrinx_activate_worktree() {
 
   # Per-worktree DB identity (DB_NAME / DJANGO_PORT / DB_CONFIG) — derived
   # from wt_root so mid-session EnterWorktree retargets the right database.
-  if command -v worktree_db_name >/dev/null 2>&1 && [ -n "$wt_root" ]; then
+  # Workstations only: db_config_for_local assumes Homebrew's trust auth (the
+  # login user, no password). The web container's Postgres wants scram auth
+  # as postgres/postgres, which is what scripts/setup_web.sh puts in .env, so
+  # there the block must stay out of the way or every manage/test call fails
+  # with "no password supplied" against a database that does not exist.
+  if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ] \
+     && command -v worktree_db_name >/dev/null 2>&1 && [ -n "$wt_root" ]; then
     DB_NAME=$(worktree_db_name "$wt_root")
     DJANGO_PORT=$(worktree_port "$wt_root")
     export DB_NAME DJANGO_PORT

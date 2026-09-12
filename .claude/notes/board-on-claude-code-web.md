@@ -1,8 +1,9 @@
 # Agent board on Claude Code on the web: what went wrong and how to fix it
 
 Written by agent curlew-fc34 after connecting a Claude Code on the web session to
-the board by hand on 2026-09-12. Nothing in the repo has been changed yet; this is
-the write-up the maintainer asked for.
+the board by hand on 2026-09-12. Fixes 1 to 3 below are implemented on the same
+branch (`scripts/board_hook.sh`, `.claude/settings.json`, `scripts/setup_web.sh`,
+`CLAUDE.md`); fix 4 is for the cloud environment's own setup script.
 
 ## What the session found
 
@@ -71,6 +72,36 @@ So no hook ever runs `board`. Nothing auto-inits, nothing auto-links, and:
 - Feeding a SessionStart payload to `board hook session-start` on stdin works
   in this environment and returns the standard `additionalContext` JSON. The
   hook machinery is fine; it is only not wired up.
+
+### Found on the way: the web setup script was aborting at `uv sync`
+
+`scripts/setup_web.sh` only installed uv when none was on PATH. The web image
+ships uv 0.8.17 in `~/.local/bin`, and `pyproject.toml` pins
+`[tool.uv] required-version = ">=0.11.12"`, so `uv sync --locked` refused and
+`set -e` killed the script at step 4. In this session that left no `.venv`, no
+`.env`, Postgres stopped, no `node_modules` and no static build, with nothing
+in the chat to say so. `gh` was installed, which is how far the script got.
+`.cursor/install.sh` had the same check. Both now read the floor from
+`pyproject.toml` and reinstall uv when the installed one is older.
+
+### Also found: the per-worktree DB block breaks every database call on the web
+
+`scripts/activate_venv_hook.sh` writes a block that runs before every Bash
+call and exports `DB_NAME=gyrinx_main` plus a `DB_CONFIG` of the login user
+with an empty password (`db_config_for_local`). That is right for Homebrew's
+trust auth on a workstation. The web container's Postgres uses scram auth over
+TCP, only the `postgres` role exists (password `postgres`, set by
+`setup_web.sh`), and no `gyrinx_main` database exists. So `manage` and the
+tests fail with `fe_sendauth: no password supplied` in every web session, even
+after a successful setup. The block now skips the DB variables when
+`CLAUDE_CODE_REMOTE=true`, so `.env` (written by `manage setupenv`) governs.
+
+The `Error parsing ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` lines in the setup
+log come from the cloud environment's own variable values, which arrive with
+backslash-escaped quotes inside single quotes. `settings.py` strips the outer
+quotes but not the backslashes, logs the error and falls back to its defaults.
+Harmless, but the values in the environment settings want fixing: plain
+`["localhost"]` with no wrapping quotes.
 
 ## Changes to the repo
 

@@ -39,7 +39,7 @@ fi
 # ---------------------------------------------------------------------------
 # 1. Install GitHub CLI
 # ---------------------------------------------------------------------------
-echo "--- [1/9] Installing GitHub CLI ---"
+echo "--- [1/10] Installing GitHub CLI ---"
 if ! command -v gh &>/dev/null; then
   # Install from a direct binary download rather than apt.
   # The web environment has limited network; apt-get update fails because
@@ -67,7 +67,7 @@ fi
 # ---------------------------------------------------------------------------
 # 2. Ensure the "claude-code-web" label exists on the repo
 # ---------------------------------------------------------------------------
-echo "--- [2/9] Ensuring 'claude-code-web' GitHub label exists ---"
+echo "--- [2/10] Ensuring 'claude-code-web' GitHub label exists ---"
 if gh auth status &>/dev/null; then
   gh label create claude-code-web \
     --description "Issue is being worked on in a Claude Code for Web session" \
@@ -82,19 +82,34 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Install uv
 # ---------------------------------------------------------------------------
-echo "--- [3/9] Installing uv ---"
-if ! command -v uv &>/dev/null; then
+echo "--- [3/10] Installing uv ---"
+# The image ships a uv, but pyproject.toml pins `[tool.uv] required-version`
+# and `uv sync --locked` refuses an older one. An "install only if missing"
+# check therefore left the image's uv 0.8.17 in place and aborted the whole
+# script at the sync step (no .venv, no .env, no Postgres, no node_modules).
+# Read the floor from pyproject.toml so the two never drift apart.
+UV_MIN=$(sed -n 's/^required-version = ">=\([0-9.]*\)"/\1/p' pyproject.toml | head -1)
+UV_MIN="${UV_MIN:-0.11.12}"
+uv_satisfies_pin() {
+  command -v uv &>/dev/null || return 1
+  # `sort -V -C` succeeds when the lines are already in version order, i.e.
+  # when the installed version is at least UV_MIN.
+  printf '%s\n%s\n' "$UV_MIN" "$(uv --version | awk '{print $2}')" | sort -V -C
+}
+if ! uv_satisfies_pin; then
+  echo "uv missing or older than ${UV_MIN} — installing the current release..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
   # Venv doesn't exist yet, so $HOME/.local/bin goes first just to pick up uv.
   # The persisted PATH (below) puts the venv bin first once it's been created.
   export PATH="$HOME/.local/bin:$PATH"
+  hash -r
 fi
 echo "uv: $(uv --version)"
 
 # ---------------------------------------------------------------------------
 # 4. Python virtual environment + project install
 # ---------------------------------------------------------------------------
-echo "--- [4/9] Setting up Python environment ---"
+echo "--- [4/10] Setting up Python environment ---"
 # `uv sync` creates .venv if needed and installs exactly what uv.lock pins.
 # UV_PROJECT_ENVIRONMENT is pinned because the next line sources ./.venv — an
 # inherited value would sync a different environment and leave this broken.
@@ -104,15 +119,29 @@ source .venv/bin/activate
 echo "Python $(python --version) — packages installed"
 
 # ---------------------------------------------------------------------------
-# 5. Environment configuration (.env)
+# 5. Agent board
 # ---------------------------------------------------------------------------
-echo "--- [5/9] Setting up .env ---"
+# The cloud environment installs the `board` CLI and sets BOARD_TOKEN. Its hooks
+# run from .claude/settings.json via scripts/board_hook.sh and create and link
+# this repo's board on the first prompt; `board init` here is idempotent and
+# only makes `board who` work before that first prompt. Nothing fails without it.
+echo "--- [5/10] Agent board ---"
+if command -v board >/dev/null 2>&1 && [ -n "${BOARD_TOKEN:-}" ]; then
+  board init 2>&1 | tail -1 || echo "board init failed (non-fatal)."
+else
+  echo "board CLI or BOARD_TOKEN missing — skipping."
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Environment configuration (.env)
+# ---------------------------------------------------------------------------
+echo "--- [6/10] Setting up .env ---"
 manage setupenv
 
 # ---------------------------------------------------------------------------
-# 6. PostgreSQL
+# 7. PostgreSQL
 # ---------------------------------------------------------------------------
-echo "--- [6/9] Setting up PostgreSQL ---"
+echo "--- [7/10] Setting up PostgreSQL ---"
 
 # Fix SSL private key permissions.  In web environments the snakeoil key
 # sometimes ends up with group/world access, which causes PostgreSQL to
@@ -186,22 +215,22 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_N
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Database migrations
+# 8. Database migrations
 # ---------------------------------------------------------------------------
-echo "--- [7/9] Running database migrations ---"
+echo "--- [8/10] Running database migrations ---"
 manage migrate
 
 # ---------------------------------------------------------------------------
-# 8. Node.js dependencies + pre-commit hooks
+# 9. Node.js dependencies + pre-commit hooks
 # ---------------------------------------------------------------------------
-echo "--- [8/9] Installing Node.js deps and pre-commit hooks ---"
+echo "--- [9/10] Installing Node.js deps and pre-commit hooks ---"
 npm install
 pre-commit install
 
 # ---------------------------------------------------------------------------
-# 9. Build frontend assets + collect static files
+# 10. Build frontend assets + collect static files
 # ---------------------------------------------------------------------------
-echo "--- [9/9] Building frontend and collecting static files ---"
+echo "--- [10/10] Building frontend and collecting static files ---"
 npm run build
 manage collectstatic --noinput
 

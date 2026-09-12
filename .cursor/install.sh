@@ -19,9 +19,19 @@ log() { echo "=== $* ==="; }
 # ---------------------------------------------------------------------------
 # 1. uv — manages the Python interpreter (3.14, per .python-version) and deps.
 # ---------------------------------------------------------------------------
-if ! command -v uv >/dev/null 2>&1; then
-  log "Installing uv"
+# pyproject.toml pins `[tool.uv] required-version`; an image that ships an older
+# uv must be updated or `uv sync --locked` refuses to run. Read the floor from
+# pyproject.toml so the two never drift apart (mirrors scripts/setup_web.sh).
+UV_MIN=$(sed -n 's/^required-version = ">=\([0-9.]*\)"/\1/p' pyproject.toml | head -1)
+UV_MIN="${UV_MIN:-0.11.12}"
+uv_satisfies_pin() {
+  command -v uv >/dev/null 2>&1 || return 1
+  printf '%s\n%s\n' "$UV_MIN" "$(uv --version | awk '{print $2}')" | sort -V -C
+}
+if ! uv_satisfies_pin; then
+  log "Installing uv (missing or older than ${UV_MIN})"
   curl -LsSf https://astral.sh/uv/install.sh | sh
+  hash -r
 fi
 export PATH="$HOME/.local/bin:$PATH"
 log "uv $(uv --version)"
