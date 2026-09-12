@@ -38,7 +38,8 @@ def campaign_arbitrators(request, id):
 
     :template:`core/campaign/campaign_arbitrators.html`
     """
-    campaign = get_campaign_admin_or_404(request, id)
+    # The page names the owner with their badge at the top of its list.
+    campaign = get_campaign_admin_or_404(request, id, with_owner_badge=True)
 
     if request.method == "POST":
         form = AddArbitratorForm(request.POST, campaign=campaign)
