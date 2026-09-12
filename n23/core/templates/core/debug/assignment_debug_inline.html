@@ -1,4 +1,4 @@
-{% if gyrinx_debug and assign.kind == 'assigned' %}
+{% if gyrinx_debug and assign.kind == "assigned" %}
     <span class="{% if assign.dirty %}bg-danger-subtle text-danger-emphasis{% else %}bg-warning-subtle text-warning-emphasis{% endif %} rounded px-1 fs-7 font-monospace">
         {% if assign.facts %}
             R:{{ assign.facts.rating }}¢

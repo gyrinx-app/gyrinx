@@ -12,7 +12,7 @@ the price difference lands on the hire's own line in either direction.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='gangs' %}
+    {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
     <c-n26.model-header :miniature="miniature" lead="{{ role }}" active="options">

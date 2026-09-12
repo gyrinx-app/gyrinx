@@ -72,6 +72,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Operation",
     "backfill_built_ins",
+    "clear_item_restrictions",
     "delete_empty_affiliations",
     "delete_legacy_affiliation_assignments",
     "delete_nameless_gang_type",
@@ -222,6 +223,14 @@ class Operation(models.TextChoices):
         "n26_merge_into",
         "n26: a duplicate row is merged into the row it duplicates",
     )
+    CLEAR_ITEM_RESTRICTIONS = (
+        "n26_clear_item_restrictions",
+        "n26: the restrictions to fighter entries an upload wrote onto listed items are cleared",
+    )
+    ORDER_COLLECTIONS = (
+        "n26_order_collections",
+        "n26: variant equipment lists are moved after the gang's own on Equip",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -243,6 +252,8 @@ LOCK_KEYS = {
     Operation.DELETE_TEST_CONTENT: 826_020_620,
     Operation.DELETE_FIRING_LINE: 826_020_621,
     Operation.MERGE_INTO: 826_020_622,
+    Operation.CLEAR_ITEM_RESTRICTIONS: 826_020_623,
+    Operation.ORDER_COLLECTIONS: 826_020_625,
 }
 
 
@@ -937,11 +948,15 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
                 f"The {words['noun']} cannot run: " + "; ".join(plan.problems) + ".",
             )
             return HttpResponseRedirect(address)
+        # A plan that keeps more than its lines — the rows it named, so
+        # the run can hold its own reading against what was approved —
+        # writes that onto the record beside the preview.
+        recorded = getattr(plan, "recorded", dict)()
         backfill = Backfill.objects.create(
             operation=operation,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"preview": list(plan.preview()), "attempts": 0},
+            summary={"preview": list(plan.preview()), "attempts": 0, **recorded},
         )
         task_fn.enqueue(backfill_id=str(backfill.id))
         messages.success(
@@ -1954,6 +1969,204 @@ register_operation(
 
 
 @task
+def clear_item_restrictions(backfill_id, **said_by_whoever_enqueued_it):
+    """Strip the item-level restriction to fighter entries from every
+    item the record's plan names, and record it.
+
+    Library-only work in one transaction under the runner discipline:
+    the equipment-lists upload wrote each list's "<Fighter> only" onto
+    the item every list shares. The plan is the one the page previewed
+    and wrote onto the record, so nothing that appeared after the
+    preview is swept up. Nothing a player holds is touched.
+    """
+    from n26.library.item_restrictions import Refused, apply
+
+    _run_recorded(
+        backfill_id,
+        Operation.CLEAR_ITEM_RESTRICTIONS,
+        "Item restriction clearing",
+        lambda: apply(_approved_plan(backfill_id)),
+        Refused,
+    )
+
+
+@task
+def order_collections(backfill_id, **said_by_whoever_enqueued_it):
+    """Give the lists variant picks add a position after the gang's own,
+    and record it.
+
+    The runner discipline around work that writes one column of library
+    rows and nothing else. No gang is touched, so there is nothing to
+    prove beyond the numbers written.
+    """
+    from n26.library.collection_positions import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.ORDER_COLLECTIONS,
+        "Collection ordering",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+def _approved_plan(backfill_id):
+    """The plan written onto a record when its run was asked for, or
+    ``None`` for a record that holds none."""
+    record = Backfill.objects.filter(pk=backfill_id).first()
+    return None if record is None else record.summary.get("plan")
+
+
+CLEAR_ITEM_RESTRICTIONS_WORDS = {
+    "noun": "removal",
+    "intro": (
+        "This clears the restriction to fighter entries (“usable by … only”) "
+        "from every item that appears in at least one collection entry. The "
+        "equipment-lists upload used to write the sheet's Restrictions column "
+        "onto the item, and an item's restriction holds wherever the item is "
+        "listed — so a bracket printed on one gang's list marked the item for "
+        "every gang, and every upload wrote it again. The upload now writes "
+        "the column onto the collection entry. Only the item's own restriction "
+        "to fighter entries is cleared: restrictions to types and subtypes, "
+        "items no collection lists, and every entry's own restrictions stay as "
+        "they are. Upload the equipment lists again afterwards to write each "
+        "list's own restrictions onto its entries. The items are listed below "
+        "with the fighter entries they name and the collections that list them."
+    ),
+    "nothing_heading": "Nothing to clear",
+    "nothing_flash": "No listed item carries a restriction to fighter entries.",
+    "nothing_words": "No listed item carries a restriction to fighter entries.",
+    "refuses_heading": "The removal cannot run",
+    "button": "Clear the restrictions from these items",
+    "confirm": (
+        "Clear the restriction to fighter entries from these items? Upload the "
+        "equipment lists again afterwards to restore each list's own "
+        "restrictions. This cannot be undone."
+    ),
+}
+
+
+ORDER_COLLECTIONS_WORDS = {
+    "intro": (
+        "This sets the order of the equipment lists a fighter or gang holds. "
+        "The Equip screen opens on the list with the lowest position. Every "
+        "list starts at 0, so a list added by a variant can open before the "
+        "gang's own. This sets position 100 on every list that is granted "
+        "only by picks that are not gang archetypes, and leaves every other "
+        "list as it is. The table lists every collection, how it reaches a "
+        "card, and what applying does to it. Check it against the lists in "
+        "production before applying. You can change any list's position on "
+        "its authoring page afterwards."
+    ),
+    "nothing_heading": "Nothing to set",
+    "nothing_flash": "There was nothing to set.",
+    "nothing_words": (
+        "Every list granted only by variant picks already has a position above 0."
+    ),
+    "refuses_heading": "The positions cannot be set",
+    "button": "Set position 100 on the variant lists",
+    "confirm": (
+        "Set position 100 on the lists marked in the table? You can change "
+        "any list's position on its authoring page afterwards."
+    ),
+}
+
+
+def clear_item_restrictions_view(request):
+    """Preview the removal (GET), or record a run and enqueue it."""
+    from n26.library.item_restrictions import find
+
+    return _deletion_view(
+        request,
+        Operation.CLEAR_ITEM_RESTRICTIONS,
+        find,
+        clear_item_restrictions,
+        CLEAR_ITEM_RESTRICTIONS_WORDS,
+    )
+
+
+def order_collections_view(request):
+    """Preview the positions (GET), or record a run and enqueue it."""
+    from n26.library.collection_positions import VARIANT_POSITION, find
+
+    operation = Operation.ORDER_COLLECTIONS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That run is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        plan = find()
+        if plan.nothing_here:
+            messages.info(request, ORDER_COLLECTIONS_WORDS["nothing_flash"])
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(plan.preview()), "attempts": 0},
+        )
+        order_collections.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The run has started. The result will appear below.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+    plan = find()
+    context = page_context(
+        request,
+        operation.label,
+        plan=plan,
+        readings=plan.readings,
+        variant_position=VARIANT_POSITION,
+        words=ORDER_COLLECTIONS_WORDS,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/order_collections.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.CLEAR_ITEM_RESTRICTIONS.value,
+        name=Operation.CLEAR_ITEM_RESTRICTIONS.label,
+        added=date(2026, 9, 12),
+        description=(
+            "Clear the restriction to fighter entries from every item that "
+            "appears in a collection entry. The equipment-lists upload wrote "
+            "each list's “<Fighter> only” onto the item every list shares, "
+            "so one gang's bracket marked the item for every gang. Restrictions "
+            "to types and subtypes, unlisted items and every entry's own "
+            "restrictions stay. Upload the equipment lists again afterwards to "
+            "write each list's restrictions onto its entries."
+        ),
+        view=clear_item_restrictions_view,
+        detail_template="admin/maintenance/n26/_clear_item_restrictions_detail.html",
+    )
+)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.ORDER_COLLECTIONS.value,
+        name=Operation.ORDER_COLLECTIONS.label,
+        added=date(2026, 9, 12),
+        description=(
+            "Set position 100 on every equipment list that is granted only "
+            "by picks that are not gang archetypes, so it sorts after the "
+            "gang's own list on the Equip screen. Every other list keeps "
+            "its position. The page lists every collection with how it "
+            "reaches a card, for checking before applying."
+        ),
+        view=order_collections_view,
+        detail_template="admin/maintenance/n26/_order_collections_detail.html",
+    )
+)
+
+
+@task
 def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
     """Create the Gang supertype and the two Underhive Journals' territories
     and tables, once, and record what was created.
@@ -2267,6 +2480,8 @@ task_routes = [
     TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     TaskRoute(open_founding_actions, ack_deadline=600),
     TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
 ]
 
 

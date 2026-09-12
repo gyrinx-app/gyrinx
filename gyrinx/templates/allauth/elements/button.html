@@ -9,7 +9,7 @@ pages we do not own; keeping it allauth-shaped means an allauth upgrade
 costs a re-vendor, never a re-migration.
 THREE LIVE BUGS FIXED HERE, at zero call sites. The old cascade was
 `{% if "danger" in attrs.tags %}` -> btn-danger,
-`{% elif attrs.type == 'submit' or not attrs.secondary %}` -> btn-primary,
+`{% elif attrs.type == "submit" or not attrs.secondary %}` -> btn-primary,
 else btn-secondary — and `attrs.secondary` is never set by any call site,
 because they all use `tags=`. Net effect: EVERY non-danger allauth button
 rendered btn-primary, including tags="link,cancel" Cancel buttons,

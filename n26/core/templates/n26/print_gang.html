@@ -103,7 +103,8 @@
                                                 <div class="n26-print-notes-body">{{ row.card.notes|safe_rich_text }}</div>
                                             </div>
                                         {% endif %}
-                                        <c-n26.print.field height="10mm" label="{% if not row.card.notes %}Notes{% endif %}" />
+                                        <c-n26.print.field height="10mm"
+                                                           label="{% if not row.card.notes %}Notes{% endif %}" />
                                     </div>
                                     {% if row.card.image_url %}
                                         <div class="n26-print-photo">

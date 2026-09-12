@@ -97,7 +97,8 @@
                                    name="house"
                                    value="{{ house.id }}"
                                    {% if contains_id or request.GET.house == "all" or not house_key_exists %}checked{% endif %}>
-                            <label class="form-check-label" for="house-{{ house.id }}">{{ house.name }}{% house_icon house %}</label>
+                            <label class="form-check-label"
+                                   for="house-{{ house.id }}">{{ house.name }}{% house_icon house %}</label>
                             •
                             <a class="ms-auto" href="?{% qt request house=house.id %}#search">only</a>
                         </div>

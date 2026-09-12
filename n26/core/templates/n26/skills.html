@@ -24,7 +24,7 @@ lands on: the model's own page, which is where the control leading here sits.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='gangs' %}
+    {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{{ action }}"

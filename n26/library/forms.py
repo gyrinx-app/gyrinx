@@ -209,6 +209,10 @@ def _form_fields(spec, name, kind):
                 required=_is_required(spec, name),
                 help_text=kind.help,
                 label=kind.label,
+                # The column's own floor, so a negative number is this
+                # field's error rather than the database refusing the
+                # INSERT as a 500.
+                min_value=kind.min_value,
             )
         }
     if isinstance(kind, Bool):
