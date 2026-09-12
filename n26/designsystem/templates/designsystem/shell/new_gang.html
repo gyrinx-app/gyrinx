@@ -20,7 +20,7 @@ in — which on a long form is the thing that scrolls away first.
 {% endcomment %}
 {% block nav_heading %}Create a gang{% endblock nav_heading %}
 {% block nav_items %}
-    {% include 'designsystem/shell/_nav.html' with here='new-gang' %}
+    {% include "designsystem/shell/_nav.html" with here="new-gang" %}
 {% endblock %}
 {% block content %}
     <c-n26.view.create-gang action="{% url 'designsystem:shell_new_gang' %}"

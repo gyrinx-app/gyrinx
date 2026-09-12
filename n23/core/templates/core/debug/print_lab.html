@@ -20,11 +20,15 @@
                     <div>
                         <label class="caps-label" for="source">Source</label>
                         <select class="form-select form-select-sm" id="source" name="source">
-                            <option value="presets" {% if source == "presets" %}selected{% endif %}>Preset gallery (all)</option>
+                            <option value="presets"
+                                    {% if source == "presets" %}selected{% endif %}>Preset gallery (all)</option>
                             <option value="preset" {% if source == "preset" %}selected{% endif %}>Single preset</option>
-                            <option value="fighter" {% if source == "fighter" %}selected{% endif %}>Real fighter (by id)</option>
-                            <option value="list" {% if source == "list" %}selected{% endif %}>Real gang (by list id)</option>
-                            <option value="lore" {% if source == "lore" %}selected{% endif %}>Real gang — lore &amp; notes (by list id)</option>
+                            <option value="fighter"
+                                    {% if source == "fighter" %}selected{% endif %}>Real fighter (by id)</option>
+                            <option value="list"
+                                    {% if source == "list" %}selected{% endif %}>Real gang (by list id)</option>
+                            <option value="lore"
+                                    {% if source == "lore" %}selected{% endif %}>Real gang — lore &amp; notes (by list id)</option>
                         </select>
                     </div>
                     <div>
@@ -86,7 +90,10 @@
                 <div class="border rounded p-3 mt-3">
                     <div class="caps-label mb-1">Open / print</div>
                     <div class="vstack gap-1">
-                        <a class="linked" href="{{ sheet_url }}" target="_blank" rel="noopener">Open sheet in new tab →</a>
+                        <a class="linked"
+                           href="{{ sheet_url }}"
+                           target="_blank"
+                           rel="noopener">Open sheet in new tab →</a>
                         <a class="linked"
                            href="{{ sheet_url }}&amp;print=1"
                            target="_blank"

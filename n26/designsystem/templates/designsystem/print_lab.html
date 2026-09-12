@@ -25,7 +25,8 @@
                             name="specimen"
                             class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm focus-ring">
                         {% for key, label in specimens %}
-                            <option value="{{ key }}" {% if options.specimen == key %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ key }}"
+                                    {% if options.specimen == key %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -37,7 +38,8 @@
                                 name="page"
                                 class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm focus-ring">
                             {% for key, label in pages %}
-                                <option value="{{ key }}" {% if options.page == key %}selected{% endif %}>{{ label }}</option>
+                                <option value="{{ key }}"
+                                        {% if options.page == key %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>

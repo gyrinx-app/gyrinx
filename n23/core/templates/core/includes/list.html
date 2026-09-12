@@ -51,7 +51,8 @@
                                 <i class="bi-copy"
                                    data-bs-toggle="tooltip"
                                    data-bs-title="This list was created via cloning"></i>
-                                Based on <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
+                                Based on <a href="{% url 'core:list' list.original_list.id %}"
+    class="linked">{{ list.original_list.name }}</a>
                             </div>
                         {% endif %}
                         {% if list.is_list_building and list.active_campaign_clones|length %}
@@ -59,7 +60,8 @@
                                 <i class="bi-award"
                                    data-bs-toggle="tooltip"
                                    data-bs-title="Active in Campaign"></i>
-                                <a href="{% url 'core:list-campaign-clones' list.id %}" class="linked">Active in Campaigns</a>
+                                <a href="{% url 'core:list-campaign-clones' list.id %}"
+                                   class="linked">Active in Campaigns</a>
                             </div>
                         {% endif %}
                         {% if subscribed_packs %}
@@ -73,13 +75,15 @@
                                     {{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}
                                 {% endif %}
                                 {% if suggested_campaign_packs_count %}
-                                    · <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
+                                    · <a href="{% url 'core:list-packs' list.id %}"
+    class="linked">{{ suggested_campaign_packs_count }} suggested</a>
                                 {% endif %}
                             </div>
                         {% elif suggested_campaign_packs_count %}
                             <div>
                                 <i class="bi-box-seam"></i>
-                                <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
+                                <a href="{% url 'core:list-packs' list.id %}"
+                                   class="linked">{{ suggested_campaign_packs_count }} suggested</a>
                             </div>
                         {% elif list.owner_cached == user %}
                             <div>
@@ -262,8 +266,11 @@
                                                           action="{% url 'core:impersonate-start' list.owner_cached.id %}"
                                                           class="m-0">
                                                         {% csrf_token %}
-                                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                                        <button type="submit" class="dropdown-item icon-link text-danger">
+                                                        <input type="hidden"
+                                                               name="next"
+                                                               value="{{ request.get_full_path }}">
+                                                        <button type="submit"
+                                                                class="dropdown-item icon-link text-danger">
                                                             <i class="bi-person-bounding-box"></i> Impersonate owner
                                                         </button>
                                                     </form>

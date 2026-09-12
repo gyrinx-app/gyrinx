@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass, field
 
 from bs4 import BeautifulSoup
 from django import template
@@ -7,7 +8,10 @@ from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.cache import cache
 from django.db.models import Q
+from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
+
+from gyrinx.pages.models import FlatPageOptions
 
 register = template.Library()
 
@@ -16,6 +20,9 @@ register = template.Library()
 
 class FlatpageNode(template.Node):
     depth = 0
+    # When set, only pages exactly one path segment below ``starts_with`` are
+    # returned: the page's direct children, not every descendant.
+    children_only = False
 
     def __init__(self, context_name, starts_with=None, user=None):
         self.context_name = context_name
@@ -42,6 +49,9 @@ class FlatpageNode(template.Node):
         if self.starts_with:
             starts_with = self.starts_with.resolve(context)
             flatpages = flatpages.filter(url__startswith=starts_with)
+            if self.children_only:
+                prefix = re.escape(_normalize_path(starts_with))
+                flatpages = flatpages.filter(url__regex=rf"^{prefix}[^/]+/?$")
 
         # If the provided user is not authenticated, or no user
         # was provided, filter the list to only public flatpages.
@@ -134,6 +144,26 @@ def get_pages(parser, token):
 def get_root_pages(parser, token):
     node = get_pages(parser, token)
     node.depth = 1
+    return node
+
+
+@register.tag
+def get_child_pages(parser, token):
+    """
+    Like ``get_pages`` with a prefix, but returns only the pages directly
+    below it — one path segment deeper — rather than every descendant.
+
+    Syntax::
+
+        {% get_child_pages parent_url [for user] as context_name %}
+    """
+    node = get_pages(parser, token)
+    if node.starts_with is None:
+        raise template.TemplateSyntaxError(
+            "get_child_pages expects a syntax of get_child_pages "
+            "parent_url [for user] as context_name"
+        )
+    node.children_only = True
     return node
 
 
@@ -266,37 +296,119 @@ def active_flatpage_aria(context, url):
     return 'aria-current="page"' if _is_flatpage_active(context, url) else ""
 
 
-@register.filter
-def add_heading_links(html):
+@dataclass
+class Heading:
+    """One heading found in a flat page's content."""
+
+    level: int
+    text: str
+    slug: str
+    children: list[Heading] = field(default_factory=list)
+
+
+@dataclass
+class ParsedContent:
+    """A flat page's HTML with its headings made linkable, plus those headings."""
+
+    html: str
+    headings: list[Heading]
+
+
+def parse_headings(html):
     """
-    Django template filter that transforms all heading tags (h1-h6) in the given HTML.
-    Each heading is given an id attribute (a slugified version of its text)
-    and is wrapped in an <a> tag with href set to "#<slug>".
+    The one parse of a flat page's content that everything else reads from.
+
+    Every heading (h1-h6) is given an id — a slug of its text, with ``-2``,
+    ``-3``... appended when the same slug has already been used on the page —
+    and wrapped in an anchor to that id, with a link icon inside. The same
+    headings are returned as a flat list, in document order, so a contents
+    block built from them links to the ids the HTML actually carries.
 
     Example:
       Input:  <h1>Foo Bar Baz!</h1>
-      Output: <a href="#foo-bar-baz"><h1 id="foo-bar-baz">Foo Bar Baz!</h1></a>
+      Output: <a href="#foo-bar-baz"><h1 id="foo-bar-baz">Foo Bar Baz!<i ...></i></h1></a>
     """
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html or "", "html.parser")
+    headings = []
+    # Authored content can carry its own ids (TinyMCE's anchor tool), so every
+    # id already on the page is reserved before any heading slug is chosen.
+    seen = {tag["id"] for tag in soup.find_all(id=True)}
 
-    # Find all heading tags h1-h6 using a regex.
-    for _n, heading in enumerate(soup.find_all(re.compile(r"^h[1-6]$"))):
-        slug = slugify(heading.get_text())
+    for heading in soup.find_all(re.compile(r"^h[1-6]$")):
+        text = heading.get_text().strip()
+        base = slugify(text) or "section"
+        slug = base
+        n = 1
+        while slug in seen:
+            n += 1
+            slug = f"{base}-{n}"
+        seen.add(slug)
+
         heading["id"] = slug
-        # Create a new anchor tag with the href attribute set to "#slug"
         anchor = soup.new_tag(
             "a",
             href=f"#{slug}",
+            attrs={"class": "link-underline link-underline-opacity-0 text-reset"},
+        )
+        # Decorative: the anchor's accessible name is the heading text.
+        icon = soup.new_tag(
+            "i",
             attrs={
-                "class": "link-underline link-underline-opacity-0 link-underline-opacity-75-hover text-reset",
+                "class": "bi-link-45deg ms-2 text-body-secondary",
+                "aria-hidden": "true",
             },
         )
-        icon = soup.new_tag(
-            "i", attrs={"class": "bi-link-45deg ms-2 text-body-secondary"}
-        )
-        # Wrap the heading with the new anchor tag and insert the icon
         heading.wrap(anchor)
-        heading.insert(1, icon)
+        heading.append(icon)
+        if text:
+            headings.append(Heading(level=int(heading.name[1]), text=text, slug=slug))
 
-    # Mark the output as safe so Django doesn't escape the HTML
-    return mark_safe(str(soup))
+    return ParsedContent(html=mark_safe(str(soup)), headings=headings)
+
+
+def nest_headings(headings):
+    """
+    Turn a flat, document-ordered list of headings into a tree by level.
+
+    A heading becomes a child of the nearest preceding heading with a smaller
+    level. Skipped levels (an h4 straight after an h2) still nest under the
+    h2; the tree follows the document, not the numbers.
+    """
+    roots = []
+    stack = []
+    for heading in headings:
+        heading = Heading(heading.level, heading.text, heading.slug)
+        while stack and stack[-1].level >= heading.level:
+            stack.pop()
+        if stack:
+            stack[-1].children.append(heading)
+        else:
+            roots.append(heading)
+        stack.append(heading)
+    return roots
+
+
+@register.filter
+def add_heading_links(html):
+    """
+    Template filter: the HTML half of ``parse_headings`` — every heading gets
+    an id and is wrapped in an anchor to it.
+    """
+    return parse_headings(html).html
+
+
+@register.simple_tag
+def page_contents(page):
+    """
+    Render a nested list of the page's headings, linking to each one, when the
+    page's options have "Show contents" ticked. Renders nothing otherwise.
+
+    Usage:
+        {% page_contents flatpage %}
+    """
+    if not FlatPageOptions.objects.filter(page=page, show_contents=True).exists():
+        return ""
+    headings = nest_headings(parse_headings(page.content).headings)
+    if not headings:
+        return ""
+    return render_to_string("flatpages/includes/contents.html", {"headings": headings})

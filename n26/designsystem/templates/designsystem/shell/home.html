@@ -15,7 +15,7 @@ the bottom.
 {% block head_title %}Home{% endblock head_title %}
 {% block nav_heading %}Home{% endblock nav_heading %}
 {% block nav_items %}
-    {% include 'designsystem/shell/_nav.html' with here='home' %}
+    {% include "designsystem/shell/_nav.html" with here="home" %}
 {% endblock %}
 {% block content %}
     <c-n26.view.dashboard new_gang_href="{% url 'designsystem:shell_new_gang' %}"

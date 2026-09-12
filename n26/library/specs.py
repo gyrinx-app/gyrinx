@@ -84,6 +84,28 @@ class _Sourced:
         return getattr(model._meta.get_field(field_name), "max_length", None)
 
     @property
+    def min_value(self):
+        """The column's own floor, resolved on read — 0 for a column
+        that refuses negatives, None where it has none.
+
+        The form enforces this so a negative number is a validation
+        error with the field named, rather than the database refusing
+        the INSERT and the author getting a 500 with nobody's name on it.
+        """
+        from django.db import models
+
+        if self.source is None:
+            return None
+        model, field_name = self.source
+        field = model._meta.get_field(field_name)
+        positive = (
+            models.PositiveIntegerField,
+            models.PositiveSmallIntegerField,
+            models.PositiveBigIntegerField,
+        )
+        return 0 if isinstance(field, positive) else None
+
+    @property
     def label(self):
         """What the model field calls itself, where it calls itself
         anything — ``None`` otherwise, leaving the form to derive one.
@@ -1288,6 +1310,7 @@ def _build_registry():
             {
                 "name": Text(source=(Collection, "name")),
                 "prices_its_entries": Bool(source=(Collection, "prices_its_entries")),
+                "position": Int(source=(Collection, "position")),
                 "qualifier": Text(source=(Collection, "qualifier")),
                 "library_author_help": Text(
                     source=(Collection, "library_author_help"), long=True

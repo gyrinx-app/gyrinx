@@ -3,13 +3,23 @@ from django.contrib.flatpages.admin import FlatPageAdmin as BaseFlatPageAdmin
 from django.contrib.flatpages.models import FlatPage
 from django.urls import reverse
 
-from gyrinx.pages.models import FlatPageVisibility
+from gyrinx.pages.models import FlatPageOptions, FlatPageVisibility
 from gyrinx.widgets import TinyMCEWithUpload
 
 
 class FlatPageVisibilityInline(admin.TabularInline):
     model = FlatPageVisibility
     extra = 0
+
+
+class FlatPageOptionsInline(admin.StackedInline):
+    model = FlatPageOptions
+    # One-to-one: show the single form straight away rather than behind an
+    # "Add another" link. An untouched form is not saved, so a page without
+    # options set gets no row.
+    extra = 1
+    max_num = 1
+    can_delete = False
 
 
 class FlatPageAdmin(BaseFlatPageAdmin):
@@ -65,7 +75,7 @@ class FlatPageAdmin(BaseFlatPageAdmin):
             )
         return super().formfield_for_dbfield(db_field, **kwargs)
 
-    inlines = [FlatPageVisibilityInline]
+    inlines = [FlatPageOptionsInline, FlatPageVisibilityInline]
 
 
 admin.site.unregister(FlatPage)

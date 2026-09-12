@@ -65,9 +65,29 @@ the page heading's to name.
                         {% for entry in entries %}
                             <tr>
                                 <td class="whitespace-nowrap">{{ entry.label }}</td>
-                                <td class="w-full text-right text-muted">{{ entry.notes|join:" · " }}</td>
-                                <td class="text-right">
-                                    <c-n26.link href="{{ entry.remove_url }}" tone="danger" class="text-xs">
+                                <td class="w-full text-right text-muted">
+                                    {{ entry.notes|join:" · " }}
+                                    {% comment %}
+                                    The item's own restriction holds wherever it is
+                                    listed and is changed on the item's page, so the
+                                    note links there rather than to this entry.
+                                    {% endcomment %}
+                                    {% if entry.item_restriction %}
+                                        <div class="text-xs">
+                                            The item itself is usable by {{ entry.item_restriction.words }} only, on every list.
+                                            <c-n26.link href="{{ entry.item_restriction.url }}" class="text-xs">
+                                                Change this on the item's page
+                                            </c-n26.link>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td class="text-right whitespace-nowrap">
+                                    {% if entry.edit_url %}
+                                        <c-n26.link href="{{ entry.edit_url }}" class="text-xs">
+                                            Edit
+                                        </c-n26.link>
+                                    {% endif %}
+                                    <c-n26.link href="{{ entry.remove_url }}" tone="danger" class="text-xs ml-2">
                                         Remove
                                     </c-n26.link>
                                 </td>

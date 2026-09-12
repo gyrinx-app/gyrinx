@@ -28,7 +28,7 @@
     <div class="mb-5 pb-5">
         {% if user.is_authenticated %}
             <div class="vstack gap-4">
-                {% if '@' in user.username %}
+                {% if "@" in user.username %}
                     <div class="alert alert-warning alert-icon mb-0" role="alert">
                         <i class="bi-exclamation-triangle"></i>
                         <div class="flex-grow-1">
@@ -47,7 +47,8 @@
                             <h2 class="h4 mb-0">Campaign Gangs</h2>
                             {% if campaign_gangs %}
                                 <span class="ms-auto fs-7">
-                                    <a href="{% url 'core:lists' %}?my=1&type=gang" class="linked-secondary">Show all</a>
+                                    <a href="{% url 'core:lists' %}?my=1&type=gang"
+                                       class="linked-secondary">Show all</a>
                                 </span>
                             {% endif %}
                         </div>
@@ -98,7 +99,8 @@
                             {% if campaign_gangs %}
                                 <div class="text-secondary fs-7">
                                     Showing most recently edited ·
-                                    <a href="{% url 'core:lists' %}?my=1&type=gang" class="linked-secondary">Show all</a>
+                                    <a href="{% url 'core:lists' %}?my=1&type=gang"
+                                       class="linked-secondary">Show all</a>
                                 </div>
                             {% endif %}
                         </div>
@@ -108,7 +110,8 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Campaigns</h2>
                             <span class="ms-auto fs-7">
-                                <a href="{% url 'core:campaigns-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New campaign</a>
+                                <a href="{% url 'core:campaigns-new' %}"
+                                   class="icon-link linked"><i class="bi-plus-lg"></i> New campaign</a>
                                 {% if campaigns %}
                                     ·
                                     <a href="{% url 'core:campaigns' %}?my=1" class="linked-secondary">Show all</a>
@@ -172,10 +175,12 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Lists</h2>
                             <span class="ms-auto fs-7">
-                                <a href="{% url 'core:lists-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New list</a>
+                                <a href="{% url 'core:lists-new' %}"
+                                   class="icon-link linked"><i class="bi-plus-lg"></i> New list</a>
                                 {% if lists %}
                                     ·
-                                    <a href="{% url 'core:lists' %}?my=1&type=list" class="linked-secondary">Show all</a>
+                                    <a href="{% url 'core:lists' %}?my=1&type=list"
+                                       class="linked-secondary">Show all</a>
                                 {% endif %}
                             </span>
                         </div>
@@ -224,7 +229,8 @@
                             {% if lists %}
                                 <div class="text-secondary fs-7">
                                     Showing most recently edited ·
-                                    <a href="{% url 'core:lists' %}?my=1&type=list" class="linked-secondary">Show all</a>
+                                    <a href="{% url 'core:lists' %}?my=1&type=list"
+                                       class="linked-secondary">Show all</a>
                                 </div>
                             {% endif %}
                         </div>
@@ -253,14 +259,18 @@
                 <p class="lead fs-2 text-center">
                     {% if account_signups %}
                         {% if about_page %}
-                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a>, <a class="d-inline-block" href="{% url 'account_login' %}">sign in</a> or
+                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a>, <a class="d-inline-block"
+    href="{% url 'account_login' %}">sign in</a> or
                             <a class="d-inline-block" href="{% url 'account_signup' %}">sign up</a>.
                         {% else %}
-                            <a class="d-inline-block" href="{% url 'account_login' %}">Sign in</a> or <a class="d-inline-block" href="{% url 'account_signup' %}">sign up</a>.
+                            <a class="d-inline-block"
+                               href="{% url 'account_login' %}">Sign in</a> or <a class="d-inline-block"
+    href="{% url 'account_signup' %}">sign up</a>.
                         {% endif %}
                     {% else %}
                         {% if about_page %}
-                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a> or <a class="d-inline-block" href="{% url 'account_login' %}">sign in</a>.
+                            <a class="d-inline-block" href="{{ about_page.url }}">Find out more</a> or <a class="d-inline-block"
+    href="{% url 'account_login' %}">sign in</a>.
                         {% else %}
                             <a class="d-inline-block" href="{% url 'account_login' %}">Sign in</a>.
                         {% endif %}
