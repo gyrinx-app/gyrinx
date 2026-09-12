@@ -813,3 +813,26 @@ class TestDismissingTheLadderFromTheSheet:
         assert restore in page
         client.post(restore)
         assert "Augmentation: &mdash;" in client.get(sheet).content.decode()
+
+    def test_choosing_a_level_through_a_dismissed_ladder_takes_the_dismissal_off(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        """The ladder is the weapon's own — its slot is caused by the
+        launchers and drawn under them — and a pick landing on it from
+        the pick screen clears the dismissal like any other pick, so
+        stepping back down later leaves the level open to choose."""
+        from n26.core.models import DismissedOffer
+
+        client.force_login(owner)
+        key = self.key(orrus)
+        client.post(reverse("n26-dismiss-offer", args=[gang.pk, key]))
+        assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
+
+        reply = client.post(
+            reverse("n26-choose", args=[gang.pk, key]),
+            {"thing": option_key(bolt_launcher_tiers["Tier 1"])},
+        )
+
+        assert reply.status_code == 302
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
