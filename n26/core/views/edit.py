@@ -269,6 +269,25 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
     return added, taken, restored
 
 
+def _dismissal_holders(miniature, card):
+    """The card, as something whose dismissed offers may be shown and
+    restored — or nothing, for a dead model. A dead model's card draws
+    no Choose, so a dismissed offer kept on it to be restored would be a
+    line with nowhere to lead; the gang sheet draws the dead the same way.
+    """
+    from n26.core.status import Status
+
+    return () if miniature.status == Status.DEAD else (card,)
+
+
+def _dismissal_hidden(miniature, card):
+    """The complement of ``_dismissal_holders``: the card, when its
+    dismissed offers only go."""
+    from n26.core.status import Status
+
+    return (card,) if miniature.status == Status.DEAD else ()
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
@@ -312,10 +331,11 @@ def render_card_update(request, miniature, at):
     # address of this site's own, and the model's page otherwise.
     settle_dismissed(
         gang,
-        card,
+        *_dismissal_holders(miniature, card),
         at=_own_address(request, at)
         or reverse("n26-edit-fighter", args=[miniature.pk]),
         showing=showing_dismissed(at),
+        hide_only=_dismissal_hidden(miniature, card),
     )
     link_slots(gang, card, back=at)
     link_skills(card, among=model_collections())
@@ -693,7 +713,13 @@ def edit_fighter(request, pk):
     # address asks for them: then they stay, marked, each with a way
     # back. One query, before the addresses are filled in.
     here = request.get_full_path()
-    settle_dismissed(gang, card, at=here, showing=showing_dismissed(here))
+    settle_dismissed(
+        gang,
+        *_dismissal_holders(miniature, card),
+        at=here,
+        showing=showing_dismissed(here),
+        hide_only=_dismissal_hidden(miniature, card),
+    )
     link_slots(gang, card, back=here)
     link_skills(card, among=sets)
     # Only here. A counter is drawn wherever a card is; the model's own

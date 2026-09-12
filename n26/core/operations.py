@@ -2158,6 +2158,9 @@ class Operation:
                     kwargs |= {"stash": anchor.stash or anchor.stash_root}
                 else:
                     kwargs |= {"gang": anchor.gang or anchor.gang_root}
+        settled = offer or (matched[0] if len(matched) == 1 else None)
+        if settled is not None:
+            _clear_dismissal(anchor, settled, kwargs)
         return self.assign(
             chosen,
             caused_by=anchor,
@@ -2165,7 +2168,7 @@ class Operation:
             # kind, and nothing about the answer tells the two apart, so a
             # caller that knows says — and where the line asks once there
             # is only one question it can be.
-            chosen_for_offer=offer or (matched[0] if len(matched) == 1 else None),
+            chosen_for_offer=settled,
             paid=0,
             reason=Reason.GRANTED,
             **kwargs,
@@ -2270,6 +2273,7 @@ class Operation:
             kwargs["rating"] = (
                 0 if kwargs.get("gang") is not None else chosen.rating_contribution
             )
+        _clear_dismissal(anchor, slot, kwargs)
         return self.assign(
             chosen,
             caused_by=anchor,
@@ -2738,6 +2742,28 @@ def _sold_separately(line, entry, weapon):
             and part.thing.weapon_id == weapon.pk
         }
     return frozenset()
+
+
+def _clear_dismissal(anchor, identity, kwargs):
+    """Take off any dismissal of the slot a pick is landing on.
+
+    Whichever screen the pick came from — the pick screen, the skills
+    listing, a tick on the model's page — settling an offer is the owner
+    changing their mind about it, so the row that hid it goes here, on
+    the one path every route runs through. The slot is addressed as the
+    card that drew it addresses it: the model named to receive the pick
+    or bearing the carrier, and the gang's own word where there is none.
+    """
+    from n26.core.models import DismissedOffer
+    from n26.core.models.dismissed_offer import GANG_SLOT_HOST
+
+    bearer = kwargs.get("miniature") or anchor.miniature or anchor.member_or_none()
+    DismissedOffer.clear(
+        anchor.gang or anchor.gang_root,
+        host=str(bearer.pk) if bearer is not None else GANG_SLOT_HOST,
+        anchor=anchor,
+        identity=identity,
+    )
 
 
 def _hold(*gangs):

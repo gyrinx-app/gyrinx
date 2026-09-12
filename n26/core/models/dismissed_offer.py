@@ -27,6 +27,19 @@ from django.db import models
 
 from n26.core.models.abstract import Base
 
+#: What a gang's own choice slots are addressed under, where a model's are
+#: addressed under the model's id. A ULID is never this word, so the two
+#: kinds of host cannot collide in a slot key.
+GANG_SLOT_HOST = "gang"
+
+
+def slot_key(host, anchor_pk, identity_pk):
+    """One slot's address: the card it is drawn on (a model's id, or the
+    gang's own word), the assignment carrying the offer, and the offer or
+    slot itself. The one place the shape is written, so the renderer that
+    draws a slot and the operation that settles one cannot disagree."""
+    return f"{host}:{anchor_pk}:{identity_pk}"
+
 
 class DismissedOffer(Base):
     gang = models.ForeignKey(
@@ -36,13 +49,13 @@ class DismissedOffer(Base):
         max_length=200,
         help_text=(
             "The slot's address: the card it is drawn on, the assignment "
-            "carrying the offer, and the offer itself."
+            "carrying the choice, and the choice itself."
         ),
     )
 
     class Meta:
-        verbose_name = "dismissed offer"
-        verbose_name_plural = "dismissed offers"
+        verbose_name = "dismissed choice"
+        verbose_name_plural = "dismissed choices"
         constraints = [
             models.UniqueConstraint(
                 fields=["gang", "slot_key"], name="dismissed_offer_unique_per_gang"
@@ -51,6 +64,15 @@ class DismissedOffer(Base):
 
     def __str__(self):
         return f"{self.slot_key} ({self.gang})"
+
+    @classmethod
+    def clear(cls, gang, *, host, anchor, identity):
+        """Take off any dismissal of one slot, because a pick has landed
+        on it: the owner has changed their mind, and taking that pick back
+        later should leave the offer open rather than hide it again."""
+        cls.objects.filter(
+            gang=gang, slot_key=slot_key(host, anchor.pk, identity.pk)
+        ).delete()
 
     @classmethod
     def keys_for(cls, gang):
