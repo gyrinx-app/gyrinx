@@ -26,7 +26,7 @@ that said it twice would be spending the width the name needs.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='gangs' %}
+    {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
     {% if dialog %}
@@ -252,7 +252,7 @@ that said it twice would be spending the width the name needs.
         </c-slot>
         <c-slot name="members">
             {% for member in sheet.models %}
-                <c-n26.model-card :card="member" mode="{{ card_mode }}" notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" status_href="{% if may_mark %}{% if member.status == 'ransomed' %}?ransom={{ member.id }}{% else %}?status={{ member.id }}{% endif %}{% endif %}" :status_hx="True">
+                <c-n26.model-card :card="member" mode="{{ card_mode }}" notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" status_href="{% if may_mark %}{% if member.status == 'ransomed' %}?ransom={{ member.id }}{% else %}?status={{ member.id }}{% endif %}{% endif %}" :status_hx="True" owner_href="{% if member.owned_by_id %}#model-{{ member.owned_by_id }}{% endif %}">
                     {% if yours %}
                         <c-slot name="actions">
                             <c-ui.button size="xs" variant="ghost" href="{% url 'n26-equip' member.id %}">
@@ -281,7 +281,8 @@ that said it twice would be spending the width the name needs.
                                       notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
                                       lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
                                       status_href="{% if may_mark %}?status={{ member.id }}{% endif %}"
-                                      :status_hx="True">
+                                      :status_hx="True"
+                                      owner_href="{% if member.owned_by_id %}#model-{{ member.owned_by_id }}{% endif %}">
                         {% if yours %}
                             <c-slot name="actions">
                                 <c-ui.button size="xs"

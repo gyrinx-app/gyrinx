@@ -52,8 +52,10 @@ class DetailGroup:
 
 
 def _run(lines) -> str:
-    """A run of names, one standing for several written with its count."""
-    return ", ".join(line.name + line.count_mark for line in lines)
+    """A run of names: one that brought a pet written with the pet's
+    name, one standing for several written with its count — in that
+    order, as the screen card writes them."""
+    return ", ".join(line.name + line.brought_mark + line.count_mark for line in lines)
 
 
 def detail_groups(card) -> list[DetailGroup]:

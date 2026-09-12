@@ -67,7 +67,7 @@
                         </c-slot>
                         {% for line in stash %}
                             <tr>
-                                <td>{{ line.name }}{{ line.slot_mark }}{{ line.count_mark }}</td>
+                                <td>{{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}{{ line.count_mark }}</td>
                                 <td>{{ line.kind|capfirst }}</td>
                                 <td class="is-centered">{{ line.rating }}¢</td>
                             </tr>
@@ -83,9 +83,11 @@
             {% endcomment %}
             <c-n26.print.grid columns="2" gutter="4mm">
                 {% for row in rows %}
-                    <c-n26.print.card title="{{ row.card.name }}"
-                                      subtitle="{{ row.card.profile_name }}"
-                                      badge="{{ row.card.rating }}¢">
+                    {% comment %}
+                    A pet's card says whose it is under the profile name,
+                    in the words the screen card and the text card use.
+                    {% endcomment %}
+                    <c-n26.print.card title="{{ row.card.name }}" subtitle="{{ row.card.profile_name }}{% if row.card.owner_line %}{% if row.card.profile_name %} · {% endif %}{{ row.card.owner_line }}{% endif %}" badge="{{ row.card.rating }}¢">
                         {% if include_notes %}
                             {% comment %}
                             Notes, a box to write in, and the picture share
@@ -103,7 +105,8 @@
                                                 <div class="n26-print-notes-body">{{ row.card.notes|safe_rich_text }}</div>
                                             </div>
                                         {% endif %}
-                                        <c-n26.print.field height="10mm" label="{% if not row.card.notes %}Notes{% endif %}" />
+                                        <c-n26.print.field height="10mm"
+                                                           label="{% if not row.card.notes %}Notes{% endif %}" />
                                     </div>
                                     {% if row.card.image_url %}
                                         <div class="n26-print-photo">

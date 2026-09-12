@@ -1512,6 +1512,9 @@ def model_card():
             # the one shape where a line's count is drawn. The gallery
             # must hold a specimen or that arm is drawn nowhere.
             AssignableLine(name="Stimm-slug (25¢)", count=2),
+            # Kit that brought a pet onto the roster, named after the
+            # name: the pet's card is model_card_pet().
+            AssignableLine(name="Phyrr Cat (pet) (120¢)", brought_in="Fang"),
         ],
         # Gear whose category asks for a heading of its own. Bought and
         # priced like the rest, and held apart because it reads as what
@@ -1604,7 +1607,9 @@ def model_card():
                 ),
             ),
         ],
-        owned_by="tom",
+        # Hired in her own right: nothing brought her in, so the card says
+        # nothing about an owner. model_card_pet() is the card that does.
+        owned_by=None,
         # The running numbers, as every card but one draws them: settled
         # values with nothing to click. XP keeps no line here — it has a
         # cell in the statline with its target beside it, and the line
@@ -1954,6 +1959,11 @@ STASH = [
     # it, and two of one name can differ in all of those.
     StashLine(name="Mesh armour", rating=15, kind="wargear", count=2),
     StashLine(name="Photo-goggles", rating=35, kind="wargear"),
+    # Kit that brought a pet onto the roster: the pet is a model on the
+    # gang sheet, and its collar here names it.
+    StashLine(
+        name="Cyber-mastiff (pet)", rating=100, kind="wargear", brought_in="Rust"
+    ),
     # Nobody bought this one: a modifier put it there, and it carries the mark a
     # granted skill carries on a card.
     StashLine(
@@ -2147,6 +2157,34 @@ def model_card_in_recovery():
         status="recovery",
         status_label="In Recovery",
     )
+
+
+def model_card_pet():
+    """The sample card's pet: a model the kit on another card brought
+    in. It says whose it is under the profile name, and on a sheet the
+    owner's name is a link to the owner's card — the demo passes the
+    full card's anchor, which is on the same gallery page."""
+    return ModelCard(
+        id="fang",
+        name="Fang",
+        profile_name="Phyrr Cat",
+        rating=15,
+        profile_type="Fighter",
+        subtypes=_printed("Exotic Beast"),
+        statline=_fighter_statline(),
+        skills=_printed("Dodge"),
+        equipment=_printed("Spiked collar (15¢)"),
+        owned_by="Vesna Krail",
+        owned_by_id="vesna-krail",
+        xp=0,
+        xp_target=6,
+    )
+
+
+def model_card_in_the_stash():
+    """The same pet where its collar was bought into the stash: nobody
+    owns it, and the card says where the collar is."""
+    return replace(model_card_pet(), owned_by=None, owned_by_id="", in_stash=True)
 
 
 def model_card_dead():

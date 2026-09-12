@@ -24,7 +24,9 @@ def render_statline(statline, indent="  "):
 
 
 def render_model_card(card, indent=""):
-    owner = f"  (owned by {card.owned_by})" if card.owned_by else ""
+    # The same sentence the screen and the print card say — "Owned by
+    # Yolanda", or "In the stash" for a pet whose collar sits there.
+    owner = f"  ({card.owner_line})" if card.owner_line else ""
     lines = [
         f"{indent}{card.name} — {card.rating}cr{owner}",
         *(
@@ -97,11 +99,17 @@ def render_model_card(card, indent=""):
         if choice.is_resolved and not choice.is_full:
             chosen = f"{chosen} (add)"
         lines.append(f"{indent}  {choice.kind_label}: {chosen}")
+    # Kit that brought a pet names it after the name and before the
+    # count, as every other card writes it.
     if card.equipment:
-        names = ", ".join(line.name + line.count_mark for line in card.equipment)
+        names = ", ".join(
+            line.name + line.brought_mark + line.count_mark for line in card.equipment
+        )
         lines.append(f"{indent}  Equipment: {names}")
     for group in card.gear_groups:
-        names = ", ".join(line.name + line.count_mark for line in group.lines)
+        names = ", ".join(
+            line.name + line.brought_mark + line.count_mark for line in group.lines
+        )
         lines.append(f"{indent}  {group.name}: {names}")
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
@@ -157,7 +165,9 @@ def render_gang_sheet(sheet):
         for line in sheet.stash:
             # The rating is one item's, however many the line stands for.
             rating = f" — {line.rating}cr" if line.rating else ""
-            lines.append(f"  {line.name}{line.slot_mark}{line.count_mark}{rating}")
+            lines.append(
+                f"  {line.name}{line.slot_mark}{line.brought_mark}{line.count_mark}{rating}"
+            )
     for note in sheet.remarks:
         lines.append(f"({note.text})")
     lines.append("")

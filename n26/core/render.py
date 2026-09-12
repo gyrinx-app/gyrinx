@@ -126,6 +126,18 @@ class SlotMarked:
         return slot_mark(self.slots)
 
 
+#: The words a pet's card opens its owner line with, and what it says
+#: instead when the kit that brought it sits in the stash.
+OWNED_BY = "Owned by"
+IN_THE_STASH = "In the stash"
+
+
+def brought_mark(name):
+    """The pet's name in brackets after the kit that brought it —
+    " (Fang)" — or nothing where the kit brought no named model."""
+    return f" ({name})" if name else ""
+
+
 @dataclass(frozen=True)
 class AssignableLine(SlotMarked):
     """One assignable drawn on a card: its name, and where it came from.
@@ -147,6 +159,15 @@ class AssignableLine(SlotMarked):
     :func:`collapse`. Above one, a renderer writes the count after the
     name (``count_mark``), and the line names no assignment: a control
     acting on one of three could not say which.
+
+    ``brought_in`` is the name of the model this kit brought onto the
+    roster — a pet's, as its owner named it — written after the name
+    in brackets (``brought_mark``), so the line reads "Phyrr Cat
+    (Fang)". Empty for kit that brought nothing, for a pet its owner
+    has not named yet, and for one that has died: the line is what the
+    model carries, and a dead pet is not that any more. A renderer
+    writes the marks in one order everywhere: the name, the slot mark,
+    the pet, then the count.
     """
 
     name: str
@@ -166,11 +187,17 @@ class AssignableLine(SlotMarked):
     #: Weapon slots this takes on a card; 1 for everything that is not a
     #: weapon, which is what these lines are — see :class:`SlotMarked`.
     slots: int = 1
+    brought_in: str = ""
 
     @property
     def count_mark(self):
         """What follows the name when this stands for more than one."""
         return count_mark(self.count)
+
+    @property
+    def brought_mark(self):
+        """The pet's name in brackets, where this kit brought one."""
+        return brought_mark(self.brought_in)
 
 
 @dataclass
@@ -842,7 +869,15 @@ class ModelCard:
     #: never a gate. Not the player's own notes about the fighter, which
     #: are prose they write and this card does not carry.
     remarks: list = field(default_factory=list)
+    #: The name of the model whose purchase brought this one in — a
+    #: pet's owner — and that model's pk, for a sheet that can link the
+    #: two cards. None and empty for a model hired in its own right.
     owned_by: str | None = None
+    owned_by_id: str = ""
+    #: Whether the purchase that brought this model in sits in the
+    #: stash: a pet bought there has no owner, and the card says where
+    #: its collar is instead.
+    in_stash: bool = False
     xp: int = 0
     xp_target: int | None = None
     #: What this model has left of the Trade Points its books give it to
@@ -913,6 +948,23 @@ class ModelCard:
                 if profile.statline.cells:
                     return profile.statline.cells
         return []
+
+    @property
+    def owner_line(self):
+        """What the card says under the profile name about who holds the
+        kit that brought this model in: "Owned by Yolanda", "In the
+        stash", or nothing for a model hired in its own right.
+
+        One sentence for every renderer, so the sheet, the print and
+        the text card cannot say it three ways. A sheet that can link
+        the owner's card draws the name as the link and the rest as
+        words.
+        """
+        if self.owned_by:
+            return f"{OWNED_BY} {self.owned_by}"
+        if self.in_stash:
+            return IN_THE_STASH
+        return ""
 
     @property
     def type_line(self):
@@ -1006,11 +1058,20 @@ class StashLine(SlotMarked):
     #: weapon, 1 for anything else — so the stash marks a two-slot
     #: weapon the way a card does.
     slots: int = 1
+    #: The name of the model this kit brought onto the roster, as
+    #: ``AssignableLine.brought_in`` carries it: a pet bought into the
+    #: stash is on the roster, with its collar here.
+    brought_in: str = ""
 
     @property
     def count_mark(self):
         """What follows the name when this stands for more than one."""
         return count_mark(self.count)
+
+    @property
+    def brought_mark(self):
+        """The pet's name in brackets, where this kit brought one."""
+        return brought_mark(self.brought_in)
 
 
 @dataclass(frozen=True)
@@ -1904,11 +1965,14 @@ def identity(line):
     facts, and a line saying "from Mounted" of both would lie about the
     bought one; the rating because a stash line says what one of them
     is worth, and two bought at different prices are not worth one
-    figure. None for a line with no content key: it stands alone.
+    figure. The name of what the kit brought is in it too: two collars
+    each with a named pet on the roster are two lines, "Phyrr Cat
+    (Fang)" and "Phyrr Cat (Claw)", never "Phyrr Cat (x2)". None for a
+    line with no content key: it stands alone.
     """
     if not line.key:
         return None
-    return (line.key, line.provenance, line.rating)
+    return (line.key, line.provenance, line.rating, line.brought_in)
 
 
 def collapse(lines, key=identity):
@@ -1937,6 +2001,65 @@ def collapse(lines, key=identity):
     return kept
 
 
+def brought_in_by(members):
+    """What each purchase on the roster brought in, by the purchase.
+
+    A map from the pk of the assignment that caused a model's membership
+    — the collar — to the name of the model it brought, as its owner
+    named it; what a kit line writes after its name (``brought_mark``).
+    Built once from the roster, whose members arrive with the cause
+    already joined, so a whole gang's worth costs no query.
+
+    A pet its owner has not named yet is left out: its name is still its
+    profile's, and "Phyrr Cat (Phyrr Cat)" says nothing the bare line
+    does not. So is a dead one — the line is what the model carries,
+    and a dead pet is not that any more. Keyed by the pk written as a
+    string, and read the same way, so a node's key and a membership's
+    cause agree however either is typed.
+    """
+    brought = {}
+    for member in members:
+        membership = member.membership
+        if membership is None or membership.caused_by_id is None:
+            continue
+        if member.status == Status.DEAD:
+            continue
+        profile = membership.profile
+        if profile is not None and member.name == str(profile):
+            continue
+        brought[str(membership.caused_by_id)] = member.name
+    return brought
+
+
+def _brought_in_by_one(miniature):
+    """The same map, for the models one model's purchases brought in.
+
+    One query, for a card built on its own — the model's own page —
+    where no roster is to hand. Asked only of a card whose kit brings
+    something (``_brings``), so every other card costs nothing more.
+    """
+    from n26.core.models import Miniature
+
+    return brought_in_by(
+        Miniature.objects.filter(
+            membership__caused_by__miniature_root=miniature,
+            membership__archived=False,
+        ).select_related("membership__profile")
+    )
+
+
+def _brings(computed):
+    """The content keys of everything on this card that writes another
+    row on arrival — a pet wargear — or nothing where nothing does."""
+    if not computed:
+        return set()
+    return {
+        thing_key(step.source)
+        for step in computed.plan
+        if getattr(step.modifier.effect, "is_stored", False)
+    }
+
+
 def build_model_card(
     miniature,
     card=None,
@@ -1944,6 +2067,7 @@ def build_model_card(
     assignment_set=None,
     budget=None,
     collapse_repeats=True,
+    brought_in=None,
 ):
     """Everything needed to draw one model's card.
 
@@ -1961,17 +2085,32 @@ def build_model_card(
 
     ``collapse_repeats`` is passed through to ``card_to_model_card``: off
     for the model's own page, whose kit lines carry acts.
+
+    ``brought_in`` is :func:`brought_in_by`'s map, handed in by a caller
+    holding the roster so a sheet's cards pay nothing for it. Left out,
+    a card whose kit brings something looks its own up in one query,
+    and every other card looks up nothing.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
+    if brought_in is None and _brings(computed):
+        brought_in = _brought_in_by_one(miniature)
 
+    # A pet's owner is the model whose purchase caused its membership;
+    # a purchase made into the stash has no such model, and the card
+    # says where the collar is instead.
+    cause = miniature.membership.caused_by if miniature.membership else None
+    owner = cause.miniature_root if cause is not None else None
     return card_to_model_card(
         card,
         computed=computed,
         collapse_repeats=collapse_repeats,
+        brought_in=brought_in,
         name=miniature.name,
         id=str(miniature.pk),
-        owned_by=(miniature.owned_by.name if miniature.owned_by else None),
+        owned_by=owner.name if owner is not None else None,
+        owned_by_id=str(owner.pk) if owner is not None else "",
+        in_stash=cause is not None and cause.stash_root_id is not None,
         xp=miniature.xp,
         xp_target=miniature.xp_target,
         notes=miniature.notes,
@@ -1994,6 +2133,9 @@ def card_to_model_card(
     name,
     id="",
     owned_by=None,
+    owned_by_id="",
+    in_stash=False,
+    brought_in=None,
     xp=0,
     xp_target=None,
     stat_overrides=None,
@@ -2021,8 +2163,14 @@ def card_to_model_card(
     ``collapse_repeats`` draws identical gear, skills, rules and powers
     once with a count (:func:`collapse`). Off for the model's own page,
     where each kit line carries acts that name one assignment.
+
+    ``brought_in`` maps the pk of a purchase to the name of the model it
+    brought onto the roster (:func:`brought_in_by`); a kit line whose
+    assignment — or anything under it — is in the map carries that name.
+    None is a card with nothing to say about it, as a preview has.
     """
     primary = None
+    brought_in = brought_in or {}
     equipment, weapons = [], []
     #: Weapon lines by their node's key, so a question a weapon brought
     #: can be filed under it.
@@ -2070,15 +2218,7 @@ def card_to_model_card(
     # other model at arrival — is one line per piece, never stacked: the
     # thing it brought is on the roster under its own name, and a line
     # standing for two of them could not say which brought which.
-    brings = (
-        {
-            thing_key(step.source)
-            for step in computed.plan
-            if getattr(step.modifier.effect, "is_stored", False)
-        }
-        if computed
-        else set()
-    )
+    brings = _brings(computed)
 
     def key_of(node):
         # Everything under the line counts, not only the thing it names:
@@ -2087,6 +2227,21 @@ def card_to_model_card(
         if any(thing_key(each.assignable) in brings for each in node.walk()):
             return ""
         return thing_key(node.assignable)
+
+    def brought_in_of(node):
+        # The purchase the pet's membership names may be the line itself
+        # or a hidden part riding under it, so the whole of the line is
+        # asked — the same walk that keeps such a line from stacking.
+        if not brought_in:
+            return ""
+        return next(
+            (
+                brought_in[key]
+                for each in node.walk()
+                if (key := str(each.key)) in brought_in
+            ),
+            "",
+        )
 
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
@@ -2214,7 +2369,10 @@ def card_to_model_card(
             # row prints the same way: the name, the annotation after it.
             line_rows[thing.card_row].append(
                 AssignableLine(
-                    name=node.name, provenance=provenance_of(node), key=key_of(node)
+                    name=node.name,
+                    provenance=provenance_of(node),
+                    key=key_of(node),
+                    brought_in=brought_in_of(node),
                 )
             )
         elif isinstance(thing, Weapon):
@@ -2274,6 +2432,7 @@ def card_to_model_card(
                 rating=node.rating,
                 id=(str(node.assignment.pk) if node.assignment is not None else ""),
                 key=key_of(node),
+                brought_in=brought_in_of(node),
             )
             # A possession goes in Gear unless its category asks for a
             # heading of its own. The category is prefetched for the
@@ -2461,6 +2620,8 @@ def card_to_model_card(
             [*limit_notes(card, computed), *choice_notes(computed)] if computed else []
         ),
         owned_by=owned_by,
+        owned_by_id=owned_by_id,
+        in_stash=in_stash,
         # XP first, then the rest in the order the card holds them: it is
         # the one every model keeps and the one a reader looks for.
         counters=sorted(counters, key=lambda line: not line.is_xp),
@@ -2934,7 +3095,7 @@ def summarise_roster(members, recategorised=None):
     )
 
 
-def stash_lines(gang_card, collapse_repeats=True):
+def stash_lines(gang_card, collapse_repeats=True, brought_in=None):
     """The stash as drawable lines, from a gang card already built.
 
     Derived from the card rather than fetched, so a page that has one —
@@ -2943,6 +3104,10 @@ def stash_lines(gang_card, collapse_repeats=True):
     ``collapse_repeats`` draws identical lines once with a count
     (:func:`collapse`), each keeping the rating of one. Off for the
     owner's sheet, whose lines carry a menu naming one assignment.
+
+    ``brought_in`` is :func:`brought_in_by`'s map: a pet bought into the
+    stash is on the roster, and its collar's line here names it as the
+    owner's card would.
 
     A weapon stands alone however many are alike. What a weapon is
     includes the profiles bought onto it, the accessories bolted to it
@@ -2954,6 +3119,20 @@ def stash_lines(gang_card, collapse_repeats=True):
     from n26.library.models import WeaponAccessory
 
     stash_provenance = _provenance_within(gang_card)
+    brought_in = brought_in or {}
+
+    def brought_in_of(node):
+        # The whole of the line, as a card asks: the purchase a pet
+        # names may be a hidden part riding under the collar.
+        return next(
+            (
+                brought_in[key]
+                for each in node.walk()
+                if (key := str(each.key)) in brought_in
+            ),
+            "",
+        )
+
     lines = [
         StashLine(
             name=node.name,
@@ -2964,6 +3143,7 @@ def stash_lines(gang_card, collapse_repeats=True):
             is_accessory=isinstance(node.assignable, WeaponAccessory),
             paid_trade_points=node.paid_trade_points,
             slots=slots_of(node.assignable),
+            brought_in=brought_in_of(node),
             key=(
                 ""
                 if isinstance(node.assignable, Weapon)
@@ -3002,6 +3182,10 @@ def render_gang(
     models = roster(gang)
     gang_card = card or build_gang_card(gang)
     cards = gang_card.members
+    # What each purchase brought onto the roster, read off the roster
+    # already fetched: every card and the stash name their pets from
+    # this one map, and none of them asks the database.
+    brought = brought_in_by(models)
 
     computed = {}
     gang_computed = None
@@ -3073,7 +3257,9 @@ def render_gang(
         # brought has already been taken out, to be drawn under its name.
         counters=[reading for reading in readings if reading.thing.drawn],
         campaign=campaign,
-        stash=stash_lines(gang_card, collapse_repeats=collapse_repeats),
+        stash=stash_lines(
+            gang_card, collapse_repeats=collapse_repeats, brought_in=brought
+        ),
         stash_rating=gang_card.stash_rating,
         remarks=gang_computed.notes if gang_computed else [],
         notes=gang.notes,
@@ -3085,6 +3271,7 @@ def render_gang(
                 card=cards.get(model.pk),
                 computed=computed.get(model.pk),
                 budget=budgets.get(str(model.pk)),
+                brought_in=brought,
             )
             for model in models
             if model.status != Status.DEAD
@@ -3094,6 +3281,7 @@ def render_gang(
                 model,
                 card=cards.get(model.pk),
                 computed=computed.get(model.pk),
+                brought_in=brought,
             )
             for model in models
             if model.status == Status.DEAD
