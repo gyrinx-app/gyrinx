@@ -1,0 +1,28 @@
+{% comment %}
+<c-n26.arrival-block> — one screen an author attached to a slot that just
+arrived: its heading and words, the slot's questions beneath, and Skip where
+the author allowed it.
+    <c-n26.arrival-block :block="block">
+        …one <form> per question, each holding a <c-n26.arrival-question>…
+    </c-n26.arrival-block>
+Takes a n26.render.ArrivalBlock. The questions come through the slot rather
+than being drawn here, because each is a form of its own and the form needs
+the page's token. Skip is a link, not a button: it leads to the same screen
+with this block's questions dropped from the address, and nothing is written.
+  :block — a n26.render.ArrivalBlock.
+{% endcomment %}
+<c-vars :block="None" class="" />
+<section {{ attrs }} class="space-y-6 {{ class }}">
+    <div class="space-y-2">
+        <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">{{ block.heading }}</h2>
+        {% if block.description %}
+            <c-n26.prose :measure="False">{{ block.description|linebreaks }}</c-n26.prose>
+        {% endif %}
+    </div>
+    {{ slot }}
+    {% if block.skip_url %}
+        <c-n26.action-links>
+            <c-n26.action-link href="{{ block.skip_url }}" tone="muted">Skip</c-n26.action-link>
+        </c-n26.action-links>
+    {% endif %}
+</section>

@@ -1,0 +1,12 @@
+{# title: Already chosen #}
+{# note: A question that holds a pick says so and keeps its picker, so changing your mind is the same click. The line under the heading is what the page reads to offer Continue. #}
+{# layout: full #}
+<c-n26.arrival-block :block="arrival_screen.blocks.1">
+    <form method="post" action="#">
+        {% csrf_token %}
+        <input type="hidden"
+               name="ask"
+               value="{{ arrival_screen.blocks.1.questions.0.key }}">
+        <c-n26.arrival-question :question="arrival_screen.blocks.1.questions.0" />
+    </form>
+</c-n26.arrival-block>

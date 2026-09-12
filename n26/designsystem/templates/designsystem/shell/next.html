@@ -1,0 +1,34 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+The screen after an act, in the shell it will actually live in.
+
+The same blocks the real page draws (n26/next.html), from sample data: one
+question open and unskippable, one chosen, one skippable. What it is here to
+show is the three states side by side at phone width — Skip on one block and
+not another, Continue withheld with the line saying why — under the real nav
+and above the real footer. The forms post back to this page and write nothing.
+{% endcomment %}
+{% block head_title %}Choices for {{ gang_name }}{% endblock head_title %}
+{% block nav_switcher %}
+    <c-n26.quick-switcher.of :switcher="sample_switcher" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "designsystem/shell/_nav.html" with here="next" %}
+{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-10">
+        <c-n26.page-header title="Choices for {{ gang_name }}"
+                           lead="These choices came with what you just added. Make them here, or skip the ones that allow it and make them later on the gang sheet.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">Home</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_gang' %}">{{ gang_name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Choices
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        {% include "n26/includes/arrival_blocks.html" %}
+    </div>
+{% endblock content %}

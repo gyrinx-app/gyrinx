@@ -302,6 +302,33 @@ def shell_hire(request):
 
 
 @staff_member_required
+def shell_next(request):
+    """The screen after an act, in the shell.
+
+    Three blocks — one open and unskippable, one chosen, one skippable —
+    so Skip, the withheld Continue and a chosen question are all on one
+    page at phone width. The message is pushed because the real screen
+    is where an act's confirmation lands. A click posts nowhere: the
+    gallery writes nothing, so the page comes back to itself.
+    """
+    here = reverse("designsystem:shell_next")
+    if request.method == "POST":
+        return redirect(here)
+    messages.success(request, "Founded The Forgotten.")
+    return render(
+        request,
+        "designsystem/shell/next.html",
+        {
+            "banner": _SHELL_BANNER,
+            **sampledata.nav_context(),
+            "screen": sampledata.arrival_screen(),
+            "here": here,
+            "gang_name": "The Forgotten",
+        },
+    )
+
+
+@staff_member_required
 def shell_gang(request):
     """One gang's sheet, in the shell.
 

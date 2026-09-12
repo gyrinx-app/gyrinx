@@ -264,10 +264,10 @@ def sheet_slots(gang):
 
 def offer_for(slot_line):
     """The pick screen's structure for one drawn slot, without the view."""
-    from n26.core.views.choose import _find_slot
+    from n26.core.views.choose import find_slot
 
     gang = Assignment.objects.get(pk=slot_line.key.split(":")[1]).gang_root
-    found = _find_slot(gang, slot_line.key)
+    found = find_slot(gang, slot_line.key)
     return build_choice_offer(found.slot, found.computed)
 
 

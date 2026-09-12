@@ -658,3 +658,37 @@ class TestThePrintSheet:
         assert "Lasting Injuries" in page
         assert "Eye Injury, Out Cold" in page
         assert "(add)" not in page
+
+
+class TestTheArrivalBlockPage:
+    """The screen after an act, block by block, and the shell page that
+    draws the whole screen from sample data."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        body = reader.get("/n26/design/c/arrival-block/").content.decode()
+        assert "c-n26.arrival-block" in body
+        assert ":block" in body
+
+    def test_the_page_names_the_question_subcomponent(self, reader):
+        body = reader.get("/n26/design/c/arrival-block/").content.decode()
+        assert "c-n26.arrival-question" in body
+
+    def test_all_three_demos_render_rather_than_falling_back(self, reader):
+        body = reader.get("/n26/design/c/arrival-block/").content.decode()
+        assert "Choose an archetype" in body
+        assert "Chosen: Iron Law" in body
+        assert ">Skip<" in body
+        assert body.count(">Skip<") == 1
+        assert "could not be rendered" not in body.lower()
+
+    def test_the_shell_page_renders_on_an_empty_database(self, reader):
+        body = reader.get("/n26/design/shell/next/").content.decode()
+        assert "Choices for The Forgotten" in body
+        assert "Founded The Forgotten." in body
+        assert "Choose Archetype, Hunter&#x27;s path to continue." in body
+        assert "nterstitial" not in body
+
+    def test_the_shells_forms_post_nowhere(self, reader):
+        response = reader.post("/n26/design/shell/next/", {"ask": "gang:1:1"})
+        assert response.status_code == 302
+        assert response["Location"] == "/n26/design/shell/next/"
