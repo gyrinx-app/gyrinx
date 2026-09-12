@@ -25,6 +25,17 @@ TABS = [
     },
 ]
 
+#: Enough tabs for the narrow strip to fold: two are drawn whole, and only
+#: from three does the switcher appear.
+THREE = TABS + [
+    {
+        "label": "Dust Falls",
+        "title": "Dust Falls Trade Agreement Equipment List",
+        "href": "?list=3",
+        "current": False,
+    },
+]
+
 
 def render(source: str, **context) -> str:
     """Compile a call site the way the template loader would, then render it.
@@ -67,21 +78,33 @@ class TestTheStrip:
 
 
 class TestTheNarrowStrip:
-    """Below the sm breakpoint the strip never wraps: the current tab stands
-    alone, and the rest sit behind a switcher whose rows are the same real
-    links."""
+    """Below the sm breakpoint the strip never wraps: up to two tabs are
+    drawn whole, and from three the current tab stands alone with the rest
+    behind a switcher whose rows are the same real links."""
 
     def test_both_strips_are_in_the_html_for_css_to_pick_between(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
         assert "sm:flex" in html
         assert "sm:hidden" in html
 
-    def test_the_switcher_says_how_many_more_there_are(self):
+    def test_two_tabs_are_both_drawn_rather_than_one_and_a_menu(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
-        assert "+1 more" in html
+        # "+1 more" takes the room the other tab would, and says less: the
+        # narrow strip draws it, so the uncurrent tab is a link twice — once
+        # per strip — and there is no switcher to open.
+        assert "more" not in html
+        assert "data-quick-switcher" not in html
+        assert html.count('href="?list=2"') == 2
+
+    def test_the_switcher_says_how_many_more_there_are(self):
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=THREE)
+        # From three tabs the menu is worth opening: it never holds fewer
+        # than two.
+        assert "+2 more" in html
+        assert "data-quick-switcher" in html
 
     def test_the_other_tab_is_still_a_real_link_behind_the_switcher(self):
-        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=THREE)
         # The wide strip's copy, the switcher panel's, and the switcher's
         # noscript strip: three real <a>s to the uncurrent tab, so the
         # destination is reachable whichever strip shows and whether or not
@@ -90,8 +113,9 @@ class TestTheNarrowStrip:
 
     def test_a_shortened_tab_keeps_its_tooltip_behind_the_switcher(self):
         flipped = [
-            dict(TABS[0], current=False),
-            dict(TABS[1], current=True),
+            dict(THREE[0], current=False),
+            dict(THREE[1], current=True),
+            THREE[2],
         ]
         html = render(
             '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=flipped
@@ -104,6 +128,7 @@ class TestTheNarrowStrip:
         tabs = [
             {"label": "Kit & gear", "href": "?list=1&page=2", "current": False},
             {"label": "Trading Post", "href": "?list=2", "current": True},
+            {"label": "Dust Falls", "href": "?list=3", "current": False},
         ]
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=tabs)
         # Escaped exactly once: a value written into a component attribute is
