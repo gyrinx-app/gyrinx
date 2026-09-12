@@ -2036,7 +2036,7 @@ def _note_restrictions_the_sheet_no_longer_names(plan, found):
             where[entry_key],
             f"{entry} is offered to {said} only in the pack, which no line "
             f"of this upload names — nothing was retracted. Take it off on "
-            f"the collection page if the list no longer prints it",
+            f"the collection page if the sheet does not print it",
             severity="note",
         )
 

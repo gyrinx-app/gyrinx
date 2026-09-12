@@ -82,12 +82,12 @@ class Restrictions:
     def preview(self):
         if self.nothing_here:
             return [
-                "nothing to clear: no listed item carries a fighter-entry restriction"
+                "nothing to clear: no listed item carries a restriction to fighter entries"
             ]
         lines = [_line(item) for item in self.items]
         count = len(self.items)
         lines.append(
-            f"clear the fighter-entry restriction from {count} listed "
+            f"clear the restriction to fighter entries from {count} listed "
             f"item{'' if count == 1 else 's'}; every restriction to a type or a "
             "subtype, every unlisted item and every entry's own lists stay as "
             "they are"
@@ -234,7 +234,7 @@ def apply(found):
 
     count = len(found.items)
     report = [
-        f"Cleared the fighter-entry restriction from {count} listed "
+        f"Cleared the restriction to fighter entries from {count} listed "
         f"item{'' if count == 1 else 's'}."
     ]
     for item in found.items:

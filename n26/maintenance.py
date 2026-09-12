@@ -225,7 +225,7 @@ class Operation(models.TextChoices):
     )
     CLEAR_ITEM_RESTRICTIONS = (
         "n26_clear_item_restrictions",
-        "n26: the fighter-entry restrictions an upload wrote onto listed items are cleared",
+        "n26: the restrictions to fighter entries an upload wrote onto listed items are cleared",
     )
 
 
@@ -1989,7 +1989,7 @@ CLEAR_ITEM_RESTRICTIONS_WORDS = {
         "onto the item, and an item's restriction holds wherever the item is "
         "listed — so a bracket printed on one gang's list marked the item for "
         "every gang, and every upload wrote it again. The upload now writes "
-        "the column onto the collection entry. Only the item-level restriction "
+        "the column onto the collection entry. Only the item's own restriction "
         "to fighter entries is cleared: restrictions to types and subtypes, "
         "items no collection lists, and every entry's own restrictions stay as "
         "they are. Upload the equipment lists again afterwards to write each "
@@ -2000,7 +2000,7 @@ CLEAR_ITEM_RESTRICTIONS_WORDS = {
     "nothing_flash": "No listed item carries a restriction to fighter entries.",
     "nothing_words": "No listed item carries a restriction to fighter entries.",
     "refuses_heading": "The removal cannot run",
-    "button": "Clear the item-level restrictions",
+    "button": "Clear the restrictions from these items",
     "confirm": (
         "Clear the restriction to fighter entries from these items? Upload the "
         "equipment lists again afterwards to restore each list's own "

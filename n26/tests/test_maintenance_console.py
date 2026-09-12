@@ -1205,7 +1205,7 @@ class TestTheItemRestrictionClearing:
         run = Backfill.objects.get(operation=Operation.CLEAR_ITEM_RESTRICTIONS)
         assert run.status == Backfill.Status.DONE
         assert run.summary["report"][0] == (
-            "Cleared the fighter-entry restriction from 1 listed item."
+            "Cleared the restriction to fighter entries from 1 listed item."
         )
         assert any("Long las" in line for line in run.summary["report"])
         world = restricted_world
