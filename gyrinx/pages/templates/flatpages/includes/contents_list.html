@@ -1,0 +1,10 @@
+<ul class="flatpage-contents-list">
+    {% for heading in headings %}
+        <li>
+            <a href="#{{ heading.slug }}" class="linked">{{ heading.text }}</a>
+            {% if heading.children %}
+                {% include "flatpages/includes/contents_list.html" with headings=heading.children %}
+            {% endif %}
+        </li>
+    {% endfor %}
+</ul>

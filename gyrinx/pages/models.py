@@ -25,3 +25,27 @@ class FlatPageVisibility(Base):
     class Meta:
         verbose_name = "flat page visibility rule"
         verbose_name_plural = "flat page visibility rules"
+
+
+class FlatPageOptions(Base):
+    """
+    Per-page display options for a FlatPage.
+
+    A sidecar rather than a field on FlatPage, which is Django's own model:
+    the same pattern as FlatPageVisibility.
+    """
+
+    page = models.OneToOneField(
+        FlatPage, on_delete=models.CASCADE, related_name="options"
+    )
+    show_contents = models.BooleanField(
+        default=False,
+        verbose_name="Show contents",
+        help_text="Show a list of the page's headings above the content.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "flat page options"
+        verbose_name_plural = "flat page options"
