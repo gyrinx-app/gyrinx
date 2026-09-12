@@ -2558,10 +2558,12 @@ class _Performer:
 
     #: Nothing in a plan ever points at a row of these kinds, so a row
     #: already in the pack needs no looking up: there is no later line
-    #: waiting to be told where it landed. A collection entry is not
-    #: among them: a restriction names the entry it narrows, and is
-    #: written after the entry has been found.
-    UNREFERENCED = {"Restriction", "Modifier"}
+    #: waiting to be told where it landed. A collection entry counts,
+    #: though a restriction names the entry it narrows: ``resolve``
+    #: looks a key up on demand, so the entry is found when a
+    #: restriction is written onto it and not before — an upload of
+    #: lists that gained none reads no entry at all.
+    UNREFERENCED = {"CollectionEntry", "Restriction", "Modifier"}
 
     def perform_one(self, planned):
         if planned.action in ("unchanged", "resolved"):

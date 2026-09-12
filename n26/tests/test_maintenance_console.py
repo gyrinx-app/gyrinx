@@ -1316,6 +1316,32 @@ class TestTheItemRestrictionClearing:
         assert not Backfill.objects.exists()
         assert restricted_world["long_las"].usable_by_words() != ""
 
+    def test_two_lists_printing_one_name_are_told_apart(
+        self, restricted_world, other_pack
+    ):
+        """A collection is unique by pack, name and qualifier together,
+        so the plan names each list the way an author would tell them
+        apart — the name alone would fold three lists into one."""
+        from n26.library.authoring import create_collection
+        from n26.library.item_restrictions import find
+
+        long_las = restricted_world["long_las"]
+        create_collection(
+            "Van Saar Equipment List", qualifier="Outcasts", entries=[long_las]
+        )
+        create_collection(
+            "Van Saar Equipment List", entries=[long_las], pack=other_pack
+        )
+
+        (item,) = find().items
+
+        assert item.lists == (
+            "Trading Post",
+            "Van Saar Equipment List",
+            "Van Saar Equipment List [Other]",
+            "Van Saar Equipment List — Outcasts",
+        )
+
     def test_reading_the_plan_takes_no_more_queries_as_the_items_grow(
         self, restricted_world, make_profile
     ):
@@ -1430,6 +1456,59 @@ class TestTheItemRestrictionClearing:
             apply(approved)
 
         assert restricted_world["long_las"].usable_by_words() == "Van Saar Leader"
+
+    def test_a_redelivery_after_the_clearing_committed_ends_done_not_failed(
+        self, restricted_world, superuser
+    ):
+        """The clearing commits, then the record is written. A worker
+        cut off between the two leaves the record running, and the
+        queue delivers the task again to a world where the approved
+        items already carry nothing: that is the plan carried out, and
+        the record ends done rather than failed."""
+        from n26.library.item_restrictions import apply, find
+
+        found = find()
+        record = Backfill.objects.create(
+            operation=Operation.CLEAR_ITEM_RESTRICTIONS,
+            triggered_by=superuser,
+            status=Backfill.Status.RUNNING,
+            summary={
+                "preview": list(found.preview()),
+                "attempts": 1,
+                **found.recorded(),
+            },
+        )
+        apply(found.recorded()["plan"])
+
+        maintenance.clear_item_restrictions.call(backfill_id=str(record.id))
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["report"][0].startswith(
+            "Nothing left to clear: none of the 1 listed item the preview named"
+        )
+        assert restricted_world["long_las"].usable_by_words() == ""
+        assert restricted_world["lasgun"].usable_by_words() == "Van Saar Leader"
+
+    def test_a_plan_only_partly_carried_out_is_still_a_changed_plan(
+        self, restricted_world
+    ):
+        """Already cleared means every approved item carries nothing.
+        One of two cleared by hand is a plan that changed, and the run
+        refuses rather than clearing the other on a preview nobody saw
+        in this state."""
+        from n26.library.authoring import restrict_use
+        from n26.library.item_restrictions import Refused, apply, find
+
+        restrict_use(restricted_world["armour"], restricted_world["leader"])
+        approved = find().recorded()["plan"]
+        assert len(approved) == 2
+        restricted_world["long_las"].usable_by_profiles.clear()
+
+        with pytest.raises(Refused, match="changed since the preview was read"):
+            apply(approved)
+
+        assert restricted_world["armour"].usable_by_words() != "Champion"
 
     def test_a_record_without_a_plan_is_refused(self, restricted_world):
         from n26.library.item_restrictions import Refused, apply

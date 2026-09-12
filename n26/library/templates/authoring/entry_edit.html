@@ -16,7 +16,6 @@ change who the line is offered to, and it is changed on the item's page.
     <c-n26.form-page action="{% url 'authoring-entry-edit' thing.pk %}"
                      title="{{ label }} in {{ collection }}"
                      lead="This list's own price for {{ label }}, and who this list offers it to. Leave an override blank to offer it at its reference price, and the narrowing blank to offer it to everyone."
-                     :form="form"
                      submit_label="Save changes"
                      submit_variant="primary"
                      cancel_url="{{ back }}">

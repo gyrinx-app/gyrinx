@@ -34,7 +34,10 @@ What it leaves alone, and why:
 It is one transaction, and it strips exactly what the preview showed.
 The plan is written onto the record when the run is asked for; the run
 locks the items it names, reads them again, and refuses if what stands
-differs from what was approved.
+differs from what was approved. One difference is not a refusal: every
+approved item carrying nothing at all is the plan carried out — the
+clearing committed but its ending was never written, or an author took
+the same links off by hand — and that run ends done, writing nothing.
 """
 
 from dataclasses import dataclass
@@ -152,18 +155,39 @@ def _restricted_and_listed(column, model):
     )
 
 
+def _pack_words(slug, name):
+    """The pack's name where it is not the default pack, else empty."""
+    return "" if slug is None or slug == settings.DEFAULT_CONTENT_PACK_SLUG else name
+
+
+def _collection_words(name, qualifier, pack_slug, pack_name):
+    """How a collection reads in the plan. A collection is unique by
+    pack, name and qualifier together, so two lists printing one name
+    are told apart the way the authoring pages tell them apart: by the
+    qualifier, and by the pack where it is not the default."""
+    said = f"{name} — {qualifier}" if qualifier else name
+    pack = _pack_words(pack_slug, pack_name)
+    return f"{said} [{pack}]" if pack else said
+
+
 def _lists_naming(column, rows):
     """The collections listing each of these rows, one query for the
-    kind: ``{pk: (collection name, ...)}``."""
+    kind: ``{pk: (collection words, ...)}``."""
     from n26.library.models import CollectionEntry
 
     naming = {}
-    for pk, name in (
+    for pk, *collection in (
         CollectionEntry.objects.filter(**{f"{column}__in": rows})
-        .values_list(column, "collection__name")
+        .values_list(
+            column,
+            "collection__name",
+            "collection__qualifier",
+            "collection__pack__slug",
+            "collection__pack__name",
+        )
         .distinct()
     ):
-        naming.setdefault(str(pk), set()).add(name)
+        naming.setdefault(str(pk), set()).add(_collection_words(*collection))
     return {pk: tuple(sorted(names)) for pk, names in naming.items()}
 
 
@@ -186,12 +210,7 @@ def find():
                     model=model._meta.label_lower,
                     pk=str(row.pk),
                     label=_label(row),
-                    pack=(
-                        ""
-                        if pack is None
-                        or pack.slug == settings.DEFAULT_CONTENT_PACK_SLUG
-                        else pack.name
-                    ),
+                    pack="" if pack is None else _pack_words(pack.slug, pack.name),
                     profile_ids=tuple(str(profile.pk) for profile in profiles),
                     profiles=tuple(str(profile) for profile in profiles),
                     lists=lists.get(str(row.pk), ()),
@@ -207,6 +226,14 @@ def _approved_identities(approved):
     }
 
 
+def _by_model(approved):
+    """The approved plan's item ids, grouped by model label."""
+    by_model = {}
+    for item in approved:
+        by_model.setdefault(item["model"], []).append(item["pk"])
+    return by_model
+
+
 def _lock(approved):
     """Every item the approved plan names, locked for the rest of the
     transaction.
@@ -217,9 +244,7 @@ def _lock(approved):
     """
     from django.apps import apps
 
-    by_model = {}
-    for item in approved:
-        by_model.setdefault(item["model"], []).append(item["pk"])
+    by_model = _by_model(approved)
     locked = {}
     for label in sorted(by_model):
         model = apps.get_model(label)
@@ -231,6 +256,37 @@ def _lock(approved):
         for row in rows:
             locked[(label, str(row.pk))] = row
     return locked
+
+
+def _any_still_restricted(approved):
+    """Whether any item the plan names still carries a restriction to
+    fighter entries — one query per kind, asked after the rows are
+    locked so the answer holds for the rest of the transaction."""
+    from django.apps import apps
+
+    return any(
+        apps.get_model(label)
+        .objects.filter(pk__in=pks, usable_by_profiles__isnull=False)
+        .exists()
+        for label, pks in _by_model(approved).items()
+    )
+
+
+UPLOAD_AGAIN = (
+    "Upload the equipment lists again to write each list's own "
+    "restrictions onto its entries."
+)
+
+
+def _nothing_left(approved):
+    count = len(approved)
+    return [
+        f"Nothing left to clear: none of the {count} listed "
+        f"item{'' if count == 1 else 's'} the preview named carries a "
+        "restriction to fighter entries now, so they were cleared already. "
+        "Nothing was written.",
+        UPLOAD_AGAIN,
+    ]
 
 
 def apply(approved):
@@ -255,6 +311,12 @@ def apply(approved):
     planned = _approved_identities(approved)
     with transaction.atomic():
         locked = _lock(approved)
+        # The clearing commits, then the record is written. A worker cut
+        # off between the two leaves the record running, and the queue
+        # delivers the task again to a world where the approved items
+        # carry nothing — the plan carried out, not the plan changed.
+        if len(locked) == len(planned) and not _any_still_restricted(approved):
+            return _nothing_left(approved)
         standing = find()
         if planned != {item.identity for item in standing.items} or len(locked) != len(
             planned
@@ -281,8 +343,5 @@ def apply(approved):
             f"cleared {item.label}{where}: was usable by "
             f"{', '.join(item.profiles)} only"
         )
-    report.append(
-        "Upload the equipment lists again to write each list's own "
-        "restrictions onto its entries."
-    )
+    report.append(UPLOAD_AGAIN)
     return report

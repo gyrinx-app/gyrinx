@@ -4794,9 +4794,12 @@ def entry_edit(request, pk):
 
     item = entry.assignable
     item_restriction = None
-    if isinstance(item, UsableBy) and item.usable_by_words():
+    # Read once: the words are three lists, and nothing here has
+    # prefetched them.
+    words = item.usable_by_words() if isinstance(item, UsableBy) else ""
+    if words:
         item_restriction = {
-            "words": item.usable_by_words(),
+            "words": words,
             "url": _named_row(item, type(item), _kind_slugs())["url"],
         }
 

@@ -484,9 +484,35 @@ class TestAnEntryIsEditedOnItsOwnPage:
         )
 
         assert refused.status_code == 200
-        assert "cannot be below zero" in refused.content.decode()
+        assert refused.content.decode().count("cannot be below zero") == 1
         entry.refresh_from_db()
         assert entry.price_override is None
+
+    def test_a_refusal_about_the_whole_submission_is_printed_once(
+        self, author, saw, goliath_list, monkeypatch
+    ):
+        """The form include prints a refusal that is about no one box,
+        so the page wrapper must not print it too. No box on this form
+        can provoke one today, so the row's own sense check is made to
+        refuse."""
+        from django.core.exceptions import ValidationError
+
+        from n26.library.models import CollectionEntry
+
+        def refuse(self):
+            raise ValidationError("This line cannot be offered like that.")
+
+        monkeypatch.setattr(CollectionEntry, "clean", refuse)
+        entry = self.entry_of(goliath_list)
+
+        refused = author.post(
+            f"/n26/authoring/entries/{entry.pk}/edit/",
+            {"edit-price_override": "75"},
+        )
+
+        assert refused.status_code == 200
+        body = refused.content.decode()
+        assert body.count("This line cannot be offered like that.") == 1
 
     def test_the_page_says_when_the_item_itself_is_restricted(
         self, author, saw, ranks, goliath_list

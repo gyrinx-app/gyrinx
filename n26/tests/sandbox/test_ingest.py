@@ -991,6 +991,30 @@ class TestIdempotency:
         assert Trait.objects.count() == traits
         assert Profile.objects.count() == profiles
 
+    def test_a_second_upload_reads_no_entry_it_leaves_unchanged(
+        self, foundation, sheets
+    ):
+        """An unchanged listing line has nothing waiting to be told
+        where it landed: a restriction looks its entry up when it is
+        written, so an upload of lists that gained none reads no entry
+        at all — the lists are the long sheets, and a query per line
+        is what made a re-upload slow."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        perform(plan_ingest(pack=None, **sheets))
+        again = plan_ingest(pack=None, **sheets)
+        unchanged = [
+            p for p in again.planned if p.kind == "CollectionEntry" and p.existing
+        ]
+        assert len(unchanged) > 1
+
+        with CaptureQueriesContext(connection) as captured:
+            perform(again)
+
+        table = CollectionEntry._meta.db_table
+        assert [q["sql"] for q in captured if table in q["sql"]] == []
+
     def test_replanning_finds_back_exactly_the_rows_the_import_made(
         self, foundation, sheets
     ):
