@@ -59,6 +59,14 @@ def test_heading_anchor_has_no_hover_underline_class():
     assert 'class="link-underline link-underline-opacity-0 text-reset"' in html
 
 
+def test_heading_link_icon_is_hidden_from_assistive_tech():
+    html = add_heading_links("<h2>Intro</h2>")
+
+    assert (
+        '<i aria-hidden="true" class="bi-link-45deg ms-2 text-body-secondary">' in html
+    )
+
+
 def test_nest_headings_nests_by_level():
     parsed = parse_headings(
         "<h2>A</h2><h3>A1</h3><h4>A1a</h4><h3>A2</h3><h2>B</h2><h4>B-deep</h4>"

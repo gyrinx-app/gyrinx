@@ -808,6 +808,14 @@ $width-em-sizes: (
 // which is 13.5:1 light and 6.7:1 dark. Set the gold as a custom property on
 // the two theme roots rather than a bare :root — see the note on
 // --bs-secondary-color above.
+//
+// The light branch also covers data-bs-theme="auto", which is what the page
+// carries until core/js/index.js resolves it to light or dark (and for good if
+// JavaScript never runs). That is correct, not an oversight: Bootstrap is
+// built with $color-mode-type: data, and nothing in this stylesheet reads
+// prefers-color-scheme, so an "auto" page is the light theme on a white body
+// whatever the OS prefers. Do not add a prefers-color-scheme override here —
+// it would put the dark gold on a white page (1.9:1).
 :root:not([data-bs-theme="dark"]),
 [data-bs-theme="light"] {
     --gy-flatpage-h2-color: #8a6000;

@@ -348,8 +348,13 @@ def parse_headings(html):
             href=f"#{slug}",
             attrs={"class": "link-underline link-underline-opacity-0 text-reset"},
         )
+        # Decorative: the anchor's accessible name is the heading text.
         icon = soup.new_tag(
-            "i", attrs={"class": "bi-link-45deg ms-2 text-body-secondary"}
+            "i",
+            attrs={
+                "class": "bi-link-45deg ms-2 text-body-secondary",
+                "aria-hidden": "true",
+            },
         )
         heading.wrap(anchor)
         heading.append(icon)

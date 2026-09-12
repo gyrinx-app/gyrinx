@@ -83,7 +83,7 @@ Help pages are long prose, so inside `.flatpage-content` heading levels differ b
 
 All pass WCAG AA (4.5:1) for normal text in both themes. `$yellow` itself is 2.2:1 on white and is also the injured-state colour, so the gold is a separate per-theme custom property, never `$warning`. Heading anchors (`add_heading_links`) never underline; the link icon on hover is the affordance.
 
-A page's options in the admin can tick **Show contents** to render a nested list of its headings (`{% page_contents %}`) above the content. Heading ids are slugs of their text, de-duplicated with `-2`, `-3`… so the contents links always resolve.
+An admin can tick **Show contents** on a page's options (the "Flat page options" inline on the flat page admin) to render a nested list of its headings above the content: `{% page_contents flatpage %}` in `flatpages/default.html`. Heading ids are slugs of their text, de-duplicated with `-2`, `-3`… so the contents links always resolve.
 
 ### Caps label
 
