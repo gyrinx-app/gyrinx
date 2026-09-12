@@ -39,7 +39,7 @@ a drawer with nothing marked reads as a page that belongs nowhere. Pages
 with their own item override this block with their `here`.
 {% endcomment %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='library' %}
+    {% include "n26/_nav.html" with here="library" %}
 {% endblock nav_items %}
 {% block extra_script %}
     <script>

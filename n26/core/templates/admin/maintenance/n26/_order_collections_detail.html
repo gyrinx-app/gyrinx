@@ -1,0 +1,25 @@
+{% comment %}
+    The summary of one collection ordering run, on the Backfill detail
+    page: the positions it planned to set, and — once it has finished —
+    the ones it set. One transaction: a run still working has written
+    nothing yet, and a run that fails leaves every position as it was.
+{% endcomment %}
+{% if backfill.summary.report %}
+    <h2>What it did</h2>
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% elif backfill.summary.preview %}
+    <h2>What it is doing</h2>
+    <p>
+        These are the positions it planned to set. The run is one transaction,
+        so a run still working has written nothing yet, and a run that fails or
+        is interrupted leaves every position as it was.
+    </p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}

@@ -357,7 +357,13 @@ urlpatterns = [
         name="authoring-option-set-remove",
     ),
     # A listing row belongs to its collection the way an option belongs
-    # to the thing offering it, so withdrawing one has an address here.
+    # to the thing offering it, so correcting or withdrawing one has an
+    # address here.
+    path(
+        "authoring/entries/<str:pk>/edit/",
+        authoring_views.entry_edit,
+        name="authoring-entry-edit",
+    ),
     path(
         "authoring/entries/<str:pk>/remove/",
         authoring_views.entry_remove,

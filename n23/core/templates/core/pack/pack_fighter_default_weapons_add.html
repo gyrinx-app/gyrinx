@@ -87,7 +87,8 @@
                                                            id="profile-{{ profile.id }}"
                                                            form="weapon-{{ weapon.equipment.id }}"
                                                            class="form-check-input">
-                                                    <label class="form-check-label" for="profile-{{ profile.id }}">{{ profile.name }}</label>
+                                                    <label class="form-check-label"
+                                                           for="profile-{{ profile.id }}">{{ profile.name }}</label>
                                                 </div>
                                             </td>
                                             {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}

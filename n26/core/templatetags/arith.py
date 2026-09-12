@@ -31,3 +31,17 @@ def at_least(value, minimum):
         return max(int(value), int(minimum))
     except TypeError, ValueError:
         return minimum
+
+
+@register.filter
+def at_most(value, maximum):
+    """Cap a number — ``{{ quoted|at_most:0 }}`` is the least a price box
+    may hold, which is the quote where the quote is below zero.
+
+    Coerces first, because a value reaches a template as a string as
+    often as a number, and a comparison between the two is not an answer.
+    """
+    try:
+        return min(int(value), int(maximum))
+    except TypeError, ValueError:
+        return maximum

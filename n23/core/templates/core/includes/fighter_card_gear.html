@@ -42,7 +42,8 @@
                                 {% for assign in line.assignments %}
                                     <tr class="fs-7">
                                         {% if forloop.first %}
-                                            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                                            <th scope="row"
+                                                colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                         {% else %}
                                             <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}"></th>
                                         {% endif %}
@@ -59,9 +60,9 @@
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                             {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print and not compact %}
-                                                {% if assign.kind == 'assigned' and not assign.is_linked %}
+                                                {% if assign.kind == "assigned" and not assign.is_linked %}
                                                     {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
-                                                {% elif assign.kind == 'default' %}
+                                                {% elif assign.kind == "default" %}
                                                     {% include "core/includes/fighter_card_gear_default_menu.html" %}
                                                 {% endif %}
                                             {% endif %}
@@ -70,7 +71,8 @@
                                 {% empty %}
                                     {% if list.owner_cached == user and not print and not compact %}
                                         <tr class="fs-7">
-                                            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                                            <th scope="row"
+                                                colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add</a>
@@ -86,7 +88,8 @@
                             <!-- House Additional Gearline -->
                             {% for line in fighter.house_additional_gearline_display %}
                                 <tr class="fs-7">
-                                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                                    <th scope="row"
+                                        colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                         {% for assign in line.assignments %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -125,7 +128,8 @@
                                 {% for assign in line.assignments %}
                                     <tr class="fs-7">
                                         {% if forloop.first %}
-                                            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                                            <th scope="row"
+                                                colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                         {% else %}
                                             <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}"></th>
                                         {% endif %}
@@ -142,9 +146,9 @@
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                             {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print and not compact %}
-                                                {% if assign.kind == 'assigned' and not assign.is_linked %}
+                                                {% if assign.kind == "assigned" and not assign.is_linked %}
                                                     {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
-                                                {% elif assign.kind == 'default' %}
+                                                {% elif assign.kind == "default" %}
                                                     {% include "core/includes/fighter_card_gear_default_menu.html" %}
                                                 {% endif %}
                                             {% endif %}
@@ -153,7 +157,8 @@
                                 {% empty %}
                                     {% if list.owner_cached == user and not print and not compact %}
                                         <tr class="fs-7">
-                                            <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                                            <th scope="row"
+                                                colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                             <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                                 {% if gear_mode_default == "link" %}
                                                     <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}?flash=search&filter={{ line.filter }}&cat={{ line.id }}#search">Add</a>
@@ -169,7 +174,8 @@
                             <!-- Category Restricted Gearline -->
                             {% for line in fighter.category_restricted_gearline_display %}
                                 <tr class="fs-7">
-                                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
+                                    <th scope="row"
+                                        colspan="{% widthratio 33 100 fighter.statline|length %}">{{ line.category }}</th>
                                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                                         {% for assign in line.assignments %}
                                             {% comment %} All this faff to avoid spaces {% endcomment %}
@@ -231,9 +237,9 @@
                                     {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                     {% include "core/debug/assignment_debug_inline.html" %}
                                     {% if list.owner_cached == user and not print and not compact %}
-                                        {% if assign.kind == 'assigned' and not assign.is_linked %}
+                                        {% if assign.kind == "assigned" and not assign.is_linked %}
                                             {% include "core/includes/fighter_card_gear_menu.html" with assign=assign %}
-                                        {% elif assign.kind == 'default' %}
+                                        {% elif assign.kind == "default" %}
                                             {% include "core/includes/fighter_card_gear_default_menu.html" %}
                                         {% endif %}
                                     {% endif %}

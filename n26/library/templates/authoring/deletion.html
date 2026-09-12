@@ -10,7 +10,9 @@ script is needed, and a reader who leaves and comes back sees the same.
 {% endblock head_title %}
 {% block extra_head %}
     {% if running %}
+        {# djlint:off H052 — this page reloads itself while the deletion is still running #}
         <meta http-equiv="refresh" content="3">
+        {# djlint:on #}
     {% endif %}
 {% endblock extra_head %}
 {% block content %}

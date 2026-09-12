@@ -76,7 +76,9 @@
                 {% for c in moves %}
                     <tr>
                         <td>
-                            <a href="{% url 'core:list' c.list_id %}" target="_blank" rel="noopener">{{ c.list_name }}</a>
+                            <a href="{% url 'core:list' c.list_id %}"
+                               target="_blank"
+                               rel="noopener">{{ c.list_name }}</a>
                         </td>
                         <td>{{ c.equipment_name }}</td>
                         <td>{{ c.category_name }}</td>
@@ -122,7 +124,9 @@
                                 <code>{{ c.decision }}</code>
                             </td>
                             <td>
-                                <a href="{% url 'core:list' c.list_id %}" target="_blank" rel="noopener">{{ c.list_name }}</a>
+                                <a href="{% url 'core:list' c.list_id %}"
+                                   target="_blank"
+                                   rel="noopener">{{ c.list_name }}</a>
                             </td>
                             <td>{{ c.equipment_name }}</td>
                             <td>{{ c.detail }}</td>

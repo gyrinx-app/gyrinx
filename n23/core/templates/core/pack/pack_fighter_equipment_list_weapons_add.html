@@ -102,7 +102,8 @@
                                                            data-weapon-parent="{{ weapon.equipment.id }}">
                                                 </td>
                                                 <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
-                                                    <label class="form-check-label" for="weapon-{{ weapon.equipment.id }}">{{ weapon.equipment.name }}</label>
+                                                    <label class="form-check-label"
+                                                           for="weapon-{{ weapon.equipment.id }}">{{ weapon.equipment.name }}</label>
                                                 </td>
                                             {% elif profile.name %}
                                                 <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}"></td>
@@ -139,7 +140,8 @@
                                                            id="profile-{{ profile.id }}"
                                                            disabled
                                                            data-weapon-child="{{ weapon.equipment.id }}">
-                                                    <label class="form-check-label" for="profile-{{ profile.id }}">{{ profile.name }}</label>
+                                                    <label class="form-check-label"
+                                                           for="profile-{{ profile.id }}">{{ profile.name }}</label>
                                                 </div>
                                             </td>
                                             {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}

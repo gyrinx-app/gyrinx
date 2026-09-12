@@ -213,7 +213,9 @@ thing twice, a line apart.
                                             <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
                                             <td class="whitespace-nowrap text-right">
                                                 {% if part.add_profile_url %}
-                                                    <c-ui.button href="{{ part.add_profile_url }}" size="sm" variant="ghost">
+                                                    <c-ui.button href="{{ part.add_profile_url }}"
+                                                                 size="sm"
+                                                                 variant="ghost">
                                                         Add profile
                                                     </c-ui.button>
                                                 {% endif %}
@@ -411,7 +413,9 @@ thing twice, a line apart.
                             worth scrolling.
                                     {% endcomment %}
                                     <c-n26.filter-select placeholder="Type to filter modifiers">
-                                        <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
+                                        <c-ui.select.native name="modifier"
+                                                            id="attach-modifier"
+                                                            placeholder="Pick a modifier">
                                             {% for mod in attachable_modifiers %}
                                                 <c-ui.select.option value="{{ mod.pk }}">
                                                     {{ mod.label }}

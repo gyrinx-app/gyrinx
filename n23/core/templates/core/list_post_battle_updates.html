@@ -70,7 +70,10 @@
                                     <div class="vstack gap-1" data-pb-repeat>
                                         {{ form.assets_captured }}
                                         <div>
-                                            <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another</a>
+                                            <a href="#"
+                                               class="fs-7 icon-link linked"
+                                               data-pb-repeat-add
+                                               hidden><i class="bi-plus-lg"></i> Add another</a>
                                         </div>
                                     </div>
                                     {% for error in form.assets_captured.errors %}
@@ -181,11 +184,15 @@
                                         {% endfor %}
                                         {% if row.injury %}
                                             <div class="col-12 col-md">
-                                                <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injuries</label>
+                                                <label class="form-label fs-7 mb-1"
+                                                       for="{{ row.injury.id_for_label }}">Injuries</label>
                                                 <div class="vstack gap-1" data-pb-repeat>
                                                     {{ row.injury }}
                                                     <div>
-                                                        <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another injury</a>
+                                                        <a href="#"
+                                                           class="fs-7 icon-link linked"
+                                                           data-pb-repeat-add
+                                                           hidden><i class="bi-plus-lg"></i> Add another injury</a>
                                                     </div>
                                                 </div>
                                                 {% for error in row.injury.errors %}
@@ -207,7 +214,8 @@
                                         {% endif %}
                                         {% if row.captured_by %}
                                             <div class="col-12 col-md-3">
-                                                <label class="form-label fs-7 mb-1" for="{{ row.captured_by.id_for_label }}">Captured by</label>
+                                                <label class="form-label fs-7 mb-1"
+                                                       for="{{ row.captured_by.id_for_label }}">Captured by</label>
                                                 {{ row.captured_by }}
                                                 {% for error in row.captured_by.errors %}
                                                     <div class="text-danger fs-7">{{ error }}</div>
