@@ -1946,10 +1946,13 @@ def _reading(name, value):
 STASH = [
     StashLine(name="Lasgun", rating=15, kind="weapon"),
     StashLine(name="Shotgun", rating=30, kind="weapon"),
-    # Two stub guns, drawn once with the count after the name and the
-    # rating of one beside it — what the equip listing's held rows say.
-    StashLine(name="Stub gun", rating=5, kind="weapon", count=2),
-    StashLine(name="Mesh armour", rating=15, kind="wargear"),
+    StashLine(name="Stub gun", rating=5, kind="weapon"),
+    # Two suits of mesh armour, drawn once with the count after the name
+    # and the rating of one beside it — what the equip listing's held
+    # rows say. Wargear only: a weapon in the stash is never stacked,
+    # since what it is includes the profiles, accessories and choices on
+    # it, and two of one name can differ in all of those.
+    StashLine(name="Mesh armour", rating=15, kind="wargear", count=2),
     StashLine(name="Photo-goggles", rating=35, kind="wargear"),
     # Nobody bought this one: a modifier put it there, and it carries the mark a
     # granted skill carries on a card.

@@ -201,8 +201,12 @@ class TestTheStashPage:
 
     def test_two_of_one_thing_read_once_with_the_rating_of_one(self, reader):
         page = reader.get("/n26/design/c/stash/").content.decode()
-        assert 'Stub gun (x2)</span><span>&nbsp;<span class="tabular-nums">5¢' in page
-        assert "Stub gun, Stub gun" not in page
+        assert (
+            'Mesh armour (x2)</span><span>&nbsp;<span class="tabular-nums">15¢' in page
+        )
+        assert "Mesh armour, Mesh armour" not in page
+        # A weapon is never stacked, so the gallery holds no such specimen.
+        assert "Stub gun (x2)" not in page
 
 
 class TestTheCountOnAModelCardLine:

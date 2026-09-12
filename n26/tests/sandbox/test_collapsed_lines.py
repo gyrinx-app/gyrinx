@@ -536,3 +536,46 @@ class TestWeaponsInTheStash:
             ("Lasgun", 1),
             ("Lasgun", 1),
         ]
+
+
+class TestKitWhoseHiddenPartBringsAPet:
+    """A stored effect need not sit on the line that draws: a hidden
+    carrier can ride a visible piece of kit and bring the pet through it.
+    Two such pieces are two pets, and read as two lines — the whole of
+    what hangs under a line decides whether it stands alone."""
+
+    def test_two_copies_are_two_lines(
+        self, gang, fighter, person_type, gang_type, default_pack
+    ):
+        from n26.tests.sandbox.actions import create_hidden
+
+        mastiff = Profile.objects.create(
+            name="Cyber-mastiff",
+            profile_type=person_type,
+            gang_type=gang_type,
+            price=100,
+        )
+        tag = create_hidden("The collar's tag brings a mastiff")
+        modifier(
+            "Collar tag brings a pet",
+            targets_model(),
+            op_adds_model(mastiff),
+            carried_by=tag,
+        )
+        collar = create_wargear("Mastiff collar", price=100)
+        from n26.core.operations import operation
+
+        for _ in range(2):
+            held = assign(collar, miniature=fighter, paid=100)
+            # Hosted on the collar itself, as a part is — one host — so
+            # the tag rides under the collar's own line.
+            with operation(gang, actor=gang.owner) as op:
+                op.assign(tag, parent=held, caused_by=held)
+
+        collars = [
+            line
+            for line in drawn(gang, "Vex").equipment
+            if line.name == "Mastiff collar"
+        ]
+        assert [line.count for line in collars] == [1, 1]
+        assert Miniature.objects.filter(name="Cyber-mastiff").count() == 2

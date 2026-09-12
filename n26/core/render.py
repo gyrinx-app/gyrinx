@@ -2058,8 +2058,12 @@ def card_to_model_card(
     )
 
     def key_of(node):
-        key = thing_key(node.assignable)
-        return "" if key in brings else key
+        # Everything under the line counts, not only the thing it names:
+        # a hidden carrier riding a piece of kit brings its pet through
+        # that kit's line, and two such lines are two pets.
+        if any(thing_key(each.assignable) in brings for each in node.walk()):
+            return ""
+        return thing_key(node.assignable)
 
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
