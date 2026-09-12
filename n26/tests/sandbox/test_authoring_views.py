@@ -7617,13 +7617,37 @@ class TestTheInterstitialsOwnPage:
     def test_the_listing_does_not_count_an_attachment_in_an_archived_pack(
         self, author, client, legacy, homebrew
     ):
-        from n26.library.authoring import create_interstitial, revise
+        from n26.library.authoring import (
+            attach_interstitial,
+            create_interstitial,
+            revise,
+        )
 
-        create_interstitial("Outcast archetype", slots=[self.slot()], pack=homebrew)
+        shown = create_interstitial("Outcast archetype")
+        attach_interstitial(shown, self.slot(), pack=homebrew)
         revise(homebrew, archived=True)
         body = client.get("/n26/authoring/interstitial/").content.decode()
 
         assert "on no slot yet" in body
+        assert "on 1 slot" not in body
+        assert list(self.slot().interstitials) == []
+
+    def test_the_listing_says_an_archived_interstitial_is_shown_nowhere(
+        self, author, client, legacy, homebrew
+    ):
+        """The listing draws archived rows too, and an archived screen —
+        or one in an archived pack — is shown nowhere whatever it is
+        attached to."""
+        from n26.library.authoring import create_interstitial, revise
+
+        shown = create_interstitial("Outcast archetype", slots=[self.slot()])
+        revise(shown, archived=True)
+        create_interstitial("Packed away", slots=[self.slot()], pack=homebrew)
+        revise(homebrew, archived=True)
+        body = client.get("/n26/authoring/interstitial/").content.decode()
+
+        assert "shown nowhere" in body
+        assert "on 1 slot" not in body and "on no slot yet" not in body
         assert list(self.slot().interstitials) == []
 
     def test_the_listing_reads_flat_as_the_attachments_grow(

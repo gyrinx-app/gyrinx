@@ -574,6 +574,30 @@ class TestAnInterstitialOnASlot:
         )
         assert (first.position, second.position, placed.position) == (0, 1, 7)
 
+    def test_a_default_position_lands_after_the_last_whatever_it_was_numbered(
+        self, house_legacy, archetype
+    ):
+        shown = create_interstitial("Outcast archetype")
+        attach_interstitial(shown, house_legacy, position=7)
+        later = attach_interstitial(shown, archetype)
+
+        assert later.position == 8
+        assert [a.slot for a in shown.attachments.all()] == [house_legacy, archetype]
+
+    def test_an_archived_attachment_still_counts_for_the_next_position(
+        self, house_legacy, archetype
+    ):
+        shown = create_interstitial("Outcast archetype")
+        revise(attach_interstitial(shown, house_legacy, position=3), archived=True)
+
+        assert attach_interstitial(shown, archetype).position == 4
+
+    def test_an_attachment_reads_as_both_of_its_ends(self, house_legacy):
+        shown = create_interstitial("Outcast archetype")
+        assert str(attach_interstitial(shown, house_legacy)) == (
+            "Outcast archetype on House legacy"
+        )
+
     def test_a_slot_reads_its_interstitials_in_the_order_they_were_attached(
         self, house_legacy
     ):
@@ -675,9 +699,11 @@ class TestAnInterstitialOnASlot:
         ), plan.refusals
 
     def test_deleting_the_interstitial_too_frees_the_slot(self, house_legacy):
+        """Whichever order the two are named in: the attachment goes with
+        the interstitial, and the slot is free once it has."""
         from n26.library.deletion import plan_deletion
 
         shown = create_interstitial("Outcast archetype", slots=[house_legacy])
-        plan = plan_deletion([shown, house_legacy])
 
-        assert plan.ok, plan.refusals
+        assert plan_deletion([shown, house_legacy]).ok
+        assert plan_deletion([house_legacy, shown]).ok

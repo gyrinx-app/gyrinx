@@ -508,14 +508,17 @@ class _Planner:
             )
             return
         if isinstance(row, InterstitialSlot):
+            interstitial = row.interstitial
+            if _key(interstitial) in self.doomed:
+                # The screen goes too, and its attachment with it —
+                # whichever of the two was read first.
+                self.doom(row)
+                return
             # An attachment has no page of its own: it is removed on the
             # interstitial's page, which is where an author is sent.
-            interstitial = row.interstitial
             self.refuse(
                 f"“{interstitial}” is shown when {what} arrives; stop showing "
                 "it there first"
-                if _key(interstitial) not in self.doomed
-                else f"{what} still shows “{interstitial}”"
             )
             return
         if isinstance(row, (Option, DefaultAssignmentSet)):
