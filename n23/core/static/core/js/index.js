@@ -164,8 +164,13 @@ function copyText(text) {
         document.body.appendChild(textArea);
         textArea.select();
         try {
-            document.execCommand("copy");
-            resolve();
+            // execCommand reports an unsupported or failed copy by returning
+            // false rather than throwing.
+            if (document.execCommand("copy")) {
+                resolve();
+            } else {
+                reject(new Error("execCommand('copy') returned false"));
+            }
         } catch (err) {
             reject(err);
         }
@@ -204,9 +209,13 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
 
 // Share the page (<c-share>): the device's share sheet where there is one,
 // the clipboard otherwise. The control is a plain link to the page, so with
-// no script it still works — it navigates. A share sheet the reader closed
-// (AbortError) copies nothing and says nothing.
+// no script it still works — it navigates; and when the copy fails (no
+// clipboard on plain http, an old browser) the click navigates the same way,
+// so the reader can copy the address from the bar. A share sheet the reader
+// closed (AbortError) copies nothing and says nothing.
 document.querySelectorAll("[data-share-url]").forEach((element) => {
+    let hideTimer = null;
+
     element.addEventListener("click", (event) => {
         const raw = element.getAttribute("data-share-url");
         if (!raw) return;
@@ -221,13 +230,16 @@ document.querySelectorAll("[data-share-url]").forEach((element) => {
         const copied = () => {
             if (!message) return;
             message.classList.remove("d-none");
-            setTimeout(() => {
+            // A second click restarts the timer rather than hiding the
+            // message early.
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => {
                 message.classList.add("d-none");
             }, 4000);
         };
         const copy = () =>
-            copyText(url).then(copied, (err) => {
-                console.error("Could not copy link: ", err);
+            copyText(url).then(copied, () => {
+                window.location.assign(url);
             });
 
         if (

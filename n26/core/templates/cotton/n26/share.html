@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.share> — a Share button for a page other people can open.
+<c-n26.share> — a share button for a page other people can open.
 
     <c-n26.share url="{% url 'n26-gang' gang.pk %}" />
     <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" message="Link copied." />
@@ -8,7 +8,10 @@ A link to the page itself, so without JavaScript it is a plain link the
 reader can copy or right-click. With Alpine it takes over the click: the
 device's share sheet where there is one (navigator.share), the clipboard
 otherwise, and then the message beside the button for a few seconds. A
-dismissed share sheet copies nothing and says nothing.
+dismissed share sheet copies nothing and says nothing. Where there is no
+clipboard to write to (plain http, an old browser) or the write fails,
+the click navigates to the page instead, as the bare link would, so the
+reader can copy the address from the bar.
 
 The address handed to the share sheet is the link's own href, which the
 browser has already made absolute — so a path is enough here, and the
@@ -36,7 +39,10 @@ button shares the same address it would navigate to.
               this.timer = setTimeout(() => { this.copied = false; }, 4000);
           },
           share(url) {
-              const copy = () => navigator.clipboard.writeText(url).then(() => this.said());
+              const copy = () => {
+                  if (!navigator.clipboard) { window.location.assign(url); return; }
+                  navigator.clipboard.writeText(url).then(() => this.said(), () => window.location.assign(url));
+              };
               if (navigator.share && (!navigator.canShare || navigator.canShare({ url }))) {
                   navigator.share({ url }).catch((err) => { if (err.name !== 'AbortError') copy(); });
               } else {

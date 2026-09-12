@@ -66,6 +66,19 @@ def test_gang_edit_page_has_no_share_button(client, user, make_list):
 
 
 @pytest.mark.django_db
+def test_gang_print_page_has_no_share_button(client, user, make_list):
+    """The printable sheet renders the same include with print set, and a
+    share link on paper is a link to nowhere."""
+    lst = make_list("Sump Rats", public=True)
+    client.force_login(user)
+
+    body = client.get(reverse("core:list-print", args=[lst.id])).content.decode()
+
+    assert "data-share-url" not in body
+    assert "Link copied." not in body
+
+
+@pytest.mark.django_db
 def test_campaign_page_share_is_a_link_to_the_campaign(client, user, make_campaign):
     campaign = make_campaign("Dust Falls", public=True)
     client.force_login(user)
