@@ -36,6 +36,9 @@ const options = {
         "**/.venv",
         "**/venv",
         "playbooks",
+        // Generated, git-ignored browser evidence is not repository documentation.
+        "screenshots",
+        "ui_archive",
         // Git-ignored local research material (see CLAUDE.local.md);
         // mirrored pages fail link-fragment rules and are not ours to fix.
         "rule-reference",

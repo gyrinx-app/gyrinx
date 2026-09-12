@@ -40,28 +40,40 @@ fi
 # 1. Install GitHub CLI
 # ---------------------------------------------------------------------------
 echo "--- [1/9] Installing GitHub CLI ---"
-if ! command -v gh &>/dev/null; then
+if command -v gh &>/dev/null \
+  && gh pr create --help 2>/dev/null | grep -q -- '--attach'; then
+  echo "gh already supports PR attachments: $(gh --version | head -1)"
+else
   # Install from a direct binary download rather than apt.
   # The web environment has limited network; apt-get update fails because
   # it tries to reach every configured apt source (PPAs, etc.).  Direct
   # download only needs github.com + objects.githubusercontent.com, both
-  # on the allow-list.
-  GH_VERSION="2.67.0"
+  # on the allow-list. gh 2.99+ is required for `gh pr create --attach`.
+  GH_VERSION="2.100.0"
   # Map kernel arch to the naming convention used by gh release tarballs.
   case "$(uname -m)" in
-    x86_64)  GH_ARCH="amd64" ;;
-    aarch64) GH_ARCH="arm64" ;;
-    *)       GH_ARCH="$(uname -m)" ;;
+    x86_64)
+      GH_ARCH="amd64"
+      GH_SHA256="e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be"
+      ;;
+    aarch64)
+      GH_ARCH="arm64"
+      GH_SHA256="ea4e7a581a32ccad6cc7923cb1576ac5859ba4b9a16ab22eb8f8a96e78e2e961"
+      ;;
+    *)
+      echo "Unsupported architecture for GitHub CLI: $(uname -m)" >&2
+      exit 1
+      ;;
   esac
   GH_TARBALL="gh_${GH_VERSION}_linux_${GH_ARCH}"
+  GH_TMP_DIR=$(mktemp -d)
   curl -LsSf "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_TARBALL}.tar.gz" \
-    -o /tmp/gh.tar.gz
-  tar -xzf /tmp/gh.tar.gz -C /tmp
-  sudo install /tmp/"${GH_TARBALL}"/bin/gh /usr/local/bin/gh
-  rm -rf /tmp/gh.tar.gz /tmp/"${GH_TARBALL}"
+    -o "${GH_TMP_DIR}/${GH_TARBALL}.tar.gz"
+  echo "${GH_SHA256}  ${GH_TMP_DIR}/${GH_TARBALL}.tar.gz" | sha256sum -c -
+  tar -xzf "${GH_TMP_DIR}/${GH_TARBALL}.tar.gz" -C "${GH_TMP_DIR}"
+  sudo install "${GH_TMP_DIR}/${GH_TARBALL}/bin/gh" /usr/local/bin/gh
+  rm -r "${GH_TMP_DIR}"
   echo "gh installed: $(gh --version | head -1)"
-else
-  echo "gh already installed: $(gh --version | head -1)"
 fi
 
 # ---------------------------------------------------------------------------

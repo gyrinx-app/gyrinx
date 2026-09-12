@@ -143,6 +143,21 @@ echo "http://localhost:$(worktree_port)"
 The CSRF_TRUSTED_ORIGINS in `settings_dev.py` dynamically includes the worktree port, so
 form submissions work correctly on any port.
 
+## Capturing PR evidence
+
+After exercising a meaningful UI change, load the `pr-screenshots` skill to choose
+and attach useful review evidence. Browser tooling can save a capture directly;
+for a named Django URL, `scripts/screenshot.py` uses this worktree's port and a
+minted local staff session:
+
+```bash
+.codex/run.sh python scripts/screenshot.py core:campaign \
+  --args <campaign-id> --after --output-dir screenshots/<task>
+```
+
+Keep captures under the gitignored `screenshots/` directory until the
+`pr-screenshots` workflow uploads them to the pull request.
+
 ## Logging in for browser testing
 
 Do **not** submit `/accounts/login/` from an agent session. The form always includes

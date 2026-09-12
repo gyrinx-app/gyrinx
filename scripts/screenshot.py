@@ -9,9 +9,9 @@ Usage:
     python scripts/screenshot.py <url_name> [options]
 
 Examples:
-    python scripts/screenshot.py core:campaign --before --args <campaign_id>
-    python scripts/screenshot.py core:list --after --args <list_id>
-    python scripts/screenshot.py core:campaign --viewports desktop,mobile --args <id>
+    .codex/run.sh python scripts/screenshot.py core:campaign --before --args <campaign_id>
+    .codex/run.sh python scripts/screenshot.py core:list --after --args <list_id>
+    .codex/run.sh python scripts/screenshot.py core:campaign --viewports desktop,mobile --args <id>
 """
 
 import argparse
@@ -55,8 +55,20 @@ VIEWPORTS = {
 }
 
 
-def check_server_running(host="localhost", port=8000):
+def get_server_port():
+    """Return the port configured for this worktree."""
+    return int(os.environ.get("DJANGO_PORT", "8000"))
+
+
+def get_server_url():
+    """Return the local development URL configured for this worktree."""
+    return f"http://localhost:{get_server_port()}"
+
+
+def check_server_running(host="localhost", port=None):
     """Check if the Django development server is running."""
+    if port is None:
+        port = get_server_port()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(1)
     try:
@@ -105,39 +117,51 @@ def ensure_browser_installed():
 class ScreenshotCapture:
     """Handles automated screenshot capture using Playwright."""
 
-    def __init__(self, server_url="http://localhost:8000"):
-        self.server_url = server_url
+    def __init__(self, server_url=None, username="agent"):
+        self.server_url = server_url or get_server_url()
+        self.username = username
         self.client = Client()
 
-    async def authenticate(self, username="admin"):
-        """Authenticate using Django test client and return session cookie."""
+    async def authenticate(self, username=None):
+        """Mint a local staff session and return its cookie."""
+        if not settings.DEBUG:
+            raise RuntimeError(
+                "Screenshot sessions can only be minted with DEBUG enabled"
+            )
+        username = username or self.username
         User = get_user_model()
 
         @sync_to_async
         def get_user_and_login():
-            try:
-                user = User.objects.get(username=username)
-                self.client.force_login(user)
+            email = f"{username}@localhost"
+            user, created = User.objects.get_or_create(
+                username=username,
+                defaults={
+                    "email": email,
+                    "is_staff": True,
+                    "is_superuser": True,
+                },
+            )
+            if created:
+                user.set_password("password")
+            user.is_staff = True
+            user.is_superuser = True
+            if not user.email:
+                user.email = email
+            user.save()
+            self.client.force_login(user)
 
-                # Get session cookie
-                if hasattr(self.client, "cookies"):
-                    session_cookie = self.client.cookies.get(
-                        settings.SESSION_COOKIE_NAME
-                    )
-                    if session_cookie:
-                        return {
-                            "name": settings.SESSION_COOKIE_NAME,
-                            "value": session_cookie.value,
-                            "domain": "localhost",
-                            "path": "/",
-                            "httpOnly": True,
-                            "secure": False,
-                            "sameSite": "Lax",
-                        }
-            except User.DoesNotExist:
-                print(
-                    f"Warning: User '{username}' not found, proceeding without authentication"
-                )
+            session_cookie = self.client.cookies.get(settings.SESSION_COOKIE_NAME)
+            if session_cookie:
+                return {
+                    "name": settings.SESSION_COOKIE_NAME,
+                    "value": session_cookie.value,
+                    "domain": "localhost",
+                    "path": "/",
+                    "httpOnly": True,
+                    "secure": False,
+                    "sameSite": "Lax",
+                }
             return None
 
         return await get_user_and_login()
@@ -149,7 +173,7 @@ class ScreenshotCapture:
         label="",
         viewport="desktop",
         theme="light",
-        output_dir="ui_archive",
+        output_dir="screenshots",
         full_page=True,
         selector=None,
     ):
@@ -215,7 +239,7 @@ class ScreenshotCapture:
                 if "net::ERR_CONNECTION_REFUSED" in str(e):
                     print(f"\n✗ Error: Could not connect to {self.server_url}")
                     print("Please ensure the Django development server is running:")
-                    print("  python manage.py runserver")
+                    print("  ./scripts/dev.sh --no-watch")
                     await browser.close()
                     return False
                 else:
@@ -283,26 +307,21 @@ class ScreenshotCapture:
             return
 
         url_safe_name = url_name.replace(":", "_")
-        md_file = output_path / f"{url_safe_name}_comparison.md"
+        viewport_suffix = f"_{viewport}" if viewport != "desktop" else ""
+        md_file = output_path / f"{url_safe_name}{viewport_suffix}_comparison.md"
 
-        # Read existing content if file exists
-        existing_content = ""
-        if md_file.exists() and label == "after":
-            with open(md_file) as f:
-                existing_content = f.read()
-
-        with open(md_file, "w") as f:
-            if label == "before":
-                f.write(f"## {url_name} UI Changes\n\n")
+        mode = "a" if label == "after" and md_file.exists() else "w"
+        with open(md_file, mode) as f:
+            if mode == "w":
+                f.write(f"# {url_name} UI changes\n\n")
                 if viewport != "desktop":
                     f.write(f"**Viewport:** {viewport}\n\n")
-                f.write("### Before\n")
+
+            if label == "before":
+                f.write("## Before\n")
                 f.write(f"![Before](./{filename})\n\n")
             else:
-                # Write existing content first
-                if existing_content:
-                    f.write(existing_content)
-                f.write("### After\n")
+                f.write("## After\n")
                 f.write(f"![After](./{filename})\n\n")
 
         print(f"✓ Comparison markdown updated: {md_file}")
@@ -314,13 +333,13 @@ async def capture_screenshots(
     label="",
     viewports=None,
     theme="light",
-    output_dir="ui_archive",
+    output_dir="screenshots",
     full_page=True,
     selector=None,
-    username="admin",
+    username="agent",
 ):
     """Capture screenshots for specified viewports."""
-    capture = ScreenshotCapture()
+    capture = ScreenshotCapture(username=username)
 
     # Default to desktop if no viewports specified
     if not viewports:
@@ -375,7 +394,7 @@ def main():
         help="Color scheme for the screenshot",
     )
     parser.add_argument(
-        "--output-dir", type=str, help="Output directory", default="ui_archive"
+        "--output-dir", type=str, help="Output directory", default="screenshots"
     )
     parser.add_argument(
         "--selector", type=str, help="CSS selector to screenshot (default: full page)"
@@ -386,7 +405,7 @@ def main():
         help="Capture only the viewport (not full page)",
     )
     parser.add_argument(
-        "--username", type=str, default="admin", help="Username to authenticate as"
+        "--username", type=str, default="agent", help="Username to authenticate as"
     )
     parser.add_argument(
         "--check",
@@ -441,7 +460,7 @@ def main():
     if not check_server_running():
         print("\n✗ Error: Django development server is not running")
         print("Please start the server with:")
-        print("  python manage.py runserver")
+        print("  ./scripts/dev.sh --no-watch")
         print("\nThen run this command again.")
         sys.exit(1)
 
