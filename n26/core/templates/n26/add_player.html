@@ -22,7 +22,7 @@ question and Back closes it.
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='campaigns' %}
+    {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
     <div class="max-w-3xl space-y-8">
@@ -49,11 +49,11 @@ question and Back closes it.
                     {% for player in players %}
                         <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
                             <span class="min-w-0 flex-1 text-base">{{ player.user.username }}</span>
-                            {% if player.state == 'accepted' %}
+                            {% if player.state == "accepted" %}
                                 <c-ui.badge color="green" size="sm">
                                     Accepted
                                 </c-ui.badge>
-                            {% elif player.state == 'declined' %}
+                            {% elif player.state == "declined" %}
                                 <c-ui.badge color="ink" size="sm">
                                     Declined
                                 </c-ui.badge>

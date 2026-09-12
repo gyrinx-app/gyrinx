@@ -56,7 +56,8 @@
                         {% endif %}
                     </div>
                     <div class="col-md-6">
-                        <label for="{{ form.cost_increase.id_for_label }}" class="form-label">Fighter Rating Increase</label>
+                        <label for="{{ form.cost_increase.id_for_label }}"
+                               class="form-label">Fighter Rating Increase</label>
                         {{ form.cost_increase }}
                         <div class="form-text">{{ form.cost_increase.help_text }}</div>
                         {% if form.cost_increase.errors %}

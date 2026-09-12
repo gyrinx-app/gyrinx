@@ -27,7 +27,7 @@
         <div class="vstack gap-1">
             <div class="hstack align-items-start">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
-                {% if list.is_campaign_mode and fighter.injury_state != 'active' %}
+                {% if list.is_campaign_mode and fighter.injury_state != "active" %}
                     {% if not print and not compact %}
                         {% if can_edit or is_arbitrator %}
                             <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
@@ -185,7 +185,7 @@
                             </button>
                             <ul class="dropdown-menu">
                                 {% if fighter.is_child_fighter %}
-                                    {% if list.is_campaign_mode and fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders and not fighter.is_vehicle %}
+                                    {% if list.is_campaign_mode and fighter.injury_state != "dead" and not fighter.is_captured and not fighter.is_sold_to_guilders and not fighter.is_vehicle %}
                                         <li>
                                             <a class="dropdown-item"
                                                href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
@@ -220,19 +220,19 @@
                                         </li>
                                     {% endif %}
                                     {% if list.is_campaign_mode %}
-                                        {% if fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                                        {% if fighter.injury_state != "dead" and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                             <li>
                                                 <a class="dropdown-item"
                                                    href="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"><i class="bi-exclamation-triangle"></i> Mark Captured</a>
                                             </li>
                                         {% endif %}
-                                        {% if fighter.injury_state != 'dead' %}
+                                        {% if fighter.injury_state != "dead" %}
                                             <li>
                                                 <a class="dropdown-item"
                                                    href="{% url 'core:list-fighter-kill' list.id fighter.id %}"><i class="bi-heartbreak"></i> Kill</a>
                                             </li>
                                         {% endif %}
-                                        {% if fighter.injury_state == 'dead' %}
+                                        {% if fighter.injury_state == "dead" %}
                                             <li>
                                                 <a class="dropdown-item"
                                                    href="{% url 'core:list-fighter-resurrect' list.id fighter.id %}"><i class="bi-heart-pulse"></i> Resurrect</a>

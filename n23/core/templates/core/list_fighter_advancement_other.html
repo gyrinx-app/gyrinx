@@ -32,7 +32,8 @@
                     </div>
                 </div>
                 <div>
-                    <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                    <label for="{{ form.description.id_for_label }}"
+                           class="form-label">{{ form.description.label }}</label>
                     {{ form.description }}
                     {% if form.description.help_text %}
                         <div class="form-text">{{ form.description.help_text }}</div>
@@ -50,7 +51,8 @@
                 <button type="submit"
                         class="btn btn-primary"
                         aria-describedby="continue-help">Continue</button>
-                <span id="continue-help" class="visually-hidden">Continue to the next step of the advancement workflow</span>
+                <span id="continue-help"
+                      class="visually-hidden">Continue to the next step of the advancement workflow</span>
             </nav>
         </form>
     </div>

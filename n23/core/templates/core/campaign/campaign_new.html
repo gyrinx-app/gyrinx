@@ -13,7 +13,8 @@
                 <div class="d-flex align-items-start gap-2">
                     <div class="flex-grow-1">
                         <i class="bi-stars" aria-hidden="true"></i>
-                        Based on <a href="{% url 'core:campaign' template_campaign.id %}" class="linked">{{ template_campaign.name }}</a>
+                        Based on <a href="{% url 'core:campaign' template_campaign.id %}"
+    class="linked">{{ template_campaign.name }}</a>
                     </div>
                     <a href="{{ change_template_url }}"
                        class="linked-secondary fs-7 flex-shrink-0">Change template</a>

@@ -28,7 +28,8 @@
                                         <a href="{% url 'core:pack' pack.id %}" class="linked">{{ pack.name }}</a>
                                     </h2>
                                     <div>
-                                        <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}" class="linked">{{ pack.owner }}</a>{% user_badge pack.owner %}
+                                        <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}"
+    class="linked">{{ pack.owner }}</a>{% user_badge pack.owner %}
                                     </div>
                                     {% if not pack.listed %}
                                         <div>
