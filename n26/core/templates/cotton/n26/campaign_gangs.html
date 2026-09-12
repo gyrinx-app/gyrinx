@@ -68,7 +68,7 @@ the line carries an address for it. The view fills one for the arbitrator.
                                 </span>
                             {% endif %}
                         </span>
-                        <span class="text-xs text-muted">{{ gang.gang_type }} · <c-n26.user-link :user="gang.owner" tone="current" /></span>
+                        <span class="text-xs text-muted">{{ gang.gang_type }}{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
                         {% comment %}
                         One control per asset type of which the gang holds a
                         rolled table, in the type's own word, for the reader

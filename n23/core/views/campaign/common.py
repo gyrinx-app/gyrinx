@@ -17,7 +17,11 @@ def get_campaign_admin_or_404(request, id):
         Campaign.objects.filter(
             models.Q(owner=request.user)
             | models.Q(id__in=Campaign.objects.filter(admins=request.user))
-        ),
+        )
+        # Every page this gates names the owner with their badge, which reads
+        # the profile and the grants.
+        .select_related("owner", "owner__profile")
+        .prefetch_related("owner__badge_grants"),
         id=id,
     )
 

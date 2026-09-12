@@ -708,6 +708,19 @@ def crowded_catalogue_context():
 OWNER = "tom"
 
 
+@dataclass(frozen=True)
+class SampleUser:
+    """Somebody the gallery names, with no account behind them.
+
+    <c-n26.user-link> reads a username off whoever it is handed and asks the
+    platform's badge registry which badge they hold; the registry reads a
+    profile, and finding none says they hold no badge. So a sample person is
+    a username and nothing else, and draws as a name with no mark after it.
+    """
+
+    username: str
+
+
 def nav_context():
     """The switchers a gang's screens draw, built as the real ones are built.
 
@@ -2378,7 +2391,7 @@ def campaign_sheet():
                 gang_id="gravebolt-kin",
                 name="Gravebolt Kin",
                 gang_type="Goliath (HoC)",
-                owner="marta",
+                owner=SampleUser("marta"),
                 rating=1180,
                 credits=95,
                 wealth=1275,
@@ -2418,7 +2431,7 @@ def campaign_sheet():
                 gang_id="pit-of-teeth",
                 name="Pit of Teeth",
                 gang_type="Cawdor (HoF)",
-                owner="ossian",
+                owner=SampleUser("ossian"),
                 rating=940,
                 credits=210,
                 wealth=1150,
@@ -2450,7 +2463,7 @@ def campaign_sheet():
                 gang_id="the-ashen-choir",
                 name="The Ashen Choir",
                 gang_type="Escher (HoB)",
-                owner=OWNER,
+                owner=SampleUser(OWNER),
                 rating=1037,
                 credits=160,
                 wealth=1197,

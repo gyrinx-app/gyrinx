@@ -6,6 +6,8 @@ raising. Registering a component and never loading its page is therefore
 indistinguishable from registering it wrongly — which is what this asks.
 """
 
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 
@@ -505,6 +507,11 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/campaign/").content.decode()
         assert "Territory campaign" in page
         assert "Gravebolt Kin" in page
+        # Each gang names its owner under its name, through the same
+        # component the app draws people with — a sample person is a
+        # username, so the name comes through and no badge follows it.
+        assert re.search(r"Goliath \(HoC\) · <span[^>]*>marta<", page)
+        assert re.search(r"Escher \(HoB\) · <span[^>]*>tom<", page)
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
         assert "Unclaimed" in page

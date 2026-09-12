@@ -291,7 +291,15 @@ class CampaignDetailView(generic.DetailView):
             CampaignInvitation.objects.filter(
                 campaign=campaign, status=CampaignInvitation.PENDING
             )
-            .select_related("list", "list__owner")
+            # Each invited gang's row draws its house and names its owner
+            # with their badge, which reads the profile and the grants.
+            .select_related(
+                "list",
+                "list__owner",
+                "list__owner__profile",
+                "list__content_house",
+            )
+            .prefetch_related("list__owner__badge_grants")
             .order_by("-created")
         )
 

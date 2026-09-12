@@ -311,6 +311,32 @@ The standard page header: title left, action buttons right, metadata below.
 </div>
 ```
 
+### User link
+
+A username is a link to the user's page with the badge they hold after it,
+drawn by `c-user-link` (`gyrinx/templates/cotton/user_link.html`):
+
+```html
+<c-user-link :user="list.owner" />
+<c-user-link :user="campaign.owner" class="linked-body" />
+<span class="text-secondary fs-7"><i class="bi-person"></i> <c-user-link :user="list.owner" class="linked-secondary" /></span>
+```
+
+- Pass the user with the colon. `user="{{ list.owner }}"` stringifies it, the
+  link then has no username to build from, and `scripts/check_cotton.py` fails
+  the call site.
+- `class` is the link style: `linked` (default), `linked-body` for names in
+  body text, `linked-secondary` in metadata rows.
+- The badge is dropped when the ambient `print` context flag is set, as
+  `c-breadcrumb.user` does.
+- A view drawing many names must
+  `select_related("…__profile").prefetch_related("…__badge_grants")` on the
+  queryset that carries them, or each name costs two queries. The campaign
+  screens' query-count tests (`n23/core/tests/test_campaign_user_badges.py`)
+  are the pattern.
+- Never place it inside another link (a row wrapped in an `<a>`); link the
+  row's name instead.
+
 ### Campaign info columns
 
 Key metadata displayed as a horizontal flex row of label/value pairs, with a bottom border:

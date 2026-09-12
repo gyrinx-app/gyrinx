@@ -8,7 +8,17 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Trees holding first-party templates: the platform shell and each edition
 # package. Both are scanned for call sites; omitting one makes this gate pass
 # while silently ignoring everything in it.
-TEMPLATE_ROOTS = [ROOT / "gyrinx", ROOT / "n23"]
+TEMPLATE_ROOTS = [ROOT / "gyrinx", ROOT / "n23", ROOT / "n26"]
+# n26 component sources that put cotton's own attrs passthrough, or an if
+# block, in attribute position on a nested component call. They predate the
+# n26 root joining the scan and are skipped by name so the rest of the
+# edition is gated; fix them (or prove them harmless) and delete the entry.
+PRE_EXISTING = {
+    "n26/core/templates/cotton/n26/quick_switcher/of.html",
+    "n26/core/templates/cotton/n26/range_menu.html",
+    "n26/core/templates/cotton/n26/view/create_gang.html",
+    "n26/core/templates/cotton/n26/view/fighter_hire.html",
+}
 # Only the platform tree defines components today. Listing a directory that
 # does not exist would be quietly meaningless in a file whose whole point is
 # that an empty scan root passes vacuously, so add an edition entry here only
@@ -46,6 +56,7 @@ OBJECT_PROPS = {
     # A username link stringified has no `.username` for the url tag to read,
     # and the badge tag then looks up a profile on a string.
     "user-link": "user",
+    "n26.user-link": "user",
 }
 
 # Controls whose accessible name is not derivable from anything else on the
@@ -101,6 +112,8 @@ def main():
             continue
         src = blank_comments(raw)
         rel = path.relative_to(ROOT)
+        if rel.as_posix() in PRE_EXISTING:
+            continue
 
         for match in TAG.finditer(src):
             name, attrs = match.group(1), match.group(2)

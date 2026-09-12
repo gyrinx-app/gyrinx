@@ -14,6 +14,7 @@ from django.urls import reverse
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import badge_by_slug
 from n23.core.models.campaign import CampaignAction
+from n23.core.models.invitation import CampaignInvitation
 
 # The accessible name the badge tag puts on every mark it draws. Counted
 # rather than the artwork, which a {% spaceless %} block reflows.
@@ -54,13 +55,21 @@ def viewer(client, make_user):
 
 @pytest.fixture
 def make_table(owner, make_campaign, make_list, make_user):
-    """A public campaign with badged admins and badged gang owners, and one
-    action logged by each gang owner."""
+    """A public campaign with badged admins and badged gang owners, one
+    action logged by each gang owner, and badged owners of gangs still
+    invited."""
 
-    def _make(name, *, admins=0, gangs=0):
+    def _make(name, *, admins=0, gangs=0, invited=0):
         campaign = make_campaign(name, public=True)
         for index in range(admins):
             campaign.admins.add(_badged(make_user, f"{name}-admin-{index}"))
+        for index in range(invited):
+            player = _badged(make_user, f"{name}-invited-{index}")
+            CampaignInvitation.objects.create(
+                campaign=campaign,
+                list=make_list(f"{name} invited gang {index}", owner=player),
+                status=CampaignInvitation.PENDING,
+            )
         for index in range(gangs):
             player = _badged(make_user, f"{name}-player-{index}")
             lst = make_list(f"{name} gang {index}", owner=player)
@@ -96,12 +105,13 @@ def _queries(client, url):
 @pytest.mark.django_db
 def test_the_campaign_page_marks_every_name_it_shows(viewer, client, make_table):
     bare = make_table("Bare")
-    full = make_table("Full", admins=2, gangs=2)
+    full = make_table("Full", admins=2, gangs=2, invited=2)
 
-    # Each admin under Arbitrators, each gang's owner in the gangs table, and
-    # each gang owner again as the author of their action.
+    # Each admin under Arbitrators, each gang's owner in the gangs table, each
+    # gang owner again as the author of their action, and each invited gang's
+    # owner under Invited.
     assert _marks(client, reverse("core:campaign", args=[full.id])) == (
-        _marks(client, reverse("core:campaign", args=[bare.id])) + 2 + 2 + 2
+        _marks(client, reverse("core:campaign", args=[bare.id])) + 2 + 2 + 2 + 2
     )
 
 
@@ -109,10 +119,11 @@ def test_the_campaign_page_marks_every_name_it_shows(viewer, client, make_table)
 def test_the_campaign_page_reads_the_badges_once_for_everybody(
     viewer, client, make_table
 ):
-    """More admins is the same number of queries — the gangs table has
-    per-gang costs of its own, so the count is held over the arbitrators."""
-    small = make_table("Small", admins=1, gangs=1)
-    large = make_table("Large", admins=4, gangs=1)
+    """More admins and more invited gangs is the same number of queries —
+    the gangs table has per-gang costs of its own, so the count is held
+    over the arbitrators and the invitations."""
+    small = make_table("Small", admins=1, gangs=1, invited=1)
+    large = make_table("Large", admins=4, gangs=1, invited=4)
 
     assert _queries(client, reverse("core:campaign", args=[large.id])) == _queries(
         client, reverse("core:campaign", args=[small.id])
@@ -143,6 +154,25 @@ def test_the_arbitrators_page_reads_the_badges_once_for_everybody(
     assert _queries(
         client, reverse("core:campaign-arbitrators", args=[large.id])
     ) == _queries(client, reverse("core:campaign-arbitrators", args=[small.id]))
+
+
+@pytest.mark.django_db
+def test_the_arbitrators_page_reads_the_owners_badge_with_the_campaign(
+    viewer, client, make_user, make_campaign, make_table
+):
+    """The owner is named with their badge too, and the campaign arrives
+    with their profile and grants alongside — so an owner holding a badge
+    costs the page nothing more than one holding none."""
+    badged = make_table("Badged")
+    plain = make_campaign(
+        "Plain", owner=make_user("plain-owner", "password"), public=True
+    )
+    for campaign in (badged, plain):
+        campaign.admins.add(viewer)
+
+    assert _queries(
+        client, reverse("core:campaign-arbitrators", args=[badged.id])
+    ) == _queries(client, reverse("core:campaign-arbitrators", args=[plain.id]))
 
 
 @pytest.mark.django_db
