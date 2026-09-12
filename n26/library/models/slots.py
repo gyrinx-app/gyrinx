@@ -671,6 +671,23 @@ class Slot(Content, Assignable):
         """What the card calls this choice."""
         return self.label or self.name
 
+    @property
+    def interstitials(self):
+        """The interstitials this slot carries, in the order they are
+        attached — the screens shown when this slot arrives. Archived
+        ones are left out: an archived interstitial, or one in an
+        archived pack, is withdrawn from every slot at once, and an
+        archived attachment from this one. Staged ones stay, as on
+        every authoring surface; the screen a player sees narrows
+        further."""
+        return (
+            Interstitial.objects.filter(
+                attachments__slot=self, attachments__archived=False
+            )
+            .unarchived()
+            .order_by("attachments__position", "position", "name")
+        )
+
     def clean(self):
         super().clean()
         if self.slot_type_id and self.picklist_id:
@@ -684,3 +701,114 @@ class Slot(Content, Assignable):
                         )
                     }
                 )
+
+
+class Interstitial(Content):
+    """A screen shown when a slot arrives: what the choice is, and why it
+    matters.
+
+    Attached to one or more slots. When a founding, a hire or a pick
+    puts one of those slots on a gang or a model, the reader is shown
+    this — heading, description and the picker for the slot — before
+    landing where they were going. A slot with nothing attached
+    arrives as it always has, so nothing changes until an author
+    attaches one. Only founding, hiring and picking show it; a purchase
+    and a clone never do.
+
+    Not an assignable: nothing holds an interstitial. The word is an
+    author's: no player sees it.
+    """
+
+    # Filed with the rest of the choice machinery, which is where an
+    # author looks for it.
+    family = Family.CHOICE
+
+    name = models.CharField(
+        max_length=200,
+        help_text='What an author calls this, e.g. "Outcast archetype".',
+    )
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="The heading the screen shows. Blank uses the name.",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "What the screen says under the heading: what the choice is "
+            "and why it matters. Use your own words, not the book's."
+        ),
+    )
+    skippable = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether the reader may carry on without picking. Unticked, "
+            "the screen does not offer Continue until the pick is made."
+        ),
+    )
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text="Order among several shown on one screen. Ties fall back to name.",
+    )
+
+    class Meta:
+        verbose_name = "interstitial"
+        verbose_name_plural = "interstitials"
+        ordering = ["position", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                "pack", Lower("name"), name="interstitial_unique_per_pack"
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def heading(self):
+        """What the screen calls it."""
+        return self.title or self.name
+
+
+class InterstitialSlot(Content):
+    """One interstitial attached to one slot.
+
+    The slot is what arrives; the interstitial is what the reader is
+    shown when it does. One interstitial may be attached to several
+    slots, and one slot may carry several interstitials, each in its
+    place.
+    """
+
+    interstitial = models.ForeignKey(
+        Interstitial,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    slot = models.ForeignKey(
+        Slot,
+        on_delete=models.PROTECT,
+        related_name="interstitial_attachments",
+        help_text=(
+            "The slot this is shown for. The screen appears when that slot "
+            "arrives on a gang or a model."
+        ),
+    )
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text="Where it sits among the slots this is attached to. Ties fall back to the slot's name.",
+    )
+
+    class Meta:
+        verbose_name = "interstitial attachment"
+        verbose_name_plural = "interstitial attachments"
+        ordering = ["interstitial", "position", "slot__name"]
+        constraints = [
+            models.UniqueConstraint(
+                "interstitial", "slot", name="interstitial_attached_once"
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.slot)

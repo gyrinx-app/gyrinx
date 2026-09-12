@@ -1061,6 +1061,66 @@ def create_slot(
     )
 
 
+def create_interstitial(
+    name,
+    title="",
+    description="",
+    skippable=False,
+    position=0,
+    slots=(),
+    **kwargs,
+):
+    """A screen shown when a slot arrives: what the choice is and why
+    it matters.
+
+    ``slots`` attaches it to those slots, in order. A founding, a hire
+    or a pick that brings one of them shows this screen before the
+    reader lands where they were going; nothing else does, and a slot
+    with nothing attached arrives as it always has.
+    """
+    from n26.library.models import Interstitial
+
+    interstitial = Interstitial.objects.create(
+        name=name,
+        title=title,
+        description=description,
+        skippable=skippable,
+        position=position,
+        **kwargs,
+    )
+    for slot in slots:
+        attach_interstitial(interstitial, slot, **kwargs)
+    return interstitial
+
+
+def attach_interstitial(interstitial, slot, position=None, **kwargs):
+    """Show this interstitial when this slot arrives, after the slots it
+    is already attached to unless placed.
+
+    Refused where it is already attached to that slot: a second
+    attachment would show the same screen twice.
+    """
+    from n26.library.models import InterstitialSlot
+
+    if InterstitialSlot.objects.filter(interstitial=interstitial, slot=slot).exists():
+        raise ValidationError(f"{interstitial} is already attached to {slot}.")
+    if position is None:
+        position = interstitial.attachments.count()
+    return InterstitialSlot.objects.create(
+        interstitial=interstitial, slot=slot, position=position, **kwargs
+    )
+
+
+def detach_interstitial(attachment):
+    """Stop showing one interstitial when one slot arrives.
+
+    The interstitial stays in the library and on every other slot it is
+    attached to; the slot arrives as it did before anything was
+    attached.
+    """
+    attachment.delete()
+
+
 def create_trait(name, annotation="", qualifier="", library_author_help="", **kwargs):
     from n26.library.models import Trait
 

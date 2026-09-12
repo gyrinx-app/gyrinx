@@ -33,6 +33,7 @@ READ_WITH = {
     # as "chosen from the start for that choice", which names it.
     "library.defaultassignment": ("default_set", "slot"),
     "library.picklistmember": ("picklist", "pickable"),
+    "library.interstitialslot": ("interstitial", "slot"),
     "library.assettableentry": ("table", "asset"),
     "library.option": ("default_set", "profile", "wargear"),
     # The slot rides along for the same reason: a grant naming a starting
@@ -65,9 +66,13 @@ READ_WITH = {
 #: An entry reads as the asset it names, so a page saying what stands in
 #: the way of deleting that asset would name the asset itself; the table
 #: is what has to be edited.
+#: An attachment reads as the slot it names, so a page saying what
+#: stands in the way of deleting that slot would name the slot itself;
+#: the interstitial is what has to be edited.
 NAMED_BY = {
     "library.defaultassignment": "default_set",
     "library.assettableentry": "table",
+    "library.interstitialslot": "interstitial",
 }
 
 

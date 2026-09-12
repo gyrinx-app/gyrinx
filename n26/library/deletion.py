@@ -456,6 +456,7 @@ class _Planner:
             ContentPack,
             DefaultAssignment,
             DefaultAssignmentSet,
+            InterstitialSlot,
             Option,
             PicklistMember,
         )
@@ -504,6 +505,17 @@ class _Planner:
                 f"“{listing}” lists {what}; remove that line first"
                 if _key(listing) not in self.doomed
                 else f"{what} is still listed on “{listing}”"
+            )
+            return
+        if isinstance(row, InterstitialSlot):
+            # An attachment has no page of its own: it is removed on the
+            # interstitial's page, which is where an author is sent.
+            interstitial = row.interstitial
+            self.refuse(
+                f"“{interstitial}” is shown when {what} arrives; stop showing "
+                "it there first"
+                if _key(interstitial) not in self.doomed
+                else f"{what} still shows “{interstitial}”"
             )
             return
         if isinstance(row, (Option, DefaultAssignmentSet)):
