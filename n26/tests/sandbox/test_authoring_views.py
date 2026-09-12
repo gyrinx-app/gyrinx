@@ -7432,7 +7432,7 @@ class TestAttachingAModifierToSeveral:
         assert len(more) <= len(few)
 
 
-class TestAnInterstitialsOwnPage:
+class TestTheInterstitialsOwnPage:
     """An interstitial is made from the menu, attached to slots from its
     own page, and detached at its own address; a slot's page names the
     interstitials it carries."""
@@ -7566,7 +7566,7 @@ class TestAnInterstitialsOwnPage:
     def test_a_slot_carrying_none_says_so(self, author, client, legacy):
         body = client.get(f"/n26/authoring/slot/{self.slot().pk}/").content.decode()
 
-        assert "No interstitial is attached to this slot" in body
+        assert "No interstitial is attached to this slot yet" in body
 
     def test_the_listing_says_how_many_slots_show_each_one(
         self, author, client, legacy
@@ -7594,6 +7594,58 @@ class TestAnInterstitialsOwnPage:
 
         assert "on no slot yet" in body
         assert "on 1 slot" not in body
+
+    def test_a_slot_attached_from_a_packs_own_interstitial_joins_that_pack(
+        self, author, client, legacy, homebrew
+    ):
+        """The attachment is a part of the interstitial, so it lands in
+        the interstitial's pack — the form judges what it may reference
+        by that pack, and an attachment made in a pack of its own is
+        not turned away as crossing into the default one."""
+        from n26.library.authoring import create_interstitial
+        from n26.library.models import InterstitialSlot
+
+        shown = create_interstitial("Outcast archetype", pack=homebrew)
+        response = client.post(
+            f"/n26/authoring/interstitial/{shown.pk}/",
+            {"slot": str(self.slot().pk), "position": "0"},
+        )
+
+        assert response.status_code == 302
+        assert InterstitialSlot.objects.get().pack == homebrew
+
+    def test_the_listing_does_not_count_an_attachment_in_an_archived_pack(
+        self, author, client, legacy, homebrew
+    ):
+        from n26.library.authoring import create_interstitial, revise
+
+        create_interstitial("Outcast archetype", slots=[self.slot()], pack=homebrew)
+        revise(homebrew, archived=True)
+        body = client.get("/n26/authoring/interstitial/").content.decode()
+
+        assert "on no slot yet" in body
+        assert list(self.slot().interstitials) == []
+
+    def test_the_listing_reads_flat_as_the_attachments_grow(
+        self, author, client, legacy
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_interstitial, create_slot
+
+        def grow(indices):
+            for index in indices:
+                slot = create_slot(f"Slot {index}", legacy, self.slot().picklist)
+                create_interstitial(f"Screen {index}", slots=[slot])
+
+        grow(range(2))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get("/n26/authoring/interstitial/").status_code == 200
+        grow(range(2, 8))
+        with CaptureQueriesContext(connection) as more:
+            assert client.get("/n26/authoring/interstitial/").status_code == 200
+        assert len(more) <= len(few)
 
     def test_it_can_be_held_back_from_players(self, author, client, legacy):
         """A screen is put in front of a player by the slot it is attached

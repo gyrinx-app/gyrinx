@@ -590,6 +590,43 @@ class TestAnInterstitialOnASlot:
 
         assert list(house_legacy.interstitials) == []
 
+    def test_an_attachment_in_an_archived_pack_is_not_read_off_the_slot(
+        self, house_legacy, homebrew
+    ):
+        shown = create_interstitial("Outcast archetype")
+        attach_interstitial(shown, house_legacy, pack=homebrew)
+        revise(homebrew, archived=True)
+
+        assert list(house_legacy.interstitials) == []
+
+    def test_an_attachment_lands_in_its_interstitials_pack(
+        self, house_legacy, homebrew
+    ):
+        shown = create_interstitial("Outcast archetype", pack=homebrew)
+
+        assert attach_interstitial(shown, house_legacy).pack == homebrew
+
+    def test_a_refused_attachment_leaves_the_transaction_around_it_usable(
+        self, house_legacy
+    ):
+        """The constraint stands behind the check, for two attachments
+        made at once; it refuses inside a savepoint of its own, so a
+        page that made the attempt inside a transaction can still say
+        so rather than finding its transaction aborted."""
+        from unittest import mock
+
+        from n26.library.models import InterstitialSlot
+
+        shown = create_interstitial("Outcast archetype")
+        InterstitialSlot.objects.create(interstitial=shown, slot=house_legacy)
+        nothing_yet = mock.Mock(return_value=mock.Mock(exists=lambda: False))
+        with transaction.atomic():
+            with mock.patch.object(InterstitialSlot.objects, "filter", nothing_yet):
+                with pytest.raises(ValidationError, match="already attached"):
+                    attach_interstitial(shown, house_legacy, position=1)
+            # Still inside the outer transaction, and it still answers.
+            assert InterstitialSlot.objects.count() == 1
+
     def test_an_archived_attachment_is_not_read_off_the_slot(self, house_legacy):
         shown = create_interstitial("Outcast archetype")
         attachment = attach_interstitial(shown, house_legacy)

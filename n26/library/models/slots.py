@@ -675,14 +675,17 @@ class Slot(Content, Assignable):
     def interstitials(self):
         """The interstitials this slot carries, in the order they are
         attached — the screens shown when this slot arrives. Archived
-        ones are left out: an archived interstitial, or one in an
-        archived pack, is withdrawn from every slot at once, and an
-        archived attachment from this one. Staged ones stay, as on
-        every authoring surface; the screen a player sees narrows
-        further."""
+        ones are left out, on the same terms ``unarchived()`` applies to
+        any content: an archived interstitial, or one in an archived
+        pack, is withdrawn from every slot at once, and an archived
+        attachment, or one in an archived pack, from this one. Staged
+        ones stay, as on every authoring surface; the screen a player
+        sees narrows further."""
         return (
             Interstitial.objects.filter(
-                attachments__slot=self, attachments__archived=False
+                attachments__slot=self,
+                attachments__archived=False,
+                attachments__pack__archived=False,
             )
             .unarchived()
             .order_by("attachments__position", "position", "name")

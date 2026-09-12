@@ -1098,17 +1098,32 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
     is already attached to unless placed.
 
     Refused where it is already attached to that slot: a second
-    attachment would show the same screen twice.
+    attachment would show the same screen twice. Two attachments made
+    at once are refused the same way, by the constraint behind the
+    check.
+
+    The attachment lands in the interstitial's pack unless told
+    otherwise: it is a part of the interstitial, and a screen in a
+    pack of its own is shown for the slots that pack attaches it to.
     """
+    from django.db import IntegrityError, transaction
+
     from n26.library.models import InterstitialSlot
 
+    already = f"{interstitial} is already attached to {slot}."
     if InterstitialSlot.objects.filter(interstitial=interstitial, slot=slot).exists():
-        raise ValidationError(f"{interstitial} is already attached to {slot}.")
+        raise ValidationError(already)
     if position is None:
         position = interstitial.attachments.count()
-    return InterstitialSlot.objects.create(
-        interstitial=interstitial, slot=slot, position=position, **kwargs
-    )
+    if "pack" not in kwargs and "pack_id" not in kwargs:
+        kwargs["pack_id"] = interstitial.pack_id
+    try:
+        with transaction.atomic():
+            return InterstitialSlot.objects.create(
+                interstitial=interstitial, slot=slot, position=position, **kwargs
+            )
+    except IntegrityError:
+        raise ValidationError(already) from None
 
 
 def detach_interstitial(attachment):
