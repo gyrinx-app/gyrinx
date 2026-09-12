@@ -12,7 +12,7 @@
     {% endif %}
     <div class="hstack">
         <div class="vstack flex-grow-1 gap-0 mb-2">
-            {% include "core/includes/list_common_header.html" with list=list %}
+            {% include "core/includes/list_common_header.html" with list=list hide_post_battle=True %}
             <div class="d-flex flex-column flex-lg-row row-gap-1 column-gap-2 align-items-lg-center">
                 <div class="d-flex flex-row flex-wrap row-gap-1 column-gap-2 fs-7">
                     {% if not print %}
@@ -99,15 +99,38 @@
                                     {{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}
                                 </a>
                             {% endif %}
+                            {% comment %}
+                                Owner or campaign admin (owner or shared admin) in campaign
+                                mode: the same rule get_list_for_edit applies to the
+                                post-battle view, and the same one the common header uses.
+                            {% endcomment %}
+                            {% if list.is_campaign_mode %}
+                                {% if list.owner_cached == user or list.campaign|is_campaign_admin:user %}
+                                    <c-btn variant="primary"
+                                           size="sm"
+                                           href="{% url 'core:list-post-battle' list.id %}"
+                                           title="Record XP, injuries and gains after a battle">
+                                        <c-icon name="clipboard-check" />
+                                        <span class="d-none d-sm-inline">Post-battle updates</span>
+                                        <span class="visually-hidden d-sm-none">Post-battle updates</span>
+                                    </c-btn>
+                                {% endif %}
+                            {% endif %}
                             {% if list.owner_cached == user and not list.archived %}
-                                <a href="{% url 'core:list-fighter-new' list.id %}"
-                                   class="btn btn-primary btn-sm"
-                                   title="Add a fighter to this list">
-                                    <i class="bi-person-add"></i> Add fighter</a>
-                                <a href="{% url 'core:list-vehicle-new' list.id %}"
-                                   class="btn btn-primary btn-sm"
-                                   title="Add a vehicle to this list">
-                                    <i class="bi-truck"></i> Add vehicle</a>
+                                <c-btn variant="primary"
+                                       size="sm"
+                                       href="{% url 'core:list-fighter-new' list.id %}"
+                                       title="Add a fighter to this list">
+                                    <c-icon name="person-add" />
+                                    Add fighter
+                                </c-btn>
+                                <c-btn variant="primary"
+                                       size="sm"
+                                       href="{% url 'core:list-vehicle-new' list.id %}"
+                                       title="Add a vehicle to this list">
+                                    <c-icon name="truck" />
+                                    Add vehicle
+                                </c-btn>
                             {% endif %}
                             {% if user.is_authenticated %}
                                 {% if list.owner_cached == user %}
@@ -164,17 +187,6 @@
                                         <i class="bi-three-dots-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu">
-                                        {% if is_campaign_arbitrator or list.is_campaign_mode and list.owner_cached == user %}
-                                            <li>
-                                                <a href="{% url 'core:list-post-battle' list.id %}"
-                                                   class="dropdown-item icon-link">
-                                                    <i class="bi-clipboard-check"></i> Post-battle updates
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <hr class="dropdown-divider">
-                                            </li>
-                                        {% endif %}
                                         <li>
                                             <a href="{% url 'core:print-config-index' list.id %}"
                                                class="dropdown-item icon-link">
