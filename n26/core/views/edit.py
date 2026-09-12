@@ -277,7 +277,7 @@ def _dismissal_holders(miniature, card):
     """
     from n26.core.status import Status
 
-    return () if miniature.status == Status.DEAD else (card,)
+    return [] if miniature.status == Status.DEAD else [card]
 
 
 def _dismissal_hidden(miniature, card):
@@ -285,7 +285,7 @@ def _dismissal_hidden(miniature, card):
     dismissed offers only go."""
     from n26.core.status import Status
 
-    return (card,) if miniature.status == Status.DEAD else ()
+    return [card] if miniature.status == Status.DEAD else []
 
 
 def render_card_update(request, miniature, at):
