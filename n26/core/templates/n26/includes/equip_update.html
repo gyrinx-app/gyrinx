@@ -31,6 +31,15 @@ loses the row along with the last copy.
     {% endif %}
 {% endfor %}
 {% comment %}
+The model's card, where the screen is a model's: what was bought is on it,
+and so is what the purchase changed — a rule the kit confers, a
+characteristic it shifts — so the card above the listing says what the
+listing now says. The gang's own screen draws no card and delivers none.
+{% endcomment %}
+{% if card %}
+    {% include "n26/includes/model_card_host.html" with redrawn=True htmx=True %}
+{% endif %}
+{% comment %}
 The money, and not the model count beside it. An act on kit never changes
 how many models the gang fields, and the count opens onto a tally whose own
 Alpine state does not survive being re-rendered mid-life — so what did not

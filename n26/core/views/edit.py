@@ -269,6 +269,37 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
     return added, taken, restored
 
 
+def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
+    """The model's card with every control addressed — the card each of
+    the model's own screens draws above its tabs.
+
+    One place turns the reading into the card and points its controls
+    somewhere, so the Edit, Equip and Options faces, and the card an act
+    sends back, cannot offer different things: the choice slots, the
+    Skills control, the counters, and on each piece of kit the acts the
+    equip listing offers. Costs one query, for which collections hold
+    skills — or none where the caller has already asked (``among``).
+
+    ``back`` is the screen the card is drawn on, carried on the choice
+    and counter controls so the act returns the reader there. ``host``
+    decides where the kit acts open: on ``host.at``, which is the
+    screen's own address where it holds the dialog host, and the model's
+    own page otherwise.
+    """
+    from n26.core.access import model_collections
+    from n26.core.render import build_model_card
+    from n26.core.views.choose import link_slots
+    from n26.core.views.owned import link_counters, link_possession_actions
+    from n26.core.views.skills import link_skills
+
+    card = build_model_card(miniature, card=own, computed=computed)
+    link_slots(gang, card, back=back)
+    link_skills(card, among=model_collections() if among is None else among)
+    link_counters(card, back=back)
+    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    return card
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
@@ -285,30 +316,21 @@ def render_card_update(request, miniature, at):
     itself reads it, from this one model rather than from the gang
     around it, so an act costs what the page costs and not more.
     """
-    from n26.core.access import model_collections
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.owned import EquipHost
-    from n26.core.render import build_model_card
-    from n26.core.views.choose import link_slots
     from n26.core.views.htmx import with_toasts
-    from n26.core.views.owned import link_counters, link_possession_actions
-    from n26.core.views.skills import link_skills
 
     gang = miniature.membership.gang
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
-    card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card, back=at)
-    link_skills(card, among=model_collections())
-    link_counters(card, back=at)
     # The card is drawn in edit mode, and edit mode's card carries the
     # kit acts. They open over the model's own page, whatever screen
     # the act came from: ``at`` is untrusted and never becomes an href.
     edit = reverse("n26-edit-fighter", args=[miniature.pk])
     host = EquipHost.fighter(gang, own, miniature, edit)
-    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    card = link_model_card(gang, miniature, own, computed, host, back=at)
 
     response = render(
         request,
@@ -375,19 +397,16 @@ def edit_fighter(request, pk):
     from n26.core.images import MAX_PX, PORTRAIT
     from n26.core.operations import Refusal, operation, trade_points_carried_by
     from n26.core.owned import DIALOGS, EquipHost
-    from n26.core.render import build_model_card, roster, summarise_roster
-    from n26.core.views.choose import link_slots
+    from n26.core.render import roster, summarise_roster
     from n26.core.views.equip import _tab_label, buyable_lists
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
     from n26.core.views.owned import (
         accessorise_dialogs,
-        link_counters,
-        link_possession_actions,
         owned_dialog,
         panel_response,
     )
-    from n26.core.views.skills import apply_ticks, link_skills, skills_offer
+    from n26.core.views.skills import apply_ticks, skills_offer
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.membership.gang
@@ -671,14 +690,9 @@ def edit_fighter(request, pk):
     # asked for only what the gang alone can answer, which on this page is
     # the roster tally below. The card's own build carries the gang's
     # assignments already, so what the gang grants still reaches it.
-    card = build_model_card(miniature, card=own, computed=computed)
-    link_slots(gang, card, back=request.get_full_path())
-    link_skills(card, among=sets)
-    # Only here. A counter is drawn wherever a card is; the model's own
-    # page is the one place it is moved, so this is the one place the
-    # lines are given addresses.
-    link_counters(card, back=request.get_full_path())
-    link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    card = link_model_card(
+        gang, miniature, own, computed, host, back=request.get_full_path(), among=sets
+    )
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes", include_staged=shown

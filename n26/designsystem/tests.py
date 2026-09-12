@@ -546,6 +546,46 @@ class TestTheShellStillDraws:
         assert "Choose one, or none" in page
 
 
+class TestTheModelHeaderPage:
+    """Its card slot reaches the gallery drawn, above the tab strip."""
+
+    def test_both_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/model-header/").content.decode()
+        assert "One model's screens" in page or "One model&#x27;s screens" in page
+        assert "With the model" in page
+        assert 'id="n26-model-card-host"' in page
+
+    def test_the_card_sits_between_the_heading_and_the_tabs(self, reader):
+        # The component page, since the second demo is the one with the
+        # card, and the plain preview draws a component's first alone.
+        page = reader.get("/n26/design/c/model-header/").content.decode()
+        demo = page.index("With the model")
+        card = page.index('id="n26-model-card-host"', demo)
+        assert page.index("Vesna Krail", demo) < card < page.index("This model", card)
+
+
+class TestTheModelEditPage:
+    """The card above the tabs, then the boxes in their order, Lore last."""
+
+    def test_the_card_sits_above_the_tabs(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page.index('id="n26-model-card-host"')
+        assert page.index("<h1") < card < page.index("This model")
+
+    def test_the_boxes_run_notes_skills_characteristics_lore(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+
+        def heading(name):
+            return page.index(f'<span class="font-semibold">{name}</span>')
+
+        assert (
+            heading("Notes")
+            < heading("Skills &amp; Powers")
+            < heading("Characteristics")
+            < heading("Lore")
+        )
+
+
 class TestCounterLinesInTheGallery:
     """Only one sample card offers to move a number.
 

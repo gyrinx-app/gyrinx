@@ -195,6 +195,12 @@ class HireFighterForm(forms.Form):
     )
 
 
+#: How tall the notes editor on a model's page is, in pixels. Notes are a
+#: line or two most of the time and the boxes under them are what the page
+#: is for, so the editor is short and scrolls; what is written has no limit.
+NOTES_EDITOR_HEIGHT = 160
+
+
 class FighterNotesForm(forms.Form):
     """The edit page's notes box.
 
@@ -203,7 +209,10 @@ class FighterNotesForm(forms.Form):
     happens at render time, which is why nothing here strips tags.
     """
 
-    notes = forms.CharField(required=False, widget=RichText())
+    notes = forms.CharField(
+        required=False,
+        widget=RichText(attrs={"rows": 4}, mce_attrs={"height": NOTES_EDITOR_HEIGHT}),
+    )
 
 
 class PictureForm(forms.Form):

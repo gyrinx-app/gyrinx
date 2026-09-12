@@ -752,6 +752,9 @@ class TestBuyingIntoTheStashWithoutRebuildingThePage:
         # What the gang holds sits in the stash, and the row says so
         # rather than calling it equipped.
         assert "in stash" in body
+        # And no model's card: the stash is nobody's, and this page draws
+        # none for an update to land in.
+        assert "n26-model-card-host" not in body
 
     def test_a_plain_buy_still_answers_with_the_whole_page(
         self, client, tester, gang, house_list

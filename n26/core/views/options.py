@@ -7,7 +7,12 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
 
-from n26.core.views.permissions import _own_miniature_or_404, trade_points_href
+from n26.core.views.permissions import (
+    _own_miniature_or_404,
+    may_mark_status,
+    status_href,
+    trade_points_href,
+)
 
 
 def _option_rows(entry, chosen_pks):
@@ -63,11 +68,21 @@ def fighter_options(request, pk):
     the hire did and hands them to ``op.rechoose``: assignments swap, the price
     difference lands on the hire's own line in either direction, and an
     upgrade the gang cannot afford unwinds whole.
+
+    The model's card sits above the tabs, as it does on the Edit face,
+    so what an option changes is in view while it is changed. This page
+    holds no host a partial update could land in, so the card's controls
+    are plain links and forms, and the kit acts open over the model's
+    own page.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.card import build_card, build_modifier_index, carriers
+    from n26.core.effects import compute
     from n26.core.hire import build_hire_entry
     from n26.core.operations import Refusal, operation
+    from n26.core.owned import EquipHost
     from n26.core.render import roster, summarise_roster
+    from n26.core.views.edit import link_model_card
     from n26.core.views.hire import _chosen, _picks
 
     miniature = _own_miniature_or_404(request, pk)
@@ -114,6 +129,16 @@ def fighter_options(request, pk):
         row.default_set_id for row in miniature.membership.chosen_options.all()
     }
     members = roster(gang)
+    # The card, read the way the Edit face reads it — this one model, with
+    # the options each copy was bought with, so the kit acts can describe
+    # every copy. Those acts open over the model's own page: this screen
+    # has no dialog host of its own.
+    own = build_card(miniature, with_statlines=True, with_options=True)
+    computed = compute(own, build_modifier_index(carriers(own)))
+    host = EquipHost.fighter(
+        gang, own, miniature, reverse("n26-edit-fighter", args=[miniature.pk])
+    )
+    card = link_model_card(gang, miniature, own, computed, host, back=here)
     return render(
         request,
         "n26/fighter_options.html",
@@ -123,6 +148,14 @@ def fighter_options(request, pk):
             "role": (profile.category.name if profile and profile.category else ""),
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
+            "card": card,
+            # The badge leads to the status question, and the act lands on
+            # the model's own page — a named place the sheet knows.
+            "status_href": (
+                status_href(gang, miniature, back="edit")
+                if may_mark_status(gang, request.user)
+                else ""
+            ),
             "groups": _option_rows(entry, chosen_pks),
             # The field scheme is the hire listing's, slugified pk and all,
             # so the parser reads this page's POST unchanged.
