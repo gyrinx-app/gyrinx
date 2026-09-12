@@ -330,7 +330,9 @@ def parse_headings(html):
     """
     soup = BeautifulSoup(html or "", "html.parser")
     headings = []
-    seen = set()
+    # Authored content can carry its own ids (TinyMCE's anchor tool), so every
+    # id already on the page is reserved before any heading slug is chosen.
+    seen = {tag["id"] for tag in soup.find_all(id=True)}
 
     for heading in soup.find_all(re.compile(r"^h[1-6]$")):
         text = heading.get_text().strip()

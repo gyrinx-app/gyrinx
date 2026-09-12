@@ -853,12 +853,17 @@ $width-em-sizes: (
     }
 }
 
-// The optional contents block: a nested, numbered list of the page's headings.
+// The optional contents block: a nested list of the page's headings. No
+// bullets or numbers — the sidebar page nav and the child-page listing on
+// the same page are marker-less too, and #2540 asks for a nested list, not
+// a numbered one. Nesting shows as indentation.
 .flatpage-contents-list {
-    padding-inline-start: 1.5em;
+    list-style: none;
+    padding-inline-start: 0;
     margin-bottom: 0;
 
     .flatpage-contents-list {
+        padding-inline-start: 1em;
         margin-top: 0.25em;
     }
 

@@ -45,6 +45,18 @@ def test_parse_headings_deduplicates_slugs_with_numeric_suffixes():
     assert 'href="#setup-3"' in parsed.html
 
 
+def test_parse_headings_reserves_ids_already_in_the_content():
+    """TinyMCE's anchor tool writes its own ids; a heading slug must not
+    duplicate one of those either."""
+    parsed = parse_headings(
+        '<a id="setup"></a><h2>Setup</h2><div id="notes-2"></div><h2>Notes</h2><h2>Notes</h2>'
+    )
+
+    assert [h.slug for h in parsed.headings] == ["setup-2", "notes", "notes-3"]
+    assert '<a id="setup"></a>' in parsed.html
+    assert '<h2 id="setup-2">' in parsed.html
+
+
 def test_parse_headings_skips_empty_headings_from_the_list_but_still_ids_them():
     parsed = parse_headings("<h2></h2><h2>Real</h2>")
 
@@ -123,8 +135,8 @@ def test_page_contents_renders_nested_list_with_deduplicated_links(site):
 
     html = render_contents(page)
 
-    assert 'aria-labelledby="page-contents-heading"' in html
-    assert "Contents" in html
+    assert 'aria-label="Contents"' in html
+    assert ">Contents</h2>" in html
     assert 'href="#intro"' in html
     assert 'href="#setup"' in html
     assert 'href="#setup-2"' in html
@@ -134,7 +146,23 @@ def test_page_contents_renders_nested_list_with_deduplicated_links(site):
     setup2 = html.index('href="#setup-2"')
     outro = html.index('href="#outro"')
     assert intro < setup2 < outro
-    assert html.count("<ol") == 2
+    # A nested list, not a numbered one (#2540 asks for a nested list; the
+    # sidebar page nav is marker-less too).
+    assert html.count("<ul") == 2
+    assert "<ol" not in html
+
+
+@pytest.mark.django_db
+def test_page_contents_block_has_no_fixed_id_to_collide_with(site):
+    """An authored heading "Page contents heading" slugs to what the block's
+    heading id used to be; the block must not carry a fixed id."""
+    page = make_page(site, "/guide/", "Guide", "<h2>Page contents heading</h2>")
+    FlatPageOptions.objects.create(page=page, show_contents=True)
+
+    html = Client().get(page.url).content.decode()
+
+    assert 'href="#page-contents-heading"' in html
+    assert html.count('id="page-contents-heading"') == 1
 
 
 @pytest.mark.django_db
