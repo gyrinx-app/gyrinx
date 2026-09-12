@@ -1,0 +1,45 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+One listing row, corrected at an address of its own: this list's price
+for the thing and who this list offers it to. The thing listed is not on
+the form — an entry is its collection and the thing it names, and the
+way to a different thing is another entry.
+
+The item's own restriction is the other fact, and it holds on every
+list. It is said here because an author who came to this page came to
+change who the line is offered to, and it is changed on the item's page.
+{% endcomment %}
+{% block head_title %}
+    {{ label }} in {{ collection }}
+{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-entry-edit' thing.pk %}"
+                     title="{{ label }} in {{ collection }}"
+                     lead="This list's own price for {{ label }}, and who this list offers it to. Leave an override blank to offer it at its reference price, and the narrowing blank to offer it to everyone."
+                     submit_label="Save changes"
+                     submit_variant="primary"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ collection }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ label }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if item_restriction %}
+            <c-ui.alert variant="info" title="The item itself is restricted">
+                {{ label }} is usable by {{ item_restriction.words }} only, on every list that names it.
+                That is set on the item's own page and not here.
+                <c-n26.link href="{{ item_restriction.url }}">
+                    Change it on the item's page
+                </c-n26.link>
+            </c-ui.alert>
+        {% endif %}
+        {% include "authoring/_form.html" with form=form %}
+    </c-n26.form-page>
+{% endblock content %}
