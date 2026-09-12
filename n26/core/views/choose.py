@@ -42,18 +42,43 @@ SHOW_DISMISSED = "dismissed"
 SHOWING = "show"
 
 
-def showing_dismissed(request):
-    """Whether the address asks for the dismissed offers to be drawn."""
-    return request.GET.get(SHOW_DISMISSED) == SHOWING
+def showing_dismissed(url):
+    """Whether an address asks for the dismissed offers to be drawn.
 
-
-def showing_dismissed_at(url):
-    """The same question of a URL — the screen an act came from, carried
-    in its form rather than read off the request."""
+    Asked of a URL rather than a request, because the address a card is
+    redrawn under after an act arrives in the act's form, not on the
+    request that redraws it.
+    """
     from urllib.parse import parse_qs, urlsplit
 
     query = parse_qs(urlsplit(url).query)
     return SHOWING in query.get(SHOW_DISMISSED, [])
+
+
+def settle_dismissed(gang, *holders, at="", showing=False, hide_only=()):
+    """Take the gang's dismissed offers off these cards and sheets, or keep
+    them on marked when the screen at ``at`` is showing them — and point
+    each holder that had any at ``at`` with the query the other way, so
+    the control sits beside where the offers were.
+
+    One query for every holder together. ``at`` empty draws no control,
+    which is what a reader who does not own the gang gets: the offers
+    still go, and nothing is offered. ``hide_only`` holders lose their
+    dismissed offers whatever ``showing`` says and get no control — a
+    dead model's card is drawn with nothing to click, so a line kept on
+    it to be restored would be a line with no way to restore it.
+    """
+    from n26.core.models import DismissedOffer
+    from n26.core.render import hide_dismissed
+
+    keys = DismissedOffer.keys_for(gang)
+    toggle = dismissed_toggle(at, showing) if at else ""
+    for holder in holders:
+        holder.dismissed_count = hide_dismissed(keys, holder, reveal=showing)
+        holder.dismissed_shown = showing
+        holder.dismissed_href = toggle if holder.dismissed_count else ""
+    for holder in hide_only:
+        hide_dismissed(keys, holder)
 
 
 def dismissed_toggle(url, showing):
@@ -84,7 +109,7 @@ class _Found:
     miniature: object = None
 
 
-def link_slots(gang, *holders, back=""):
+def link_slots(gang, *holders, back="", dismiss_back=None):
     """Point every choice slot on these structures at its picker.
 
     Costs no queries: a slot's address is already on the line, and this
@@ -104,9 +129,17 @@ def link_slots(gang, *holders, back=""):
     each list by name. Where a question is drawn is the holder's business;
     every one of them is chosen for at the same address, and a holder that
     grows another row is linked by the same line.
+
+    ``dismiss_back`` is where dismissing or restoring an offer lands,
+    where that differs from where a settled choice does — the gang sheet
+    sends a settled choice to the gang and a dismissal back to the sheet
+    as it stood, showing the dismissed offers or not. Left unsaid, it is
+    ``back``.
     """
     from n26.core.owned import with_query
 
+    if dismiss_back is None:
+        dismiss_back = back
     for holder in holders:
         for line in holder.questions:
             if not line.key:
@@ -120,7 +153,7 @@ def link_slots(gang, *holders, back=""):
             # was chosen is drawn and there is nothing to hide; a
             # dismissed one, kept on the structure to be shown, offers
             # only the way back.
-            line.back = back
+            line.back = dismiss_back
             if line.dismissed:
                 line.restore_href = reverse(
                     "n26-restore-offer", args=[gang.pk, line.key]
@@ -365,6 +398,7 @@ def choose(request, pk, slot):
     roll visible to whoever reads the history.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import DismissedOffer
     from n26.core.operations import Refusal, operation
     from n26.core.render import NONE_KEY, build_choice_offer
 
@@ -529,6 +563,11 @@ def choose(request, pk, slot):
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(here)
+        if not dropped:
+            # A pick landing on a dismissed offer is the owner changing
+            # their mind: the row goes, so taking the pick back later
+            # leaves the offer open rather than hiding it again unasked.
+            DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
         # Which choice was made and with what. Changing your mind
         # records a second choice rather than editing the first: what a
         # player picked and then dropped is a thing worth being able to ask
@@ -655,9 +694,11 @@ def restore_offer(request, pk, slot):
 
     The row is deleted whether or not the slot still exists: a key left
     behind by a carrier since sold hides nothing, and taking it off is
-    harmless. Lands where the control was clicked, or on the gang with
-    its dismissed offers still showing, since the reader was in the
-    middle of looking at them.
+    harmless. The slot is then found again only to name the offer in the
+    confirmation — the same derivation opening its pick screen pays.
+    Lands where the control was clicked, or on the gang with its
+    dismissed offers still showing, since the reader was in the middle of
+    looking at them.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import DismissedOffer
