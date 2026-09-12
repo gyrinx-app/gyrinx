@@ -573,3 +573,32 @@ them.
 - [ ] No `n23.*` / `gyrinx.*` import added outside the four sanctioned seams
 - [ ] Copywriter pass done on every new string; no "interstitial" in player copy
 - [ ] `bandit -c pyproject.toml -r n26` clean
+
+## 14. Decisions taken (Tom, 2026-09-12)
+
+These override the assumptions in §1 and the open points in §12.
+
+- **Nothing stored.** State derives from the address every time (A2 stands).
+- **Skip and Continue.** Skippable blocks show Skip: a link to the same
+  screen with that block's `ask` keys removed. Non-skippable blocks show no
+  Skip. Continue is enabled only when every remaining slot is chosen. When
+  no keys remain, redirect to `next`. (D2 resolved; no "Not now" state.)
+- **Inline picker.** The screen renders the picker in place and POSTs to
+  itself, reusing `choose`'s handling by extracting it, not copying it.
+  (A1 and D5 overturned: the screen writes.)
+- **Grouping.** One interstitial on several arriving slots shows once, with
+  each slot's question and picker listed under it (D3).
+- **Confirmation message** shows on this screen (D4).
+- **Triggers.** Founding, hire and pick only. Purchases and clones never
+  redirect here; the view seam opts in per act.
+- **Only attached slots ever show.** Incremental adoption: nothing changes
+  until an author attaches an interstitial. No special-casing of archetypes.
+- **Address** is `/n26/gangs/<id>/next/` (D1). No feature flag (D6).
+- **Model** as §3 proposes; `description` uses the same text handling as
+  other library descriptions.
+- **Authoring.** A library page per interstitial listing its slot
+  attachments as ordered parts with Remove; Slot pages show a read-only
+  line linking across.
+- **Content.** Mechanism only; the Outcast archetype's duplicated Leader
+  offers are content work done afterwards (D7). Gang-sheet callout is out
+  (D8).
