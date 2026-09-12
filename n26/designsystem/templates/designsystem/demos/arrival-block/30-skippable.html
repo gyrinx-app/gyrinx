@@ -1,0 +1,12 @@
+{# title: Skippable #}
+{# note: Skip is a link to the same screen with this block's questions dropped from the address. Nothing is written and nothing is stored, so there is no state to undo. #}
+{# layout: full #}
+<c-n26.arrival-block :block="arrival_screen.blocks.2">
+    <form method="post" action="#">
+        {% csrf_token %}
+        <input type="hidden"
+               name="ask"
+               value="{{ arrival_screen.blocks.2.questions.0.key }}">
+        <c-n26.arrival-question :question="arrival_screen.blocks.2.questions.0" />
+    </form>
+</c-n26.arrival-block>

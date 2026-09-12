@@ -26,6 +26,7 @@ urlpatterns = [
     path("shell/hire/", views.shell_hire, name="shell_hire"),
     path("shell/shop/", views.shell_shop, name="shell_shop"),
     path("shell/print/", views.shell_print, name="shell_print"),
+    path("shell/next/", views.shell_next, name="shell_next"),
     path("view/<slug:slug>/", views.view_preview, name="view_preview"),
     # What the deferred component's demo fetches: a bare sample fragment,
     # meeting the same contract a real call site's endpoint must.

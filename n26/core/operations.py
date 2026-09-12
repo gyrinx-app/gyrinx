@@ -338,6 +338,11 @@ class Operation:
         self._miniatures = {}
         self._effect_depth = 0
         self._campaign = _UNASKED
+        #: The ids of every assignment this operation wrote, as strings.
+        #: A slot is computed, so "this slot just arrived" can only be
+        #: read off the assignment it hangs from; ``n26.core.arrivals``
+        #: reads this to find the slots an act brought.
+        self.written = set()
 
     def touched(self, miniature):
         if miniature is not None:
@@ -453,6 +458,7 @@ class Operation:
             note=note,
         )
         self.touched(assignment.miniature_root)
+        self.written.add(str(assignment.pk))
         # A removal is not an arrival: the thing named is being taken
         # away, so nothing it would write on arrival may run.
         if not removes:

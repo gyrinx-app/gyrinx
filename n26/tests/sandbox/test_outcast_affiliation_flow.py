@@ -261,7 +261,7 @@ class TestAnAnswerArrivingTwice:
         guard = threading.Lock()
         has_read = set()
         picker = import_module("n26.core.views.choose")
-        read_slot = picker._find_slot
+        read_slot = picker.find_slot
         went_wrong = []
         landed = []
 
@@ -276,7 +276,7 @@ class TestAnAnswerArrivingTwice:
                 both_have_read.wait()
             return found
 
-        monkeypatch.setattr(picker, "_find_slot", read_then_wait)
+        monkeypatch.setattr(picker, "find_slot", read_then_wait)
 
         def answer():
             try:

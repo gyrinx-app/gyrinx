@@ -1,0 +1,32 @@
+{% comment %}
+The body of the screen after an act: one block per screen an author attached,
+each question a form of its own posting to `here`, then Continue — offered once
+every question holds a pick, withheld with the line saying why until then.
+
+An include rather than markup in the page, because the gallery's shell draws
+the same body from sample data and two copies of it would drift. Takes
+`screen` (a n26.render.ArrivalScreen) and `here` (where the forms post).
+{% endcomment %}
+{% for block in screen.blocks %}
+    <c-n26.arrival-block :block="block">
+        {% for question in block.questions %}
+            <form method="post" action="{{ here }}">
+                {% csrf_token %}
+                <input type="hidden" name="ask" value="{{ question.key }}">
+                <c-n26.arrival-question :question="question" />
+            </form>
+        {% endfor %}
+    </c-n26.arrival-block>
+{% endfor %}
+<div class="border-t border-box-border pt-6 space-y-3">
+    {% if screen.may_continue %}
+        <c-ui.button href="{{ screen.next_url }}" variant="primary">
+            Continue
+        </c-ui.button>
+    {% else %}
+        <c-ui.button variant="primary" disabled>
+            Continue
+        </c-ui.button>
+        <p class="text-muted">Choose {{ screen.outstanding|join:", " }} to continue.</p>
+    {% endif %}
+</div>
