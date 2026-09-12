@@ -1287,20 +1287,23 @@ def test_clicking_a_tab_in_the_full_strip_moves_nothing(
     assert "hidden sm:flex" not in body
 
 
-def test_the_narrow_strip_is_the_current_tab_and_a_counted_menu(
+def test_the_narrow_strip_draws_two_tabs_whole_and_a_counted_menu_from_three(
     client, tester, fighter, house_list
 ):
-    """Below sm the strip is the section you are on plus a menu of the rest.
-    The tab is bound straight to the section on screen — there is only ever
-    one of it, with no sibling to hide — and the menu's button counts what
-    it holds, so a chevron beside a lone tab is not mistaken for decoration.
-
-    The count says "more" at every number, which is why nothing here reads
-    like a plural waiting to be written."""
+    """Below sm the strip draws every live section as a tab while there are
+    two or fewer, and from three shows the section you are on plus a menu of
+    the rest. Filtering changes how many are live, so the shape is bound in
+    Alpine rather than decided at render. The menu's button counts what it
+    holds, so it always says at least "+2 more" and a chevron beside a lone
+    tab is never mistaken for decoration."""
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
-    assert 'x-text="visibleSection"' in body
+    assert (
+        'x-show="countInSection(name) > 0 '
+        '&& (liveSections.length <= 2 || visibleSection === name)"'
+    ) in body
+    assert 'x-show="liveSections.length > 2"' in body
     assert "`+${picker.liveSections.length - 1} more`" in body
 
 
