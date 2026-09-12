@@ -7,7 +7,7 @@
                 {% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}
             </td>
             {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
-            {% if mode == 'add' %}
+            {% if mode == "add" %}
                 <td class="text-center border-start">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</td>
             {% endif %}
         </tr>
@@ -22,7 +22,7 @@
     {% if assign.standard_profiles_cached.0.name != "" %}
         <tr class="align-bottom">
             <td colspan="9">{% include "core/includes/list_fighter_weapon_assign_name.html" with assign=assign %}</td>
-            {% if mode == 'add' %}
+            {% if mode == "add" %}
                 <td class="text-center border-start">{{ assign.equipment.rarity }}{% firstof assign.equipment.rarity_roll "" %}</td>
             {% endif %}
         </tr>
@@ -38,7 +38,7 @@
                 {% endif %}
             </td>
             {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
-            {% if mode == 'add' %}
+            {% if mode == "add" %}
                 <td class="text-center border-start">{% comment %} Nothing here because it's a standard profile {% endcomment %}</td>
             {% endif %}
         </tr>
@@ -52,7 +52,7 @@
     {% for pd in assign.weapon_profiles_display %}
         <tr class="align-top">
             <td rowspan="{% if pd.profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
-                {% if mode == 'add' %}
+                {% if mode == "add" %}
                     <div class="form-check">
                         <input type="checkbox"
                                name="weapon_profiles_field"
@@ -71,14 +71,14 @@
                     {% if not assign.has_total_cost_override %}
                         {% if pd.cost_int != 0 %}({{ pd.cost_display }}){% endif %}
                     {% endif %}
-                    {% if mode == 'edit' and fighter.is_stash and list.status == 'campaign_mode' and list.owner_cached == user and assign.kind == 'assigned' %}
+                    {% if mode == "edit" and fighter.is_stash and list.status == "campaign_mode" and list.owner_cached == user and assign.kind == "assigned" %}
                         <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ pd.profile.id }}"
                            class="linked-warning">Sell</a>
                     {% endif %}
                 {% endif %}
             </td>
             {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=pd.profile %}
-            {% if mode == 'add' %}
+            {% if mode == "add" %}
                 <td class="text-center border-start">{{ pd.profile.rarity }}{% firstof pd.profile.rarity_roll "" %}</td>
             {% endif %}
         </tr>
@@ -108,7 +108,7 @@
                         {% endif %}
                     {% endwith %}
                 {% endif %}
-                {% if mode == 'edit' and assign.kind == 'assigned' %}
+                {% if mode == "edit" and assign.kind == "assigned" %}
                     <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}?return_url={{ request.get_full_path|urlencode }}"
                        class="ms-auto link-danger">Delete</a>
                 {% endif %}
@@ -126,7 +126,7 @@
             {% if not assign.has_total_cost_override %}
                 {% if assign.active_upgrade_cost_int != 0 %}({{ assign.active_upgrade_cost_display }}){% endif %}
             {% endif %}
-            {% if mode == 'edit' and assign.kind == 'assigned' %}
+            {% if mode == "edit" and assign.kind == "assigned" %}
                 <a href="{% url 'core:list-fighter-gear-upgrade-delete' list.id fighter.id assign.id assign.active_upgrade_cached.id %}?return_url={{ request.get_full_path|urlencode }}"
                    class="ms-auto link-danger">Delete</a>
             {% endif %}

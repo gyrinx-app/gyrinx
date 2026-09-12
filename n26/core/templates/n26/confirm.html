@@ -15,7 +15,7 @@ the view re-derives the click from the listing and trusts none of it.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='gangs' %}
+    {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{{ confirmation.action }}"

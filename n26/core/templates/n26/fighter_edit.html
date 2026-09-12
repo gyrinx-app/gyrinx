@@ -31,7 +31,7 @@ is named by the page's own heading directly below.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='gangs' %}
+    {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
     <c-n26.view.model-edit :miniature="miniature"
@@ -213,7 +213,10 @@ is named by the page's own heading directly below.
                                     <c-slot name="actions">
                                         <div class="flex items-center justify-end gap-2">
                                             {% if subtype_edits_dirty %}
-                                                <c-ui.button type="submit" form="reset-subtypes" variant="subtle" size="sm">
+                                                <c-ui.button type="submit"
+                                                             form="reset-subtypes"
+                                                             variant="subtle"
+                                                             size="sm">
                                                     Reset
                                                 </c-ui.button>
                                             {% endif %}
@@ -247,7 +250,10 @@ is named by the page's own heading directly below.
                                     <c-slot name="actions">
                                         <div class="flex items-center justify-end gap-2">
                                             {% if rule_edits_dirty %}
-                                                <c-ui.button type="submit" form="reset-rules" variant="subtle" size="sm">
+                                                <c-ui.button type="submit"
+                                                             form="reset-rules"
+                                                             variant="subtle"
+                                                             size="sm">
                                                     Reset
                                                 </c-ui.button>
                                             {% endif %}

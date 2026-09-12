@@ -45,7 +45,9 @@
                 <c-ui.button size="sm" variant="text" @click="openWidget()">
                     Open the theme builder
                 </c-ui.button>
-                <span x-show="!available" x-cloak class="text-sm text-muted">Theme builder not found on this page.</span>
+                <span x-show="!available"
+                      x-cloak
+                      class="text-sm text-muted">Theme builder not found on this page.</span>
             </div>
         </section>
         <section class="mb-14">
@@ -216,7 +218,7 @@
                                     {% for token in bucket.tokens %}
                                         <tr>
                                             <td class="w-10 py-2 pl-4">
-                                                {% if token.kind == 'color' %}
+                                                {% if token.kind == "color" %}
                                                     <span class="block size-5 rounded border border-box-border"
                                                           style="background: var({{ token.name }})"></span>
                                                 {% endif %}

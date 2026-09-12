@@ -57,7 +57,7 @@
         </form>
         {# Toolbar: mark all read + bulk-on-selected. #}
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            {% if bucket == 'inbox' %}
+            {% if bucket == "inbox" %}
                 <form method="post" action="{% url 'core:notifications-bulk' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="mark_read">
