@@ -1068,7 +1068,10 @@ class TestDismissingAnOffer:
             line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
         )
         response = client.post(dismiss_url(gang, line), follow=True)
-        assert "You cannot dismiss" in response.content.decode()
+        assert (
+            "You cannot dismiss Affiliation. It has a pick. Take the pick back first."
+            in response.content.decode()
+        )
         assert dismissed_keys(gang) == set()
 
     def test_the_x_is_a_post(self, client, owner, gang, crew):
