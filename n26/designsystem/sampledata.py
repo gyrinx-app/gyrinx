@@ -2183,7 +2183,14 @@ def model_card_editable():
 
     card = replace(model_card())
     card.counters = [replace(line, href="#") for line in card.counters]
-    card.equipment = [replace(line, sell=sell, more=more) for line in card.equipment]
+    # The base card draws several of one thing as one line with a count.
+    # The model's own page draws one line per assignment, each with the
+    # menu that names it, so a stacked line is opened back out here.
+    card.equipment = [
+        replace(line, sell=sell, more=more, count=1)
+        for line in card.equipment
+        for _ in range(line.count)
+    ]
     for weapon in card.weapons:
         weapon.sell = sell
         weapon.more = more

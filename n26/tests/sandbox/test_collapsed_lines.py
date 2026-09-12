@@ -19,6 +19,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
+from n26.core.capture import differences, gang_state
 from n26.core.hire import preview_model_card
 from n26.core.models import Miniature
 from n26.core.render import build_model_card, render_gang
@@ -27,7 +28,9 @@ from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     adds,
     assign,
+    create_category,
     create_default_set,
+    create_power,
     create_rule,
     create_skill,
     create_wargear,
@@ -279,3 +282,109 @@ class TestTheHirePreview:
 
         (kept,) = preview_model_card(profile).equipment
         assert (kept.name, kept.count) == ("Respirator", 2)
+
+
+class TestPowersAndCategoryGearOnTheCard:
+    """The two other rows that stack: powers, and gear drawn under a
+    category's own heading. Each reads with its count on the sheet, on
+    paper and in text, as gear and skills do."""
+
+    @pytest.fixture
+    def crush(self, default_pack):
+        family = create_category("Powers", "Whispers")
+        return create_power("Crush", category=family)
+
+    @pytest.fixture
+    def iron_flesh(self, default_pack):
+        upgrades = create_category(
+            "Gene-smithing", "Gene-smithing", draws_its_own_row=True
+        )
+        return create_wargear("Iron flesh", price=30, category=upgrades)
+
+    def test_the_same_power_twice_is_one_line_with_the_count(
+        self, client, gang, fighter, crush
+    ):
+        select(fighter, crush)
+        select(fighter, crush)
+
+        (kept,) = build_model_card(fighter).powers
+        assert (kept.name, kept.count) == ("Crush", 2)
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        text = "\n".join(render_model_card(build_model_card(fighter)))
+        assert "Crush (x2)" in body
+        assert "Crush, Crush" not in body
+        assert "Powers: Crush (x2)" in text
+
+    def test_two_of_one_upgrade_are_one_line_under_their_heading(
+        self, client, gang, fighter, iron_flesh
+    ):
+        assign(iron_flesh, miniature=fighter, paid=30)
+        assign(iron_flesh, miniature=fighter, paid=30)
+
+        card = build_model_card(fighter)
+        assert card.equipment == []
+        (group,) = card.gear_groups
+        (kept,) = group.lines
+        assert (group.name, kept.name, kept.count, kept.id) == (
+            "Gene-smithing",
+            "Iron flesh",
+            2,
+            "",
+        )
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        text = "\n".join(render_model_card(card))
+        assert "Iron flesh (x2)" in body
+        assert "Iron flesh, Iron flesh" not in body
+        assert "Iron flesh (x2)" in paper
+        assert "Gene-smithing: Iron flesh (x2)" in text
+
+    def test_the_models_own_page_keeps_one_upgrade_line_per_piece(
+        self, client, gang, fighter, iron_flesh
+    ):
+        assign(iron_flesh, miniature=fighter, paid=30)
+        assign(iron_flesh, miniature=fighter, paid=30)
+        client.force_login(gang.owner)
+        body = client.get(
+            reverse("n26-edit-fighter", args=[fighter.pk])
+        ).content.decode()
+
+        assert "(x2)" not in body
+        assert body.count('aria-label="More for Iron flesh"') == 2
+
+
+class TestTheCapture:
+    """A conversion proves itself by comparing a gang's pages before and
+    after. The capture writes a stacked line once per assignment, so two
+    of a thing never compare equal to one, and a conversion that lost
+    the second shows as a difference."""
+
+    def test_two_of_one_wargear_capture_differently_from_one(
+        self, gang, fighter, respirator
+    ):
+        assign(respirator, miniature=fighter, paid=15)
+        one = gang_state(gang)
+        assign(respirator, miniature=fighter, paid=15)
+        two = gang_state(gang)
+
+        assert differences(one, two) != []
+        (model,) = two["models"].values()
+        assert model["equipment"] == [("Respirator", 15), ("Respirator", 15)]
+
+    def test_two_of_one_stashed_item_capture_as_two(self, gang, respirator):
+        assign(respirator, stash=gang.stash, paid=15)
+        assign(respirator, stash=gang.stash, paid=15)
+        gang.refresh_from_db()
+
+        assert gang_state(gang)["stash"] == [("Respirator", 15), ("Respirator", 15)]
+
+    def test_the_same_skill_twice_captures_as_two(self, gang, fighter, nerves):
+        select(fighter, nerves)
+        select(fighter, nerves)
+
+        (model,) = gang_state(gang)["models"].values()
+        assert model["skills"] == ["Nerves of Steel", "Nerves of Steel"]
