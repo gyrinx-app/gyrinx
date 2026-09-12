@@ -624,9 +624,12 @@ class TestGrantedWargear:
         claws, _, _ = kit
         first = give_weapon(yolanda, claws, paid=50)
         second = give_weapon(yolanda, claws, paid=50)
-        assert [item.name for item in card_for(yolanda).equipment].count(
-            "Drop rig"
-        ) == 2
+        # Two grants alike in every way — the same thing, from the same
+        # kind of source — are drawn as one line counting two.
+        assert [(item.name, item.count) for item in card_for(yolanda).equipment] == [
+            ("Drop rig", 2),
+            ("Grapnel launcher", 2),
+        ]
         remove(first)
         assert [item.name for item in card_for(yolanda).equipment] == [
             "Drop rig",
@@ -656,15 +659,15 @@ class TestGrantedWargear:
             attach_to=blocker,
         )
         cancellation = assign(blocker, miniature=yolanda)
-        assert [item.name for item in card_for(yolanda).equipment] == [
-            "Drop rig",
-            "Drop rig",
+        assert [(item.name, item.count) for item in card_for(yolanda).equipment] == [
+            ("Drop rig", 2),
         ]
         assert card_for(yolanda).skills == []
         remove(cancellation)
-        assert [item.name for item in card_for(yolanda).equipment].count(
-            "Grapnel launcher"
-        ) == 2
+        assert [(item.name, item.count) for item in card_for(yolanda).equipment] == [
+            ("Drop rig", 2),
+            ("Grapnel launcher", 2),
+        ]
         assert [skill.name for skill in card_for(yolanda).skills] == ["Clamber"]
         yolanda.gang.refresh_from_db()
         assert_reconciled(yolanda.gang)

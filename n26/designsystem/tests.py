@@ -199,6 +199,40 @@ class TestTheStashPage:
         page = reader.get("/n26/design/c/stash/").content.decode()
         assert "Set up TP visit" not in page
 
+    def test_two_of_one_thing_read_once_with_the_rating_of_one(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        assert (
+            'Mesh armour (x2)</span><span>&nbsp;<span class="tabular-nums">15¢' in page
+        )
+        assert "Mesh armour, Mesh armour" not in page
+        # A weapon is never stacked, so the gallery holds no such specimen.
+        assert "Stub gun (x2)" not in page
+
+
+class TestTheCountOnAModelCardLine:
+    def test_the_gallery_card_draws_two_of_one_thing_once(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "Stimm-slug (25¢) (x2)" in page
+
+    def test_the_editable_sample_keeps_one_line_per_assignment(self, reader):
+        """The model's own page hangs a menu on every line, and a menu
+        names one assignment, so the stacked specimen opens back out
+        into two lines there — each with its own menu."""
+        from n26.designsystem import sampledata
+
+        lines = [
+            line
+            for line in sampledata.model_card_editable().equipment
+            if line.name == "Stimm-slug (25¢)"
+        ]
+        assert [(line.count, bool(line.sell)) for line in lines] == [
+            (1, True),
+            (1, True),
+        ]
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert page.count('aria-label="More for Stimm-slug (25¢)"') == 2
+
 
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""

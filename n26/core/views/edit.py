@@ -299,7 +299,10 @@ def render_card_update(request, miniature, at):
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
-    card = build_model_card(miniature, card=own, computed=computed)
+    # One line per assignment: each kit act linked below names one.
+    card = build_model_card(
+        miniature, card=own, computed=computed, collapse_repeats=False
+    )
     link_slots(gang, card, back=at)
     link_skills(card, among=model_collections())
     link_counters(card, back=at)
@@ -671,7 +674,10 @@ def edit_fighter(request, pk):
     # asked for only what the gang alone can answer, which on this page is
     # the roster tally below. The card's own build carries the gang's
     # assignments already, so what the gang grants still reaches it.
-    card = build_model_card(miniature, card=own, computed=computed)
+    # One line per assignment: each kit act linked below names one.
+    card = build_model_card(
+        miniature, card=own, computed=computed, collapse_repeats=False
+    )
     link_slots(gang, card, back=request.get_full_path())
     link_skills(card, among=sets)
     # Only here. A counter is drawn wherever a card is; the model's own

@@ -67,7 +67,7 @@
                         </c-slot>
                         {% for line in stash %}
                             <tr>
-                                <td>{{ line.name }}{{ line.slot_mark }}</td>
+                                <td>{{ line.name }}{{ line.slot_mark }}{{ line.count_mark }}</td>
                                 <td>{{ line.kind|capfirst }}</td>
                                 <td class="is-centered">{{ line.rating }}¢</td>
                             </tr>

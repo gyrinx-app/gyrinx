@@ -79,14 +79,16 @@ def render_model_card(card, indent=""):
             for choice in weapon.choices:
                 chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
                 lines.append(f"{indent}      {choice.kind_label}: {chosen}")
+    # A line standing for several of one thing is written once with its
+    # count, as every other card writes it.
     if card.skills:
-        names = ", ".join(line.name for line in card.skills)
+        names = ", ".join(line.name + line.count_mark for line in card.skills)
         lines.append(f"{indent}  Skills: {names}")
     if card.rules:
-        names = ", ".join(line.name for line in card.rules)
+        names = ", ".join(line.name + line.count_mark for line in card.rules)
         lines.append(f"{indent}  Rules: {names}")
     if card.powers:
-        names = ", ".join(line.name for line in card.powers)
+        names = ", ".join(line.name + line.count_mark for line in card.powers)
         lines.append(f"{indent}  Powers: {names}")
     for choice in card.row_questions:
         # Drawn like any other assignable's row; a real UI hangs the picker
@@ -96,10 +98,10 @@ def render_model_card(card, indent=""):
             chosen = f"{chosen} (add)"
         lines.append(f"{indent}  {choice.kind_label}: {chosen}")
     if card.equipment:
-        names = ", ".join(line.name for line in card.equipment)
+        names = ", ".join(line.name + line.count_mark for line in card.equipment)
         lines.append(f"{indent}  Equipment: {names}")
     for group in card.gear_groups:
-        names = ", ".join(line.name for line in group.lines)
+        names = ", ".join(line.name + line.count_mark for line in group.lines)
         lines.append(f"{indent}  {group.name}: {names}")
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
@@ -153,8 +155,9 @@ def render_gang_sheet(sheet):
     if sheet.stash:
         lines.append(f"Stash — {sheet.stash_rating}cr")
         for line in sheet.stash:
+            # The rating is one item's, however many the line stands for.
             rating = f" — {line.rating}cr" if line.rating else ""
-            lines.append(f"  {line.name}{rating}")
+            lines.append(f"  {line.name}{line.slot_mark}{line.count_mark}{rating}")
     for note in sheet.remarks:
         lines.append(f"({note.text})")
     lines.append("")

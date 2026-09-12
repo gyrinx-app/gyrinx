@@ -12,6 +12,7 @@ readers know it.
 """
 
 import re
+from dataclasses import replace
 
 import pytest
 from django.contrib.auth.models import User
@@ -21,8 +22,8 @@ from n26.core.browse import browse
 from n26.core.card import build_card
 from n26.core.listing import Listing, OwnedRow, build_catalogue
 from n26.core.owned import owned_things
-from n26.core.render import WeaponLine, build_model_card
-from n26.core.render_text import render_model_card
+from n26.core.render import WeaponLine, build_model_card, render_gang
+from n26.core.render_text import gang_to_text, render_gang_sheet, render_model_card
 from n26.library.models import slot_mark
 from n26.tests.sandbox.actions import (
     assign,
@@ -296,8 +297,6 @@ class TestTheStash:
     equip page, on the gang sheet with its actions, and on paper."""
 
     def test_the_stash_line_carries_its_slots(self, stashed):
-        from n26.core.render import render_gang
-
         stashed.refresh_from_db()
         lines = {line.name: line for line in render_gang(stashed).stash}
 
@@ -328,6 +327,69 @@ class TestTheStash:
 
         assert "Heavy stubber*" in paper
         assert "Frag grenades*" not in paper
+
+    def test_a_reader_who_does_not_own_the_gang_sees_the_mark(self, client, stashed):
+        """The sheet a reader who owns nothing here sees draws the stash
+        without menus, through the same lines a card's kit uses — and
+        the mark goes with the name there too."""
+        body = client.get(reverse("n26-gang", args=[stashed.pk])).content.decode()
+
+        assert "Heavy stubber*" in body
+        assert "Actions for" not in body
+        assert "Frag grenades*" not in body
+
+
+class TestTwoOfATwoSlotWeapon:
+    """A weapon is never folded into a count — two guns of one name may
+    differ in their ammo, their accessories and their choices — so two of
+    a two-slot weapon are two marked lines. Where a line does stand for
+    more than one, the mark sits between the name and the count."""
+
+    @pytest.fixture
+    def doubled(self, gang, stubber):
+        assign(stubber, stash=gang.stash, paid=130)
+        assign(stubber, stash=gang.stash, paid=130)
+        gang.refresh_from_db()
+        return gang
+
+    def test_the_sheet_keeps_two_marked_lines(self, doubled):
+        lines = render_gang(doubled).stash
+
+        assert [(line.name, line.slot_mark, line.count) for line in lines] == [
+            ("Heavy stubber", "*", 1),
+            ("Heavy stubber", "*", 1),
+        ]
+
+    def test_a_reader_sees_two_marked_lines_and_no_count(self, client, doubled):
+        body = client.get(reverse("n26-gang", args=[doubled.pk])).content.decode()
+
+        assert body.count("Heavy stubber*") >= 2
+        assert "(x2)" not in body
+
+    def test_the_print_page_writes_both_marked(self, client, doubled):
+        client.force_login(doubled.owner)
+        paper = client.get(reverse("n26-print", args=[doubled.pk])).content.decode()
+
+        assert paper.count("<td>Heavy stubber*</td>") == 2
+        assert "(x2)" not in paper
+
+    def test_the_text_sheet_writes_both_marked(self, doubled):
+        text = gang_to_text(doubled)
+        print("\n" + text)
+
+        assert text.count("  Heavy stubber* — 130cr") == 2
+        assert "(x2)" not in text
+
+    def test_a_line_standing_for_two_puts_the_mark_before_the_count(self, doubled):
+        """Pinned on the text sheet, whose stash line is composed the way
+        the print page's is: name, then the asterisk, then the count."""
+        sheet = render_gang(doubled)
+        first, _ = sheet.stash
+        sheet.stash = [replace(first, count=2)]
+
+        text = render_gang_sheet(sheet)
+
+        assert "  Heavy stubber* (x2) — 130cr" in text
 
 
 class TestTheDialogs:

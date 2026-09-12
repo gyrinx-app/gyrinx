@@ -18,11 +18,13 @@ from n26.core.card import build_card
 from n26.core.effects import (
     ModifierIndex,
     choice_notes,
+    count_mark,
     counter_totals,
     kind_of,
     limit_notes,
     stacked_names,
 )
+from n26.core.owned import thing_key
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -110,8 +112,22 @@ class Provenance:
     computed: bool = False
 
 
+class SlotMarked:
+    """A line that draws the book's asterisk after a two-slot weapon's name.
+
+    ``slots`` is the library's number for a weapon and 1 for anything
+    else — the number that draws no mark — so one template composes a
+    weapon's line, a wargear's and a skill's the same way: the name,
+    then ``slot_mark``, then whatever count follows.
+    """
+
+    @property
+    def slot_mark(self):
+        return slot_mark(self.slots)
+
+
 @dataclass(frozen=True)
-class AssignableLine:
+class AssignableLine(SlotMarked):
     """One assignable drawn on a card: its name, and where it came from.
 
     ``rating`` is what the line contributed to the model's rating, and
@@ -126,6 +142,11 @@ class AssignableLine:
     ``n26.core.views.owned.link_possession_actions``. Empty is a name
     with nothing to click, which is what a gang sheet, a print sheet
     and a hire preview all want.
+
+    ``count`` is how many identical lines this one stands for — see
+    :func:`collapse`. Above one, a renderer writes the count after the
+    name (``count_mark``), and the line names no assignment: a control
+    acting on one of three could not say which.
     """
 
     name: str
@@ -134,6 +155,22 @@ class AssignableLine:
     id: str = ""
     sell: object = None
     more: tuple = ()
+    #: The content this line is one of, as ``n26.core.owned.thing_key``
+    #: writes it — the same key the equip listing counts copies by, so
+    #: a card and the listing agree about what is the same thing. Empty
+    #: where the line stands on its own however many are alike: a name
+    #: with no content behind it, or kit that brought something with it
+    #: (a pet), each of which is its own line.
+    key: str = ""
+    count: int = 1
+    #: Weapon slots this takes on a card; 1 for everything that is not a
+    #: weapon, which is what these lines are — see :class:`SlotMarked`.
+    slots: int = 1
+
+    @property
+    def count_mark(self):
+        """What follows the name when this stands for more than one."""
+        return count_mark(self.count)
 
 
 @dataclass
@@ -208,7 +245,7 @@ class StatCell:
 
     @property
     def changed_by(self):
-        """The sources the tooltip lists, repeats stacked as Name (n).
+        """The sources the tooltip lists, repeats stacked as Name (xn).
 
         Each change still stands on ``modified_by`` — a second Hand
         Injury is a second change. This is only how the sentence reads.
@@ -320,7 +357,7 @@ class WeaponProfileLine:
 
 
 @dataclass
-class WeaponLine:
+class WeaponLine(SlotMarked):
     name: str
     base_rating: int
     #: The assignment's pk, as a string, when this line draws a stored
@@ -351,15 +388,6 @@ class WeaponLine:
     #: card's own rows. Each holds one pick at most: an item is at one
     #: level.
     choices: list[ChoiceLine] = field(default_factory=list)
-
-    @property
-    def slot_mark(self):
-        """The book's asterisk after a two-slot weapon's name, or nothing.
-
-        Drawn beside the name on every card — screen, print, text — so
-        the three cannot disagree about which weapons take two slots.
-        """
-        return slot_mark(self.slots)
 
     @property
     def extras_rating(self):
@@ -940,7 +968,7 @@ class ModelCard:
 
 
 @dataclass
-class StashLine:
+class StashLine(SlotMarked):
     """One thing in the gang's stash, and what it is pinned at."""
 
     name: str
@@ -952,9 +980,17 @@ class StashLine:
     kind: str = ""
     provenance: Provenance = field(default_factory=Provenance)
     #: The assignment's pk, as a string — what a control acting on this
-    #: line names. Every stash line has one; the stash holds stored
-    #: assignments and nothing computed.
+    #: line names. The stash holds stored assignments and nothing
+    #: computed, so every line drawn one to an assignment has one; a
+    #: line standing for several (``count``) names none.
     id: str = ""
+    #: The content this is one of, as ``n26.core.owned.thing_key``
+    #: writes it; what :func:`collapse` stacks identical lines by.
+    key: str = ""
+    #: How many identical lines this one stands for. Above one, a
+    #: renderer writes the count after the name; ``rating`` stays the
+    #: figure for one of them, as the equip listing's held rows say it.
+    count: int = 1
     #: An accessory moves onto a weapon rather than a model.
     is_accessory: bool = False
     #: Whether a founding allowance paid for this line or anything hung
@@ -972,9 +1008,9 @@ class StashLine:
     slots: int = 1
 
     @property
-    def slot_mark(self):
-        """The book's asterisk after a two-slot weapon's name, or nothing."""
-        return slot_mark(self.slots)
+    def count_mark(self):
+        """What follows the name when this stands for more than one."""
+        return count_mark(self.count)
 
 
 @dataclass(frozen=True)
@@ -1853,8 +1889,61 @@ def _choosable(
     )
 
 
+#: The named rows whose repeats :func:`collapse` stacks, and in which a
+#: granted line keeps its place beside a bought one of the same name.
+#: The type line (subtypes) and the lists a model buys from are not
+#: among them: each states a fact, and reads a name once.
+STACKED_ROWS = ("skills", "rules", "powers")
+
+
+def identity(line):
+    """What makes two lines the same line, for :func:`collapse`.
+
+    The content, where it came from and what it is pinned at. Provenance
+    is in it because one bought and one granted are two different
+    facts, and a line saying "from Mounted" of both would lie about the
+    bought one; the rating because a stash line says what one of them
+    is worth, and two bought at different prices are not worth one
+    figure. None for a line with no content key: it stands alone.
+    """
+    if not line.key:
+        return None
+    return (line.key, line.provenance, line.rating)
+
+
+def collapse(lines, key=identity):
+    """Draw identical lines once, with a count.
+
+    ``key`` says what identical means, and returns None for a line that
+    stands on its own whatever else is alike. The first of each keeps
+    its place in the order given, and carries the count; every later
+    match is folded into it. A line standing for more than one names
+    no assignment (``id``), since a control acting on one of three
+    could not say which — so it is only ever done where lines carry no
+    acts: the gang sheet, print, the text card, a hire preview. The
+    model's own page keeps one line per assignment.
+    """
+    kept = []
+    at = {}
+    for line in lines:
+        k = key(line)
+        if k is None or k not in at:
+            if k is not None:
+                at[k] = len(kept)
+            kept.append(line)
+            continue
+        first = kept[at[k]]
+        kept[at[k]] = replace(first, count=first.count + 1, id="")
+    return kept
+
+
 def build_model_card(
-    miniature, card=None, computed=None, assignment_set=None, budget=None
+    miniature,
+    card=None,
+    computed=None,
+    assignment_set=None,
+    budget=None,
+    collapse_repeats=True,
 ):
     """Everything needed to draw one model's card.
 
@@ -1869,6 +1958,9 @@ def build_model_card(
     the gang is still being founded. Handed in rather than read here: what
     has been spent is one sum for the whole roster, and a card that asked
     for its own would be a query a fighter.
+
+    ``collapse_repeats`` is passed through to ``card_to_model_card``: off
+    for the model's own page, whose kit lines carry acts.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -1876,6 +1968,7 @@ def build_model_card(
     return card_to_model_card(
         card,
         computed=computed,
+        collapse_repeats=collapse_repeats,
         name=miniature.name,
         id=str(miniature.pk),
         owned_by=(miniature.owned_by.name if miniature.owned_by else None),
@@ -1910,6 +2003,7 @@ def card_to_model_card(
     trade_points_left=None,
     founding_budget=False,
     status="",
+    collapse_repeats=True,
 ):
     """Turn a card into the structure a renderer draws.
 
@@ -1923,6 +2017,10 @@ def card_to_model_card(
     ``stat_overrides`` are the characteristics this model's owner set by
     hand — none on a preview, which depicts nobody and so has nobody's
     settings to honour.
+
+    ``collapse_repeats`` draws identical gear, skills, rules and powers
+    once with a count (:func:`collapse`). Off for the model's own page,
+    where each kit line carries acts that name one assignment.
     """
     primary = None
     equipment, weapons = [], []
@@ -1968,6 +2066,28 @@ def card_to_model_card(
         if computed
         else set()
     )
+    # Kit that brings something with it — a pet wargear writes a whole
+    # other model at arrival — is one line per piece, never stacked: the
+    # thing it brought is on the roster under its own name, and a line
+    # standing for two of them could not say which brought which.
+    brings = (
+        {
+            thing_key(step.source)
+            for step in computed.plan
+            if getattr(step.modifier.effect, "is_stored", False)
+        }
+        if computed
+        else set()
+    )
+
+    def key_of(node):
+        # Everything under the line counts, not only the thing it names:
+        # a hidden carrier riding a piece of kit brings its pet through
+        # that kit's line, and two such lines are two pets.
+        if any(thing_key(each.assignable) in brings for each in node.walk()):
+            return ""
+        return thing_key(node.assignable)
+
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
     # its name is resolved from what is already in memory, never by a
@@ -2093,7 +2213,9 @@ def card_to_model_card(
             # here and everywhere else that files a line. Every named
             # row prints the same way: the name, the annotation after it.
             line_rows[thing.card_row].append(
-                AssignableLine(name=node.name, provenance=provenance_of(node))
+                AssignableLine(
+                    name=node.name, provenance=provenance_of(node), key=key_of(node)
+                )
             )
         elif isinstance(thing, Weapon):
             line = weapon_line(node, node.children)
@@ -2118,12 +2240,12 @@ def card_to_model_card(
             # and nowhere else: two assignments of one counter are two
             # lines, and adding a figure to each would read as twice
             # what is due.
-            thing_key = ModifierIndex.key(thing)
+            counter_key = ModifierIndex.key(thing)
             tallied = _counter_value(node)
             standing = tallied + (
-                0 if thing_key in counted else contributed.get(thing_key, 0)
+                0 if counter_key in counted else contributed.get(counter_key, 0)
             )
-            counted.add(thing_key)
+            counted.add(counter_key)
             is_xp = thing.name.casefold() == XP_COUNTER.casefold()
             counters.append(
                 CounterLine(
@@ -2151,6 +2273,7 @@ def card_to_model_card(
                 provenance=provenance_of(node),
                 rating=node.rating,
                 id=(str(node.assignment.pk) if node.assignment is not None else ""),
+                key=key_of(node),
             )
             # A possession goes in Gear unless its category asks for a
             # heading of its own. The category is prefetched for the
@@ -2166,26 +2289,40 @@ def card_to_model_card(
         # Computed grants join the same rows the stored lines chose —
         # the mapping is the one the kinds declared, so a grant can
         # never land in a different row than a purchase of the same
-        # thing. Deduplicated by name: two sources granting one skill
-        # leave the fighter knowing it once.
+        # thing. Two sources granting one skill leave the fighter knowing
+        # it once. In the rows ``collapse`` stacks, a grant of something
+        # the fighter also bought keeps a line of its own — the two are
+        # different facts, told apart by provenance, and the grant's line
+        # is the one whose tooltip names what gave it. The type line and
+        # the lists a model buys from state facts, and a fact stated twice
+        # reads as two: a granted subtype the model already holds reads
+        # once, by name.
         for row_name, lines in line_rows.items():
+            seen = {
+                line.name
+                for line in lines
+                if row_name not in STACKED_ROWS or line.provenance.computed
+            }
             for contribution in getattr(computed, row_name):
-                if contribution.name not in {line.name for line in lines}:
-                    lines.append(
-                        AssignableLine(
-                            name=contribution.name,
-                            provenance=_computed_provenance(contribution),
-                        )
+                if contribution.name in seen:
+                    continue
+                seen.add(contribution.name)
+                lines.append(
+                    AssignableLine(
+                        name=contribution.name,
+                        provenance=_computed_provenance(contribution),
+                        key=thing_key(contribution.thing),
                     )
+                )
         # A counter nothing on the card assigns, contributed to all the
         # same. It reads as the sum and carries no assignment, so there
         # is nothing to tally: the figure follows from what the model is.
         for contribution in computed.counter_contributions:
-            thing_key = ModifierIndex.key(contribution.counter)
-            if thing_key in counted:
+            counter_key = ModifierIndex.key(contribution.counter)
+            if counter_key in counted:
                 continue
-            counted.add(thing_key)
-            standing = contributed[thing_key]
+            counted.add(counter_key)
+            standing = contributed[counter_key]
             is_xp = contribution.counter.name.casefold() == XP_COUNTER.casefold()
             counters.append(
                 CounterLine(
@@ -2200,6 +2337,15 @@ def card_to_model_card(
                 # comes by it: a contributed XP moves the cell exactly as
                 # a tallied one does.
                 counted_xp = standing
+
+    if collapse_repeats:
+        # Just before the sort, so the first of each keeps its place and
+        # the count lands on the line the sort then files.
+        equipment = collapse(equipment)
+        for row_name in STACKED_ROWS:
+            line_rows[row_name] = collapse(line_rows[row_name])
+        for _, lines in apart.values():
+            lines[:] = collapse(lines)
 
     vehicle = primary is not None and primary.profile_type.name == "Vehicle"
     # A question a weapon brought is drawn under the weapon and nowhere
@@ -2788,16 +2934,27 @@ def summarise_roster(members, recategorised=None):
     )
 
 
-def stash_lines(gang_card):
+def stash_lines(gang_card, collapse_repeats=True):
     """The stash as drawable lines, from a gang card already built.
 
     Derived from the card rather than fetched, so a page that has one —
     the sheet, a print — pays nothing further for its stash block.
+
+    ``collapse_repeats`` draws identical lines once with a count
+    (:func:`collapse`), each keeping the rating of one. Off for the
+    owner's sheet, whose lines carry a menu naming one assignment.
+
+    A weapon stands alone however many are alike. What a weapon is
+    includes the profiles bought onto it, the accessories bolted to it
+    and the choices settled on it, and its name and total can agree
+    while the guns differ — a sight priced at nothing leaves the total
+    where it was. No key over that configuration is built here, so no
+    two weapons are ever called the same.
     """
     from n26.library.models import WeaponAccessory
 
     stash_provenance = _provenance_within(gang_card)
-    return [
+    lines = [
         StashLine(
             name=node.name,
             rating=node.rating_with_extras,
@@ -2807,15 +2964,23 @@ def stash_lines(gang_card):
             is_accessory=isinstance(node.assignable, WeaponAccessory),
             paid_trade_points=node.paid_trade_points,
             slots=slots_of(node.assignable),
+            key=(
+                ""
+                if isinstance(node.assignable, Weapon)
+                else thing_key(node.assignable)
+            ),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen
         # option's Hidden carrier rides the stash invisibly.
         if not isinstance(node.assignable, DRAWS_NO_LINE)
     ]
+    return collapse(lines) if collapse_repeats else lines
 
 
-def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
+def render_gang(
+    gang, with_effects=True, *, card=None, for_owner=False, collapse_repeats=True
+):
     """A whole gang sheet. A fixed number of queries, whatever its size.
 
     ``for_owner`` says the sheet is being drawn for the person who owns
@@ -2823,6 +2988,11 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
     model has left of its founding Trade Points. Off by default, so a
     reader who does not own the gang, a print run and a text card neither
     show the figure nor pay the reads it takes to work out.
+
+    ``collapse_repeats`` draws identical stash lines once with a count.
+    Off for the owner's own sheet, whose stash lines each carry a menu
+    naming one assignment. The model cards stack their repeats either
+    way: a sheet's cards carry no kit acts.
     """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
@@ -2903,7 +3073,7 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
         # brought has already been taken out, to be drawn under its name.
         counters=[reading for reading in readings if reading.thing.drawn],
         campaign=campaign,
-        stash=stash_lines(gang_card),
+        stash=stash_lines(gang_card, collapse_repeats=collapse_repeats),
         stash_rating=gang_card.stash_rating,
         remarks=gang_computed.notes if gang_computed else [],
         notes=gang.notes,
