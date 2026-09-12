@@ -21,7 +21,7 @@ from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.models import Assignment, DismissedOffer
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import build_choice_offer, render_gang
+from n26.core.render import NONE_KEY, build_choice_offer, render_gang
 from n26.library.models import Affiliation, Skill
 from n26.tests.sandbox.actions import (
     add_entry,
@@ -1155,6 +1155,89 @@ class TestShowingDismissedOffers:
         body = client.get(response["Location"]).content.decode()
         assert slots["Affiliation"].href in body
         assert restore_url(gang, slots["Sorrow: Archetype"]) in body
+
+    def test_dismissing_from_the_shown_sheet_lands_back_on_it(
+        self, client, owner, gang, crew
+    ):
+        """The X on a still-open offer, clicked while the dismissed ones
+        are showing, comes back to the sheet as it stood."""
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        client.post(dismiss_url(gang, slots["Affiliation"]))
+        body = sheet_body(client, gang, dismissed="show")
+        sheet = reverse("n26-gang", args=[gang.pk])
+        assert f'name="back" value="{sheet}?dismissed=show"' in body
+        response = client.post(
+            dismiss_url(gang, slots["Favoured set"]),
+            {"back": f"{sheet}?dismissed=show"},
+        )
+        assert response["Location"] == f"{sheet}?dismissed=show"
+
+    def test_a_pick_landing_on_a_dismissed_offer_takes_the_dismissal_off(
+        self, client, owner, gang, crew, affiliations
+    ):
+        """The pick screen is still reachable — an old link, the browser's
+        history — and choosing there is the owner changing their mind: the
+        dismissal goes, so taking the pick back later leaves the offer
+        open rather than hiding it again unasked."""
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(dismiss_url(gang, line))
+        client.post(
+            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+        )
+        assert dismissed_keys(gang) == set()
+        client.post(line.href, {"thing": NONE_KEY})
+        assert line.href in sheet_body(client, gang)
+
+    def test_a_dead_models_dismissed_offers_only_go(self, client, owner, gang, crew):
+        """A dead model's card has nothing to click, so its dismissed
+        offers are neither shown nor offered back — the card draws no
+        control for them, and asking to see them draws no Restore."""
+        from n26.core.operations import operation
+        from n26.core.status import Status
+
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        with operation(gang, actor=owner) as op:
+            op.set_status(crew["leader"], Status.DEAD)
+        # The dismissal's own confirmation names the control; one plain
+        # read takes it, so the next is the sheet alone.
+        sheet_body(client, gang)
+        body = sheet_body(client, gang, dismissed="show")
+        assert "Sorrow" in body
+        assert line.href not in body
+        assert restore_url(gang, line) not in body
+        assert "Dismissed offers" not in body
+
+    def test_the_redrawn_card_builds_its_control_from_this_site_only(
+        self, rf, owner, gang, crew
+    ):
+        """The address a card is redrawn under after an act arrives in
+        the act's form. The control that shows the dismissed offers is an
+        href, so an address off this site is not made into one."""
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.backends.db import SessionStore
+
+        from n26.core.views.edit import render_card_update
+
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        request = rf.get(reverse("n26-edit-fighter", args=[crew["leader"].pk]))
+        request.user = owner
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        body = render_card_update(
+            request, crew["leader"], "https://elsewhere.example/?dismissed=show"
+        ).content.decode()
+        # The pick screen's return address and the forms' hidden fields
+        # may carry it — both are checked again where they land — but no
+        # link on the card leads there.
+        assert 'href="https://elsewhere' not in body
+        edit = reverse("n26-edit-fighter", args=[crew["leader"].pk])
+        assert f'href="{edit}"' in body, "showing, so the control offers Hide"
+        assert restore_url(gang, line) in body
 
     def test_a_row_left_behind_by_a_sold_carrier_can_still_be_taken_off(
         self, client, owner, gang, crew
