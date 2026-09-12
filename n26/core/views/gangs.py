@@ -254,7 +254,7 @@ def gang_sheet(request, pk):
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
-    from n26.core.views.choose import link_slots
+    from n26.core.views.choose import link_slots, showing_dismissed
     from n26.core.views.htmx import is_htmx
     from n26.core.views.owned import link_counters, link_stash_actions, owned_dialog
     from n26.core.views.skills import link_skills
@@ -304,6 +304,11 @@ def gang_sheet(request, pk):
     sheet = render_gang(gang, card=card, for_owner=founding_seen)
     dialog = None
     link_campaign(sheet.campaign, request.user)
+    # The offers the owner has dismissed come off every card and the
+    # gang's own strip, whoever is reading: one query. The owner may ask
+    # for them back on screen, marked, each with a way to restore it.
+    showing = yours and showing_dismissed(request)
+    _settle_dismissed(gang, sheet, at if yours else "", showing=showing)
     if yours:
         link_slots(gang, sheet, *sheet.models)
         link_skills(*sheet.models)
@@ -417,6 +422,27 @@ class Marking:
     #: two radios.
     kit_lost_by_default: bool
     kit_stashed: bool
+
+
+def _settle_dismissed(gang, sheet, at, *, showing):
+    """Take the gang's dismissed offers off the whole sheet — the gang's
+    strip, every card, the dead — or keep them on it marked when the
+    owner asked to see them. Every holder that had any is pointed at the
+    sheet with the query the other way, so the control sits beside where
+    the offers were. ``at`` is empty for a reader who is not the owner:
+    the offers still go, and no control is offered.
+    """
+    from n26.core.models import DismissedOffer
+    from n26.core.render import hide_dismissed
+    from n26.core.views.choose import dismissed_toggle
+
+    keys = DismissedOffer.keys_for(gang)
+    toggle = dismissed_toggle(at, showing) if at else ""
+    for holder in (sheet, *sheet.models, *sheet.dead):
+        holder.dismissed_count = hide_dismissed(keys, holder, reveal=showing)
+        holder.dismissed_shown = showing
+        if holder.dismissed_count:
+            holder.dismissed_href = toggle
 
 
 def _marking(request, gang):

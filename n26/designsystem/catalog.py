@@ -2144,6 +2144,15 @@ GROUPS: list[Group] = [
                         "Drawn only where the line carries an address, and "
                         "without the minus at zero.",
                     ),
+                    Part(
+                        "c-n26.choice-dismiss",
+                        "n26/choice_dismiss.html",
+                        "The X at the end of an open offer that dismisses it, "
+                        "and the Restore that brings a dismissed one back. "
+                        "Drawn only where the line carries an address, "
+                        "which is only for the gang's owner; the gang sheet's "
+                        "own strip draws it too, through c-n26.choice-slots.",
+                    ),
                 ),
             ),
             Component(

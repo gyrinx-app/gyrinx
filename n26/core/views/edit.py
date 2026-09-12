@@ -269,6 +269,23 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
     return added, taken, restored
 
 
+def _settle_dismissed(gang, card, at, *, showing):
+    """Take the gang's dismissed offers off one model's card, or keep them
+    on it marked when the screen at ``at`` is showing them — and point
+    the card's control at the same screen with the query the other way.
+    """
+    from n26.core.models import DismissedOffer
+    from n26.core.render import hide_dismissed
+    from n26.core.views.choose import dismissed_toggle
+
+    card.dismissed_count = hide_dismissed(
+        DismissedOffer.keys_for(gang), card, reveal=showing
+    )
+    card.dismissed_shown = showing
+    if card.dismissed_count:
+        card.dismissed_href = dismissed_toggle(at, showing)
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
@@ -290,7 +307,7 @@ def render_card_update(request, miniature, at):
     from n26.core.effects import compute
     from n26.core.owned import EquipHost
     from n26.core.render import build_model_card
-    from n26.core.views.choose import link_slots
+    from n26.core.views.choose import link_slots, showing_dismissed_at
     from n26.core.views.htmx import with_toasts
     from n26.core.views.owned import link_counters, link_possession_actions
     from n26.core.views.skills import link_skills
@@ -300,6 +317,10 @@ def render_card_update(request, miniature, at):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
     card = build_model_card(miniature, card=own, computed=computed)
+    # The offers the owner has dismissed stay off the redrawn card — or
+    # stay on it, marked, where the screen the act came from was showing
+    # them. Read off ``at``, which is that screen's address.
+    _settle_dismissed(gang, card, at, showing=showing_dismissed_at(at))
     link_slots(gang, card, back=at)
     link_skills(card, among=model_collections())
     link_counters(card, back=at)
@@ -376,7 +397,7 @@ def edit_fighter(request, pk):
     from n26.core.operations import Refusal, operation, trade_points_carried_by
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import build_model_card, roster, summarise_roster
-    from n26.core.views.choose import link_slots
+    from n26.core.views.choose import link_slots, showing_dismissed
     from n26.core.views.equip import _tab_label, buyable_lists
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.htmx import is_htmx, stay_or_redirect
@@ -672,6 +693,12 @@ def edit_fighter(request, pk):
     # the roster tally below. The card's own build carries the gang's
     # assignments already, so what the gang grants still reaches it.
     card = build_model_card(miniature, card=own, computed=computed)
+    # The offers the owner has dismissed come off the card, unless the
+    # address asks for them: then they stay, marked, each with a way
+    # back. One query, before the addresses are filled in.
+    _settle_dismissed(
+        gang, card, request.get_full_path(), showing=showing_dismissed(request)
+    )
     link_slots(gang, card, back=request.get_full_path())
     link_skills(card, among=sets)
     # Only here. A counter is drawn wherever a card is; the model's own

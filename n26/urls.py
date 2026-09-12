@@ -199,6 +199,18 @@ urlpatterns = [
     # the offer and the offer itself, so one route serves a fighter's
     # choice and the gang's alike — see n26.core.views.choose.
     path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
+    # Putting an offer out of sight, and bringing it back: the same slot
+    # address, and POST only — each is an act with no page of its own.
+    path(
+        "gangs/<str:pk>/offers/<str:slot>/dismiss/",
+        views.dismiss_offer,
+        name="n26-dismiss-offer",
+    ),
+    path(
+        "gangs/<str:pk>/offers/<str:slot>/restore/",
+        views.restore_offer,
+        name="n26-restore-offer",
+    ),
     # The acts behind the gang sheet's dialogs; GET just reopens each one.
     # The model's own page: the card with its edit affordances and the
     # owner's notes. Equip is the same header's second tab.

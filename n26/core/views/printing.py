@@ -61,9 +61,9 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     """
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
-    from n26.core.models import Assignment
+    from n26.core.models import Assignment, DismissedOffer
     from n26.core.printing import detail_columns
-    from n26.core.render import build_model_card
+    from n26.core.render import build_model_card, hide_dismissed
 
     selection = None
     if weapon_ids is not None:
@@ -78,6 +78,9 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     # alone would cost seconds on a full roster.
     cards = gang_card.members_under(selection)
     index = build_modifier_index(carriers(gang_card, *cards.values()))
+    # What the owner has dismissed stays off the paper too: one query
+    # for the whole print.
+    dismissed = DismissedOffer.keys_for(gang)
 
     rows = []
     for miniature in miniatures:
@@ -89,6 +92,7 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
         model_card = build_model_card(
             miniature, card=card, computed=compute(card, index)
         )
+        hide_dismissed(dismissed, model_card)
         rows.append({"card": model_card, "columns": detail_columns(model_card)})
     return rows
 

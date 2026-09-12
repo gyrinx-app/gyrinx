@@ -29,10 +29,47 @@ from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from n26.core.owned import with_query
-from n26.core.views.permissions import _own_gang_or_404
+from n26.core.views.permissions import _own_gang_or_404, _safe_redirect
 from n26.library.staged import sees_staged
+
+#: The query that asks a screen to draw the offers the owner has dismissed,
+#: each with a way to bring it back. In the address, so the screen is a
+#: link and a reload draws it again.
+SHOW_DISMISSED = "dismissed"
+SHOWING = "show"
+
+
+def showing_dismissed(request):
+    """Whether the address asks for the dismissed offers to be drawn."""
+    return request.GET.get(SHOW_DISMISSED) == SHOWING
+
+
+def showing_dismissed_at(url):
+    """The same question of a URL — the screen an act came from, carried
+    in its form rather than read off the request."""
+    from urllib.parse import parse_qs, urlsplit
+
+    query = parse_qs(urlsplit(url).query)
+    return SHOWING in query.get(SHOW_DISMISSED, [])
+
+
+def dismissed_toggle(url, showing):
+    """Where the control that shows or hides the dismissed offers leads:
+    ``url`` with the query added, or with it taken off again."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    query = [
+        (name, value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+        if name != SHOW_DISMISSED
+    ]
+    if not showing:
+        query.append((SHOW_DISMISSED, SHOWING))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 @dataclass(frozen=True)
@@ -72,10 +109,26 @@ def link_slots(gang, *holders, back=""):
 
     for holder in holders:
         for line in holder.questions:
-            if line.key:
-                line.href = reverse("n26-choose", args=[gang.pk, line.key])
-                if back:
-                    line.href = with_query(line.href, **{"return": back})
+            if not line.key:
+                continue
+            line.href = reverse("n26-choose", args=[gang.pk, line.key])
+            if back:
+                line.href = with_query(line.href, **{"return": back})
+            # Only the owner's structures come through here, so the way
+            # to dismiss an offer is drawn for nobody else. An open offer
+            # can be dismissed; one holding a pick cannot, since what
+            # was chosen is drawn and there is nothing to hide; a
+            # dismissed one, kept on the structure to be shown, offers
+            # only the way back.
+            line.back = back
+            if line.dismissed:
+                line.restore_href = reverse(
+                    "n26-restore-offer", args=[gang.pk, line.key]
+                )
+            elif not line.is_resolved:
+                line.dismiss_href = reverse(
+                    "n26-dismiss-offer", args=[gang.pk, line.key]
+                )
 
 
 def _find_slot(gang, key):
@@ -550,6 +603,81 @@ def choose(request, pk, slot):
             "returning": returning,
         },
     )
+
+
+@login_required
+@require_POST
+def dismiss_offer(request, pk, slot):
+    """Put one open offer out of sight, everywhere the gang is drawn.
+
+    The slot is found again rather than trusted from the address, the
+    way the pick screen finds it: an offer that no longer exists is a
+    404, and one holding a pick is refused in words — the page that
+    drew the control was drawn before the pick landed. Nothing is
+    written for a dismissal already on record; a second click is the
+    same act.
+
+    Lands back where the control was clicked, given as ``back`` and
+    honoured only for this site's own addresses; the gang otherwise.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import DismissedOffer
+
+    gang = _own_gang_or_404(request, pk)
+    found = _find_slot(gang, slot)
+    label = found.slot.kind_label
+    fallback = reverse("n26-gang", args=[gang.pk])
+    if found.slot.is_resolved:
+        messages.error(
+            request,
+            f"You cannot dismiss {label}. It has a pick. Take the pick back first.",
+        )
+        return _safe_redirect(request, request.POST.get("back"), fallback)
+    DismissedOffer.objects.get_or_create(gang=gang, slot_key=slot)
+    record(
+        request,
+        N26Noun.CHOICE,
+        EventVerb.ARCHIVE,
+        gang,
+        offer=label,
+        action="dismiss",
+    )
+    messages.success(
+        request, f"Dismissed {label}. You can bring it back from Dismissed offers."
+    )
+    return _safe_redirect(request, request.POST.get("back"), fallback)
+
+
+@login_required
+@require_POST
+def restore_offer(request, pk, slot):
+    """Bring a dismissed offer back, so it draws as an open Choose again.
+
+    The row is deleted whether or not the slot still exists: a key left
+    behind by a carrier since sold hides nothing, and taking it off is
+    harmless. Lands where the control was clicked, or on the gang with
+    its dismissed offers still showing, since the reader was in the
+    middle of looking at them.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import DismissedOffer
+
+    gang = _own_gang_or_404(request, pk)
+    DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
+    try:
+        label = _find_slot(gang, slot).slot.kind_label
+    except Http404:
+        label = "the offer"
+    record(
+        request,
+        N26Noun.CHOICE,
+        EventVerb.RESTORE,
+        gang,
+        offer=label,
+    )
+    messages.success(request, f"Restored {label}.")
+    fallback = dismissed_toggle(reverse("n26-gang", args=[gang.pk]), showing=False)
+    return _safe_redirect(request, request.POST.get("back"), fallback)
 
 
 def _own_address(request, url):

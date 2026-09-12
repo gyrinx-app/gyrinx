@@ -1,0 +1,48 @@
+{% comment %}
+<c-n26.choice-dismiss> — the way to put one open offer out of sight, or to
+bring a dismissed one back.
+
+    <c-n26.choice-dismiss :choice="choice" />
+
+Drawn at the end of an offer wherever a card or a sheet draws one, and only
+where the line carries an address: a reader who does not own the gang, a print
+sheet and a card that depicts nobody all draw the offer alone. The addresses
+are filled in by n26.core.views.choose.link_slots, which points an open offer
+at dismiss and a dismissed one at restore, so this draws an X for the first and
+a Restore button for the second, and nothing at all for a line with neither —
+which is every offer holding a pick.
+
+A form each, posting to an ordinary address and landing back on the screen the
+line names, so the page works with no script and the act is a redirect rather
+than anything hidden on the client.
+
+  :choice — a n26.render.ChoiceLine.
+{% endcomment %}
+<c-vars :choice="None" class="" />
+
+{% if choice.restore_href %}
+    <form method="post" action="{{ choice.restore_href }}" class="inline {{ class }}">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ choice.back }}">
+        <c-ui.button type="submit" size="xs" variant="default" :outlined="True" class="py-0!">
+            Restore
+        </c-ui.button>
+    </form>
+{% elif choice.dismiss_href %}
+    <form method="post" action="{{ choice.dismiss_href }}" class="inline {{ class }}">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ choice.back }}">
+        <c-ui.tooltip size="sm">
+            <c-ui.button type="submit"
+                         size="xs"
+                         variant="ghost"
+                         class="py-0!"
+                         aria-label="Dismiss {{ choice.kind_label }}">
+                <span class="n26-icon-only">
+                    <c-n26.icon name="x-mark" class="size-3" stroke_width="2" />
+                </span>
+            </c-ui.button>
+            <c-slot name="content">Dismiss this offer</c-slot>
+        </c-ui.tooltip>
+    </form>
+{% endif %}
