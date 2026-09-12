@@ -2006,7 +2006,12 @@ def invitations_for(user):
             state=CampaignParticipant.State.INVITED,
             campaign__archived=False,
         )
-        .select_related("campaign", "campaign__owner", "invited_by")
+        # Each invitation names its arbitrator with the badge they hold,
+        # which reads their profile and their grants.
+        .select_related(
+            "campaign", "campaign__owner", "campaign__owner__profile", "invited_by"
+        )
+        .prefetch_related("campaign__owner__badge_grants")
         .order_by("campaign__name")
     )
 

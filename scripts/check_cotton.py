@@ -9,23 +9,53 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # package. Both are scanned for call sites; omitting one makes this gate pass
 # while silently ignoring everything in it.
 TEMPLATE_ROOTS = [ROOT / "gyrinx", ROOT / "n23", ROOT / "n26"]
-# n26 component sources that put cotton's own attrs passthrough, or an if
-# block, in attribute position on a nested component call. They predate the
-# n26 root joining the scan and are skipped by name so the rest of the
-# edition is gated; fix them (or prove them harmless) and delete the entry.
-PRE_EXISTING = {
-    "n26/core/templates/cotton/n26/quick_switcher/of.html",
-    "n26/core/templates/cotton/n26/range_menu.html",
-    "n26/core/templates/cotton/n26/view/create_gang.html",
-    "n26/core/templates/cotton/n26/view/fighter_hire.html",
-}
-# Only the platform tree defines components today. Listing a directory that
-# does not exist would be quietly meaningless in a file whose whole point is
-# that an empty scan root passes vacuously, so add an edition entry here only
-# when that edition actually ships components.
+# Where components are defined: the platform's and n26's. A component found in
+# neither has no <c-vars> to read, and the undeclared-prop check is skipped for
+# it, so an edition that ships components must be listed here or its call
+# sites are only half-checked. Listing a directory that does not exist would
+# be quietly meaningless in a file whose whole point is that an empty scan
+# root passes vacuously, so add an entry only for a tree that really exists.
 COTTON_DIRS = [
     ROOT / "gyrinx" / "templates" / "cotton",
+    ROOT / "n26" / "core" / "templates" / "cotton",
 ]
+# Calls the gate would fail that predate the n26 root joining the scan: n26
+# component sources putting cotton's own attrs passthrough, or an if block, in
+# attribute position on a nested component call. Each is pinned to the exact
+# source of the call (whitespace collapsed), so the entry stops matching the
+# moment the call is edited and everything else in the file is checked as
+# normal; an entry that matches no failing call fails the gate, so a fixed call
+# must take its entry with it. Fix them (or prove them harmless) and delete.
+PRE_EXISTING = {
+    (
+        "n26/core/templates/cotton/n26/quick_switcher/of.html",
+        '<c-n26.quick-switcher label="{{ switcher.label }}" href="{{ switcher.href }}" '
+        'icon="{{ switcher.icon }}" heading="{{ switcher.heading }}" '
+        'menu_label="{{ switcher.menu_label }}" placeholder="{{ switcher.placeholder }}" '
+        'empty="{{ switcher.empty }}" align="{{ align }}" min_width="{{ min_width }}" '
+        'hotkey="{{ hotkey }}" class="{{ class }}" {{ attrs }}>',
+    ),
+    (
+        "n26/core/templates/cotton/n26/range_menu.html",
+        '<c-n26.range-slider {% if model_min and model_max %} model_min="{{ model_min }}" '
+        'model_max="{{ model_max }}" {% else %} model="{{ model }}" {% endif %} '
+        'min="{{ min }}" max="{{ max }}" step="{{ step }}" />',
+    ),
+    (
+        "n26/core/templates/cotton/n26/view/create_gang.html",
+        '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
+        'title="{{ heading }}" lead="Required fields are marked with an asterisk (*)." '
+        'submit_label="{{ submit_label }}" class="{{ class }}">',
+    ),
+    (
+        "n26/core/templates/cotton/n26/view/fighter_hire.html",
+        '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
+        'title="{{ heading }}" lead="Pick a profile and click Hire, then name the '
+        "fighter. The options under each one change what you get and what you pay, "
+        'and you can hire as many as you like without leaving this page." '
+        'class="{{ class }}">',
+    ),
+}
 
 COMMENT = re.compile(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.S)
 TAG = re.compile(r"<c-([\w.-]+)((?:\"[^\"]*\"|'[^']*'|[^>\"'])*?)/?>", re.S)
@@ -34,7 +64,11 @@ DYN_ATTR = re.compile(r"(?:^|\s):([\w.-]+)=")
 # attributes a parent component already received), not a call-site value.
 PROXY_ATTRS = {"attrs"}
 CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
-VAR_NAME = re.compile(r"(?:^|\s):?([\w-]+)=")
+# A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
+# no default at all (n26's ui/error.html declares `name form message` that
+# way); the bare form is a declaration too, or every call passing it reads as
+# an undeclared prop.
+VAR_NAME = re.compile(r"(?:^|\s):?([\w-]+)(?==|\s|$)")
 
 # Components that take a Django object (BoundField / Form) as a prop. Passing
 # one WITHOUT the colon stringifies it: `field="{{ form.name }}"` renders the
@@ -86,7 +120,12 @@ def declared_props(component):
             # real `:foo=` through to the mark_safe'd attrs. Fail-open, from prose.
             src = blank_comments(path.read_text(encoding="utf-8", errors="replace"))
             match = CVARS.search(src)
-            return set(VAR_NAME.findall(match.group(1))) if match else set()
+            if not match:
+                return set()
+            # Quoted defaults first: a bare word inside one is a value, not a
+            # name — `class="a b"` declares class, not b.
+            names = re.sub(r"\"[^\"]*\"|'[^']*'", '""', match.group(1))
+            return set(VAR_NAME.findall(names))
     return None
 
 
@@ -96,6 +135,7 @@ def line_of(src, pos):
 
 def main():
     problems = []
+    used = set()
     cache = {}
     for path in sorted(p for root in TEMPLATE_ROOTS for p in root.rglob("*.html")):
         # The component test harness writes uuid-named host templates into
@@ -112,20 +152,21 @@ def main():
             continue
         src = blank_comments(raw)
         rel = path.relative_to(ROOT)
-        if rel.as_posix() in PRE_EXISTING:
-            continue
 
         for match in TAG.finditer(src):
             name, attrs = match.group(1), match.group(2)
             line = line_of(src, match.start())
             unquoted = re.sub(r"\"[^\"]*\"|'[^']*'", "", attrs)
+            # What this one call fails on; kept apart from the page's problems
+            # until the call has been checked against PRE_EXISTING.
+            found = []
 
             # 1. any template tag ({% %} or {{ }}) in attribute position
             # Both forms are equally hazardous in attribute position, and the pytest
             # gate has always checked both — this half only checked {%, so a
             # `<c-btn {{ x }}>` passed the hook and failed only in CI.
             if "{%" in unquoted or "{{" in unquoted:
-                problems.append(
+                found.append(
                     f"{rel}:{line}: template tag in attribute position inside "
                     f"<c-{name}> -- cotton emits the raw source and the attribute "
                     f"is lost.\n"
@@ -146,7 +187,7 @@ def main():
                     if prop in PROXY_ATTRS:
                         continue
                     if prop.replace("-", "_") not in declared and prop not in declared:
-                        problems.append(
+                        found.append(
                             f"{rel}:{line}: <c-{name} :{prop}=...> is not declared in that "
                             f"component's <c-vars>, so it renders through {{{{ attrs }}}}, which "
                             f"is NOT html-escaped.\n"
@@ -159,14 +200,14 @@ def main():
             prop = OBJECT_PROPS.get(name)
             if prop is not None:
                 if re.search(rf"(?:^|\s){prop}=", attrs):
-                    problems.append(
+                    found.append(
                         f'{rel}:{line}: <c-{name} {prop}="…"> needs the COLON: '
                         f':{prop}="…". Without it the value stringifies to rendered '
                         f"HTML, every attribute lookup resolves to nothing, and the "
                         f"label, help text and ERRORS are silently dropped (#2001)."
                     )
                 elif not re.search(rf"(?:^|\s):{prop}=", attrs):
-                    problems.append(
+                    found.append(
                         f'{rel}:{line}: <c-{name}> is missing :{prop}="…". The '
                         f"<c-vars> default shadows any ambient `{prop}` from an "
                         f"enclosing loop, so this renders an EMPTY wrapper and the "
@@ -175,12 +216,29 @@ def main():
 
             # 4. a search control with no accessible name
             if name in NEEDS_LABEL and not re.search(r"(?:^|\s):?label=", attrs):
-                problems.append(
+                found.append(
                     f'{rel}:{line}: <c-{name}> needs label="…" — the specific '
                     f'accessible name ("Search campaigns"), not the generic '
                     f"placeholder. It falls back to the placeholder so a bar is "
                     f"never nameless, but the fallback is not how a call site ships."
                 )
+
+            if found:
+                key = (rel.as_posix(), " ".join(match.group(0).split()))
+                if key in PRE_EXISTING:
+                    used.add(key)
+                else:
+                    problems.extend(found)
+
+    # A suppression that matches nothing is either a call somebody fixed, or a
+    # call somebody edited: either way the entry is stale, and leaving it
+    # would let the next bad call in that file through.
+    for rel, call in sorted(PRE_EXISTING - used):
+        problems.append(
+            f"{rel}: PRE_EXISTING entry no longer matches a failing call "
+            f"({call[:60]}...). Delete the entry, or re-pin it to the call's "
+            f"current source if the call is still knowingly wrong."
+        )
 
     if problems:
         print("cotton checks FAILED:\n")

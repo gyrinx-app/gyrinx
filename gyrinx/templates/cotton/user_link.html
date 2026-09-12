@@ -11,6 +11,10 @@
     c-breadcrumb.user does: a supporter badge is pixel art and earns nothing on
     a printed sheet.
 
+    Renders nothing at all for a missing user. `owner` is nullable on every
+    Owned model — a public gang or pack nobody owns is offered to campaigns —
+    and there is no page to link to and no badge to draw for nobody.
+
     Renders inline, so the markup is packed tight and the file ends without a
     newline: any whitespace here becomes a space in the surrounding sentence.
 
@@ -23,4 +27,4 @@
              the url tag then has no username to build from.
       class  the link's classes. `linked` by default; `linked-body` and
              `linked-secondary` are the other two in use.
-{% endcomment %}{% load badge_tags %}<c-vars user="" class="linked" /><a href="{% url "core:user" user.username %}" class="{{ class }}">{{ user.username }}</a>{% if not print %}{% user_badge user %}{% endif %}
+{% endcomment %}{% load badge_tags %}<c-vars user="" class="linked" />{% if user %}<a href="{% url "core:user" user.username %}" class="{{ class }}">{{ user.username }}</a>{% if not print %}{% user_badge user %}{% endif %}{% endif %}

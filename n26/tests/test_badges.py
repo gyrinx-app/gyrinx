@@ -353,6 +353,41 @@ class TestTheNamesOnACampaign:
                 act.answer_invitation(person, accepted=True)
         assert self._queries(client, "/n26/campaigns/") == with_one
 
+    def test_an_invitation_names_its_arbitrator_with_their_badge(self, table, client):
+        """The campaigns list opens with the invitations still waiting, each
+        saying who asked — through the same component, so the badge follows."""
+        from n26.core.campaigns import campaign_operation
+
+        person = User.objects.create_user("vex")
+        with campaign_operation(table, actor=table.owner) as act:
+            act.invite(person)
+        client.force_login(person)
+
+        body = client.get("/n26/campaigns/").content.decode()
+        invitations = body[body.index(">Invitations<") :]
+        assert re.search(r"from\s*<span[^>]*>patron<", invitations)
+        assert badge_svg(GUILDER).strip() in invitations
+
+    def test_the_list_reads_the_badges_once_for_every_invitation(
+        self, supporter, campaign_type, campaigns_open, client
+    ):
+        from n26.core.campaigns import campaign_operation
+        from n26.tests.sandbox.actions import found_campaign
+
+        campaigns = [
+            found_campaign(f"Campaign {index}", campaign_type, owner=supporter)
+            for index in range(4)
+        ]
+        person = User.objects.create_user("vex")
+        with campaign_operation(campaigns[0], actor=supporter) as act:
+            act.invite(person)
+        client.force_login(person)
+        with_one = self._queries(client, "/n26/campaigns/")
+        for campaign in campaigns[1:]:
+            with campaign_operation(campaign, actor=supporter) as act:
+                act.invite(person)
+        assert self._queries(client, "/n26/campaigns/") == with_one
+
 
 class TestNoPageDecidesForItself:
     """A discovering guard, not a list: any page that draws a person's

@@ -15,6 +15,8 @@ from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import badge_by_slug
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.invitation import CampaignInvitation
+from n23.core.models.list import List
+from n23.core.models.pack import CustomContentPack
 
 # The accessible name the badge tag puts on every mark it draws. Counted
 # rather than the artwork, which a {% spaceless %} block reflows.
@@ -197,6 +199,43 @@ def test_the_start_page_reads_the_badges_once_for_everybody(owner, client, make_
     assert _queries(
         client, reverse("core:campaign-start", args=[large.id])
     ) == _queries(client, reverse("core:campaign-start", args=[small.id]))
+
+
+@pytest.mark.django_db
+def test_a_gang_nobody_owns_is_offered_with_no_owner_named(
+    owner, client, make_table, content_house
+):
+    """``owner`` is nullable, and a public gang with no owner is offered to a
+    campaign like any other: its row names nobody rather than failing to
+    build a link to nobody's page."""
+    campaign = make_table("Dust Falls")
+    List.objects.create(
+        name="Unclaimed gang",
+        content_house=content_house,
+        public=True,
+        status=List.LIST_BUILDING,
+        owner=None,
+    )
+    client.force_login(owner)
+
+    response = client.get(reverse("core:campaign-add-lists", args=[campaign.id]))
+
+    assert response.status_code == 200
+    assert "Unclaimed gang" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_a_pack_nobody_owns_is_listed_with_no_owner_named(owner, client, make_table):
+    campaign = make_table("Dust Falls")
+    campaign.packs.add(
+        CustomContentPack.objects.create(name="Unclaimed pack", owner=None, listed=True)
+    )
+    client.force_login(owner)
+
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+
+    assert response.status_code == 200
+    assert "Unclaimed pack" in response.content.decode()
 
 
 @pytest.mark.django_db
