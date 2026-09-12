@@ -1358,10 +1358,14 @@ def _describe_interstitial(interstitial):
     Attached to none is the state worth seeing: an interstitial no slot
     carries is never shown to anyone.
     """
+    # The listing draws archived rows too. An archived interstitial, or
+    # one in an archived pack, is shown nowhere whatever is attached to
+    # it — the same terms ``Slot.interstitials`` reads by.
+    if interstitial.archived or interstitial.pack.archived:
+        return [*_interstitial_notes(interstitial), "shown nowhere"]
     # Read with ``.all()`` so a listing that prefetched the attachments
     # counts without a query per row; an archived attachment, or one in
-    # an archived pack, shows the screen nowhere, so it is not counted —
-    # the same terms ``Slot.interstitials`` reads by.
+    # an archived pack, shows the screen nowhere, so it is not counted.
     attached = sum(
         1
         for a in interstitial.attachments.all()
@@ -1409,13 +1413,13 @@ def _profile_listing(rows):
 
 def _interstitial_listing(rows):
     """What ``_describe_interstitial`` walks, loaded for the whole listing
-    at once: the attachments, each with its pack, since the count reads
-    whether that pack is archived."""
+    at once: the interstitial's own pack, and the attachments each with
+    theirs, since the count reads whether either is archived."""
     from django.db.models import Prefetch
 
     from n26.library.models import InterstitialSlot
 
-    return rows.prefetch_related(
+    return rows.select_related("pack").prefetch_related(
         Prefetch(
             "attachments", queryset=InterstitialSlot.objects.select_related("pack")
         )
@@ -4748,11 +4752,11 @@ def interstitial_detach(request, pk):
     back = reverse("authoring-detail", args=["interstitial", interstitial.pk])
 
     if request.method == "POST":
-        said = _label_for(attachment.slot)
+        slot_label = _label_for(attachment.slot)
         with transaction.atomic():
             authoring.detach_interstitial(attachment)
         messages.success(
-            request, f"{interstitial} is no longer shown when {said} arrives."
+            request, f"{interstitial} is no longer shown when {slot_label} arrives."
         )
         return redirect(back)
 

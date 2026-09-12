@@ -814,4 +814,6 @@ class InterstitialSlot(Content):
         ]
 
     def __str__(self):
-        return str(self.slot)
+        # Both ends, so two attachments on one slot — or of one screen —
+        # read apart on a page listing attachments alone.
+        return f"{self.interstitial} on {self.slot}"

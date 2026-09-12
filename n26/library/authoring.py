@@ -1114,7 +1114,12 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
     if InterstitialSlot.objects.filter(interstitial=interstitial, slot=slot).exists():
         raise ValidationError(already)
     if position is None:
-        position = interstitial.attachments.count()
+        # After the last, whatever it was numbered — archived attachments
+        # included, so adding one never reorders what is already there.
+        from django.db.models import Max
+
+        last = interstitial.attachments.aggregate(last=Max("position"))["last"]
+        position = 0 if last is None else last + 1
     if "pack" not in kwargs and "pack_id" not in kwargs:
         kwargs["pack_id"] = interstitial.pack_id
     try:
