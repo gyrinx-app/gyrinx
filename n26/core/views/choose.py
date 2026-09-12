@@ -137,16 +137,23 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
     ``back``.
     """
     from n26.core.owned import with_query
+    from n26.core.status import Status
 
     if dismiss_back is None:
         dismiss_back = back
     for holder in holders:
+        # A dead model's card draws nothing to click, and its dismissed
+        # offers are never shown on it (``settle_dismissed``): an X there
+        # would offer an act the card cannot show the way back from.
+        dead = getattr(holder, "status", None) == Status.DEAD
         for line in holder.questions:
             if not line.key:
                 continue
             line.href = reverse("n26-choose", args=[gang.pk, line.key])
             if back:
                 line.href = with_query(line.href, **{"return": back})
+            if dead:
+                continue
             # Only the owner's structures come through here, so the way
             # to dismiss an offer is drawn for nobody else. An open offer
             # can be dismissed; one holding a pick cannot, since what

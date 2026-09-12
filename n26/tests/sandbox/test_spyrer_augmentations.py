@@ -778,3 +778,38 @@ class TestThePickerReturnsWhereItWasOpened:
 
         assert reply.status_code == 302
         assert reply.url == reverse("n26-gang", args=[gang.pk])
+
+
+class TestDismissingTheLadderFromTheSheet:
+    """The level is drawn under the weapon, and only the model's own page
+    offers to change it — but putting the offer out of sight, and
+    bringing it back, is offered wherever the owner reads the card, as
+    it is for every other offer on it."""
+
+    def key(self, orrus):
+        ladder = ladder_of(orrus, "Bolt launchers")
+        return f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+
+    def test_the_sheet_offers_the_x_and_the_restore(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        client.force_login(owner)
+        sheet = reverse("n26-gang", args=[gang.pk])
+        dismiss = reverse("n26-dismiss-offer", args=[gang.pk, self.key(orrus)])
+        restore = reverse("n26-restore-offer", args=[gang.pk, self.key(orrus)])
+
+        page = client.get(sheet).content.decode()
+        assert "Augmentation: &mdash;" in page
+        assert dismiss in page
+
+        reply = client.post(dismiss)
+        assert reply.status_code == 302
+        page = client.get(sheet).content.decode()
+        assert "Augmentation:" not in page
+        assert dismiss not in page
+
+        page = client.get(f"{sheet}?dismissed=show").content.decode()
+        assert ">dismissed</span>" in page
+        assert restore in page
+        client.post(restore)
+        assert "Augmentation: &mdash;" in client.get(sheet).content.decode()
