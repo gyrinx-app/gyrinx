@@ -289,7 +289,7 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     """
     from n26.core.access import model_collections
     from n26.core.render import build_model_card
-    from n26.core.views.choose import link_slots
+    from n26.core.views.choose import link_slots, showing_dismissed_at
     from n26.core.views.owned import link_counters, link_possession_actions
     from n26.core.views.skills import link_skills
 
@@ -299,6 +299,7 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     card = build_model_card(
         miniature, card=own, computed=computed, collapse_repeats=False
     )
+    _settle_dismissed(gang, card, back, showing=showing_dismissed_at(back))
     link_slots(gang, card, back=back)
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)
@@ -377,6 +378,23 @@ def card_screen(miniature, back):
     if kept:
         address = f"{address}?{urlencode(kept)}"
     return address, (address if screen.hosts_dialogs else edit)
+
+
+def _settle_dismissed(gang, card, at, *, showing):
+    """Take the gang's dismissed offers off one model's card, or keep them
+    on it marked when the screen at ``at`` is showing them — and point
+    the card's control at the same screen with the query the other way.
+    """
+    from n26.core.models import DismissedOffer
+    from n26.core.render import hide_dismissed
+    from n26.core.views.choose import dismissed_toggle
+
+    card.dismissed_count = hide_dismissed(
+        DismissedOffer.keys_for(gang), card, reveal=showing
+    )
+    card.dismissed_shown = showing
+    if card.dismissed_count:
+        card.dismissed_href = dismissed_toggle(at, showing)
 
 
 def render_card_update(request, miniature, at):

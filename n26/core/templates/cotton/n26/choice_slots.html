@@ -22,15 +22,29 @@ proceed without it.
 A line with no href draws as plain text with an em dash. That is a card built
 from a profile's default equipment: real offers, but no stored assignment to
 choose against. Views fill the addresses in (n26.core.views.choose).
+
+An open slot the owner may dismiss carries an X after its control, drawn by
+<c-n26.choice-dismiss>; a slot the owner has dismissed and asked to see again
+reads as dismissed, with a Restore button in the X's place. A slot nobody may
+dismiss — every reader who is not the owner sees only those — carries nothing.
 {% endcomment %}
 <c-vars :choices="None" choose_label="Choose" class="" />
 
 {% for choice in choices %}
-    {% if choice.href %}
+    {% if choice.dismissed %}
+        <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                               :editable="False"
+                               class="{{ class }}"
+                               value="Dismissed">
+            <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
+        </c-n26.detail-list.row>
+    {% elif choice.href %}
         <c-n26.detail-list.row label="{{ choice.kind_label }}"
                                href="{{ choice.href }}"
                                class="{{ class }}"
-                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}{{ choose_label }}{% endif %}" />
+                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}{{ choose_label }}{% endif %}">
+            <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
+        </c-n26.detail-list.row>
     {% else %}
         <c-n26.detail-list.row label="{{ choice.kind_label }}"
                                :editable="False"
