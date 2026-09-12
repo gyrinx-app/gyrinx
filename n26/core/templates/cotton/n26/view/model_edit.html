@@ -32,7 +32,10 @@ sits and what its heading says.
     built from pk.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
-  tab_actions — controls at the right-hand end of the Edit and Equip tabs.
+  tab_actions — controls at the right-hand end of the tab strip.
+  name_action — a control beside the model's name. Without it the rename
+    pencil is drawn (n26/includes/model_name_action.html); the gallery, with
+    no model to rename, passes a link of its own.
   lore — the lore form, full width on the bottom row. Without it no box is
     drawn.
   picture — the picture forms, the first box of the grid. Without it no box is
@@ -83,24 +86,14 @@ sits and what its heading says.
         {% endif %}
         {% comment %}
         The card sits in a host of its own so an act on it can send back the
-        card alone. Drawn whether or not anything posts over htmx, so the
-        gallery's card and this page's are the same element — and so an
-        update addressed to this id always lands somewhere. The editors
+        card alone — the same include every other screen of the model
+        draws, so the gallery's card and the pages' are one element and an
+        update addressed to its id always lands somewhere. The editors
         below are the card's siblings, not its children, which is what
         lets the whole card be replaced without rebuilding them.
         {% endcomment %}
         <c-slot name="card">
-            <div id="n26-model-card-host">
-                <c-n26.model-card :card="card"
-                                  mode="edit"
-                                  :htmx="htmx"
-                                  status_href="{{ status_href }}"
-                                  :status_hx="htmx">
-                    {% if name_action.strip %}
-                        <c-slot name="name_action">{{ name_action }}</c-slot>
-                    {% endif %}
-                </c-n26.model-card>
-            </div>
+            {% include "n26/includes/model_card_host.html" %}
         </c-slot>
         {% if tab_actions.strip %}
             <c-slot name="tab_actions">{{ tab_actions }}</c-slot>

@@ -2595,7 +2595,7 @@ GROUPS: list[Group] = [
                 tag="c-n26.view.model-edit",
                 template="n26/view/model_edit.html",
                 summary="One model, whole: their card, editable, and the notes.",
-                needs=(ALPINE, KIT_JS, FOCUS),
+                needs=(ALPINE, KIT_JS, FOCUS, "n26/imagecrop.js", "Cropper.js"),
                 notes=(
                     "The Edit face of a model's own page; Equip and Options are "
                     "the same header's other tabs, so the three screens read as "
