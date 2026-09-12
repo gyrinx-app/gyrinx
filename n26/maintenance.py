@@ -72,6 +72,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Operation",
     "backfill_built_ins",
+    "clear_item_restrictions",
     "delete_empty_affiliations",
     "delete_legacy_affiliation_assignments",
     "delete_nameless_gang_type",
@@ -222,6 +223,10 @@ class Operation(models.TextChoices):
         "n26_merge_into",
         "n26: a duplicate row is merged into the row it duplicates",
     )
+    CLEAR_ITEM_RESTRICTIONS = (
+        "n26_clear_item_restrictions",
+        "n26: the fighter-entry restrictions an upload wrote onto listed items are cleared",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -243,6 +248,7 @@ LOCK_KEYS = {
     Operation.DELETE_TEST_CONTENT: 826_020_620,
     Operation.DELETE_FIRING_LINE: 826_020_621,
     Operation.MERGE_INTO: 826_020_622,
+    Operation.CLEAR_ITEM_RESTRICTIONS: 826_020_623,
 }
 
 
@@ -1954,6 +1960,89 @@ register_operation(
 
 
 @task
+def clear_item_restrictions(backfill_id, **said_by_whoever_enqueued_it):
+    """Strip the item-level restriction to fighter entries from every
+    item some collection entry lists, and record it.
+
+    Library-only work in one transaction under the runner discipline:
+    the equipment-lists upload wrote each list's "<Fighter> only" onto
+    the item every list shares (#2537). Nothing a player holds is
+    touched.
+    """
+    from n26.library.item_restrictions import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.CLEAR_ITEM_RESTRICTIONS,
+        "Item restriction clearing",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
+CLEAR_ITEM_RESTRICTIONS_WORDS = {
+    "noun": "removal",
+    "intro": (
+        "This clears the restriction to fighter entries (“usable by … only”) "
+        "from every item that appears in at least one collection entry. The "
+        "equipment-lists upload used to write the sheet's Restrictions column "
+        "onto the item, and an item's restriction holds wherever the item is "
+        "listed — so a bracket printed on one gang's list marked the item for "
+        "every gang, and every upload wrote it again. The upload now writes "
+        "the column onto the collection entry. Only the item-level restriction "
+        "to fighter entries is cleared: restrictions to types and subtypes, "
+        "items no collection lists, and every entry's own restrictions stay as "
+        "they are. Upload the equipment lists again afterwards to write each "
+        "list's own restrictions onto its entries. The items are listed below "
+        "with the fighter entries they name and the collections that list them."
+    ),
+    "nothing_heading": "Nothing to clear",
+    "nothing_flash": "No listed item carries a restriction to fighter entries.",
+    "nothing_words": "No listed item carries a restriction to fighter entries.",
+    "refuses_heading": "The removal cannot run",
+    "button": "Clear the item-level restrictions",
+    "confirm": (
+        "Clear the restriction to fighter entries from these items? Upload the "
+        "equipment lists again afterwards to restore each list's own "
+        "restrictions. This cannot be undone."
+    ),
+}
+
+
+def clear_item_restrictions_view(request):
+    """Preview the removal (GET), or record a run and enqueue it."""
+    from n26.library.item_restrictions import find
+
+    return _deletion_view(
+        request,
+        Operation.CLEAR_ITEM_RESTRICTIONS,
+        find,
+        clear_item_restrictions,
+        CLEAR_ITEM_RESTRICTIONS_WORDS,
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.CLEAR_ITEM_RESTRICTIONS.value,
+        name=Operation.CLEAR_ITEM_RESTRICTIONS.label,
+        added=date(2026, 9, 12),
+        description=(
+            "Clear the restriction to fighter entries from every item that "
+            "appears in a collection entry. The equipment-lists upload wrote "
+            "each list's “<Fighter> only” onto the item every list shares, "
+            "so one gang's bracket marked the item for every gang. Restrictions "
+            "to types and subtypes, unlisted items and every entry's own "
+            "restrictions stay. Upload the equipment lists again afterwards to "
+            "write each list's restrictions onto its entries."
+        ),
+        view=clear_item_restrictions_view,
+        detail_template="admin/maintenance/n26/_clear_item_restrictions_detail.html",
+    )
+)
+
+
+@task
 def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
     """Create the Gang supertype and the two Underhive Journals' territories
     and tables, once, and record what was created.
@@ -2267,6 +2356,7 @@ task_routes = [
     TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     TaskRoute(open_founding_actions, ack_deadline=600),
     TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
 ]
 
 

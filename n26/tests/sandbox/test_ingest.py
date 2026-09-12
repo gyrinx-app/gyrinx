@@ -1410,9 +1410,7 @@ class TestApplyingWhatChanged:
         assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
         assert autogun.usable_by_words() == ""
 
-    def test_a_restriction_on_a_named_profile_lands_on_that_lines_entry(
-        self, imported
-    ):
+    def test_a_restriction_on_a_named_profile_lands_on_that_lines_entry(self, imported):
         """The launcher is open to everyone; one of its rounds is not.
         "Autogun (warp round) — Sumpkroc only" narrows the list's offer
         of the round, and neither the round nor the gun is touched."""

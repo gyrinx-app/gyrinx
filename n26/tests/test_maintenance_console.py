@@ -31,6 +31,7 @@ from n26.maintenance import (
     LOCK_KEYS,
     ONE_ATTEMPT_DEADLINE,
     Operation,
+    clear_item_restrictions_view,
     convert_chaos_god_view,
     convert_outcast_affiliation_view,
     convert_variant_view,
@@ -1048,3 +1049,264 @@ class TestTheFoundingActionBackfill:
 
         assert response.status_code == 302
         assert not Backfill.objects.exists()
+
+
+@pytest.fixture
+def restricted_world(default_pack, make_profile):
+    """What the equipment-lists upload left behind, beside what it did
+    not write and must not touch.
+
+    The long las carries a "Van Saar only" bracket on the item, and two
+    collections list it — the shape the upload wrote. The lasgun carries
+    the same kind of bracket but no collection lists it, so it was
+    written by hand. The carapace armour is narrowed to a subtype, which
+    the upload never resolved. And the Van Saar list's own line for the
+    armour is narrowed on the entry, which is the right place.
+    """
+    from n26.library.authoring import (
+        add_entry,
+        create_category,
+        create_collection,
+        create_subtype,
+        create_wargear,
+        create_weapon,
+        restrict_use,
+    )
+
+    leader = make_profile("Van Saar Leader", price=120)
+    champion = make_profile("Van Saar Champion", price=95)
+    lasguns = create_category("Ranged weapons", "Lasguns")
+    long_las = create_weapon("Long las", profiles=[("", 0)], price=60, category=lasguns)
+    restrict_use(long_las, leader, champion)
+    lasgun = create_weapon("Lasgun", profiles=[("", 0)], price=15, category=lasguns)
+    restrict_use(lasgun, leader)
+    armour = create_wargear(
+        "Carapace armour (light)",
+        price=80,
+        category=create_category("Wargear", "Armour"),
+    )
+    restrict_use(armour, create_subtype("Champion"))
+    van_saar = create_collection("Van Saar Equipment List", entries=[long_las])
+    trading_post = create_collection("Trading Post", entries=[long_las, armour])
+    narrowed = add_entry(van_saar, armour)
+    restrict_use(narrowed, champion)
+    return {
+        "long_las": long_las,
+        "lasgun": lasgun,
+        "armour": armour,
+        "van_saar": van_saar,
+        "trading_post": trading_post,
+        "narrowed": narrowed,
+        "leader": leader,
+        "champion": champion,
+    }
+
+
+class TestTheItemRestrictionClearing:
+    """The repair for #2537: the "<Fighter> only" brackets the upload
+    wrote onto items every list shares come off, item by item, and
+    nothing written by hand or on an entry moves."""
+
+    def test_its_lock_is_unique_and_its_slug_is_permanent(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert LOCK_KEYS[Operation.CLEAR_ITEM_RESTRICTIONS] == 826_020_623
+        assert Operation.CLEAR_ITEM_RESTRICTIONS.value == "n26_clear_item_restrictions"
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.CLEAR_ITEM_RESTRICTIONS.value in registered
+        found = resolve_operation(Operation.CLEAR_ITEM_RESTRICTIONS.value)
+        assert found.name == Operation.CLEAR_ITEM_RESTRICTIONS.label
+        assert found.view is clear_item_restrictions_view
+        assert found.detail_template
+
+    def test_it_is_not_retired(self):
+        assert (
+            Operation.CLEAR_ITEM_RESTRICTIONS not in TestARepairThatHasBeenRun.RETIRED
+        )
+
+    def test_it_runs_through_the_one_transaction_runner(self):
+        """Library-only work, in one transaction: the guard reads the
+        module as one that never commits inside a loop."""
+        assert "clear_item_restrictions" in one_transaction_route_names()
+        assert not commits_row_by_row("n26.library.item_restrictions")
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(reverse("admin:maintenance_n26_clear_item_restrictions"))
+
+        assert response.status_code in (302, 403)
+
+    def test_its_page_shows_nothing_to_clear_when_no_listed_item_is_restricted(
+        self, client, superuser, default_pack
+    ):
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_clear_item_restrictions"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Nothing to clear" in page
+        assert "No listed item carries a restriction to fighter entries" in page
+        assert not Backfill.objects.exists()
+
+    def test_it_reads_every_listed_item_that_names_a_fighter_entry(
+        self, restricted_world
+    ):
+        from n26.library.item_restrictions import find, listable_kinds
+
+        found = find()
+
+        assert not found.nothing_here
+        (item,) = found.items
+        assert item.said == "Long las (weapon)"
+        assert item.profiles == ("Van Saar Champion", "Van Saar Leader")
+        assert item.lists == ("Trading Post", "Van Saar Equipment List")
+        assert item.pack == ""
+        assert {column for column, _ in listable_kinds()} == {
+            "weapon",
+            "weapon_profile",
+            "wargear",
+            "weapon_accessory",
+            "skill",
+            "power",
+        }
+
+    def test_its_page_lists_each_item_and_writes_nothing(
+        self, client, superuser, restricted_world
+    ):
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_clear_item_restrictions"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert (
+            "clear Long las (weapon): usable by Van Saar Champion, Van Saar Leader only"
+            in page
+        )
+        assert "listed in Trading Post, Van Saar Equipment List" in page
+        assert "Lasgun" not in page
+        assert "Carapace armour" not in page
+        assert not Backfill.objects.exists()
+        assert restricted_world["long_las"].usable_by_words() != ""
+
+    def test_applying_records_what_it_cleared_and_leaves_the_rest(
+        self, client, superuser, restricted_world
+    ):
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_clear_item_restrictions"))
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.CLEAR_ITEM_RESTRICTIONS)
+        assert run.status == Backfill.Status.DONE
+        assert run.summary["report"][0] == (
+            "Cleared the fighter-entry restriction from 1 listed item."
+        )
+        assert any("Long las" in line for line in run.summary["report"])
+        world = restricted_world
+        assert world["long_las"].usable_by_words() == ""
+        # Written by hand: no list carries the lasgun's bracket on its
+        # way past, so it stays.
+        assert world["lasgun"].usable_by_words() == "Van Saar Leader"
+        # A subtype, which the upload never wrote.
+        assert world["armour"].usable_by_words() == "Champion"
+        # The entry's own narrowing is the right place, and stays.
+        assert world["narrowed"].usable_by_words() == "Van Saar Champion"
+
+    def test_the_record_page_says_what_it_did(
+        self, client, superuser, restricted_world
+    ):
+        client.force_login(superuser)
+        client.post(reverse("admin:maintenance_n26_clear_item_restrictions"))
+        run = Backfill.objects.get(operation=Operation.CLEAR_ITEM_RESTRICTIONS)
+
+        page = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[run.id])
+        ).content.decode()
+
+        assert "What it did" in page
+        assert "cleared Long las (weapon): was usable by" in page
+
+    def test_applying_a_second_time_records_no_run(
+        self, client, superuser, restricted_world
+    ):
+        client.force_login(superuser)
+        client.post(reverse("admin:maintenance_n26_clear_item_restrictions"))
+
+        client.post(reverse("admin:maintenance_n26_clear_item_restrictions"))
+
+        assert Backfill.objects.count() == 1
+
+    def test_it_refuses_when_the_restrictions_moved_since_the_preview(
+        self, restricted_world
+    ):
+        """The plan somebody approved is the plan that runs. An item
+        restricted after the preview was read is not swept up by it."""
+        from n26.library.authoring import restrict_use
+        from n26.library.item_restrictions import Refused, apply, find
+
+        found = find()
+        restrict_use(restricted_world["armour"], restricted_world["leader"])
+
+        with pytest.raises(Refused, match="changed since the preview was read"):
+            apply(found)
+
+        assert restricted_world["long_las"].usable_by_words() != ""
+
+    def test_a_refusal_ends_the_record_in_its_own_words(
+        self, restricted_world, superuser
+    ):
+        from n26.library.authoring import restrict_use
+        from n26.library.item_restrictions import Refused, apply, find
+
+        found = find()
+        restrict_use(restricted_world["armour"], restricted_world["leader"])
+        record = Backfill.objects.create(
+            operation=Operation.CLEAR_ITEM_RESTRICTIONS,
+            triggered_by=superuser,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(found.preview()), "attempts": 0},
+        )
+
+        maintenance._run_recorded(
+            record.id,
+            Operation.CLEAR_ITEM_RESTRICTIONS,
+            "Item restriction clearing",
+            lambda: apply(found),
+            Refused,
+        )
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.FAILED
+        assert "changed since the preview was read" in record.error
+        assert restricted_world["long_las"].usable_by_words() != ""
+
+    def test_a_plan_with_problems_is_refused_before_anything_is_locked(
+        self, restricted_world
+    ):
+        from n26.library.item_restrictions import Refused, Restrictions, apply
+
+        with pytest.raises(Refused, match="cannot run because it is a test"):
+            apply(Restrictions(items=(), problems=("it is a test",)))
+
+    def test_an_item_in_another_pack_says_which(
+        self, restricted_world, other_pack, make_profile
+    ):
+        from n26.library.authoring import create_collection, create_weapon, restrict_use
+        from n26.library.item_restrictions import find
+
+        homebrew = create_weapon(
+            "Homebrew las", profiles=[("", 0)], price=10, pack=other_pack
+        )
+        restrict_use(homebrew, restricted_world["leader"])
+        create_collection("Homebrew list", entries=[homebrew], pack=other_pack)
+
+        found = find()
+
+        lines = found.preview()
+        assert any("Homebrew las (weapon) [Other]" in line for line in lines)
