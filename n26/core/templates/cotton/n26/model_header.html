@@ -28,7 +28,7 @@ screen can invent a strip of its own.
   actions — the header's far end: the gang's figures and the roster tally, in
     the corner the gang sheet keeps its wealth strip in.
   card — the model's card, drawn between the page header and the tab strip.
-    Empty draws nothing. Half the width from xl up: a card read at a glance
+    Empty draws nothing. Half the width from lg up: a card read at a glance
     over the screen below it, rather than a banner across a wide desk.
   tab_actions — controls at the right-hand end of the tab strip.
 {% endcomment %}
@@ -62,7 +62,7 @@ screen can invent a strip of its own.
     the same card the gang sheet draws in a column, and stretched across a
     desktop its rows sit inches from their headings.
     {% endcomment %}
-    {% if card.strip %}<div class="xl:max-w-1/2">{{ card }}</div>{% endif %}
+    {% if card.strip %}<div class="lg:max-w-1/2">{{ card }}</div>{% endif %}
     {% model_screen_tabs miniature active as screen_tabs_ %}
     <div class="flex items-stretch">
         <c-n26.tab-links label="This model's screens" :tabs="screen_tabs_" class="min-w-0 flex-1" />

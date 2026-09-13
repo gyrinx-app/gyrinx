@@ -2604,7 +2604,7 @@ GROUPS: list[Group] = [
                     "one place. The card — in edit mode, the same card, structure "
                     "and renderer the gang sheet draws — fills the header's card "
                     "slot, above the tab strip, where the other two faces draw "
-                    "it too, half the width from xl up and with its own Card, "
+                    "it too, half the width from lg up and with its own Card, "
                     "Lore and Notes tabs left off, so the only strip on screen "
                     "is the screen's own. Under the strip, a grid that is one "
                     "column on a phone and two above it, nothing spanning both: "
