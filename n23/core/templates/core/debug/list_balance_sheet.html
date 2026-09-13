@@ -154,7 +154,8 @@
                                     </td>
                                     <td>
                                         {% if line.source_repr %}
-                                            <span class="pin-source" title="{{ line.source_repr }}">{{ line.pricing }}</span>
+                                            <span class="pin-source"
+                                                  title="{{ line.source_repr }}">{{ line.pricing }}</span>
                                         {% else %}
                                             {{ line.pricing }}
                                         {% endif %}

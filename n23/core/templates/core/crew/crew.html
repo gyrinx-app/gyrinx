@@ -114,7 +114,8 @@
                 <span class="badge {% if crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ crew.get_status_display }}</span>
                 {% if crew.is_ready %}<c-badge variant="success">Ready</c-badge>{% endif %}
                 {% if crew.archived %}<span class="badge text-bg-secondary">Archived</span>{% endif %}
-                <span><i class="bi-people"></i> <a class="linked" href="{% url 'core:list' crew.list.id %}">{{ crew.list.name }}</a></span>
+                <span><i class="bi-people"></i> <a class="linked"
+    href="{% url 'core:list' crew.list.id %}">{{ crew.list.name }}</a></span>
                 <span><i class="bi-diagram-3"></i> {{ crew.method_label }}</span>
             </div>
         </div>
@@ -122,7 +123,8 @@
             <div class="border rounded p-2 fs-7">
                 <i class="bi-archive text-secondary"></i>
                 <strong>This crew is archived.</strong>
-                It has been removed from <a class="linked" href="{% url 'core:battle' battle.id %}">{{ battle.name }}</a>
+                It has been removed from <a class="linked"
+    href="{% url 'core:battle' battle.id %}">{{ battle.name }}</a>
                 and is kept only as a record — it can no longer be edited.
             </div>
         {% endif %}
@@ -249,7 +251,8 @@
                                         <strong>{{ p.name }}</strong>
                                         <span class="text-secondary fs-7">· {{ p.category }}</span>
                                         {% if p.has_sets %}
-                                            <span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i>
+                                            <span class="text-secondary fs-7">· <i class="bi-collection"
+    aria-hidden="true"></i>
                                                 {% if p.loadout %}
                                                     {{ p.loadout }}
                                                 {% else %}
@@ -264,7 +267,8 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-secondary fs-7">This gang has no fighters available for a crew yet.</td>
+                                    <td colspan="4"
+                                        class="text-secondary fs-7">This gang has no fighters available for a crew yet.</td>
                                 </tr>
                             {% endfor %}
                         {% else %}

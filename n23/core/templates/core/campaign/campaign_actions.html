@@ -101,7 +101,8 @@
                                         {% if request.GET.timeframe == "24h" %}selected{% endif %}>
                                     Last 24 hours
                                 </option>
-                                <option value="7d" {% if request.GET.timeframe == "7d" %}selected{% endif %}>Last 7 days</option>
+                                <option value="7d"
+                                        {% if request.GET.timeframe == "7d" %}selected{% endif %}>Last 7 days</option>
                                 <option value="30d"
                                         {% if request.GET.timeframe == "30d" %}selected{% endif %}>
                                     Last 30 days

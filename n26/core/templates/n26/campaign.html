@@ -28,7 +28,7 @@ reader's other campaigns — the same pattern a gang's screens use.
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='campaigns' %}
+    {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
     <c-n26.view.campaign-sheet :sheet="sheet"
@@ -152,11 +152,11 @@ reader's other campaigns — the same pattern a gang's screens use.
                             <tr>
                                 <td class="font-semibold text-ink-900 dark:text-ink-100">{{ player.user.username }}</td>
                                 <td class="text-right">
-                                    {% if player.state == 'accepted' %}
+                                    {% if player.state == "accepted" %}
                                         <c-ui.badge color="green" size="sm">
                                             Accepted
                                         </c-ui.badge>
-                                    {% elif player.state == 'declined' %}
+                                    {% elif player.state == "declined" %}
                                         <c-ui.badge color="ink" size="sm">
                                             Declined
                                         </c-ui.badge>

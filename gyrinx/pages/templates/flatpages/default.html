@@ -66,20 +66,19 @@
             </div>
         </div>
         <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">
+            {% page_contents flatpage %}
             {{ flatpage.content|add_heading_links }}
-            {% comment %}Sub-pages listing for narrow viewports{% endcomment %}
-            {% get_pages flatpage.url for user as sub_pages %}
-            {% if sub_pages|length > 1 %}
+            {% comment %}Direct child pages, for narrow viewports without the sidebar{% endcomment %}
+            {% get_child_pages flatpage.url for user as sub_pages %}
+            {% if sub_pages %}
                 <div class="mt-5 pt-3 border-top">
                     <h2 class="h5 mb-3">In {{ flatpage.title }}:</h2>
                     <ul class="list-unstyled">
                         {% for page in sub_pages %}
-                            {% if page != flatpage %}
-                                <li class="mb-2">
-                                    <a href="{{ page.url }}"
-                                       class="d-block p-2 rounded text-decoration-none">{{ page.title }}</a>
-                                </li>
-                            {% endif %}
+                            <li class="mb-2">
+                                <a href="{{ page.url }}"
+                                   class="d-block p-2 rounded text-decoration-none">{{ page.title }}</a>
+                            </li>
                         {% endfor %}
                     </ul>
                 </div>

@@ -28,7 +28,8 @@
                                      data-cost="{{ row.cost }}">
                                     <div class="form-check mb-0">
                                         {{ row.checkbox.tag }}
-                                        <label class="form-check-label" for="{{ row.checkbox.id_for_label }}">{{ row.checkbox.choice_label }}</label>
+                                        <label class="form-check-label"
+                                               for="{{ row.checkbox.id_for_label }}">{{ row.checkbox.choice_label }}</label>
                                     </div>
                                     {% if row.set_field %}<div class="ms-sm-auto">{{ row.set_field }}</div>{% endif %}
                                 </div>
@@ -53,7 +54,8 @@
                         <p class="text-secondary fs-7 mb-0">
                             <i class="bi-info-circle"></i>
                             No fighters are eligible for this crew yet. Add fighters to the gang, or adjust
-                            eligibility on the <a href="{% url 'core:crew-setup' battle.id crew.id %}" class="linked">Set up</a> tab.
+                            eligibility on the <a href="{% url 'core:crew-setup' battle.id crew.id %}"
+    class="linked">Set up</a> tab.
                         </p>
                     {% endif %}
                     {{ form.chosen_fighters.errors }}

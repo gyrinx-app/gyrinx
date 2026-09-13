@@ -8,7 +8,8 @@ Expects `campaign` in context.{% endcomment %}
                 <a href="{% url 'core:campaign' campaign.id %}" class="linked">{{ campaign.name }}</a>
             </h2>
             <div>
-                <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}" class="linked">{{ campaign.owner }}</a>{% user_badge campaign.owner %}
+                <i class="bi-person"></i> <a href="{% url 'core:user' campaign.owner.username %}"
+    class="linked">{{ campaign.owner }}</a>{% user_badge campaign.owner %}
             </div>
             {% if campaign.template %}
                 <div>

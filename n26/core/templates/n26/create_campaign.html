@@ -22,7 +22,7 @@ field draws as a plain textarea and no editor ever appears.
 {% endblock extra_head %}
 {% block nav_heading %}Set up a campaign{% endblock nav_heading %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='campaigns' %}
+    {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-create-campaign' %}"
@@ -81,6 +81,6 @@ field draws as a plain textarea and no editor ever appears.
                 {% endfor %}
             </c-n26.radio-cards>
         </c-n26.form-section>
-        {% include 'n26/includes/campaign_form_fields.html' %}
+        {% include "n26/includes/campaign_form_fields.html" %}
     </c-n26.form-page>
 {% endblock content %}

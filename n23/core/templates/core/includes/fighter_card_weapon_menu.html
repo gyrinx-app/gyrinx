@@ -1,6 +1,6 @@
 {% load custom_tags %}
 <c-actions row colspan="9">
-    {% if assign.kind == 'assigned' %}
+    {% if assign.kind == "assigned" %}
         <c-actions.link href="{% url 'core:list-fighter-weapon-edit' list.id fighter.id assign.id %}">Edit</c-actions.link>
         {% dot %}
         <c-actions.link href="{% url 'core:list-fighter-weapon-accessories-edit' list.id fighter.id assign.id %}">Accessories</c-actions.link>
@@ -9,7 +9,7 @@
             <c-actions.link href="{% url 'core:list-fighter-weapon-upgrade-edit' list.id fighter.id assign.id %}">{{ assign.equipment.upgrade_stack_name_display }}</c-actions.link>
             {% dot %}
         {% endif %}
-        {% if fighter.is_stash and list.status == 'campaign_mode' %}
+        {% if fighter.is_stash and list.status == "campaign_mode" %}
             <c-actions.link href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}">Sell All</c-actions.link>
             {% dot %}
         {% endif %}
@@ -19,7 +19,7 @@
         {% dot %}
         <c-actions.link href="{% url 'core:list-fighter-weapon-delete' list.id fighter.id assign.id %}"
                         variant="danger">Delete</c-actions.link>
-    {% elif assign.kind == 'default' %}
+    {% elif assign.kind == "default" %}
         <c-actions.link href="{% url 'core:list-fighter-weapons-default-convert' list.id fighter.id assign.id %}">Modify from default</c-actions.link>
         {% dot %}
         <c-actions.link href="{% url 'core:list-fighter-weapons-default-disable' list.id fighter.id assign.id %}"

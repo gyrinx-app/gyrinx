@@ -796,6 +796,82 @@ $width-em-sizes: (
     display: block;
 }
 
+// Flatpage heading levels differ by weight and colour, not only by size, so a
+// reader can tell a section heading from body text at a glance (#2540).
+// Scoped to .flatpage-content: the rest of the app keeps Bootstrap's headings.
+//
+// The h2 gold is the brand yellow taken far enough from it to pass WCAG AA
+// (4.5:1) for normal text. $yellow itself is 2.2:1 on white, so each theme
+// gets its own value: #8a6000 is 5.59:1 on white, #f0b02a is 8.04:1 on the
+// dark body (#212529). Neither is $gy-state-injured, so a heading does not read
+// as an injured fighter. h3 and h4 use Bootstrap's secondary emphasis grey,
+// which is 13.5:1 light and 6.7:1 dark. Set the gold as a custom property on
+// the two theme roots rather than a bare :root — see the note on
+// --bs-secondary-color above.
+//
+// The light branch also covers data-bs-theme="auto", which is what the page
+// carries until core/js/index.js resolves it to light or dark (and for good if
+// JavaScript never runs). That is correct, not an oversight: Bootstrap is
+// built with $color-mode-type: data, and nothing in this stylesheet reads
+// prefers-color-scheme, so an "auto" page is the light theme on a white body
+// whatever the OS prefers. Do not add a prefers-color-scheme override here —
+// it would put the dark gold on a white page (1.9:1).
+:root:not([data-bs-theme="dark"]),
+[data-bs-theme="light"] {
+    --gy-flatpage-h2-color: #8a6000;
+}
+
+[data-bs-theme="dark"] {
+    --gy-flatpage-h2-color: #f0b02a;
+}
+
+.flatpage-content {
+    h2 {
+        font-weight: $font-weight-bold;
+        color: var(--gy-flatpage-h2-color);
+    }
+
+    h3 {
+        font-weight: $font-weight-bold;
+        color: var(--bs-secondary-text-emphasis);
+    }
+
+    h4 {
+        font-weight: $font-weight-semibold;
+        color: var(--bs-secondary-text-emphasis);
+    }
+
+    h5,
+    h6 {
+        font-weight: $font-weight-semibold;
+    }
+
+    // The heading anchor never underlines, so the heading colour is not
+    // mistaken for a link. The link icon on hover is the affordance.
+    a:has(> :is(h1, h2, h3, h4, h5, h6)) {
+        text-decoration: none;
+    }
+}
+
+// The optional contents block: the page's headings, nested by indent alone.
+// No markers, 1em per level — the same shape as the sidebar page nav, which
+// indents by page depth and carries no bullets either (#2540 asks for a
+// nested list, not a numbered one).
+.flatpage-contents-list {
+    list-style: none;
+    padding-inline-start: 0;
+    margin-bottom: 0;
+
+    .flatpage-contents-list {
+        padding-inline-start: 1em;
+        margin-top: 0.25em;
+    }
+
+    li {
+        margin-bottom: 0.25em;
+    }
+}
+
 // Flatpage heading link icons - only visible on hover/focus
 // Icons are positioned absolutely so they don't affect layout
 .flatpage-content a > h1,

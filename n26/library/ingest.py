@@ -1549,11 +1549,18 @@ def _plan_existing(plan, kind, found, ident):
 def _plan_restrictions(plan, pending):
     """The deferred restrictions pass: fighter profiles exist by now.
 
-    Two shapes turn up. "<Fighter> only" narrows an item to a profile,
-    which is an arm of ``UsableBy`` and becomes a real restriction. A
-    gang-wide cap ("Max one per gang") is not a restriction on *use* at
-    all, so it is said and carried past rather than bent into the wrong
-    mechanism.
+    Two shapes turn up. "<Fighter> only" narrows one list's offer of an
+    item to a profile, which is an arm of ``UsableBy`` on the collection
+    entry and becomes a real restriction. A gang-wide cap ("Max one per
+    gang") is not a restriction on *use* at all, so it is said and
+    carried past rather than bent into the wrong mechanism.
+
+    The restriction is the entry's, never the item's. The sheet prints
+    the bracket beside one line of one gang's list — "Heavy rock saw
+    (Forge-born only)" on the Goliath list, where other gangs list the
+    same saw plainly — so writing it onto the item would narrow every
+    list that carries the item, and every re-upload would write it
+    again.
 
     The regex only proposes a name; what decides is whether that name
     resolves to something real. Nothing is ever restricted on a guess.
@@ -1574,8 +1581,8 @@ def _plan_restrictions(plan, pending):
         if allows:
             plan.add(
                 "Restriction",
-                f"{plan.get(item_key).name} ({restriction})",
-                {"item": item_key, "allows": allows},
+                f"{plan.get(item_key).name} in {gang} ({restriction})",
+                {"entry": entry_key, "allows": allows},
                 source,
                 key=f"Restriction:{entry_key}",
             )
@@ -1722,7 +1729,7 @@ SHEET_FIELDS = {
         identity=("collection", "item"),
         updatable=("position", "price_override"),
     ),
-    "Restriction": Fields(identity=("item", "allows")),
+    "Restriction": Fields(identity=("entry", "allows")),
     "Modifier": Fields(identity=("attach_to", "places", "targets", "offers")),
 }
 
@@ -1737,7 +1744,7 @@ NEVER_UPDATED = {
     "GangType": "the sheets know a gang by name and say nothing else about it",
     "Subtype": "the sheets know a subtype by name and say nothing else about it",
     "Skill": "the sheets know a skill by name and say nothing else about it",
-    "Restriction": "a restriction is the pairing itself — the item, and who may use it",
+    "Restriction": "a restriction is the pairing itself — the entry, and who it is offered to",
     "Modifier": "a modifier is its pairing — the carrier, who it reaches, and what it does",
 }
 
@@ -1875,20 +1882,22 @@ def find_existing(planned, pack, resolve):
 
     if kind == "Restriction":
         # A restriction is not a row of its own: it is a link stored on
-        # the item. The item stands for it, so whether the pack already
-        # holds it is asked and answered like everything else.
-        item = resolve(planned.fields["item"])
+        # the collection entry. The entry stands for it, so whether the
+        # pack already holds it is asked and answered like everything
+        # else.
+        entry = resolve(planned.fields["entry"])
         allows = resolve(planned.fields["allows"])
-        if item is None or allows is None:
+        if entry is None or allows is None:
             return None
-        return item if _already_allows(item, allows) else None
+        return entry if _already_allows(entry, allows) else None
 
     raise LookupError(f"nothing says what counts as the same {kind}")
 
 
-def _already_allows(item, allows):
-    """Does this item already name that fighter among the few who may
-    use it?"""
+def _already_allows(entry, allows):
+    """Does this entry already name that fighter among the few this
+    list offers the item to? Asked of the entry's own lists, which are
+    the same three an item carries, so it reads either."""
     from n26.library.models import Profile, ProfileType, Subtype
 
     arms = {
@@ -1898,7 +1907,7 @@ def _already_allows(item, allows):
     }
     for model, arm in arms.items():
         if isinstance(allows, model):
-            return getattr(item, arm).filter(pk=allows.pk).exists()
+            return getattr(entry, arm).filter(pk=allows.pk).exists()
     return False
 
 
@@ -1993,44 +2002,47 @@ def _settle_contents(plan, found):
 
 
 def _note_restrictions_the_sheet_no_longer_names(plan, found):
-    """Say which fighters an item is still restricted to that no line of
-    this upload names — and retract none of them.
+    """Say which fighters a list's line is still offered to only that
+    no line of this upload names — and retract none of them.
 
-    A restriction is stored on the *item*, so it is shared by every list
-    that carries that item. One list dropping "<Fighter> only" cannot be
-    read as retracting it, because another list may be the reason it is
-    there. Add-only, and the note is how an author finds the ones to
-    take off by hand.
+    The restriction is stored on the collection entry, so one list
+    dropping "<Fighter> only" is a claim about that one line. Ingest
+    is add-only all the same: nothing it reads is ever taken off, and
+    the note is how an author finds the ones to take off by hand, on
+    the collection page where the entry is edited.
     """
-    from n26.library.models.assignable import UsableBy
-
     wanted, where = {}, {}
     for planned in plan.planned:
         if planned.kind == "CollectionEntry":
-            wanted.setdefault(planned.fields["item"], set())
-            where.setdefault(planned.fields["item"], planned.source)
+            wanted.setdefault(planned.key, set())
+            where.setdefault(planned.key, planned.source)
         elif planned.kind == "Restriction":
             allows = found.get(planned.fields["allows"])
             if allows is not None:
-                wanted.setdefault(planned.fields["item"], set()).add(
+                wanted.setdefault(planned.fields["entry"], set()).add(
                     (type(allows).__name__, allows.pk)
                 )
 
-    for item_key, named in wanted.items():
-        item = found.get(item_key)
-        # Only a kind that carries the use lists can have been narrowed.
-        if not isinstance(item, UsableBy):
-            continue
-        stored = list(item.usable_by_profiles.all())
+    from django.db.models import prefetch_related_objects
+
+    # The lists are the long sheets, so the entries' own lists are read
+    # in one batch rather than once per line.
+    entries = {
+        key: found[key] for key in wanted if found.get(key) is not None
+    }  # absent: founded by this upload, and carries only what this says
+    prefetch_related_objects(list(entries.values()), "usable_by_profiles")
+    for entry_key, entry in entries.items():
+        named = wanted[entry_key]
+        stored = list(entry.usable_by_profiles.all())
         unnamed = [row for row in stored if (type(row).__name__, row.pk) not in named]
         if not unnamed:
             continue
         said = ", ".join(sorted(str(row) for row in unnamed))
         plan.problem(
-            where[item_key],
-            f"{item} is restricted to {said} in the pack, which no line of "
-            f"this upload names — nothing was retracted, because the "
-            f"restriction is on the item and other lists may be its reason",
+            where[entry_key],
+            f"{entry} is offered to {said} only in the pack, which no line "
+            f"of this upload names — nothing was retracted. Take it off on "
+            f"the collection page if the sheet does not print it",
             severity="note",
         )
 
@@ -2552,7 +2564,11 @@ class _Performer:
 
     #: Nothing in a plan ever points at a row of these kinds, so a row
     #: already in the pack needs no looking up: there is no later line
-    #: waiting to be told where it landed.
+    #: waiting to be told where it landed. A collection entry counts,
+    #: though a restriction names the entry it narrows: ``resolve``
+    #: looks a key up on demand, so the entry is found when a
+    #: restriction is written onto it and not before — an upload of
+    #: lists that gained none reads no entry at all.
     UNREFERENCED = {"CollectionEntry", "Restriction", "Modifier"}
 
     def perform_one(self, planned):
@@ -2923,9 +2939,10 @@ class _Performer:
         from n26.library import authoring
 
         # The verb routes by the kind of thing allowed, so the plan
-        # need only name it.
+        # need only name it. Written onto the entry — this list's own
+        # offer — never onto the item every list shares.
         return authoring.restrict_use(
-            self.resolve(planned.fields["item"]),
+            self.resolve(planned.fields["entry"]),
             self.resolve(planned.fields["allows"]),
         )
 
