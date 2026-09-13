@@ -377,6 +377,28 @@ class TestThePetCardNamesItsOwner:
         assert f'href="#model-{yolanda.pk}"' not in body
         assert "Yolanda" not in [card.name for card in render_gang(gang).models]
 
+    def test_the_pets_own_page_costs_what_any_fighters_does(
+        self, client, gang, bought, make_profile
+    ):
+        """Naming the owner reads the cause of the pet's membership and
+        the model behind it, and both arrive with the page's own read of
+        the model: a pet's page asks the database nothing a plain
+        fighter's page does not."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        plain = hire(gang, make_profile("Plain ganger"), "Plain")
+        client.force_login(gang.owner)
+
+        def measure(miniature):
+            url = reverse("n26-edit-fighter", args=[miniature.pk])
+            assert client.get(url).status_code == 200
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get(url).status_code == 200
+            return len(captured.captured_queries)
+
+        assert measure(pet_of(gang)) == measure(plain)
+
     def test_the_print_page_and_the_text_card_say_the_same_words(
         self, client, gang, bought
     ):
