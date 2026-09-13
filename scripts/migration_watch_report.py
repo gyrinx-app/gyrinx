@@ -21,6 +21,15 @@ MARKER = "<!-- migration-watch -->"
 CONTEXT = "migration-watch"
 LOG_TAIL = 30
 
+# The checks that decide whether a branch is safe against main, by the name
+# the workflow gives each step's outcome.
+CHECKS = {
+    "REPLAY": "the deploy replay",
+    "DRIFT": "models and migrations agree",
+    "LEAVES": "one leaf per app",
+    "OVERLAP": "migrations against what main gained",
+}
+
 
 def gh(*args, input_text=None):
     result = subprocess.run(  # nosec B603 B607 — fixed argv, no shell
@@ -70,15 +79,25 @@ def build(report_dir):
         )
         return "failure", "conflicts with main", problems, notes
 
-    # A run that got as far as the merge but ran none of the four checks has
-    # verified nothing, so it must not leave a result that reads as a pass.
-    if not any(
-        outcome(step) == "success" for step in ("REPLAY", "DRIFT", "LEAVES", "OVERLAP")
-    ):
+    # Only a check that ran and gave an answer tells you anything. Anything
+    # else leaves part of the branch unverified, and the result must say so
+    # rather than read as a pass.
+    missing = [
+        name
+        for step, name in CHECKS.items()
+        if outcome(step) not in ("success", "failure")
+    ]
+    if len(missing) == len(CHECKS):
         notes.append(
             "None of the checks ran, so nothing here was verified. The next push starts a new run."
         )
         return "pending", "not checked", problems, notes
+    if missing:
+        notes.append(
+            "These checks did not run, so that much is unverified: "
+            + ", ".join(missing)
+            + "."
+        )
 
     if outcome("REPLAY_MAIN") == "skipped":
         notes.append(
@@ -147,6 +166,15 @@ def build(report_dir):
         return (
             "failure",
             f"{len(problems)} problem(s) against current main",
+            problems,
+            notes,
+        )
+    # Nothing found, but not everything was looked at: say so rather than
+    # claim the branch is clear.
+    if missing:
+        return (
+            "pending",
+            f"{len(missing)} of {len(CHECKS)} checks did not run",
             problems,
             notes,
         )
