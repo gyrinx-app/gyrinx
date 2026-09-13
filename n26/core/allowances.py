@@ -30,6 +30,12 @@ def grant_recruitment_allowances(op, fighter):
             defaults={"threshold": None, "rank_table": None},
         )
         if created:
+            allowance.granted_event = op.event(
+                fighter,
+                LedgerEvent.Kind.GRANTED,
+                note=f"Earned one use of {action} at recruitment.",
+            )
+            allowance.save(update_fields=["granted_event", "modified"])
             granted.append(allowance)
     return granted
 
@@ -69,6 +75,12 @@ def grant_rank_allowances(op, counter_assignment, before, after):
                 defaults={"rank_table": table},
             )
             if created:
+                allowance.granted_event = op.event(
+                    fighter,
+                    LedgerEvent.Kind.GRANTED,
+                    note=f"Earned one use of {action} at {threshold.threshold} {counter}.",
+                )
+                allowance.save(update_fields=["granted_event", "modified"])
                 granted.append(allowance)
     return granted
 
