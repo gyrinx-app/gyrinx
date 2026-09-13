@@ -97,7 +97,7 @@ fi
   printf 'export __GYRINX_MAIN_WT=%q\n' "$MAIN_WT"
   grep -Ev '^[[:space:]]*(#|$)' <<'BLOCK'
 _gyrinx_activate_worktree() {
-  local wt_root venv lib
+  local wt_root venv lib provision_failed=false
 
   # Determine which worktree we're currently in.  Fall back to the main
   # worktree if cwd isn't a git checkout (e.g. the agent cd'd to /tmp).
@@ -124,9 +124,14 @@ _gyrinx_activate_worktree() {
   venv="${wt_root}/.venv"
   if [[ "$wt_root" == *"/.claude/worktrees/"* ]] \
      && command -v provision_worktree_venv >/dev/null 2>&1; then
-    provision_worktree_venv "$wt_root" >&2 || true
+    if ! provision_worktree_venv "$wt_root" >&2; then
+      provision_failed=true
+      echo "[gyrinx] Worktree venv sync failed; leaving it inactive." >&2
+    fi
   fi
-  if [ ! -d "$venv" ]; then
+  if [ "$provision_failed" = true ]; then
+    venv=""
+  elif [ ! -d "$venv" ]; then
     venv="${__GYRINX_MAIN_WT}/.venv"
   fi
 
@@ -137,6 +142,15 @@ _gyrinx_activate_worktree() {
       export PATH="${venv}/bin:${HOME}/.local/bin:${__GYRINX_BASE_PATH}"
     fi
     export VIRTUAL_ENV="$venv"
+  else
+    # A previous invocation may have activated this worktree's stale venv.
+    # Restore the baseline instead of silently continuing to use it.
+    if [ -n "$__GYRINX_PG_BIN_DIR" ]; then
+      export PATH="${__GYRINX_PG_BIN_DIR}:${HOME}/.local/bin:${__GYRINX_BASE_PATH}"
+    else
+      export PATH="${HOME}/.local/bin:${__GYRINX_BASE_PATH}"
+    fi
+    unset VIRTUAL_ENV
   fi
 
   export DJANGO_SETTINGS_MODULE=gyrinx.settings_dev

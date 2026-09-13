@@ -3,6 +3,7 @@
 from importlib import metadata
 
 import pytest
+import yaml
 
 from scripts.check_formatter_versions import (
     FORMATTERS,
@@ -32,6 +33,35 @@ def test_pre_commit_stops_before_running_a_mismatched_formatter():
     assert guard_position < config.index(
         "repo: https://github.com/astral-sh/ruff-pre-commit"
     )
+
+
+def test_dependabot_groups_only_formatter_updates_across_ecosystems():
+    config = yaml.safe_load((REPO_ROOT / ".github/dependabot.yml").read_text())
+    updates = config["updates"]
+    grouped = {
+        entry["package-ecosystem"]: entry
+        for entry in updates
+        if entry.get("multi-ecosystem-group") == "python-formatters"
+    }
+    regular = {
+        entry["package-ecosystem"]: entry
+        for entry in updates
+        if entry["package-ecosystem"] in {"uv", "pre-commit"}
+        and "multi-ecosystem-group" not in entry
+    }
+
+    assert set(grouped) == {"uv", "pre-commit"}
+    assert set(regular) == {"uv", "pre-commit"}
+    assert grouped["uv"]["patterns"] == ["djlint", "ruff"]
+    assert grouped["pre-commit"]["patterns"] == ["*djlint*", "*ruff*"]
+    assert {item["dependency-name"] for item in regular["uv"]["ignore"]} >= {
+        "djlint",
+        "ruff",
+    }
+    assert {item["dependency-name"] for item in regular["pre-commit"]["ignore"]} == {
+        "*djlint*",
+        "*ruff*",
+    }
 
 
 def test_active_test_environment_matches_the_lock():

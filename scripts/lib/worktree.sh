@@ -152,17 +152,28 @@ provision_worktree_venv() {
   local venv="${wt_root}/.venv"
   local lock_file="${wt_root}/uv.lock"
   local stamp_file="${venv}/.gyrinx-uv-lock.sha256"
-  local lock_hash stamped_hash=""
+  local hash_output lock_hash stamped_hash=""
   if [ ! -f "$lock_file" ]; then
     echo "[gyrinx] No uv.lock found at ${lock_file}; cannot provision ${venv}." >&2
     return 1
   fi
   if command -v sha256sum >/dev/null 2>&1; then
-    lock_hash=$(sha256sum "$lock_file" | awk '{print $1}')
+    if ! hash_output=$(sha256sum "$lock_file"); then
+      echo "[gyrinx] Could not hash ${lock_file}; cannot verify ${venv}." >&2
+      return 1
+    fi
   elif command -v shasum >/dev/null 2>&1; then
-    lock_hash=$(shasum -a 256 "$lock_file" | awk '{print $1}')
+    if ! hash_output=$(shasum -a 256 "$lock_file"); then
+      echo "[gyrinx] Could not hash ${lock_file}; cannot verify ${venv}." >&2
+      return 1
+    fi
   else
     echo "[gyrinx] No SHA-256 tool found; cannot check ${lock_file}." >&2
+    return 1
+  fi
+  lock_hash=${hash_output%%[[:space:]]*}
+  if [[ ! "$lock_hash" =~ ^[[:xdigit:]]{64}$ ]]; then
+    echo "[gyrinx] Invalid SHA-256 output for ${lock_file}; cannot verify ${venv}." >&2
     return 1
   fi
   if [ -f "$stamp_file" ]; then

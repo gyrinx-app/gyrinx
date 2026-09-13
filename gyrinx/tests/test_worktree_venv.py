@@ -27,6 +27,12 @@ touch "$UV_PROJECT_ENVIRONMENT/bin/activate"
     uv.chmod(0o755)
 
 
+def _write_failing_sha256sum(bin_dir: Path) -> None:
+    sha256sum = bin_dir / "sha256sum"
+    sha256sum.write_text("#!/bin/bash\nexit 7\n")
+    sha256sum.chmod(0o755)
+
+
 def _provision(worktree: Path, bin_dir: Path, call_log: Path, **extra_env):
     return subprocess.run(
         [
@@ -91,3 +97,22 @@ def test_failed_resync_preserves_the_venv_and_retries(tmp_path):
     retried = _provision(worktree, bin_dir, call_log)
     assert retried.returncode == 0, retried.stderr
     assert call_log.read_text().splitlines() == ["sync", "sync", "sync"]
+
+
+def test_hash_failure_never_treats_an_existing_venv_as_current(tmp_path):
+    worktree = tmp_path / "worktree"
+    bin_dir = tmp_path / "bin"
+    call_log = tmp_path / "uv-calls"
+    worktree.mkdir()
+    bin_dir.mkdir()
+    (worktree / "uv.lock").write_text("version = 1\n")
+    (worktree / ".venv").mkdir()
+    (worktree / ".venv/.gyrinx-uv-lock.sha256").write_text("")
+    _write_fake_uv(bin_dir)
+    _write_failing_sha256sum(bin_dir)
+
+    result = _provision(worktree, bin_dir, call_log)
+
+    assert result.returncode == 1
+    assert "Could not hash" in result.stderr
+    assert not call_log.exists()

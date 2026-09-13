@@ -17,10 +17,6 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
-    multi-ecosystem-group: "python-formatters"
-    patterns:
-      - "djlint"
-      - "ruff"
     groups:
       python-minor-and-patch:
         applies-to: version-updates
@@ -40,6 +36,9 @@ updates:
       # Re-enable once google-cloud-* packages drop their pkg_resources dependency.
       - dependency-name: "setuptools"
         versions: [">=82.0.0"]
+      # Updated by the cross-ecosystem formatter entry below.
+      - dependency-name: "djlint"
+      - dependency-name: "ruff"
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -83,14 +82,30 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    multi-ecosystem-group: "python-formatters"
-    patterns:
-      - "*djlint*"
-      - "*ruff*"
     groups:
       pre-commit:
         patterns:
           - "*"
+    ignore:
+      # Updated by the cross-ecosystem formatter entry below.
+      - dependency-name: "*djlint*"
+      - dependency-name: "*ruff*"
+
+  # Duplicate, selective entries let Dependabot group formatter pins across
+  # uv and pre-commit without narrowing the regular entries above.
+  - package-ecosystem: "uv"
+    directory: "/"
+    multi-ecosystem-group: "python-formatters"
+    patterns:
+      - "djlint"
+      - "ruff"
+
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    multi-ecosystem-group: "python-formatters"
+    patterns:
+      - "*djlint*"
+      - "*ruff*"
 
   # The Dockerfile pins the uv release it copies its binary from.
   - package-ecosystem: "docker"
