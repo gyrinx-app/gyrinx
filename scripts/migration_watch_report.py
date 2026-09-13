@@ -70,12 +70,22 @@ def build(report_dir):
         )
         return "failure", "conflicts with main", problems, notes
 
+    # A run that got as far as the merge but ran none of the four checks has
+    # verified nothing, so it must not leave a result that reads as a pass.
+    if not any(
+        outcome(step) == "success" for step in ("REPLAY", "DRIFT", "LEAVES", "OVERLAP")
+    ):
+        notes.append(
+            "None of the checks ran, so nothing here was verified. The next push starts a new run."
+        )
+        return "pending", "not checked", problems, notes
+
     if outcome("REPLAY_MAIN") == "skipped":
         notes.append(
             "The environment or the database could not be set up, so the deploy replay did not run. "
             "That is the runner's problem, not this pull request's."
         )
-    elif outcome("REPLAY_MAIN") != "success":
+    elif outcome("REPLAY_MAIN") == "failure":
         notes.append(
             "Main itself did not migrate on an empty database, so the deploy replay could not run. "
             f"That is main's problem, not this pull request's.\n\n```\n{tail(report_dir / 'replay-main.log')}\n```"
@@ -147,7 +157,7 @@ def build(report_dir):
 
 def render(state, headline, problems, notes, run_url, main_sha):
     lines = [MARKER, f"### Migration watch: {headline}", ""]
-    if state == "error":
+    if state in ("error", "pending"):
         lines.append(f"[Run]({run_url}).")
     else:
         lines.append(
