@@ -111,14 +111,21 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
 
 
 def _skill_step(request, fighter, record, configured, chosen, groups, *, correction):
+    from n26.core.advancements import recorded_skill
     from n26.core.views.action_flows import _page, flow_url
 
     selection = getattr(record, "skill_selection", None)
     attempts = selection.random_attempts if selection else []
     random = chosen.skill_mode == "random"
-    resolved = (
-        random and selection is not None and selection.selected_skill_id is not None
-    )
+    selected = recorded_skill(record, configured, chosen.id) if random else None
+    resolved = selected is not None
+    if (
+        random
+        and resolved
+        and request.method == "POST"
+        and "request_key" in request.POST
+    ):
+        return redirect(flow_url(fighter, record, "skill"))
     if random and not resolved and not correction:
         form = SkillRollForm(
             request.POST or None,
@@ -176,7 +183,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         form=form,
         skill_random=random,
         skill_resolved=resolved,
-        skill_selected=str(selection.selected_skill) if resolved else "",
+        skill_selected=str(selected) if resolved else "",
         skill_attempts=attempts,
         skill_groups=[
             {

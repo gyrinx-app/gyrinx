@@ -1,36 +1,38 @@
-{% if action_panels %}
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {% for panel in action_panels %}
-            <c-ui.card>
-                <c-slot name="header">
-                    <span class="font-semibold">{{ panel.name }}</span>
-                </c-slot>
-                <div class="space-y-4">
-                    <p class="text-sm text-muted">{{ panel.timing|capfirst }}</p>
-                    {% for figures in panel.prices %}<c-n26.payment-figures :figures="figures" />{% endfor %}
-                    {% if panel.available_uses != None %}
-                        <p>{{ panel.available_uses }} available use{{ panel.available_uses|pluralize }}</p>
-                    {% endif %}
-                    {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
-                    {% if panel.start_href %}
-                        <a href="{{ panel.start_href }}"
-                           class="linked">Start {{ panel.name }} flow <span aria-hidden="true">→</span></a>
-                    {% endif %}
-                    {% for draft in panel.drafts %}
-                        <p><a href="{{ draft.href }}"
+<div id="n26-action-panels" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+    {% if action_panels %}
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {% for panel in action_panels %}
+                <c-ui.card>
+                    <c-slot name="header">
+                        <span class="font-semibold">{{ panel.name }}</span>
+                    </c-slot>
+                    <div class="space-y-4">
+                        <p class="text-sm text-muted">{{ panel.timing|capfirst }}</p>
+                        {% for figures in panel.prices %}<c-n26.payment-figures :figures="figures" />{% endfor %}
+                        {% if panel.available_uses != None %}
+                            <p>{{ panel.available_uses }} available use{{ panel.available_uses|pluralize }}</p>
+                        {% endif %}
+                        {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
+                        {% if panel.start_href %}
+                            <a href="{{ panel.start_href }}"
+                               class="linked">Start {{ panel.name }} flow <span aria-hidden="true">→</span></a>
+                        {% endif %}
+                        {% for draft in panel.drafts %}
+                            <p><a href="{{ draft.href }}"
    class="linked">{{ draft.label }} <span aria-hidden="true">→</span></a></p>
-                    {% endfor %}
-                    {% if panel.completed %}
-                        <details class="text-sm">
-                            <summary class="cursor-pointer text-muted">Recent results</summary>
-                            <ul class="mt-2 space-y-2">
-                                {% for result in panel.completed %}<li><a href="{{ result.href }}"
+                        {% endfor %}
+                        {% if panel.completed %}
+                            <details class="text-sm">
+                                <summary class="cursor-pointer text-muted">Recent results</summary>
+                                <ul class="mt-2 space-y-2">
+                                    {% for result in panel.completed %}<li><a href="{{ result.href }}"
    class="linked">{{ result.label }}</a></li>{% endfor %}
-                            </ul>
-                        </details>
-                    {% endif %}
-                </div>
-            </c-ui.card>
-        {% endfor %}
-    </div>
-{% endif %}
+                                </ul>
+                            </details>
+                        {% endif %}
+                    </div>
+                </c-ui.card>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
