@@ -47,22 +47,30 @@ def _counter_assignment(gang, fighter, counter, payer, action):
 
 
 def quote_action(op, fighter, action):
-    """Resolve authored components to immutable current balances."""
+    """Resolve a quote inside an operation; final checkout remains authoritative."""
+    return quote_for(fighter, action, gang=op.gang)
+
+
+def quote_for(fighter, action, *, gang=None):
+    """Read a display quote without starting or mutating an action record."""
+    gang = gang or fighter.gang
+    if gang is None:
+        raise Refusal("That fighter is no longer in a gang.")
     lines = []
     for component in action.use_price.select_related("counter").all():
         if component.resource == component.Resource.CREDITS:
-            balance = Balance(Resource.CREDITS, str(op.gang.pk))
-            available = op.gang.recompute_credits()
+            balance = Balance(Resource.CREDITS, str(gang.pk))
+            available = gang.recompute_credits()
             name = "Credits"
         else:
             assignment = _counter_assignment(
-                op.gang,
+                gang,
                 fighter,
                 component.counter,
                 component.payer,
                 component.action,
             )
-            balance = Balance(Resource.COUNTER, str(op.gang.pk), str(assignment.pk))
+            balance = Balance(Resource.COUNTER, str(gang.pk), str(assignment.pk))
             available = assignment.counter_value.value
             name = str(component.counter)
         lines.append(
@@ -356,7 +364,7 @@ def _counter_change_delta(configured, before):
 
 def _prepare_outcome(op, record, configured):
     """Validate one typed outcome and return its transactional writer."""
-    from n26.library.models import ApplyChanges, AugmentCarriedItem
+    from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
 
     if isinstance(configured, ApplyChanges):
         planned = _plan_apply_changes(op, record, configured)
@@ -367,6 +375,10 @@ def _prepare_outcome(op, record, configured):
         return lambda: apply_augmentation(
             op, record, configured, deepcopy(record.terms)
         )
+    if isinstance(configured, ResolveAdvancement):
+        from n26.core.advancements import apply_advancement
+
+        return lambda: apply_advancement(op, record, configured, deepcopy(record.terms))
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
@@ -478,22 +490,57 @@ def cancel_action(op, record):
     return record
 
 
-def correct_action(op, record, *, terms):
-    """Run a typed safe correction under the action and gang locks."""
+def review_action_correction(op, record, *, terms):
+    """Fingerprint the completed result a proposed correction would replace."""
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.COMPLETED or record.outcome_id is None:
         raise Refusal("That action use has no completed result to correct.")
     configured = record.outcome.operation
-    from n26.library.models import AugmentCarriedItem
+    proposed = deepcopy(terms)
+    record.revision += 1
+    record.review = {
+        "correction": True,
+        "content": _content_snapshot(record.action),
+        "target": _target_snapshot(record, configured, proposed),
+        "terms": proposed,
+    }
+    record.save(update_fields=["revision", "review", "modified"])
+    return record
+
+
+def correct_action(op, record, *, revision, review, terms):
+    """Verify and run a typed safe correction under both locks."""
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if record.state != ActionRecord.State.COMPLETED or record.outcome_id is None:
+        raise Refusal("That action use has no completed result to correct.")
+    proposed = deepcopy(terms)
+    if (
+        revision != record.revision
+        or review != record.review
+        or record.review.get("correction") is not True
+        or proposed != record.review.get("terms")
+    ):
+        raise Refusal("Review this correction again before confirming it.")
+    configured = record.outcome.operation
+    if _content_snapshot(record.action) != record.review.get("content"):
+        raise Refusal("The action changed. Review this correction again.")
+    if _target_snapshot(record, configured, proposed) != record.review.get("target"):
+        raise Refusal("The fighter changed. Review this correction again.")
+    from n26.library.models import AugmentCarriedItem, ResolveAdvancement
 
     if isinstance(configured, AugmentCarriedItem):
         from n26.core.augmentations import correct_augmentation
 
-        result = correct_augmentation(op, record, configured, deepcopy(terms))
+        result = correct_augmentation(op, record, configured, proposed)
+    elif isinstance(configured, ResolveAdvancement):
+        from n26.core.advancements import correct_advancement
+
+        result = correct_advancement(op, record, configured, proposed)
     else:
         raise Refusal("That action result cannot be corrected here.")
-    record.terms = deepcopy(terms)
-    record.revision += 1
-    record.save(update_fields=["terms", "revision", "modified"])
+    record.terms = proposed
+    record.review = {"correction_completed": True, "revision": record.revision}
+    record.save(update_fields=["terms", "review", "modified"])
     return record, result

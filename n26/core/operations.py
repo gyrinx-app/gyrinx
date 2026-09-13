@@ -2680,11 +2680,19 @@ class Operation:
 
         return cancel_action(self, record)
 
-    def correct_action(self, record, *, terms):
+    def review_action_correction(self, record, *, terms):
+        """Capture exact completed-result state before a safe correction."""
+        from n26.core.action_records import review_action_correction
+
+        return review_action_correction(self, record, terms=terms)
+
+    def correct_action(self, record, *, revision, review, terms):
         """Correct a completed typed result without replaying its payment."""
         from n26.core.action_records import correct_action
 
-        return correct_action(self, record, terms=terms)
+        return correct_action(
+            self, record, revision=revision, review=review, terms=terms
+        )
 
     def open_counter(self, assignment, value):
         """Store an opening balance, journalling it once tracking is active."""
