@@ -1402,6 +1402,63 @@ class TestShowingDismissedOffers:
         assert dismissed_keys(gang) == {line.key}
         assert_reconciled(gang)
 
+    @pytest.mark.parametrize("screen", ("edit", "gang"))
+    @pytest.mark.parametrize("htmx", (False, True))
+    def test_equipment_dialogs_keep_dismissed_offers_shown(
+        self, client, owner, gang, crew, screen, htmx
+    ):
+        from urllib.parse import parse_qs, urlsplit
+
+        from bs4 import BeautifulSoup
+
+        from n26.core.operations import operation
+        from n26.library.authoring import create_wargear
+
+        client.force_login(owner)
+        miniature = crew["leader"]
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        knife = create_wargear("Knife", price=10)
+        with operation(gang, actor=owner) as op:
+            bought = op.buy(
+                miniature if screen == "edit" else gang.stash, thing=knife, paid=10
+            )
+        here = (
+            reverse("n26-edit-fighter", args=[miniature.pk])
+            if screen == "edit"
+            else reverse("n26-gang", args=[gang.pk])
+        )
+        shown = f"{here}?dismissed=show"
+        page = BeautifulSoup(client.get(shown).content, "html.parser")
+        sell = next(
+            link["href"]
+            for link in page.find_all("a", href=True)
+            if parse_qs(urlsplit(link["href"]).query).get("sell") == [str(bought.pk)]
+        )
+        assert parse_qs(urlsplit(sell).query)["dismissed"] == ["show"]
+
+        headers = {"HX-Request": "true"} if htmx else {}
+        response = client.get(sell, headers=headers)
+        assert response.status_code == 200
+        if not htmx:
+            assert restore_url(gang, line) in response.content.decode()
+        page = BeautifulSoup(response.content, "html.parser")
+        form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
+        assert form is not None
+        data = {
+            field["name"]: field.get("value", "")
+            for field in form.find_all("input", type="hidden")
+        }
+        assert data["dismissed"] == "show"
+        assert not form.has_attr("hx-post")
+        response = client.post(form["action"], data)
+        assert response.status_code == 302
+        assert response.url == shown
+        assert restore_url(gang, line) in client.get(response.url).content.decode()
+        assert dismissed_keys(gang) == {line.key}
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
     def test_a_row_left_behind_by_a_sold_carrier_can_still_be_taken_off(
         self, client, owner, gang, crew
     ):

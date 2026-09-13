@@ -732,7 +732,7 @@ def edit_fighter(request, pk):
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.
-    at = reverse("n26-edit-fighter", args=[miniature.pk])
+    at, _ = card_screen(miniature, request.get_full_path())
     host = EquipHost.fighter(gang, own, miniature, at)
 
     renaming = _fighter_named(request, gang, "rename")

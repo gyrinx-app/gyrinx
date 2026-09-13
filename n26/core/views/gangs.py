@@ -322,6 +322,7 @@ def gang_sheet(request, pk):
     # on the living cards and the gang's own strip; a dead model's card
     # has nothing to click, so its dismissed offers only go.
     showing = yours and showing_dismissed(request.get_full_path())
+    shown_at = dismissed_toggle(at, not showing)
     settle_dismissed(
         gang,
         sheet,
@@ -338,10 +339,10 @@ def gang_sheet(request, pk):
             gang,
             sheet,
             *sheet.models,
-            dismiss_back=dismissed_toggle(at, not showing),
+            dismiss_back=shown_at,
         )
         link_skills(*sheet.models)
-        link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
+        link_stash_actions(sheet, shown_at, refunds=not gang.credits_unlimited)
         if sheet.campaign:
             # The campaign's counters only. A model's counter is moved on
             # the model's own page; a campaign counter is drawn here and
@@ -366,7 +367,7 @@ def gang_sheet(request, pk):
         and not ransoming
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
-        host = EquipHost.stash(gang, card, at=at)
+        host = EquipHost.stash(gang, card, at=shown_at)
         dialog = owned_dialog(request, host)
     return render(
         request,
