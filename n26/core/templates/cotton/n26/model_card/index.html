@@ -38,8 +38,8 @@ it (see n26/includes/status_dialogs.html). The model's picture never sits
 on the card's face — a small control by the actions opens it.
 
 A pet's card says whose it is. Given owner_href — the gang sheet passes the
-owner's card anchor — it is a chain among the controls, naming the owner in
-its tooltip; without one there is nowhere to send anyone, so the card says
+owner's card anchor — it is a chain beside the model's name, naming the owner
+in its tooltip; without one there is nowhere to send anyone, so the card says
 it in words under the profile name ("Owned by Yolanda", or "In the stash"
 where the collar that brought it sits there), which is what the model's own
 page wants. A stored model's card carries id="model-<pk>" on its header
@@ -89,6 +89,26 @@ name and profile over one row holding the figures and every control.
             <div class="min-w-0 flex-1">
                 <div class="font-semibold">
                     {{ card.name }}{% if name_action %}{{ name_action }}{% endif %}
+                    {% comment %}
+                    The model whose purchase brought this one in — a pet's
+                    owner — as a way to their card, beside the name it
+                    belongs to rather than among the acts on the right. The
+                    tooltip says whose, since a chain on its own says there
+                    is a link and not who is at the other end.
+                    {% endcomment %}
+                    {% if owner_href and card.owned_by %}
+                        <c-ui.tooltip size="sm">
+                            <c-ui.button size="xs"
+                                         variant="ghost"
+                                         href="{{ owner_href }}"
+                                         aria-label="Owned by {{ card.owned_by }}">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="link" class="size-3.5" />
+                                </span>
+                            </c-ui.button>
+                            <c-slot name="content">Owned by {{ card.owned_by }}</c-slot>
+                        </c-ui.tooltip>
+                    {% endif %}
                 </div>
                 {% if card.profile_name and card.profile_name != card.name %}
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
@@ -144,7 +164,7 @@ name and profile over one row holding the figures and every control.
                     </c-ui.tooltip>
                 </div>
 
-                {% if actions or card.image_url or card.status_label or status_href or owner_href %}
+                {% if actions or card.image_url or card.status_label or status_href %}
                     {% comment %}
                     Wrapping while the card is narrow, where the longest
                     status badge and four controls do not fit one line: held
@@ -175,26 +195,6 @@ name and profile over one row holding the figures and every control.
                                 <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
                             {% endif %}
                             {# djlint:on #}
-                        {% endif %}
-                        {% comment %}
-                        The model whose purchase brought this one in — a
-                        pet's owner — as a way to their card rather than as
-                        a line of words. The tooltip names them, since a
-                        chain on its own says there is a link and not who is
-                        at the other end.
-                        {% endcomment %}
-                        {% if owner_href and card.owned_by %}
-                            <c-ui.tooltip size="sm">
-                                <c-ui.button size="xs"
-                                             variant="ghost"
-                                             href="{{ owner_href }}"
-                                             aria-label="Owned by {{ card.owned_by }}">
-                                    <span class="n26-icon-only">
-                                        <c-n26.icon name="link" class="size-3.5" />
-                                    </span>
-                                </c-ui.button>
-                                <c-slot name="content">{{ card.owned_by }}</c-slot>
-                            </c-ui.tooltip>
                         {% endif %}
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
