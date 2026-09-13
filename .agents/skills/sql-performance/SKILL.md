@@ -11,26 +11,48 @@ unrelated, pre-existing queries.
 
 ## Exercise a representative page
 
-Load the `dev-server` skill, start the worktree server, and use its one-click `agent` login link for the exact page:
-
-```bash
-./scripts/dev.sh
-.codex/run.sh manage agent_login_url '/path/to/page/?variant=value'
-```
-
 Use local data that exercises the page's repeated structures: fighters, cards, assignments, campaign gangs,
 authoring entries, or whatever the template loops over. An empty state cannot expose a per-row cascade. Check the
 important URL-driven variants when they render meaningfully different data.
 
-Load the final page at least twice. Treat the first request as cache warm-up. If the query count still moves, reload
-until two consecutive requests agree, then use the stable request in the checks below. The toolbar's **History** panel
-can switch between recent request snapshots, including requests before a redirect.
+Run the page through the toolbar-backed inspection command. Use `manage` normally; Codex worktrees need their wrapper:
 
-## Read the SQL panel
+```bash
+manage inspect_page '/path/to/page/?variant=value'
+# Codex: .codex/run.sh manage inspect_page '/path/to/page/?variant=value'
+```
 
-The toolbar starts collapsed in Gyrinx. Open the corner handle, then select **SQL**; the detailed panel loads on
-demand. If the response is JSON or an HTML fragment without a `<body>`, inspect the full page that triggers it or use
-`CaptureQueriesContext`, because the toolbar is only inserted into full HTML pages.
+The command authenticates as the local `agent` user, makes one warm-up request, then measures two requests. Its
+compact default output covers response status, stability, elapsed and CPU time, SQL, templates, cache use, static
+files, queued tasks, alerts, and the resolved view. It also works for JSON and HTML fragments because it reads the
+toolbar data inside the request process instead of scraping the injected interface.
+
+Add only the detail needed for the current question:
+
+```bash
+# Repeated SQL families and the longest individual queries
+manage inspect_page '/path/' --panel sql --limit 5
+
+# Repeated templates and cache operations
+manage inspect_page '/path/' --panel templates --panel cache --limit 10
+
+# Route, request values, headers, timing, settings, and other toolbar data
+manage inspect_page '/path/' --panel request --panel headers
+manage inspect_page '/path/' --panel settings --setting CACHE --limit 10
+
+# Every supported panel, bounded to three entries each, as structured data
+manage inspect_page '/path/' --all --limit 3 --json
+```
+
+Use `--anonymous` for a signed-out page, `--username agent-<purpose>` for another local agent, `--header NAME=VALUE`
+for a request variant such as HTMX, `--no-follow` for the first redirect response, and `--warmup` or `--repeat` when
+the defaults do not stabilise the page. Run `manage inspect_page --help` for the complete interface.
+
+## Read the SQL cascade
+
+Use `--panel sql` to show bounded lists of similar groups, duplicate groups, and longest queries. Each entry includes
+compact SQL, combined time, and the deepest project source frame or triggering template line when the toolbar records
+one.
 
 Start with these signals:
 
@@ -40,10 +62,9 @@ Start with these signals:
    number of rendered objects is the clearest N+1 signal.
 3. Look for **duplicate** groups: the exact same SQL and parameters executed again. These often indicate repeated
    property, context, permission, or template work.
-4. Scan the timeline for a long run of same-coloured queries and for individual queries that dominate SQL time. The
-   chart shows query order and each query's share of SQL time; it does not show idle gaps in the whole request.
-5. Expand a suspicious query with `+`. Read the first frame in this repository, plus any template context, to find
-   the loop or property that caused it. The SQL comment names the controller and route where available.
+4. Inspect the longest list for individual queries that dominate SQL time. Use the browser timeline when query order
+   matters; it shows order and each query's share of SQL time, not idle gaps in the whole request.
+5. Follow the reported source frame or template line to the loop, property, or middleware that caused the query.
 
 The similar and duplicate totals count every query in a repeated family, not just the extra executions. Repetition
 is a lead rather than proof: session and permission checks may be bounded, while an N+1 can vary enough to escape the
@@ -53,32 +74,24 @@ Test the scaling question directly: if the page rendered more of the repeated ob
 with it? Compare a small and larger local case when the answer is unclear. Query growth with collection size matters
 more than the absolute total from one request.
 
-## Inspect from a command line
+## Inspect the exact browser state when needed
 
-Do not open a separate Django shell after a browser request and expect `connection.queries` to contain that request.
-The query log belongs to the current process and connection, and Django clears it when a request starts. A new
-`manage shell` therefore sees only SQL executed by that shell.
+`inspect_page` makes a fresh Django test-client GET. Use the browser toolbar when the state depends on earlier browser
+interactions, JavaScript, or a session that the command does not reproduce. Load the `dev-server` skill, start the
+worktree server, and create a one-click login link for the exact page:
 
-For a command-line-only check, make the page request inside the same shell process and capture it explicitly:
-
-```python
-from django.contrib.auth import get_user_model
-from django.db import connection
-from django.test import Client
-from django.test.utils import CaptureQueriesContext
-
-client = Client()
-client.force_login(get_user_model().objects.get(username="agent"))
-with CaptureQueriesContext(connection) as captured:
-    response = client.get("/path/to/page/")
-
-response.status_code, len(captured), captured.captured_queries
+```bash
+./scripts/dev.sh
+manage agent_login_url '/path/to/page/?variant=value'
+# Codex: .codex/run.sh manage agent_login_url '/path/to/page/?variant=value'
 ```
 
-This is a fresh test-client request, not the browser's most recent load. It is useful for counts and raw SQL but does
-not provide the toolbar's similar and duplicate groups, timeline, or stack traces. Prefer the toolbar for the real
-browser path. If browser automation is unavailable, retain its authenticated cookie jar, extract the request ID from
-the page's toolbar markup, and request
+The toolbar starts collapsed. Open the corner handle, select **SQL**, and use **History** to switch between recent
+request snapshots, including requests before a redirect. The detailed panels load on demand.
+
+Do not open a separate Django shell after a browser request and expect `connection.queries` to contain it. The query
+log belongs to the current process and connection, and Django clears it when a request starts. If browser automation
+is unavailable, retain its authenticated cookie jar, extract the request ID from the page's toolbar markup, and fetch
 `/__debug__/render_panel/?request_id=<id>&panel_id=SQLPanel` from the running server. That reads the toolbar snapshot
 for the actual page request; importing the toolbar's default in-memory store from another shell process does not.
 
@@ -123,5 +136,5 @@ should exercise the view and rendered template together.
 ## Report the check
 
 In the handoff or PR, name the URL and representative data shape, give the stable query total and repeated-group
-counts, and say what changed after any fix. Name the regression test when one was added. If browser tooling was not
-available and only `CaptureQueriesContext` was used, describe that accurately rather than claiming a toolbar review.
+counts, and say what changed after any fix. Name the regression test when one was added. State whether `inspect_page`
+or the browser toolbar captured the result when the difference matters.
