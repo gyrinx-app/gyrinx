@@ -670,11 +670,11 @@ def dismiss_offer(request, pk, slot):
     from n26.core.operations import _hold
 
     gang = _own_gang_or_404(request, pk)
-    label = _find_slot(gang, slot).slot.kind_label
+    label = find_slot(gang, slot).slot.kind_label
     fallback = reverse("n26-gang", args=[gang.pk])
     with transaction.atomic():
         _hold(gang)
-        found = _find_slot(gang, slot)
+        found = find_slot(gang, slot)
         if found.slot.is_resolved:
             # Counted, because a choice worked at a pick at a time may
             # hold several, and every one of them has to go first.
@@ -734,7 +734,7 @@ def restore_offer(request, pk, slot):
         _hold(gang)
         DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
     try:
-        label = _find_slot(gang, slot).slot.kind_label
+        label = find_slot(gang, slot).slot.kind_label
     except Http404:
         label = "the choice"
     record(
@@ -747,20 +747,6 @@ def restore_offer(request, pk, slot):
     messages.success(request, f"Restored {label}.")
     fallback = dismissed_toggle(reverse("n26-gang", args=[gang.pk]), showing=False)
     return _safe_redirect(request, request.POST.get("back"), fallback)
-
-
-def _own_address(request, url):
-    """``url`` if it is one of this site's own pages, else an empty string.
-
-    A return address arrives in the query and the form, so it is checked
-    against this request's host before anything redirects to it."""
-    from django.utils.http import url_has_allowed_host_and_scheme
-
-    if url and url_has_allowed_host_and_scheme(
-        url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        return url
-    return ""
 
 
 def _item_behind(found):
