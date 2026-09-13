@@ -1,4 +1,11 @@
 from n26.core.models.abstract import Archived, Base, Owned
+from n26.core.models.action_record import (
+    ActionAllowance,
+    ActionRecord,
+    AdvancementSelection,
+    AugmentationSelection,
+    SkillSelection,
+)
 from n26.core.models.activity import Activity
 from n26.core.models.assignment import Assignment
 from n26.core.models.assignment_set import AssignmentSet
@@ -28,9 +35,13 @@ from n26.core.models.stat_override import StatOverride
 __all__ = [
     "SETTING_GROUPS",
     "Activity",
+    "ActionAllowance",
+    "ActionRecord",
+    "AdvancementSelection",
     "Archived",
     "Assignment",
     "AssignmentSet",
+    "AugmentationSelection",
     "Base",
     "BuiltInPropagationTask",
     "Battle",
@@ -50,6 +61,7 @@ __all__ = [
     "PrintConfig",
     "ProfileRole",
     "Reason",
+    "SkillSelection",
     "Stash",
     "StatOverride",
 ]
