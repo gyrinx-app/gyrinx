@@ -98,6 +98,10 @@ def _model_state(card):
         "rating": card.rating,
         "profile": card.profile_name,
         "type_line": card.type_line,
+        # Whose kit brought this model in, as the card says it — "Owned
+        # by Yolanda", "In the stash" — so a conversion that re-pointed
+        # a pet's cause, or lost it, is a difference on the pet's card.
+        "owner": card.owner_line,
         "statline": _statline(card.statline),
         "subtypes": _names(card.subtypes),
         "weapons": _weapons(card.weapons),

@@ -39,6 +39,7 @@ from n26.tests.sandbox.actions import (
     give_weapon,
     hire,
     modifier,
+    move,
     op_adds_model,
     op_changes_counter,
     remove,
@@ -1099,6 +1100,41 @@ class TestTheCaptureNamesThePet:
         assert any(
             path.startswith(f"models.{yolanda.pk}.equipment") for path in found
         ), found
+
+    def pet_state(self, gang):
+        return next(
+            model
+            for model in gang_state(gang)["models"].values()
+            if model["name"] == "Cyber-mastiff"
+        )
+
+    def test_the_pets_card_is_captured_with_its_owner(self, gang, bought):
+        assert self.pet_state(gang)["owner"] == "Owned by Yolanda"
+
+    def test_a_collar_moved_to_another_fighter_is_a_difference_on_the_pet(
+        self, gang, bought, make_profile
+    ):
+        vesna = hire(gang, make_profile("Escher Juve"), "Vesna", paid=30)
+        before = gang_state(gang)
+        move(bought, to=vesna)
+        after = gang_state(gang)
+
+        assert self.pet_state(gang)["owner"] == "Owned by Vesna"
+        pet = pet_of(gang)
+        assert f"models.{pet.pk}.owner: 'Owned by Yolanda' -> 'Owned by Vesna'" in (
+            differences(before, after)
+        )
+
+    def test_a_collar_moved_to_the_stash_is_a_difference_on_the_pet(self, gang, bought):
+        before = gang_state(gang)
+        move(bought, to=gang.stash)
+        after = gang_state(gang)
+
+        assert self.pet_state(gang)["owner"] == "In the stash"
+        pet = pet_of(gang)
+        assert f"models.{pet.pk}.owner: 'Owned by Yolanda' -> 'In the stash'" in (
+            differences(before, after)
+        )
 
     def test_a_weapon_its_fitting_and_its_profile_are_captured_with_theirs(
         self, gang, yolanda, mastiff_profile, make_profile
