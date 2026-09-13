@@ -47,7 +47,7 @@ def test_the_sheet_offers_its_owner_a_share_link(client, owner, gang):
     body = client.get(url).content.decode()
 
     assert share_link(body, url) is not None
-    assert icons.ICONS["share"][0] in body
+    assert str(icons.resolve("share-2").body) in body
     assert "Link copied." in body
 
 
@@ -65,4 +65,4 @@ def test_the_edit_page_has_no_share_button(client, owner, gang):
     body = client.get(reverse("n26-edit-gang", args=[gang.pk])).content.decode()
 
     assert "clicked($event)" not in body
-    assert icons.ICONS["share"][0] not in body
+    assert str(icons.resolve("share-2").body) not in body
