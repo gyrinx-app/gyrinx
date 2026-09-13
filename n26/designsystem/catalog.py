@@ -1552,7 +1552,8 @@ GROUPS: list[Group] = [
                     "a link to the same screen without this block's questions "
                     "— nothing is written and nothing is stored. A block that "
                     "may not be skipped draws no Skip; the page withholds "
-                    "Continue until every question on it holds a pick."
+                    "Continue until every question on it is settled — holds a "
+                    "pick, asks for none, or has nothing to offer."
                 ),
             ),
             Component(

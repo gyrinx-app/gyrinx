@@ -636,7 +636,9 @@ class ArrivalScreen:
 
     @property
     def may_continue(self):
-        """Whether every question still on the screen holds a pick."""
+        """Whether every question still on the screen is settled — holds
+        a pick, asks for none, or has nothing to offer — so the reader
+        may carry on."""
         return all(block.settled for block in self.blocks)
 
     @property

@@ -774,6 +774,26 @@ class TestSkipAndContinue:
         block = body.split("Two at once", 1)[1]
         assert block.index("Creed") < block.index("Archetype")
 
+    def test_slots_given_the_same_place_ask_by_name_however_the_address_names_them(
+        self, client, owner, gang, legacy, picklist
+    ):
+        """Two attachments at one position fall back to the slot's name,
+        as the attachments themselves are ordered — never to the order
+        the address happens to name them in."""
+        creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
+        with operation(gang, actor=owner) as op:
+            op.assign(creed, gang=gang)
+        both = create_interstitial("Two at once")
+        attach_interstitial(both, archetype_slot_of(gang), position=0)
+        attach_interstitial(both, creed, position=0)
+        archetype = sheet_slot(gang, "Archetype").key
+        creed_key = sheet_slot(gang, "Creed").key
+        client.force_login(owner)
+
+        for keys in ([archetype, creed_key], [creed_key, archetype]):
+            block = page(client, screen_url(gang, keys)).split("Two at once", 1)[1]
+            assert block.index("Archetype") < block.index("Creed"), keys
+
     def test_skip_keeps_a_question_another_block_still_asks(
         self, client, owner, gang, archetype_slot, legacy, picklist
     ):
