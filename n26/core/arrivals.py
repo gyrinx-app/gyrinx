@@ -182,6 +182,9 @@ def onward(request, gang, op, back, *, via=""):
     pick screen's own return, where a choice worked at a pick at a time
     comes back to itself rather than to it. Where either is the screen,
     what arrived joins its questions instead of opening a second one.
+    A caller whose answer costs something to work out passes a callable
+    instead, and it is asked only once something has arrived that asks
+    for a screen.
     """
     if not op.written or not any_interstitials():
         return back
@@ -195,7 +198,7 @@ def onward(request, gang, op, back, *, via=""):
         return back
     standing = _already_asking(gang, back)
     if standing is None and via:
-        standing = _already_asking(gang, via)
+        standing = _already_asking(gang, via() if callable(via) else via)
     if standing is not None:
         asked, back = standing
         keys = [*asked, *(key for key in keys if key not in asked)]
