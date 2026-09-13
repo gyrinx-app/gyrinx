@@ -8,7 +8,8 @@ A link to the page itself, so without JavaScript it is a plain link the
 reader can copy or right-click. With Alpine it takes over the click: the
 device's share sheet where there is one (navigator.share), the clipboard
 otherwise, and then the message beside the button for a few seconds. A
-dismissed share sheet copies nothing and says nothing. Where there is no
+dismissed share sheet copies nothing and says nothing; any other failure
+of the sheet, thrown or rejected, falls back to the clipboard. Where there is no
 clipboard to write to (plain http, an old browser) or the write fails,
 the click navigates to the page instead, as the bare link would, so the
 reader can copy the address from the bar.
@@ -43,8 +44,9 @@ button shares the same address it would navigate to.
                   if (!navigator.clipboard) { window.location.assign(url); return; }
                   navigator.clipboard.writeText(url).then(() => this.showCopiedMessage(), () => window.location.assign(url));
               };
+              const notAborted = (err) => { if (err.name !== 'AbortError') copy(); };
               if (navigator.share && (!navigator.canShare || navigator.canShare({ url }))) {
-                  navigator.share({ url }).catch((err) => { if (err.name !== 'AbortError') copy(); });
+                  try { navigator.share({ url }).catch(notAborted); } catch (err) { notAborted(err); }
               } else {
                   copy();
               }

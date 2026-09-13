@@ -66,6 +66,38 @@ def test_gang_edit_page_has_no_share_button(client, user, make_list):
 
 
 @pytest.mark.django_db
+def test_gang_share_link_carries_a_card_override(
+    client, user, make_list, make_list_fighter
+):
+    """A ?set_<fighter_id>= address shows a particular card for that fighter
+    and is meant to be passed around, so the share link keeps it."""
+    lst = make_list("Sump Rats", public=True)
+    fighter = make_list_fighter(lst, "Vex")
+    client.force_login(user)
+    url = reverse("core:list", args=[lst.id])
+
+    body = client.get(f"{url}?set_{fighter.id}=default").content.decode()
+
+    link = share_link(body, f"{url}?set_{fighter.id}=default")
+    assert link is not None
+    assert f'href="{url}?set_{fighter.id}=default"' in link
+
+
+@pytest.mark.django_db
+def test_gang_share_link_drops_other_query_noise(client, user, make_list):
+    """Only the card overrides travel; a flash marker or an unknown key
+    is not part of what the page shows."""
+    lst = make_list("Sump Rats", public=True)
+    client.force_login(user)
+    url = reverse("core:list", args=[lst.id])
+
+    body = client.get(f"{url}?flash=abc&set_nonsense=1").content.decode()
+
+    assert share_link(body, url) is not None
+    assert "flash=abc" not in body.split("data-share-url")[1][:200]
+
+
+@pytest.mark.django_db
 def test_gang_print_page_has_no_share_button(client, user, make_list):
     """The printable sheet renders the same include with print set, and a
     share link on paper is a link to nowhere."""
