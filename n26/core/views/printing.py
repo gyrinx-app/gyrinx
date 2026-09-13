@@ -49,7 +49,7 @@ def _roster(gang):
     return roster(gang)
 
 
-def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
+def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
     """A print card per model: filtered, computed, columned.
 
     ``gang_card`` is the gang already built — the same build the header
@@ -58,6 +58,9 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     only those weapon assignments show. Wargear always rides — the
     selection is about which guns clutter the card, so every wargear row
     of the gang's joins the selected set before it filters anything.
+    ``brought_in`` is what each purchase brought onto the roster
+    (``n26.core.render.brought_in_by``), read off the whole roster so a
+    pet left out of the print is still named on its owner's card.
     """
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
@@ -87,7 +90,10 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
             # card — built alone, which is the rare path, not the norm.
             card = build_card(miniature, with_statlines=True, assignment_set=selection)
         model_card = build_model_card(
-            miniature, card=card, computed=compute(card, index)
+            miniature,
+            card=card,
+            computed=compute(card, index),
+            brought_in=brought_in,
         )
         rows.append({"card": model_card, "columns": detail_columns(model_card)})
     return rows
@@ -320,7 +326,7 @@ def print_gang(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_gang_card
-    from n26.core.render import stash_lines
+    from n26.core.render import brought_in_by, stash_lines
 
     gang = _any_gang_or_404(request, pk)
     config = _config_for(request, gang)
@@ -331,9 +337,14 @@ def print_gang(request, pk):
     # stash block and every model's card all read this build.
     gang_card = build_gang_card(gang)
     miniatures = _roster(gang)
+    # Off the whole roster, before the pick narrows it: a pet the print
+    # leaves out is still on its owner's line.
+    brought = brought_in_by(miniatures)
     if wanted is not None:
         miniatures = [m for m in miniatures if str(m.pk) in wanted]
-    rows = _print_rows(gang, gang_card, miniatures, weapon_ids=weapon_ids)
+    rows = _print_rows(
+        gang, gang_card, miniatures, weapon_ids=weapon_ids, brought_in=brought
+    )
 
     # One event for the sheet, carrying how much of the gang it covers —
     # a card per model would make a big roster look like heavy use.
@@ -354,7 +365,7 @@ def print_gang(request, pk):
         {
             "gang": gang,
             "rows": rows,
-            "stash": stash_lines(gang_card),
+            "stash": stash_lines(gang_card, brought_in=brought),
             "stash_rating": gang_card.stash_rating,
             "include_header": include_header,
             "include_notes": include_notes,

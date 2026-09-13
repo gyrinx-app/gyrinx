@@ -234,6 +234,51 @@ class TestTheCountOnAModelCardLine:
         assert page.count('aria-label="More for Stimm-slug (25¢)"') == 2
 
 
+class TestThePetOnAModelCard:
+    """A pet's card names its owner, linked where the demo gives the
+    anchor; the owner's kit line names the pet after the kit."""
+
+    def test_the_pet_demo_links_the_owners_card(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "Owned by" in page
+        assert 'href="#model-vesna-krail"' in page
+        assert page.count('id="model-vesna-krail"') == 1
+
+    @pytest.mark.parametrize(
+        "url, at_least",
+        [
+            ("/n26/design/c/model-card/", 8),
+            ("/n26/design/c/view-gang-sheet/", 5),
+            ("/n26/design/shell/gang/", 5),
+        ],
+    )
+    def test_every_card_on_the_page_has_an_anchor_of_its_own(
+        self, reader, url, at_least
+    ):
+        """The sample card is drawn many times over — the card page's
+        variants, the gang sheet's five members — and each drawing is a
+        copy under its own id, so the owner link lands on one card and
+        no page holds an id twice."""
+        import re
+
+        page = reader.get(url).content.decode()
+        anchors = re.findall(r'id="(model-[^"]+)"', page)
+        assert len(anchors) >= at_least
+        assert sorted(anchors) == sorted(set(anchors))
+
+    def test_the_stashed_pet_demo_says_where_the_collar_is(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "In the stash" in page
+
+    def test_the_owners_kit_line_names_the_pet(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "Phyrr Cat (pet) (120¢) (Fang)" in page
+
+    def test_the_stash_line_names_the_pet(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        assert "Cyber-mastiff (pet) (Rust)" in page
+
+
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 

@@ -34,8 +34,15 @@ def _each(lines):
             yield line
 
 
+def _line_label(line):
+    """A line's name as the reader is told it: with the name of any
+    model the kit brought after it, since a collar that reads "Collar
+    (Fang)" and one that reads "Collar" say different things."""
+    return str(line.name) + line.brought_mark
+
+
 def _names(lines):
-    return sorted(str(line.name) for line in _each(lines))
+    return sorted(_line_label(line) for line in _each(lines))
 
 
 def _assets(lines):
@@ -48,7 +55,7 @@ def _assets(lines):
 
 def _rated(lines):
     """Lines whose printed figure matters as much as their name."""
-    return sorted((str(line.name), line.rating) for line in _each(lines))
+    return sorted((_line_label(line), line.rating) for line in _each(lines))
 
 
 def _choices(lines):
@@ -63,18 +70,18 @@ def _statline(statline):
 def _weapons(lines):
     return sorted(
         (
-            weapon.name,
+            _line_label(weapon),
             weapon.base_rating,
             tuple(
                 (
-                    profile.name,
+                    _line_label(profile),
                     profile.rating,
                     _statline(profile.statline),
                     tuple(sorted(t.name for t in profile.traits)),
                 )
                 for profile in weapon.profiles
             ),
-            tuple(sorted(a.name for a in weapon.accessories)),
+            tuple(sorted(_line_label(a) for a in weapon.accessories)),
             tuple(_choices(weapon.choices)),
         )
         for weapon in lines
@@ -91,6 +98,10 @@ def _model_state(card):
         "rating": card.rating,
         "profile": card.profile_name,
         "type_line": card.type_line,
+        # Whose kit brought this model in, as the card says it — "Owned
+        # by Yolanda", "In the stash" — so a conversion that re-pointed
+        # a pet's cause, or lost it, is a difference on the pet's card.
+        "owner": card.owner_line,
         "statline": _statline(card.statline),
         "subtypes": _names(card.subtypes),
         "weapons": _weapons(card.weapons),

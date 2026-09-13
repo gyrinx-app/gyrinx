@@ -348,6 +348,10 @@ def _own_miniature_or_404(request, pk):
                 # The profile's rank rides along: every fighter screen
                 # names the model, and the header says the rank beside it.
                 "membership__profile__category",
+                # And the model whose purchase brought this one in — a
+                # pet's owner — which its card names; joined here so a
+                # pet's own page costs what any fighter's does.
+                "membership__caused_by__miniature_root",
             ).annotate(open_visit_points=open_visit_points("membership__gang")),
             pk=pk,
             membership__gang__owner=request.user,

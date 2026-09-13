@@ -277,13 +277,13 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                             <span class="flex items-center gap-2 pl-2">
                                                 <span class="flex min-w-0 gap-1">
                                                     <span aria-hidden="true">-</span>
-                                                    <span>{{ profile.name }}</span>
+                                                    <span>{{ profile.name }}{{ profile.brought_mark }}</span>
                                                 </span>
                                                 <c-n26.owned-actions :sell="profile.sell"
                                                                      :more="profile.more"
                                                                      :htmx="htmx"
                                                                      layout="menu"
-                                                                     label="{{ profile.name }}" />
+                                                                     label="{{ profile.name }}{{ profile.brought_mark }}" />
                                             </span>
                                         </td>
                                     </c-slot>
@@ -335,7 +335,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                                                          :more="line.more"
                                                                          :htmx="htmx"
                                                                          layout="menu"
-                                                                         label="{{ line.name }}" />
+                                                                         label="{{ line.name }}{{ line.brought_mark }}" />
                                                 </li>
                                             {% endfor %}
                                         </ul>

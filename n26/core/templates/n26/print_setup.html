@@ -230,7 +230,7 @@ that said it twice would be spending the width the name needs.
                                                    {% if weapon.id in ticked_weapons %}checked{% endif %}
                                                    :disabled="!picked"
                                                    class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                            <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}{{ weapon.slot_mark }}</span>
+                                            <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.brought_mark }}</span>
                                             {% if weapon.slots != 1 %}
                                                 <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
                                             {% endif %}

@@ -309,6 +309,7 @@ def gang_sheet(request, pk):
     )
     dialog = None
     link_campaign(sheet.campaign, request.user)
+    link_owners(sheet)
     if yours:
         link_slots(gang, sheet, *sheet.models)
         link_skills(*sheet.models)
@@ -538,6 +539,28 @@ def _renaming(request, gang):
     page without a dialog rather than an error worth a screen.
     """
     return _fighter_named(request, gang, "rename")
+
+
+#: What a model's card anchor opens with — ``<c-n26.model-card>`` puts
+#: ``id="model-<pk>"`` on a stored card's header band.
+MODEL_ANCHOR = "#model-"
+
+
+def link_owners(sheet):
+    """Point each pet's owner line at the owner's card, where the sheet
+    draws one.
+
+    A pet can outlive its owner's place on the roster — the collar stays
+    live when its bearer leaves — and the pet's card still names them.
+    Only an owner the sheet draws, alive or dead, gets a link; anyone
+    else is named in words, since a link to a card that is not on the
+    page lands nowhere.
+    """
+    cards = [*sheet.models, *sheet.dead]
+    drawn = {card.id for card in cards}
+    for card in cards:
+        if card.owned_by_id in drawn:
+            card.owner_href = f"{MODEL_ANCHOR}{card.owned_by_id}"
 
 
 def _fighter_named(request, gang, param):

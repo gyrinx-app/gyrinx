@@ -14,21 +14,34 @@ bought for the pet afterwards counts normally, on the pet's own card.
 
 import pytest
 from django.contrib.auth.models import User
+from django.urls import reverse
 
+from n26.core.capture import differences, gang_state
 from n26.core.models import Miniature
+from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled, ledger_for_gang
 from n26.core.render import build_model_card, render_gang
 from n26.core.render_text import gang_to_text
+from n26.core.status import Status
+from n26.library.authoring import create_subtype, has_subtypes, targets_gang
+from n26.library.authoring import targets_model as targets_model_where
 from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
+    attach,
+    buy_weapon_profile,
+    create_counter,
+    create_rule,
     create_wargear,
     create_weapon,
+    create_weapon_accessory,
     found_gang,
     give_weapon,
     hire,
     modifier,
+    move,
     op_adds_model,
+    op_changes_counter,
     remove,
     targets_model,
 )
@@ -263,7 +276,7 @@ class TestRendering:
 
         text = gang_to_text(gang)
         print("\n" + text)
-        assert "Cyber-mastiff — 15cr  (owned by Yolanda)" in text
+        assert "Cyber-mastiff — 15cr  (Owned by Yolanda)" in text
         assert "Yolanda — 155cr" in text
 
     def test_the_owner_s_card_says_the_wargear_brought_a_model(self, gang, bought):
@@ -284,3 +297,925 @@ class TestRendering:
         render_gang(gang)
         render_gang(gang)
         assert Miniature.objects.count() == before
+
+
+def rename(gang, miniature, name):
+    with operation(gang, actor=gang.owner) as op:
+        op.rename(miniature, name)
+
+
+def card_of(sheet, name):
+    return next(card for card in [*sheet.models, *sheet.dead] if card.name == name)
+
+
+def pet_lines(card):
+    return [line for line in card.equipment if line.name == "Cyber-mastiff (pet)"]
+
+
+class TestThePetCardNamesItsOwner:
+    """The link between a pet and its keeper is derived, and both cards
+    say it: the pet names its owner, under the profile name, and the
+    gang sheet makes that name a link to the owner's card. Where the
+    collar was bought into the stash there is no owner, and the card
+    says where the collar is instead."""
+
+    def test_the_card_carries_the_owner_and_the_owners_id(self, gang, bought, yolanda):
+        sheet = render_gang(gang)
+        pet = card_of(sheet, "Cyber-mastiff")
+        assert (pet.owned_by, pet.owned_by_id, pet.in_stash) == (
+            "Yolanda",
+            str(yolanda.pk),
+            False,
+        )
+        assert pet.owner_line == "Owned by Yolanda"
+        owner = card_of(sheet, "Yolanda")
+        assert (owner.owned_by, owner.owned_by_id, owner.owner_line) == (
+            None,
+            "",
+            "",
+        )
+
+    def test_the_gang_sheet_links_the_owners_card(self, client, gang, bought, yolanda):
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert f'id="model-{yolanda.pk}"' in body
+        assert f'href="#model-{yolanda.pk}"' in body
+        assert "Owned by" in body
+
+    def test_a_reader_who_does_not_own_the_gang_gets_the_link_too(
+        self, client, gang, bought, yolanda
+    ):
+        client.force_login(User.objects.create_user("reader"))
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert f'href="#model-{yolanda.pk}"' in body
+
+    def test_the_models_own_page_says_it_in_words(self, client, gang, bought):
+        client.force_login(gang.owner)
+        url = reverse("n26-edit-fighter", args=[pet_of(gang).pk])
+        body = client.get(url).content.decode()
+
+        assert "Owned by" in body
+        assert "Yolanda" in body
+        assert 'href="#model-' not in body
+
+    def test_a_pet_bought_into_the_stash_says_so(self, gang, mastiff_wargear):
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        sheet = render_gang(gang)
+        pet = card_of(sheet, "Cyber-mastiff")
+        assert (pet.owned_by, pet.owned_by_id, pet.in_stash) == (None, "", True)
+        assert pet.owner_line == "In the stash"
+        assert "Cyber-mastiff — 0cr  (In the stash)" in gang_to_text(gang)
+
+    def test_an_owner_who_has_left_the_roster_is_named_in_words(
+        self, client, gang, bought, yolanda
+    ):
+        """The collar stays live when its bearer leaves, and the pet still
+        names them — but a link to a card the sheet does not draw lands
+        nowhere, so the name is words."""
+        remove(yolanda.membership)
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Owned by" in body
+        assert "Yolanda" in body
+        assert f'href="#model-{yolanda.pk}"' not in body
+        assert "Yolanda" not in [card.name for card in render_gang(gang).models]
+
+    def test_the_pets_own_page_costs_what_any_fighters_does(
+        self, client, gang, bought, make_profile
+    ):
+        """Naming the owner reads the cause of the pet's membership and
+        the model behind it, and both arrive with the page's own read of
+        the model: a pet's page asks the database nothing a plain
+        fighter's page does not."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        plain = hire(gang, make_profile("Plain ganger"), "Plain")
+        client.force_login(gang.owner)
+
+        def measure(miniature):
+            url = reverse("n26-edit-fighter", args=[miniature.pk])
+            assert client.get(url).status_code == 200
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get(url).status_code == 200
+            return len(captured.captured_queries)
+
+        assert measure(pet_of(gang)) == measure(plain)
+
+    def test_the_print_page_and_the_text_card_say_the_same_words(
+        self, client, gang, bought
+    ):
+        client.force_login(gang.owner)
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "Cyber-mastiff · Owned by Yolanda" in paper
+        assert "(Owned by Yolanda)" in gang_to_text(gang)
+
+
+class TestTheWargearLineNamesThePet:
+    """The kit that brought a pet says which model it brought, after its
+    own name — "Cyber-mastiff (pet) (Fang)" — once the owner has named
+    the pet. Until then the pet's name is its profile's, which the line
+    already says, so it reads bare. The same words go on the stash line,
+    the print page and the text card, and a dead pet comes off the line:
+    the line is what the model carries, and a dead pet is not that."""
+
+    def test_the_line_reads_bare_until_the_pet_is_named(self, gang, bought):
+        (line,) = pet_lines(card_of(render_gang(gang), "Yolanda"))
+        assert (line.brought_in, line.brought_mark) == ((), "")
+
+    def test_the_line_names_the_pet_once_it_is_named(self, client, gang, bought):
+        rename(gang, pet_of(gang), "Fang")
+
+        (line,) = pet_lines(card_of(render_gang(gang), "Yolanda"))
+        assert (line.brought_in, line.brought_mark) == (("Fang",), " (Fang)")
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Cyber-mastiff (pet) (Fang)" in body
+        assert "Equipment: Cyber-mastiff (pet) (Fang)" in gang_to_text(gang)
+
+    def test_the_stash_line_names_the_pet(self, client, gang, mastiff_wargear):
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        rename(gang, pet_of(gang), "Fang")
+
+        (line,) = render_gang(gang).stash
+        assert (line.name, line.brought_in) == ("Cyber-mastiff (pet)", ("Fang",))
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Cyber-mastiff (pet) (Fang)" in body
+        assert 'aria-label="Actions for Cyber-mastiff (pet) (Fang)"' in body
+        assert "  Cyber-mastiff (pet) (Fang) — 100cr" in gang_to_text(gang)
+
+    def test_the_print_page_names_the_pet_on_the_card_and_in_the_stash(
+        self, client, gang, bought, mastiff_wargear
+    ):
+        rename(gang, pet_of(gang), "Fang")
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        rename(
+            gang,
+            Miniature.objects.get(
+                membership__gang=gang,
+                membership__caused_by__stash_root__isnull=False,
+            ),
+            "Claw",
+        )
+
+        client.force_login(gang.owner)
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "Cyber-mastiff (pet) (Fang)" in paper
+        assert "Cyber-mastiff (pet) (Claw)" in paper
+
+    def test_a_pet_left_out_of_the_print_is_still_named_on_its_owner(
+        self, client, gang, bought, yolanda
+    ):
+        rename(gang, pet_of(gang), "Fang")
+        client.force_login(gang.owner)
+        url = reverse("n26-print", args=[gang.pk]) + f"?pick=1&fighters={yolanda.pk}"
+        paper = client.get(url).content.decode()
+        assert "Cyber-mastiff (pet) (Fang)" in paper
+        assert "Owned by" not in paper
+
+    def test_a_dead_pet_comes_off_the_line(self, gang, bought):
+        pet = pet_of(gang)
+        rename(gang, pet, "Fang")
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(pet, Status.DEAD)
+
+        sheet = render_gang(gang)
+        (line,) = pet_lines(card_of(sheet, "Yolanda"))
+        assert line.brought_in == ()
+        # The dead pet keeps its card, and its card still says whose it was.
+        assert card_of(sheet, "Fang").owned_by == "Yolanda"
+
+    def test_the_models_own_page_names_the_pet(self, client, gang, bought, yolanda):
+        rename(gang, pet_of(gang), "Fang")
+        client.force_login(gang.owner)
+        url = reverse("n26-edit-fighter", args=[yolanda.pk])
+        body = client.get(url).content.decode()
+        assert "Cyber-mastiff (pet) (Fang)" in body
+        assert 'aria-label="More for Cyber-mastiff (pet) (Fang)"' in body
+
+    def test_a_card_built_alone_looks_the_pet_up_once(self, gang, bought, yolanda):
+        """A card with no roster to hand asks one question for its
+        pets, and a card given the roster's answer asks none."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        rename(gang, pet_of(gang), "Fang")
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+
+        with CaptureQueriesContext(connection) as given:
+            told = build_model_card(owner, card=own, computed=computed, brought_in={})
+        with CaptureQueriesContext(connection) as alone:
+            found = build_model_card(owner, card=own, computed=computed)
+
+        assert pet_lines(told)[0].brought_in == ()
+        assert pet_lines(found)[0].brought_in == ("Fang",)
+        assert len(alone.captured_queries) == len(given.captured_queries) + 1
+
+    def test_a_card_whose_kit_brings_nothing_looks_nothing_up(self, gang, yolanda):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        assign(create_wargear("Respirator"), miniature=yolanda, paid=15)
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+
+        with CaptureQueriesContext(connection) as alone:
+            build_model_card(owner, card=own, computed=computed)
+        assert len(alone.captured_queries) == 0
+
+    def test_two_collars_with_unnamed_pets_are_two_lines(
+        self, gang, bought, yolanda, mastiff_wargear
+    ):
+        """A line for one collar never stands for another: what each
+        brought is on the roster under its own card, whatever it is
+        called. So two collars whose pets are still named for their
+        profile stay apart, on the card and in the stash alike."""
+        assign(mastiff_wargear, miniature=yolanda, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+
+        sheet = render_gang(gang)
+        assert [line.count for line in pet_lines(card_of(sheet, "Yolanda"))] == [1, 1]
+        assert [line.count for line in sheet.stash] == [1, 1]
+        assert all(line.brought_in == () for line in sheet.stash)
+        assert "(x2)" not in gang_to_text(gang)
+
+    def test_two_collars_with_pets_of_one_name_are_two_lines(
+        self, gang, bought, yolanda, mastiff_wargear
+    ):
+        assign(mastiff_wargear, miniature=yolanda, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        for pet in Miniature.objects.filter(
+            membership__gang=gang, membership__caused_by__isnull=False
+        ):
+            rename(gang, pet, "Fang")
+
+        sheet = render_gang(gang)
+        on_card = pet_lines(card_of(sheet, "Yolanda"))
+        assert [(line.brought_mark, line.count) for line in on_card] == [
+            (" (Fang)", 1),
+            (" (Fang)", 1),
+        ]
+        assert [(line.brought_mark, line.count) for line in sheet.stash] == [
+            (" (Fang)", 1),
+            (" (Fang)", 1),
+        ]
+
+    def test_two_collars_whose_pets_have_died_are_two_lines_in_the_stash(
+        self, gang, mastiff_wargear
+    ):
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        assign(mastiff_wargear, stash=gang.stash, paid=100)
+        with operation(gang, actor=gang.owner) as op:
+            for pet in Miniature.objects.filter(membership__gang=gang):
+                op.set_status(pet, Status.DEAD)
+
+        assert [line.count for line in render_gang(gang).stash] == [1, 1]
+
+    def test_a_card_with_a_stored_effect_but_no_pet_looks_nothing_up(
+        self, gang, yolanda, default_pack
+    ):
+        """Moving a counter is a stored effect too, and a card carrying
+        one has no pet to ask after."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        kills = create_counter("Kill Count")
+        trophy = create_wargear("Trophy rack", price=10)
+        modifier(
+            "The rack marks a kill",
+            targets_model(),
+            op_changes_counter(kills, "add", 1),
+            carried_by=trophy,
+        )
+        assign(kills, miniature=yolanda)
+        assign(trophy, miniature=yolanda, paid=10)
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+        assert any(
+            getattr(step.modifier.effect, "is_stored", False) for step in computed.plan
+        )
+
+        with CaptureQueriesContext(connection) as alone:
+            build_model_card(owner, card=own, computed=computed)
+        assert len(alone.captured_queries) == 0
+
+    def test_two_named_pets_are_two_lines_on_the_card_and_in_the_stash(
+        self, gang, bought, yolanda, mastiff_wargear
+    ):
+        assign(mastiff_wargear, miniature=yolanda, paid=100)
+        for pet, name in zip(
+            Miniature.objects.filter(
+                membership__gang=gang, membership__caused_by__miniature_root=yolanda
+            ).order_by("membership__created"),
+            ("Fang", "Claw"),
+            strict=True,
+        ):
+            rename(gang, pet, name)
+        for name in ("Rust", "Sprocket"):
+            assign(mastiff_wargear, stash=gang.stash, paid=100)
+            rename(
+                gang,
+                Miniature.objects.get(
+                    membership__gang=gang,
+                    membership__caused_by__stash_root__isnull=False,
+                    name="Cyber-mastiff",
+                ),
+                name,
+            )
+
+        sheet = render_gang(gang)
+        on_card = pet_lines(card_of(sheet, "Yolanda"))
+        assert sorted(line.brought_mark for line in on_card) == [" (Claw)", " (Fang)"]
+        assert [line.count for line in on_card] == [1, 1]
+        stashed = sheet.stash
+        assert sorted(line.brought_mark for line in stashed) == [
+            " (Rust)",
+            " (Sprocket)",
+        ]
+        assert [line.count for line in stashed] == [1, 1]
+        assert "(x2)" not in gang_to_text(gang)
+
+
+class TestAPetBroughtByAHiddenPart:
+    """The purchase that a pet's membership names may be a hidden carrier
+    riding under the visible kit rather than the kit itself. The kit's
+    line names the pet all the same: the whole of the line is asked."""
+
+    def test_the_kit_line_names_the_pet(self, gang, yolanda, mastiff_profile):
+        from n26.tests.sandbox.actions import create_hidden
+
+        tag = create_hidden("The collar's tag brings a mastiff")
+        modifier(
+            "Collar tag brings a pet",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=tag,
+        )
+        collar = create_wargear("Mastiff collar", price=100)
+        held = assign(collar, miniature=yolanda, paid=100)
+        with operation(gang, actor=gang.owner) as op:
+            op.assign(tag, parent=held, caused_by=held)
+        rename(gang, pet_of(gang), "Fang")
+
+        (line,) = [
+            line
+            for line in card_of(render_gang(gang), "Yolanda").equipment
+            if line.name == "Mastiff collar"
+        ]
+        assert line.brought_in == ("Fang",)
+
+
+class TestKitThatBringsTwoModels:
+    """One piece of kit may carry two model-adding effects, and every
+    model they hire names the same purchase. The line names them all,
+    in roster order — "Twin collar (Fang, Rex)" — and stands alone as
+    any pet-bearing line does."""
+
+    @pytest.fixture
+    def twin_collar(self, mastiff_profile, make_profile):
+        collar = create_wargear("Twin collar", price=150)
+        modifier(
+            "The twin collar brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=collar,
+        )
+        modifier(
+            "The twin collar brings a rat too",
+            targets_model(),
+            op_adds_model(make_profile("Giant rat", price=25)),
+            carried_by=collar,
+        )
+        return collar
+
+    def test_the_line_names_both_pets(self, gang, yolanda, twin_collar):
+        assign(twin_collar, miniature=yolanda, paid=150)
+        pets = Miniature.objects.filter(
+            membership__gang=gang, membership__caused_by__isnull=False
+        )
+        assert pets.count() == 2
+        rename(gang, pets.get(name="Cyber-mastiff"), "Fang")
+        rename(gang, pets.get(name="Giant rat"), "Rex")
+
+        (line,) = [
+            line
+            for line in card_of(render_gang(gang), "Yolanda").equipment
+            if line.name == "Twin collar"
+        ]
+        assert line.brought_in == ("Fang", "Rex")
+        assert line.brought_mark == " (Fang, Rex)"
+        assert "Twin collar (Fang, Rex)" in gang_to_text(gang)
+
+    def test_one_named_and_one_not_names_the_one(self, gang, yolanda, twin_collar):
+        assign(twin_collar, miniature=yolanda, paid=150)
+        rename(
+            gang, Miniature.objects.get(membership__gang=gang, name="Giant rat"), "Rex"
+        )
+        (line,) = [
+            line
+            for line in card_of(render_gang(gang), "Yolanda").equipment
+            if line.name == "Twin collar"
+        ]
+        assert line.brought_in == ("Rex",)
+
+    def test_two_such_collars_in_the_stash_are_two_lines(self, gang, twin_collar):
+        assign(twin_collar, stash=gang.stash, paid=150)
+        assign(twin_collar, stash=gang.stash, paid=150)
+        assert [line.count for line in render_gang(gang).stash] == [1, 1]
+
+    def test_a_lone_card_finds_both_in_one_query(self, gang, yolanda, twin_collar):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        assign(twin_collar, miniature=yolanda, paid=150)
+        for pet, name in (("Cyber-mastiff", "Fang"), ("Giant rat", "Rex")):
+            rename(gang, Miniature.objects.get(membership__gang=gang, name=pet), name)
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+
+        with CaptureQueriesContext(connection) as alone:
+            found = build_model_card(owner, card=own, computed=computed)
+        (line,) = [line for line in found.equipment if line.name == "Twin collar"]
+        assert line.brought_in == ("Fang", "Rex")
+        assert len(alone.captured_queries) == 1
+
+
+class TestAModelTheGangBrings:
+    """A collar the gang holds brings its pet to the gang, and its
+    effect rides every member's card as the gang's — so no member's own
+    card has a pet to look up."""
+
+    def test_a_members_lone_card_looks_nothing_up(self, gang, yolanda, mastiff_profile):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        token = create_wargear("Beastmaster's token", price=100)
+        modifier(
+            "The token brings the gang a mastiff",
+            targets_gang(),
+            op_adds_model(mastiff_profile),
+            carried_by=token,
+        )
+        assign(token, gang=gang, paid=100)
+        assert Miniature.objects.filter(
+            membership__gang=gang, name="Cyber-mastiff"
+        ).exists()
+
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+        assert any(
+            isinstance(step.modifier.effect, type(token.modifiers.first().effect))
+            for step in computed.plan
+        )
+
+        with CaptureQueriesContext(connection) as alone:
+            build_model_card(owner, card=own, computed=computed)
+        assert len(alone.captured_queries) == 0
+
+
+class TestAnAccessoryThatBringsAModel:
+    """A fitting is an assignable like any other, so one may bring a
+    model. Its line under the weapon names the pet as a gear line would,
+    on the sheet, the print and the text card."""
+
+    @pytest.fixture
+    def fitted(self, gang, yolanda, mastiff_profile):
+        gun = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+        leash = create_weapon_accessory("Leash mount", price=100)
+        modifier(
+            "The leash mount brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=leash,
+        )
+        held = give_weapon(yolanda, gun, paid=15)
+        attach(held, leash, paid=100)
+        rename(gang, pet_of(gang), "Fang")
+        return held
+
+    def test_the_accessory_line_names_the_pet(self, client, gang, yolanda, fitted):
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        (accessory,) = weapon.accessories
+        assert (accessory.name, accessory.brought_in) == ("Leash mount", ("Fang",))
+
+        assert "+ Leash mount (Fang)" in gang_to_text(gang)
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Leash mount (Fang)" in body
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "+ Leash mount (Fang)" in paper
+        page = client.get(
+            reverse("n26-edit-fighter", args=[yolanda.pk])
+        ).content.decode()
+        assert 'aria-label="More for Leash mount (Fang)"' in page
+
+
+class TestAWeaponThatBringsAModel:
+    """A weapon carries modifiers as any assignable does, so one may
+    bring a model. Its line names the pet after the slot mark wherever
+    the weapon's name is drawn — the sheet, the menu's label, the print
+    card, the print picker and the text card — while a fitting that
+    brought one still names its own."""
+
+    @pytest.fixture
+    def lash(self, mastiff_profile):
+        lash = create_weapon("Beast lash", price=60, profiles=[("", 0)], slots=2)
+        modifier(
+            "The lash brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=lash,
+        )
+        return lash
+
+    @pytest.fixture
+    def armed(self, gang, yolanda, lash):
+        held = give_weapon(yolanda, lash, paid=60)
+        rename(gang, pet_of(gang), "Fang")
+        return held
+
+    def test_the_weapon_line_names_the_pet_after_its_mark(self, gang, armed):
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        assert (weapon.name, weapon.slot_mark, weapon.brought_in) == (
+            "Beast lash",
+            "*",
+            ("Fang",),
+        )
+        assert weapon.brought_mark == " (Fang)"
+        assert "    Beast lash* (Fang) — 60cr" in gang_to_text(gang)
+
+    def test_every_page_that_draws_the_weapons_name_draws_the_pet(
+        self, client, gang, yolanda, armed
+    ):
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Beast lash* (Fang)" in body
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "Beast lash* (Fang)" in paper
+        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
+        assert "Beast lash* (Fang)" in setup
+        page = client.get(
+            reverse("n26-edit-fighter", args=[yolanda.pk])
+        ).content.decode()
+        assert 'aria-label="More for Beast lash* (Fang)"' in page
+
+    def test_the_line_reads_bare_until_the_pet_is_named(self, gang, yolanda, lash):
+        give_weapon(yolanda, lash, paid=60)
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        assert weapon.brought_in == ()
+        assert "Beast lash*" in gang_to_text(gang)
+        assert "Beast lash* (" not in gang_to_text(gang)
+
+    def test_a_fitting_names_its_own_pet_and_the_weapon_does_not(
+        self, gang, yolanda, armed, make_profile
+    ):
+        leash = create_weapon_accessory("Leash mount", price=100)
+        modifier(
+            "The leash mount brings a rat",
+            targets_model(),
+            op_adds_model(make_profile("Giant rat", price=25)),
+            carried_by=leash,
+        )
+        attach(armed, leash, paid=100)
+        rename(
+            gang, Miniature.objects.get(membership__gang=gang, name="Giant rat"), "Rex"
+        )
+
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        (accessory,) = weapon.accessories
+        assert (weapon.brought_in, accessory.brought_in) == (("Fang",), ("Rex",))
+        text = gang_to_text(gang)
+        assert "Beast lash* (Fang)" in text
+        assert "+ Leash mount (Rex)" in text
+
+    def test_a_lone_card_finds_the_pet_in_one_query(self, gang, yolanda, armed):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+
+        with CaptureQueriesContext(connection) as alone:
+            (weapon,) = build_model_card(owner, card=own, computed=computed).weapons
+        assert weapon.brought_in == ("Fang",)
+        assert len(alone.captured_queries) == 1
+
+
+class TestARuleThatBringsAModel:
+    """A rule is an assignable too, so one may bring a model, and the
+    Rules row names the pet as the screen draws it — the text card says
+    the same words as the sheet."""
+
+    def test_the_text_card_names_the_pet_as_the_sheet_does(
+        self, client, gang, yolanda, mastiff_profile
+    ):
+        handler = create_rule("Beast handler")
+        modifier(
+            "A beast handler keeps a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=handler,
+        )
+        assign(handler, miniature=yolanda)
+        rename(gang, pet_of(gang), "Fang")
+
+        (rule,) = card_of(render_gang(gang), "Yolanda").rules
+        assert (rule.name, rule.brought_in) == ("Beast handler", ("Fang",))
+        assert "  Rules: Beast handler (Fang)" in gang_to_text(gang)
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Beast handler (Fang)" in body
+
+
+class TestANamedProfileThatBringsAModel:
+    """A weapon's profile is an assignable too, so a named one — paid
+    ammo — may bring a model. The pet is named on the profile's own
+    line, the one with the profile's menu, and not on the weapon's:
+    the sheet, the print card, the text card and the fighter page all
+    put it there. The unnamed line shares the weapon's row, so what it
+    brought is written after the weapon's name."""
+
+    @pytest.fixture
+    def autogun(self, mastiff_profile):
+        gun = create_weapon(
+            "Autogun", price=15, profiles=[("", 0), ("Beast rounds", 10)]
+        )
+        modifier(
+            "Beast rounds bring a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=gun.profiles.get(name="Beast rounds"),
+        )
+        return gun
+
+    @pytest.fixture
+    def loaded(self, gang, yolanda, autogun):
+        held = give_weapon(yolanda, autogun, paid=15)
+        buy_weapon_profile(held, autogun.profiles.get(name="Beast rounds"))
+        rename(gang, pet_of(gang), "Fang")
+        return held
+
+    def test_the_profiles_line_names_the_pet_and_the_weapons_does_not(
+        self, gang, loaded
+    ):
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        (rounds,) = weapon.named_profiles
+        assert (weapon.brought_in, rounds.name, rounds.brought_in) == (
+            (),
+            "Beast rounds",
+            ("Fang",),
+        )
+        assert rounds.brought_mark == " (Fang)"
+        text = gang_to_text(gang)
+        assert "      - Beast rounds (Fang) (+10cr)" in text
+        assert "Autogun (" not in text
+
+    def test_every_page_that_draws_the_profile_draws_the_pet(
+        self, client, gang, yolanda, loaded
+    ):
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Beast rounds (Fang)" in body
+        assert "Autogun (Fang)" not in body
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "Beast rounds (Fang)" in paper
+        assert "Autogun (Fang)" not in paper
+        page = client.get(
+            reverse("n26-edit-fighter", args=[yolanda.pk])
+        ).content.decode()
+        assert 'aria-label="More for Beast rounds (Fang)"' in page
+        assert 'aria-label="More for Autogun (Fang)"' not in page
+
+    def test_what_the_unnamed_line_brought_is_written_on_the_weapon(
+        self, gang, yolanda, mastiff_profile
+    ):
+        gun = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+        modifier(
+            "The lasgun's own line brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=gun.profiles.get(name=""),
+        )
+        give_weapon(yolanda, gun, paid=15)
+        rename(gang, pet_of(gang), "Fang")
+
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        assert (weapon.brought_in, weapon.own_line.brought_in) == (("Fang",), ())
+        assert "    Lasgun (Fang) — 15cr" in gang_to_text(gang)
+
+    def test_a_profile_assigned_straight_to_the_model_names_it_on_its_own_line(
+        self, gang, yolanda, autogun
+    ):
+        rounds = autogun.profiles.get(name="Beast rounds")
+        assign(rounds, miniature=yolanda, paid=10)
+        rename(gang, pet_of(gang), "Fang")
+
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        (line,) = weapon.named_profiles
+        assert (weapon.brought_in, line.brought_in) == ((), ("Fang",))
+        assert "- Beast rounds (Fang)" in gang_to_text(gang)
+
+    def test_a_lone_card_finds_the_pet_in_one_query(self, gang, yolanda, loaded):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+
+        with CaptureQueriesContext(connection) as alone:
+            (weapon,) = build_model_card(owner, card=own, computed=computed).weapons
+        (rounds,) = weapon.named_profiles
+        assert rounds.brought_in == ("Fang",)
+        assert len(alone.captured_queries) == 1
+
+
+class TestTheCaptureNamesThePet:
+    """A conversion proves itself by comparing a gang's pages before and
+    after, and a kit line is what the reader is told: "Collar (Fang)"
+    and "Collar" say different things, so the capture writes the pet's
+    name with the kit's and a conversion that lost the link is a
+    difference rather than a silence."""
+
+    def owner_state(self, gang):
+        return next(
+            model
+            for model in gang_state(gang)["models"].values()
+            if model["name"] == "Yolanda"
+        )
+
+    def test_a_gear_line_is_captured_with_the_pets_name(self, gang, bought):
+        rename(gang, pet_of(gang), "Fang")
+        assert ("Cyber-mastiff (pet) (Fang)", 100) in self.owner_state(gang)[
+            "equipment"
+        ]
+
+    def test_losing_the_link_is_a_difference_on_the_owners_line(
+        self, gang, yolanda, bought
+    ):
+        pet = pet_of(gang)
+        rename(gang, pet, "Fang")
+        before = gang_state(gang)
+        rename(gang, pet, "Claw")
+        after = gang_state(gang)
+
+        found = differences(before, after)
+        assert any(
+            path.startswith(f"models.{yolanda.pk}.equipment") for path in found
+        ), found
+
+    def pet_state(self, gang):
+        return next(
+            model
+            for model in gang_state(gang)["models"].values()
+            if model["name"] == "Cyber-mastiff"
+        )
+
+    def test_the_pets_card_is_captured_with_its_owner(self, gang, bought):
+        assert self.pet_state(gang)["owner"] == "Owned by Yolanda"
+
+    def test_a_collar_moved_to_another_fighter_is_a_difference_on_the_pet(
+        self, gang, bought, make_profile
+    ):
+        vesna = hire(gang, make_profile("Escher Juve"), "Vesna", paid=30)
+        before = gang_state(gang)
+        move(bought, to=vesna)
+        after = gang_state(gang)
+
+        assert self.pet_state(gang)["owner"] == "Owned by Vesna"
+        pet = pet_of(gang)
+        assert f"models.{pet.pk}.owner: 'Owned by Yolanda' -> 'Owned by Vesna'" in (
+            differences(before, after)
+        )
+
+    def test_a_collar_moved_to_the_stash_is_a_difference_on_the_pet(self, gang, bought):
+        before = gang_state(gang)
+        move(bought, to=gang.stash)
+        after = gang_state(gang)
+
+        assert self.pet_state(gang)["owner"] == "In the stash"
+        pet = pet_of(gang)
+        assert f"models.{pet.pk}.owner: 'Owned by Yolanda' -> 'In the stash'" in (
+            differences(before, after)
+        )
+
+    def test_a_weapon_its_fitting_and_its_profile_are_captured_with_theirs(
+        self, gang, yolanda, mastiff_profile, make_profile
+    ):
+        gun = create_weapon("Beast lash", price=60, profiles=[("", 0), ("Barbs", 10)])
+        modifier(
+            "The lash brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=gun,
+        )
+        modifier(
+            "The barbs bring a rat",
+            targets_model(),
+            op_adds_model(make_profile("Giant rat", price=25)),
+            carried_by=gun.profiles.get(name="Barbs"),
+        )
+        leash = create_weapon_accessory("Leash mount", price=100)
+        modifier(
+            "The leash mount brings a hound",
+            targets_model(),
+            op_adds_model(make_profile("Hound", price=30)),
+            carried_by=leash,
+        )
+        held = give_weapon(yolanda, gun, paid=60)
+        buy_weapon_profile(held, gun.profiles.get(name="Barbs"))
+        attach(held, leash, paid=100)
+        for pet, name in (
+            ("Cyber-mastiff", "Fang"),
+            ("Giant rat", "Rex"),
+            ("Hound", "Bo"),
+        ):
+            rename(gang, Miniature.objects.get(membership__gang=gang, name=pet), name)
+
+        (weapon,) = self.owner_state(gang)["weapons"]
+        name, _, profiles, accessories, _ = weapon
+        assert name == "Beast lash (Fang)"
+        assert [profile[0] for profile in profiles] == ["", "Barbs (Rex)"]
+        assert accessories == ("Leash mount (Bo)",)
+
+
+class TestAStoredEffectWhoseScopeIsSkipped:
+    """A stored effect runs when its kit arrives, whatever its scope says
+    of the bearer at the time, and the pet it hired stays on the roster
+    after. On a later render the step is skipped for the bearer's card
+    — its scope does not point at them — yet the kit did bring a model,
+    so the bearer's own page still names it: the plan cannot tell a
+    skipped collar that brought nothing from one that did."""
+
+    def test_a_lone_card_still_names_a_pet_its_skipped_collar_brought(
+        self, gang, yolanda, mastiff_profile
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        handler = create_subtype("Beast handler")
+        collar = create_wargear("Handler's collar", price=100)
+        modifier(
+            "A handler's collar brings a mastiff",
+            targets_model_where(has_subtypes(handler)),
+            op_adds_model(mastiff_profile),
+            carried_by=collar,
+        )
+        assign(collar, miniature=yolanda, paid=100)
+        rename(gang, pet_of(gang), "Fang")
+
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+        (step,) = [
+            step
+            for step in computed.plan
+            if isinstance(step.modifier.effect, type(collar.modifiers.first().effect))
+        ]
+        assert (step.outcome, step.echoed) == ("skipped", False)
+
+        with CaptureQueriesContext(connection) as alone:
+            card = build_model_card(owner, card=own, computed=computed)
+        (line,) = [line for line in card.equipment if line.name == "Handler's collar"]
+        assert line.brought_in == ("Fang",)
+        assert len(alone.captured_queries) == 1

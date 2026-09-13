@@ -1512,6 +1512,10 @@ def model_card():
             # the one shape where a line's count is drawn. The gallery
             # must hold a specimen or that arm is drawn nowhere.
             AssignableLine(name="Stimm-slug (25¢)", count=2),
+            # Kit that brought a pet onto the roster. The specimen carries
+            # the pet's name, drawn after the kit's; the pet's own card is
+            # model_card_pet().
+            AssignableLine(name="Phyrr Cat (pet) (120¢)", brought_in=("Fang",)),
         ],
         # Gear whose category asks for a heading of its own. Bought and
         # priced like the rest, and held apart because it reads as what
@@ -1604,7 +1608,9 @@ def model_card():
                 ),
             ),
         ],
-        owned_by="tom",
+        # Hired in her own right: nothing brought her in, so the card says
+        # nothing about an owner. model_card_pet() is the card that does.
+        owned_by=None,
         # The running numbers, as every card but one draws them: settled
         # values with nothing to click. XP keeps no line here — it has a
         # cell in the statline with its target beside it, and the line
@@ -1954,6 +1960,11 @@ STASH = [
     # it, and two of one name can differ in all of those.
     StashLine(name="Mesh armour", rating=15, kind="wargear", count=2),
     StashLine(name="Photo-goggles", rating=35, kind="wargear"),
+    # Kit that brought a pet onto the roster: the pet is a model on the
+    # gang sheet, and its collar here names it.
+    StashLine(
+        name="Cyber-mastiff (pet)", rating=100, kind="wargear", brought_in=("Rust",)
+    ),
     # Nobody bought this one: a modifier put it there, and it carries the mark a
     # granted skill carries on a card.
     StashLine(
@@ -2127,32 +2138,88 @@ CARD_IMAGE = (
 )
 
 
+def model_card_as(variant, **changes):
+    """The sample card under another id, with ``changes`` applied.
+
+    Every stored card carries an anchor built from its id, and the
+    gallery draws the sample many times over on one page — so each
+    drawing is a variant with an id of its own, and an id appears on
+    the page once. The pet demo's owner link points at the plain
+    ``model_card()``, which is drawn exactly once.
+    """
+    return replace(model_card(), id=f"vesna-krail-{variant}", **changes)
+
+
+def model_card_digital():
+    """The sample card as the digital-first demo draws it — the same
+    card again, under its own anchor."""
+    return model_card_as("digital")
+
+
+def model_card_unwritten():
+    """The sample card with its Lore and Notes tabs empty, and an Edit
+    on each."""
+    return model_card_as("unwritten")
+
+
 def model_card_founding():
     """The sample card while the gang is still being founded: what this
     model has left of the Trade Points its books give it to spend as it
     joins, ahead of its rating."""
-    return replace(model_card(), founding_budget=True, trade_points_left=3)
+    return model_card_as("founding", founding_budget=True, trade_points_left=3)
 
 
 def model_card_written():
     """The sample card with its picture and its Lore and Notes tabs filled."""
-    return replace(model_card(), notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE)
+    return model_card_as(
+        "written", notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE
+    )
 
 
 def model_card_in_recovery():
     """The sample card with a status: In Recovery, badged beside the
     controls, the way a card reads after a Grievous Wound."""
+    return model_card_as("in-recovery", status="recovery", status_label="In Recovery")
+
+
+def model_card_pet():
+    """The sample card's pet: a model the kit on another card brought
+    in. It says whose it is under the profile name, and on a sheet the
+    owner's name is a link to the owner's card — the demo passes the
+    full card's anchor, which is on the same gallery page."""
+    return ModelCard(
+        id="fang",
+        name="Fang",
+        profile_name="Phyrr Cat",
+        rating=15,
+        profile_type="Fighter",
+        subtypes=_printed("Exotic Beast"),
+        statline=_fighter_statline(),
+        skills=_printed("Dodge"),
+        equipment=_printed("Spiked collar (15¢)"),
+        owned_by="Vesna Krail",
+        owned_by_id="vesna-krail",
+        xp=0,
+        xp_target=6,
+    )
+
+
+def model_card_in_the_stash():
+    """The same pet where its collar was bought into the stash: nobody
+    owns it, and the card says where the collar is."""
     return replace(
-        model_card(),
-        status="recovery",
-        status_label="In Recovery",
+        model_card_pet(),
+        id="fang-in-the-stash",
+        owned_by=None,
+        owned_by_id="",
+        in_stash=True,
     )
 
 
 def model_card_dead():
     """The sample card dead: greyed, badged, counting nothing."""
-    return replace(
-        model_card(),
+    return model_card_as(
+        "dead",
         rating=0,
         status="dead",
         status_label="Dead",
@@ -2184,7 +2251,7 @@ def model_card_editable():
     )
     accessorise = Action("Add accessory", LINK, "#", SECONDARY)
 
-    card = replace(model_card())
+    card = model_card_as("edit")
     card.counters = [replace(line, href="#") for line in card.counters]
     # The base card draws several of one thing as one line with a count.
     # The model's own page draws one line per assignment, each with the
@@ -2322,8 +2389,18 @@ def gang_sheet_context():
         # library profile it was hired from. Vex and Sull are both Gangers, which
         # is the case worth having in the sample — one content entry, two
         # miniatures, and a card header that has to say which is which.
+        #
+        # Each copy under an id of its own, since a stored card's id is its
+        # anchor on the page and the same anchor five times would be no
+        # anchor at all.
         "gang_members": [
-            replace(sheet.models[0], name=name, profile_name=profile, rating=rating)
+            replace(
+                sheet.models[0],
+                id=slugify(name),
+                name=name,
+                profile_name=profile,
+                rating=rating,
+            )
             for name, profile, rating in members
         ],
         "gang_owner": OWNER,

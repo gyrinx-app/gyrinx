@@ -51,7 +51,7 @@ want.
                 combi-weapon has an unnamed profile with no characteristics of
                 its own.
                     {% endcomment %}
-                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }}{{ weapon.slot_mark }}{% if weapon.accessories or weapon.choices %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last or weapon.choices %}; {% endif %}{% endfor %}{% for choice in weapon.choices %}{{ choice.kind_label }}: {{ choice.chosen|default:"—" }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>{% endif %}</td>
+                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.brought_mark }}{% if weapon.accessories or weapon.choices %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{{ accessory.brought_mark }}{% if not forloop.last or weapon.choices %}; {% endif %}{% endfor %}{% for choice in weapon.choices %}{{ choice.kind_label }}: {{ choice.chosen|default:"—" }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>{% endif %}</td>
                     {% if stats %}
                         {% for cell in stats %}
                             <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
@@ -72,7 +72,7 @@ want.
             {% for profile in weapon.named_profiles %}
                 {# is-continued suppresses the row rule when a traits line follows. #}
                 <tr {% if profile.traits %}class="is-continued"{% endif %}>
-                    <td><span class="n26-print-subname">{{ profile.name }}</span></td>
+                    <td><span class="n26-print-subname">{{ profile.name }}{{ profile.brought_mark }}</span></td>
                     {% for cell in profile.statline.cells %}
                         <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
                     {% endfor %}
