@@ -2649,7 +2649,7 @@ GROUPS: list[Group] = [
                     "column on a phone and two above it, nothing spanning both: "
                     "Picture and Notes, then Skills & Powers beside a cell "
                     "holding Characteristics over Subtypes & Rules, then "
-                    "Dismissed choices and Lore. "
+                    "Lore and Dismissed choices. "
                     "Each form arrives as a "
                     "slot, fields and submit together, because saving is the "
                     "page's business and the gallery has no database to save "

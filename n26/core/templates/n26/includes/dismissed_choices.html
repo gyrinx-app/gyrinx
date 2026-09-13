@@ -6,7 +6,7 @@ choice or remove the last. Contents leaves no empty grid cell.
      class="contents"
      {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
     {% if card.dismissed_choices %}
-        <c-ui.card>
+        <c-ui.card class="self-start">
             <c-slot name="header">
                 <span class="font-semibold">Dismissed choices</span>
             </c-slot>

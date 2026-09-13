@@ -1235,6 +1235,8 @@ class TestShowingDismissedOffers:
             card = page.find(id="n26-model-card-host")
             assert "contents" in box["class"]
             assert "grid" in box.parent["class"]
+            assert "self-start" in box.find(recursive=False)["class"]
+            assert "Lore" in box.find_previous_sibling().get_text()
             assert box.find_parent(attrs={"role": "menu"}) is None
             assert box.find_parent(id="n26-model-card-host") is None
             assert "Dismissed choices" in box.get_text()
