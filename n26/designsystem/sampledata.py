@@ -1642,7 +1642,17 @@ def model_card():
             *_printed("Spring Up"),
         ],
         equipment=[
-            *_printed("Mesh armour (15¢)", "Bio-booster (35¢)", "Photo-goggles (35¢)"),
+            *_printed("Mesh armour (15¢)", "Photo-goggles (35¢)"),
+            AssignableLine(
+                name="Bio-booster (35¢)",
+                choices=[
+                    ChoiceLine(
+                        kind_label="Augmentation",
+                        chosen="Tier 1",
+                        key="vesna-krail:bio-booster:augmentation",
+                    )
+                ],
+            ),
             # Two of one thing, drawn once with the count after the name —
             # the one shape where a line's count is drawn. The gallery
             # must hold a specimen or that arm is drawn nowhere.
