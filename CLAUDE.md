@@ -204,6 +204,8 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **pr-screenshots** — Capture useful UI evidence and attach it to a PR with GitHub-native attachments.
   Load for meaningful rendered UI changes, especially when working in a cloud session where the user cannot
   see the browser, and when preserving or refreshing screenshots while rewriting a PR description.
+- **sql-performance** — Inspect a database-backed page with `manage inspect_page` and the Debug Toolbar, distinguish
+  bounded queries from per-object growth, and add a query-growth regression test when the contract is non-obvious.
 - **worktree-db** — Knowledge about per-worktree database isolation: forking, resetting, migrating, cleanup,
   template workflow, pgAdmin access
 
@@ -320,7 +322,9 @@ titles, which should freely name model classes, functions and flags.
 5. If the diff added or changed user-facing strings, run the **copywriter** agent
    over it (also run it proactively right after finishing UI work — don't wait
    for push time)
-6. Commit and push changes
+6. After creating or materially changing a database-backed page, load the **sql-performance** skill and inspect its
+   SQL cascade with representative repeated data.
+7. Commit and push changes
 
 - Manually test changes through the running app (dev server + browser) before
   shipping — skip only when the change is trivial
@@ -371,6 +375,15 @@ Docker layer to go through.
 ```bash
 # Start everything — handles DB, migrations, runserver, CSS watch
 ./scripts/dev.sh
+```
+
+Inspect a local GET with the same structured data as Django Debug Toolbar. The default report is compact; select
+panels when you need detail:
+
+```bash
+manage inspect_page /n26/authoring/
+manage inspect_page /n26/authoring/ --panel sql --limit 5
+manage inspect_page /n26/authoring/ --all --limit 3 --json
 ```
 
 ### Testing
