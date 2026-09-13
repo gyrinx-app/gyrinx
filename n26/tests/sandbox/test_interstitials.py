@@ -543,6 +543,24 @@ class TestPickingOnTheScreen:
         assert Assignment.objects.get(pickable=archetypes["Brawler"]).gang == gang
         assert "Chose Brawler — Archetype." in page(client, response["Location"])
 
+    def test_answering_on_an_older_screen_clears_a_later_dismissal(
+        self, client, landed, archetypes
+    ):
+        from n26.core.models import DismissedOffer
+
+        gang, here = landed
+        key = sheet_slot(gang, "Archetype").key
+        response = client.post(reverse("n26-dismiss-offer", args=[gang.pk, key]))
+        assert response.status_code == 302
+        assert key in DismissedOffer.keys_for(gang)
+
+        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+
+        assert response.status_code == 302
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
+        assert Assignment.objects.get(pickable=archetypes["Brawler"]).gang == gang
+        assert key not in DismissedOffer.keys_for(gang)
+
     def test_continue_with_nothing_answered_writes_nothing_and_goes_on(
         self, client, landed
     ):

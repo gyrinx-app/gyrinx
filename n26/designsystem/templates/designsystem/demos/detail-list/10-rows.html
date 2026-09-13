@@ -11,12 +11,15 @@
     A value holding a list, all inside one control: three skill trees are one
     choice, and three buttons would say there were three questions.
     {% endcomment %}
-    <c-n26.detail-list.row label="Skill trees" value="Ferocity, Brawn, Cunning" href="#" />
+    <c-n26.detail-list.row label="Skill trees"
+                           value="Ferocity, Brawn, Cunning"
+                           href="#"
+                           variant="ghost" />
     {% comment %}
     The dialog case. A form small enough to answer without leaving the page —
     anything longer than that wants a page, and passes href.
     {% endcomment %}
-    <c-n26.detail-list.row label="Territory" value="Choose">
+    <c-n26.detail-list.row label="Territory" value="Choose" variant="ghost">
         <c-slot name="dialog_header">
             <h2 class="text-base font-semibold">Territory</h2>
         </c-slot>

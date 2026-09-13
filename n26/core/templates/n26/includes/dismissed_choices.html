@@ -1,0 +1,34 @@
+{% comment %}
+Keep the target when empty so a card update can insert the first dismissed
+choice or remove the last. Contents leaves no empty grid cell.
+{% endcomment %}
+<div id="n26-dismissed-choices"
+     class="contents"
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+    {% if card.dismissed_choices %}
+        <c-ui.card class="self-start">
+            <c-slot name="header">
+                <span class="font-semibold">Dismissed choices</span>
+            </c-slot>
+            <ul class="space-y-1">
+                {% for choice in card.dismissed_choices %}
+                    <li class="flex items-center justify-between gap-2">
+                        <span class="text-sm">{{ choice.kind_label }}</span>
+                        <form method="post" action="{{ choice.restore_href }}" class="shrink-0">
+                            {% csrf_token %}
+                            <input type="hidden"
+                                   name="back"
+                                   value="{% url 'n26-edit-fighter' miniature.pk %}">
+                            <c-ui.button type="submit"
+                                         variant="ghost"
+                                         size="xs"
+                                         aria-label="Restore {{ choice.kind_label }}">
+                                Restore
+                            </c-ui.button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        </c-ui.card>
+    {% endif %}
+</div>

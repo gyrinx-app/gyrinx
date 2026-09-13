@@ -270,7 +270,9 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
     return added, taken, restored
 
 
-def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
+def link_model_card(
+    gang, miniature, own, computed, host, *, back, among=None, dismissal_at=None
+):
     """The model's card with every control addressed — the card each of
     the model's own screens draws above its tabs.
 
@@ -278,18 +280,21 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     somewhere, so the Edit, Equip and Options faces, and the card an act
     sends back, cannot offer different things: the choice slots, the
     Skills control, the counters, and on each piece of kit the acts the
-    equip listing offers. Costs one query, for which collections hold
-    skills — or none where the caller has already asked (``among``).
+    equip listing offers. Reads dismissed offers once, and which collections
+    hold skills unless the caller has already asked (``among``).
 
     ``back`` is the screen the card is drawn on, carried on the choice
     and counter controls so the act returns the reader there. ``host``
     decides where the kit acts open: on ``host.at``, which is the
     screen's own address where it holds the dialog host, and the model's
     own page otherwise.
+
+    ``dismissal_at`` keeps dismissal controls on their current screen where
+    other card actions return somewhere else, as on Options.
     """
     from n26.core.access import model_collections
     from n26.core.render import build_model_card
-    from n26.core.views.choose import link_slots
+    from n26.core.views.choose import link_slots, settle_dismissed
     from n26.core.views.owned import link_counters, link_possession_actions
     from n26.core.views.skills import link_skills
 
@@ -299,7 +304,13 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     card = build_model_card(
         miniature, card=own, computed=computed, collapse_repeats=False
     )
-    link_slots(gang, card, back=back)
+    dismissal_at = back if dismissal_at is None else dismissal_at
+    settle_dismissed(
+        gang,
+        *_dismissal_holders(miniature, card),
+        hide_only=_dismissal_hidden(miniature, card),
+    )
+    link_slots(gang, card, back=back, dismiss_back=dismissal_at)
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)
     link_possession_actions(card, host, refunds=not gang.credits_unlimited)
@@ -327,11 +338,14 @@ class CardScreen(NamedTuple):
 #: the kit panel its address may also name: a question stood open is not
 #: somewhere to come back to once it is settled. The Equip face carries
 #: which list is open, which section, and which row stands open. Options
-#: carries nothing, and its card's acts land on Edit.
+#: carries only dismissal visibility, and its card's acts land on Edit.
+#: Every screen keeps dismissal visibility when an act redraws the card.
 CARD_SCREENS = {
-    "n26-edit-fighter": CardScreen(hosts_dialogs=True, carries=("skills",)),
-    "n26-equip": CardScreen(hosts_dialogs=True, carries=("list", "section", "owned")),
-    "n26-fighter-options": CardScreen(hosts_dialogs=False, carries=()),
+    "n26-edit-fighter": CardScreen(hosts_dialogs=True, carries=("skills", "dismissed")),
+    "n26-equip": CardScreen(
+        hosts_dialogs=True, carries=("list", "section", "owned", "dismissed")
+    ),
+    "n26-fighter-options": CardScreen(hosts_dialogs=False, carries=("dismissed",)),
 }
 
 
@@ -379,6 +393,21 @@ def card_screen(miniature, back):
     return address, (address if screen.hosts_dialogs else edit)
 
 
+def _dismissal_holders(miniature, card):
+    """Only live models collect dismissed choices for their Edit page."""
+    from n26.core.status import Status
+
+    return [] if miniature.status == Status.DEAD else [card]
+
+
+def _dismissal_hidden(miniature, card):
+    """The complement of ``_dismissal_holders``: the card, when its
+    dismissed offers only go."""
+    from n26.core.status import Status
+
+    return [card] if miniature.status == Status.DEAD else []
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
@@ -419,6 +448,8 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
+            "update_dismissed_choices": back.split("?")[0]
+            == reverse("n26-edit-fighter", args=[miniature.pk]),
             "status_href": (
                 status_href(gang, miniature, back="edit")
                 if may_mark_status(gang, request.user)
@@ -694,7 +725,7 @@ def edit_fighter(request, pk):
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.
-    at = reverse("n26-edit-fighter", args=[miniature.pk])
+    at, _ = card_screen(miniature, request.get_full_path())
     host = EquipHost.fighter(gang, own, miniature, at)
 
     renaming = _fighter_named(request, gang, "rename")

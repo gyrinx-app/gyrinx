@@ -61,6 +61,7 @@ def test_every_n26_model_is_registered():
         "Campaign",
         "CampaignEvent",
         "CampaignMembership",
+        "DismissedOffer",
         "Gang",
         "LedgerEntry",
         "LedgerEvent",

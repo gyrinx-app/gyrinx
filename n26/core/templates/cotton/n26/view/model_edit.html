@@ -21,8 +21,8 @@ in view whichever tab is open.
 
 The grid runs two columns all the way down and nothing spans both: Picture and
 Notes, then Skills & Powers beside a column holding Characteristics over
-Subtypes & Rules, then Lore. What is short and often changed comes first; the
-story, which is long and rarely edited, comes last.
+Subtypes & Rules, then Lore and Dismissed choices. The dismissed-choice card
+stays at its content height rather than stretching to match Lore.
 
 Characteristics and Subtypes & Rules share one cell so the pair stands level
 with Skills & Powers beside them, Subtypes & Rules taking whatever height
@@ -37,6 +37,8 @@ sits and what its heading says.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
   tab_actions — controls at the right-hand end of the tab strip.
+  dismissed_choices — the dismissed-choice card and its live-update target,
+    after Lore. The caller keeps an empty target when no choices are dismissed.
   name_action — a control beside the model's name. Without it the rename
     pencil is drawn (n26/includes/model_name_action.html); the gallery, with
     no model to rename, passes a link of its own.
@@ -61,6 +63,7 @@ sits and what its heading says.
     breadcrumb=""
     actions=""
     tab_actions=""
+    dismissed_choices=""
     name_action=""
     notes=""
     lore=""
@@ -162,4 +165,6 @@ sits and what its heading says.
                 {{ lore }}
             </c-ui.card>
         {% endif %}
+
+        {{ dismissed_choices }}
     </div>

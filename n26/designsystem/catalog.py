@@ -1987,9 +1987,8 @@ GROUPS: list[Group] = [
                     "rather than a grid, which would align every value to the "
                     "widest label on the sheet. A long chosen list wraps inside "
                     "the control: the kit button is nowrap, and without the "
-                    "override the sheet grows sideways. The control keeps its "
-                    "border rather than going ghost, which on a phone would look "
-                    "clickable to nobody."
+                    "override the sheet grows sideways. Choice controls pass "
+                    "variant=ghost; other editable facts keep the default border."
                 ),
             ),
             Component(
@@ -2194,6 +2193,15 @@ GROUPS: list[Group] = [
                         "The pair that moves one counter a step either way. "
                         "Drawn only where the line carries an address, and "
                         "without the minus at zero.",
+                    ),
+                    Part(
+                        "c-n26.choice-dismiss",
+                        "n26/choice_dismiss.html",
+                        "The X at the end of an open offer that dismisses it, "
+                        "and the Restore that brings a dismissed one back. "
+                        "Drawn only where the line carries an address, "
+                        "which is only for the gang's owner; the gang sheet's "
+                        "own strip draws it too, through c-n26.choice-slots.",
                     ),
                 ),
             ),
@@ -2655,12 +2663,13 @@ GROUPS: list[Group] = [
                     "is the screen's own. Under the strip, a grid that is one "
                     "column on a phone and two above it, nothing spanning both: "
                     "Picture and Notes, then Skills & Powers beside a cell "
-                    "holding Characteristics over Subtypes & Rules, then Lore. "
+                    "holding Characteristics over Subtypes & Rules, then "
+                    "Lore and Dismissed choices. "
                     "Each form arrives as a "
                     "slot, fields and submit together, because saving is the "
                     "page's business and the gallery has no database to save "
                     "to. Save is the page's only filled commit, which is why the "
-                    "card's own controls are outlined. The notes editor is "
+                    "card's choices use ghost buttons. The notes editor is "
                     "capped short and scrolls (n26.core.forms.NOTES_EDITOR_HEIGHT); "
                     "what is written has no limit."
                 ),

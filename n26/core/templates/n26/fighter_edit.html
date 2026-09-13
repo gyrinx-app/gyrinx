@@ -141,6 +141,9 @@ is named by the page's own heading directly below.
                 </div>
             </form>
         </c-slot>
+        <c-slot name="dismissed_choices">
+            {% include "n26/includes/dismissed_choices.html" %}
+        </c-slot>
         <c-slot name="picture">
             <c-n26.picture-box action="{{ edit_url }}"
                                id="model-image"

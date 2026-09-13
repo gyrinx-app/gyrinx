@@ -203,6 +203,18 @@ urlpatterns = [
     # Every question it asks and where Continue leads are in the address;
     # nothing about the screen is stored — see n26.core.views.arrivals.
     path("gangs/<str:pk>/next/", views.gang_next, name="n26-next"),
+    # Putting an offer out of sight, and bringing it back: the same slot
+    # address, and POST only — each is an act with no page of its own.
+    path(
+        "gangs/<str:pk>/offers/<str:slot>/dismiss/",
+        views.dismiss_offer,
+        name="n26-dismiss-offer",
+    ),
+    path(
+        "gangs/<str:pk>/offers/<str:slot>/restore/",
+        views.restore_offer,
+        name="n26-restore-offer",
+    ),
     # The acts behind the gang sheet's dialogs; GET just reopens each one.
     # The model's own page: the card with its edit affordances and the
     # owner's notes. Equip is the same header's second tab.

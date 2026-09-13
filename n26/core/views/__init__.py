@@ -45,7 +45,7 @@ from n26.core.views.campaigns import (
     unassign_asset,
 )
 from n26.core.views.changelog import changelog, changelog_entry
-from n26.core.views.choose import choose
+from n26.core.views.choose import choose, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.edit import edit_fighter
 from n26.core.views.equip import equip, equip_gang
@@ -91,6 +91,7 @@ __all__ = [
     "changelog_entry",
     "choose",
     "gang_next",
+    "dismiss_offer",
     "clone_fighter",
     "clone_gang",
     "create_campaign",
@@ -149,6 +150,7 @@ __all__ = [
     "refund_fighter",
     "remove_assignment",
     "rename_fighter",
+    "restore_offer",
     "sell_assignment",
     "tally_counter",
 ]
