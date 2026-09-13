@@ -36,13 +36,19 @@ from n26.library.staged import sees_staged
 MAX_ASKS = 20
 
 
-def any_interstitials():
+def any_interstitials(*, include_staged=True):
     """Whether any interstitial is attached to any slot: the one query an
     act pays when the library holds none. Archived ones count, on the
-    same terms ``interstitials_on`` reads them."""
+    same terms ``interstitials_on`` reads them; staged ones count only
+    for a reader who may see staged content, so a library holding
+    nothing but staged screens is as cheap for everyone else as an
+    empty one."""
     from n26.library.models import InterstitialSlot
 
-    return InterstitialSlot.objects.exists()
+    rows = InterstitialSlot.objects.all()
+    if not include_staged:
+        rows = rows.filter(staged=False, interstitial__staged=False)
+    return rows.exists()
 
 
 def arrived(gang, written):
@@ -76,8 +82,10 @@ def arrived(gang, written):
 
 
 def interstitials_on(slot_pks, *, include_staged=False):
-    """``{slot pk: [interstitial, …]}`` for the slots that carry one, each
-    list in the interstitials' own order.
+    """``{slot pk: [attachment, …]}`` for the slots that carry one, each
+    attachment with its ``interstitial`` and its ``position`` — the
+    order the author gave the slots under that screen — the lists in
+    the interstitials' own order.
 
     The player-side read, on the terms ``Slot.interstitials(
     include_archived=True)`` states: archiving is a pack owner's soft
@@ -101,7 +109,7 @@ def interstitials_on(slot_pks, *, include_staged=False):
         rows = rows.filter(staged=False, interstitial__staged=False)
     found = {}
     for row in rows:
-        found.setdefault(row.slot_id, []).append(row.interstitial)
+        found.setdefault(row.slot_id, []).append(row)
     return found
 
 
@@ -177,7 +185,12 @@ def onward(request, gang, op, back, *, via=""):
     """
     if not op.written or not any_interstitials():
         return back
-    keys = asking(gang, op.written, include_staged=sees_staged(request.user))
+    shown = sees_staged(request.user)
+    if not shown and not any_interstitials(include_staged=False):
+        # Only staged screens, and a reader who may not see them: no
+        # need to derive the gang to find out nothing will draw.
+        return back
+    keys = asking(gang, op.written, include_staged=shown)
     if not keys:
         return back
     standing = _already_asking(gang, back)

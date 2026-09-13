@@ -57,11 +57,6 @@ CORE = Path(__file__).resolve().parents[2] / "core"
 
 
 @pytest.fixture
-def owner(db):
-    return User.objects.create_user("player")
-
-
-@pytest.fixture
 def legacy(default_pack):
     return create_slot_type("Archetype", allows_repeats=False)
 
@@ -264,6 +259,24 @@ class TestHiringAModel:
 
         assert response["Location"] == reverse("n26-hire-fighter", args=[gang.pk])
 
+    def test_a_library_of_staged_screens_only_derives_nothing_for_an_ordinary_reader(
+        self, owner, gang, hunter, shown
+    ):
+        """A reader who may not see staged content is spared the gang's
+        derivation when every attached screen is on hold."""
+        from unittest import mock
+
+        from n26.library.models import Interstitial
+
+        Interstitial.objects.update(staged=True)
+        request = RequestFactory().get("/")
+        request.user = owner
+        with operation(gang, actor=owner) as op:
+            op.hire(hunter, "Kal")
+        with mock.patch("n26.core.arrivals.arrived") as derived:
+            assert onward(request, gang, op, "/back/") == "/back/"
+        derived.assert_not_called()
+
     def test_with_nothing_attached_in_the_library_an_act_pays_one_query(
         self, owner, gang, hunter
     ):
@@ -412,6 +425,13 @@ class TestWhatArrived:
             assert "onward(" in inspect.getsource(getattr(module(name), view)), view
         for name in ("equip", "cloning", "options", "owned"):
             assert "onward(" not in inspect.getsource(module(name)), name
+
+
+def archetype_slot_of(gang):
+    """The gang type's own slot, read back off the gang."""
+    from n26.library.models import Slot
+
+    return Slot.objects.get(name="Archetype", assigned_to="gang")
 
 
 def _fresh_gang(owner, gang_type):
@@ -718,20 +738,61 @@ class TestSkipAndContinue:
         assert "to continue." not in body
         assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
 
-    def test_skip_keeps_a_question_another_block_still_asks(
+    def test_a_block_with_no_question_of_its_own_draws_no_skip(
         self, client, owner, gang, archetype_slot
     ):
-        """One slot under two screens, one skippable: skipping that one
-        must not wave the other's question through."""
+        """Skip drops a block's own questions; a block whose every
+        question another block asks too has nothing to drop, and a Skip
+        leading back to the same screen would be a control that does
+        nothing."""
         create_interstitial("Also asked", slots=[archetype_slot], skippable=True)
         key = sheet_slot(gang, "Archetype").key
         client.force_login(owner)
 
         body = page(client, screen_url(gang, [key]))
 
+        assert "Also asked" in body
+        assert ">Skip<" not in body
+
+    def test_a_screen_asks_its_slots_in_the_order_the_author_gave_them(
+        self, client, owner, gang, hunter, legacy, picklist
+    ):
+        """One screen on two arriving slots asks in attachment order, not
+        in the order the address happens to name them."""
+        creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
+        with operation(gang, actor=owner) as op:
+            op.assign(creed, gang=gang)
+        both = create_interstitial("Two at once")
+        attach_interstitial(both, archetype_slot_of(gang), position=1)
+        attach_interstitial(both, creed, position=0)
+        archetype = sheet_slot(gang, "Archetype").key
+        creed_key = sheet_slot(gang, "Creed").key
+        client.force_login(owner)
+
+        body = page(client, screen_url(gang, [archetype, creed_key]))
+
+        block = body.split("Two at once", 1)[1]
+        assert block.index("Creed") < block.index("Archetype")
+
+    def test_skip_keeps_a_question_another_block_still_asks(
+        self, client, owner, gang, archetype_slot, legacy, picklist
+    ):
+        """A skippable screen on a slot of its own and on one another
+        screen also asks about: skipping it drops its own question and
+        must not wave the shared one through."""
+        creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
+        with operation(gang, actor=owner) as op:
+            op.assign(creed, gang=gang)
+        create_interstitial("Also asked", slots=[archetype_slot, creed], skippable=True)
+        archetype = sheet_slot(gang, "Archetype").key
+        creed_key = sheet_slot(gang, "Creed").key
+        client.force_login(owner)
+
+        body = page(client, screen_url(gang, [archetype, creed_key]))
+
         skip = body.split(">Skip<")[0].rsplit('href="', 1)[1].split('"')[0]
         _, asks, _ = asks_in(skip)
-        assert asks == [key]
+        assert asks == [archetype]
 
     def test_a_slot_carrying_no_screen_is_not_asked_about(
         self, client, owner, gang, person_type, gang_type, legacy, picklist
