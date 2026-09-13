@@ -18,7 +18,7 @@ and above the real footer. The forms post back to this page and write nothing.
 {% block content %}
     <div class="max-w-3xl space-y-10">
         <c-n26.page-header title="Choices for {{ gang_name }}"
-                           lead="These choices came with what you just added. Make them here, or skip the ones you can, and make them later on the gang sheet.">
+                           lead="These choices came with what you just added. Make them here. Where a choice has a Skip link, you can leave it for now and make it later on the gang sheet.">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">Home</c-ui.breadcrumbs.item>
