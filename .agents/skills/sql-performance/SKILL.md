@@ -46,7 +46,8 @@ manage inspect_page '/path/' --all --limit 3 --json
 
 Use `--anonymous` for a signed-out page, `--username agent-<purpose>` for another local agent, `--header NAME=VALUE`
 for a request variant such as HTMX, `--no-follow` for the first redirect response, and `--warmup` or `--repeat` when
-the defaults do not stabilise the page. Run `manage inspect_page --help` for the complete interface.
+the defaults do not stabilise the page. Detailed header output redacts credential-like values, and `--limit` also
+bounds nested collections and long values. Run `manage inspect_page --help` for the complete interface.
 
 ## Read the SQL cascade
 

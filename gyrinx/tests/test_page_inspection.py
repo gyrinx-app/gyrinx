@@ -6,7 +6,12 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import Client, override_settings
 
-from gyrinx.page_inspection import PageCapture, build_report, capture_request
+from gyrinx.page_inspection import (
+    PANEL_NAMES,
+    PageCapture,
+    build_report,
+    capture_request,
+)
 
 
 def _query(sql, params, duration, *, template=None):
@@ -104,6 +109,145 @@ def test_report_summarises_and_bounds_toolbar_data():
         "unique": 2,
         "templates": [{"name": "row.html", "renders": 2, "origin": "/app/row.html"}],
     }
+
+
+def test_report_redacts_sensitive_headers():
+    capture = _capture()
+    capture.panels["HeadersPanel"] = {
+        "request_headers": {
+            "Authorization": "Bearer request-secret",
+            "Cookie": "sessionid=cookie-secret",
+            "X-Api-Key": "api-secret",
+            "X-Public": "visible",
+        },
+        "response_headers": {"Set-Cookie": "response-secret"},
+        "environ": {"HTTP_AUTHORIZATION": "Bearer environ-secret"},
+    }
+
+    report = build_report(
+        [capture],
+        username="agent",
+        warmup_requests=0,
+        detail_panels=["headers"],
+        limit=10,
+    )
+
+    headers = report["details"]["headers"]
+    assert headers["request"] == {
+        "Authorization": "<redacted>",
+        "Cookie": "<redacted>",
+        "X-Api-Key": "<redacted>",
+        "X-Public": "visible",
+    }
+    assert headers["response"]["Set-Cookie"] == "<redacted>"
+    assert headers["wsgi"]["HTTP_AUTHORIZATION"] == "<redacted>"
+    assert "secret" not in str(report)
+
+
+def test_all_detailed_panels_bound_nested_toolbar_data():
+    long_value = "x" * 200
+    capture = _capture(
+        [
+            _query("SELECT * FROM owner WHERE id = %s", [1], 2.0),
+            _query("SELECT * FROM owner WHERE id = %s", [2], 3.0),
+        ]
+    )
+    capture.panels.update(
+        {
+            "TimerPanel": {
+                "total_time": 20.0,
+                "utime": 1.0,
+                "stime": 2.0,
+                "ignored": long_value,
+            },
+            "CachePanel": {
+                "counts": {"get": 2, "set": 1},
+                "calls": [
+                    {
+                        "name": long_value,
+                        "backend": long_value,
+                        "args": [long_value, long_value],
+                        "kwargs": {"first": 1, "second": 2},
+                    },
+                    {"name": "ignored"},
+                ],
+            },
+            "RequestPanel": {
+                "view_func": long_value,
+                "view_urlname": long_value,
+                "view_args": [long_value, long_value],
+                "view_kwargs": {"first": long_value, "second": long_value},
+                "get": {"list": [("first", [long_value, long_value]), ("second", 2)]},
+                "post": {"list": [("first", long_value), ("second", 2)]},
+                "cookies": {"list": [("first", "secret"), ("second", "secret")]},
+                "session": {"list": [("first", "secret"), ("second", "secret")]},
+            },
+            "HeadersPanel": {
+                "request_headers": {"Authorization": "secret", "X-Next": "ignored"},
+                "response_headers": {"X-First": long_value, "X-Next": "ignored"},
+                "environ": {"PATH_INFO": long_value, "SERVER_NAME": "ignored"},
+            },
+            "StaticFilesPanel": {
+                "staticfiles": [long_value, long_value],
+            },
+            "SignalsPanel": {
+                "signals": [
+                    ("first", [long_value, long_value]),
+                    ("second", [long_value, long_value]),
+                ]
+            },
+            "TasksPanel": {"tasks": [[long_value, long_value], [long_value]]},
+            "AlertsPanel": {"alerts": [[long_value, long_value], [long_value]]},
+            "SettingsPanel": {
+                "settings": {"FIRST": [long_value, long_value], "SECOND": long_value}
+            },
+            "VersionsPanel": {
+                "versions": [[long_value, long_value], [long_value]],
+                "paths": [long_value, long_value],
+            },
+            "HistoryPanel": {
+                "request_url": long_value,
+                "request_method": "GET",
+                "status_code": 200,
+                "data": {"first": [long_value, long_value], "second": long_value},
+                "ignored": long_value,
+            },
+        }
+    )
+
+    details = build_report(
+        [capture],
+        username="agent",
+        warmup_requests=0,
+        detail_panels=list(PANEL_NAMES),
+        limit=1,
+    )["details"]
+
+    assert len(details["sql"]["similar"]) == 1
+    assert len(details["templates"]["templates"]) == 1
+    assert len(details["cache"]["operations"]) == 1
+    assert len(details["cache"]["entries"]) == 1
+    assert len(details["cache"]["entries"][0]["args"]) == 1
+    assert len(details["cache"]["entries"][0]["kwargs"]) == 1
+    assert len(details["request"]["args"]) == 1
+    assert len(details["request"]["kwargs"]) == 1
+    assert len(details["request"]["get"]) == 1
+    assert len(details["request"]["cookie_names"]) == 1
+    assert len(details["headers"]["request"]) == 1
+    assert details["headers"]["request"]["Authorization"] == "<redacted>"
+    assert len(details["static"]["files"]) == 1
+    assert len(details["signals"]["signals"]) == 1
+    assert len(details["signals"]["signals"][0]["receivers"]) == 1
+    assert len(details["tasks"]["tasks"]) == 1
+    assert len(details["tasks"]["tasks"][0]) == 1
+    assert len(details["alerts"]["alerts"]) == 1
+    assert len(details["settings"]["settings"]) == 1
+    assert len(details["versions"]["packages"]) == 1
+    assert len(details["versions"]["python_paths"]) == 1
+    assert details["timing"] == {"total_time": 20.0, "utime": 1.0, "stime": 2.0}
+    assert len(details["history"]["data"]) == 1
+    assert len(details["history"]["data"]["first"]) == 1
+    assert details["history"]["request_url"].endswith("…")
 
 
 def test_command_emits_compact_summary(monkeypatch):

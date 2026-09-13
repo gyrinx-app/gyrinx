@@ -277,12 +277,15 @@ def _panel_detail(
     if name == "cache":
         return _cache_detail(stats, limit=limit)
     if name == "request":
-        return _request_detail(stats)
+        return _request_detail(stats, limit=limit)
     if name == "static":
         return {
             "found": stats.get("num_found", 0),
             "used": stats.get("num_used", 0),
-            "files": stats.get("staticfiles", [])[:limit],
+            "files": [
+                _bounded_value(value, limit=limit)
+                for value in stats.get("staticfiles", [])[:limit]
+            ],
         }
     if name == "signals":
         signals = stats.get("signals", [])
@@ -290,7 +293,13 @@ def _panel_detail(
             "signal_count": len(signals),
             "receiver_count": sum(len(receivers) for _, receivers in signals),
             "signals": [
-                {"name": signal, "receivers": receivers}
+                {
+                    "name": _bounded_value(signal, limit=limit),
+                    "receivers": [
+                        _bounded_value(receiver, limit=limit)
+                        for receiver in receivers[:limit]
+                    ],
+                }
                 for signal, receivers in signals[:limit]
             ],
         }
@@ -299,30 +308,61 @@ def _panel_detail(
         return {
             "available": stats.get("tasks_available", False),
             "count": len(tasks),
-            "tasks": tasks[:limit],
+            "tasks": [_bounded_value(task, limit=limit) for task in tasks[:limit]],
         }
     if name == "alerts":
         alerts = stats.get("alerts", [])
-        return {"count": len(alerts), "alerts": alerts[:limit]}
+        return {
+            "count": len(alerts),
+            "alerts": [_bounded_value(alert, limit=limit) for alert in alerts[:limit]],
+        }
     if name == "settings":
         return _settings_detail(stats, limit=limit, filters=setting_filters)
     if name == "versions":
         return {
             "django": stats.get("django_version"),
-            "packages": stats.get("versions", [])[:limit],
-            "python_paths": stats.get("paths", [])[:limit],
+            "packages": [
+                _bounded_value(value, limit=limit)
+                for value in stats.get("versions", [])[:limit]
+            ],
+            "python_paths": [
+                _bounded_value(value, limit=limit)
+                for value in stats.get("paths", [])[:limit]
+            ],
         }
     if name == "headers":
         return {
-            "request": stats.get("request_headers", {}),
-            "response": stats.get("response_headers", {}),
-            "wsgi": stats.get("environ", {}),
+            "request": _bounded_headers(stats.get("request_headers", {}), limit=limit),
+            "response": _bounded_headers(
+                stats.get("response_headers", {}), limit=limit
+            ),
+            "wsgi": _bounded_headers(stats.get("environ", {}), limit=limit),
         }
     if name == "timing":
-        return stats
+        return {
+            key: _bounded_value(stats[key], limit=limit)
+            for key in (
+                "total_time",
+                "utime",
+                "stime",
+                "total",
+                "toolbar_time",
+                "vcsw",
+                "ivcsw",
+                "minflt",
+                "majflt",
+            )
+            if key in stats
+        }
     if name == "history":
-        return stats
-    return stats
+        return {
+            "request_url": _bounded_value(stats.get("request_url"), limit=limit),
+            "request_method": stats.get("request_method"),
+            "status_code": stats.get("status_code"),
+            "data": _bounded_value(stats.get("data"), limit=limit),
+            "time": stats.get("time"),
+        }
+    return _bounded_mapping(stats, limit=limit)
 
 
 def _sql_detail(
@@ -411,9 +451,11 @@ def _query_source(
             {},
         )
         return {
-            "template": name.as_posix(),
+            "template": _bounded_value(name.as_posix(), limit=1),
             "line": highlighted.get("num"),
-            "code": str(highlighted.get("content", "")).strip(),
+            "code": _bounded_value(
+                str(highlighted.get("content", "")).strip(), limit=1
+            ),
         }
     if project_root is None:
         return None
@@ -431,10 +473,10 @@ def _query_source(
             continue
         candidates.append(
             {
-                "path": relative.as_posix(),
+                "path": _bounded_value(relative.as_posix(), limit=1),
                 "line": frame[1],
-                "function": frame[2],
-                "code": frame[3],
+                "function": _bounded_value(frame[2], limit=1),
+                "code": _bounded_value(frame[3], limit=1),
             }
         )
     return candidates[-1] if candidates else None
@@ -453,7 +495,11 @@ def _templates_detail(stats: dict[str, Any], *, limit: int) -> dict[str, Any]:
         for item in templates
     }
     rows = [
-        {"name": name, "renders": count, "origin": origins.get(name)}
+        {
+            "name": _bounded_value(name, limit=limit),
+            "renders": count,
+            "origin": _bounded_value(origins.get(name), limit=limit),
+        }
         for name, count in counts.most_common(limit)
     ]
     return {"renders": len(templates), "unique": len(counts), "templates": rows}
@@ -471,31 +517,39 @@ def _cache_detail(stats: dict[str, Any], *, limit: int) -> dict[str, Any]:
         "hits": int(stats.get("hits", 0)),
         "misses": int(stats.get("misses", 0)),
         "operations": {
-            key: value for key, value in stats.get("counts", {}).items() if value
+            key: value
+            for key, value in list(
+                item for item in stats.get("counts", {}).items() if item[1]
+            )[:limit]
         },
         "entries": [
             {
-                "operation": call.get("name"),
+                "operation": _bounded_value(call.get("name"), limit=limit),
                 "time_ms": _milliseconds(call.get("time", 0)),
-                "backend": call.get("backend"),
-                "args": [_bounded_repr(value) for value in call.get("args", [])[:2]],
-                "kwargs": sorted(call.get("kwargs", {})),
+                "backend": _bounded_value(call.get("backend"), limit=limit),
+                "args": [
+                    _bounded_repr(value) for value in call.get("args", [])[:limit]
+                ],
+                "kwargs": sorted(call.get("kwargs", {}))[:limit],
             }
             for call in calls[:limit]
         ],
     }
 
 
-def _request_detail(stats: dict[str, Any]) -> dict[str, Any]:
+def _request_detail(stats: dict[str, Any], *, limit: int) -> dict[str, Any]:
     return {
-        "view_function": stats.get("view_func"),
-        "url_name": stats.get("view_urlname"),
-        "args": stats.get("view_args", []),
-        "kwargs": stats.get("view_kwargs", {}),
-        "get": _toolbar_pairs(stats.get("get")),
-        "post": _toolbar_pairs(stats.get("post")),
-        "cookie_names": sorted(_toolbar_pairs(stats.get("cookies"))),
-        "session_keys": sorted(_toolbar_pairs(stats.get("session"))),
+        "view_function": _bounded_value(stats.get("view_func"), limit=limit),
+        "url_name": _bounded_value(stats.get("view_urlname"), limit=limit),
+        "args": [
+            _bounded_value(value, limit=limit)
+            for value in stats.get("view_args", [])[:limit]
+        ],
+        "kwargs": _bounded_mapping(stats.get("view_kwargs", {}), limit=limit),
+        "get": _bounded_mapping(_toolbar_pairs(stats.get("get")), limit=limit),
+        "post": _bounded_mapping(_toolbar_pairs(stats.get("post")), limit=limit),
+        "cookie_names": sorted(_toolbar_pairs(stats.get("cookies")))[:limit],
+        "session_keys": sorted(_toolbar_pairs(stats.get("session")))[:limit],
     }
 
 
@@ -518,8 +572,56 @@ def _settings_detail(
     return {
         "available": len(settings),
         "matched": len(selected),
-        "settings": dict(list(selected.items())[:limit]),
+        "settings": _bounded_mapping(selected, limit=limit),
     }
+
+
+def _bounded_headers(value: Any, *, limit: int) -> dict[str, Any]:
+    """Bound header-like mappings and redact credentials before reporting them."""
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): "<redacted>"
+        if _sensitive_name(str(key))
+        else _bounded_value(item, limit=limit)
+        for key, item in list(value.items())[:limit]
+    }
+
+
+def _sensitive_name(name: str) -> bool:
+    normalized = name.lower().replace("-", "_")
+    parts = set(normalized.split("_"))
+    return (
+        normalized in {"cookie", "set_cookie"}
+        or "authorization" in normalized
+        or "auth" in parts
+        or "api_key" in normalized
+        or "apikey" in normalized
+        or "token" in normalized
+        or "secret" in normalized
+    )
+
+
+def _bounded_mapping(value: Any, *, limit: int) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): "<redacted>"
+        if _sensitive_name(str(key))
+        else _bounded_value(item, limit=limit)
+        for key, item in list(value.items())[:limit]
+    }
+
+
+def _bounded_value(value: Any, *, limit: int, width: int = 160) -> Any:
+    """Bound nested toolbar data so detailed panels stay safe for agent context."""
+    if isinstance(value, dict):
+        return _bounded_mapping(value, limit=limit)
+    if isinstance(value, (list, tuple)):
+        return [_bounded_value(item, limit=limit) for item in value[:limit]]
+    if isinstance(value, str):
+        return value if len(value) <= width else value[: width - 1] + "…"
+    return value
 
 
 def _bounded_repr(value: Any, *, width: int = 160) -> str:
