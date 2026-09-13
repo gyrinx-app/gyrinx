@@ -544,6 +544,14 @@ class PicklistMember(Content):
         super().clean()
         if self.level is not None and self.level < 1:
             raise ValidationError({"level": "A tier level must be 1 or higher."})
+        if (
+            self.picklist_id
+            and self.picklist.slots.filter(mode=Slot.Mode.TIER_LADDER).exists()
+            and self.level is None
+        ):
+            raise ValidationError(
+                {"level": "Every member of a tier ladder needs a numeric level."}
+            )
         if problem := band_problem(self.roll_low, self.roll_high):
             raise ValidationError({"roll_low": problem})
         if self.roll_low is not None and self.picklist_id and not self.picklist.dice:

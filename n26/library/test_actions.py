@@ -5,7 +5,8 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
-from n26.core.access import actions_for, rank_tables_for
+from n26.core.access import actions_for, rank_table_for, rank_tables_for
+from n26.core.operations import Refusal
 from n26.core.render import build_model_card
 from n26.library import authoring
 from n26.library.forms import generate_form
@@ -78,6 +79,19 @@ def test_action_authoring_keeps_acquisition_and_use_prices_separate():
     ]
 
 
+def test_action_authoring_rejects_an_allowance_and_price_without_partial_rows():
+    rule = authoring.recruitment_allowance_rule()
+    before = (Action.objects.count(), ActionPriceComponent.objects.count())
+    with pytest.raises(ValidationError, match="allowance rule"):
+        authoring.create_action(
+            "Recruitment augmentation",
+            "recruitment",
+            allowance_rule=rule,
+            use_price=[{"resource": "credits", "payer": "gang", "amount": 10}],
+        )
+    assert (Action.objects.count(), ActionPriceComponent.objects.count()) == before
+
+
 def test_action_names_include_the_author_qualifier_and_may_have_an_acquisition_price():
     Action.objects.create(
         name="Maintenance", qualifier="Hunt master", timing="post_cycle", price=5
@@ -125,6 +139,26 @@ def test_a_tier_ladder_requires_one_pick_and_numeric_levels():
     )
     with pytest.raises(ValidationError, match="one tier"):
         slot.full_clean()
+
+
+def test_a_tier_ladder_rejects_an_unlevelled_member_added_or_edited_later():
+    kind = SlotType.objects.create(name="Augmentation")
+    picklist = Picklist.objects.create(name="Augmentations", slot_type=kind)
+    first = Pickable.objects.create(name="Tier 1", slot_type=kind)
+    member = authoring.add_picklist_member(picklist, first, level=1)
+    Slot.objects.create(
+        name="Augmentation",
+        slot_type=kind,
+        picklist=picklist,
+        mode="tier_ladder",
+        min_picks=0,
+        max_picks=1,
+    )
+    second = Pickable.objects.create(name="Tier 2", slot_type=kind)
+    with pytest.raises(ValidationError, match="numeric level"):
+        authoring.add_picklist_member(picklist, second)
+    with pytest.raises(ValidationError, match="numeric level"):
+        authoring.revise(member, level=None)
 
 
 class _Card:
@@ -176,6 +210,37 @@ def test_access_readers_deduplicate_stored_and_computed_sources_without_queries(
     assert [(found.rank_table, found.computed) for found in table_access] == [
         (table, False)
     ]
+
+
+def test_rank_table_for_matches_the_exact_counter_and_refuses_ambiguity():
+    xp = Counter.objects.create(name="XP")
+    kills = Counter.objects.create(name="Kill Count")
+    standard = RankTable.objects.create(name="Standard ranks", counter=xp)
+    unrelated = RankTable.objects.create(name="Kill ranks", counter=kills)
+    miniature = SimpleNamespace(name="Kora")
+    computed = SimpleNamespace(acquired=[], echoed=[])
+
+    empty = _Card([])
+    assert rank_table_for(miniature, xp, card=empty, computed=computed) is None
+
+    one = _Card(
+        [
+            _node("standard", standard, "rank_table"),
+            _node("kills", unrelated, "rank_table"),
+        ]
+    )
+    found = rank_table_for(miniature, xp, card=one, computed=computed)
+    assert found.rank_table == standard
+
+    variant = RankTable.objects.create(name="Variant ranks", counter=xp)
+    two = _Card(
+        [
+            _node("standard", standard, "rank_table"),
+            _node("variant", variant, "rank_table"),
+        ]
+    )
+    with pytest.raises(Refusal, match="more than one rank table"):
+        rank_table_for(miniature, xp, card=two, computed=computed)
 
 
 def test_real_card_access_honours_direct_computed_and_removed_actions(

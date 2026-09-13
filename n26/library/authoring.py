@@ -571,6 +571,10 @@ def revise(row, **fields):
                 f"set_ verb that owns it and says what leaving means"
             )
         setattr(row, name, value)
+    from n26.library.models import PicklistMember
+
+    if isinstance(row, PicklistMember):
+        row.full_clean()
     row.save()
     return row
 
@@ -906,6 +910,7 @@ def add_rank_threshold(rank_table, threshold, **kwargs):
     )
 
 
+@transaction.atomic
 def create_action(
     name,
     timing,
@@ -927,6 +932,10 @@ def create_action(
         RecruitmentAllowanceRule,
     )
 
+    if allowance_rule is not None and use_price:
+        raise ValidationError(
+            "An action with an allowance rule cannot also have a use price."
+        )
     rule_kwargs = {}
     if allowance_rule is not None:
         field = (
@@ -1196,6 +1205,8 @@ def add_picklist_member(
             f"{pickable} belongs to {pickable.slot_type}, and {picklist} "
             f"lists {picklist.slot_type} pickables."
         )
+    if picklist.slots.filter(mode="tier_ladder").exists() and level is None:
+        raise ValidationError("Every member of a tier ladder needs a numeric level.")
     if roll_low is not None and not picklist.dice:
         raise ValidationError(
             f"{picklist} names no dice, so a band here would never be "

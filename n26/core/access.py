@@ -90,6 +90,27 @@ def rank_tables_for(miniature, card=None, computed=None):
     )
 
 
+def rank_table_for(miniature, counter, card=None, computed=None):
+    """The effective rank table for one counter, or ``None``.
+
+    More than one matching table is conflicting content. Refuse explicitly
+    instead of choosing whichever assignment happened to be read first.
+    """
+    matches = [
+        access
+        for access in rank_tables_for(miniature, card=card, computed=computed)
+        if access.rank_table.counter_id == counter.pk
+    ]
+    if len(matches) > 1:
+        from n26.core.operations import Refusal
+
+        names = ", ".join(access.name for access in matches)
+        raise Refusal(
+            f"{miniature.name} has more than one rank table for {counter}: {names}."
+        )
+    return matches[0] if matches else None
+
+
 def _access_for(miniature, model, access_type, attribute, card=None, computed=None):
     """Read one assignable kind from the same stored and computed card sources."""
     if card is None:
