@@ -129,8 +129,9 @@ homebrew_postgres_data_dir() {
 }
 
 # provision_worktree_venv <worktree_root>
-#   Ensure <worktree_root>/.venv exists with gyrinx editable-installed from
-#   that worktree.  Idempotent — no-op if the venv already exists.
+#   Ensure <worktree_root>/.venv matches uv.lock and has gyrinx
+#   editable-installed from that worktree. A hash stamp makes the unchanged
+#   case a cheap no-op while still catching lock changes after a rebase.
 #
 #   Used by dev.sh and activate_venv_hook.sh to give every child worktree
 #   (including the .claude/worktrees/* worktrees created by EnterWorktree)
@@ -140,16 +141,34 @@ homebrew_postgres_data_dir() {
 #   by an errant `uv sync` run without UV_PROJECT_ENVIRONMENT, corrupting every other
 #   session.  See issue #1772.
 #
-#   Echoes a one-line progress message to stderr on first provision so the
-#   ~1-minute delay isn't silent.  Returns 0 on success or skip; non-zero
-#   if uv is missing or provisioning fails.
+#   Echoes a one-line progress message to stderr when a sync is needed so the
+#   delay isn't silent. Returns 0 on success or skip; non-zero if uv is missing,
+#   uv.lock cannot be hashed, or provisioning fails.
 provision_worktree_venv() {
   local wt_root="$1"
   if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
     return 1
   fi
   local venv="${wt_root}/.venv"
-  if [ -d "$venv" ]; then
+  local lock_file="${wt_root}/uv.lock"
+  local stamp_file="${venv}/.gyrinx-uv-lock.sha256"
+  local lock_hash stamped_hash=""
+  if [ ! -f "$lock_file" ]; then
+    echo "[gyrinx] No uv.lock found at ${lock_file}; cannot provision ${venv}." >&2
+    return 1
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    lock_hash=$(sha256sum "$lock_file" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    lock_hash=$(shasum -a 256 "$lock_file" | awk '{print $1}')
+  else
+    echo "[gyrinx] No SHA-256 tool found; cannot check ${lock_file}." >&2
+    return 1
+  fi
+  if [ -f "$stamp_file" ]; then
+    stamped_hash=$(<"$stamp_file")
+  fi
+  if [ -d "$venv" ] && [ "$stamped_hash" = "$lock_hash" ]; then
     return 0
   fi
   if ! command -v uv >/dev/null 2>&1; then
@@ -158,20 +177,32 @@ provision_worktree_venv() {
     echo "[gyrinx]   cd '${wt_root}' && UV_PROJECT_ENVIRONMENT='${venv}' uv sync --locked" >&2
     return 1
   fi
-  echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
-  # If provisioning fails after `uv sync` has created the directory, remove
-  # the partial venv before returning — otherwise the next call sees the
-  # directory, skips provisioning, and activation puts a half-built venv on
-  # PATH (no editable install, broken imports).
+  local new_venv=false
+  if [ ! -d "$venv" ]; then
+    new_venv=true
+    echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
+  else
+    echo "[gyrinx] uv.lock changed; syncing ${venv}..." >&2
+  fi
+  # If initial provisioning fails after `uv sync` creates the directory,
+  # remove the partial venv. Preserve an existing venv after a failed re-sync,
+  # but leave its old stamp in place so the next call retries.
   # UV_PROJECT_ENVIRONMENT keeps `uv sync` pointed at this worktree's venv rather
   # than the default ./.venv, which is what stops it repointing another
   # worktree's editable install.  --locked installs exactly uv.lock.
   if ! (cd "$wt_root" && UV_PROJECT_ENVIRONMENT="$venv" uv sync --locked --quiet); then
-    rm -rf "$venv"
+    if [ "$new_venv" = true ]; then
+      rm -rf "$venv"
+    fi
     return 1
   fi
+  printf '%s\n' "$lock_hash" > "$stamp_file"
   install_worktree_venv_hook "$venv/bin/activate" || true
-  echo "[gyrinx] Provisioned ${venv}." >&2
+  if [ "$new_venv" = true ]; then
+    echo "[gyrinx] Provisioned ${venv}." >&2
+  else
+    echo "[gyrinx] Synced ${venv}." >&2
+  fi
   return 0
 }
 

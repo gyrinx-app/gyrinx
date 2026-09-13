@@ -66,26 +66,24 @@ fi
 MAIN_WT=$(_main_worktree)
 
 # ---------------------------------------------------------------------------
-# Provision per-worktree venv (child worktrees only)
+# Provision the worktree venv
 # ---------------------------------------------------------------------------
 # Each child worktree gets its own .venv with gyrinx editable-installed from
 # that worktree, so `import gyrinx` resolves to worktree-local code (including
 # new migrations, new models, etc.).  Without this, every Python invocation
 # from a child worktree would resolve gyrinx from the main worktree's editable
 # install — see issue #1772.
+WT_VENV="${WT_ROOT}/.venv"
 if [ "$WT_ROOT" != "$MAIN_WT" ]; then
-  WT_VENV="${WT_ROOT}/.venv"
   if [ "$RESET_VENV" = true ] && [ -d "$WT_VENV" ]; then
     echo "Removing existing per-worktree venv at $WT_VENV..."
     rm -rf "$WT_VENV"
   fi
-  provision_worktree_venv "$WT_ROOT" || exit 1
-  # Always (re-)ensure the activate hook is present.  Idempotent — no-op if
-  # the marker is already there.  Catches the case where a child worktree
-  # had a .venv from before this change and would otherwise never get the
-  # hook installed.
-  install_worktree_venv_hook "$WT_VENV/bin/activate" || true
 fi
+provision_worktree_venv "$WT_ROOT" || exit 1
+# Always (re-)ensure the activate hook is present. Idempotent — no-op if the
+# marker is already there. Catches venvs created before this hook existed.
+install_worktree_venv_hook "$WT_VENV/bin/activate" || true
 
 # ---------------------------------------------------------------------------
 # Provision per-worktree node_modules (child worktrees only)
@@ -110,36 +108,18 @@ if [ ! -d "$VENV_PATH" ] && [ "$WT_ROOT" != "$MAIN_WT" ]; then
   VENV_PATH="${MAIN_WT}/.venv"
 fi
 if [ -d "$VENV_PATH" ]; then
-  # Re-sync before activating.  Provisioning only runs when .venv is absent, so
-  # an existing venv otherwise keeps whatever it was built with and silently
-  # predates any lock change from a pull or branch switch — meaning pytest runs
-  # against the wrong dependencies.  Already in sync this is near-instant.
-  #
-  # Only ever sync the venv this worktree owns: syncing the main worktree's venv
-  # from a child would repoint its editable install at us (see the warning in
-  # scripts/lib/worktree.sh).  Non-fatal, because a lock that is stale mid
-  # dependency-edit should be visible but should not block the dev loop.
-  if command -v uv >/dev/null 2>&1 && [ "$VENV_PATH" = "${WT_ROOT}/.venv" ]; then
-    if ! (cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_PATH" uv sync --locked --quiet); then
-      echo "WARNING: 'uv sync --locked' failed — .venv may not match uv.lock." >&2
-      echo "         If you have edited pyproject.toml, run 'uv lock'." >&2
-    fi
+  source "$VENV_PATH/bin/activate"
 
-    # `uv sync` reconciles DEPENDENCIES; it does not revisit the project's own
-    # package list. An editable install records which top-level packages existed
-    # when it was built, so adding one — as the n23 edition split did — leaves an
-    # existing venv resolving only the old set, and every `manage`/`pytest` dies
-    # with ModuleNotFoundError while `uv sync` reports everything up to date.
-    # Import from `/` so a package sitting in the CWD cannot mask the problem.
-    if ! (cd / && "$VENV_PATH/bin/python" -c "import gyrinx, n23" >/dev/null 2>&1); then
-      echo "Editable install predates a package move — reinstalling project..." >&2
-      if ! (cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_PATH" \
-            uv sync --locked --quiet --reinstall-package gyrinx); then
-        echo "WARNING: project reinstall failed — 'import n23' will still fail." >&2
-      fi
+  # `uv sync` reconciles dependencies but does not revisit the project's own
+  # package list. Reinstall the editable project if a package move made it stale.
+  if [ "$VENV_PATH" = "${WT_ROOT}/.venv" ] \
+    && ! (cd / && python -c "import gyrinx, n23" >/dev/null 2>&1); then
+    echo "Editable install predates a package move — reinstalling project..." >&2
+    if ! (cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_PATH" \
+          uv sync --locked --quiet --reinstall-package gyrinx); then
+      echo "WARNING: project reinstall failed — 'import n23' will still fail." >&2
     fi
   fi
-  source "$VENV_PATH/bin/activate"
 else
   echo "ERROR: No .venv found in ${WT_ROOT} or ${MAIN_WT}." >&2
   echo "Create one from the main worktree before running dev.sh:" >&2

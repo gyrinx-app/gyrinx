@@ -1,6 +1,12 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
+
+multi-ecosystem-groups:
+  python-formatters:
+    schedule:
+      interval: "weekly"
+
 updates:
   # "uv", not "pip": the uv ecosystem updates pyproject.toml *and* uv.lock in the
   # same PR. Under "pip" only requirements.txt moved, so every Python PR left the
@@ -11,6 +17,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    multi-ecosystem-group: "python-formatters"
+    patterns:
+      - "djlint"
+      - "ruff"
     groups:
       python-minor-and-patch:
         applies-to: version-updates
@@ -73,6 +83,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    multi-ecosystem-group: "python-formatters"
+    patterns:
+      - "*djlint*"
+      - "*ruff*"
     groups:
       pre-commit:
         patterns:

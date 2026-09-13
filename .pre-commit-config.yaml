@@ -66,6 +66,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: check-formatter-versions
+        name: Check formatter version pins
+        entry: python3 scripts/check_formatter_versions.py --config-only
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: check-fmt
         name: check-fmt
         entry: ./scripts/fmt-check.sh

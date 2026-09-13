@@ -10,9 +10,9 @@
 # breaks pre-commit hooks that import gyrinx (they see the main worktree's
 # code, not the worktree the agent is actually editing).
 #
-# If a worktree under .claude/worktrees/ has no .venv yet, the function
-# provisions one on demand via provision_worktree_venv in lib/worktree.sh
-# (one-time ~1 min cost per worktree).
+# Worktrees under .claude/worktrees/ are checked on demand via
+# provision_worktree_venv in lib/worktree.sh. Its lock hash stamp makes the
+# unchanged case cheap and re-syncs after a rebase changes uv.lock.
 #
 # Works in both local and remote (Claude Code on the Web) environments.
 # See .claude/settings.json for hook registration.
@@ -119,12 +119,10 @@ _gyrinx_activate_worktree() {
     . "$lib"
   fi
 
-  # Pick the venv: worktree's own first, main worktree as fallback.  For
-  # agent worktrees under .claude/worktrees/, auto-provision if missing so
-  # `python`, `pre-commit`, `pytest`, etc. all see worktree-local code.
+  # Pick the venv: worktree's own first, main worktree as fallback. Agent
+  # worktrees under .claude/worktrees/ also re-sync after uv.lock changes.
   venv="${wt_root}/.venv"
-  if [ ! -d "$venv" ] \
-     && [[ "$wt_root" == *"/.claude/worktrees/"* ]] \
+  if [[ "$wt_root" == *"/.claude/worktrees/"* ]] \
      && command -v provision_worktree_venv >/dev/null 2>&1; then
     provision_worktree_venv "$wt_root" >&2 || true
   fi
