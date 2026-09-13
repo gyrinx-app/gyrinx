@@ -85,7 +85,9 @@ be judged side by side.
                 <tbody>
                     {% for player in campaign_players %}
                         <tr>
-                            <td class="font-semibold text-ink-900 dark:text-ink-100">{{ player.username }}</td>
+                            <td class="font-semibold text-ink-900 dark:text-ink-100">
+                                <c-n26.user-link :user="player.user" tone="current" />
+                            </td>
                             <td class="text-right">
                                 {% if player.state == "accepted" %}
                                     <c-ui.badge color="green" size="sm">
@@ -143,7 +145,7 @@ be judged side by side.
                         </time>
                         <div class="min-w-0 flex-1">
                             <p class="text-base">
-                                {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
+                                {% if act.actor_user %}<c-n26.user-link :user="act.actor_user" tone="current" class="font-medium" />{% elif act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
                                 {% for span in act.spans %}{{ span.text }}{% endfor %}
                             </p>
                             {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}

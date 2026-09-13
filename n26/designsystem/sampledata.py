@@ -2586,10 +2586,14 @@ def campaign_sheet_context():
     from n26.core.navigation import Switcher, SwitcherItem
 
     now = timezone.now()
+    # The shell is the campaign as its arbitrator reads it, so the owner's
+    # own acts say "You", as the page says them, and everybody else is a
+    # person with the badge they hold after their name.
     acts = [
         Act(
             when=now - timedelta(minutes=minutes),
-            actor=actor,
+            actor="You" if actor == OWNER else actor,
+            actor_user=SampleUser(actor) if actor not in ("", OWNER) else None,
             spans=tuple(Span(text) for text in spans),
             category="campaign",
             gang_name=gang_name,
@@ -2608,9 +2612,9 @@ def campaign_sheet_context():
         "campaign_sheet": campaign_sheet(),
         "campaign_acts": acts,
         "campaign_players": [
-            {"username": "marta", "state": "accepted"},
-            {"username": "ossian", "state": "accepted"},
-            {"username": "vey", "state": "invited"},
+            {"user": SampleUser("marta"), "state": "accepted"},
+            {"user": SampleUser("ossian"), "state": "accepted"},
+            {"user": SampleUser("vey"), "state": "invited"},
         ],
         "campaign_battles": [
             {

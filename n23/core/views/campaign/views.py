@@ -201,14 +201,19 @@ class CampaignDetailView(generic.DetailView):
         # The page shows the five most recent actions, each naming its author
         # with their badge and linking its gang and battle; the rest are
         # counted, not read — a campaign played for a year has thousands.
-        context["recent_actions"] = list(
+        recent_actions = list(
             campaign.actions.select_related(
                 "user", "user__profile", "list", "battle", "template_campaign"
             )
             .prefetch_related("user__badge_grants")
             .order_by("-created")[:5]
         )
-        context["actions_count"] = campaign.actions.count()
+        context["recent_actions"] = recent_actions
+        # Fewer than five is the whole log, already counted; only a log the
+        # page had to cut is worth a query to count.
+        context["actions_count"] = (
+            len(recent_actions) if len(recent_actions) < 5 else campaign.actions.count()
+        )
 
         # Are any member gangs still being cloned in the background (#1222)? Computed from
         # the prefetched lists (no extra query) so the page can poll for completion.

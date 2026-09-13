@@ -200,7 +200,14 @@ def campaign(request, pk):
 
     accepted = CampaignParticipant.State.ACCEPTED
 
-    found = _any_campaign_or_404(request, pk, with_owner_badge=True)
+    # A roll dialog asked for over htmx is sent on its own and names no
+    # arbitrator, so only the whole page reads the owner's badge data.
+    asked_for_a_dialog = (
+        request.method == "GET"
+        and is_htmx(request)
+        and bool(request.GET.get("roll") or request.GET.get("starting"))
+    )
+    found = _any_campaign_or_404(request, pk, with_owner_badge=not asked_for_a_dialog)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
     sheet = render_campaign(found, viewer=request.user)

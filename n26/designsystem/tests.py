@@ -521,6 +521,11 @@ class TestTheShellStillDraws:
         # username, so the name comes through and no badge follows it.
         assert re.search(r"Goliath \(HoC\) · <span[^>]*>marta<", page)
         assert re.search(r"Escher \(HoB\) · <span[^>]*>tom<", page)
+        # The players and the log name people the same way; the
+        # arbitrator's own acts read "You", as the page reads them.
+        assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)
+        assert re.search(r"<span[^>]*font-medium[^>]*>ossian<", page)
+        assert ">You</span>" in page
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
         assert "Unclaimed" in page
