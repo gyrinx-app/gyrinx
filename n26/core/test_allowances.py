@@ -40,7 +40,9 @@ def test_recruitment_allowances_are_granted_once_after_access_exists(fighter):
         op.assign(action, miniature=fighter)
         assert len(grant_recruitment_allowances(op, fighter)) == 1
         assert grant_recruitment_allowances(op, fighter) == []
-    assert ActionAllowance.objects.get().recruitment == fighter.membership
+    allowance = ActionAllowance.objects.get()
+    assert allowance.recruitment == fighter.membership
+    assert allowance.granted_event.kind == LedgerEvent.Kind.GRANTED
 
 
 def test_rank_allowances_grant_only_strict_crossings_and_never_regrant(fighter):
@@ -62,6 +64,7 @@ def test_rank_allowances_grant_only_strict_crossings_and_never_regrant(fighter):
         ] == [4, 7]
         assert grant_rank_allowances(op, counter_assignment, 8, 3) == []
         assert grant_rank_allowances(op, counter_assignment, 3, 8) == []
+    assert not ActionAllowance.objects.filter(granted_event__isnull=True).exists()
 
 
 def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(fighter):
