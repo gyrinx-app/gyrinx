@@ -113,16 +113,25 @@ def interstitials_on(slot_pks, *, include_staged=False):
     return found
 
 
-def asking(gang, written, *, include_staged=False):
+def asking(gang, written, *, include_staged=False, hosts=None):
     """The addresses of the arriving slots the screen should ask about:
     unresolved, taking at least one pick, and carrying a live
-    interstitial. In card order."""
+    interstitial. In card order.
+
+    ``hosts`` narrows to the cards named — ``{GANG_SLOT_HOST}`` for the
+    gang's own questions and none of its models'. Founding passes it, so
+    the screen after founding asks about the gang and nothing else
+    however the library is authored. A question left out this way is not
+    lost: the slot stands unresolved on the sheet, which is where a
+    reader makes it.
+    """
     from n26.core.render import slot_key
 
     open_slots = [
         (host, slot)
         for host, slot in arrived(gang, written)
         if slot.slot is not None and slot.max_picks > 0 and not slot.is_resolved
+        if hosts is None or host in hosts
     ]
     if not open_slots:
         return []
@@ -174,10 +183,11 @@ def _already_asking(gang, back):
     return query.get("ask", []), query.get("next", [""])[0]
 
 
-def arriving(request, gang, op):
+def arriving(request, gang, op, *, hosts=None):
     """The addresses of what the act just brought that asks for a
     screen — unresolved, taking a pick, carrying a live interstitial —
-    or nothing.
+    or nothing. ``hosts`` narrows to the cards named, as ``asking``
+    states.
 
     The gates come first: a library with nothing attached costs one
     query and no derivation, and one holding only staged screens costs
@@ -190,7 +200,7 @@ def arriving(request, gang, op):
         # Only staged screens, and a reader who may not see them: no
         # need to derive the gang to find out nothing will draw.
         return []
-    return asking(gang, op.written, include_staged=shown)
+    return asking(gang, op.written, include_staged=shown, hosts=hosts)
 
 
 def toward(gang, keys, back):
@@ -208,10 +218,13 @@ def toward(gang, keys, back):
     return next_url(gang, keys, back)
 
 
-def onward(request, gang, op, back):
+def onward(request, gang, op, back, *, hosts=None):
     """Where the reader goes after an act: the screen for what just
-    arrived when any of it carries an interstitial, else ``back``."""
-    keys = arriving(request, gang, op)
+    arrived when any of it carries an interstitial, else ``back``.
+
+    ``hosts`` narrows to the cards named, as ``asking`` states.
+    """
+    keys = arriving(request, gang, op, hosts=hosts)
     if not keys:
         return back
     return toward(gang, keys, back)

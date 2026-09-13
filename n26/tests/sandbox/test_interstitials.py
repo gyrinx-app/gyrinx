@@ -46,6 +46,7 @@ from n26.tests.sandbox.actions import (
     found_gang,
     hire,
     modifier,
+    op_adds_model,
     targets_gang,
 )
 
@@ -105,6 +106,29 @@ def hunter(person_type, gang_type, legacy, picklist):
         description="A hunter's path can be chosen later.",
         skippable=True,
         slots=[slot],
+    )
+    return profile
+
+
+@pytest.fixture
+def founding_brings_a_model(gang_type, person_type, legacy, picklist):
+    """A gang type whose founding brings a model of its own, and that
+    model's question with a screen on it. Nothing in the library does
+    this today; the guard is what keeps it off the founding screen if
+    anything ever does."""
+    profile = create_profile("Bodyguard", person_type, gang_type, price=0)
+    slot = create_slot("Bodyguard's path", legacy, picklist)
+    add_built_in(profile, slot)
+    create_interstitial(
+        "Bodyguard's path",
+        description="A bodyguard's path can be chosen later.",
+        slots=[slot],
+    )
+    modifier(
+        "Founding brings a bodyguard",
+        targets_gang(),
+        op_adds_model(profile),
+        carried_by=gang_type,
     )
     return profile
 
@@ -216,6 +240,21 @@ class TestFoundingAGang:
 
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
 
+    def test_a_founding_that_brings_a_model_asks_only_the_gangs_own(
+        self, client, owner, gang_type, shown, founding_brings_a_model
+    ):
+        """Founding is where somebody says what the gang is. A gang type
+        whose built-ins bring a model puts that model's question on its
+        card, and the screen after founding still asks about the gang
+        alone: the model's question belongs to the act that brings the
+        model, and stands unresolved on the card until then."""
+        response, gang = found_through_the_page(client, owner, gang_type)
+
+        path, asks, _ = asks_in(response["Location"])
+        assert path == reverse("n26-next", args=[gang.pk])
+        assert asks == [sheet_slot(gang, "Archetype").key]
+        assert "Bodyguard" not in page(client, response["Location"])
+
     def test_the_authors_word_never_reaches_the_player(
         self, client, owner, gang_type, shown
     ):
@@ -310,6 +349,24 @@ class TestWhatArrived:
         assert [
             (host, slot.kind_label) for host, slot in arrived(op.gang, op.written)
         ] == [(GANG_SLOT_HOST, "Archetype")]
+
+    def test_a_models_question_arrives_with_a_founding_and_hosts_narrows_it_away(
+        self, owner, gang_type, shown, founding_brings_a_model
+    ):
+        """The mechanism sees every card the act wrote to, the model it
+        brought included. ``hosts`` is what keeps the founding screen to
+        the gang's own questions, so the narrowing is stated where the
+        act opts in rather than hidden in what arrived."""
+        gang = _fresh_gang(owner, gang_type)
+        with operation(gang, actor=owner) as op:
+            op.found(gang_type)
+
+        hosts = {host for host, _ in arrived(gang, op.written)}
+        assert GANG_SLOT_HOST in hosts
+        assert hosts - {GANG_SLOT_HOST}, "the model it brought asked nothing"
+        assert asking(gang, op.written, hosts={GANG_SLOT_HOST}) == [
+            sheet_slot(gang, "Archetype").key
+        ]
 
     def test_a_hire_names_its_own_slot_and_not_the_gangs_standing_one(
         self, owner, gang_type, archetype_slot, hunter

@@ -1022,6 +1022,7 @@ def create_gang(request):
     from n26.core.forms import CreateGangForm
     from n26.core.models import Gang
     from n26.core.operations import operation
+    from n26.core.render import GANG_SLOT_HOST
     from n26.library.staged import sees_staged
 
     # Staged gang types are on the cards for whoever may see staged content
@@ -1060,8 +1061,20 @@ def create_gang(request):
             # founder does, and the dashboard is a detour past every
             # gang they already have. By way of the screen for what the
             # founding brought, where any of it asks for one.
+            #
+            # Only the gang's own questions: founding is where somebody
+            # says what the gang is, and a model's question belongs to
+            # the hire that brings the model. A gang type whose built-ins
+            # bring a model would otherwise put that model's questions on
+            # this screen; they stand unresolved on its card instead.
             return redirect(
-                onward(request, gang, op, reverse("n26-gang", args=[gang.pk]))
+                onward(
+                    request,
+                    gang,
+                    op,
+                    reverse("n26-gang", args=[gang.pk]),
+                    hosts={GANG_SLOT_HOST},
+                )
             )
     else:
         form = CreateGangForm(include_staged=shown)
