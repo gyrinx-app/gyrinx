@@ -195,45 +195,93 @@ provision_worktree_venv() {
   if [ -d "$venv" ] && [ "$stamped_inputs" = "$current_inputs" ]; then
     return 0
   fi
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "[gyrinx] uv not on PATH; cannot auto-provision ${venv}." >&2
-    echo "[gyrinx] Install uv (https://docs.astral.sh/uv/) then re-run, or:" >&2
-    echo "[gyrinx]   cd '${wt_root}' && UV_PROJECT_ENVIRONMENT='${venv}' uv sync --locked" >&2
-    return 1
-  fi
-  local new_venv=false
-  if [ ! -d "$venv" ]; then
-    new_venv=true
-    echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
-  else
-    echo "[gyrinx] Project dependency inputs changed; syncing ${venv}..." >&2
-  fi
-  # If initial provisioning fails after `uv sync` creates the directory,
-  # remove the partial venv. Preserve an existing venv after a failed re-sync,
-  # but leave its old stamp in place so the next call retries.
-  # UV_PROJECT_ENVIRONMENT keeps `uv sync` pointed at this worktree's venv rather
-  # than the default ./.venv, which is what stops it repointing another
-  # worktree's editable install.  --locked installs exactly uv.lock.
-  if ! (cd "$wt_root" && UV_PROJECT_ENVIRONMENT="$venv" uv sync --locked --quiet); then
-    if [ "$new_venv" = true ]; then
-      rm -rf "$venv"
+
+  # Only serialize the slow path. A second caller rechecks the stamp after it
+  # acquires the lock, so concurrent startup performs at most one uv sync.
+  local lock_dir="${wt_root}/.gyrinx-venv-provision.lock"
+  local lock_pid attempts=0
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    lock_pid=""
+    if [ -f "$lock_dir/pid" ]; then
+      read -r lock_pid < "$lock_dir/pid" || lock_pid=""
     fi
-    return 1
-  fi
-  if ! printf '%s\n' "$current_inputs" > "$stamp_file"; then
-    echo "[gyrinx] Could not record dependency state in ${stamp_file}." >&2
-    if [ "$new_venv" = true ]; then
-      rm -rf "$venv"
+    if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
+      if rm -f "$lock_dir/pid" && rmdir "$lock_dir" 2>/dev/null; then
+        continue
+      fi
     fi
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge 300 ]; then
+      echo "[gyrinx] Timed out waiting to provision ${venv}." >&2
+      return 1
+    fi
+    sleep 0.1
+  done
+  if ! printf '%s\n' "$$" > "$lock_dir/pid"; then
+    rmdir "$lock_dir" 2>/dev/null || true
+    echo "[gyrinx] Could not initialise the provisioning lock for ${venv}." >&2
     return 1
   fi
-  install_worktree_venv_hook "$venv/bin/activate" || true
-  if [ "$new_venv" = true ]; then
-    echo "[gyrinx] Provisioned ${venv}." >&2
+
+  local provision_status
+  if (
+    stamped_inputs=""
+    if [ -f "$stamp_file" ]; then
+      stamped_inputs=$(<"$stamp_file")
+    fi
+    if [ -d "$venv" ] && [ "$stamped_inputs" = "$current_inputs" ]; then
+      return 0
+    fi
+    if ! command -v uv >/dev/null 2>&1; then
+      echo "[gyrinx] uv not on PATH; cannot auto-provision ${venv}." >&2
+      echo "[gyrinx] Install uv (https://docs.astral.sh/uv/) then re-run, or:" >&2
+      echo "[gyrinx]   cd '${wt_root}' && UV_PROJECT_ENVIRONMENT='${venv}' uv sync --locked" >&2
+      return 1
+    fi
+    local new_venv=false
+    if [ ! -d "$venv" ]; then
+      new_venv=true
+      echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
+    else
+      echo "[gyrinx] Project dependency inputs changed; syncing ${venv}..." >&2
+    fi
+    # If initial provisioning fails after `uv sync` creates the directory,
+    # remove the partial venv. Preserve an existing venv after a failed re-sync,
+    # but leave its old stamp in place so the next call retries.
+    # UV_PROJECT_ENVIRONMENT keeps `uv sync` pointed at this worktree's venv rather
+    # than the default ./.venv, which is what stops it repointing another
+    # worktree's editable install.  --locked installs exactly uv.lock.
+    if ! (cd "$wt_root" && UV_PROJECT_ENVIRONMENT="$venv" uv sync --locked --quiet); then
+      if [ "$new_venv" = true ]; then
+        rm -rf "$venv"
+      fi
+      return 1
+    fi
+    if ! printf '%s\n' "$current_inputs" > "$stamp_file"; then
+      echo "[gyrinx] Could not record dependency state in ${stamp_file}." >&2
+      if [ "$new_venv" = true ]; then
+        rm -rf "$venv"
+      fi
+      return 1
+    fi
+    install_worktree_venv_hook "$venv/bin/activate" || true
+    if [ "$new_venv" = true ]; then
+      echo "[gyrinx] Provisioned ${venv}." >&2
+    else
+      echo "[gyrinx] Synced ${venv}." >&2
+    fi
+    return 0
+  ); then
+    provision_status=0
   else
-    echo "[gyrinx] Synced ${venv}." >&2
+    provision_status=$?
   fi
-  return 0
+  rm -f "$lock_dir/pid"
+  if ! rmdir "$lock_dir" 2>/dev/null; then
+    echo "[gyrinx] Could not release the provisioning lock for ${venv}." >&2
+    return 1
+  fi
+  return "$provision_status"
 }
 
 # install_worktree_venv_hook <activate_path>

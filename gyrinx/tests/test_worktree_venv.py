@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,9 @@ set -eu
 printf 'sync\\n' >> "$UV_CALL_LOG"
 if [ "${UV_STATUS:-0}" -ne 0 ]; then
   exit "$UV_STATUS"
+fi
+if [ -n "${UV_DELAY:-}" ]; then
+  sleep "$UV_DELAY"
 fi
 mkdir -p "$UV_PROJECT_ENVIRONMENT/bin"
 touch "$UV_PROJECT_ENVIRONMENT/bin/activate"
@@ -149,3 +153,25 @@ def test_web_setup_uses_the_shared_stamped_provisioner():
 
     assert 'provision_worktree_venv "$PROJECT_DIR"' in setup
     assert "UV_PROJECT_ENVIRONMENT=.venv uv sync --locked" not in setup
+
+
+def test_concurrent_provisioners_only_sync_once(tmp_path):
+    worktree = tmp_path / "worktree"
+    bin_dir = tmp_path / "bin"
+    call_log = tmp_path / "uv-calls"
+    worktree.mkdir()
+    bin_dir.mkdir()
+    (worktree / "uv.lock").write_text("version = 1\n")
+    (worktree / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+    _write_fake_uv(bin_dir)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(
+                lambda _: _provision(worktree, bin_dir, call_log, UV_DELAY="1"),
+                range(2),
+            )
+        )
+
+    assert all(result.returncode == 0 for result in results)
+    assert call_log.read_text().splitlines() == ["sync"]
