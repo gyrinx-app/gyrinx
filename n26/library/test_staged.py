@@ -147,6 +147,14 @@ class TestWhichKindsCanBeStaged:
         player, so an import holds the lines back along with the things."""
         assert {CollectionEntry, PicklistMember} <= stageable_kinds()
 
+    def test_a_screen_shown_to_a_player_counts_and_so_does_its_attachment(self):
+        """An interstitial is put in front of a player by the slot it is
+        attached to, so an author can draft one against a live slot and
+        hold it back until it reads right."""
+        from n26.library.models import Interstitial, InterstitialSlot
+
+        assert {Interstitial, InterstitialSlot} <= stageable_kinds()
+
     def test_not_the_kinds_reached_only_through_them(self):
         assert not stageable(Category)
         assert not stageable(Modifier)

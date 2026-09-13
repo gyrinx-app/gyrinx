@@ -376,6 +376,13 @@ urlpatterns = [
         authoring_views.picklist_member_remove,
         name="authoring-picklist-member-remove",
     ),
+    # An interstitial's attachment to a slot belongs to the interstitial,
+    # the same way, so removing it has an address here.
+    path(
+        "authoring/interstitial-attachments/<str:pk>/remove/",
+        authoring_views.interstitial_detach,
+        name="authoring-interstitial-detach",
+    ),
     # An entry belongs to its table the way a picklist member belongs to
     # its list, so taking it off has an address here.
     path(

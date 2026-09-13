@@ -94,6 +94,11 @@ def stageable_kinds():
     player, so a new line on a live list is held back the way a new thing
     is, and an import stages the lines it writes along with the things.
 
+    An interstitial is a screen a player is shown, and its attachment is
+    the line that puts it in front of them, so both count for the same
+    reason: an author drafts one against a live slot without players
+    seeing it until it is put live.
+
     Everything else — a category, a modifier, a statline — is reached
     through one of these and needs no gate of its own.
     """
@@ -106,6 +111,8 @@ def stageable_kinds():
         CampaignType,
         CollectionEntry,
         GangType,
+        Interstitial,
+        InterstitialSlot,
         PicklistMember,
     )
     from n26.library.models.collection import entryable_kinds
@@ -118,6 +125,8 @@ def stageable_kinds():
         CollectionEntry,
         PicklistMember,
         PicklistMember._meta.get_field("pickable").related_model,
+        Interstitial,
+        InterstitialSlot,
         *entryable_kinds().values(),
         *(apps.get_model("library", name) for name in OFFERABLE_KINDS),
         *(
