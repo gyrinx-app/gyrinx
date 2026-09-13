@@ -76,6 +76,8 @@ from n26.library.models.pack import ContentPack, default_pack_id, get_default_pa
 from n26.library.models.profile import Profile, ProfileType
 from n26.library.models.slots import (
     Dice,
+    Interstitial,
+    InterstitialSlot,
     Pickable,
     Picklist,
     PicklistMember,
@@ -123,6 +125,8 @@ __all__ = [
     "HasSubtypes",
     "HasTraits",
     "InCategories",
+    "Interstitial",
+    "InterstitialSlot",
     "IsOneOf",
     "IsProfile",
     "IsProfileType",

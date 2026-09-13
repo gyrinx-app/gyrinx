@@ -94,6 +94,8 @@ def test_admin_also_accepts_the_uuid_form_in_a_url(admin_client, make_profile):
         "picklist",
         "picklistmember",
         "slot",
+        "interstitial",
+        "interstitialslot",
     ],
 )
 @pytest.mark.parametrize("page", ["", "add/"])
@@ -116,6 +118,225 @@ def test_statline_admin_inlines_its_values(admin_client, make_profile, make_stat
     statline = make_statline(profile, movement=4, weapon_skill=3, toughness=5)
     response = admin_client.get(f"/admin/library/statline/{statline.pk}/change/")
     assert response.status_code == 200
+
+
+def test_an_attachment_added_with_its_interstitial_joins_its_pack(
+    admin_client, default_pack, homebrew
+):
+    """On the add page nothing can know the parent's pack before it is
+    saved, so the inline's save is what puts a new attachment there."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import Interstitial, InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+
+    response = admin_client.post(
+        "/admin/library/interstitial/add/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "0",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": "",
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    made = Interstitial.objects.get(name="Outcast archetype")
+    assert made.pack == homebrew
+    attachment = InterstitialSlot.objects.get(interstitial=made)
+    assert attachment.pack == homebrew
+    assert attachment.staged is False
+
+
+def test_a_pack_picked_by_hand_for_an_attachment_is_honoured(
+    admin_client, default_pack, homebrew
+):
+    """Blank means the interstitial's pack; a pack chosen on the row is
+    the author's choice, the default pack included, and stands."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import Interstitial, InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+
+    response = admin_client.post(
+        "/admin/library/interstitial/add/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "0",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": str(default_pack.pk),
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    made = Interstitial.objects.get(name="Outcast archetype")
+    assert InterstitialSlot.objects.get(interstitial=made).pack == default_pack
+
+
+def test_clearing_the_pack_on_an_existing_attachment_inherits_it(
+    admin_client, default_pack, homebrew
+):
+    """An existing row cleared to blank on the change page follows the
+    same rule as a new one, rather than failing on a missing pack."""
+    from n26.library.authoring import (
+        attach_interstitial,
+        create_interstitial,
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+    shown = create_interstitial("Outcast archetype", pack=homebrew)
+    attachment = attach_interstitial(shown, slot, pack=default_pack)
+
+    response = admin_client.post(
+        f"/admin/library/interstitial/{shown.pk}/change/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "1",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-id": str(attachment.pk),
+            "attachments-0-interstitial": str(shown.pk),
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": "",
+            # The pack has a callable default, so the change page carries
+            # its initial in a hidden input the browser posts back; a
+            # change is read against that, not against the row.
+            "initial-attachments-0-pack": str(default_pack.pk),
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    assert InterstitialSlot.objects.get(pk=attachment.pk).pack == homebrew
+
+
+def test_the_standalone_attachment_page_inherits_the_pack_too(
+    admin_client, default_pack, homebrew
+):
+    from n26.library.authoring import (
+        create_interstitial,
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+    shown = create_interstitial("Outcast archetype", pack=homebrew)
+
+    response = admin_client.post(
+        "/admin/library/interstitialslot/add/",
+        {
+            "interstitial": str(shown.pk),
+            "slot": str(slot.pk),
+            "position": "0",
+            "pack": "",
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    assert InterstitialSlot.objects.get(interstitial=shown).pack == homebrew
+
+
+def test_an_attachment_can_be_held_back_from_the_admin(
+    admin_client, default_pack, homebrew
+):
+    """The admin is where an attachment is staged, so the inline offers
+    the switch, and a row ticked there lands staged — in the parent's
+    pack still."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import Interstitial, InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+
+    response = admin_client.post(
+        "/admin/library/interstitial/add/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "0",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": "",
+            "attachments-0-staged": "on",
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    attachment = InterstitialSlot.objects.get(
+        interstitial=Interstitial.objects.get(name="Outcast archetype")
+    )
+    assert attachment.staged is True
+    assert attachment.pack == homebrew
+    assert list(slot.interstitials(include_staged=False)) == []
 
 
 def test_a_slot_type_of_choice_is_inspectable_by_its_own_name(

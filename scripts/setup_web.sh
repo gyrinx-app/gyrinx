@@ -16,6 +16,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 echo "=== Claude Code on the Web: Gyrinx Environment Setup ==="
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+cd "$PROJECT_DIR"
 
 # ---------------------------------------------------------------------------
 # 0. Fix sudo configuration ownership
@@ -107,12 +109,15 @@ echo "uv: $(uv --version)"
 # 4. Python virtual environment + project install
 # ---------------------------------------------------------------------------
 echo "--- [4/9] Setting up Python environment ---"
-# `uv sync` creates .venv if needed and installs exactly what uv.lock pins.
-# UV_PROJECT_ENVIRONMENT is pinned because the next line sources ./.venv — an
-# inherited value would sync a different environment and leave this broken.
-UV_PROJECT_ENVIRONMENT=.venv uv sync --locked
-# shellcheck disable=SC1091
-source .venv/bin/activate
+# Use the same dependency-input stamp as local and agent startup paths. This
+# avoids a second sync when the activation hook runs immediately afterward.
+# shellcheck source=lib/worktree.sh
+source "$PROJECT_DIR/scripts/lib/worktree.sh"
+provision_worktree_venv "$PROJECT_DIR"
+# Put the venv on PATH without sourcing its local-Postgres activation helpers;
+# the web environment configures its database separately below.
+export VIRTUAL_ENV="$PROJECT_DIR/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
 echo "Python $(python --version) — packages installed"
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,15 @@ MARKER = "<!-- migration-watch -->"
 CONTEXT = "migration-watch"
 LOG_TAIL = 30
 
+# The checks that decide whether a branch is safe against main, by the name
+# the workflow gives each step's outcome.
+CHECKS = {
+    "REPLAY": "the deploy replay",
+    "DRIFT": "models and migrations agree",
+    "LEAVES": "one leaf per app",
+    "OVERLAP": "migrations against what main gained",
+}
+
 
 def gh(*args, input_text=None):
     result = subprocess.run(  # nosec B603 B607 — fixed argv, no shell
@@ -70,12 +79,44 @@ def build(report_dir):
         )
         return "failure", "conflicts with main", problems, notes
 
+    # The overlap check speaks through its findings file. Without a readable
+    # one it has said nothing, whatever its exit code was: it exits non-zero
+    # both when it finds a clash and when it cannot run at all.
+    overlap_path = report_dir / "overlap.json"
+    overlap = None
+    if overlap_path.exists():
+        try:
+            overlap = json.loads(overlap_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            notes.append(f"The overlap findings could not be read: {error}")
+
+    def answered(step):
+        if step == "OVERLAP":
+            return overlap is not None
+        return outcome(step) in ("success", "failure")
+
+    # Only a check that gave an answer tells you anything. Anything else leaves
+    # part of the branch unverified, and the result must say so rather than
+    # read as a pass.
+    missing = [name for step, name in CHECKS.items() if not answered(step)]
+    if len(missing) == len(CHECKS):
+        notes.append(
+            "None of the checks ran, so nothing here was verified. The next push starts a new run."
+        )
+        return "pending", "not checked", problems, notes
+    if missing:
+        notes.append(
+            "These checks did not run, so that much is unverified: "
+            + ", ".join(missing)
+            + "."
+        )
+
     if outcome("REPLAY_MAIN") == "skipped":
         notes.append(
             "The environment or the database could not be set up, so the deploy replay did not run. "
             "That is the runner's problem, not this pull request's."
         )
-    elif outcome("REPLAY_MAIN") != "success":
+    elif outcome("REPLAY_MAIN") == "failure":
         notes.append(
             "Main itself did not migrate on an empty database, so the deploy replay could not run. "
             f"That is main's problem, not this pull request's.\n\n```\n{tail(report_dir / 'replay-main.log')}\n```"
@@ -98,13 +139,6 @@ def build(report_dir):
             f"```\n{tail(report_dir / 'leaves.log')}\n```"
         )
 
-    overlap_path = report_dir / "overlap.json"
-    overlap = None
-    if overlap_path.exists():
-        try:
-            overlap = json.loads(overlap_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
-            notes.append(f"The overlap findings could not be read: {error}")
     if overlap is not None:
         blocks = [f for f in overlap["findings"] if f["severity"] == "blocks"]
         review = [f for f in overlap["findings"] if f["severity"] != "blocks"]
@@ -128,15 +162,24 @@ def build(report_dir):
                     "A data migration here runs against something main changed since this branch "
                     "forked. Check that the order does not matter.\n\n" + text
                 )
-    elif outcome("OVERLAP") == "failure":
+    else:
         notes.append(
-            f"The overlap check did not run:\n\n```\n{tail(report_dir / 'overlap.log')}\n```"
+            f"The overlap check gave no findings:\n\n```\n{tail(report_dir / 'overlap.log')}\n```"
         )
 
     if problems:
         return (
             "failure",
             f"{len(problems)} problem(s) against current main",
+            problems,
+            notes,
+        )
+    # Nothing found, but not everything was looked at: say so rather than
+    # claim the branch is clear.
+    if missing:
+        return (
+            "pending",
+            f"{len(missing)} of {len(CHECKS)} checks did not run",
             problems,
             notes,
         )
@@ -147,7 +190,7 @@ def build(report_dir):
 
 def render(state, headline, problems, notes, run_url, main_sha):
     lines = [MARKER, f"### Migration watch: {headline}", ""]
-    if state == "error":
+    if state in ("error", "pending"):
         lines.append(f"[Run]({run_url}).")
     else:
         lines.append(

@@ -39,6 +39,14 @@ list is what puts a live thing in front of players, so the lines can be
 staged as well, and an import holds back the lines it writes along with
 the things.
 
+An interstitial — the screen shown when a slot arrives — can be staged:
+stage it while its words are being written, and put it live when they
+read right. Its attachments to slots carry the flag as well: an
+attachment held back in the admin is listed on the staged-content page
+and put live from there, so one slot can wait while the rest show the
+screen. The authoring page that attaches a slot has no switch of its
+own, and a slot attached there to a live interstitial is live at once.
+
 Things players are never offered directly — categories, statlines,
 modifiers, collections themselves — cannot be staged and do not need to
 be. They reach players only through something that can.

@@ -263,6 +263,16 @@ Fields of its own: its **slot type** and **picklist**; the **label** shown on th
 
 One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick still does everything it does: grouped hidden assignables, under one name.
 
+### Interstitial
+
+> Draft, for review.
+
+*A screen shown when a slot arrives: what the choice is and why it matters.*
+
+Fields of its own: a **name** (what an author calls it), a **title** (the heading the screen shows; blank uses the name), a **description** (what the screen says under the heading), whether it is **skippable**, and a position among several shown on one screen. It is attached to one or more **slots**, each attachment in its place.
+
+When a founding, a hire or a pick puts a slot on a gang or a model, every interstitial attached to that slot is collected and shown on one screen, straight after the act and before the reader lands where they were going. The screen names the choice and offers the picker for it. A skippable one shows Skip; one that is not shows no Continue until the pick is made, though the reader can still leave by the navigation. One interstitial attached to several slots that arrive together is shown once, with each slot's picker under it. A purchase and a clone never show one. A slot with nothing attached arrives as it always has, so nothing changes until an author attaches an interstitial. The word "interstitial" is an author's word: no player sees it.
+
 ### Picks
 
 > Draft, for review.

@@ -7430,3 +7430,321 @@ class TestAttachingAModifierToSeveral:
         with CaptureQueriesContext(connection) as more:
             client.get(address, data)
         assert len(more) <= len(few)
+
+
+class TestTheInterstitialsOwnPage:
+    """An interstitial is made from the menu, attached to slots from its
+    own page, and detached at its own address; a slot's page names the
+    interstitials it carries."""
+
+    def slot(self):
+        from n26.library.models import Slot
+
+        return Slot.objects.get(name="House legacy")
+
+    def test_it_is_offered_under_slots_and_pickables(self, author, client, legacy):
+        body = client.get("/n26/authoring/").content.decode()
+        # From the table down: the bar above it names every kind too.
+        table = body[body.index('scope="colgroup"') :]
+
+        assert "/n26/authoring/interstitial/" in table
+        assert table.index("Slots &amp; Pickables") < table.index(
+            "/n26/authoring/interstitial/"
+        )
+
+    def test_it_is_made_from_the_menu(self, author, client, legacy):
+        from n26.library.models import Interstitial
+
+        response = client.post(
+            "/n26/authoring/interstitial/new/",
+            {
+                "name": "Outcast archetype",
+                "title": "Choose an archetype",
+                "description": "The archetype shapes the whole gang.",
+                "skippable": "",
+                "position": "0",
+            },
+        )
+
+        assert response.status_code == 302
+        made = Interstitial.objects.get(name="Outcast archetype")
+        assert made.heading == "Choose an archetype"
+        assert made.skippable is False
+        assert made.description == "The archetype shapes the whole gang."
+
+    def test_a_second_of_one_name_is_refused_in_words(self, author, client, legacy):
+        from n26.library.authoring import create_interstitial
+        from n26.library.models import Interstitial
+
+        create_interstitial("Outcast archetype")
+        body = client.post(
+            "/n26/authoring/interstitial/new/",
+            {
+                "name": "outcast archetype",
+                "title": "",
+                "description": "",
+                "position": "0",
+            },
+        ).content.decode()
+
+        assert "An interstitial named" in body
+        assert "A interstitial" not in body
+        assert Interstitial.objects.count() == 1
+
+    def test_a_slot_is_attached_from_its_own_page(self, author, client, legacy):
+        from n26.library.authoring import create_interstitial
+
+        shown = create_interstitial("Outcast archetype")
+        page = f"/n26/authoring/interstitial/{shown.pk}/"
+        body = client.get(page).content.decode()
+        assert "Attach a slot" in body
+        assert "No slots yet" in body
+
+        response = client.post(page, {"slot": str(self.slot().pk), "position": "0"})
+
+        assert response.status_code == 302
+        assert [attachment.slot for attachment in shown.attachments.all()] == [
+            self.slot()
+        ]
+        body = client.get(page).content.decode()
+        assert "House legacy" in body
+        assert f'href="/n26/authoring/slot/{self.slot().pk}/"' in body
+
+    def test_attaching_the_same_slot_twice_is_refused_in_words(
+        self, author, client, legacy
+    ):
+        from n26.library.authoring import create_interstitial
+
+        shown = create_interstitial("Outcast archetype", slots=[self.slot()])
+        body = client.post(
+            f"/n26/authoring/interstitial/{shown.pk}/",
+            {"slot": str(self.slot().pk), "position": "1"},
+        ).content.decode()
+
+        assert "already attached to House legacy" in body
+        assert shown.attachments.count() == 1
+
+    def test_a_slot_is_detached_at_its_own_address(self, author, client, legacy):
+        from n26.library.authoring import create_interstitial
+        from n26.library.models import Interstitial, InterstitialSlot, Slot
+
+        shown = create_interstitial("Outcast archetype", slots=[self.slot()])
+        attachment = InterstitialSlot.objects.get()
+        page = f"/n26/authoring/interstitial/{shown.pk}/"
+        assert (
+            f'href="/n26/authoring/interstitial-attachments/{attachment.pk}/remove/"'
+            in client.get(page).content.decode()
+        )
+
+        asked = client.get(
+            f"/n26/authoring/interstitial-attachments/{attachment.pk}/remove/"
+        ).content.decode()
+        assert "Stop showing Outcast archetype when House legacy arrives?" in asked
+
+        response = client.post(
+            f"/n26/authoring/interstitial-attachments/{attachment.pk}/remove/"
+        )
+
+        assert response.status_code == 302
+        assert not InterstitialSlot.objects.exists()
+        # Only the attachment went: the slot and the interstitial stand.
+        assert Slot.objects.filter(name="House legacy").exists()
+        assert Interstitial.objects.filter(pk=shown.pk).exists()
+
+    def test_a_slots_page_names_the_interstitials_it_carries(
+        self, author, client, legacy
+    ):
+        from n26.library.authoring import create_interstitial
+
+        shown = create_interstitial("Outcast archetype", slots=[self.slot()])
+        body = client.get(f"/n26/authoring/slot/{self.slot().pk}/").content.decode()
+
+        assert "Shown when this slot arrives" in body
+        assert f'href="/n26/authoring/interstitial/{shown.pk}/"' in body
+        assert "Outcast archetype" in body
+        assert "cannot be skipped" in body
+
+    def test_a_slot_carrying_none_says_so(self, author, client, legacy):
+        body = client.get(f"/n26/authoring/slot/{self.slot().pk}/").content.decode()
+
+        assert "No interstitial is attached to this slot yet" in body
+
+    def test_the_listing_says_how_many_slots_show_each_one(
+        self, author, client, legacy
+    ):
+        from n26.library.authoring import create_interstitial
+
+        create_interstitial("Outcast archetype", slots=[self.slot()], skippable=True)
+        create_interstitial("Unattached")
+        body = client.get("/n26/authoring/interstitial/").content.decode()
+
+        assert "skippable · on 1 slot" in body
+        assert "cannot be skipped · on no slot yet" in body
+
+    def test_the_listing_does_not_count_an_archived_attachment(
+        self, author, client, legacy
+    ):
+        """The slot's page and the listing agree: an archived attachment
+        shows the screen nowhere."""
+        from n26.library.authoring import create_interstitial, revise
+        from n26.library.models import InterstitialSlot
+
+        create_interstitial("Outcast archetype", slots=[self.slot()])
+        revise(InterstitialSlot.objects.get(), archived=True)
+        body = client.get("/n26/authoring/interstitial/").content.decode()
+
+        assert "on no slot yet" in body
+        assert "on 1 slot" not in body
+
+    def test_a_slot_attached_from_a_packs_own_interstitial_joins_that_pack(
+        self, author, client, legacy, homebrew
+    ):
+        """The attachment is a part of the interstitial, so it lands in
+        the interstitial's pack — the form judges what it may reference
+        by that pack, and an attachment made in a pack of its own is
+        not turned away as crossing into the default one."""
+        from n26.library.authoring import create_interstitial
+        from n26.library.models import InterstitialSlot
+
+        shown = create_interstitial("Outcast archetype", pack=homebrew)
+        response = client.post(
+            f"/n26/authoring/interstitial/{shown.pk}/",
+            {"slot": str(self.slot().pk), "position": "0"},
+        )
+
+        assert response.status_code == 302
+        assert InterstitialSlot.objects.get().pack == homebrew
+
+    def test_the_listing_does_not_count_an_attachment_in_an_archived_pack(
+        self, author, client, legacy, homebrew
+    ):
+        from n26.library.authoring import (
+            attach_interstitial,
+            create_interstitial,
+            revise,
+        )
+
+        shown = create_interstitial("Outcast archetype")
+        attach_interstitial(shown, self.slot(), pack=homebrew)
+        revise(homebrew, archived=True)
+        body = client.get("/n26/authoring/interstitial/").content.decode()
+
+        assert "on no slot yet" in body
+        assert "on 1 slot" not in body
+        assert list(self.slot().interstitials()) == []
+
+    def test_the_listing_says_an_archived_interstitial_is_shown_nowhere(
+        self, author, client, legacy, homebrew
+    ):
+        """The listing draws archived rows too, and an archived screen —
+        or one in an archived pack — is shown nowhere whatever it is
+        attached to."""
+        from n26.library.authoring import create_interstitial, revise
+
+        shown = create_interstitial("Outcast archetype", slots=[self.slot()])
+        revise(shown, archived=True)
+        create_interstitial("Packed away", slots=[self.slot()], pack=homebrew)
+        revise(homebrew, archived=True)
+        body = client.get("/n26/authoring/interstitial/").content.decode()
+
+        assert "shown nowhere" in body
+        assert "on 1 slot" not in body and "on no slot yet" not in body
+        assert list(self.slot().interstitials()) == []
+
+    def test_the_staged_page_reads_flat_as_staged_interstitials_grow(
+        self, author, client, legacy
+    ):
+        """The staged-content page describes each staged interstitial the
+        listing's way, so it loads the attachments the listing's way."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_interstitial, create_slot, stage
+
+        def grow(indices):
+            for index in indices:
+                slot = create_slot(f"Slot {index}", legacy, self.slot().picklist)
+                stage(create_interstitial(f"Screen {index}", slots=[slot]))
+
+        grow(range(2))
+        with CaptureQueriesContext(connection) as few:
+            body = client.get("/n26/authoring/staged/").content.decode()
+        assert "Screen 1" in body and "on 1 slot" in body
+        grow(range(2, 8))
+        with CaptureQueriesContext(connection) as more:
+            assert client.get("/n26/authoring/staged/").status_code == 200
+        assert len(more) <= len(few)
+
+    def test_the_listing_reads_flat_as_the_attachments_grow(
+        self, author, client, legacy
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_interstitial, create_slot
+
+        def grow(indices):
+            for index in indices:
+                slot = create_slot(f"Slot {index}", legacy, self.slot().picklist)
+                create_interstitial(f"Screen {index}", slots=[slot])
+
+        grow(range(2))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get("/n26/authoring/interstitial/").status_code == 200
+        grow(range(2, 8))
+        with CaptureQueriesContext(connection) as more:
+            assert client.get("/n26/authoring/interstitial/").status_code == 200
+        assert len(more) <= len(few)
+
+    def test_it_can_be_held_back_from_players(self, author, client, legacy):
+        """A screen is put in front of a player by the slot it is attached
+        to, so its page offers the same hold-back switch a pickable's does."""
+        from n26.library.authoring import create_interstitial
+        from n26.library.models import Interstitial
+
+        shown = create_interstitial("Outcast archetype")
+        body = client.get(f"/n26/authoring/interstitial/{shown.pk}/").content.decode()
+
+        assert 'value="stage"' in body
+
+        client.post(f"/n26/authoring/interstitial/{shown.pk}/", {"act": "stage"})
+
+        assert Interstitial.objects.get(pk=shown.pk).staged is True
+
+    def test_it_is_edited_on_its_own_page(self, author, client, legacy):
+        from n26.library.authoring import create_interstitial
+        from n26.library.models import Interstitial
+
+        shown = create_interstitial("Outcast archetype")
+        response = client.post(
+            f"/n26/authoring/interstitial/{shown.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Outcast archetype",
+                "edit-title": "Pick an archetype",
+                "edit-description": "Shapes the gang.",
+                "edit-skippable": "on",
+                "edit-position": "2",
+            },
+        )
+
+        assert response.status_code == 302
+        edited = Interstitial.objects.get(pk=shown.pk)
+        assert (edited.title, edited.skippable, edited.position) == (
+            "Pick an archetype",
+            True,
+            2,
+        )
+
+    def test_the_page_is_staff_only(self, client, legacy):
+        from django.contrib.auth.models import User
+
+        from n26.library.authoring import create_interstitial
+
+        shown = create_interstitial("Outcast archetype")
+        client.force_login(User.objects.create_user("player"))
+
+        assert client.get(f"/n26/authoring/interstitial/{shown.pk}/").status_code in (
+            302,
+            403,
+        )

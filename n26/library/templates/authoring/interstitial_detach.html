@@ -1,0 +1,36 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before an interstitial stops showing for one slot, at
+an address of its own. A page rather than a prompt: it survives a reload,
+Back is a real way out, and it works with scripting switched off. Nothing
+here changes anything — the form's POST is the act.
+
+The first line says the one fact the row's Remove control cannot: what
+goes is this interstitial's attachment to the slot, never the slot itself.
+{% endcomment %}
+{% block head_title %}Remove {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-interstitial-detach' thing.pk %}"
+                     title="Stop showing {{ interstitial }} when {{ label }} arrives?"
+                     lead="The slot stays in the library and arrives as it did before. {{ interstitial }} stays too, and is still shown for every other slot it is attached to."
+                     submit_label="Stop showing it"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ interstitial }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Stop showing
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-ui.alert variant="info" title="Nothing already picked changes">
+            Anyone who has already made the pick keeps it. This changes what the
+            next player is shown.
+        </c-ui.alert>
+    </c-n26.form-page>
+{% endblock content %}
