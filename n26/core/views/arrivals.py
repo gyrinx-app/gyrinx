@@ -105,17 +105,19 @@ def gang_next(request, pk):
     carrying = interstitials_on(
         {found.slot.slot.pk for found in located.values()}, include_staged=shown
     )
-    # Each screen's questions in the order the author gave its slots,
-    # then in address order for slots given the same place.
+    # Each screen's questions in the order the author gave its slots —
+    # position, then the slot's name, as the attachments themselves are
+    # ordered — and only then in address order, so permuting the address
+    # never reorders a screen.
     grouped = {}
     for order, (key, found) in enumerate(located.items()):
         for attachment in carrying.get(found.slot.slot.pk, ()):
             interstitial = attachment.interstitial
             grouped.setdefault(interstitial.pk, (interstitial, []))[1].append(
-                (attachment.position, order, key)
+                (attachment.position, found.slot.slot.name.lower(), order, key)
             )
     grouped = {
-        pk: (interstitial, [key for _, _, key in sorted(placed)])
+        pk: (interstitial, [key for *_, key in sorted(placed)])
         for pk, (interstitial, placed) in grouped.items()
     }
     if not grouped:
