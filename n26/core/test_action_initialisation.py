@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
 from n26 import maintenance
+from n26.core import action_initialisation
 from n26.core.action_initialisation import apply_one, find
 from n26.core.models import ActionAllowance, Gang, LedgerEvent
 from n26.core.operations import operation
@@ -87,6 +88,28 @@ def test_missing_baseline_is_reported_and_skipped(legacy_fighter):
     assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
 
 
+def test_preview_builds_effective_action_access_once_per_fighter(
+    legacy_fighter, monkeypatch
+):
+    gang, fighter, _, _ = legacy_fighter
+    with operation(gang) as op:
+        for number in range(5):
+            counter = Counter.objects.create(name=f"Unrelated {number}")
+            held = op.assign(counter, miniature=fighter)
+            op.open_counter(held, number)
+    calls = 0
+    real = action_initialisation.actions_for
+
+    def watched(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(action_initialisation, "actions_for", watched)
+    find()
+    assert calls == 1
+
+
 def test_task_delivery_records_progress_and_is_idempotent(legacy_fighter):
     gang, fighter, action, _ = legacy_fighter
     record = Backfill.objects.create(
@@ -121,4 +144,40 @@ def test_admin_preview_is_read_only_and_post_enqueues(
         operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES
     )
     assert run.status == Backfill.Status.DONE
+    assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 2
+
+    replacement = RankTable.objects.create(
+        name="Replacement ranks", counter=action.rank_allowance_rule.counter
+    )
+    RankThreshold.objects.create(rank_table=replacement, threshold=66)
+    second = client.post(address)
+    assert second.status_code == 302
+    assert (
+        Backfill.objects.filter(
+            operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES
+        ).count()
+        == 1
+    )
+    assert not ActionAllowance.objects.filter(
+        fighter=fighter, action=action, threshold=66
+    ).exists()
+
+
+def test_a_new_task_record_refuses_after_a_successful_run(legacy_fighter):
+    gang, fighter, action, _ = legacy_fighter
+    first = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"preview": find().preview(), "attempts": 0},
+    )
+    maintenance.initialise_action_allowances.call(backfill_id=str(first.pk))
+    second = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"attempts": 0},
+    )
+    maintenance.initialise_action_allowances.call(backfill_id=str(second.pk))
+    second.refresh_from_db()
+    assert second.status == Backfill.Status.FAILED
+    assert "already initialised" in second.error
     assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 2
