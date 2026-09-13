@@ -1288,6 +1288,9 @@ class Operation:
         clone = result.primary
         if clone is None:
             raise ValueError("A model clone plan did not create its primary model.")
+        from n26.core.allowances import clone_unused_allowances
+
+        clone_unused_allowances(self, source, clone)
         # Assignment-level openings keep every copied ledger entry
         # reconcilable. The journal-only record's note carries presentation
         # totals so a paged history need not pull the whole snapshot merely to
@@ -1614,6 +1617,9 @@ class Operation:
         self.touched(miniature)
         self._record_options(membership, taken)
         self.reconcile_defaults(membership)
+        from n26.core.allowances import grant_recruitment_allowances
+
+        grant_recruitment_allowances(self, miniature)
         return miniature
 
     def found(self, gang_type, taken=(), **kwargs):
@@ -2612,7 +2618,17 @@ class Operation:
             note=note,
         )
 
-    def roll(self, slot, *, miniature=None, rolled=None, rng=None, note=""):
+    def roll(
+        self,
+        slot,
+        *,
+        miniature=None,
+        rolled=None,
+        rng=None,
+        note="",
+        dice=None,
+        action_record=None,
+    ):
         """Roll on a choice's table and put the roll on the record.
 
         The roll is written the moment it is made, before anything is
@@ -2637,7 +2653,7 @@ class Operation:
         picklist = slot.picklist
         if not picklist.dice:
             raise ValueError(f"{slot.choice_label} is not rolled for.")
-        dice = Dice(picklist.dice)
+        dice = Dice(dice or picklist.dice)
         if rolled is None:
             rolled = Dice.roll(dice, rng)
         elif rolled not in Dice.rolls(dice):
@@ -2651,6 +2667,7 @@ class Operation:
             dice=dice.value,
             slot=slot,
             note=note,
+            action_record=action_record,
         )
 
     def tally(self, assignment, change, note="", **event_fields):
@@ -2692,7 +2709,43 @@ class Operation:
             **amounts,
             **event_fields,
         )
+        from n26.core.allowances import grant_rank_allowances
+
+        grant_rank_allowances(self, assignment, before, held.value)
         return held.value
+
+    def record_action_roll(
+        self, record, configured, request_key, *, rolled=None, rng=None
+    ):
+        from n26.core.advancements import record_action_roll
+
+        return record_action_roll(
+            self, record, configured, request_key, rolled=rolled, rng=rng
+        )
+
+    def record_skill_roll(
+        self,
+        record,
+        configured,
+        request_key,
+        *,
+        pickable_id,
+        skill_set_id,
+        rolled=None,
+        rng=None,
+    ):
+        from n26.core.advancements import record_skill_roll
+
+        return record_skill_roll(
+            self,
+            record,
+            configured,
+            request_key,
+            pickable_id=pickable_id,
+            skill_set_id=skill_set_id,
+            rolled=rolled,
+            rng=rng,
+        )
 
     def start_action(self, fighter, action, request_key, allowance=None):
         """Start or resume one idempotent fighter action use."""
