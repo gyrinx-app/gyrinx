@@ -1839,12 +1839,12 @@ GROUPS: list[Group] = [
             Component(
                 slug="activity-card",
                 tag="c-n26.activity-card",
-                template="n26/action_card/index.html",
+                template="n26/activity_card/index.html",
                 summary="One open action, and the button that ends it.",
                 parts=(
                     Part(
                         "c-n26.activity-card.body",
-                        "n26/action_card/body.html",
+                        "n26/activity_card/body.html",
                         "The figures and the button, drawn the same boxed or not.",
                     ),
                 ),

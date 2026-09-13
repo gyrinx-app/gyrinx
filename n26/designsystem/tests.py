@@ -92,6 +92,9 @@ class TestTheActivityCardPage:
     """Its props, its body subcomponent and its demos reach the gallery."""
 
     def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        from n26.designsystem.catalog import get
+
+        assert get("activity-card").api is not None
         page = reader.get("/n26/design/c/activity-card/").content.decode()
         # Read from the component's own <c-vars>, so a prop added there and
         # nowhere else still has to appear here.
@@ -99,6 +102,9 @@ class TestTheActivityCardPage:
         assert "body" in page
 
     def test_the_page_names_the_body_subcomponent(self, reader):
+        from n26.designsystem.catalog import get
+
+        assert all(api is not None for _, api in get("activity-card").part_apis)
         page = reader.get("/n26/design/c/activity-card/").content.decode()
         assert "c-n26.activity-card.body" in page
 
