@@ -5,9 +5,9 @@ A fighter holds several lists at once: the one the house brings and the
 one a variant pick adds arrive by the same route — a grant a pick or a
 gang type carries — so nothing about how a list was come by says which
 is the gang's own. ``Collection.position`` does. Every list read off a
-card is sorted by it once, in ``n26.core.access``, so the Equip screen,
-the hire screen and the edit page agree on which list comes first; the
-standard Trading Post is last whatever it carries.
+card is sorted by it once, in ``n26.core.access``, so the fighter's
+Equip screen, the gang's own and the hire screen agree on which list
+comes first; the standard Trading Post is last whatever it carries.
 
 The repair (``n26.library.collection_positions``) reads every collection
 and how it reaches a card, and gives 100 to the lists reached only
@@ -261,8 +261,8 @@ class TestWhichListComesFirst:
 
 
 class TestTheScreensAgree:
-    """Equip opens on the first list; the edit page's links and the
-    gang's own equip screen put the lists in the same order."""
+    """A fighter's Equip screen and the gang's own both open on the
+    first list and put the tabs in the same order."""
 
     def test_equip_opens_on_the_lowest_positioned_list(
         self, client, owner, gang, fighter, variant, lists
@@ -281,25 +281,6 @@ class TestTheScreensAgree:
         set_position(lists["house"], VARIANT_POSITION + 1)
         response = client.get(reverse("n26-equip", args=[fighter.pk]))
         assert response.context["chosen"] == lists["variant"]
-
-    def test_the_edit_page_links_the_lists_in_the_same_order(
-        self, client, owner, gang, fighter, variant, lists
-    ):
-        take_the_variant(gang, variant)
-        set_position(lists["variant"], VARIANT_POSITION)
-        client.force_login(owner)
-
-        equip = client.get(reverse("n26-equip", args=[fighter.pk]))
-        edit = client.get(reverse("n26-edit-fighter", args=[fighter.pk]))
-
-        # The equip strip ends with the library tab, which is no list.
-        assert [item["label"] for item in edit.context["equip_lists"]] == [
-            tab["label"] for tab in equip.context["collection_tabs"]
-        ][:2]
-        assert [item["label"] for item in edit.context["equip_lists"]] == [
-            "Escher",
-            "Chaos Corrupted",
-        ]
 
     def test_the_gang_equip_screen_opens_on_the_gangs_own_list(
         self, client, owner, gang, variant, lists

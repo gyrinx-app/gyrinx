@@ -341,7 +341,8 @@ class TestThePetCardNamesItsOwner:
 
         assert f'id="model-{yolanda.pk}"' in body
         assert f'href="#model-{yolanda.pk}"' in body
-        assert "Owned by" in body
+        # A control among the others, named for whoever uses a reader.
+        assert 'aria-label="Owned by Yolanda"' in body
 
     def test_a_reader_who_does_not_own_the_gang_gets_the_link_too(
         self, client, gang, bought, yolanda

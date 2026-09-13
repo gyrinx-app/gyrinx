@@ -316,6 +316,78 @@ def test_rendered_pages_contain_no_uncompiled_component_tags(client):
 # --------------------------------------------------------------------------
 # G8 — the static cotton gate runs in CI, not only in pre-commit.
 # --------------------------------------------------------------------------
+def _gate(tmp_path, markup, pre_existing=None):
+    """Run scripts/check_cotton.py's checks over one call site, written into
+    a scratch tree that stands in for the repository, against the real
+    component definitions. Returns the problems it prints. ``pre_existing``
+    stands in for the script's own suppressions, keyed as the script keys
+    them: ("probe.html", the call's source with whitespace collapsed)."""
+    import importlib.util  # noqa: PLC0415
+    import io  # noqa: PLC0415
+    from contextlib import redirect_stdout  # noqa: PLC0415
+
+    spec = importlib.util.spec_from_file_location(
+        "check_cotton", REPO_ROOT / "scripts" / "check_cotton.py"
+    )
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    (tmp_path / "probe.html").write_text(markup)
+    gate.ROOT = tmp_path
+    gate.TEMPLATE_ROOTS = [tmp_path]
+    gate.PRE_EXISTING = pre_existing or {}
+    out = io.StringIO()
+    with redirect_stdout(out):
+        status = gate.main()
+    return status, out.getvalue()
+
+
+def test_the_gate_scans_n26_call_sites_against_n26_components(tmp_path):
+    """The script's `n26` root is only worth listing if an n26 call site is
+    held to the same rules as a platform one: a username link passed as a
+    string, or a prop its component never declared, fails the gate."""
+    status, out = _gate(tmp_path, '<c-n26.user-link user="{{ owner }}" />')
+    assert status == 1
+    assert "n26.user-link" in out and "COLON" in out
+
+    status, out = _gate(tmp_path, '<c-n26.user-link :user="owner" :bogus="x" />')
+    assert status == 1
+    assert ":bogus=" in out
+
+    status, out = _gate(tmp_path, '<c-n26.user-link :user="owner" />')
+    assert status == 0, out
+
+
+def test_a_suppression_covers_only_the_violation_it_names(tmp_path):
+    """A PRE_EXISTING entry pins one call to the one failure it is known
+    to carry. A second, unexpected violation on that same unchanged call
+    is reported as it would be anywhere, while the entry still counts as
+    used — a suppression that swallowed everything a call failed on would
+    let a new mistake in on exactly the calls nobody is looking at."""
+    known = '<c-n26.user-link :user="owner" {{ attrs }} />'
+    suppression = {("probe.html", known): "template tag in attribute position"}
+    status, out = _gate(tmp_path, known, pre_existing=suppression)
+    assert status == 0, out
+
+    with_another = '<c-n26.user-link :user="owner" {{ attrs }} :bogus="x" />'
+    suppression = {("probe.html", with_another): "template tag in attribute position"}
+    status, out = _gate(tmp_path, with_another, pre_existing=suppression)
+    assert status == 1
+    assert ":bogus=" in out
+    assert "template tag in attribute position" not in out
+    assert "no longer matches" not in out
+
+
+def test_the_gate_reads_a_components_props_from_its_index_file(tmp_path):
+    """An n26 root component with parts lives at <name>/index.html. Probed
+    as <name>.html alone it read as undefined, and every prop passed to it
+    went unchecked."""
+    status, out = _gate(
+        tmp_path, '<c-n26.quick-switcher label="Gangs" :bogus="switcher" />'
+    )
+    assert status == 1
+    assert ":bogus=" in out
+
+
 def test_check_cotton_script_passes():
     """scripts/check_cotton.py is the pre-commit half of the component contract.
 

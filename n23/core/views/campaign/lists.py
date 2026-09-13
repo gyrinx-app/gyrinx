@@ -297,8 +297,9 @@ def campaign_add_lists(request, id):
     # Exclude and order by name
     lists = (
         lists.exclude(id__in=excluded_list_ids)
-        .select_related("content_house", "owner")
-        .prefetch_related("packs")
+        # Each owner's badge reads their profile and grants.
+        .select_related("content_house", "owner", "owner__profile")
+        .prefetch_related("packs", "owner__badge_grants")
         .order_by("name")
     )
 
@@ -308,8 +309,10 @@ def campaign_add_lists(request, id):
     page_obj = paginator.get_page(page_number)
 
     # Get current campaign lists for display
-    current_lists = campaign.lists.select_related("owner", "content_house").order_by(
-        "name"
+    current_lists = (
+        campaign.lists.select_related("owner", "owner__profile", "content_house")
+        .prefetch_related("owner__badge_grants")
+        .order_by("name")
     )
 
     # Get pending invitations for display
@@ -317,7 +320,10 @@ def campaign_add_lists(request, id):
         CampaignInvitation.objects.filter(
             campaign=campaign, status=CampaignInvitation.PENDING
         )
-        .select_related("list", "list__owner", "list__content_house")
+        .select_related(
+            "list", "list__owner", "list__owner__profile", "list__content_house"
+        )
+        .prefetch_related("list__owner__badge_grants")
         .order_by("-created")
     )
 

@@ -112,6 +112,8 @@ def get_list_recent_campaign_actions(list_obj, limit=5):
 
     return (
         CampaignAction.objects.filter(campaign=list_obj.campaign, list=list_obj)
-        .select_related("user", "list")
+        # The author's badge reads their profile and grants.
+        .select_related("user", "user__profile", "list")
+        .prefetch_related("user__badge_grants")
         .order_by("-created")[:limit]
     )

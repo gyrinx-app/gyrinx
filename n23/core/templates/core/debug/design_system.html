@@ -278,18 +278,21 @@
             </div>
             <h3 class="h6 caps-label mb-2">Flat page (help) headings (live)</h3>
             <p class="text-secondary fs-7 mb-2">
-                Inside <code>.flatpage-content</code> only. Levels differ by weight and colour as well as size.
+                Inside <code>.flatpage-content</code> only. Levels differ by weight and colour as well as size, so
+                each level is less prominent than the one above it.
                 h2 gold: <code>#8a6000</code> light (5.59:1), <code>#f0b02a</code> dark (8.04:1).
-                h3/h4: <code>--bs-secondary-text-emphasis</code> (13.5:1 light, 6.7:1 dark). All AA for normal text.
+                h3: <code>--bs-secondary-text-emphasis</code> (13.5:1 light, 6.7:1 dark).
+                h4 and below: <code>#4a5568</code> light (7.5:1), <code>#8c97a8</code> dark (5.2:1).
+                All AA for normal text.
             </p>
             <c-box class="flatpage-content mb-4">
                 <h2>h2 — bold, gold</h2>
                 <p class="mb-2">Body text sits between the headings so the difference is visible.</p>
                 <h3>h3 — bold, emphasis grey</h3>
                 <p class="mb-2">Body text sits between the headings so the difference is visible.</p>
-                <h4>h4 — semibold, emphasis grey</h4>
+                <h4>h4 — semibold, mid grey</h4>
                 <p class="mb-2">Body text sits between the headings so the difference is visible.</p>
-                <h5>h5 — semibold</h5>
+                <h5>h5 — semibold, mid grey</h5>
                 <p class="mb-0">Body text sits between the headings so the difference is visible.</p>
             </c-box>
             <h3 class="h6 caps-label mb-2">Headings (full scale)</h3>
@@ -1330,6 +1333,34 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Page patterns</h2>
+            <h3 class="h6 caps-label mb-2">User link</h3>
+            <p class="text-secondary mb-2">
+                A username is a link to the user's page with the badge they hold after it, drawn by
+                <code>&lt;c-user-link&gt;</code> so the badge is never left off. Pass the user with the
+                colon (<code>:user="list.owner"</code>) — a stringified user has no username to build the
+                link from, and <code>scripts/check_cotton.py</code> fails the call site. <code>class</code>
+                picks the link style: <code>linked</code> (default), <code>linked-body</code> or
+                <code>linked-secondary</code>. The badge is dropped when the ambient <code>print</code> flag
+                is set. A view drawing many names must
+                <code>select_related("…__profile").prefetch_related("…__badge_grants")</code>, or each
+                name costs two queries. Never place it inside another link; link the row's name instead. An
+                icon beside the name is decoration: give it <code>aria-hidden="true"</code>.
+            </p>
+            <c-box class="mb-4">
+                <div class="vstack gap-1">
+                    <div>
+                        <c-user-link :user="ds_user" />
+                    </div>
+                    <div>
+                        Arbitrated by
+                        <c-user-link :user="ds_user" class="linked-body" />
+                    </div>
+                    <div class="text-secondary fs-7">
+                        <i class="bi-person" aria-hidden="true"></i>
+                        <c-user-link :user="ds_user" class="linked-secondary" />
+                    </div>
+                </div>
+            </c-box>
             <h3 class="h6 caps-label mb-2">Breadcrumb</h3>
             <p class="text-secondary mb-2">
                 Sits above the page title on entity detail pages. Compose it from crumbs — any number, in any

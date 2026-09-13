@@ -393,6 +393,30 @@ class TestMovingOneWithoutReloading:
 
         assert "62" in page.content.decode()
 
+    def test_the_card_it_sends_back_returns_to_the_tab_that_was_open(
+        self, client, gang, queen
+    ):
+        """The control posts the screen it was drawn on, skills tab and
+        all. The card sent back must return its choices and its counters
+        there: a card addressed to the bare Edit page would land the next
+        choice on the default tab instead of the one the reader had open."""
+        from urllib.parse import urlencode
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        # Up to the offer, so the card has a choice to address.
+        tally(xp_row(yolanda), 14)
+        client.force_login(gang.owner)
+        here = f"{reverse('n26-edit-fighter', args=[yolanda.pk])}?skills=all"
+
+        page = client.post(
+            self.address(yolanda), {"change": "1", "back": here}, **self.HTMX
+        )
+
+        drawn = page.content.decode()
+        assert "Choose skill" in drawn
+        assert urlencode({"return": here}) in drawn
+        assert f'name="back" value="{here}"' in drawn
+
     def test_the_card_it_sends_back_still_carries_the_rename(self, client, gang, queen):
         """It is drawn from the page rather than the card, so a redrawn
         card is exactly where it could go missing."""

@@ -4,6 +4,7 @@ Here rather than beside the views because opening the flag means writing the
 site's own row, and only these tests may reach across to the platform.
 """
 
+import re
 from importlib import import_module
 
 import pytest
@@ -1149,7 +1150,9 @@ class TestWhatAParticipantSees:
     ):
         self.accept(client, theirs)
         drawn = client.get("/n26/campaigns/").content.decode()
-        assert "arbitrated by kesh" in drawn
+        # The name is drawn through <c-n26.user-link>, which wraps it so the
+        # badge the arbitrator holds can follow it.
+        assert re.search(r"arbitrated by <span[^>]*>kesh<", drawn)
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
     def test_a_question_still_waiting_is_not_one_of_their_campaigns(

@@ -111,6 +111,11 @@ class Act:
     trade_points: int = 0
     rating: int = 0
     note: str = ""
+    #: The person ``actor`` names, for a page that draws the name with the
+    #: badge they hold. None where nobody did it, and None where the actor
+    #: is the reader — ``actor`` says "You" then, and a badge after "You"
+    #: would be the reader's own, which the chrome already shows.
+    actor_user: object | None = None
     subs: list[Sub] = field(default_factory=list)
     category: str = "kit"
     miniature_pk: str = ""
@@ -612,6 +617,7 @@ def _clean_house_as_one(standing, viewer, alive):
     return Act(
         when=first.created,
         actor=_actor(first, viewer),
+        actor_user=_actor_user(first, viewer),
         spans=(
             Span("cleaned house — "),
             Span(f"{len(subs)} {models} back from Recovery"),
@@ -632,6 +638,7 @@ def _edits_as_one(standing, viewer, alive):
     return Act(
         when=first.created,
         actor=_actor(first, viewer),
+        actor_user=_actor_user(first, viewer),
         spans=(Span(f"{verb} what "), _model_span(model, alive), Span(" is")),
         subs=subs,
         category="model",
@@ -659,6 +666,7 @@ def _one_act(e, row, viewer, alive):
     return Act(
         when=e.created,
         actor=actor,
+        actor_user=_actor_user(e, viewer) if actor else None,
         spans=spans,
         credits=-e.credits_delta,
         trade_points=-e.trade_points_delta,
@@ -1058,6 +1066,16 @@ def _actor(e, viewer):
     return e.actor.username
 
 
+def _actor_user(e, viewer):
+    """The person ``_actor`` names, or None where it names nobody or the
+    reader."""
+    if e.actor is None:
+        return None
+    if viewer is not None and e.actor_id == getattr(viewer, "id", None):
+        return None
+    return e.actor
+
+
 def _name(row):
     thing = row.assignable if row else None
     return str(thing) if thing is not None else "something"
@@ -1124,6 +1142,29 @@ def campaign_history(campaign, viewer=None, limit=None):
     return [act for _, act in dated]
 
 
+def load_actor_badges(acts):
+    """Read what naming a page of acts' actors with their badges needs — the
+    profile and the badge grants — where a page of acts still lacks it.
+
+    The grants never ride the sources' own reads: a prefetch is a second
+    statement over the rows the first returned, and ``campaign_history``
+    reads each source one page at a time and nothing else. The profile
+    rides a bounded read, where it widens only the page's rows, and is left
+    off an unbounded one — the log page reads the whole history before
+    paging it, and a join there would widen every event's row for the
+    fifty shown. So the grants, and the profile where it did not ride, are
+    read here, for the acts a caller has settled on — after the merge,
+    after any paging — keyed on those acts' actors and never on the
+    history behind them. A profile already read is not read again. Acts
+    that name nobody, or the reader, carry no person and cost nothing.
+    """
+    from django.db.models import prefetch_related_objects
+
+    people = [act.actor_user for act in acts if act.actor_user is not None]
+    if people:
+        prefetch_related_objects(people, "profile", "badge_grants")
+
+
 def campaign_history_size(campaign):
     """How many acts the history holds, without building any of them.
 
@@ -1154,7 +1195,14 @@ def campaign_history_size(campaign):
 
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
+    # Naming the actor with their badge reads their profile and their
+    # grants. The profile rides a bounded read, which is a page; an
+    # unbounded read is the whole history, paged afterwards, and the join
+    # would widen every row for the page's worth drawn. What a page still
+    # lacks, ``load_actor_badges`` reads once it is cut.
     events = campaign.events.select_related("actor", "battle", "about_user")
+    if limit is not None:
+        events = events.select_related("actor__profile")
     # Newest first while the database is doing the cutting, so a limit takes
     # the recent end; the caller sorts the merged result back into order.
     events = (
@@ -1197,6 +1245,10 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
             "counterpart",
         )
     )
+    if limit is not None:
+        # A page brings each actor's profile with the acts; see
+        # _campaign_own_acts.
+        events = events.select_related("actor__profile")
     events = (
         events.order_by("-created", "-id")[:limit]
         if limit is not None
@@ -1290,6 +1342,7 @@ def _one_campaign_act(e, viewer):
     return Act(
         when=e.created,
         actor=_actor(e, viewer),
+        actor_user=_actor_user(e, viewer),
         spans=spans,
         category=category,
     )

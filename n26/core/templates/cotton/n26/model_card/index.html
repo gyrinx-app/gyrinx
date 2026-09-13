@@ -26,7 +26,9 @@ card's weapons must share a statline shape.
 
 A stored model's card is three tabs: the rules' card, then Lore and Notes —
 the two sections a player writes rather than earns, read off the structure
-and sanitised here. notes_href and lore_href say where their Edit goes;
+and sanitised here. tabs=False draws the rules' card alone, for a screen that
+already has a tab strip of its own directly under the card and does not want a
+second one inside it. notes_href and lore_href say where their Edit goes;
 without one the panel is read-only, which is what a reader who does not own
 the gang gets. status_href is where the status badge leads — the owner's Mark
 as dialog — and empty draws the badge as words and offers an Active model
@@ -35,18 +37,23 @@ for that dialog over htmx; only a page holding the status dialog host may set
 it (see n26/includes/status_dialogs.html). The model's picture never sits
 on the card's face — a small control by the actions opens it.
 
-A pet's card says whose it is under the profile name — "Owned by Yolanda" —
-or "In the stash" where the collar that brought it sits there. owner_href
-is where the owner's name leads: the gang sheet passes the owner's card
-anchor, and without one the name is words, which is what the model's own
-page and a print want. A stored model's card carries id="model-<pk>" on its
-header band, the anchor the sheet links to.
+A pet's card says whose it is. Given owner_href — the gang sheet passes the
+owner's card anchor — it is a chain among the controls, naming the owner in
+its tooltip; without one there is nowhere to send anyone, so the card says
+it in words under the profile name ("Owned by Yolanda", or "In the stash"
+where the collar that brought it sits there), which is what the model's own
+page wants. A stored model's card carries id="model-<pk>" on its header
+band, the anchor the sheet links to.
+
+The header band is a query container: narrow, its two columns stack, the
+name and profile over one row holding the figures and every control.
 {% endcomment %}
 {% load richtext %}
 <c-vars
     :card="None"
     mode="gang"
     :htmx="False"
+    :tabs="True"
     notes_href=""
     lore_href=""
     status_href=""
@@ -64,8 +71,15 @@ header band, the anchor the sheet links to.
     anchor, so a link to a model lands on its name; a card with no id depicts
     nobody and gets none.
     {% endcomment %}
-    <div class="border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
-        <div class="flex items-start gap-3">
+    <div class="@container border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
+        {% comment %}
+        A query container, so the band lays itself out by the width the card
+        has rather than the window's: a roster puts two cards side by side from
+        lg, where a viewport-based breakpoint would tell a half-width card it
+        had the whole screen. Narrow, the two columns stack — the name and its
+        profile over one row holding the figures and every control.
+        {% endcomment %}
+        <div class="flex flex-col gap-2 @md:flex-row @md:items-start @md:gap-3">
             {% comment %}
             The model's name, and under it the library profile it was hired
             from. The profile name is skipped when the two agree, as
@@ -80,21 +94,20 @@ header band, the anchor the sheet links to.
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
                 {% endif %}
                 {% comment %}
-                Whose the model is, where a purchase brought it in. The
-                owner's name is the link where the sheet gave one, and the
-                words before it are ModelCard.owner_prefix — the same ones
-                owner_line opens with — so every renderer says the same thing.
+                Whose the model is, where a purchase brought it in. A sheet
+                that draws the owner's card gives owner_href, and the name
+                becomes the link control among the others rather than a line
+                of its own — a third line here with nothing opposite it is
+                what makes the band grow. Without an address there is nowhere
+                to send anyone, so the fact is words: ModelCard.owner_line,
+                the one sentence every renderer says.
                 {% endcomment %}
-                {% if card.owned_by %}
-                    <div class="text-sm text-muted">
-                        {{ card.owner_prefix }} <c-n26.link href="{{ owner_href }}" tone="current" underline="always">{{ card.owned_by }}</c-n26.link>
-                    </div>
-                {% elif card.owner_line %}
+                {% if card.owner_line and not owner_href %}
                     <div class="text-sm text-muted">{{ card.owner_line }}</div>
                 {% endif %}
             </div>
 
-            <div class="flex shrink-0 flex-col items-end gap-1.5">
+            <div class="flex flex-wrap items-center justify-between gap-2 @md:flex-col @md:flex-nowrap @md:items-end @md:gap-1.5 @md:shrink-0">
                 <div class="flex items-baseline gap-1 text-sm font-medium tabular-nums">
                     {% comment %}
                     What the model has left of the Trade Points its books
@@ -107,8 +120,17 @@ header band, the anchor the sheet links to.
                     {% if card.founding_budget %}
                         <c-n26.model-card.mode when="gang edit">
                             <c-ui.tooltip size="sm">
-                                <span class="inline-flex items-center gap-1 text-muted">
-                                    <c-n26.founding-mark class="size-3.5" />
+                                {% comment %}
+                                Plain inline, not a flex: this figure sits on
+                                the rating's baseline, and a flex box takes
+                                its baseline from its first item — the mark,
+                                whose bottom edge is a pixel or two off the
+                                text beside it. Inline, the text's own
+                                baseline is the box's, and the mark is nudged
+                                onto it by its wrapper.
+                                {% endcomment %}
+                                <span class="text-muted">
+                                    <span class="inline-block align-[-0.1875em]"><c-n26.founding-mark class="size-3.5" /></span>
                                     <span>{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
                                 </span>
                                 <c-slot name="content">Founding Trade Points {{ card.name }} has left to spend while the Found and equip gang action is open.</c-slot>
@@ -122,8 +144,13 @@ header band, the anchor the sheet links to.
                     </c-ui.tooltip>
                 </div>
 
-                {% if actions or card.image_url or card.status_label or status_href %}
-                    <div class="flex flex-nowrap items-center gap-2">
+                {% if actions or card.image_url or card.status_label or status_href or owner_href %}
+                    {% comment %}
+                    Wrapping while the card is narrow, where the longest
+                    status badge and four controls do not fit one line: held
+                    to one line the badge breaks its own words instead.
+                    {% endcomment %}
+                    <div class="flex flex-wrap items-center gap-2 @md:flex-nowrap">
                         {% comment %}
                         Where the model stands between battles, ahead of
                         the controls. Anything but Active is a badge, its
@@ -148,6 +175,26 @@ header band, the anchor the sheet links to.
                                 <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
                             {% endif %}
                             {# djlint:on #}
+                        {% endif %}
+                        {% comment %}
+                        The model whose purchase brought this one in — a
+                        pet's owner — as a way to their card rather than as
+                        a line of words. The tooltip names them, since a
+                        chain on its own says there is a link and not who is
+                        at the other end.
+                        {% endcomment %}
+                        {% if owner_href and card.owned_by %}
+                            <c-ui.tooltip size="sm">
+                                <c-ui.button size="xs"
+                                             variant="ghost"
+                                             href="{{ owner_href }}"
+                                             aria-label="Owned by {{ card.owned_by }}">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="link" class="size-3.5" />
+                                    </span>
+                                </c-ui.button>
+                                <c-slot name="content">{{ card.owned_by }}</c-slot>
+                            </c-ui.tooltip>
                         {% endif %}
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
@@ -178,13 +225,14 @@ header band, the anchor the sheet links to.
     {% comment %}
     A stored model gets the tab strip: the rules' card, then the two sections
     the player writes. A card with no id depicts nobody — a hire preview, a
-    picker option — and has nothing written, so it draws the body plain.
+    picker option — and has nothing written, so it draws the body plain, and
+    so does a card the caller has asked to draw without tabs.
 
     The strip and the panels are Alpine's; scriptless readers get every panel
     in a run instead (the layout's no-script rule reveals them), so nothing
     written is ever unreachable.
     {% endcomment %}
-    {% if card.id %}
+    {% if card.id and tabs %}
         <div class="n26-card-tabs">
             <c-ui.tabs variant="segmented" size="sm" :fill="True">
                 <c-ui.tabs.tab name="Card">
