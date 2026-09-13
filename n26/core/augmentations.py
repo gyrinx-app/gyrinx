@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import asdict, dataclass, is_dataclass
 
 from django.db.models import Q
@@ -50,15 +49,16 @@ def _refuse(message):
     raise Refusal(message)
 
 
-def _ladders(record, configured):
+def _ladders(record, configured, *, card=None):
     """Resolve exact carried items and their single configured ladder."""
-    card = build_card(record.fighter, with_statlines=True)
+    card = card or build_card(record.fighter, with_statlines=True)
     nodes = list(card.all_nodes())
     items = [
         node.assignment
         for node in nodes
         if node.assignment is not None
         and not node.assignment.archived
+        and not node.suppressed
         and node.assignment.miniature_root_id == record.fighter_id
         and isinstance(node.assignable, (Weapon, Wargear))
     ]
@@ -67,6 +67,9 @@ def _ladders(record, configured):
         assignment = node.assignment
         if (
             assignment is not None
+            and not assignment.archived
+            and not node.suppressed
+            and assignment.miniature_root_id == record.fighter_id
             and assignment.slot_id is not None
             and assignment.slot.slot_type_id == configured.slot_type_id
             and assignment.slot.mode == Slot.Mode.TIER_LADDER
@@ -93,6 +96,8 @@ def _ladders(record, configured):
         if node.assignment is not None
         and node.assignment.pickable_id is not None
         and not node.assignment.archived
+        and not node.suppressed
+        and node.assignment.miniature_root_id == record.fighter_id
     ]
     picks_by_slot = {}
     for pick in live_picks:
@@ -134,38 +139,63 @@ def _render(card, index=None):
     return build_model_card(card.miniature, card=card, computed=computed)
 
 
-def _without_choice_state(value):
-    """Comparable rendered behavior, excluding the ladder's own label."""
+def _effect_state(value):
+    """Comparable game effects, excluding prices and presentation metadata."""
     value = asdict(value) if is_dataclass(value) else value
     if isinstance(value, dict):
         return {
-            key: _without_choice_state(item)
+            key: _effect_state(item)
             for key, item in value.items()
-            if key not in {"choices", "questions", "row_questions", "remarks"}
+            if key
+            not in {
+                "assignment_id",
+                "back",
+                "choices",
+                "full_name",
+                "held_at",
+                "href",
+                "id",
+                "modified_by",
+                "name",
+                "profile_name",
+                "provenance",
+                "questions",
+                "rating",
+                "remarks",
+                "row_questions",
+                "short_name",
+            }
         }
     if isinstance(value, (list, tuple)):
-        return tuple(_without_choice_state(item) for item in value)
+        return [_effect_state(item) for item in value]
     return value
 
 
-def _held_at_maximum(value):
-    """Whether any rendered characteristic was clipped at its upper limit."""
-    if is_dataclass(value):
-        if getattr(value, "held_at", "") == "maximum":
+def _newly_capped(before, after):
+    """Whether this candidate affected a characteristic already at its ceiling."""
+    before = asdict(before) if is_dataclass(before) else before
+    after = asdict(after) if is_dataclass(after) else after
+    if isinstance(before, dict) and isinstance(after, dict):
+        if (
+            after.get("held_at") == "maximum"
+            and before.get("value") == after.get("value")
+            and before.get("modified_by") != after.get("modified_by")
+        ):
             return True
-        value = asdict(value)
-    if isinstance(value, dict):
-        if value.get("held_at") == "maximum":
-            return True
-        return any(_held_at_maximum(item) for item in value.values())
-    if isinstance(value, (list, tuple)):
-        return any(_held_at_maximum(item) for item in value)
+        return any(
+            key in before and _newly_capped(before[key], child)
+            for key, child in after.items()
+        )
+    if isinstance(before, (list, tuple)) and isinstance(after, (list, tuple)):
+        return any(
+            _newly_capped(left, right)
+            for left, right in zip(before, after, strict=False)
+        )
     return False
 
 
-def _with_pick(card, ladder, member):
-    """Return a card with this ladder replaced in memory, without writes."""
-    card = deepcopy(card)
+def _render_with_pick(card, ladder, member, index):
+    """Render one temporary in-memory tier replacement without ORM copies."""
     nodes = list(card.all_nodes())
     old = next(
         (
@@ -178,22 +208,52 @@ def _with_pick(card, ladder, member):
         None,
     )
     old_rating = old.rating if old is not None else 0
+    previous_assignable = old.assignable if old is not None else None
+    previous_rating = old.rating if old is not None else None
+    added = None
     if old is not None:
         old.assignable = member.pickable
         old.rating = member.pickable.rating_contribution
     else:
-        card.roots.append(
-            Node(
-                assignable=member.pickable,
-                key=("augmentation-preview", ladder.slot.pk),
-                rating=member.pickable.rating_contribution,
-                caused_by_key=ladder.slot.pk,
-                chosen_for_key=ladder.slot.pk,
-                chosen_for_slot_id=ladder.slot.slot_id,
-                computed=True,
-            )
+        added = Node(
+            assignable=member.pickable,
+            key=("augmentation-preview", ladder.slot.pk),
+            rating=member.pickable.rating_contribution,
+            caused_by_key=ladder.slot.pk,
+            chosen_for_key=ladder.slot.pk,
+            chosen_for_slot_id=ladder.slot.slot_id,
+            computed=True,
         )
+        card.roots.append(added)
+    previous_full_rating = card.full_rating
     card.full_rating += member.pickable.rating_contribution - old_rating
+    try:
+        return _render(card, index)
+    finally:
+        card.full_rating = previous_full_rating
+        if old is not None:
+            old.assignable = previous_assignable
+            old.rating = previous_rating
+        else:
+            card.roots.remove(added)
+
+
+def _restored_card(card, ladder, previous_pick):
+    """Return the completed card as it stood immediately before this action."""
+    node = next(
+        node
+        for node in card.all_nodes()
+        if node.assignment is not None and node.assignment.pk == ladder.current.pk
+    )
+    old_rating = node.rating
+    if previous_pick is None:
+        node.suppressed = True
+        card.full_rating -= old_rating
+    else:
+        node.assignment = previous_pick
+        node.assignable = previous_pick.assignable
+        node.rating = previous_pick.ledger_entry.rating_contribution
+        card.full_rating += node.rating - old_rating
     return card
 
 
@@ -205,16 +265,16 @@ def _candidate(card, ladder, index=None, before=None):
         return None
 
     before = before or _render(card, index)
-    after = _render(_with_pick(card, ladder, member), index)
+    after = _render_with_pick(card, ladder, member, index)
     # A capped characteristic may make the immediate rung do nothing. The
     # rule permits looking exactly one rung farther, never an arbitrary jump.
-    same_result = _without_choice_state(before) == _without_choice_state(after)
-    if same_result and _held_at_maximum(after):
+    same_result = _effect_state(before) == _effect_state(after)
+    if same_result and _newly_capped(before, after):
         member = by_level.get(current_level + 2)
         if member is None:
             return None
-        after = _render(_with_pick(card, ladder, member), index)
-        if _without_choice_state(before) == _without_choice_state(after):
+        after = _render_with_pick(card, ladder, member, index)
+        if _effect_state(before) == _effect_state(after):
             return None
     elif same_result:
         return None
@@ -238,9 +298,82 @@ def _candidate(card, ladder, index=None, before=None):
     )
 
 
+def _original_selection(record, *, lock=False):
+    query = AugmentationSelection.objects
+    if lock:
+        query = query.select_for_update(of=("self",))
+    try:
+        selection = query.select_related(
+            "item_assignment",
+            "slot_assignment__slot",
+            "previous_pick__ledger_entry",
+            "new_pick",
+        ).get(action_record=record)
+    except AugmentationSelection.DoesNotExist:
+        return None
+    return selection
+
+
+def _correction_baseline(record, configured, *, lock=False):
+    selection = _original_selection(record, lock=lock)
+    card, ladders = _ladders(record, configured)
+    if selection is None or record.state != record.State.COMPLETED:
+        return card, ladders, None
+    live = Assignment.objects.filter(
+        chosen_for=selection.slot_assignment_id,
+        pickable__isnull=False,
+        archived=False,
+    )
+    if lock:
+        live = live.select_for_update()
+    live = list(live)
+    if (
+        selection.item_assignment is None
+        or selection.item_assignment.archived
+        or selection.item_assignment.gang_root_id != record.gang_id
+        or selection.item_assignment.miniature_root_id != record.fighter_id
+        or selection.slot_assignment is None
+        or selection.slot_assignment.archived
+        or selection.slot_assignment.gang_root_id != record.gang_id
+        or selection.slot_assignment.miniature_root_id != record.fighter_id
+        or selection.new_pick is None
+        or selection.new_pick.archived
+        or live != [selection.new_pick]
+    ):
+        _refuse("The original item or tier has changed and must be reviewed first.")
+    if Assignment.objects.filter(
+        Q(parent=selection.new_pick) | Q(caused_by=selection.new_pick)
+    ).exists():
+        _refuse("The original tier has dependent changes and must be reviewed first.")
+    original = next(
+        (
+            ladder
+            for ladder in ladders
+            if ladder.slot.pk == selection.slot_assignment_id
+        ),
+        None,
+    )
+    if (
+        original is None
+        or selection.new_pick_id is None
+        or original.current is None
+        or original.current.pk != selection.new_pick_id
+    ):
+        _refuse("The original item or tier has changed and must be reviewed first.")
+    card = _restored_card(card, original, selection.previous_pick)
+    card, ladders = _ladders(record, configured, card=card)
+    ladders = tuple(
+        _Ladder(row.item, row.slot, selection.previous_pick, row.members)
+        if row.slot.pk == original.slot.pk
+        else row
+        for row in ladders
+    )
+    return card, ladders, selection
+
+
 def augmentation_options(record, configured):
     """List effective next tiers for the fighter's carried items."""
-    card, ladders = _ladders(record, configured)
+    card, ladders, _selection = _correction_baseline(record, configured)
     preview_carriers = [*carriers(card)]
     preview_carriers.extend(
         member.pickable for ladder in ladders for member in ladder.members
@@ -258,8 +391,10 @@ def augmentation_options(record, configured):
 
 def preview_augmentation(record, configured, terms):
     """Return the exact target-state fingerprint stored with a review."""
-    ladder, _member, candidate = _selected(record, configured, terms)
-    return {
+    ladder, _member, candidate, selection, before, after = _selected(
+        record, configured, terms
+    )
+    snapshot = {
         "selection": asdict(candidate),
         "item_assignment": str(ladder.item.pk),
         "item_modified": ladder.item.modified.isoformat(),
@@ -269,15 +404,35 @@ def preview_augmentation(record, configured, terms):
         "current_pick_modified": (
             ladder.current.modified.isoformat() if ladder.current else None
         ),
+        "effects_before": before,
+        "effects_after": after,
     }
+    if selection is not None:
+        snapshot["original_result"] = {
+            "item_assignment": str(selection.item_assignment_id),
+            "item_modified": selection.item_assignment.modified.isoformat(),
+            "slot_assignment": str(selection.slot_assignment_id),
+            "slot_modified": selection.slot_assignment.modified.isoformat(),
+            "new_pick": str(selection.new_pick_id),
+            "new_pick_modified": selection.new_pick.modified.isoformat(),
+            "previous_pick": (
+                str(selection.previous_pick_id) if selection.previous_pick_id else None
+            ),
+            "previous_pick_modified": (
+                selection.previous_pick.modified.isoformat()
+                if selection.previous_pick_id
+                else None
+            ),
+        }
+    return snapshot
 
 
-def _selected(record, configured, terms):
+def _selected(record, configured, terms, *, lock=False):
     item_id = terms.get("item_assignment")
     intended_id = terms.get("intended_pick")
     if not item_id or not intended_id:
         _refuse("Choose an item and augmentation tier before continuing.")
-    card, ladders = _ladders(record, configured)
+    card, ladders, selection = _correction_baseline(record, configured, lock=lock)
     ladder = next((row for row in ladders if str(row.item.pk) == str(item_id)), None)
     if ladder is None:
         _refuse("That item is no longer carried by this fighter.")
@@ -299,12 +454,23 @@ def _selected(record, configured, terms):
         for row in ladder.members
         if str(row.pickable_id) == candidate.candidate_pick_id
     )
-    return ladder, member, candidate
+    before = _render(card, index)
+    after = _render_with_pick(card, ladder, member, index)
+    return (
+        ladder,
+        member,
+        candidate,
+        selection,
+        _effect_state(before),
+        _effect_state(after),
+    )
 
 
 def apply_augmentation(op, record, configured, terms):
     """Apply a reviewed augmentation and record its exact assignments."""
-    ladder, member, candidate = _selected(record, configured, terms)
+    ladder, member, candidate, _selection, _before, _after = _selected(
+        record, configured, terms
+    )
     new_pick = op.replace_slot_pick(
         ladder.slot,
         ladder.slot.slot,
@@ -336,15 +502,10 @@ def _live_pick(slot):
 
 def correct_augmentation(op, record, configured, terms):
     """Reverse a completed result and apply its replacement without repayment."""
-    try:
-        selection = (
-            AugmentationSelection.objects.select_for_update(of=("self",))
-            .select_related(
-                "item_assignment", "slot_assignment", "previous_pick", "new_pick"
-            )
-            .get(action_record=record)
-        )
-    except AugmentationSelection.DoesNotExist:
+    ladder, member, candidate, selection, _before, _after = _selected(
+        record, configured, terms, lock=True
+    )
+    if selection is None:
         _refuse("This action has no augmentation result to correct.")
     if selection.new_pick is None or selection.new_pick.archived:
         _refuse("The original augmentation has changed and must be reviewed first.")
@@ -379,7 +540,6 @@ def correct_augmentation(op, record, configured, terms):
             miniature=record.fighter,
             action_record=record,
         )
-    ladder, member, candidate = _selected(record, configured, terms)
     current = ladder.current
     new_pick = op.replace_slot_pick(
         ladder.slot,
