@@ -35,6 +35,44 @@ class TestTheLibrary:
         with pytest.raises(KeyError, match=r"/n26/design/c/icon/"):
             icons.resolve("not-an-icon")
 
+    @pytest.mark.parametrize(
+        ("name", "source", "message"),
+        [
+            (
+                "wrong-canvas",
+                '<svg viewBox="0 0 16 16"><path d="M0 0" /></svg>',
+                "unexpected SVG canvas",
+            ),
+            (
+                "unsupported-element",
+                '<svg viewBox="0 0 24 24"><script /></svg>',
+                "unsupported 'script' geometry",
+            ),
+            (
+                "unsupported-attribute",
+                '<svg viewBox="0 0 24 24"><path d="M0 0" onclick="alert(1)" /></svg>',
+                "unsupported attributes: onclick",
+            ),
+            (
+                "unsupported-fill",
+                '<svg viewBox="0 0 24 24"><path d="M0 0" fill="red" /></svg>',
+                "unsupported fill",
+            ),
+        ],
+    )
+    def test_unsupported_svg_content_is_rejected(
+        self, monkeypatch, name, source, message
+    ):
+        class Archive:
+            def read(self, filename):
+                assert filename == f"{name}.svg"
+                return source
+
+        monkeypatch.setattr(icons, "_lucide_archive", Archive)
+
+        with pytest.raises(ValueError, match=message):
+            icons._lucide_body(name)
+
 
 class TestBrandMarks:
     @pytest.mark.parametrize("name", ["github", "discord", "patreon"])

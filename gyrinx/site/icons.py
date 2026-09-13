@@ -2,9 +2,9 @@
 
 The banner is platform-owned and shown by every edition, but the editions do
 not share an icon set: n23 draws Bootstrap Icons from a webfont, n26 draws the
-hand-kept SVG registry in ``n26/core/icons.py``. So the banner cannot store a
-drawing — it stores a *meaning*, and each edition resolves that meaning in its
-own set.
+Lucide names and a closed set of brand marks through ``n26/core/icons.py``. So
+the banner cannot store a drawing — it stores a *meaning*, and each edition
+resolves that meaning in its own set.
 
 Before this it stored a Bootstrap Icons class directly, in a free-text field.
 That was fine for as long as Bootstrap was the only consumer, and stopped being
@@ -36,7 +36,7 @@ class BannerIcon:
     label: str
     #: A Bootstrap Icons class, for n23 and the platform's own templates.
     bootstrap: str
-    #: A name in n26/core/icons.py.
+    #: A canonical Lucide or approved brand name resolved by n26/core/icons.py.
     n26: str
 
 
@@ -77,7 +77,7 @@ def bootstrap_class(key: str) -> str:
 
 
 def n26_name(key: str) -> str:
-    """The n26 registry name for a key, or "" if there is none.
+    """The n26 icon name for a key, or "" if there is none.
 
     Empty is a real answer, not a failure: it leaves the n26 announcement to
     draw the icon its tone implies, which is the component's own decision and

@@ -23,32 +23,33 @@
         {% if icon_page.has_other_pages %}
             <c-ui.pagination>
                 {% if icon_page.has_previous %}
-                    <c-ui.pagination.prev href="?q={{ icon_query|urlencode }}&page={{ icon_page.previous_page_number }}" />
+                    <c-ui.pagination.prev href="?q={{ icon_query|urlencode }}&amp;page={{ icon_page.previous_page_number }}" />
                 {% endif %}
                 {% for page_number in icon_page_numbers %}
                     {% if page_number == icon_ellipsis %}
                         <c-ui.pagination.ellipsis />
                     {% elif page_number == icon_page.number %}
-                        <c-ui.pagination.item href="?q={{ icon_query|urlencode }}&page={{ page_number }}"
+                        <c-ui.pagination.item href="?q={{ icon_query|urlencode }}&amp;page={{ page_number }}"
                                               :current="True">
                             {{ page_number }}
                         </c-ui.pagination.item>
                     {% else %}
-                        <c-ui.pagination.item href="?q={{ icon_query|urlencode }}&page={{ page_number }}">
+                        <c-ui.pagination.item href="?q={{ icon_query|urlencode }}&amp;page={{ page_number }}">
                             {{ page_number }}
                         </c-ui.pagination.item>
                     {% endif %}
                 {% endfor %}
                 {% if icon_page.has_next %}
-                    <c-ui.pagination.next href="?q={{ icon_query|urlencode }}&page={{ icon_page.next_page_number }}" />
+                    <c-ui.pagination.next href="?q={{ icon_query|urlencode }}&amp;page={{ icon_page.next_page_number }}" />
                 {% endif %}
             </c-ui.pagination>
         {% endif %}
     {% else %}
         <div class="rounded-box border border-dashed border-box-border px-6 py-12 text-center">
             <p class="font-medium text-ink-900 dark:text-ink-100">No icons match “{{ icon_query }}”.</p>
-            <a href="{% url 'designsystem:component' 'icon' %}"
-               class="mt-2 inline-block text-sm text-link hover:underline">Clear search</a>
+            <c-n26.link href="{% url 'designsystem:component' 'icon' %}"
+                        underline="hover"
+                        class="mt-2 inline-block text-sm">Clear search</c-n26.link>
         </div>
     {% endif %}
 </div>

@@ -165,13 +165,16 @@ underlying spec.
 - A new or renamed component must also be registered in
   `n26/designsystem/catalog.py` and given demos, or it will not appear
   in the gallery. See `n26/designsystem/CLAUDE.md`.
-- **Use `<c-n26.icon>` for every n26 icon.** Choose a canonical Lucide
-  name from `/n26/design/c/icon/`; do not paste SVG into templates or
-  add general-purpose drawings to `core/icons.py`. The component
-  inlines only the drawing used at that call site, takes size and colour
-  from CSS, and needs `label` when the icon conveys meaning without
-  adjacent text. `core/brand_icons.py` is a closed exception for the
-  GitHub, Discord and Patreon marks because Lucide does not ship brands.
+- **Use `<c-n26.icon>` for every new or edited general-purpose interface
+  icon.** Choose a canonical Lucide name from `/n26/design/c/icon/`; do not
+  paste another general-purpose SVG into a template or add one to
+  `core/icons.py`. Existing inline interface icons are migration debt, not a
+  pattern to copy. Bespoke edition marks and data illustrations may own their
+  SVG geometry in dedicated components. The icon component inlines only the
+  drawing used at that call site, takes size and colour from CSS, and needs
+  `label` when the icon conveys meaning without adjacent text.
+  `core/brand_icons.py` is a closed exception for the GitHub, Discord and
+  Patreon marks because Lucide does not ship brands.
 - Cotton traps: a `{% block %}` inside a component attribute renders as
   nothing (use `<c-slot>`); write `&amp;` not `&` in attributes; the
   platform's cotton checker does not scan n26 templates, so the
