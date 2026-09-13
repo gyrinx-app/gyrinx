@@ -232,7 +232,7 @@ class TestTheEquipPicker:
         assert "Autogun*" not in body
         assert "Frag grenades*" not in body
 
-    def test_the_page_draws_the_mark_on_a_held_copys_menu(
+    def test_the_page_draws_the_mark_on_the_menu_of_a_held_copy(
         self, client, gang, fighter, house_list, armed, stubber
     ):
         client.force_login(gang.owner)
