@@ -384,6 +384,7 @@ class Operation:
         removes=False,
         kind=None,
         roll=None,
+        action_record=None,
     ):
         """Write one assignment: an assignable, a host, and a cause.
 
@@ -463,6 +464,7 @@ class Operation:
             trade_points_delta=trade_points,
             rating_delta=rating,
             note=note,
+            action_record=action_record,
         )
         self.touched(assignment.miniature_root)
         self.written.add(str(assignment.pk))
@@ -1084,7 +1086,7 @@ class Operation:
             self.remove(assignment, note="reset")
         return edits
 
-    def remove(self, assignment, note=""):
+    def remove(self, assignment, note="", **event_fields):
         """Take something away — and everything it brought with it.
 
         Archives rather than deletes: the ledger is append-only, so the
@@ -1104,7 +1106,7 @@ class Operation:
             target.archived = True
             target.archived_at = _now()
             target.save(update_fields=["archived", "archived_at", "modified"])
-            self.event(target, LedgerEvent.Kind.REMOVED, note=note)
+            self.event(target, LedgerEvent.Kind.REMOVED, note=note, **event_fields)
         return assignment
 
     def refund(self, assignment, note=""):
@@ -2296,6 +2298,40 @@ class Operation:
             **kwargs,
         )
 
+    def replace_slot_pick(
+        self,
+        anchor,
+        slot,
+        chosen,
+        *,
+        previous_pick,
+        miniature,
+        action_record,
+    ):
+        """Archive one slot pick and retain exact before/after provenance."""
+        self.remove(
+            previous_pick,
+            action_record=action_record,
+            before_pick=previous_pick,
+        )
+        replacement = None
+        if chosen is not None:
+            replacement = self.choose(
+                anchor,
+                chosen,
+                slot=slot,
+                miniature=miniature,
+                action_record=action_record,
+            )
+        self.event(
+            replacement or previous_pick,
+            LedgerEvent.Kind.AMENDED,
+            action_record=action_record,
+            before_pick=previous_pick,
+            after_pick=replacement,
+        )
+        return replacement
+
     def add_legacy_profile(self, miniature, profile, **kwargs):
         """A second profile on a model — the Venator case.
 
@@ -2528,7 +2564,7 @@ class Operation:
             note=note,
         )
 
-    def tally(self, assignment, change, note=""):
+    def tally(self, assignment, change, note="", **event_fields):
         """Change a counter's value — the only writer it has.
 
         ``change`` is signed; the value floors at zero. Every change is a
@@ -2565,8 +2601,41 @@ class Operation:
             LedgerEvent.Kind.TALLIED,
             note=_movement_note(moved, note),
             **amounts,
+            **event_fields,
         )
         return held.value
+
+    def start_action(self, fighter, action, request_key, allowance=None):
+        """Start or resume one idempotent fighter action use."""
+        from n26.core.action_records import start_action
+
+        return start_action(self, fighter, action, request_key, allowance=allowance)
+
+    def review_action(self, record, *, terms=None):
+        """Capture the exact terms and balances offered for confirmation."""
+        from n26.core.action_records import review_action
+
+        return review_action(self, record, terms=terms)
+
+    def complete_action(self, record, *, revision, review, outcome):
+        """Verify and atomically pay for and apply a reviewed action use."""
+        from n26.core.action_records import complete_action
+
+        return complete_action(
+            self, record, revision=revision, review=review, outcome=outcome
+        )
+
+    def cancel_action(self, record):
+        """Cancel an unpaid action draft."""
+        from n26.core.action_records import cancel_action
+
+        return cancel_action(self, record)
+
+    def correct_action(self, record, *, terms):
+        """Correct a completed typed result without replaying its payment."""
+        from n26.core.action_records import correct_action
+
+        return correct_action(self, record, terms=terms)
 
     def open_counter(self, assignment, value):
         """Store an opening balance, journalling it once tracking is active."""
