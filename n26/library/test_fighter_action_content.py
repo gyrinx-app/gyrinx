@@ -1,6 +1,8 @@
 import pytest
 
+from n26.library.forms import generate_form
 from n26.library.models import Action, Modifier, OffersChoice, Picklist, RankTable
+from n26.library.specs import specs
 from n26.library.standard_content import (
     FIGHTER_ADVANCEMENTS,
     FIGHTER_RANK_THRESHOLDS,
@@ -64,3 +66,12 @@ def test_fighter_action_content_is_complete_and_idempotent():
         ("Select any skill", "select", "any"),
     }
     assert not Action.objects.filter(name__icontains="Power Boost").exists()
+
+
+def test_choice_authoring_form_preserves_random_mode_and_select_default():
+    form_class = generate_form(specs()["ef_offers_choice"])
+    assert "mode" in form_class().fields
+    random = specs()["ef_offers_choice"].compile({"model": "skill", "mode": "random"})
+    selected = specs()["ef_offers_choice"].compile({"model": "skill"})
+    assert random.mode == OffersChoice.Mode.RANDOM
+    assert selected.mode == OffersChoice.Mode.SELECT
