@@ -37,6 +37,15 @@ ICONS: dict[str, list[str]] = {
         "M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5"
         "A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
     ],
+    # The chain's two halves. Upstream draws them as one path, the second
+    # subpath relative to where the first ended; written absolute here so
+    # each is a <path> of its own like every other entry.
+    "link": [
+        "M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364"
+        "l1.757-1.757",
+        "M18.675 11.689l1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5"
+        "a4.5 4.5 0 0 0 1.242 7.244",
+    ],
     "photo": [
         "m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409"
         "a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6"

@@ -9,7 +9,9 @@ sheets therefore remain compact.
 
   label — the kind. Capitalised here because kinds arrive from a model's
     verbose_name, written lower case to appear mid-sentence.
-  :lines — n26.render.StashLine objects of this one kind.
+  :lines — n26.render.StashLine objects of this one kind. A line whose kit
+    brought a pet onto the roster names the pet after its own name, as a
+    card's gear line does.
 {% endcomment %}
 {% load listing %}
 <c-vars label="" :lines="None" class="" />
@@ -22,14 +24,14 @@ sheets therefore remain compact.
                 {% for line in lines %}
                     <li class="flex min-h-7 items-center gap-2">
                         <span class="min-w-0 flex-1">
-                            {{ line.name }}{{ line.slot_mark }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
+                            {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
                         </span>
                         <c-ui.dropdown align="end" min_width="10rem">
                             <c-slot name="trigger">
                                 <c-ui.button size="sm"
                                              class="px-1.5!"
-                                             aria-label="Actions for {{ line.name }}{{ line.slot_mark }}"
-                                             title="Actions for {{ line.name }}{{ line.slot_mark }}"
+                                             aria-label="Actions for {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}"
+                                             title="Actions for {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}"
                                              aria-haspopup="menu"
                                              ::aria-expanded="dropdownMenu">
                                     <span class="n26-icon-only">

@@ -236,6 +236,124 @@ class TestTheCountOnAModelCardLine:
         assert page.count('aria-label="More for Stimm-slug (25¢)"') == 2
 
 
+class TestThePetOnAModelCard:
+    """A pet's card names its owner, linked where the demo gives the
+    anchor; the owner's kit line names the pet after the kit."""
+
+    def test_the_pet_demo_links_the_owners_card(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        # A chain among the controls, named for whoever uses a reader.
+        assert 'aria-label="Owned by Vesna Krail"' in page
+        assert 'href="#model-vesna-krail"' in page
+        assert page.count('id="model-vesna-krail"') == 1
+
+    @pytest.mark.parametrize(
+        "url, at_least",
+        [
+            ("/n26/design/c/model-card/", 8),
+            ("/n26/design/c/view-gang-sheet/", 5),
+            ("/n26/design/shell/gang/", 5),
+        ],
+    )
+    def test_every_card_on_the_page_has_an_anchor_of_its_own(
+        self, reader, url, at_least
+    ):
+        """The sample card is drawn many times over — the card page's
+        variants, the gang sheet's five members — and each drawing is a
+        copy under its own id, so the owner link lands on one card and
+        no page holds an id twice."""
+        import re
+
+        page = reader.get(url).content.decode()
+        anchors = re.findall(r'id="(model-[^"]+)"', page)
+        assert len(anchors) >= at_least
+        assert sorted(anchors) == sorted(set(anchors))
+
+    def test_the_stashed_pet_demo_says_where_the_collar_is(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "In the stash" in page
+
+    def test_the_owners_kit_line_names_the_pet(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "Phyrr Cat (pet) (120¢) (Fang)" in page
+
+    def test_the_stash_line_names_the_pet(self, reader):
+        page = reader.get("/n26/design/c/stash/").content.decode()
+        assert "Cyber-mastiff (pet) (Rust)" in page
+
+
+class TestTheHeaderBandSpecimens:
+    """The four cards that hold the header's whole contents at once, so
+    the band can be looked at while the names either side of it grow."""
+
+    def test_the_band_holds_everything_at_once(self, reader):
+        from n26.designsystem import sampledata
+
+        card = sampledata.model_card_header_short()
+        assert card.trade_points_left is not None and card.founding_budget
+        assert card.rating and card.profile_name and card.owned_by
+        assert card.image_url
+        # No id: the specimen draws its body plain rather than behind the
+        # tab strip, and carries no anchor to collide with the pet demo's.
+        assert card.id == ""
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "3 TP" in page
+        assert "390¢" in page
+        assert "Escher Death-Maiden" in page
+        assert 'aria-label="Owned by Vesna Krail"' in page
+
+    def test_the_live_specimens_draw_the_quiet_active_control(self, reader):
+        """A card carrying no status of its own gets Active as a muted
+        control rather than a badge — what most of a roster reads, and
+        the width the controls row usually has. Four of the five, the
+        fifth being the badged one."""
+        import re
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
+        assert len(re.findall(r">\s*Active\s*<", band)) == 4
+
+    def test_one_specimen_badges_the_longest_status(self, reader):
+        from n26.designsystem import sampledata
+
+        card = sampledata.model_card_header_badged()
+        assert card.status_label == "Critically Injured"
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
+        assert "Critically Injured" in band
+
+    def test_both_names_are_drawn_short_and_long(self, reader):
+        from n26.designsystem import sampledata
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        for name in (
+            sampledata.SHORT_HEADER_NAME,
+            sampledata.LONG_HEADER_NAME,
+            sampledata.SHORT_HEADER_OWNER,
+            sampledata.LONG_HEADER_OWNER,
+        ):
+            assert name in page
+
+    def test_the_specimens_carry_nothing_below_the_statline(self):
+        """What makes them readable: a specimen carrying the sample
+        card's weapons and gear would bury the band being looked at."""
+        from n26.designsystem import sampledata
+
+        for build in (
+            sampledata.model_card_header_short,
+            sampledata.model_card_header_long_name,
+            sampledata.model_card_header_long_owner,
+            sampledata.model_card_header_long_both,
+        ):
+            card = build()
+            assert card.statline.cells
+            assert not card.weapons
+            assert not card.equipment
+            assert not card.skills
+
+
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 

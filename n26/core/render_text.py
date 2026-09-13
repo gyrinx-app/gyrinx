@@ -24,7 +24,9 @@ def render_statline(statline, indent="  "):
 
 
 def render_model_card(card, indent=""):
-    owner = f"  (owned by {card.owned_by})" if card.owned_by else ""
+    # The same sentence the screen and the print card say — "Owned by
+    # Yolanda", or "In the stash" for a pet whose collar sits there.
+    owner = f"  ({card.owner_line})" if card.owner_line else ""
     lines = [
         f"{indent}{card.name} — {card.rating}cr{owner}",
         *(
@@ -50,7 +52,7 @@ def render_model_card(card, indent=""):
             # "added nothing here" — never "this was free". Kit that came
             # with the hire reads zero while being worth plenty, so the
             # number is simply left off rather than claimed.
-            label = weapon.name + weapon.slot_mark
+            label = weapon.name + weapon.slot_mark + weapon.brought_mark
             if weapon.total_rating:
                 total = f"{weapon.total_rating}cr"
                 if weapon.extras_rating:
@@ -71,25 +73,29 @@ def render_model_card(card, indent=""):
                 label += _profile_suffix(weapon.own_line)
             lines.append(f"{indent}    {label}")
             for accessory in weapon.accessories:
-                lines.append(f"{indent}      + {accessory.name}")
+                lines.append(
+                    f"{indent}      + {accessory.name}{accessory.brought_mark}"
+                )
             for profile in weapon.named_profiles:
                 lines.append(
-                    f"{indent}      - {profile.name}{_profile_suffix(profile)}"
+                    f"{indent}      - {profile.name}{profile.brought_mark}"
+                    f"{_profile_suffix(profile)}"
                 )
             for choice in weapon.choices:
                 chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
                 lines.append(f"{indent}      {choice.kind_label}: {chosen}")
     # A line standing for several of one thing is written once with its
-    # count, as every other card writes it.
-    if card.skills:
-        names = ", ".join(line.name + line.count_mark for line in card.skills)
-        lines.append(f"{indent}  Skills: {names}")
-    if card.rules:
-        names = ", ".join(line.name + line.count_mark for line in card.rules)
-        lines.append(f"{indent}  Rules: {names}")
-    if card.powers:
-        names = ", ".join(line.name + line.count_mark for line in card.powers)
-        lines.append(f"{indent}  Powers: {names}")
+    # count, as every other card writes it; one that brought a pet
+    # names it before the count. Every named row is an assignable, and
+    # any assignable may bring a model.
+    for heading, row in (
+        ("Skills", card.skills),
+        ("Rules", card.rules),
+        ("Powers", card.powers),
+    ):
+        if row:
+            names = ", ".join(_line_words(line) for line in row)
+            lines.append(f"{indent}  {heading}: {names}")
     for choice in card.row_questions:
         # Drawn like any other assignable's row; a real UI hangs the picker
         # link here. The provenance is deliberately not shown.
@@ -98,10 +104,10 @@ def render_model_card(card, indent=""):
             chosen = f"{chosen} (add)"
         lines.append(f"{indent}  {choice.kind_label}: {chosen}")
     if card.equipment:
-        names = ", ".join(line.name + line.count_mark for line in card.equipment)
+        names = ", ".join(_line_words(line) for line in card.equipment)
         lines.append(f"{indent}  Equipment: {names}")
     for group in card.gear_groups:
-        names = ", ".join(line.name + line.count_mark for line in group.lines)
+        names = ", ".join(_line_words(line) for line in group.lines)
         lines.append(f"{indent}  {group.name}: {names}")
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
@@ -112,6 +118,13 @@ def render_model_card(card, indent=""):
     for remark in card.remarks:
         lines.append(f"{indent}  ({remark.text})")
     return lines
+
+
+def _line_words(line):
+    """One assignable in a comma-separated run, with its marks in the
+    order every card writes them: the name, the pets it brought, then
+    how many it stands for."""
+    return line.name + line.brought_mark + line.count_mark
 
 
 def _profile_suffix(profile):
@@ -157,7 +170,9 @@ def render_gang_sheet(sheet):
         for line in sheet.stash:
             # The rating is one item's, however many the line stands for.
             rating = f" — {line.rating}cr" if line.rating else ""
-            lines.append(f"  {line.name}{line.slot_mark}{line.count_mark}{rating}")
+            lines.append(
+                f"  {line.name}{line.slot_mark}{line.brought_mark}{line.count_mark}{rating}"
+            )
     for note in sheet.remarks:
         lines.append(f"({note.text})")
     lines.append("")
