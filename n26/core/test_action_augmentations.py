@@ -4,6 +4,8 @@ import uuid
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from n26.core.augmentations import (
     apply_augmentation,
@@ -14,10 +16,13 @@ from n26.core.augmentations import (
 from n26.core.models import ActionRecord, Assignment, AugmentationSelection, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.library.authoring import (
+    add_action_outcome,
+    add_action_price_component,
     add_built_in,
     add_picklist_member,
     create_action,
     create_gang_type,
+    create_outcome,
     create_pickable,
     create_picklist,
     create_profile,
@@ -26,20 +31,20 @@ from n26.library.authoring import (
     create_wargear,
     create_weapon,
 )
-from n26.library.models import AugmentCarriedItem, Slot
-from n26.tests.sandbox.actions import buy, found_gang, hire
+from n26.library.models import AugmentCarriedItem, Counter, Slot, Stat
+from n26.tests.sandbox.actions import buy, changes_stat, found_gang, hire, targets_model
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def action_record(default_pack, fighter_type):
+def action_record(default_pack, fighter_type, make_statline):
     gang_type = create_gang_type("Hunters", starting_credits=1000)
     owner = User.objects.create_user("augmentation-player")
     gang = found_gang("The Hunt", gang_type, owner=owner, budget=1000)
-    fighter = hire(
-        gang, create_profile("Hunter", fighter_type, gang_type, price=100), "Vex"
-    )
+    profile = create_profile("Hunter", fighter_type, gang_type, price=100)
+    make_statline(profile)
+    fighter = hire(gang, profile, "Vex")
     action = create_action("Evolve suit", "post_cycle")
     return ActionRecord.objects.create(
         gang=gang,
@@ -54,12 +59,22 @@ def augmentation(default_pack):
     return create_slot_type("Augmentation", allows_repeats=False)
 
 
-def ladder(item, augmentation, levels):
+def ladder(item, augmentation, levels, *, effective=True, effects=None):
+    strength = Stat.objects.get(short_name="S")
     members = [
         create_pickable(
             f"{item.name} tier {level}",
             augmentation,
             rating_contribution=level,
+            effects=(
+                effects[level]
+                if effects is not None
+                else (
+                    [(targets_model(), changes_stat(strength, "improve", level))]
+                    if effective
+                    else []
+                )
+            ),
         )
         for level in levels
     ]
@@ -99,22 +114,28 @@ def test_preview_lists_each_repeated_wargear_assignment_separately(
     assert {choice.candidate_pick_id for choice in preview.candidates} == {str(tier.pk)}
 
 
-def test_preview_query_count_is_flat_as_items_grow(
-    action_record, augmentation, django_assert_max_num_queries
-):
+def test_preview_query_count_is_flat_as_items_grow(action_record, augmentation):
     items = []
-    for number in range(4):
+    for number in range(1):
         rig = create_wargear(f"Rig {number}", price=0)
         ladder(rig, augmentation, [1, 2, 3])
         items.append(buy(action_record.fighter, thing=rig, paid=0))
     outcome = configured(augmentation)
+    augmentation_options(action_record, outcome)
+    with CaptureQueriesContext(connection) as one_query:
+        one = augmentation_options(action_record, outcome)
 
-    # The fixed card hydration and modifier-index passes may be broad, but
-    # previewing another item must not add a query per item or per tier.
-    with django_assert_max_num_queries(45):
+    for number in range(1, 10):
+        rig = create_wargear(f"Rig {number}", price=0)
+        ladder(rig, augmentation, [1, 2, 3])
+        items.append(buy(action_record.fighter, thing=rig, paid=0))
+    augmentation_options(action_record, outcome)
+    with CaptureQueriesContext(connection) as many_queries:
         preview = augmentation_options(action_record, outcome)
 
     assert len(preview.candidates) == len(items)
+    assert len(one.candidates) == 1
+    assert len(many_queries) == len(one_query)
 
 
 @pytest.mark.parametrize("kind", ["weapon", "wargear"])
@@ -154,7 +175,7 @@ def test_preview_does_not_skip_a_non_clipped_ineffective_level(
     action_record, augmentation
 ):
     rig = create_wargear("Rig", price=0)
-    tiers = ladder(rig, augmentation, [1, 2])
+    tiers = ladder(rig, augmentation, [1, 2], effective=False)
     tiers[0].rating_contribution = 0
     tiers[0].save(update_fields=["rating_contribution"])
     buy(action_record.fighter, thing=rig, paid=0)
@@ -168,7 +189,7 @@ def test_preview_never_jumps_more_than_one_ineffective_level(
     action_record, augmentation
 ):
     rig = create_wargear("Rig", price=0)
-    tiers = ladder(rig, augmentation, [1, 2, 3])
+    tiers = ladder(rig, augmentation, [1, 2, 3], effective=False)
     for tier in tiers[:2]:
         tier.rating_contribution = 0
         tier.save(update_fields=["rating_contribution"])
@@ -179,10 +200,100 @@ def test_preview_never_jumps_more_than_one_ineffective_level(
     )
 
 
+def test_capped_rated_tier_skips_exactly_one_level(action_record, augmentation):
+    strength = Stat.objects.get(short_name="S")
+    attacks = Stat.objects.get(short_name="A")
+    type_stats = action_record.fighter.membership.profile.statline_type.stats
+    with operation(action_record.gang) as op:
+        op.set_stats(
+            action_record.fighter,
+            [(type_stats.get(stat=strength), "10", "Strength set to 10")],
+        )
+    rig = create_wargear("Rig", price=0)
+    tiers = ladder(
+        rig,
+        augmentation,
+        [1, 2],
+        effects={
+            1: [(targets_model(), changes_stat(strength, "improve", 1))],
+            2: [(targets_model(), changes_stat(attacks, "improve", 1))],
+        },
+    )
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+
+    (candidate,) = augmentation_options(
+        action_record, configured(augmentation)
+    ).candidates
+
+    assert candidate.item_assignment_id == str(carried.pk)
+    assert candidate.candidate_pick_id == str(tiers[1].pk)
+
+
+def test_an_unrelated_capped_characteristic_does_not_skip(action_record, augmentation):
+    strength = Stat.objects.get(short_name="S")
+    attacks = Stat.objects.get(short_name="A")
+    type_stats = action_record.fighter.membership.profile.statline_type.stats
+    with operation(action_record.gang) as op:
+        op.set_stats(
+            action_record.fighter,
+            [(type_stats.get(stat=strength), "10", "Strength set to 10")],
+        )
+    capped = create_pickable(
+        "Capped strength",
+        augmentation,
+        effects=[(targets_model(), changes_stat(strength, "improve", 1))],
+    )
+    with operation(action_record.gang) as op:
+        op.assign(capped, miniature=action_record.fighter)
+    rig = create_wargear("Rig", price=0)
+    tiers = ladder(
+        rig,
+        augmentation,
+        [1, 2],
+        effects={
+            1: [(targets_model(), changes_stat(attacks, "improve", 1))],
+            2: [(targets_model(), changes_stat(attacks, "improve", 2))],
+        },
+    )
+    buy(action_record.fighter, thing=rig, paid=0)
+
+    (candidate,) = augmentation_options(
+        action_record, configured(augmentation)
+    ).candidates
+
+    assert candidate.candidate_pick_id == str(tiers[0].pk)
+
+
+def test_tier_replacement_does_not_stack_the_previous_tiers_effect(
+    action_record, augmentation
+):
+    strength = Stat.objects.get(short_name="S")
+    rig = create_wargear("Rig", price=0)
+    tiers = ladder(
+        rig,
+        augmentation,
+        [1, 2],
+        effects={
+            level: [(targets_model(), changes_stat(strength, "improve", 1))]
+            for level in (1, 2)
+        },
+    )
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    _apply(action_record, outcome, carried, tiers[0])
+
+    assert augmentation_options(action_record, outcome).candidates == ()
+
+
 def _apply(record, configured_outcome, item, tier):
     terms = {"item_assignment": str(item.pk), "intended_pick": str(tier.pk)}
     with operation(record.gang) as op:
         return apply_augmentation(op, record, configured_outcome, terms)
+
+
+def _mark_completed(record):
+    record.state = ActionRecord.State.COMPLETED
+    record.save(update_fields=["state", "modified"])
 
 
 def test_apply_replaces_the_tier_and_records_exact_assignments(
@@ -236,6 +347,24 @@ def test_apply_refuses_an_item_moved_out_of_the_fighters_possession(
 
     with pytest.raises(Refusal, match="no longer carried"):
         _apply(action_record, outcome, carried, tier)
+
+
+def test_removed_ladder_is_not_an_augmentation_candidate(action_record, augmentation):
+    item = create_wargear("Rig", price=0)
+    ladder(item, augmentation, [1])
+    carried = buy(action_record.fighter, thing=item, paid=0)
+    slot = Assignment.objects.get(
+        miniature_root=action_record.fighter,
+        slot__slot_type=augmentation,
+        caused_by=carried,
+        archived=False,
+    )
+    with operation(action_record.gang) as op:
+        op.remove(slot)
+
+    assert (
+        augmentation_options(action_record, configured(augmentation)).candidates == ()
+    )
 
 
 def test_correction_moves_the_result_and_retains_original_history(
@@ -294,12 +423,119 @@ def test_correction_moves_the_result_and_retains_original_history(
     ]
 
 
+def test_reviewed_correction_uses_the_pre_action_tier_and_keeps_payment(
+    action_record, augmentation
+):
+    first_item = create_wargear("First rig", price=0)
+    second_item = create_wargear("Second rig", price=0)
+    first_tiers = ladder(first_item, augmentation, [1, 2, 3])
+    (second_tier,) = ladder(second_item, augmentation, [1])
+    first = buy(action_record.fighter, thing=first_item, paid=0)
+    second = buy(action_record.fighter, thing=second_item, paid=0)
+    configured_outcome = configured(augmentation)
+    outcome = create_outcome("Raise a tier", configured_outcome)
+    add_action_outcome(action_record.action, outcome)
+    kill_count = Counter.objects.create(name="Kill Count")
+    add_action_price_component(
+        action_record.action, "counter", "fighter", 4, counter=kill_count
+    )
+
+    with operation(action_record.gang) as op:
+        op.assign(action_record.action, miniature=action_record.fighter)
+        held_counter = op.assign(kill_count, miniature=action_record.fighter)
+        op.tally(held_counter, 4)
+        slot = Assignment.objects.get(
+            miniature_root=action_record.fighter,
+            slot__slot_type=augmentation,
+            caused_by=first,
+            archived=False,
+        )
+        op.choose(slot, first_tiers[0], slot=slot.slot, miniature=action_record.fighter)
+        record = op.start_action(
+            action_record.fighter, action_record.action, uuid.uuid4()
+        )
+
+    terms = {
+        "item_assignment": str(first.pk),
+        "intended_pick": str(first_tiers[1].pk),
+    }
+    with operation(action_record.gang) as op:
+        record = op.review_action(record, outcome=outcome, terms=terms)
+    with operation(action_record.gang) as op:
+        record = op.complete_action(
+            record,
+            revision=record.revision,
+            review=record.review,
+            outcome=outcome,
+        )
+    payment_id = record.payment_id
+
+    choices = augmentation_options(record, configured_outcome).candidates
+    assert {
+        (choice.item_assignment_id, choice.candidate_pick_id) for choice in choices
+    } == {
+        (str(first.pk), str(first_tiers[1].pk)),
+        (str(second.pk), str(second_tier.pk)),
+    }
+
+    correction = {
+        "item_assignment": str(second.pk),
+        "intended_pick": str(second_tier.pk),
+    }
+    with operation(action_record.gang) as op:
+        reviewed = op.review_action_correction(record, terms=correction)
+    reviewed_revision = reviewed.revision
+    reviewed_fingerprint = reviewed.review
+    movement = reviewed.fighter.membership.profile.statline_type.stats.get(
+        stat__short_name="M"
+    )
+    with operation(action_record.gang) as op:
+        op.set_stats(reviewed.fighter, [(movement, "6", 'Movement set to 6"')])
+    with (
+        operation(action_record.gang) as op,
+        pytest.raises(Refusal, match="fighter changed"),
+    ):
+        op.correct_action(
+            reviewed,
+            revision=reviewed_revision,
+            review=reviewed_fingerprint,
+            terms=correction,
+        )
+    with operation(action_record.gang) as op:
+        reviewed = op.review_action_correction(record, terms=correction)
+    reviewed_revision = reviewed.revision
+    reviewed_fingerprint = reviewed.review
+    with operation(action_record.gang) as op:
+        corrected, _result = op.correct_action(
+            reviewed,
+            revision=reviewed_revision,
+            review=reviewed_fingerprint,
+            terms=correction,
+        )
+
+    held_counter.counter_value.refresh_from_db()
+    assert held_counter.counter_value.value == 0
+    assert corrected.payment_id == payment_id
+    assert LedgerEvent.objects.filter(payment_id=payment_id).count() == 1
+    with (
+        operation(action_record.gang) as op,
+        pytest.raises(Refusal, match="Review this correction again"),
+    ):
+        op.correct_action(
+            corrected,
+            revision=reviewed_revision,
+            review=reviewed_fingerprint,
+            terms=correction,
+        )
+
+
 def test_correction_refuses_a_later_tier_change(action_record, augmentation):
     item = create_wargear("Rig", price=0)
     tiers = ladder(item, augmentation, [1, 2])
     carried = buy(action_record.fighter, thing=item, paid=0)
     outcome = configured(augmentation)
     _apply(action_record, outcome, carried, tiers[0])
+    _mark_completed(action_record)
     selection = AugmentationSelection.objects.get(action_record=action_record)
     with operation(action_record.gang) as op:
         op.replace_slot_pick(
@@ -339,6 +575,7 @@ def test_correction_restores_the_exact_previous_assignment(action_record, augmen
         action_record=action_record
     ).new_pick
     _apply(action_record, outcome, original, original_tiers[1])
+    _mark_completed(action_record)
 
     with operation(action_record.gang) as op:
         correct_augmentation(
@@ -369,6 +606,7 @@ def test_correction_refuses_dependent_changes(action_record, augmentation):
     carried = buy(action_record.fighter, thing=item, paid=0)
     outcome = configured(augmentation)
     _apply(action_record, outcome, carried, tier)
+    _mark_completed(action_record)
     selection = AugmentationSelection.objects.get(action_record=action_record)
     with operation(action_record.gang) as op:
         op.assign(
