@@ -10,9 +10,9 @@
 # breaks pre-commit hooks that import gyrinx (they see the main worktree's
 # code, not the worktree the agent is actually editing).
 #
-# If a worktree under .claude/worktrees/ has no .venv yet, the function
-# provisions one on demand via provision_worktree_venv in lib/worktree.sh
-# (one-time ~1 min cost per worktree).
+# Worktrees under .claude/worktrees/ are checked on demand via
+# provision_worktree_venv in lib/worktree.sh. Its dependency-input stamp makes
+# the unchanged case cheap and re-syncs after a rebase changes project metadata.
 #
 # Works in both local and remote (Claude Code on the Web) environments.
 # See .claude/settings.json for hook registration.
@@ -62,7 +62,7 @@ if command -v provision_worktree_venv >/dev/null 2>&1; then
   START_WT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null || true)
   if [ -n "$START_WT" ] && [ "$START_WT" != "$MAIN_WT" ] \
      && [[ "$START_WT" == *"/.claude/worktrees/"* ]]; then
-    provision_worktree_venv "$START_WT" || true
+    PATH="${HOME}/.local/bin:${PATH}" provision_worktree_venv "$START_WT" || true
   fi
 fi
 
@@ -97,7 +97,7 @@ fi
   printf 'export __GYRINX_MAIN_WT=%q\n' "$MAIN_WT"
   grep -Ev '^[[:space:]]*(#|$)' <<'BLOCK'
 _gyrinx_activate_worktree() {
-  local wt_root venv lib
+  local wt_root venv lib provision_failed=false
 
   # Determine which worktree we're currently in.  Fall back to the main
   # worktree if cwd isn't a git checkout (e.g. the agent cd'd to /tmp).
@@ -119,16 +119,20 @@ _gyrinx_activate_worktree() {
     . "$lib"
   fi
 
-  # Pick the venv: worktree's own first, main worktree as fallback.  For
-  # agent worktrees under .claude/worktrees/, auto-provision if missing so
-  # `python`, `pre-commit`, `pytest`, etc. all see worktree-local code.
+  # Pick the venv: worktree's own first, main worktree as fallback. Agent
+  # worktrees under .claude/worktrees/ also re-sync after uv.lock changes.
   venv="${wt_root}/.venv"
-  if [ ! -d "$venv" ] \
-     && [[ "$wt_root" == *"/.claude/worktrees/"* ]] \
+  if [[ "$wt_root" == *"/.claude/worktrees/"* ]] \
      && command -v provision_worktree_venv >/dev/null 2>&1; then
-    provision_worktree_venv "$wt_root" >&2 || true
+    if ! PATH="${HOME}/.local/bin:${PATH}" \
+      provision_worktree_venv "$wt_root" >&2; then
+      provision_failed=true
+      echo "[gyrinx] Worktree venv sync failed; leaving it inactive." >&2
+    fi
   fi
-  if [ ! -d "$venv" ]; then
+  if [ "$provision_failed" = true ]; then
+    venv=""
+  elif [ ! -d "$venv" ]; then
     venv="${__GYRINX_MAIN_WT}/.venv"
   fi
 
@@ -139,6 +143,15 @@ _gyrinx_activate_worktree() {
       export PATH="${venv}/bin:${HOME}/.local/bin:${__GYRINX_BASE_PATH}"
     fi
     export VIRTUAL_ENV="$venv"
+  else
+    # A previous invocation may have activated this worktree's stale venv.
+    # Restore the baseline instead of silently continuing to use it.
+    if [ -n "$__GYRINX_PG_BIN_DIR" ]; then
+      export PATH="${__GYRINX_PG_BIN_DIR}:${HOME}/.local/bin:${__GYRINX_BASE_PATH}"
+    else
+      export PATH="${HOME}/.local/bin:${__GYRINX_BASE_PATH}"
+    fi
+    unset VIRTUAL_ENV
   fi
 
   export DJANGO_SETTINGS_MODULE=gyrinx.settings_dev
