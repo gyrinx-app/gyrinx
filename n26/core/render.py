@@ -40,6 +40,8 @@ from n26.library.models import (
     Subtype,
     Weapon,
     WeaponProfile,
+    slot_mark,
+    slots_of,
 )
 from n26.library.standard_content import XP_COUNTER
 
@@ -110,8 +112,22 @@ class Provenance:
     computed: bool = False
 
 
+class SlotMarked:
+    """A line that draws the book's asterisk after a two-slot weapon's name.
+
+    ``slots`` is the library's number for a weapon and 1 for anything
+    else — the number that draws no mark — so one template composes a
+    weapon's line, a wargear's and a skill's the same way: the name,
+    then ``slot_mark``, then whatever count follows.
+    """
+
+    @property
+    def slot_mark(self):
+        return slot_mark(self.slots)
+
+
 @dataclass(frozen=True)
-class AssignableLine:
+class AssignableLine(SlotMarked):
     """One assignable drawn on a card: its name, and where it came from.
 
     ``rating`` is what the line contributed to the model's rating, and
@@ -147,6 +163,9 @@ class AssignableLine:
     #: (a pet), each of which is its own line.
     key: str = ""
     count: int = 1
+    #: Weapon slots this takes on a card; 1 for everything that is not a
+    #: weapon, which is what these lines are — see :class:`SlotMarked`.
+    slots: int = 1
 
     @property
     def count_mark(self):
@@ -338,7 +357,7 @@ class WeaponProfileLine:
 
 
 @dataclass
-class WeaponLine:
+class WeaponLine(SlotMarked):
     name: str
     base_rating: int
     #: The assignment's pk, as a string, when this line draws a stored
@@ -949,7 +968,7 @@ class ModelCard:
 
 
 @dataclass
-class StashLine:
+class StashLine(SlotMarked):
     """One thing in the gang's stash, and what it is pinned at."""
 
     name: str
@@ -983,6 +1002,10 @@ class StashLine:
     #: Empty is a name with nothing to click, which is what a print-out
     #: and a reader who does not own the gang want.
     menu: tuple = ()
+    #: Weapon slots this takes on a card — the library's number for a
+    #: weapon, 1 for anything else — so the stash marks a two-slot
+    #: weapon the way a card does.
+    slots: int = 1
 
     @property
     def count_mark(self):
@@ -2940,6 +2963,7 @@ def stash_lines(gang_card, collapse_repeats=True):
             id=str(node.assignment.pk) if node.assignment is not None else "",
             is_accessory=isinstance(node.assignable, WeaponAccessory),
             paid_trade_points=node.paid_trade_points,
+            slots=slots_of(node.assignable),
             key=(
                 ""
                 if isinstance(node.assignable, Weapon)
