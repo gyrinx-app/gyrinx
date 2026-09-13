@@ -78,7 +78,8 @@ def render_model_card(card, indent=""):
                 )
             for profile in weapon.named_profiles:
                 lines.append(
-                    f"{indent}      - {profile.name}{_profile_suffix(profile)}"
+                    f"{indent}      - {profile.name}{profile.brought_mark}"
+                    f"{_profile_suffix(profile)}"
                 )
             for choice in weapon.choices:
                 chosen = choice.chosen if choice.is_resolved else "— (not chosen)"

@@ -72,7 +72,7 @@ want.
             {% for profile in weapon.named_profiles %}
                 {# is-continued suppresses the row rule when a traits line follows. #}
                 <tr {% if profile.traits %}class="is-continued"{% endif %}>
-                    <td><span class="n26-print-subname">{{ profile.name }}</span></td>
+                    <td><span class="n26-print-subname">{{ profile.name }}{{ profile.brought_mark }}</span></td>
                     {% for cell in profile.statline.cells %}
                         <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
                     {% endfor %}

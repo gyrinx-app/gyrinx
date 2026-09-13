@@ -383,6 +383,17 @@ class WeaponProfileLine:
     id: str = ""
     sell: object = None
     more: tuple = ()
+    #: The models this profile brought onto the roster, as their owner
+    #: named them — a profile carries modifiers as any assignable does.
+    #: Filled only on a named line, which is drawn and has a menu of its
+    #: own; what the unnamed line brought is the weapon's, since the two
+    #: share a row. Drawn after the name (``brought_mark``).
+    brought_in: tuple[str, ...] = ()
+
+    @property
+    def brought_mark(self):
+        """The pets' names in brackets, where this profile brought any."""
+        return brought_mark(self.brought_in)
 
 
 @dataclass
@@ -420,9 +431,9 @@ class WeaponLine(SlotMarked):
     #: The models this weapon brought onto the roster, as their owner
     #: named them — what ``AssignableLine.brought_in`` is for a gear
     #: line. A weapon carries modifiers as any assignable does, so one
-    #: may bring a model; what its fittings brought is on their own
-    #: lines, not here. Drawn after the slot mark (``brought_mark``),
-    #: wherever the name is.
+    #: may bring a model; what its fittings and its named profiles
+    #: brought is on their own lines, not here. Drawn after the slot
+    #: mark (``brought_mark``), wherever the name is.
     brought_in: tuple[str, ...] = ()
 
     @property
@@ -2342,11 +2353,20 @@ def card_to_model_card(
             child for child in node.children if not child.is_weapon_profile
         ]
         # What the weapon brought is asked of the whole of its line, as
-        # a gear line asks — the purchase a pet names may be a mode or a
-        # hidden part under the weapon — except what a fitting's own
-        # line says: a fitting names its own pet, so the weapon does not
-        # name it twice.
-        claimed = {str(each.key) for child in accessory_nodes for each in child.walk()}
+        # a gear line asks — the purchase a pet names may be a hidden
+        # part under the weapon — except what is said on a line of its
+        # own beneath: a fitting and a named profile each name their own
+        # pet, so the weapon does not name it twice. The unnamed profile
+        # shares the weapon's row, so its pets are the weapon's. A
+        # profile assigned straight to a model is its own named line.
+        named_profile_nodes = [
+            child for child in profile_nodes if child.assignable.name
+        ]
+        claimed = {
+            str(each.key)
+            for child in (*accessory_nodes, *named_profile_nodes)
+            for each in child.walk()
+        }
         brought = tuple(
             name
             for each in node.walk()
@@ -2373,6 +2393,9 @@ def card_to_model_card(
                     id=(
                         str(child.assignment.pk) if child.assignment is not None else ""
                     ),
+                    brought_in=(
+                        brought_in_of(child) if child in named_profile_nodes else ()
+                    ),
                 )
             )
         return WeaponLine(
@@ -2380,7 +2403,9 @@ def card_to_model_card(
             # A stored weapon carries its assignment; a preview's exists on
             # no ledger and keys nothing, which "" is how a line says.
             id=str(node.assignment.pk) if node.assignment is not None else "",
-            slots=node.assignable.slots,
+            # The library's number for a weapon; a profile assigned
+            # straight to the model has none and takes one slot.
+            slots=slots_of(node.assignable),
             base_rating=node.rating,
             profiles=profiles,
             accessories=[
