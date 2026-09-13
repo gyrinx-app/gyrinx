@@ -442,6 +442,24 @@ class WeaponLine(SlotMarked):
         return brought_mark(self.brought_in)
 
     @property
+    def total_brought_in(self):
+        """Every model this weapon's line brought, its profiles' and its
+        fittings' included — what goes where the weapon goes, as
+        ``total_rating`` counts what rides on it. For a picker that
+        ticks the whole assignment at once, and so has one label for
+        what the card draws on several rows; a profile assigned straight
+        to the model names its pet on its own row, and here."""
+        return (
+            *self.brought_in,
+            *(name for profile in self.profiles for name in profile.brought_in),
+            *(name for accessory in self.accessories for name in accessory.brought_in),
+        )
+
+    @property
+    def total_brought_mark(self):
+        return brought_mark(self.total_brought_in)
+
+    @property
     def extras_rating(self):
         """What rides on the weapon: its paid profiles and its accessories.
 
@@ -3278,10 +3296,6 @@ def render_gang(
     models = roster(gang)
     gang_card = card or build_gang_card(gang)
     cards = gang_card.members
-    # What each purchase brought onto the roster, read off the roster
-    # already fetched: every card and the stash name their pets from
-    # this one map, and none of them asks the database.
-    brought = brought_in_by(models)
 
     computed = {}
     gang_computed = None
@@ -3307,6 +3321,13 @@ def render_gang(
         }
         if recategorised:
             models = _mustered(models, recategorised)
+    # What each purchase brought onto the roster, read off the roster
+    # already fetched: every card and the stash name their pets from
+    # this one map, and none of them asks the database. Built once the
+    # order is settled, so a kit that brought two names them in the
+    # order their cards are drawn — a rule that re-files one moves its
+    # name too.
+    brought = brought_in_by(models)
 
     # The campaign the gang is playing, if any: one query, whatever the
     # roster's size. What it gave is on the card already; this says which

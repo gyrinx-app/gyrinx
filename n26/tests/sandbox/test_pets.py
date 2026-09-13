@@ -382,7 +382,7 @@ class TestThePetCardNamesItsOwner:
         assert f'href="#model-{yolanda.pk}"' not in body
         assert "Yolanda" not in [card.name for card in render_gang(gang).models]
 
-    def test_the_pets_own_page_costs_what_any_fighters_does(
+    def test_a_pets_own_page_makes_the_same_queries_as_a_fighters(
         self, client, gang, bought, make_profile
     ):
         """Naming the owner reads the cause of the pet's membership and
@@ -1019,6 +1019,11 @@ class TestANamedProfileThatBringsAModel:
         ).content.decode()
         assert 'aria-label="More for Beast rounds (Fang)"' in page
         assert 'aria-label="More for Autogun (Fang)"' not in page
+        # The print picker ticks the whole assignment — the gun and the
+        # rounds print together — so its one label names what the card
+        # draws on two rows.
+        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
+        assert "Autogun (Fang)" in setup
 
     def test_what_the_unnamed_line_brought_is_written_on_the_weapon(
         self, gang, yolanda, mastiff_profile
@@ -1038,7 +1043,7 @@ class TestANamedProfileThatBringsAModel:
         assert "    Lasgun (Fang) — 15cr" in gang_to_text(gang)
 
     def test_a_profile_assigned_straight_to_the_model_names_it_on_its_own_line(
-        self, gang, yolanda, autogun
+        self, client, gang, yolanda, autogun
     ):
         rounds = autogun.profiles.get(name="Beast rounds")
         assign(rounds, miniature=yolanda, paid=10)
@@ -1047,7 +1052,12 @@ class TestANamedProfileThatBringsAModel:
         (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
         (line,) = weapon.named_profiles
         assert (weapon.brought_in, line.brought_in) == ((), ("Fang",))
+        assert weapon.total_brought_mark == " (Fang)"
         assert "- Beast rounds (Fang)" in gang_to_text(gang)
+
+        client.force_login(gang.owner)
+        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
+        assert f"{weapon.name} (Fang)" in setup
 
     def test_a_lone_card_finds_the_pet_in_one_query(self, gang, yolanda, loaded):
         from django.db import connection
@@ -1219,3 +1229,54 @@ class TestAStoredEffectWhoseScopeIsSkipped:
         (line,) = [line for line in card.equipment if line.name == "Handler's collar"]
         assert line.brought_in == ("Fang",)
         assert len(alone.captured_queries) == 1
+
+
+class TestPetsAreNamedInTheOrderTheirCardsDraw:
+    """Kit that brought two models names them in the order the sheet
+    draws their cards. A pet whose collar sits in the stash has no
+    keeper to sort beside, so its own rank places it — and a rule that
+    re-files it under another category moves its card, which must move
+    its name on the collar's line with it. That order is settled after
+    every card is computed, so the names are read from the roster as
+    re-filed rather than as first fetched."""
+
+    def test_a_refiled_pet_moves_in_the_collar_line_too(
+        self, gang, make_profile, default_pack
+    ):
+        from n26.tests.sandbox.actions import create_category, ef_changes_category
+
+        ranks = {
+            name: create_category("Gang List", name, position)
+            for position, name in enumerate(["Hound", "Vermin", "Refiled"])
+        }
+        collar = create_wargear("Twin collar", price=150)
+        for beast, rank in (("Hound", "Hound"), ("Giant rat", "Vermin")):
+            modifier(
+                f"The twin collar brings a {beast.lower()}",
+                targets_model(),
+                op_adds_model(make_profile(beast, price=25, category=ranks[rank])),
+                carried_by=collar,
+            )
+        assign(collar, stash=gang.stash, paid=150)
+        for beast, name in (("Hound", "Fang"), ("Giant rat", "Rex")):
+            rename(gang, Miniature.objects.get(membership__gang=gang, name=beast), name)
+
+        def drawn(sheet):
+            (line,) = sheet.stash
+            cards = [card.name for card in sheet.models if card.name in ("Fang", "Rex")]
+            return line.brought_in, tuple(cards)
+
+        assert drawn(render_gang(gang)) == (("Fang", "Rex"), ("Fang", "Rex"))
+
+        refiled = create_subtype("Refiled")
+        modifier(
+            "A refiled hound sorts last",
+            targets_model_where(),
+            ef_changes_category(ranks["Refiled"]),
+            carried_by=refiled,
+        )
+        assign(
+            refiled, miniature=Miniature.objects.get(membership__gang=gang, name="Fang")
+        )
+
+        assert drawn(render_gang(gang)) == (("Rex", "Fang"), ("Rex", "Fang"))
