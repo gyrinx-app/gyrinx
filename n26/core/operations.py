@@ -2302,11 +2302,12 @@ class Operation:
         action_record,
     ):
         """Archive one slot pick and retain exact before/after provenance."""
-        self.remove(
-            previous_pick,
-            action_record=action_record,
-            before_pick=previous_pick,
-        )
+        if previous_pick is not None:
+            self.remove(
+                previous_pick,
+                action_record=action_record,
+                before_pick=previous_pick,
+            )
         replacement = None
         if chosen is not None:
             replacement = self.choose(
@@ -2316,14 +2317,62 @@ class Operation:
                 miniature=miniature,
                 action_record=action_record,
             )
+        if replacement is not None or previous_pick is not None:
+            self.event(
+                replacement or previous_pick,
+                LedgerEvent.Kind.AMENDED,
+                action_record=action_record,
+                before_pick=previous_pick,
+                after_pick=replacement,
+            )
+        return replacement
+
+    def restore_slot_pick(
+        self,
+        anchor,
+        slot,
+        *,
+        restore_pick,
+        replacing,
+        miniature,
+        action_record,
+    ):
+        """Restore the exact archived pick replaced by an earlier action."""
+        restore_pick = _under_the_lock(restore_pick)
+        replacing = _under_the_lock(replacing)
+        if (
+            not restore_pick.archived
+            or replacing.archived
+            or restore_pick.chosen_for_id != anchor.pk
+            or restore_pick.chosen_for_slot_id != slot.pk
+            or replacing.chosen_for_id != anchor.pk
+            or replacing.chosen_for_slot_id != slot.pk
+            or restore_pick.miniature_root_id != miniature.pk
+            or replacing.miniature_root_id != miniature.pk
+            or Assignment.objects.filter(
+                chosen_for=anchor,
+                chosen_for_slot=slot,
+                archived=False,
+            )
+            .exclude(pk=replacing.pk)
+            .exists()
+        ):
+            raise Refusal("That augmentation has changed and cannot be restored.")
+        self.remove(
+            replacing,
+            action_record=action_record,
+            before_pick=replacing,
+        )
+        restore_pick.unarchive()
+        self.touched(miniature)
         self.event(
-            replacement or previous_pick,
+            restore_pick,
             LedgerEvent.Kind.AMENDED,
             action_record=action_record,
-            before_pick=previous_pick,
-            after_pick=replacement,
+            before_pick=replacing,
+            after_pick=restore_pick,
         )
-        return replacement
+        return restore_pick
 
     def add_legacy_profile(self, miniature, profile, **kwargs):
         """A second profile on a model — the Venator case.
@@ -2597,11 +2646,11 @@ class Operation:
 
         return start_action(self, fighter, action, request_key, allowance=allowance)
 
-    def review_action(self, record, *, terms=None):
+    def review_action(self, record, *, outcome, terms=None):
         """Capture the exact terms and balances offered for confirmation."""
         from n26.core.action_records import review_action
 
-        return review_action(self, record, terms=terms)
+        return review_action(self, record, outcome=outcome, terms=terms)
 
     def complete_action(self, record, *, revision, review, outcome):
         """Verify and atomically pay for and apply a reviewed action use."""
