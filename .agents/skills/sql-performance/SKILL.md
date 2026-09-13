@@ -53,6 +53,35 @@ Test the scaling question directly: if the page rendered more of the repeated ob
 with it? Compare a small and larger local case when the answer is unclear. Query growth with collection size matters
 more than the absolute total from one request.
 
+## Inspect from a command line
+
+Do not open a separate Django shell after a browser request and expect `connection.queries` to contain that request.
+The query log belongs to the current process and connection, and Django clears it when a request starts. A new
+`manage shell` therefore sees only SQL executed by that shell.
+
+For a command-line-only check, make the page request inside the same shell process and capture it explicitly:
+
+```python
+from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test import Client
+from django.test.utils import CaptureQueriesContext
+
+client = Client()
+client.force_login(get_user_model().objects.get(username="agent"))
+with CaptureQueriesContext(connection) as captured:
+    response = client.get("/path/to/page/")
+
+response.status_code, len(captured), captured.captured_queries
+```
+
+This is a fresh test-client request, not the browser's most recent load. It is useful for counts and raw SQL but does
+not provide the toolbar's similar and duplicate groups, timeline, or stack traces. Prefer the toolbar for the real
+browser path. If browser automation is unavailable, retain its authenticated cookie jar, extract the request ID from
+the page's toolbar markup, and request
+`/__debug__/render_panel/?request_id=<id>&panel_id=SQLPanel` from the running server. That reads the toolbar snapshot
+for the actual page request; importing the toolbar's default in-memory store from another shell process does not.
+
 ## Fix the source of growth
 
 Put related-object loading at the queryset boundary that owns the page:
