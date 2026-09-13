@@ -11,8 +11,8 @@
 # code, not the worktree the agent is actually editing).
 #
 # Worktrees under .claude/worktrees/ are checked on demand via
-# provision_worktree_venv in lib/worktree.sh. Its lock hash stamp makes the
-# unchanged case cheap and re-syncs after a rebase changes uv.lock.
+# provision_worktree_venv in lib/worktree.sh. Its dependency-input stamp makes
+# the unchanged case cheap and re-syncs after a rebase changes project metadata.
 #
 # Works in both local and remote (Claude Code on the Web) environments.
 # See .claude/settings.json for hook registration.

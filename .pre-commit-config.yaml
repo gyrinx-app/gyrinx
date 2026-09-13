@@ -15,8 +15,8 @@ repos:
     hooks:
       - id: check-formatter-versions
         name: Check formatter version pins
-        entry: python3 scripts/check_formatter_versions.py --config-only
-        language: system
+        entry: python scripts/check_formatter_versions.py --config-only
+        language: python
         pass_filenames: false
         always_run: true
 

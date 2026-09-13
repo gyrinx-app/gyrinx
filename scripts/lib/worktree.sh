@@ -31,6 +31,23 @@ _is_main_worktree() {
   [ "$root" = "$main" ]
 }
 
+_sha256_file() {
+  local file="$1"
+  local hash_output file_hash
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash_output=$(sha256sum "$file") || return 1
+  elif command -v shasum >/dev/null 2>&1; then
+    hash_output=$(shasum -a 256 "$file") || return 1
+  else
+    return 1
+  fi
+  file_hash=${hash_output%%[[:space:]]*}
+  if [[ ! "$file_hash" =~ ^[[:xdigit:]]{64}$ ]]; then
+    return 1
+  fi
+  printf '%s\n' "$file_hash"
+}
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -129,9 +146,10 @@ homebrew_postgres_data_dir() {
 }
 
 # provision_worktree_venv <worktree_root>
-#   Ensure <worktree_root>/.venv matches uv.lock and has the project
-#   editable-installed from that worktree. A hash stamp makes the unchanged
-#   case a cheap no-op while still catching lock changes after a rebase.
+#   Ensure <worktree_root>/.venv matches uv.lock and pyproject.toml, and has
+#   the project editable-installed from that worktree. A hash stamp makes the
+#   unchanged case a cheap no-op while still catching dependency-input changes
+#   after a rebase.
 #
 #   Used by dev.sh and activate_venv_hook.sh to give every child worktree
 #   (including the .claude/worktrees/* worktrees created by EnterWorktree)
@@ -143,7 +161,7 @@ homebrew_postgres_data_dir() {
 #
 #   Echoes a one-line progress message to stderr when a sync is needed so the
 #   delay isn't silent. Returns 0 on success or skip; non-zero if uv is missing,
-#   uv.lock cannot be hashed, or provisioning fails.
+#   dependency inputs cannot be hashed, or provisioning fails.
 provision_worktree_venv() {
   local wt_root="$1"
   if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
@@ -151,35 +169,30 @@ provision_worktree_venv() {
   fi
   local venv="${wt_root}/.venv"
   local lock_file="${wt_root}/uv.lock"
-  local stamp_file="${venv}/.gyrinx-uv-lock.sha256"
-  local hash_output lock_hash stamped_hash=""
+  local project_file="${wt_root}/pyproject.toml"
+  local stamp_file="${venv}/.gyrinx-uv-inputs"
+  local lock_hash project_hash current_inputs stamped_inputs=""
   if [ ! -f "$lock_file" ]; then
     echo "[gyrinx] No uv.lock found at ${lock_file}; cannot provision ${venv}." >&2
     return 1
   fi
-  if command -v sha256sum >/dev/null 2>&1; then
-    if ! hash_output=$(sha256sum "$lock_file"); then
-      echo "[gyrinx] Could not hash ${lock_file}; cannot verify ${venv}." >&2
-      return 1
-    fi
-  elif command -v shasum >/dev/null 2>&1; then
-    if ! hash_output=$(shasum -a 256 "$lock_file"); then
-      echo "[gyrinx] Could not hash ${lock_file}; cannot verify ${venv}." >&2
-      return 1
-    fi
-  else
-    echo "[gyrinx] No SHA-256 tool found; cannot check ${lock_file}." >&2
+  if [ ! -f "$project_file" ]; then
+    echo "[gyrinx] No pyproject.toml found at ${project_file}; cannot provision ${venv}." >&2
     return 1
   fi
-  lock_hash=${hash_output%%[[:space:]]*}
-  if [[ ! "$lock_hash" =~ ^[[:xdigit:]]{64}$ ]]; then
-    echo "[gyrinx] Invalid SHA-256 output for ${lock_file}; cannot verify ${venv}." >&2
+  if ! lock_hash=$(_sha256_file "$lock_file"); then
+    echo "[gyrinx] Could not hash ${lock_file}; cannot verify ${venv}." >&2
     return 1
   fi
+  if ! project_hash=$(_sha256_file "$project_file"); then
+    echo "[gyrinx] Could not hash ${project_file}; cannot verify ${venv}." >&2
+    return 1
+  fi
+  current_inputs="${lock_hash}:${project_hash}"
   if [ -f "$stamp_file" ]; then
-    stamped_hash=$(<"$stamp_file")
+    stamped_inputs=$(<"$stamp_file")
   fi
-  if [ -d "$venv" ] && [ "$stamped_hash" = "$lock_hash" ]; then
+  if [ -d "$venv" ] && [ "$stamped_inputs" = "$current_inputs" ]; then
     return 0
   fi
   if ! command -v uv >/dev/null 2>&1; then
@@ -193,7 +206,7 @@ provision_worktree_venv() {
     new_venv=true
     echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
   else
-    echo "[gyrinx] uv.lock changed; syncing ${venv}..." >&2
+    echo "[gyrinx] Project dependency inputs changed; syncing ${venv}..." >&2
   fi
   # If initial provisioning fails after `uv sync` creates the directory,
   # remove the partial venv. Preserve an existing venv after a failed re-sync,
@@ -207,7 +220,7 @@ provision_worktree_venv() {
     fi
     return 1
   fi
-  printf '%s\n' "$lock_hash" > "$stamp_file"
+  printf '%s\n' "$current_inputs" > "$stamp_file"
   install_worktree_venv_hook "$venv/bin/activate" || true
   if [ "$new_venv" = true ]; then
     echo "[gyrinx] Provisioned ${venv}." >&2

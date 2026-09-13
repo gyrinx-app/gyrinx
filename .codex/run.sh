@@ -18,7 +18,7 @@ if [ ! -f "$VENV_ACTIVATE" ]; then
 fi
 
 # A rebase can change uv.lock without replacing .venv. The shared provisioner
-# uses a lock hash stamp, so this is a cheap no-op unless dependencies changed.
+# uses a dependency-input stamp, so this is a cheap no-op unless they changed.
 # shellcheck disable=SC1090
 source "$WORKTREE_LIB"
 provision_worktree_venv "$PROJECT_DIR" || exit 1
