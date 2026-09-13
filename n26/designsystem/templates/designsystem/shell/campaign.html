@@ -31,6 +31,15 @@ be judged side by side.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
+        {% comment %}
+        Beside the name, as the application draws it: the page's share
+        control, for every reader alike.
+        {% endcomment %}
+        <c-slot name="trailing">
+            <div class="flex items-center gap-2">
+                <c-n26.share url="{% url 'designsystem:shell_campaign' %}" />
+            </div>
+        </c-slot>
         <c-slot name="arbitrator">
             <c-n26.flair-link text="{{ dashboard_username }}"
                               href="{% url 'designsystem:shell_home' %}"

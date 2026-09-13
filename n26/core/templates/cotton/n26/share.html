@@ -39,6 +39,15 @@ button shares the same address it would navigate to.
               clearTimeout(this.timer);
               this.timer = setTimeout(() => { this.copied = false; }, 4000);
           },
+          clicked(event) {
+              // A modified or non-primary click, or a link aimed at another
+              // window, is the browser's to handle: open in a new tab, and so on.
+              const link = event.currentTarget;
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              if (link.target && link.target !== '_self') return;
+              event.preventDefault();
+              this.share(link.href);
+          },
           share(url) {
               const copy = () => {
                   if (!navigator.clipboard) { window.location.assign(url); return; }
@@ -52,7 +61,7 @@ button shares the same address it would navigate to.
               }
           }
       }">
-    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" @click.prevent="share($el.href)">
+    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" @click="clicked($event)">
         <span class="inline-flex items-center gap-1.5">
             <c-n26.icon name="share" class="size-4" />
             Share
