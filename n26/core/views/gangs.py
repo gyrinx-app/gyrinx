@@ -254,7 +254,12 @@ def gang_sheet(request, pk):
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
-    from n26.core.views.choose import link_slots
+    from n26.core.views.choose import (
+        dismissed_toggle,
+        link_slots,
+        settle_dismissed,
+        showing_dismissed,
+    )
     from n26.core.views.htmx import is_htmx
     from n26.core.views.owned import link_counters, link_stash_actions, owned_dialog
     from n26.core.views.skills import link_skills
@@ -304,8 +309,30 @@ def gang_sheet(request, pk):
     sheet = render_gang(gang, card=card, for_owner=founding_seen)
     dialog = None
     link_campaign(sheet.campaign, request.user)
+    # The offers the owner has dismissed come off every card and the
+    # gang's own strip, whoever is reading: one query. The owner may ask
+    # for them back on screen, marked, each with a way to restore it —
+    # on the living cards and the gang's own strip; a dead model's card
+    # has nothing to click, so its dismissed offers only go.
+    showing = yours and showing_dismissed(request.get_full_path())
+    settle_dismissed(
+        gang,
+        sheet,
+        *sheet.models,
+        at=at if yours else "",
+        showing=showing,
+        hide_only=sheet.dead,
+    )
     if yours:
-        link_slots(gang, sheet, *sheet.models)
+        # A settled choice lands on the gang; a dismissal or a restore
+        # lands on this sheet as it stood, still showing the dismissed
+        # offers if it was.
+        link_slots(
+            gang,
+            sheet,
+            *sheet.models,
+            dismiss_back=dismissed_toggle(at, not showing),
+        )
         link_skills(*sheet.models)
         link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
         if sheet.campaign:

@@ -23,6 +23,8 @@ from n26.core.effects import (
     limit_notes,
     stacked_names,
 )
+from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
+from n26.core.models.dismissed_offer import slot_key as _address
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -425,9 +427,10 @@ class WeaponLine:
 
 
 #: What a gang's own choice slots are addressed under, where a model's are
-#: addressed under the model's id. A ULID is never this word, so the two
-#: kinds of host cannot collide in a slot key.
-GANG_SLOT_HOST = "gang"
+#: addressed under the model's id. Owned by the dismissed-offer row, which
+#: is keyed on the address; re-exported here because this is where a slot
+#: is addressed.
+GANG_SLOT_HOST = _GANG_SLOT_HOST
 
 
 @dataclass
@@ -466,6 +469,23 @@ class ChoiceLine:
     #: on the control: a choice of one is chosen, a choice of several has
     #: picks added to it.
     takes_several: bool = False
+    #: Whether the gang's owner has dismissed this offer. A dismissed
+    #: line is normally left off the structure altogether
+    #: (``hide_dismissed``); it is kept and marked only on a screen the
+    #: owner has asked to show dismissed offers on, where it draws as
+    #: what it was with a way to bring it back rather than a Choose.
+    dismissed: bool = False
+    #: Where dismissing this offer posts to, and where restoring it does.
+    #: Filled in by whoever knows the URL space, as ``href`` is, and only
+    #: for the owner: an open offer carries the first, a dismissed one
+    #: the second, and a line with either draws the control. Empty draws
+    #: nothing, which is what every other reader and a print sheet want.
+    dismiss_href: str = ""
+    restore_href: str = ""
+    #: The screen to land on once either act is done, carried in the form
+    #: rather than read off the request — a card redrawn after an act is
+    #: rendered under that act's own address.
+    back: str = ""
 
     def __post_init__(self):
         if self.is_full is None:
@@ -791,6 +811,16 @@ class ModelCard:
     #: not where a browsing screen lives. Empty draws no control, which
     #: is what a print sheet and a hire preview want.
     skills_href: str = ""
+    #: How many of this card's offers the owner has dismissed, and where
+    #: the screen that shows or hides them again is. Filled in by the
+    #: view, like ``skills_href``: this module knows which lines were
+    #: taken off (``hide_dismissed``) and not where a screen lives. A
+    #: count of 0 draws no control.
+    dismissed_count: int = 0
+    dismissed_href: str = ""
+    #: Whether the dismissed offers are being shown on this card — the
+    #: control then offers to hide them again.
+    dismissed_shown: bool = False
     #: The collections this model's grid places a category into, by id.
     #: Standing access, computed rather than assigned: it is what a
     #: screen for selecting is built on, and asking which of these hold
@@ -849,6 +879,22 @@ class ModelCard:
         """The questions drawn as rows of the card — every question but
         the ones an item carries under itself."""
         return [*self.choices, *self.skill_choices, *self.power_choices]
+
+    def question_lists(self):
+        """The lists the card's questions live in — the lists themselves,
+        for something that takes lines off a card.
+
+        ``questions`` is a reading of them; this hands over the lists so
+        a line can be removed from wherever it is filed without the
+        caller knowing which rows a card keeps. Every list is named here
+        or a dismissed offer would stay drawn in the one it is filed in.
+        """
+        return [
+            self.choices,
+            self.skill_choices,
+            self.power_choices,
+            *(weapon.choices for weapon in self.weapons),
+        ]
 
     @property
     def weapon_questions(self):
@@ -1094,6 +1140,13 @@ class GangSheet:
     #: the end and count nothing towards the rating or the tally.
     dead: list[ModelCard] = field(default_factory=list)
 
+    #: How many of the gang's own offers the owner has dismissed, and
+    #: where the screen that shows or hides them again is — a card's
+    #: ``dismissed_count`` and ``dismissed_href``, for the gang's strip.
+    dismissed_count: int = 0
+    dismissed_href: str = ""
+    dismissed_shown: bool = False
+
     @property
     def questions(self):
         """Every question this sheet draws — the gang's own, one strip of
@@ -1105,6 +1158,11 @@ class GangSheet:
         one list and not another.
         """
         return self.choices
+
+    def question_lists(self):
+        """The list the gang's questions live in, as a card hands over
+        its own — see ``ModelCard.question_lists``."""
+        return [self.choices]
 
 
 @dataclass
@@ -1520,7 +1578,7 @@ def _slot_key(slot, host):
     anchor = getattr(slot.anchor, "assignment", None)
     if not host or anchor is None or slot.identity is None:
         return ""
-    return f"{host}:{anchor.pk}:{slot.identity.pk}"
+    return _address(host, anchor.pk, slot.identity.pk)
 
 
 def _choice_line(slot, host):
@@ -1622,6 +1680,42 @@ def choice_lines(computed, host=""):
     if not computed:
         return []
     return [_choice_line(slot, host) for slot in computed.choices]
+
+
+def hide_dismissed(keys, holder, *, reveal=False):
+    """Take the offers the owner has dismissed off a card or a sheet, and
+    say how many there were.
+
+    ``keys`` is what the gang has dismissed (``DismissedOffer.keys_for``);
+    ``holder`` is a ModelCard or a GangSheet, changed in place. Every
+    list the holder files a question in is read, so a dismissed offer
+    goes whether it sits among the choices, in the Skills row or under a
+    weapon. Only an open line goes: an offer holding a pick draws that
+    pick whatever a stale row says, since what was chosen is a fact about
+    the gang and a dismissal is not — and one full with nothing chosen
+    (authored to take no picks) stays too, because no screen offers to
+    dismiss or restore such a line, so a row for it — written before the
+    content changed — would hide it for good.
+
+    ``reveal`` keeps the lines and marks them dismissed instead, which is
+    the screen where the owner is shown what they put away and offered
+    it back. The count is the same either way, so a control can say how
+    many there are to show before any are drawn.
+    """
+    if not keys:
+        return 0
+    found = 0
+    for lines in holder.question_lists():
+        kept = []
+        for line in lines:
+            if line.key in keys and not line.is_resolved and not line.is_full:
+                found += 1
+                if not reveal:
+                    continue
+                line.dismissed = True
+            kept.append(line)
+        lines[:] = kept
+    return found
 
 
 def build_choice_offer(slot, computed, *, include_staged=False):

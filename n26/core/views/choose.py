@@ -29,10 +29,72 @@ from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from n26.core.owned import with_query
-from n26.core.views.permissions import _own_gang_or_404
+from n26.core.views.permissions import _own_gang_or_404, _safe_redirect
 from n26.library.staged import sees_staged
+
+#: The query that asks a screen to draw the offers the owner has dismissed,
+#: each with a way to bring it back. In the address, so the screen is a
+#: link and a reload draws it again.
+SHOW_DISMISSED = "dismissed"
+SHOWING = "show"
+
+
+def showing_dismissed(url):
+    """Whether an address asks for the dismissed offers to be drawn.
+
+    Asked of a URL rather than a request, because the address a card is
+    redrawn under after an act arrives in the act's form, not on the
+    request that redraws it.
+    """
+    from urllib.parse import parse_qs, urlsplit
+
+    query = parse_qs(urlsplit(url).query)
+    return SHOWING in query.get(SHOW_DISMISSED, [])
+
+
+def settle_dismissed(gang, *holders, at="", showing=False, hide_only=()):
+    """Take the gang's dismissed offers off these cards and sheets, or keep
+    them on marked when the screen at ``at`` is showing them — and point
+    each holder that had any at ``at`` with the query the other way, so
+    the control sits beside where the offers were.
+
+    One query for every holder together. ``at`` empty draws no control,
+    which is what a reader who does not own the gang gets: the offers
+    still go, and nothing is offered. ``hide_only`` holders lose their
+    dismissed offers whatever ``showing`` says and get no control — a
+    dead model's card is drawn with nothing to click, so a line kept on
+    it to be restored would be a line with no way to restore it.
+    """
+    from n26.core.models import DismissedOffer
+    from n26.core.render import hide_dismissed
+
+    keys = DismissedOffer.keys_for(gang)
+    toggle = dismissed_toggle(at, showing) if at else ""
+    for holder in holders:
+        holder.dismissed_count = hide_dismissed(keys, holder, reveal=showing)
+        holder.dismissed_shown = showing
+        holder.dismissed_href = toggle if holder.dismissed_count else ""
+    for holder in hide_only:
+        hide_dismissed(keys, holder)
+
+
+def dismissed_toggle(url, showing):
+    """Where the control that shows or hides the dismissed offers leads:
+    ``url`` with the query added, or with it taken off again."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    query = [
+        (name, value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+        if name != SHOW_DISMISSED
+    ]
+    if not showing:
+        query.append((SHOW_DISMISSED, SHOWING))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 @dataclass(frozen=True)
@@ -47,7 +109,7 @@ class _Found:
     miniature: object = None
 
 
-def link_slots(gang, *holders, back=""):
+def link_slots(gang, *holders, back="", dismiss_back=None):
     """Point every choice slot on these structures at its picker.
 
     Costs no queries: a slot's address is already on the line, and this
@@ -67,15 +129,56 @@ def link_slots(gang, *holders, back=""):
     each list by name. Where a question is drawn is the holder's business;
     every one of them is chosen for at the same address, and a holder that
     grows another row is linked by the same line.
+
+    ``dismiss_back`` is where dismissing or restoring an offer lands,
+    where that differs from where a settled choice does — the gang sheet
+    sends a settled choice to the gang and a dismissal back to the sheet
+    as it stood, showing the dismissed offers or not. Left unsaid, it is
+    ``back``.
     """
     from n26.core.owned import with_query
+    from n26.core.status import Status
 
+    if dismiss_back is None:
+        dismiss_back = back
     for holder in holders:
+        # A dead model's dismissed offers are never shown on any screen
+        # (``settle_dismissed`` hides them on the sheet, which draws the
+        # dead with nothing to click, and the model's page follows the
+        # sheet): an X would offer an act with no way back. The picker
+        # links stay, as every other control on the model's page does.
+        dead = getattr(holder, "status", None) == Status.DEAD
         for line in holder.questions:
-            if line.key:
-                line.href = reverse("n26-choose", args=[gang.pk, line.key])
-                if back:
-                    line.href = with_query(line.href, **{"return": back})
+            if not line.key:
+                continue
+            if line.is_full and not line.is_resolved:
+                # Full with nothing chosen — authored to take no picks.
+                # Its picker lists nothing, so the line keeps no address
+                # and every screen draws it as a fact; a settled choice
+                # keeps its link, since clicking it is how it is changed.
+                continue
+            line.href = reverse("n26-choose", args=[gang.pk, line.key])
+            if back:
+                line.href = with_query(line.href, **{"return": back})
+            if dead:
+                continue
+            # Only the owner's structures come through here, so the way
+            # to dismiss an offer is drawn for nobody else. An open offer
+            # can be dismissed; one holding a pick cannot, since what
+            # was chosen is drawn and there is nothing to hide; one full
+            # from the start — authored to take no picks — draws no
+            # Choose, so it gets no X beside a control it does not have;
+            # a dismissed one, kept on the structure to be shown, offers
+            # only the way back.
+            line.back = dismiss_back
+            if line.dismissed:
+                line.restore_href = reverse(
+                    "n26-restore-offer", args=[gang.pk, line.key]
+                )
+            elif not line.is_resolved and not line.is_full:
+                line.dismiss_href = reverse(
+                    "n26-dismiss-offer", args=[gang.pk, line.key]
+                )
 
 
 def _find_slot(gang, key):
@@ -550,6 +653,110 @@ def choose(request, pk, slot):
             "returning": returning,
         },
     )
+
+
+@login_required
+@require_POST
+def dismiss_offer(request, pk, slot):
+    """Put one open offer out of sight, everywhere the gang is drawn.
+
+    The slot is found again rather than trusted from the address, the
+    way the pick screen finds it: an offer that no longer exists is a
+    404, and one holding a pick is refused in words — the page that
+    drew the control was drawn before the pick landed. That second look
+    is taken with the gang's line held, as every pick is written, so a
+    pick landing at the same moment is read either before the row is
+    written and refuses it, or after and takes the row off again. Nothing
+    is written for a dismissal already on record; a second click is the
+    same act.
+
+    Lands back where the control was clicked, given as ``back`` and
+    honoured only for this site's own addresses; the gang otherwise.
+    """
+    from django.db import transaction
+
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import DismissedOffer
+    from n26.core.operations import _hold
+
+    gang = _own_gang_or_404(request, pk)
+    label = _find_slot(gang, slot).slot.kind_label
+    fallback = reverse("n26-gang", args=[gang.pk])
+    with transaction.atomic():
+        _hold(gang)
+        found = _find_slot(gang, slot)
+        if found.slot.is_resolved:
+            # Counted, because a choice worked at a pick at a time may
+            # hold several, and every one of them has to go first.
+            held = (
+                "It has a pick. Take the pick back first."
+                if len(found.slot.picks) == 1
+                else "It has picks. Take them all back first."
+            )
+            messages.error(request, f"You cannot dismiss {label}. {held}")
+            return _safe_redirect(request, request.POST.get("back"), fallback)
+        if found.slot.is_full:
+            # Full with nothing chosen: a choice authored to take no
+            # picks. No page draws an X for it, so this is a hand-built
+            # post; it draws no Choose either, so there is nothing to hide.
+            messages.error(
+                request, f"You cannot dismiss {label}. It offers nothing to choose."
+            )
+            return _safe_redirect(request, request.POST.get("back"), fallback)
+        DismissedOffer.objects.get_or_create(gang=gang, slot_key=slot)
+    record(
+        request,
+        N26Noun.CHOICE,
+        EventVerb.ARCHIVE,
+        gang,
+        offer=label,
+        action="dismiss",
+    )
+    messages.success(
+        request, f"Dismissed {label}. You can bring it back from Dismissed choices."
+    )
+    return _safe_redirect(request, request.POST.get("back"), fallback)
+
+
+@login_required
+@require_POST
+def restore_offer(request, pk, slot):
+    """Bring a dismissed offer back, so it draws as an open Choose again.
+
+    The row is deleted whether or not the slot still exists: a key left
+    behind by a carrier since sold hides nothing, and taking it off is
+    harmless. Deleted with the gang's line held, as a dismissal is
+    written, so a dismiss and a restore arriving together are read one
+    after the other and the reply says what stands. The slot is then
+    found again only to name the offer in the confirmation — the same
+    derivation opening its pick screen pays. Lands where the control was
+    clicked, or on the gang with its dismissed offers still showing,
+    since the reader was in the middle of looking at them.
+    """
+    from django.db import transaction
+
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.models import DismissedOffer
+    from n26.core.operations import _hold
+
+    gang = _own_gang_or_404(request, pk)
+    with transaction.atomic():
+        _hold(gang)
+        DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
+    try:
+        label = _find_slot(gang, slot).slot.kind_label
+    except Http404:
+        label = "the choice"
+    record(
+        request,
+        N26Noun.CHOICE,
+        EventVerb.RESTORE,
+        gang,
+        offer=label,
+    )
+    messages.success(request, f"Restored {label}.")
+    fallback = dismissed_toggle(reverse("n26-gang", args=[gang.pk]), showing=False)
+    return _safe_redirect(request, request.POST.get("back"), fallback)
 
 
 def _own_address(request, url):

@@ -80,7 +80,7 @@ that said it twice would be spending the width the name needs.
         choices and no counters would pay a line of space for an element with
         nothing in it. The component draws the slot only if it is filled.
         {% endcomment %}
-        {% if sheet.rules or sheet.choices or sheet.counters or sheet.campaign %}
+        {% if sheet.rules or sheet.choices or sheet.counters or sheet.campaign or sheet.dismissed_href %}
             <c-slot name="details">
                 <c-n26.detail-list>
                     {% comment %}
@@ -95,6 +95,18 @@ that said it twice would be spending the width the name needs.
                         </c-n26.detail-list.row>
                     {% endif %}
                     <c-n26.choice-slots :choices="sheet.choices" />
+                    {% comment %}
+                    The way to the gang's own dismissed offers, drawn only
+                    for the owner and only while there are any: the address
+                    of this sheet with the query that shows them, or that
+                    hides them again. A row of the same strip, so it sits
+                    where the offers were.
+                    {% endcomment %}
+                    {% if sheet.dismissed_href %}
+                        <c-n26.detail-list.row label="Dismissed choices"
+                                               href="{{ sheet.dismissed_href }}"
+                                               value="{% if sheet.dismissed_shown %}Hide{% else %}Show {{ sheet.dismissed_count }}{% endif %}" />
+                    {% endif %}
                     {% for counter in sheet.counters %}
                         <c-n26.detail-list.row label="{{ counter.name }}"
                                                value="{{ counter.value }}"

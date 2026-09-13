@@ -14,7 +14,7 @@ deletable only where the models its deletion touches allow it. It is
 taken one at a time, on the page that says what goes: the changelists
 offer no batch delete.
 
-Display-only state (AssignmentSet, PrintConfig, StatOverride) is
+Display-only state (AssignmentSet, PrintConfig, StatOverride, DismissedOffer) is
 editable — it moves no money, changes no rating and touches no ledger —
 though their selection M2Ms are managed in the app, where the choices
 are drawn with the context a bare multi-select cannot give.
@@ -29,6 +29,7 @@ from n26.core.models import (
     Campaign,
     CampaignEvent,
     CampaignMembership,
+    DismissedOffer,
     Gang,
     LedgerEntry,
     LedgerEvent,
@@ -280,6 +281,14 @@ class StatOverrideAdmin(admin.ModelAdmin):
         "statline_type_stat__stat",
         "statline_type_stat__statline_type",
     ]
+
+
+@admin.register(DismissedOffer)
+class DismissedOfferAdmin(admin.ModelAdmin):
+    list_display = ["slot_key", "gang", "created"]
+    search_fields = ["slot_key", "gang__name"]
+    autocomplete_fields = ["gang"]
+    list_select_related = ["gang"]
 
 
 @admin.register(PrintConfig)

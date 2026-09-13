@@ -23,6 +23,9 @@ unbroken string. Without both, the sheet grows sideways past the viewport.
     the plain test would render an empty button.
   :editable — False draws the value as text with no control, for a settled fact.
   href — make the control a link to an edit page instead of a dialog trigger.
+  trailing — content drawn after the control, inside the value cell: a small act
+    on the fact beside it, such as the X that dismisses an offer. Outside the
+    control, so it is not part of what the click leads to.
   dialog, dialog_header, dialog_footer — the dialog's body, heading and buttons.
     Declared on the row rather than nested inside `dialog` because Cotton reads
     slots from a component's children at compile time; a <c-slot> arriving
@@ -40,6 +43,7 @@ a variable of that name would turn every row into a dialog trigger.
     value=""
     :editable="True"
     href=""
+    trailing=""
     dialog=""
     dialog_header=""
     dialog_footer=""
@@ -66,5 +70,6 @@ a variable of that name would turn every row into a dialog trigger.
         {% else %}
             <c-ui.button size="xs" variant="default" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
         {% endif %}
+        {% if trailing.strip %}<span class="ms-1 inline-flex items-center align-middle">{{ trailing }}</span>{% endif %}
     </dd>
 </div>

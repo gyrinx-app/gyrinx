@@ -778,3 +778,61 @@ class TestThePickerReturnsWhereItWasOpened:
 
         assert reply.status_code == 302
         assert reply.url == reverse("n26-gang", args=[gang.pk])
+
+
+class TestDismissingTheLadderFromTheSheet:
+    """The level is drawn under the weapon, and only the model's own page
+    offers to change it — but putting the offer out of sight, and
+    bringing it back, is offered wherever the owner reads the card, as
+    it is for every other offer on it."""
+
+    def key(self, orrus):
+        ladder = ladder_of(orrus, "Bolt launchers")
+        return f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+
+    def test_the_sheet_offers_the_x_and_the_restore(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        client.force_login(owner)
+        sheet = reverse("n26-gang", args=[gang.pk])
+        dismiss = reverse("n26-dismiss-offer", args=[gang.pk, self.key(orrus)])
+        restore = reverse("n26-restore-offer", args=[gang.pk, self.key(orrus)])
+
+        page = client.get(sheet).content.decode()
+        assert "Augmentation: &mdash;" in page
+        assert dismiss in page
+
+        reply = client.post(dismiss)
+        assert reply.status_code == 302
+        page = client.get(sheet).content.decode()
+        assert "Augmentation:" not in page
+        assert dismiss not in page
+
+        page = client.get(f"{sheet}?dismissed=show").content.decode()
+        assert ">dismissed</span>" in page
+        assert restore in page
+        client.post(restore)
+        assert "Augmentation: &mdash;" in client.get(sheet).content.decode()
+
+    def test_choosing_a_level_through_a_dismissed_ladder_takes_the_dismissal_off(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        """The ladder is the weapon's own — its slot is caused by the
+        launchers and drawn under them — and a pick landing on it from
+        the pick screen clears the dismissal like any other pick, so
+        stepping back down later leaves the level open to choose."""
+        from n26.core.models import DismissedOffer
+
+        client.force_login(owner)
+        key = self.key(orrus)
+        client.post(reverse("n26-dismiss-offer", args=[gang.pk, key]))
+        assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
+
+        reply = client.post(
+            reverse("n26-choose", args=[gang.pk, key]),
+            {"thing": option_key(bolt_launcher_tiers["Tier 1"])},
+        )
+
+        assert reply.status_code == 302
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
+        assert not DismissedOffer.objects.filter(gang=gang).exists()

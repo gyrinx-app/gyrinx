@@ -19,9 +19,9 @@ from django.urls import reverse
 
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
-from n26.core.models import Assignment
+from n26.core.models import Assignment, DismissedOffer
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import build_choice_offer, render_gang
+from n26.core.render import NONE_KEY, build_choice_offer, render_gang
 from n26.library.models import Affiliation, Skill
 from n26.tests.sandbox.actions import (
     add_entry,
@@ -926,3 +926,442 @@ class TestOneLineAskingTwice:
         # answer is still the gang's, on the ledger where it always was.
         assert list(self.rows(vex)) == ["Secondary role"]
         assert_reconciled(gang)
+
+
+# --- Putting an offer out of sight ---------------------------------------
+#
+# A gang list offers picks the player knows they will never take — a
+# Choose they scroll past on every visit. There is nothing to delete: the
+# offer is computed from its carrier, and only what is chosen is ever
+# stored. So the owner dismisses it instead, and the sheet, the model's
+# own page and the printed roster all stop drawing it. It is a guide, not
+# a rule, and a dismissal is a row the owner can take back.
+
+
+def dismiss_url(gang, line):
+    return reverse("n26-dismiss-offer", args=[gang.pk, line.key])
+
+
+def restore_url(gang, line):
+    return reverse("n26-restore-offer", args=[gang.pk, line.key])
+
+
+def sheet_body(client, gang, **query):
+    url = reverse("n26-gang", args=[gang.pk])
+    return client.get(url, query).content.decode()
+
+
+def edit_body(client, miniature, **query):
+    url = reverse("n26-edit-fighter", args=[miniature.pk])
+    return client.get(url, query).content.decode()
+
+
+def dismissed_keys(gang):
+    return set(gang.dismissed_offers.values_list("slot_key", flat=True))
+
+
+class TestTheXBesideAnOpenOffer:
+    """An open offer the owner may dismiss ends in an X. Nobody else is
+    offered one, and an offer holding a pick is not either."""
+
+    def test_the_owner_sees_the_x_on_the_sheet_and_the_models_page(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        body = sheet_body(client, gang)
+        assert dismiss_url(gang, slots["Affiliation"]) in body
+        assert dismiss_url(gang, slots["Sorrow: Archetype"]) in body
+        assert dismiss_url(gang, slots["Sorrow: Primary skill"]) in body
+        page = edit_body(client, crew["leader"])
+        assert dismiss_url(gang, slots["Sorrow: Archetype"]) in page
+        assert dismiss_url(gang, slots["Sorrow: Primary skill"]) in page
+
+    def test_a_reader_who_does_not_own_the_gang_gets_no_x(
+        self, client, gang, crew, django_user_model
+    ):
+        client.force_login(django_user_model.objects.create_user("reader"))
+        body = sheet_body(client, gang)
+        assert "Affiliation" in body
+        assert "/offers/" not in body
+
+    def test_an_offer_holding_a_pick_has_no_x(
+        self, client, owner, gang, crew, affiliations
+    ):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(
+            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+        )
+        body = sheet_body(client, gang)
+        assert "Mutant" in body
+        assert dismiss_url(gang, line) not in body
+
+
+class TestDismissingAnOffer:
+    """One click, one row, and the offer is gone from every reading of
+    the gang — the owner's sheet, a stranger's, the model's page and the
+    printed roster."""
+
+    def test_the_offer_leaves_every_screen(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Primary skill"]
+        response = client.post(dismiss_url(gang, line))
+        assert response.status_code == 302
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
+        assert dismissed_keys(gang) == {line.key}
+
+        assert line.href not in sheet_body(client, gang)
+        assert line.href not in edit_body(client, crew["leader"])
+        printed = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "Primary skill" not in printed
+        assert "Archetype" in printed, "the offer beside it still prints"
+
+    def test_a_stranger_stops_seeing_it_too(
+        self, client, owner, gang, crew, django_user_model
+    ):
+        line = sheet_slots(gang)["Affiliation"]
+        DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        client.force_login(django_user_model.objects.create_user("reader"))
+        body = sheet_body(client, gang)
+        assert "Favoured set" in body
+        assert "Affiliation" not in body
+
+    def test_the_gangs_own_offer_goes_from_the_strip(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(dismiss_url(gang, line))
+        body = sheet_body(client, gang)
+        assert line.href not in body
+        assert sheet_slots(gang)["Favoured set"].href in body
+
+    def test_it_lands_back_where_it_was_clicked(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        back = reverse("n26-edit-fighter", args=[crew["leader"].pk])
+        response = client.post(dismiss_url(gang, line), {"back": back})
+        assert response["Location"] == back
+
+    def test_an_address_off_this_site_is_not_followed(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        response = client.post(
+            dismiss_url(gang, line), {"back": "https://elsewhere.example/"}
+        )
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
+
+    def test_a_second_click_writes_no_second_row(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        client.post(dismiss_url(gang, line))
+        assert gang.dismissed_offers.count() == 1
+
+    def test_an_offer_holding_a_pick_is_refused(
+        self, client, owner, gang, crew, affiliations
+    ):
+        """The control was drawn before the pick landed: what was chosen
+        is drawn, and nothing is written."""
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(
+            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+        )
+        response = client.post(dismiss_url(gang, line), follow=True)
+        assert (
+            "You cannot dismiss Affiliation. It has a pick. Take the pick back first."
+            in response.content.decode()
+        )
+        assert dismissed_keys(gang) == set()
+
+    def test_the_x_is_a_post(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        assert client.get(dismiss_url(gang, line)).status_code == 405
+        assert dismissed_keys(gang) == set()
+
+
+class TestDismissalAddressesThatShouldNotResolve:
+    def test_an_offer_that_no_longer_exists(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        url = dismiss_url(gang, line).replace(line.key, "nobody:nothing:none")
+        assert client.post(url).status_code == 404
+
+    def test_somebody_elses_gang(self, client, gang, crew, django_user_model):
+        client.force_login(django_user_model.objects.create_user("reader"))
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        assert client.post(dismiss_url(gang, line)).status_code == 404
+        assert client.post(restore_url(gang, line)).status_code == 404
+
+
+class TestShowingDismissedOffers:
+    """The way back. A sheet or a model's page with dismissed offers on
+    it offers to show them; shown, each reads as dismissed with a Restore
+    in the X's place, and restoring one draws its Choose again."""
+
+    def test_the_sheet_offers_to_show_what_was_dismissed(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        assert "Dismissed choices" not in sheet_body(client, gang)
+        slots = sheet_slots(gang)
+        for label in ("Affiliation", "Sorrow: Archetype"):
+            client.post(dismiss_url(gang, slots[label]))
+        body = sheet_body(client, gang)
+        assert "Dismissed choices" in body
+        assert "?dismissed=show" in body
+        # Neither offer is drawn, and neither Restore is.
+        assert restore_url(gang, slots["Affiliation"]) not in body
+        assert slots["Affiliation"].href not in body
+
+    def test_shown_each_reads_as_dismissed_with_a_way_back(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        client.post(dismiss_url(gang, slots["Affiliation"]))
+        client.post(dismiss_url(gang, slots["Sorrow: Archetype"]))
+        body = sheet_body(client, gang, dismissed="show")
+        assert restore_url(gang, slots["Affiliation"]) in body
+        assert restore_url(gang, slots["Sorrow: Archetype"]) in body
+        assert "Dismissed" in body
+        assert "Hide" in body
+        # Shown is not restored: the Choose stays away.
+        assert slots["Affiliation"].href not in body
+        assert dismiss_url(gang, slots["Affiliation"]) not in body
+
+    def test_the_models_own_page_shows_and_restores(self, client, owner, gang, crew):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        page = edit_body(client, crew["leader"])
+        assert "Dismissed choices" in page
+        assert line.href not in page
+        page = edit_body(client, crew["leader"], dismissed="show")
+        assert restore_url(gang, line) in page
+        back = reverse("n26-edit-fighter", args=[crew["leader"].pk])
+        response = client.post(restore_url(gang, line), {"back": back})
+        assert response["Location"] == back
+        assert dismissed_keys(gang) == set()
+        assert line.href in edit_body(client, crew["leader"])
+
+    def test_restoring_from_the_sheet_keeps_the_rest_showing(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        client.post(dismiss_url(gang, slots["Affiliation"]))
+        client.post(dismiss_url(gang, slots["Sorrow: Archetype"]))
+        response = client.post(restore_url(gang, slots["Affiliation"]))
+        assert response["Location"].endswith("?dismissed=show")
+        body = client.get(response["Location"]).content.decode()
+        assert slots["Affiliation"].href in body
+        assert restore_url(gang, slots["Sorrow: Archetype"]) in body
+
+    def test_dismissing_from_the_shown_sheet_lands_back_on_it(
+        self, client, owner, gang, crew
+    ):
+        """The X on a still-open offer, clicked while the dismissed ones
+        are showing, comes back to the sheet as it stood."""
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        client.post(dismiss_url(gang, slots["Affiliation"]))
+        body = sheet_body(client, gang, dismissed="show")
+        sheet = reverse("n26-gang", args=[gang.pk])
+        assert f'name="back" value="{sheet}?dismissed=show"' in body
+        response = client.post(
+            dismiss_url(gang, slots["Favoured set"]),
+            {"back": f"{sheet}?dismissed=show"},
+            follow=True,
+        )
+        assert response.redirect_chain == [(f"{sheet}?dismissed=show", 302)]
+        landed = response.content.decode()
+        # Still showing: both dismissed offers, each with its way back.
+        assert restore_url(gang, slots["Affiliation"]) in landed
+        assert restore_url(gang, slots["Favoured set"]) in landed
+
+    def test_a_pick_landing_on_a_dismissed_offer_takes_the_dismissal_off(
+        self, client, owner, gang, crew, affiliations
+    ):
+        """The pick screen is still reachable — an old link, the browser's
+        history — and choosing there is the owner changing their mind: the
+        dismissal goes, so taking the pick back later leaves the offer
+        open rather than hiding it again unasked."""
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(dismiss_url(gang, line))
+        client.post(
+            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+        )
+        assert dismissed_keys(gang) == set()
+        client.post(line.href, {"thing": NONE_KEY})
+        assert line.href in sheet_body(client, gang)
+
+    def test_a_skill_ticked_on_the_models_page_takes_the_dismissal_off(
+        self, client, owner, gang, crew, skills, archetypes
+    ):
+        """The pick screen is not the only way to settle an offer: a tick
+        in the skills box on the model's own page writes the same pick,
+        where the skill is on the question's own list. Whichever way it
+        lands, the dismissal goes with it."""
+        from n26.core.views.skills import _key
+
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        # Brawler opens Combat as Primary, which is what puts Berserker
+        # on the Primary skill question's list rather than beside it.
+        client.post(
+            slots["Sorrow: Archetype"].href,
+            {"thing": f"library.affiliation:{archetypes['Brawler'].pk}"},
+        )
+        line = slots["Sorrow: Primary skill"]
+        client.post(dismiss_url(gang, line))
+        assert dismissed_keys(gang) == {line.key}
+        response = client.post(
+            reverse("n26-edit-fighter", args=[crew["leader"].pk]),
+            {"act": "skills", "skills": [_key(skills["Berserker"])]},
+        )
+        assert response.status_code == 302
+        assert _skills_of(gang, "Sorrow") == ["Berserker"]
+        # The tick settled the question rather than standing beside it.
+        assert "Sorrow: Primary skill" not in sheet_slots(gang)
+        assert dismissed_keys(gang) == set()
+
+    def test_a_dead_models_own_page_only_hides_them(self, client, owner, gang, crew):
+        """The model's page draws the same dead card the sheet does: the
+        dismissed offers go, and neither a way to show them nor a
+        Restore is drawn."""
+        from n26.core.operations import operation
+        from n26.core.status import Status
+
+        client.force_login(owner)
+        slots = sheet_slots(gang)
+        line = slots["Sorrow: Archetype"]
+        still_open = slots["Sorrow: Primary skill"]
+        client.post(dismiss_url(gang, line))
+        with operation(gang, actor=owner) as op:
+            op.set_status(crew["leader"], Status.DEAD)
+        edit_body(client, crew["leader"])
+        for query in ({}, {"dismissed": "show"}):
+            page = edit_body(client, crew["leader"], **query)
+            assert line.href not in page
+            assert restore_url(gang, line) not in page
+            assert "Dismissed choices" not in page
+            # Nor an X on the offer still open: a dead card cannot show
+            # the way back from a dismissal, so it offers none.
+            assert dismiss_url(gang, still_open) not in page
+
+    def test_a_dead_models_dismissed_offers_only_go(self, client, owner, gang, crew):
+        """A dead model's card has nothing to click, so its dismissed
+        offers are neither shown nor offered back — the card draws no
+        control for them, and asking to see them draws no Restore."""
+        from n26.core.operations import operation
+        from n26.core.status import Status
+
+        client.force_login(owner)
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        with operation(gang, actor=owner) as op:
+            op.set_status(crew["leader"], Status.DEAD)
+        # The dismissal's own confirmation names the control; one plain
+        # read takes it, so the next is the sheet alone.
+        sheet_body(client, gang)
+        body = sheet_body(client, gang, dismissed="show")
+        assert "Sorrow" in body
+        assert line.href not in body
+        assert restore_url(gang, line) not in body
+        assert "Dismissed choices" not in body
+
+    def test_the_redrawn_card_builds_its_control_from_this_site_only(
+        self, rf, owner, gang, crew
+    ):
+        """The address a card is redrawn under after an act arrives in
+        the act's form. The control that shows the dismissed offers is an
+        href, so an address off this site is not made into one."""
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.backends.db import SessionStore
+
+        from n26.core.views.edit import render_card_update
+
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        request = rf.get(reverse("n26-edit-fighter", args=[crew["leader"].pk]))
+        request.user = owner
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        body = render_card_update(
+            request, crew["leader"], "https://elsewhere.example/?dismissed=show"
+        ).content.decode()
+        # The pick screen's return address and the forms' hidden fields
+        # may carry it — both are checked again where they land — but no
+        # link on the card leads there.
+        assert 'href="https://elsewhere' not in body
+        edit = reverse("n26-edit-fighter", args=[crew["leader"].pk])
+        assert f'href="{edit}"' in body, "showing, so the control offers Hide"
+        assert restore_url(gang, line) in body
+
+    def test_a_row_left_behind_by_a_sold_carrier_can_still_be_taken_off(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        DismissedOffer.objects.create(gang=gang, slot_key="nobody:nothing:none")
+        response = client.post(
+            reverse("n26-restore-offer", args=[gang.pk, "nobody:nothing:none"])
+        )
+        assert response.status_code == 302
+        assert dismissed_keys(gang) == set()
+
+    def test_a_stranger_is_not_shown_them_however_they_ask(
+        self, client, gang, crew, django_user_model
+    ):
+        line = sheet_slots(gang)["Affiliation"]
+        DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        client.force_login(django_user_model.objects.create_user("reader"))
+        body = sheet_body(client, gang, dismissed="show")
+        assert "Affiliation" not in body
+        assert "Dismissed choices" not in body
+
+
+class TestWhatItCosts:
+    def test_the_sheet_pays_one_query_however_many_are_dismissed(
+        self, client, owner, gang, crew, profiles, django_assert_num_queries
+    ):
+        """One read of what the gang has dismissed serves the whole sheet:
+        a roster that grows, and a list of dismissals that grows with
+        it, must not grow the count."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(owner)
+        url = reverse("n26-gang", args=[gang.pk])
+
+        def queries():
+            with CaptureQueriesContext(connection) as captured:
+                client.get(url)
+            return len(captured)
+
+        # The first request pays for the session and the caches it warms;
+        # the comparison is between two requests after that.
+        queries()
+        before = queries()
+        for name in ("Ash", "Kite"):
+            hire_with_option(gang, profiles["leader"], name)
+        slots = sheet_slots(gang)
+        for label in ("Affiliation", "Ash: Archetype", "Kite: Primary skill"):
+            DismissedOffer.objects.create(gang=gang, slot_key=slots[label].key)
+        assert queries() == before
+
+    def test_the_filter_itself_costs_nothing(
+        self, gang, crew, django_assert_num_queries
+    ):
+        from n26.core.render import hide_dismissed
+
+        sheet = render_gang(gang)
+        keys = {line.key for card in sheet.models for line in card.questions}
+        with django_assert_num_queries(0):
+            hidden = sum(
+                hide_dismissed(keys, holder) for holder in (sheet, *sheet.models)
+            )
+        assert hidden == 2
+        assert all(not card.questions for card in sheet.models)

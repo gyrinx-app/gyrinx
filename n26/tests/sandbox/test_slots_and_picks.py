@@ -1702,6 +1702,27 @@ class TestAChoiceThatHoldsSeveral:
         ] == [("Cawdor", True, "remove"), ("Escher", True, "remove")]
         assert_reconciled(gang)
 
+    def test_dismissing_it_while_it_holds_two_says_to_take_them_all_back(
+        self, gang, wanderer, houses, client
+    ):
+        """The refusal counts what is held: one pick is taken back, several
+        are all taken back, and the sentence says which."""
+        from n26.core.models import DismissedOffer
+
+        href = picker_href(gang)
+        for name in ("Cawdor", "Escher"):
+            client.post(href, {"thing": pickable_key_of(houses[name])})
+        dismiss = href.replace("/choose/", "/offers/") + "dismiss/"
+
+        reply = client.post(dismiss, follow=True)
+
+        assert (
+            "You cannot dismiss Gang Legacies. It has picks. Take them all back first."
+            in reply.content.decode()
+        )
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
+        assert_reconciled(gang)
+
     def test_a_full_choice_stops_offering_the_rest(
         self, gang, wanderer, houses, client
     ):
@@ -1809,10 +1830,16 @@ class TestAChoiceThatHoldsNone:
     def test_a_click_that_reached_it_anyway_writes_nothing(
         self, gang, asks_nothing, houses, client, owner
     ):
+        from django.urls import reverse
+
         kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
         client.force_login(owner)
+        # No screen links the picker, so the address is built by hand.
+        (slot,) = choices_of(kaustos)
+        key = f"{kaustos.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
+        picker = reverse("n26-choose", args=[gang.pk, key])
 
-        client.post(picker_href(gang), {"thing": pickable_key_of(houses["Cawdor"])})
+        client.post(picker, {"thing": pickable_key_of(houses["Cawdor"])})
 
         assert choices_of(kaustos)[0].picks == []
         assert not Assignment.objects.filter(
@@ -1836,6 +1863,129 @@ class TestAChoiceThatHoldsNone:
         row = row[: row.index("</dd>")]
         assert ">Choose</" not in row
         assert ">Add</" not in row
+
+    def dismiss_href(self, gang, miniature):
+        from django.urls import reverse
+
+        (slot,) = choices_of(miniature)
+        key = f"{miniature.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
+        return reverse("n26-dismiss-offer", args=[gang.pk, key])
+
+    def test_the_card_offers_no_way_to_dismiss_it_either(
+        self, gang, asks_nothing, client, owner
+    ):
+        """An X sits beside a Choose. A choice with no Choose to scroll
+        past has nothing worth putting out of sight."""
+        from django.urls import reverse
+
+        kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
+        client.force_login(owner)
+        for url in (
+            reverse("n26-gang", args=[gang.pk]),
+            reverse("n26-edit-fighter", args=[kaustos.pk]),
+        ):
+            assert (
+                self.dismiss_href(gang, kaustos) not in client.get(url).content.decode()
+            )
+
+    def test_no_screen_draws_a_way_in_to_it(self, gang, asks_nothing, client, owner):
+        """Not the sheet, not the model's own page: a picker with nothing
+        on it is nowhere to send anyone, so the row carries no link to it."""
+        from django.urls import reverse
+
+        kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
+        (slot,) = choices_of(kaustos)
+        key = f"{kaustos.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
+        picker = reverse("n26-choose", args=[gang.pk, key])
+        client.force_login(owner)
+        for url in (
+            reverse("n26-gang", args=[gang.pk]),
+            reverse("n26-edit-fighter", args=[kaustos.pk]),
+        ):
+            body = client.get(url).content.decode()
+            assert "Gang Legacy" in body
+            assert picker not in body
+
+    def test_a_post_that_reached_it_anyway_is_refused(
+        self, gang, asks_nothing, client, owner
+    ):
+        from n26.core.models import DismissedOffer
+
+        kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
+        client.force_login(owner)
+
+        reply = client.post(self.dismiss_href(gang, kaustos), follow=True)
+
+        assert "You cannot dismiss Gang Legacy. It offers nothing to choose." in (
+            reply.content.decode()
+        )
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
+
+
+class TestAChoiceTheGangIsAskedThatHoldsNone:
+    """The gang's own strip draws a choice that asks nothing the way a
+    card does: the row stands, headed as authored, and nothing on it
+    leads to a picker with nothing on it."""
+
+    @pytest.fixture
+    def asks_the_gang_nothing(self, legacy, legacies):
+        slot = create_slot(
+            "No Legacy",
+            legacy,
+            legacies,
+            label="Gang Legacy",
+            assigned_to="gang",
+            min_picks=0,
+            max_picks=0,
+        )
+        made = create_gang_type("Outcasts")
+        add_built_in(made, slot)
+        return made
+
+    def test_the_strip_draws_the_row_and_no_way_in(
+        self, owner, asks_the_gang_nothing, client
+    ):
+        from django.urls import reverse
+
+        from n26.core.views.choose import link_slots
+
+        gang = found_gang("The Forgotten", asks_the_gang_nothing, owner=owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet)
+        (line,) = sheet.choices
+        assert line.is_full and not line.is_resolved
+        client.force_login(owner)
+
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Gang Legacy" in body
+        assert reverse("n26-choose", args=[gang.pk, line.key]) not in body
+        assert ">Choose<" not in body
+
+    def test_a_dismissal_written_for_it_hides_nothing(
+        self, owner, asks_the_gang_nothing, client
+    ):
+        """No screen offers to dismiss or restore a choice that asks
+        nothing, so a row for one — left over from before the content
+        changed — must not hide it, or it would be hidden for good."""
+        from django.urls import reverse
+
+        from n26.core.models import DismissedOffer
+        from n26.core.views.choose import link_slots
+
+        gang = found_gang("The Forgotten", asks_the_gang_nothing, owner=owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet)
+        (line,) = sheet.choices
+        DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        client.force_login(owner)
+
+        for query in ("", "?dismissed=show"):
+            body = client.get(
+                reverse("n26-gang", args=[gang.pk]) + query
+            ).content.decode()
+            assert "Gang Legacy" in body
+            assert reverse("n26-restore-offer", args=[gang.pk, line.key]) not in body
 
 
 class TestARollTableInThePicker:
