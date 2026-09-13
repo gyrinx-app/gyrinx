@@ -2533,7 +2533,7 @@ class Operation:
         from n26.core.models import CounterValue, LedgerEvent
 
         try:
-            held = assignment.counter_value
+            held = CounterValue.objects.get(assignment=assignment)
         except CounterValue.DoesNotExist:
             held = self.open_counter(assignment, 0)
         before = held.value
