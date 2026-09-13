@@ -95,13 +95,15 @@ and nothing to snapshot.
             kit's cannot be moved from outside. It takes no starting value
             because it holds no state — it renders the caller's variables.
             {% endcomment %}
-            <c-n26.range-slider
-                {% if model_min and model_max %}
-                    model_min="{{ model_min }}" model_max="{{ model_max }}"
-                {% else %}
-                    model="{{ model }}"
-                {% endif %}
-                min="{{ min }}" max="{{ max }}" step="{{ step }}" />
+            {% if model_min and model_max %}
+                <c-n26.range-slider model_min="{{ model_min }}"
+                                    model_max="{{ model_max }}"
+                                    min="{{ min }}"
+                                    max="{{ max }}"
+                                    step="{{ step }}" />
+            {% else %}
+                <c-n26.range-slider model="{{ model }}" min="{{ min }}" max="{{ max }}" step="{{ step }}" />
+            {% endif %}
 
             {% comment %}
             The two ends written under the track: without a scale, 80 out of 200

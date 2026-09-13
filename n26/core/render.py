@@ -1126,7 +1126,11 @@ class CampaignGangLine:
     gang_id: str
     name: str
     gang_type: str
-    owner: str
+    #: Whose gang it is — the person, not their name, because the table draws
+    #: the badge they hold after it, and which badge that is belongs to the
+    #: platform's registry rather than to this sheet. None for a gang nobody
+    #: owns.
+    owner: object | None
     rating: int
     credits: int
     wealth: int
@@ -2920,7 +2924,22 @@ def render_gang(gang, with_effects=True, *, card=None, for_owner=False):
 LEADING_COUNTER = "Reputation"
 
 
-def render_campaign(campaign, viewer=None):
+def load_owner_badges(*people):
+    """Read what naming these people with their badges needs — the profile
+    and the badge grants — in two queries, for people fetched without them.
+
+    For the path that fetched a campaign and built its sheet for a dialog,
+    which names nobody, and then found the dialog could not be drawn and
+    has to serve the whole page after all. Nobody is skipped.
+    """
+    from django.db.models import prefetch_related_objects
+
+    people = [person for person in people if person is not None]
+    if people:
+        prefetch_related_objects(people, "profile", "badge_grants")
+
+
+def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     """A whole campaign sheet. A fixed number of queries, whatever its size.
 
     Every gang at the table is read at once: one query for the gang-hosted
@@ -2933,6 +2952,11 @@ def render_campaign(campaign, viewer=None):
     ``viewer`` decides which gangs and holdings are the reader's own; the
     addresses of the controls that follow from that are the view's to
     fill, because they belong to the URL space and to who may open them.
+
+    ``with_owner_badges`` reads each gang owner's profile and badge grants
+    along with the gangs, for a sheet whose gangs table will be drawn. A
+    sheet built only for a roll dialog names no owner and leaves
+    them out.
     """
     from django.db.models import Prefetch
 
@@ -2953,11 +2977,15 @@ def render_campaign(campaign, viewer=None):
     from n26.library.staged import sees_staged
 
     reading = getattr(viewer, "id", None)
-    memberships = list(
-        CampaignMembership.objects.filter(campaign=campaign, left__isnull=True)
-        .select_related("gang", "gang__gang_type", "gang__owner", "gang__stash")
-        .order_by("gang__name")
-    )
+    memberships = CampaignMembership.objects.filter(
+        campaign=campaign, left__isnull=True
+    ).select_related("gang", "gang__gang_type", "gang__owner", "gang__stash")
+    if with_owner_badges:
+        # Each owner's badge reads their profile and their grants.
+        memberships = memberships.select_related(
+            "gang__owner__profile"
+        ).prefetch_related("gang__owner__badge_grants")
+    memberships = list(memberships.order_by("gang__name"))
     by_membership = {membership.pk: membership for membership in memberships}
 
     # The shared type's asset types first, then the arbitrator's own, each
@@ -3086,7 +3114,7 @@ def render_campaign(campaign, viewer=None):
                 gang_id=str(gang.pk),
                 name=gang.name,
                 gang_type=gang.gang_type.name,
-                owner=gang.owner.username if gang.owner_id else "",
+                owner=gang.owner if gang.owner_id else None,
                 rating=gang.rating,
                 credits=gang.credits,
                 credits_unlimited=gang.credits_unlimited,

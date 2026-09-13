@@ -2,12 +2,7 @@
 {% comment %}One gang's row in the campaign Gangs table. Expects: list, attribute_types,
 attribute_assignment_lookup, resource_types, resource_lookup.{% endcomment %}
 <tr>
-    <td class="ps-0">
-        <a href="{% url 'core:list' list.id %}"
-           class="text-decoration-none text-body">
-            {% include "core/campaign/includes/list_row.html" with list=list %}
-        </a>
-    </td>
+    <td class="ps-0">{% include "core/campaign/includes/list_row.html" with list=list %}</td>
     {% for attribute_type in attribute_types %}
         <td>
             {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}

@@ -48,7 +48,9 @@ question and Back closes it.
                 <ul class="flex flex-col">
                     {% for player in players %}
                         <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                            <span class="min-w-0 flex-1 text-base">{{ player.user.username }}</span>
+                            <span class="min-w-0 flex-1 text-base">
+                                <c-n26.user-link :user="player.user" tone="current" />
+                            </span>
                             {% if player.state == "accepted" %}
                                 <c-ui.badge color="green" size="sm">
                                     Accepted
@@ -113,7 +115,9 @@ question and Back closes it.
                 <div id="people-found" class="n26-awaiting-rows flex flex-col">
                     {% for person in people %}
                         <div class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
-                            <span class="min-w-0 flex-1 text-base">{{ person.username }}</span>
+                            <span class="min-w-0 flex-1 text-base">
+                                <c-n26.user-link :user="person" tone="current" />
+                            </span>
                             {% if person.pk in asked_already %}
                                 <span class="text-sm text-muted">Already asked</span>
                             {% else %}

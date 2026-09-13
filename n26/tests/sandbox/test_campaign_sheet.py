@@ -139,7 +139,7 @@ class TestTheGangsTable:
             "The Rust Kings",
         ]
         ash = line_named(sheet, "The Ashen Choir")
-        assert ash.owner == "ash"
+        assert ash.owner.username == "ash"
         assert ash.gang_type == "Escher"
         assert (ash.rating, ash.credits) == (gangs[1].rating, gangs[1].credits)
         assert ash.href == ""

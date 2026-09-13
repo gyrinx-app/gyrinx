@@ -6,6 +6,8 @@ raising. Registering a component and never loading its page is therefore
 indistinguishable from registering it wrongly — which is what this asks.
 """
 
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 
@@ -498,6 +500,15 @@ class TestTheShellStillDraws:
         # the same name, which sits further up the page.
         assert page.index("Found and equip gang") < page.index(">Stash</span>")
 
+    def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
+        """The gallery's two-thumb range menu draws two real range inputs,
+        each bound to the caller's variable — the slider is called once for
+        each form rather than with a conditional inside one call."""
+        page = reader.get("/n26/design/c/range-menu/").content.decode()
+        assert 'aria-label="Minimum"' in page and 'aria-label="Maximum"' in page
+        assert ':value="lowCost"' in page and ':value="highCost"' in page
+        assert "{% if" not in page
+
     def test_the_campaign_shell_draws_the_tables(self, reader):
         """The gangs table and an assets table both fill from the sample
         sheet, and every slot the view declares is drawn from the page
@@ -505,6 +516,16 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/campaign/").content.decode()
         assert "Territory campaign" in page
         assert "Gravebolt Kin" in page
+        # Each gang names its owner under its name, through the same
+        # component the app draws people with — a sample person is a
+        # username, so the name comes through and no badge follows it.
+        assert re.search(r"Goliath \(HoC\) · <span[^>]*>marta<", page)
+        assert re.search(r"Escher \(HoB\) · <span[^>]*>tom<", page)
+        # The players and the log name people the same way; the
+        # arbitrator's own acts read "You", as the page reads them.
+        assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)
+        assert re.search(r"<span[^>]*font-medium[^>]*>ossian<", page)
+        assert ">You</span>" in page
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
         assert "Unclaimed" in page
