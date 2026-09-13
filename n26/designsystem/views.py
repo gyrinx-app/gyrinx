@@ -104,6 +104,10 @@ def component(request, slug):
             "model_card_dead": sampledata.model_card_dead(),
             "model_card_pet": sampledata.model_card_pet(),
             "model_card_in_the_stash": sampledata.model_card_in_the_stash(),
+            "model_card_header_short": sampledata.model_card_header_short(),
+            "model_card_header_long_name": sampledata.model_card_header_long_name(),
+            "model_card_header_long_owner": sampledata.model_card_header_long_owner(),
+            "model_card_header_long_both": sampledata.model_card_header_long_both(),
             "needs_rich_text": needs_rich_text,
             # The icon gallery renders the registry rather than a written-out
             # list, so adding an icon puts it on the page and no demo goes stale.
@@ -208,6 +212,10 @@ def view_preview(request, slug):
             "model_card_dead": sampledata.model_card_dead(),
             "model_card_pet": sampledata.model_card_pet(),
             "model_card_in_the_stash": sampledata.model_card_in_the_stash(),
+            "model_card_header_short": sampledata.model_card_header_short(),
+            "model_card_header_long_name": sampledata.model_card_header_long_name(),
+            "model_card_header_long_owner": sampledata.model_card_header_long_owner(),
+            "model_card_header_long_both": sampledata.model_card_header_long_both(),
             # The same test the component page makes: a view whose demo
             # draws an editor brings TinyMCE with it, and only then.
             "rich_text_form": RichTextForm(),

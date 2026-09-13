@@ -1,0 +1,45 @@
+{# title: The header band #}
+{# note: Everything the band can hold at once — the founding Trade Points and the rating on the right, the picture control and the gang sheet's own buttons under them, and on the left the model's name, the library profile below it, and the owner of the kit that brought it in. Four cards, because both columns are sized by what is in them: the names are what grows, and the owner line is a third line on the left that the right has no answer to. Bodies are cut back to the statline so the band is what you are looking at. #}
+{# layout: full #}
+<div class="flex max-w-2xl flex-col gap-4">
+    <c-n26.model-card :card="model_card_header_short" owner_href="#model-vesna-krail">
+        <c-slot name="actions">
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Equip
+            </c-ui.button>
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Edit
+            </c-ui.button>
+        </c-slot>
+    </c-n26.model-card>
+    <c-n26.model-card :card="model_card_header_long_name" owner_href="#model-vesna-krail">
+        <c-slot name="actions">
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Equip
+            </c-ui.button>
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Edit
+            </c-ui.button>
+        </c-slot>
+    </c-n26.model-card>
+    <c-n26.model-card :card="model_card_header_long_owner" owner_href="#model-vesna-krail">
+        <c-slot name="actions">
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Equip
+            </c-ui.button>
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Edit
+            </c-ui.button>
+        </c-slot>
+    </c-n26.model-card>
+    <c-n26.model-card :card="model_card_header_long_both" owner_href="#model-vesna-krail">
+        <c-slot name="actions">
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Equip
+            </c-ui.button>
+            <c-ui.button size="xs" variant="ghost" href="#">
+                Edit
+            </c-ui.button>
+        </c-slot>
+    </c-n26.model-card>
+</div>

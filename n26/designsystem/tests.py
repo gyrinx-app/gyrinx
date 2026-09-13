@@ -279,6 +279,57 @@ class TestThePetOnAModelCard:
         assert "Cyber-mastiff (pet) (Rust)" in page
 
 
+class TestTheHeaderBandSpecimens:
+    """The four cards that hold the header's whole contents at once, so
+    the band can be looked at while the names either side of it grow."""
+
+    def test_the_band_holds_everything_at_once(self, reader):
+        from n26.designsystem import sampledata
+
+        card = sampledata.model_card_header_short()
+        assert card.trade_points_left is not None and card.founding_budget
+        assert card.rating and card.profile_name and card.owned_by
+        assert card.image_url
+        # No id: the specimen draws its body plain rather than behind the
+        # tab strip, and carries no anchor to collide with the pet demo's.
+        assert card.id == ""
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "3 TP" in page
+        assert "390¢" in page
+        assert "Escher Death-Maiden" in page
+        assert "Owned by" in page
+
+    def test_both_names_are_drawn_short_and_long(self, reader):
+        from n26.designsystem import sampledata
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        for name in (
+            sampledata.SHORT_HEADER_NAME,
+            sampledata.LONG_HEADER_NAME,
+            sampledata.SHORT_HEADER_OWNER,
+            sampledata.LONG_HEADER_OWNER,
+        ):
+            assert name in page
+
+    def test_the_specimens_carry_nothing_below_the_statline(self):
+        """What makes them readable: a specimen carrying the sample
+        card's weapons and gear would bury the band being looked at."""
+        from n26.designsystem import sampledata
+
+        for build in (
+            sampledata.model_card_header_short,
+            sampledata.model_card_header_long_name,
+            sampledata.model_card_header_long_owner,
+            sampledata.model_card_header_long_both,
+        ):
+            card = build()
+            assert card.statline.cells
+            assert not card.weapons
+            assert not card.equipment
+            assert not card.skills
+
+
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 

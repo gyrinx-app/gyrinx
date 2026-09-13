@@ -2226,6 +2226,66 @@ def model_card_dead():
     )
 
 
+#: Names at the length the books really reach, for the header specimens
+#: below. The short pair is what most models are called; the long pair
+#: is a model named after a whole title and an owner who is too.
+SHORT_HEADER_NAME = "Vesna Krail"
+LONG_HEADER_NAME = "Vashti Corvinus-Kane the Thrice-Wounded"
+SHORT_HEADER_OWNER = "Yolanda"
+LONG_HEADER_OWNER = "Archregent Hollis Varn-Mortenkeep"
+
+
+def _header_card(name, owned_by):
+    """One header specimen: everything the header band can hold at once,
+    over as little card as a card can have.
+
+    Built from scratch rather than off ``model_card()``, because what
+    these are for is the header — its two columns, and what the names do
+    to them — and the sample card's weapons, skills and gear would bury
+    it. The statline stays: every card has one, and the header has to
+    sit above something.
+
+    No ``id``, so the card draws its body plain rather than behind the
+    tab strip, and carries no anchor to collide with the pet demo's.
+    """
+    return ModelCard(
+        name=name,
+        profile_name="Escher Death-Maiden",
+        rating=390,
+        profile_type="Fighter",
+        statline=_fighter_statline(),
+        owned_by=owned_by,
+        # The header's own demo passes the href; this is the model the
+        # name would lead to on a sheet that drew both.
+        owned_by_id="vesna-krail",
+        founding_budget=True,
+        trade_points_left=3,
+        image_url=CARD_IMAGE,
+        xp=0,
+        xp_target=6,
+    )
+
+
+def model_card_header_short():
+    """The header with both names short — the case it was drawn for."""
+    return _header_card(SHORT_HEADER_NAME, SHORT_HEADER_OWNER)
+
+
+def model_card_header_long_name():
+    """The header where the model's own name is long."""
+    return _header_card(LONG_HEADER_NAME, SHORT_HEADER_OWNER)
+
+
+def model_card_header_long_owner():
+    """The header where the owner's name is long."""
+    return _header_card(SHORT_HEADER_NAME, LONG_HEADER_OWNER)
+
+
+def model_card_header_long_both():
+    """The header with both names long — the worst the band has to take."""
+    return _header_card(LONG_HEADER_NAME, LONG_HEADER_OWNER)
+
+
 def model_card_editable():
     """The sample card as the model's own page draws it: its counters
     carry addresses, so the lines grow their controls and XP joins them,
