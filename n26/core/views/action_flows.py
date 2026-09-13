@@ -14,6 +14,7 @@ from django.urls import reverse
 from n26.core.access import actions_for
 from n26.core.action_flow import payment_figures, receipt_lines
 from n26.core.action_forms import (
+    ActionOutcomeForm,
     ActionSelectionForm,
     ConfirmActionForm,
     EmptyActionForm,
@@ -87,16 +88,31 @@ def _description(outcome):
     return "Roll and choose an advancement result."
 
 
-def _steps(record=None, *, stage="start", correction=False):
+def _steps(record=None, *, action=None, stage="start", correction=False):
     configured = record.outcome.operation if record and record.outcome_id else None
+    if record is None and action:
+        outcomes = _outcomes(action)
+        if len(outcomes) == 1:
+            configured = outcomes[0].operation
     if isinstance(configured, ResolveAdvancement):
         stages = [] if correction else [("start", "Outcome"), ("roll", "Roll")]
-        stages += [
-            ("advancement", "Advancement"),
-            ("skill", "Skill"),
-            ("review", "Review"),
-            ("done", "Completed"),
-        ]
+        stages += [("advancement", "Advancement")]
+        target = record.review.get("target", {}) if record else {}
+        skill = getattr(record, "skill_selection", None)
+        if stage in {"start", "roll", "advancement"}:
+            stages.append(("skill", "Skill (if needed)"))
+        elif (
+            stage == "skill"
+            or (stage == "review" and isinstance(target, dict) and target.get("skill"))
+            or (
+                stage == "done"
+                and skill
+                and skill.skill_assignment_id
+                and not skill.skill_assignment.archived
+            )
+        ):
+            stages.append(("skill", "Skill"))
+        stages += [("review", "Review"), ("done", "Completed")]
         current = next(
             (index for index, (key, _) in enumerate(stages) if key == stage), 0
         )
@@ -107,7 +123,7 @@ def _steps(record=None, *, stage="start", correction=False):
     middle = (
         [("choose", "Item and tier")]
         if isinstance(configured, AugmentCarriedItem)
-        else []
+        else ([("choose", "Selection (if needed)")] if configured is None else [])
     )
     stages = (
         [("correct", "Choose tier")] if correction else [("start", "Outcome"), *middle]
@@ -188,12 +204,17 @@ def _page(
             "record": record,
             "stage": stage,
             "correction": correction,
-            "steps": _steps(record, stage=stage, correction=correction),
+            "steps": _steps(record, action=action, stage=stage, correction=correction),
             "back": reverse("n26-edit-fighter", args=[fighter.pk]),
             "cancel_href": flow_url(fighter, record, "cancel")
             if _can_cancel(record)
             else "",
             "selection_summary": _selection_summary(record, stage),
+            "outcome_href": flow_url(fighter, record, "outcome")
+            if _can_cancel(record)
+            and not correction
+            and stage not in {"start", "done", "cancel"}
+            else "",
             **context,
         },
     )
@@ -229,7 +250,10 @@ def _selection_summary(record, stage):
             skill = getattr(record, "skill_selection", None)
             return (
                 f"{advancement.intended_pick}: {skill.selected_skill}."
-                if skill and skill.selected_skill
+                if skill
+                and skill.selected_skill
+                and skill.skill_assignment_id
+                and not skill.skill_assignment.archived
                 else str(advancement.intended_pick)
             )
     return ""
@@ -384,6 +408,8 @@ def action_flow(request, pk, record_id, step):
             else "Correct result",
         )
     correction = record.state == ActionRecord.State.COMPLETED
+    if step == "outcome" and not correction:
+        return _choose_outcome(request, fighter, record)
     if step == "review":
         return _review(request, fighter, record, correction=correction)
     if step not in {"choose", "correct", "skill"}:
@@ -404,7 +430,7 @@ def action_flow(request, pk, record_id, step):
             request, fighter, record, step=step, correction=correction
         )
     except Refusal as refusal:
-        form = EmptyActionForm()
+        form = EmptyActionForm({})
         form.add_error(None, str(refusal))
         return _page(
             request,
@@ -415,6 +441,48 @@ def action_flow(request, pk, record_id, step):
             stage="advancement",
             correction=correction,
         )
+
+
+def _choose_outcome(request, fighter, record):
+    outcomes = _outcomes(record.action)
+    form = ActionOutcomeForm(
+        request.POST or None,
+        outcomes=outcomes,
+        initial={"outcome": str(record.outcome_id)},
+    )
+    if request.method == "POST" and form.is_valid():
+        outcome = next(
+            item for item in outcomes if str(item.pk) == form.cleaned_data["outcome"]
+        )
+        try:
+            with operation(fighter.gang, actor=request.user) as op:
+                record = op.save_action_choices(record, outcome=outcome, terms={})
+                if isinstance(outcome.operation, ApplyChanges):
+                    record = op.review_action(
+                        record, outcome=outcome, terms=record.terms
+                    )
+            return redirect(flow_url(fighter, record, "resume"))
+        except Refusal as refusal:
+            form.add_error(None, str(refusal))
+    return _page(
+        request,
+        fighter,
+        record.action,
+        record=record,
+        form=form,
+        prices=payment_figures(quote_for(fighter, record.action)),
+        outcomes=[
+            {
+                "key": str(item.pk),
+                "name": str(item),
+                "description": _description(item),
+                "checked": str(form["outcome"].value()) == str(item.pk),
+            }
+            for item in outcomes
+        ],
+        submit_label="Continue",
+        submit_variant="primary",
+    )
 
 
 def _choose_augmentation(request, fighter, record, configured, *, correction):
@@ -470,7 +538,7 @@ def _choose_augmentation(request, fighter, record, configured, *, correction):
 def _review(request, fighter, record, *, correction):
     if request.method != "POST" and not record.review:
         return redirect(
-            flow_url(fighter, record, "correct" if correction else "choose")
+            flow_url(fighter, record, "correct" if correction else "outcome")
         )
     form = ConfirmActionForm(
         request.POST or None, initial={"review": _review_token(record)}
@@ -507,9 +575,18 @@ def _review(request, fighter, record, *, correction):
         form=form,
         prices=() if correction else _review_prices(record),
         outcome_description=_description(record.outcome),
+        change_preview=record.review.get("target", [])
+        if isinstance(record.outcome.operation, ApplyChanges)
+        else [],
+        retained_payment=bool(record.payment_id),
+        retained_roll=bool(
+            getattr(
+                getattr(record, "advancement_selection", None), "roll_event_id", None
+            )
+        ),
         change_href=flow_url(fighter, record, "correct" if correction else "choose")
         if not isinstance(record.outcome.operation, ApplyChanges)
-        else "",
+        else flow_url(fighter, record, "outcome"),
         submit_label="Save correction" if correction else "Confirm",
         submit_variant="success",
     )

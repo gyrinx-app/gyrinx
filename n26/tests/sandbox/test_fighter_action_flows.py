@@ -196,8 +196,52 @@ class TestSuitEvolutionForms:
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
         assert not record.payment_id
+        revisit = client.post(
+            response.context["change_href"],
+            {"outcome": str(hunt.clear.pk)},
+            follow=True,
+        )
+        assert revisit.status_code == 200
+        assert "Glitch Count: 2 → 0" in revisit.content.decode()
+        assert revisit.context["prices"][0].available == "7"
+        fresh_token = revisit.context["form"]["review"].value()
+        assert client.post(url, {"review": fresh_token}).status_code == 302
+        hunt.kills.counter_value.refresh_from_db()
+        assert hunt.kills.counter_value.value == 3
         hunt.gang.refresh_from_db()
         assert_reconciled(hunt.gang)
+
+    def test_tallying_a_counter_refreshes_the_flow_panels_on_edit(self, client, hunt):
+        client.force_login(hunt.owner)
+        response = client.post(
+            reverse("n26-tally", args=[hunt.kills.pk]),
+            {
+                "change": "-3",
+                "back": reverse("n26-edit-fighter", args=[hunt.fighter.pk]),
+            },
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'id="n26-action-panels" hx-swap-oob="outerHTML"' in html
+        assert "This flow needs 1 more Kill Count." in html
+        assert "Start Suit Evolution flow" not in html
+
+    def test_changing_the_outcome_keeps_one_unpaid_record(self, client, hunt):
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
+        client.post(choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"})
+        changed = client.post(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"]),
+            {"outcome": str(hunt.clear.pk)},
+            follow=True,
+        )
+        assert changed.status_code == 200
+        record.refresh_from_db()
+        assert record.outcome == hunt.clear
+        assert record.terms == {"outcome": str(hunt.clear.pk)}
+        assert not record.payment_id
+        assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
 
     def test_another_owner_cannot_open_or_complete_the_flow(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.clear)

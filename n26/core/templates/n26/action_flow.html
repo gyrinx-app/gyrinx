@@ -27,7 +27,10 @@
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+        {% for field in form.hidden_fields %}
+            {{ field }}
+            {% if field.errors %}<c-ui.error :form="form" name="{{ field.name }}" />{% endif %}
+        {% endfor %}
         {% if prices %}
             <c-n26.form-section title="Price">
                 {% for figures in prices %}
@@ -63,7 +66,7 @@
                                                 description="{{ option.item.effect }}"
                                                 :wrap="True"
                                                 :checked="option.checked">
-                            <span class="block text-muted">Rating {{ option.item.rating_before }}¢ → {{ option.item.rating_after }}¢</span>
+                            <span class="block text-muted">Model rating {{ option.item.rating_before }}¢ → {{ option.item.rating_after }}¢</span>
                         </c-n26.radio-cards.card>
                     </c-n26.radio-cards>
                 {% empty %}
@@ -94,8 +97,16 @@
                 <p class="font-semibold">{{ record.outcome }}</p>
                 <p>{{ outcome_description }}</p>
                 {% if selection_summary %}<p>{{ selection_summary }}</p>{% endif %}
+                {% for change in change_preview %}
+                    {% if change.kind == "counter" %}
+                        <p>{{ change.name }}: {{ change.before }} → {{ change.after }}</p>
+                    {% elif change.removed_count %}
+                        <p>Remove {{ change.removed_count }} {{ change.slot_type }} choice{{ change.removed_count|pluralize }}.</p>
+                    {% endif %}
+                {% endfor %}
                 {% if correction %}
-                    <p class="text-sm text-muted">The original payment and recorded rolls are retained.</p>
+                    {% if retained_payment %}<p class="text-sm text-muted">The original payment is retained.</p>{% endif %}
+                    {% if retained_roll %}<p class="text-sm text-muted">The recorded rolls are retained.</p>{% endif %}
                 {% elif prices %}
                     <p class="text-sm text-muted">Confirming pays this price. Changing the result later does not return the payment.</p>
                 {% endif %}
@@ -123,6 +134,9 @@
             <p>Cancel this unfinished flow?</p>
         {% endif %}
     </c-n26.form-page>
+    {% if outcome_href and stage != "review" %}
+        <p class="mt-6 text-sm"><a href="{{ outcome_href }}" class="linked">Change outcome</a></p>
+    {% endif %}
     {% if cancel_href and stage != "done" and stage != "cancel" and not correction %}
         <p class="mt-6 text-sm"><a href="{{ cancel_href }}" class="linked">Cancel this flow</a></p>
     {% endif %}

@@ -3,16 +3,34 @@
 from django import forms
 
 
-class StartActionForm(forms.Form):
-    request_key = forms.UUIDField(widget=forms.HiddenInput)
+class ActionOutcomeForm(forms.Form):
     outcome = forms.ChoiceField(label="Choose an outcome")
-    allowance = forms.ChoiceField(required=False, widget=forms.HiddenInput)
 
-    def __init__(self, *args, outcomes, allowances, **kwargs):
+    def __init__(self, *args, outcomes, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["outcome"].choices = [
             (str(item.pk), str(item)) for item in outcomes
         ]
+
+
+class StartActionForm(ActionOutcomeForm):
+    request_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "invalid": "This form is not recognised. Reload this page and try again.",
+            "required": "Reload this page before continuing.",
+        },
+    )
+    allowance = forms.ChoiceField(
+        required=False,
+        widget=forms.HiddenInput,
+        error_messages={
+            "invalid_choice": "That earned use is no longer available. Return to the model to resume it or choose another.",
+        },
+    )
+
+    def __init__(self, *args, outcomes, allowances, **kwargs):
+        super().__init__(*args, outcomes=outcomes, **kwargs)
         self.fields["allowance"].choices = [
             (str(item.pk), str(item.threshold or "Recruitment")) for item in allowances
         ]
@@ -31,7 +49,13 @@ class ConfirmActionForm(forms.Form):
 
 
 class ActionRollForm(forms.Form):
-    request_key = forms.UUIDField(widget=forms.HiddenInput)
+    request_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "invalid": "This form is not recognised. Reload this page and try again.",
+            "required": "Reload this page before rolling.",
+        },
+    )
 
 
 class AdvancementForm(forms.Form):
@@ -57,7 +81,7 @@ class SkillSelectionForm(forms.Form):
 
 
 class SkillRollForm(ActionRollForm):
-    skill_set_id = forms.ChoiceField(label="Select a Skill Set")
+    skill_set_id = forms.ChoiceField(label="Select a skill set")
 
     def __init__(self, *args, groups, **kwargs):
         super().__init__(*args, **kwargs)
