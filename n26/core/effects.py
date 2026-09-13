@@ -86,9 +86,9 @@ def kind_of(thing):
     none.
     """
     from n26.core.models import CampaignAsset
-    from n26.library.models import AssetTable, Hidden, Pickable, Slot
+    from n26.library.models import Action, AssetTable, Hidden, Pickable, RankTable, Slot
 
-    if isinstance(thing, (Hidden, Slot, Pickable, AssetTable)):
+    if isinstance(thing, (Hidden, Slot, Pickable, AssetTable, Action, RankTable)):
         return ""
     if isinstance(thing, CampaignAsset):
         # A campaign asset is named by what its campaign type calls the

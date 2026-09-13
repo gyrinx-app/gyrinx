@@ -5,7 +5,12 @@ from django.db import models
 from django.db.models.functions import Lower
 
 from n26.core.constraints import exactly_one_of
-from n26.library.models.assignable import Assignable, Family, UsableBy
+from n26.library.models.assignable import (
+    Assignable,
+    Family,
+    UsableBy,
+    exclusive_has_no_trade_points,
+)
 from n26.library.models.base import Content
 
 
@@ -23,11 +28,12 @@ class RankTable(Content, Assignable):
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(
-                "pack", Lower("name"), name="rank_table_unique_per_pack"
+                "pack",
+                Lower("name"),
+                Lower("qualifier"),
+                name="rank_table_unique_per_pack",
             ),
-            models.CheckConstraint(
-                condition=models.Q(price=0), name="rank_table_acquisition_is_free"
-            ),
+            exclusive_has_no_trade_points("rank_table"),
         ]
 
     def __str__(self):
@@ -118,11 +124,12 @@ class Action(Content, Assignable, UsableBy):
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(
-                "pack", Lower("name"), name="action_unique_per_pack"
+                "pack",
+                Lower("name"),
+                Lower("qualifier"),
+                name="action_unique_per_pack",
             ),
-            models.CheckConstraint(
-                condition=models.Q(price=0), name="action_acquisition_is_free"
-            ),
+            exclusive_has_no_trade_points("action"),
             models.CheckConstraint(
                 condition=models.Q(recruitment_allowance_rule__isnull=True)
                 | models.Q(rank_allowance_rule__isnull=True),

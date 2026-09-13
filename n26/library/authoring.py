@@ -2578,10 +2578,12 @@ def op_sets_status(status):
 
 def _assignable_kwarg(thing):
     from n26.library.models import (
+        Action,
         AssetTable,
         Collection,
         Hidden,
         Power,
+        RankTable,
         Rule,
         Skill,
         Slot,
@@ -2603,6 +2605,8 @@ def _assignable_kwarg(thing):
         (Hidden, "hidden"),
         (Slot, "slot"),
         (AssetTable, "asset_table"),
+        (Action, "action"),
+        (RankTable, "rank_table"),
     )
     for model, name in kinds:
         if isinstance(thing, model):

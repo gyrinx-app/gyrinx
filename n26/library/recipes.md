@@ -426,76 +426,50 @@ the model's card.
    changes what an earlier tier changed — a 6+ field save at Tier 1
    and a 5+ field save at Tier 3 — the later tier carries the later
    value only. Nothing from Tier 1 is in play once Tier 3 is picked.
-4. Add a **picklist** of that item's tiers, in order.
-5. Add a **slot** on that picklist, labelled "Augmentation", taking 0 to
-   1 picks, assigned to the bearer.
+4. Add a **picklist** of that item's tiers, in order. Give each member
+   its numeric level: 1, 2, 3, and so on.
+5. Add a **tier ladder slot** on that picklist, labelled "Augmentation",
+   taking 0 to 1 picks and assigned to the bearer.
 6. Build the slot into the item. The card of a model carrying the item
    then draws an "Augmentation" line under the item, holding the tier
    picked or a dash.
 
-Picking a tier replaces the one held. The player picks the next tier
-after a Hunting Rig Augmentation result, and the tier below after a
-System Downgrade glitch. Every tier is offered whatever the level, so nothing stops a player who
-reads the book differently. Tiers carry no price and add nothing to the
-rating. The credits are recorded on the Power Boost result that raised
-the level.
+Completing an augmentation replaces the tier held with the next numeric
+level. The content's numeric levels determine the change; its display
+position and name do not. Tiers carry no price. Their pickables carry
+any rating contribution from the resulting tier.
 
 A rig's tiers are not yet drawn under the rig: they show as a line of
 their own under Gear, because only a weapon draws its tiers under the
 item itself.
 
-## Suit Evolution: the Power Boost table
+## Suit Evolution and Suit Maintenance actions
 
-> Draft, for review.
+A Spyrer's suit keeps Kill Count and Glitch Count counters. Suit
+Evolution spends four Kill Count and offers two outcomes: raise one
+carried item's augmentation by one tier, or clear the fighter's glitches.
+Suit Maintenance pays 100 credits and clears the same glitches.
 
-A Spyrer's suit keeps a Kill Count. After a battle, a Spyrer with a Kill
-Count of four or more may spend four and roll a D6 for a Power Boost.
-Rolls of 1 to 4 raise a characteristic; a 5 or 6 raises one carried
-item's augmentation level. Each result raises the model's rating by a
-printed figure. The app rolls only when asked, and never checks the Kill
-Count: the Power Boost line is on the card whatever the count is, and
-the owner decides when to roll.
+1. Create the Kill Count and Glitch Count counters and build them into
+   each Spyrer entry, starting at 0.
+2. Create an **augment carried item** outcome naming the Augmentation
+   slot type.
+3. Create a **clear glitches** outcome. Its ordered changes set Glitch
+   Count to 0 and remove every pick of the Hunting Rig Glitches slot
+   type.
+4. Create the **Suit Evolution** action after a cycle. List augmentation
+   first and clearing glitches second. Add one use-price component:
+   four Kill Count paid by the fighter.
+5. Create the **Suit Maintenance** action after a cycle. List clearing
+   glitches as its only outcome. Add one use-price component: 100 credits
+   paid by the gang.
+6. Give both actions to Spyrers through the same built-in or modifier
+   provenance that identifies them. Usable-by lists describe who the
+   rule is for; they do not create access by themselves.
 
-1. On **Foundations**, create the **Power Boost table**. One click
-   creates the slot type with *allows repeats* on, every result at its
-   band with the credits it adds to the model's rating, and a standing
-   choice of up to twenty picks. The first band contains two results,
-   one for Weapon Skill and one for Ballistic Skill, because the book
-   lets the player raise either. The table's page says a roll of 1 is
-   claimed by more than one result. That is what the book says.
-2. Give Spyrers a **Kill Count** counter if they do not have one: create
-   the counter and build it into each Spyrer entry, starting at 0. The
-   Glitch Count is built the same way.
-3. Standard content carries names and numbers only, so finish the
-   results by hand. On each result that raises a characteristic, attach
-   a **modifier**: targets the model, improves that characteristic by
-   one (Weapon Skill or Ballistic Skill for the two Combat Neuroware
-   results, Initiative, Movement, Save). The characteristic's own
-   maximum stops the change. When that happens the book counts the
-   result as Hunting Rig Augmentation instead, and the player applies
-   it. The picker offers every result whatever was rolled.
-4. On every result, attach a **modifier** as well: targets the model,
-   *moves a counter* — the Kill Count, down by four. It runs once, when
-   the result is picked, and taking the result back later does not give
-   the four back.
-5. On the Spyre Hunters gang type, attach a **modifier**: targets *all
-   models in the gang*, narrowed to those that have the **Spyrer**
-   subtype, and *gives* the Power Boost choice. Do not narrow it by the
-   Kill Count: if the choice disappeared when the count dropped below
-   four, every result already picked would go with it.
-
-A Spyrer's card then shows a Power Boost line, and its picker offers to
-roll. Rolling writes the roll to the gang's history; picking a result
-adds it to the card, takes four from the Kill Count, and raises the
-model's rating by the result's figure. Hunting Rig Augmentation raises
-no characteristic on its own: the player then opens the augmentation
-choice on one of the Spyrer's items and adds a tier there. Rolling again
-is a second pick; taking a result back removes its rating and nothing
-else.
-
-Clearing all glitches instead of rolling is not yet a single action:
-take the glitch results off the card by hand and move the Kill Count
-down by four.
+The action checks the balance and result when the player confirms it.
+Starting or assigning the capability does not spend anything or apply an
+outcome.
 
 ## The Lasting Injury and Lasting Damage tables
 

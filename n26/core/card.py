@@ -504,6 +504,9 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         # reads it off the card it was built from.
         "slot__slot_type",
         "slot__picklist",
+        "action__usable_by_profile_types",
+        "action__usable_by_subtypes",
+        "action__usable_by_profiles",
         # A profile's home is its gun's, so a scope narrowed to a
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.

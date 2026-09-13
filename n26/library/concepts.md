@@ -259,7 +259,7 @@ A roll table is a picklist that names its dice and how a roll finds its entry �
 
 *A fully configured slot containing pickables: a picklist, a label, and how many picks.*
 
-Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the slots on one card.
+Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; a **mode**; and a position among the slots on one card. A tier ladder holds one pick and gives every picklist member a unique numeric level. Level 0 means that the slot has no pick.
 
 One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick still does everything it does: grouped hidden assignables, under one name.
 
@@ -279,13 +279,25 @@ When a founding, a hire or a pick puts a slot on a gang or a model, every inters
 
 *Not a type: the assignment that settles a choice.*
 
-The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is never paid for: no credits move, and there is nothing to refund or sell. A pickable may still carry a rating contribution — a Spyrer's Power Boost result raises the model's value by the amount the table prints — and the pick carries that as its rating. Removing the pick removes that rating too. A pick the gang holds adds nothing, whatever its pickable says. Most pickables add 0.
+The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave. Two slots of one slot type on one holder stay independent, even where one thing opened both. Nothing is worked out from what kind of thing was chosen. A pick is never paid for: no credits move, and there is nothing to refund or sell. A pickable may still carry a rating contribution, and the pick carries that as its rating. Removing the pick removes that rating too. A pick the gang holds adds nothing, whatever its pickable says. Most pickables add 0.
 
 A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, including the fighter who made the pick. A pickable that carries the *draws the pick on the card* effect is displayed after all, on the cards its scope reaches. See below.
 
 A pick can also arrive with a slot a modifier gives (*gives* a hidden slot **with a pick**). That pick is not an assignment: it is worked out when the card is read, draws no line, and the player cannot change or remove it. It counts as picked wherever a condition asks, on the holder and, for a slot the gang holds, on every member. It goes when the slot goes. Only a hidden slot can be given this way.
 
 Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
+
+---
+
+## Actions and outcomes
+
+An **action** is an assignable capability a fighter may use at recruitment or after a cycle. Its inherited price is the price of acquiring the capability and is always 0. Its **use price** is a separate ordered list: every component is paid together. A component spends either gang credits or an identified counter on the gang or fighter. An empty list means that using the action is free.
+
+An action lists one or more **outcomes** in order. Each outcome owns one typed operation: augment one carried item's tier ladder, resolve an advancement slot, or apply an ordered set of counter changes and pick removals. Several actions may list the same outcome.
+
+An optional **allowance rule** says when one use is earned. Recruitment grants one use when recruitment completes. A rank rule grants uses when an increase to its counter crosses thresholds in the fighter's effective rank table. An action with an allowance has no use price.
+
+A **rank table** is an assignable progression schedule for one counter. Its positive thresholds are unique and ordered by their numeric value. Profiles may bring actions and rank tables as built-ins, and modifiers may give or take them away like other assignables.
 
 ---
 

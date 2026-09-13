@@ -31,6 +31,7 @@ from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
     EMPTY_VALUE,
+    Action,
     AssetTable,
     Collection,
     Counter,
@@ -38,6 +39,7 @@ from n26.library.models import (
     Hidden,
     OpAddsMiniature,
     Pickable,
+    RankTable,
     Rule,
     Slot,
     Subtype,
@@ -55,7 +57,7 @@ from n26.library.standard_content import XP_COUNTER
 #: reads the one case where it is not. Their effects still show, named
 #: in whatever they changed. An asset table because holding one is a
 #: fact the campaign's roll controls read, not something a sheet says.
-DRAWS_NO_LINE = (Hidden, Slot, Pickable, AssetTable)
+DRAWS_NO_LINE = (Hidden, Slot, Pickable, AssetTable, Action, RankTable)
 
 
 def _speaks_for_itself(node, asked_here):
