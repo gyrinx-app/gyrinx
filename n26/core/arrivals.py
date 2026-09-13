@@ -174,32 +174,44 @@ def _already_asking(gang, back):
     return query.get("ask", []), query.get("next", [""])[0]
 
 
-def onward(request, gang, op, back, *, via=""):
-    """Where the reader goes after an act: the screen for what just
-    arrived when any of it carries an interstitial, else ``back``.
+def arriving(request, gang, op):
+    """The addresses of what the act just brought that asks for a
+    screen — unresolved, taking a pick, carrying a live interstitial —
+    or nothing.
 
-    ``via`` is a second address that may be that screen already — the
-    pick screen's own return, where a choice worked at a pick at a time
-    comes back to itself rather than to it. Where either is the screen,
-    what arrived joins its questions instead of opening a second one.
-    A caller whose answer costs something to work out passes a callable
-    instead, and it is asked only once something has arrived that asks
-    for a screen.
+    The gates come first: a library with nothing attached costs one
+    query and no derivation, and one holding only staged screens costs
+    a reader who may not see them the same.
     """
     if not op.written or not any_interstitials():
-        return back
+        return []
     shown = sees_staged(request.user)
     if not shown and not any_interstitials(include_staged=False):
         # Only staged screens, and a reader who may not see them: no
         # need to derive the gang to find out nothing will draw.
-        return back
-    keys = asking(gang, op.written, include_staged=shown)
-    if not keys:
-        return back
+        return []
+    return asking(gang, op.written, include_staged=shown)
+
+
+def toward(gang, keys, back):
+    """The screen asking these questions, in front of ``back`` — or,
+    where ``back`` is itself this gang's screen, that screen with these
+    questions joined to its own rather than a second one in front of it.
+
+    A pick made on the pick screen, reached from the screen for its
+    roll, comes back to it this way.
+    """
     standing = _already_asking(gang, back)
-    if standing is None and via:
-        standing = _already_asking(gang, via() if callable(via) else via)
     if standing is not None:
         asked, back = standing
         keys = [*asked, *(key for key in keys if key not in asked)]
     return next_url(gang, keys, back)
+
+
+def onward(request, gang, op, back):
+    """Where the reader goes after an act: the screen for what just
+    arrived when any of it carries an interstitial, else ``back``."""
+    keys = arriving(request, gang, op)
+    if not keys:
+        return back
+    return toward(gang, keys, back)

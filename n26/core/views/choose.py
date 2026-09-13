@@ -30,7 +30,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from n26.core.arrivals import onward
+from n26.core.arrivals import arriving, onward, toward
 from n26.core.owned import with_query
 from n26.core.views.permissions import _own_gang_or_404, own_address
 from n26.library.staged import sees_staged
@@ -140,21 +140,28 @@ def _landing(request, gang, key, offer, op, here, back):
     A choice of one leaves for ``back``; where the reader came from the
     screen for what arrived, what this pick brought joins it rather
     than opening a second. A choice worked at a pick at a time comes
-    back to itself, and stays the way on until it is full: a screen for
-    what an early pick brought leads back to the picker for the rest,
-    and only the pick that fills the choice hands on to where the
-    reader came from.
+    back to itself, full or not — the page says when it is full, and
+    offers the way back — and stays the way on while it is worked at: a
+    screen for what an early pick brought leads back to the picker for
+    the rest, and only the pick that fills the choice hands what it
+    brought on to where the reader came from. So does a pick that
+    takes its own question away: nothing is left to work at, and the
+    picker is no longer a page.
+
+    Whether the choice is still worked at is read off a fresh
+    derivation, and only once the pick has brought a screen: a click
+    that brought nothing must not pay for it.
     """
     if not offer.takes_several:
-        return onward(request, gang, op, back, via=back)
-
-    def once_full():
-        # Whether this pick filled the choice, as the card reads it now.
-        # Asked only once the pick has brought a screen: a derivation,
-        # and a click that brought nothing must not pay for it.
-        return back if find_slot(gang, key).slot.is_full else ""
-
-    return onward(request, gang, op, here, via=once_full)
+        return onward(request, gang, op, back)
+    keys = arriving(request, gang, op)
+    if not keys:
+        return here
+    try:
+        working = not find_slot(gang, key).slot.is_full
+    except Http404:
+        working = False
+    return toward(gang, keys, here if working else back)
 
 
 def find_slots(gang, keys):
