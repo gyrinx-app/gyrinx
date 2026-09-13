@@ -219,6 +219,12 @@ document.querySelectorAll("[data-share-url]").forEach((element) => {
     element.addEventListener("click", (event) => {
         const raw = element.getAttribute("data-share-url");
         if (!raw) return;
+        // A modified or non-primary click, or a link aimed at another
+        // window, is the browser's to handle: open in a new tab, and so on.
+        if (event.button !== 0) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+            return;
+        if (element.target && element.target !== "_self") return;
 
         event.preventDefault();
 

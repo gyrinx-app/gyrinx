@@ -35,7 +35,7 @@ def gang(gang_type, owner):
 def share_link(body, url):
     """The <a> that shares `url` on click, or None."""
     for match in re.finditer(rf'<a\s[^>]*href="{re.escape(url)}"[^>]*>', body):
-        if "share($el.href)" in match.group(0):
+        if "clicked($event)" in match.group(0):
             return match.group(0)
     return None
 
@@ -64,5 +64,5 @@ def test_the_edit_page_has_no_share_button(client, owner, gang):
 
     body = client.get(reverse("n26-edit-gang", args=[gang.pk])).content.decode()
 
-    assert "share($el.href)" not in body
+    assert "clicked($event)" not in body
     assert icons.ICONS["share"][0] not in body

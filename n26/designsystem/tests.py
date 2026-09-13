@@ -61,7 +61,7 @@ class TestTheSharePage:
 
     def test_the_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/share/").content.decode()
-        assert "share($el.href)" in page
+        assert "clicked($event)" in page
         assert "This gang is unlisted" in page
 
 

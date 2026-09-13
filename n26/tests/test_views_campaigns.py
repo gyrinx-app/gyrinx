@@ -422,7 +422,7 @@ class TestSomebodyElsesCampaign:
         which Alpine turns into the share sheet or the clipboard."""
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
-        assert "share($el.href)" in drawn
+        assert "clicked($event)" in drawn
         assert "Link copied." in drawn
 
     def test_the_shared_address_reads_for_whoever_is_signed_in(
@@ -442,13 +442,13 @@ class TestSomebodyElsesCampaign:
         drawn = response.content.decode()
         assert "Not Yours" in drawn
         assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
-        assert "share($el.href)" in drawn
+        assert "clicked($event)" in drawn
 
     def test_the_edit_page_has_no_share_button(
         self, client, arbitrator, campaign, open_to_everyone
     ):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/edit/").content.decode()
-        assert "share($el.href)" not in drawn
+        assert "clicked($event)" not in drawn
 
 
 class TestEditing:
