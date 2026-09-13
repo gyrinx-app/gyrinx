@@ -204,6 +204,8 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **pr-screenshots** — Capture useful UI evidence and attach it to a PR with GitHub-native attachments.
   Load for meaningful rendered UI changes, especially when working in a cloud session where the user cannot
   see the browser, and when preserving or refreshing screenshots while rewriting a PR description.
+- **sql-performance** — Inspect a database-backed page's SQL cascade with the Debug Toolbar, distinguish bounded
+  queries from per-object growth, and add a query-growth regression test when the performance contract is non-obvious.
 - **worktree-db** — Knowledge about per-worktree database isolation: forking, resetting, migrating, cleanup,
   template workflow, pgAdmin access
 
@@ -324,6 +326,8 @@ titles, which should freely name model classes, functions and flags.
 
 - Manually test changes through the running app (dev server + browser) before
   shipping — skip only when the change is trivial
+- After creating or materially changing a database-backed page, load the **sql-performance** skill and inspect its
+  SQL cascade with representative repeated data before shipping.
 - For a change that meaningfully alters rendered UI, normally attach one or more
   useful captures to the PR so reviewers can see the result. This matters most in
   cloud sessions where the user cannot see the browser. Use judgment rather than
