@@ -1,0 +1,72 @@
+{% comment %}
+<c-n26.share> — a share button for a page other people can open.
+
+    <c-n26.share url="{% url 'n26-gang' gang.pk %}" />
+    <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" message="Link copied." />
+
+A link to the page itself, so without JavaScript it is a plain link the
+reader can copy or right-click. With Alpine it takes over the click: the
+device's share sheet where there is one (navigator.share), the clipboard
+otherwise, and then the message beside the button for a few seconds. A
+dismissed share sheet copies nothing and says nothing; any other failure
+of the sheet, thrown or rejected, falls back to the clipboard. Where there is no
+clipboard to write to (plain http, an old browser) or the write fails,
+the click navigates to the page instead, as the bare link would, so the
+reader can copy the address from the bar.
+
+The address handed to the share sheet is the link's own href, which the
+browser has already made absolute — so a path is enough here, and the
+button shares the same address it would navigate to.
+
+  url — the page to share. A path is fine.
+  message — shown once the address is on the clipboard. Default "Link copied."
+  size, variant — passed to <c-ui.button>. Default sm / default.
+  class — extra classes on the wrapper that holds the button and its message.
+{% endcomment %}
+<c-vars
+    url=""
+    message="Link copied."
+    size="sm"
+    variant="default"
+    class=""
+/>
+
+<span class="inline-flex items-center gap-2 {{ class }}"
+      x-data="{
+          copied: false,
+          timer: null,
+          showCopiedMessage() {
+              this.copied = true;
+              clearTimeout(this.timer);
+              this.timer = setTimeout(() => { this.copied = false; }, 4000);
+          },
+          clicked(event) {
+              // A modified or non-primary click, or a link aimed at another
+              // window, is the browser's to handle: open in a new tab, and so on.
+              const link = event.currentTarget;
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              if (link.target && link.target !== '_self') return;
+              event.preventDefault();
+              this.share(link.href);
+          },
+          share(url) {
+              const copy = () => {
+                  if (!navigator.clipboard) { window.location.assign(url); return; }
+                  navigator.clipboard.writeText(url).then(() => this.showCopiedMessage(), () => window.location.assign(url));
+              };
+              const notAborted = (err) => { if (err.name !== 'AbortError') copy(); };
+              if (navigator.share && (!navigator.canShare || navigator.canShare({ url }))) {
+                  try { navigator.share({ url }).catch(notAborted); } catch (err) { notAborted(err); }
+              } else {
+                  copy();
+              }
+          }
+      }">
+    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" @click="clicked($event)">
+        <span class="inline-flex items-center gap-1.5">
+            <c-n26.icon name="share" class="size-4" />
+            Share
+        </span>
+    </c-ui.button>
+    <span x-cloak x-show="copied" role="status" class="text-sm text-muted">{{ message }}</span>
+</span>

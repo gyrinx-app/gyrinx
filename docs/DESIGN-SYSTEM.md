@@ -247,6 +247,7 @@ Flash messages (after redirect) are dismissible. Inline contextual alerts are no
 | Section "add" link | `icon-link linked` in section header bar | "Add Gangs", "Add Fighter" |
 | Section "manage" link | `icon-link linked` with `bi-pencil` + the noun | "Attributes", "Resources", "Assets" |
 | Back link | `{% include "core/includes/back.html" %}` | All back navigation |
+| Share the page | `<c-share url="…" />` — a `c-btn` link to the page; `index.js` turns the click into the share sheet or the clipboard | Gang page meta row (`variant="link"`), campaign header, help pages |
 
 **Rules:**
 

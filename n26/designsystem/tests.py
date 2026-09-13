@@ -51,6 +51,20 @@ class TestTheQuickSwitchersPage:
         assert "#the-rust-sermon" in page
 
 
+class TestTheSharePage:
+    """Its props and both demos reach the gallery drawn."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/share/").content.decode()
+        assert "message" in page
+        assert "url" in page
+
+    def test_the_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/share/").content.decode()
+        assert "clicked($event)" in page
+        assert "This gang is unlisted" in page
+
+
 class TestThePictureBoxPage:
     """Its props and both of its states reach the gallery drawn."""
 

@@ -23,6 +23,7 @@
                         <span class="text-secondary">Help &amp; Documentation</span>
                     {% endif %}
                     <h1>{{ flatpage.title }}</h1>
+                    <c-share url="{{ flatpage.url }}" />
                     <hr class="my-3 my-md-4" />
                 </div>
                 {% if flatpages|length > 1 %}

@@ -8,6 +8,7 @@ from importlib import import_module
 
 import pytest
 from django.contrib.auth.models import Group, User
+from django.test import Client
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import (
@@ -415,6 +416,39 @@ class TestSomebodyElsesCampaign:
     def test_it_is_not_listed(self, client, arbitrator, theirs, open_to_everyone):
         """Readable at its own address, but not one of the reader's own."""
         assert "Not Yours" not in client.get("/n26/campaigns/").content.decode()
+
+    def test_it_can_be_shared(self, client, arbitrator, theirs, open_to_everyone):
+        """The one control every reader gets: a link to the page itself,
+        which Alpine turns into the share sheet or the clipboard."""
+        drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
+        assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
+        assert "clicked($event)" in drawn
+        assert "Link copied." in drawn
+
+    def test_the_shared_address_reads_for_whoever_is_signed_in(
+        self, arbitrator, theirs, open_to_everyone
+    ):
+        """What the link hands on: the page itself, to any signed-in person
+        who follows it, with the same control to pass it further. A visitor
+        who is not signed in gets the 404 every campaign address answers
+        them with — the feature does not announce itself by sending
+        somebody to sign in."""
+        bystander = Client()
+        assert bystander.get(f"/n26/campaigns/{theirs.pk}/").status_code == 404
+
+        bystander.force_login(User.objects.create_user("bystander"))
+        response = bystander.get(f"/n26/campaigns/{theirs.pk}/")
+        assert response.status_code == 200
+        drawn = response.content.decode()
+        assert "Not Yours" in drawn
+        assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
+        assert "clicked($event)" in drawn
+
+    def test_the_edit_page_has_no_share_button(
+        self, client, arbitrator, campaign, open_to_everyone
+    ):
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/edit/").content.decode()
+        assert "clicked($event)" not in drawn
 
 
 class TestEditing:

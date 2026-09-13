@@ -30,6 +30,13 @@
                                       class="tooltipped">Unlisted</span>
                             {% endif %}
                         </div>
+                        <div>
+                            <c-share url="{{ share_url }}"
+                                     message="{% if list.public %}Link copied.{% else %}Link copied. This gang is unlisted, so only people with the link can open it.{% endif %}"
+                                     variant="link"
+                                     size="sm"
+                                     class="p-0 linked-secondary align-baseline" />
+                        </div>
                         {% if list.owner_cached == user and list.archived_fighters_count_cached > 0 %}
                             <div>
                                 <i class="bi-archive"></i>
