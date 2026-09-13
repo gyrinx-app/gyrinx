@@ -16,7 +16,7 @@
         {% elif correction %}
             <p class="text-muted">This result needs a recorded skill roll. Choose a result supported by the existing rolls.</p>
         {% else %}
-            <c-n26.radio-cards label="Select a Skill Set"
+            <c-n26.radio-cards label="Select a skill set"
                                :form="form"
                                name="skill_set_id"
                                min="min(100%, 18rem)">
@@ -26,7 +26,7 @@
                                             label="{{ group.name }}"
                                             :checked="group.checked" />
                 {% empty %}
-                    <p class="text-muted">No Skill Set has an available skill for this result.</p>
+                    <p class="text-muted">No skill set has an available skill for this result.</p>
                 {% endfor %}
             </c-n26.radio-cards>
         {% endif %}
