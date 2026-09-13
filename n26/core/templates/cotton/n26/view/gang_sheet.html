@@ -15,6 +15,11 @@ opens with the Actions square, then the stash, then `members`.
   owner_flair_label, type_flair_label — what each badge means, for a screen
     reader and as its title. Left empty the badge is aria-hidden, which is right
     when it only repeats the text beside it.
+  switcher — the reader's other gangs, after the title and outside the h1.
+  share — <c-n26.share> for this gang, at the far end of the breadcrumb row.
+    It sits there rather than beside the name because it acts on the page as a
+    whole, and because the trail is the one row on the sheet with room to spare
+    at every width.
   secondary_actions — Print, and a dropdown holding Delete. A run of its own,
     after the primary actions rather than sorted in among them.
   actions_square — what the gang has open, as the first square of the grid;
@@ -34,6 +39,7 @@ opens with the Actions square, then the stash, then `members`.
     type_flair_label=""
     gangs_href="#"
     switcher=""
+    share=""
     owner_flair=""
     type_flair=""
     details=""
@@ -66,6 +72,9 @@ opens with the Actions square, then the stash, then `members`.
         {% endcomment %}
         {% if switcher.strip %}
             <c-slot name="trailing">{{ switcher }}</c-slot>
+        {% endif %}
+        {% if share.strip %}
+            <c-slot name="breadcrumb_actions">{{ share }}</c-slot>
         {% endif %}
         <c-slot name="breadcrumb">
             {% comment %}

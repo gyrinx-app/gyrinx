@@ -29,6 +29,9 @@ a page and its chrome is not visible in either one alone.
         <c-slot name="switcher">
             <c-n26.quick-switcher.of :switcher="sample_heading_switcher" hotkey="r" />
         </c-slot>
+        <c-slot name="share">
+            <c-n26.share url="{% url 'designsystem:shell_gang' %}" />
+        </c-slot>
         <c-slot name="owner_flair">
             <c-n26.flair.staff />
         </c-slot>

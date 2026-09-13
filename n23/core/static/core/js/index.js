@@ -152,6 +152,32 @@ tooltipTriggerList.forEach((tooltipTriggerEl) => {
     });
 })();
 
+// Put text on the clipboard, resolving once it is there. The execCommand path
+// is for browsers with no navigator.clipboard (and insecure origins).
+function copyText(text) {
+    if (navigator.clipboard) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            // execCommand reports an unsupported or failed copy by returning
+            // false rather than throwing.
+            if (document.execCommand("copy")) {
+                resolve();
+            } else {
+                reject(new Error("execCommand('copy') returned false"));
+            }
+        } catch (err) {
+            reject(err);
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
 // Enable copy to clipboard
 document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
     element.addEventListener("click", (event) => {
@@ -162,8 +188,10 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
 
         const messageElemId = element.getAttribute("data-clipboard-message");
 
-        const success = () => {
-            if (messageElemId) {
+        copyText(textToCopy).then(
+            () => {
+                console.log("Text copied to clipboard", textToCopy);
+                if (!messageElemId) return;
                 const messageElem = document.getElementById(messageElemId);
                 if (messageElem) {
                     messageElem.classList.remove("d-none");
@@ -171,31 +199,72 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
                         messageElem.classList.add("d-none");
                     }, 2000);
                 }
-            }
-        };
-
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(textToCopy).then(
-                () => {
-                    console.log("Text copied to clipboard", textToCopy);
-                    success();
-                },
-                (err) => {
-                    console.error("Could not copy text: ", err);
-                },
-            );
-        } else {
-            const textArea = document.createElement("textarea");
-            textArea.value = textToCopy;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand("copy");
-                success();
-            } catch (err) {
+            },
+            (err) => {
                 console.error("Could not copy text: ", err);
+            },
+        );
+    });
+});
+
+// Share the page (<c-share>): the device's share sheet where there is one,
+// the clipboard otherwise. The control is a plain link to the page, so with
+// no script it still works — it navigates; and when the copy fails (no
+// clipboard on plain http, an old browser) the click navigates the same way,
+// so the reader can copy the address from the bar. A share sheet the reader
+// closed (AbortError) copies nothing and says nothing.
+document.querySelectorAll("[data-share-url]").forEach((element) => {
+    let hideTimer = null;
+
+    element.addEventListener("click", (event) => {
+        const raw = element.getAttribute("data-share-url");
+        if (!raw) return;
+        // A modified or non-primary click, or a link aimed at another
+        // window, is the browser's to handle: open in a new tab, and so on.
+        if (event.button !== 0) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+            return;
+        if (element.target && element.target !== "_self") return;
+
+        event.preventDefault();
+
+        const url = new URL(raw, document.baseURI).href;
+        const message = element.parentElement
+            ? element.parentElement.querySelector("[data-share-message]")
+            : null;
+
+        const copied = () => {
+            if (!message) return;
+            message.classList.remove("d-none");
+            // A second click restarts the timer rather than hiding the
+            // message early.
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => {
+                message.classList.add("d-none");
+            }, 4000);
+        };
+        const copy = () =>
+            copyText(url).then(copied, () => {
+                window.location.assign(url);
+            });
+
+        // Both paths: share() rejects for most failures but throws
+        // synchronously for some (a second click while a sheet is already
+        // open), and either way the reader should still get the copy.
+        const notAborted = (err) => {
+            if (err.name !== "AbortError") copy();
+        };
+        if (
+            navigator.share &&
+            (!navigator.canShare || navigator.canShare({ url }))
+        ) {
+            try {
+                navigator.share({ url }).catch(notAborted);
+            } catch (err) {
+                notAborted(err);
             }
-            document.body.removeChild(textArea);
+        } else {
+            copy();
         }
     });
 });

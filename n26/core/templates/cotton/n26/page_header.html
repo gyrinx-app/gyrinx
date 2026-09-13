@@ -26,6 +26,14 @@ works on a string and on slot content alike.
     siblings is the case it exists for.
   actions — controls for the page as a whole. They sit under the title on a
     narrow screen rather than squeezing it.
+  breadcrumb_actions — a control at the far end of the breadcrumb row, opposite
+    the trail. For what acts on the page rather than on anything in it, and is
+    wanted at every width: the share button is the case it exists for. It keeps
+    its line down to the narrowest screen, so whatever goes here must stand no
+    taller than a line of trail text — 20px — or it becomes the tallest thing in
+    the row and pushes the heading and the whole page down. The host is a flex
+    container for the same reason: a block one would reserve a line box taller
+    than the control and reintroduce the gap by itself.
 {% endcomment %}
 {# The slots are declared: an undeclared slot name is not empty when nobody #}
 {# fills it — it resolves to the caller's own variable of that name, and a #}
@@ -37,11 +45,24 @@ works on a string and on slot content alike.
     trailing=""
     leading=""
     breadcrumb=""
+    breadcrumb_actions=""
     class=""
 />
 
 <div class="flex flex-col gap-1 {{ class }}">
-    {% if breadcrumb %}<div class="mb-1">{{ breadcrumb }}</div>{% endif %}
+    {% comment %}
+    One row: the trail at the start, whatever acts on the page at the end. The
+    trail takes the squeeze — min-w-0 lets it wrap inside itself — so the
+    control at the far end keeps its place instead of being pushed under.
+    items-start keeps that control on the first line of a trail that has
+    wrapped, rather than centred against the block.
+    {% endcomment %}
+    {% if breadcrumb.strip or breadcrumb_actions.strip %}
+        <div class="mb-1 flex items-start justify-between gap-2">
+            <div class="min-w-0">{{ breadcrumb }}</div>
+            {% if breadcrumb_actions.strip %}<div class="flex shrink-0">{{ breadcrumb_actions }}</div>{% endif %}
+        </div>
+    {% endif %}
 
     <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-4">
         {% comment %}
