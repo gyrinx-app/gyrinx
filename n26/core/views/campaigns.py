@@ -327,9 +327,14 @@ def _recent_acts(campaign, viewer):
     there are. Only the acts that will be drawn are built; the rest are
     counted rather than read, so a campaign played for a year opens as
     quickly as one set up this morning."""
-    from n26.core.history import campaign_history, campaign_history_size
+    from n26.core.history import (
+        campaign_history,
+        campaign_history_size,
+        load_actor_badges,
+    )
 
     recent = campaign_history(campaign, viewer=viewer, limit=LOG_ON_THE_PAGE)
+    load_actor_badges(recent)
     more = max(campaign_history_size(campaign) - len(recent), 0)
     return list(reversed(recent)), more
 
@@ -682,7 +687,7 @@ def campaign_log(request, pk):
     page wants, and every act is built before the page is cut: acts fold
     what rode with them, so they cannot be counted or cut by row.
     """
-    from n26.core.history import campaign_history
+    from n26.core.history import campaign_history, load_actor_badges
     from n26.core.views.gangs import _pages
     from n26.core.views.history import by_day
 
@@ -694,6 +699,8 @@ def campaign_log(request, pk):
     page = Paginator(list(reversed(acts)), LOG_PER_PAGE).get_page(
         request.GET.get("page")
     )
+    # The badges of the people this page names, and no other page's.
+    load_actor_badges(page.object_list)
 
     return render(
         request,

@@ -1142,6 +1142,25 @@ def campaign_history(campaign, viewer=None, limit=None):
     return [act for _, act in dated]
 
 
+def load_actor_badges(acts):
+    """Read the badge grants of the people a page of acts names, in one query.
+
+    Which badge somebody shows is decided from their profile and their grants.
+    The profile rides each source's own read; the grants cannot, because a
+    prefetch is a second statement over the rows the first returned, and
+    ``campaign_history`` reads each source one page at a time and nothing
+    else. So the grants are read here, for the acts a caller has settled on
+    — after the merge, after any paging — keyed on those acts' actors and
+    never on the history behind them. Acts that name nobody, or the reader,
+    carry no person and cost nothing.
+    """
+    from django.db.models import prefetch_related_objects
+
+    people = [act.actor_user for act in acts if act.actor_user is not None]
+    if people:
+        prefetch_related_objects(people, "badge_grants")
+
+
 def campaign_history_size(campaign):
     """How many acts the history holds, without building any of them.
 
@@ -1173,10 +1192,11 @@ def campaign_history_size(campaign):
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
     # The actor is named with the badge they hold, which reads their
-    # profile and their grants.
+    # profile — joined here, inside the one page this reads — and their
+    # grants, which ``load_actor_badges`` reads for the page once it is cut.
     events = campaign.events.select_related(
         "actor", "actor__profile", "battle", "about_user"
-    ).prefetch_related("actor__badge_grants")
+    )
     # Newest first while the database is doing the cutting, so a limit takes
     # the recent end; the caller sorts the merged result back into order.
     events = (
@@ -1213,13 +1233,13 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         .select_related(
             "miniature",
             "actor",
+            # The actor's badge reads their profile; see _campaign_own_acts.
             "actor__profile",
             "gang",
             "campaign",
             "campaign_asset__asset__asset_type",
             "counterpart",
         )
-        .prefetch_related("actor__badge_grants")
     )
     events = (
         events.order_by("-created", "-id")[:limit]
