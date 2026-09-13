@@ -54,7 +54,7 @@ class TestTheTable:
 
     def test_a_known_key_resolves_in_both_sets(self):
         assert banner_icons.bootstrap_class("warning") == "bi-exclamation-triangle"
-        assert banner_icons.n26_name("warning") == "exclamation-triangle"
+        assert banner_icons.n26_name("warning") == "triangle-alert"
 
 
 @pytest.mark.django_db

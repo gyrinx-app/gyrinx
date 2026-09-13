@@ -53,9 +53,9 @@ Read `demos.py` (a hundred lines) first, then `introspect.py`.
 - One demo per axis of variation. `demos/badge/` is the shape to copy
   for a primitive; `demos/action-links/` for a composition;
   `demos/view-gang-sheet/` for a whole screen.
-- Prefer rendering from a registry over writing instances out — the
-  icon demo loops the icon registry, so new icons appear without the
-  demo going stale.
+- Prefer rendering from a library or registry over writing instances
+  out — the icon demo searches the installed library, so dependency
+  updates appear without the demo going stale.
 
 ## The `notes` field
 

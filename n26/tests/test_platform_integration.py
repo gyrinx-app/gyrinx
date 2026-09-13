@@ -626,8 +626,8 @@ class TestTheNavigation:
         from n26.core import icons
 
         menu = account_menu(client.get("/n26/").content.decode())
-        for name in ("sun", "moon", "computer-desktop"):
-            assert icons.paths(name)[0] in menu
+        for name in ("sun", "moon", "monitor"):
+            assert str(icons.resolve(name).body) in menu
 
     def test_the_drawer_holds_the_places_the_app_has(
         self, tester, client, default_pack
@@ -1142,7 +1142,7 @@ class TestTheSiteBanner:
     def test_a_key_is_drawn_from_this_editions_own_set(
         self, tester, client, default_pack, live_banner
     ):
-        """info's default icon is information-circle, so asking for
+        """Info's default icon is info, so asking for
         success against an info bar proves the key was resolved rather
         than the tone's fallback being used."""
         from n26.core import icons
@@ -1150,8 +1150,8 @@ class TestTheSiteBanner:
         live_banner(icon="success", colour="info")
 
         body = client.get("/n26/").content.decode()
-        assert icons.ICONS["check-circle"][0] in body
-        assert icons.ICONS["information-circle"][0] not in body
+        assert str(icons.resolve("circle-check").body) in body
+        assert str(icons.resolve("info").body) not in body
 
     def test_a_key_with_no_drawing_here_is_not_fatal(
         self, tester, client, default_pack, live_banner
@@ -1184,7 +1184,7 @@ class TestTheSiteBanner:
         live_banner(icon="nonsense", colour="danger")
 
         body = client.get("/n26/").content.decode()
-        assert icons.ICONS["exclamation-triangle"][0] in body
+        assert str(icons.resolve("triangle-alert").body) in body
 
     def test_a_bootstrap_colour_becomes_an_announcement_tone(
         self, tester, client, default_pack, live_banner
@@ -1371,7 +1371,7 @@ class TestTheSharedIconKeys:
         missing = {
             entry.key: entry.n26
             for entry in banner_icons.BANNER_ICONS
-            if entry.n26 not in icons.ICONS
+            if entry.n26 not in icons.names()
         }
         assert not missing
 

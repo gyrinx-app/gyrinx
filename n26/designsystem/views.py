@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from n26.core import icons
+from n26.core.brand_icons import BRAND_ICONS
 
 from . import catalog, introspect, printlab, sampledata, tokens
 from .forms import (
@@ -24,6 +25,8 @@ from .forms import (
     bound_signup_form,
     create_gang_context,
 )
+
+ICON_PAGE_SIZE = 120
 
 
 def _base_context():
@@ -76,6 +79,26 @@ def component(request, slug):
     # dropped into some other component's page brings the editor with it.
     rich_text_form = RichTextForm()
     needs_rich_text = any("c-n26.rich-text" in demo.source for demo in found.demos)
+    icon_context = {}
+    if found.slug == "icon":
+        icon_query = request.GET.get("q", "").strip()
+        icon_names = icons.names()
+        matching_icons = [
+            name for name in icon_names if icon_query.casefold() in name.casefold()
+        ]
+        icon_paginator = Paginator(matching_icons, ICON_PAGE_SIZE)
+        icon_page = icon_paginator.get_page(request.GET.get("page"))
+        icon_context = {
+            "icon_page": icon_page,
+            "icon_page_numbers": icon_paginator.get_elided_page_range(
+                icon_page.number, on_each_side=2, on_ends=1
+            ),
+            "icon_ellipsis": icon_paginator.ELLIPSIS,
+            "icon_query": icon_query,
+            "icon_result_count": len(matching_icons),
+            "icon_total": len(icon_names),
+            "brand_icon_names": BRAND_ICONS,
+        }
     return render(
         request,
         "designsystem/component.html",
@@ -110,9 +133,7 @@ def component(request, slug):
             "model_card_header_long_both": sampledata.model_card_header_long_both(),
             "model_card_header_badged": sampledata.model_card_header_badged(),
             "needs_rich_text": needs_rich_text,
-            # The icon gallery renders the registry rather than a written-out
-            # list, so adding an icon puts it on the page and no demo goes stale.
-            "icon_names": icons.names(),
+            **icon_context,
             **sampledata.context(),
         },
     )

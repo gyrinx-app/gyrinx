@@ -254,6 +254,15 @@ wheels = [
 ]
 
 [[package]]
+name = "defusedxml"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -859,6 +868,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "bleach", extra = ["css"] },
     { name = "click" },
+    { name = "defusedxml" },
     { name = "django" },
     { name = "django-allauth" },
     { name = "django-cotton" },
@@ -882,6 +892,7 @@ dependencies = [
     { name = "google-cloud-sqlcommenter" },
     { name = "gunicorn" },
     { name = "jsonschema" },
+    { name = "lucide" },
     { name = "markdown-it-py" },
     { name = "nbstripout" },
     { name = "nodeenv" },
@@ -933,6 +944,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = "==4.15.0" },
     { name = "bleach", extras = ["css"], specifier = "==6.4.0" },
     { name = "click", specifier = "==8.5.0" },
+    { name = "defusedxml", specifier = "==0.7.1" },
     { name = "django", specifier = "==6.0.7" },
     { name = "django-allauth", specifier = "==65.19.2" },
     { name = "django-cotton", specifier = "==2.7.2" },
@@ -956,6 +968,7 @@ requires-dist = [
     { name = "google-cloud-sqlcommenter", specifier = "==2.0.0" },
     { name = "gunicorn", specifier = "==26.2.0" },
     { name = "jsonschema", specifier = "==4.26.0" },
+    { name = "lucide", specifier = "==1.1.4" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "nbstripout", specifier = "==0.9.1" },
     { name = "nodeenv", specifier = "==1.10.0" },
@@ -1128,6 +1141,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/02/49/9d1284d0dc65e2c757b74c6687b6d319b02f822ad039e5c512df9194d9dd/jupyter_core-5.9.1.tar.gz", hash = "sha256:4d09aaff303b9566c3ce657f580bd089ff5c91f5f89cf7d8846c3cdf465b5508", size = 89814, upload-time = "2025-10-16T19:19:18.444Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/e7/80988e32bf6f73919a113473a604f5a8f09094de312b9d52b79c2df7612b/jupyter_core-5.9.1-py3-none-any.whl", hash = "sha256:ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407", size = 29032, upload-time = "2025-10-16T19:19:16.783Z" },
+]
+
+[[package]]
+name = "lucide"
+version = "1.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/47/ee3c40e705747a932b64f56b343464bf11111d758e945223755538be3d17/lucide-1.1.4.tar.gz", hash = "sha256:9386940c57a801d92d62a3805d3d584a9e6ca3a43d54765203d72acf8f4965d4", size = 445501, upload-time = "2026-07-09T13:45:48.377Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/3d/a99fbb96be09f7cf6ed1b431c87350676dbb4924f01aa39a25848d7e0145/lucide-1.1.4-py3-none-any.whl", hash = "sha256:c2aa88a2bd7d99fcb56a9cdd4959cdf0c5ecd75f05d7ebbeb41010341639f449", size = 443438, upload-time = "2026-07-09T13:45:46.86Z" },
 ]
 
 [[package]]

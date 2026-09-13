@@ -1,13 +1,55 @@
-{# title: Every icon we have #}
-{# note: The whole registry, rendered from it rather than written out — so adding an icon to core/icons.py puts it on this page. A dotted underline marks the four drawings that are ours rather than Heroicons'. #}
+{# title: Lucide library #}
+{# note: Search the full installed library by canonical name. The approved brand marks are labelled separately. #}
 {# layout: full #}
-{% load icons %}
-<div class="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2">
-    {% for name in icon_names %}
-        <div class="flex flex-col items-center gap-2 rounded-box border border-box-border px-2 py-4">
-            <c-n26.icon :name="name" class="size-6" />
-            <code class="text-center text-xs text-ink-900 dark:text-ink-100 {% if name|is_local_icon %}underline decoration-dotted underline-offset-4{% endif %}"
-                  {% if name|is_local_icon %}title="Our own drawing, not the upstream Heroicons path"{% endif %}>{{ name }}</code>
+<div class="space-y-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <c-n26.search-bar action="{% url 'designsystem:component' 'icon' %}"
+                          name="q"
+                          value="{{ icon_query }}"
+                          placeholder="Search icons"
+                          class="w-full max-w-xl" />
+        <p class="shrink-0 text-sm text-muted">{{ icon_result_count }} of {{ icon_total }} icon{{ icon_total|pluralize }}</p>
+    </div>
+    {% if icon_page.object_list %}
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-2">
+            {% for name in icon_page.object_list %}
+                <div class="flex flex-col items-center gap-2 rounded-box border border-box-border px-2 py-4">
+                    <c-n26.icon :name="name" class="size-6" />
+                    <code class="text-center text-xs text-ink-900 dark:text-ink-100">{{ name }}</code>
+                    {% if name in brand_icon_names %}<span class="text-xs text-muted">Brand mark</span>{% endif %}
+                </div>
+            {% endfor %}
         </div>
-    {% endfor %}
+        {% if icon_page.has_other_pages %}
+            <c-ui.pagination>
+                {% if icon_page.has_previous %}
+                    <c-ui.pagination.prev href="?q={{ icon_query|urlencode }}&amp;page={{ icon_page.previous_page_number }}" />
+                {% endif %}
+                {% for page_number in icon_page_numbers %}
+                    {% if page_number == icon_ellipsis %}
+                        <c-ui.pagination.ellipsis />
+                    {% elif page_number == icon_page.number %}
+                        <c-ui.pagination.item href="?q={{ icon_query|urlencode }}&amp;page={{ page_number }}"
+                                              :current="True">
+                            {{ page_number }}
+                        </c-ui.pagination.item>
+                    {% else %}
+                        <c-ui.pagination.item href="?q={{ icon_query|urlencode }}&amp;page={{ page_number }}">
+                            {{ page_number }}
+                        </c-ui.pagination.item>
+                    {% endif %}
+                {% endfor %}
+                {% if icon_page.has_next %}
+                    <c-ui.pagination.next href="?q={{ icon_query|urlencode }}&amp;page={{ icon_page.next_page_number }}" />
+                {% endif %}
+            </c-ui.pagination>
+        {% endif %}
+    {% else %}
+        <div class="rounded-box border border-dashed border-box-border px-6 py-12 text-center">
+            <p class="font-medium text-ink-900 dark:text-ink-100">No icons match “{{ icon_query }}”.</p>
+            <c-n26.link href="{% url 'designsystem:component' 'icon' %}"
+                        underline="hover"
+                        class="mt-2 inline-block text-sm">Clear search</c-n26.link>
+        </div>
+    {% endif %}
 </div>
