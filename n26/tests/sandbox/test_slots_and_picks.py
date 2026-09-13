@@ -2046,14 +2046,14 @@ class TestAChoiceThatAllowsRepeats:
 
         picks = [p.assignable for p in self._slot(yolanda).picks]
         assert picks == [results["Eye Injury"]] * 2
-        assert self._line(yolanda).chosen == "Eye Injury (2)"
+        assert self._line(yolanda).chosen == "Eye Injury (x2)"
 
     def test_a_later_repeat_joins_the_first_of_its_name(self, yolanda, results):
         self._pick(yolanda, results["Eye Injury"])
         self._pick(yolanda, results["Out Cold"])
         self._pick(yolanda, results["Eye Injury"])
 
-        assert self._line(yolanda).chosen == "Eye Injury (2), Out Cold"
+        assert self._line(yolanda).chosen == "Eye Injury (x2), Out Cold"
 
     def test_and_what_it_does_is_done_twice(self, yolanda, results):
         self._pick(yolanda, results["Eye Injury"])
@@ -2244,7 +2244,7 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         body = client.get(sheet_url).content.decode()
         # The row, not the flash message that also names the choice.
         row = body[body.index("Lasting Injuries</dt>") :]
-        assert "Eye Injury (2)" in row
+        assert "Eye Injury (x2)" in row
         assert "Eye Injury, Eye Injury" not in row
         assert ">Add</" not in row[: row.index("</dd>")]
 

@@ -293,7 +293,12 @@ def link_model_card(gang, miniature, own, computed, host, *, back, among=None):
     from n26.core.views.owned import link_counters, link_possession_actions
     from n26.core.views.skills import link_skills
 
-    card = build_model_card(miniature, card=own, computed=computed)
+    # One line per assignment: every screen this card is drawn on hangs
+    # the kit acts off each line, and a menu names one assignment, so a
+    # line standing for two of a thing would have nowhere to send them.
+    card = build_model_card(
+        miniature, card=own, computed=computed, collapse_repeats=False
+    )
     link_slots(gang, card, back=back)
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)

@@ -303,7 +303,7 @@ class TestAFighterIsHurt:
         assert cell.held_at == "minimum"
         assert cell.held_note == "Cannot get any worse."
         assert [p.source for p in cell.modified_by] == ["Spinal Injury"] * 3
-        assert cell.changed_by == "Spinal Injury (3)"
+        assert cell.changed_by == "Spinal Injury (x3)"
         assert_reconciled(gang)
 
     def test_the_tooltip_on_the_sheet_stacks_the_same_injury(
@@ -316,7 +316,7 @@ class TestAFighterIsHurt:
         from django.urls import reverse
 
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-        assert "S changed by Spinal Injury (3)" in body
+        assert "S changed by Spinal Injury (x3)" in body
         assert "S changed by Spinal Injury, Spinal Injury" not in body
         assert "Cannot get any worse." in body
 

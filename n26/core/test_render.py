@@ -12,7 +12,15 @@ import pytest
 
 from n26.core.card import Card, Node
 from n26.core.effects import StatChange
-from n26.core.render import _provenance_within, apply_changes, card_to_model_card
+from n26.core.render import (
+    AssignableLine,
+    Provenance,
+    StashLine,
+    _provenance_within,
+    apply_changes,
+    card_to_model_card,
+    collapse,
+)
 from n26.library.models import Stat, Wargear, Weapon
 
 
@@ -212,3 +220,135 @@ class TestGrantProvenance:
         assert provenance.source == expected_source
         assert provenance.source_kind == expected_kind
         assert provenance.computed is True
+
+
+def line(name, key="library.wargear:1", reason="bought", rating=0, id=""):
+    return AssignableLine(
+        name=name,
+        key=key,
+        provenance=Provenance(reason=reason),
+        rating=rating,
+        id=id,
+    )
+
+
+class TestCollapse:
+    """Identical lines are drawn once with a count; anything that differs
+    in content, provenance or rating keeps its own line."""
+
+    def test_two_of_one_thing_are_one_line_counting_two(self):
+        (kept,) = collapse([line("Respirator", id="a"), line("Respirator", id="b")])
+        assert kept.name == "Respirator"
+        assert kept.count == 2
+        assert kept.count_mark == " (x2)"
+
+    def test_a_line_standing_for_several_names_no_assignment(self):
+        (kept,) = collapse([line("Respirator", id="a"), line("Respirator", id="b")])
+        assert kept.id == ""
+
+    def test_one_of_a_thing_reads_bare_and_keeps_its_assignment(self):
+        (kept,) = collapse([line("Respirator", id="a")])
+        assert kept.count == 1
+        assert kept.count_mark == ""
+        assert kept.id == "a"
+
+    def test_the_first_keeps_its_place_and_later_ones_fold_into_it(self):
+        kept = collapse(
+            [
+                line("Respirator"),
+                line("Filter plugs", key="library.wargear:2"),
+                line("Respirator"),
+            ]
+        )
+        assert [(k.name, k.count) for k in kept] == [
+            ("Respirator", 2),
+            ("Filter plugs", 1),
+        ]
+
+    def test_one_bought_and_one_granted_are_two_lines(self):
+        bought = line("Respirator")
+        granted = AssignableLine(
+            name="Respirator",
+            key="library.wargear:1",
+            provenance=Provenance(source="Mounted", computed=True),
+        )
+        kept = collapse([bought, granted])
+        assert [k.count for k in kept] == [1, 1]
+        assert [k.provenance.computed for k in kept] == [False, True]
+
+    def test_two_pinned_at_different_figures_are_two_lines(self):
+        kept = collapse([line("Respirator", rating=15), line("Respirator", rating=10)])
+        assert [(k.rating, k.count) for k in kept] == [(15, 1), (10, 1)]
+
+    def test_the_same_name_from_different_content_is_two_lines(self):
+        kept = collapse(
+            [
+                line("Respirator", key="library.wargear:1"),
+                line("Respirator", key="library.wargear:9"),
+            ]
+        )
+        assert [k.count for k in kept] == [1, 1]
+
+    def test_a_line_with_no_key_stands_alone_however_many_are_alike(self):
+        kept = collapse(
+            [line("Cyber-mastiff (pet)", key=""), line("Cyber-mastiff (pet)", key="")]
+        )
+        assert [k.count for k in kept] == [1, 1]
+
+    def test_a_stash_line_folds_the_same_way_keeping_one_items_rating(self):
+        lines = [
+            StashLine(
+                name="Lasgun", rating=15, kind="weapon", key="library.weapon:1", id="a"
+            ),
+            StashLine(
+                name="Lasgun", rating=15, kind="weapon", key="library.weapon:1", id="b"
+            ),
+        ]
+        (kept,) = collapse(lines)
+        assert (kept.count, kept.rating, kept.id) == (2, 15, "")
+        assert kept.count_mark == " (x2)"
+
+
+RESPIRATOR = Wargear(pack_id=None, name="Respirator")
+
+
+def held(thing, key, reason=None):
+    """One assignment of ``thing`` on a card built in memory. Two nodes of
+    one instance are two of one thing; a second instance is other content,
+    since content carries its identity from the moment it is made."""
+    return Node(thing, key=key, reason=reason)
+
+
+class TestTheCardStacksItsRepeats:
+    """A card built in memory: two of one wargear are one gear line,
+    unless the card is built for a page whose lines carry acts."""
+
+    def test_two_of_one_wargear_are_one_gear_line(self):
+        card = Card(miniature=None, roots=[held(RESPIRATOR, 1), held(RESPIRATOR, 2)])
+        (kept,) = card_to_model_card(card, name="Yolanda").equipment
+        assert (kept.name, kept.count) == ("Respirator", 2)
+
+    def test_the_models_own_page_keeps_one_line_per_assignment(self):
+        card = Card(miniature=None, roots=[held(RESPIRATOR, 1), held(RESPIRATOR, 2)])
+        drawn = card_to_model_card(card, name="Yolanda", collapse_repeats=False)
+        assert [(k.name, k.count) for k in drawn.equipment] == [
+            ("Respirator", 1),
+            ("Respirator", 1),
+        ]
+
+    def test_different_reasons_keep_their_own_lines(self):
+        card = Card(
+            miniature=None,
+            roots=[
+                held(RESPIRATOR, 1, reason="bought"),
+                held(RESPIRATOR, 2, reason="default"),
+            ],
+        )
+        drawn = card_to_model_card(card, name="Yolanda")
+        assert [k.provenance.reason for k in drawn.equipment] == ["bought", "default"]
+
+    def test_other_content_of_the_same_name_keeps_its_own_line(self):
+        other = Wargear(pack_id=None, name="Respirator")
+        card = Card(miniature=None, roots=[held(RESPIRATOR, 1), held(other, 2)])
+        drawn = card_to_model_card(card, name="Yolanda")
+        assert [k.count for k in drawn.equipment] == [1, 1]
