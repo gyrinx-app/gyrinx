@@ -220,7 +220,13 @@ provision_worktree_venv() {
     fi
     return 1
   fi
-  printf '%s\n' "$current_inputs" > "$stamp_file"
+  if ! printf '%s\n' "$current_inputs" > "$stamp_file"; then
+    echo "[gyrinx] Could not record dependency state in ${stamp_file}." >&2
+    if [ "$new_venv" = true ]; then
+      rm -rf "$venv"
+    fi
+    return 1
+  fi
   install_worktree_venv_hook "$venv/bin/activate" || true
   if [ "$new_venv" = true ]; then
     echo "[gyrinx] Provisioned ${venv}." >&2

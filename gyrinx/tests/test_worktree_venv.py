@@ -124,3 +124,28 @@ def test_hash_failure_never_treats_an_existing_venv_as_current(tmp_path):
     assert result.returncode == 1
     assert "Could not hash" in result.stderr
     assert not call_log.exists()
+
+
+def test_stamp_write_failure_leaves_the_environment_unverified(tmp_path):
+    worktree = tmp_path / "worktree"
+    bin_dir = tmp_path / "bin"
+    call_log = tmp_path / "uv-calls"
+    worktree.mkdir()
+    bin_dir.mkdir()
+    (worktree / "uv.lock").write_text("version = 1\n")
+    (worktree / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+    (worktree / ".venv/.gyrinx-uv-inputs").mkdir(parents=True)
+    _write_fake_uv(bin_dir)
+
+    result = _provision(worktree, bin_dir, call_log)
+
+    assert result.returncode == 1
+    assert "Could not record dependency state" in result.stderr
+    assert call_log.read_text().splitlines() == ["sync"]
+
+
+def test_web_setup_uses_the_shared_stamped_provisioner():
+    setup = (REPO_ROOT / "scripts/setup_web.sh").read_text()
+
+    assert 'provision_worktree_venv "$PROJECT_DIR"' in setup
+    assert "UV_PROJECT_ENVIRONMENT=.venv uv sync --locked" not in setup
