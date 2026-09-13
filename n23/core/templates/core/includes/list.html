@@ -31,7 +31,7 @@
                             {% endif %}
                         </div>
                         <div>
-                            <c-share url="{% url 'core:list' list.id %}"
+                            <c-share url="{{ share_url }}"
                                      message="{% if list.public %}Link copied.{% else %}Link copied. This gang is unlisted, so only people with the link can open it.{% endif %}"
                                      variant="link"
                                      size="sm"

@@ -309,6 +309,19 @@ class ListDetailView(generic.DetailView):
                         fighter.active_equipment_set = equipment_set
                         break
 
+        # The share control offers the view being read: a card override in the
+        # address is part of what the reader sees, so it travels with the link,
+        # and nothing else in the query string does.
+        overrides = {
+            f"set_{fighter.id}": self.request.GET[f"set_{fighter.id}"]
+            for fighter in all_fighters
+            if f"set_{fighter.id}" in self.request.GET
+        }
+        share_url = reverse("core:list", args=[list_obj.id])
+        if overrides:
+            share_url += "?" + urlencode(overrides)
+        context["share_url"] = share_url
+
         # Check if the list has a stash fighter
         context["has_stash_fighter"] = any(
             f.content_fighter.is_stash for f in all_fighters

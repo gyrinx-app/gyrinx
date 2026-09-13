@@ -242,13 +242,21 @@ document.querySelectorAll("[data-share-url]").forEach((element) => {
                 window.location.assign(url);
             });
 
+        // Both paths: share() rejects for most failures but throws
+        // synchronously for some (a second click while a sheet is already
+        // open), and either way the reader should still get the copy.
+        const notAborted = (err) => {
+            if (err.name !== "AbortError") copy();
+        };
         if (
             navigator.share &&
             (!navigator.canShare || navigator.canShare({ url }))
         ) {
-            navigator.share({ url }).catch((err) => {
-                if (err.name !== "AbortError") copy();
-            });
+            try {
+                navigator.share({ url }).catch(notAborted);
+            } catch (err) {
+                notAborted(err);
+            }
         } else {
             copy();
         }
