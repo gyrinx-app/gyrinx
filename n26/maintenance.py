@@ -1759,6 +1759,20 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
     """Give existing fighters the rank allowances earned since recruitment."""
     from n26.core.action_initialisation import apply_one, find
 
+    if (
+        Backfill.objects.filter(
+            operation=Operation.INITIALISE_ACTION_ALLOWANCES,
+            status=Backfill.Status.DONE,
+        )
+        .exclude(pk=backfill_id)
+        .exists()
+    ):
+        _write(
+            backfill_id,
+            status=Backfill.Status.FAILED,
+            error="Existing fighter allowances were already initialised successfully.",
+        )
+        return
     run_per_gang(
         backfill_id,
         operation=Operation.INITIALISE_ACTION_ALLOWANCES,
@@ -1775,7 +1789,15 @@ def initialise_action_allowances_view(request):
 
     operation = Operation.INITIALISE_ACTION_ALLOWANCES
     address = reverse(f"admin:maintenance_{operation.value}")
-    plan = find()
+    completed = Backfill.objects.filter(
+        operation=operation, status=Backfill.Status.DONE
+    ).first()
+    if request.method == "POST" and completed is not None:
+        messages.info(request, "Existing fighter allowances were already initialised.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[completed.id])
+        )
+    plan = None if completed is not None else find()
     if request.method == "POST":
         running = running_guard(operation)
         if running is not None:
@@ -1806,6 +1828,7 @@ def initialise_action_allowances_view(request):
         request,
         operation.label,
         plan=plan,
+        completed=completed,
         apply_url=address,
         recent=Backfill.objects.filter(operation=operation)[:10],
     )

@@ -13,20 +13,31 @@
         value is reported and skipped. Conflicting rank tables prevent the run.
         Running the operation again does not duplicate allowances.
     </p>
-    <h2>Dry run</h2>
-    <ul>
-        {% for line in plan.preview %}<li>{{ line }}</li>{% endfor %}
-    </ul>
-    {% if plan.problems %}
-        <h2>Problems to resolve</h2>
-        <ul>{% for line in plan.problems %}<li>{{ line }}</li>{% endfor %}</ul>
-    {% elif not plan.nothing_here %}
-        <form method="post">
-            {% csrf_token %}
-            <button type="submit" class="button default">Initialise earned allowances</button>
-        </form>
+    {% if completed %}
+        <h2>Initialisation complete</h2>
+        <p>
+            This one-off operation completed on
+            <a href="{% url 'admin:maintenance_backfill_detail' completed.id %}">{{ completed.created }}</a>.
+            It cannot be run again against later rank-table changes.
+        </p>
     {% else %}
-        <h2>Nothing to initialise</h2>
+        <h2>Dry run</h2>
+        <ul>
+            {% for line in plan.preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+    {% endif %}
+    {% if not completed %}
+        {% if plan.problems %}
+            <h2>Problems to resolve</h2>
+            <ul>{% for line in plan.problems %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% elif not plan.nothing_here %}
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="button default">Initialise earned allowances</button>
+            </form>
+        {% else %}
+            <h2>Nothing to initialise</h2>
+        {% endif %}
     {% endif %}
     {% if recent %}
         <h2>Recent runs</h2>
