@@ -59,14 +59,14 @@ def showing_dismissed(url):
 def settle_dismissed(gang, *holders, at="", showing=False, hide_only=()):
     """Hide dismissed choices with one query for all holders.
 
-    Model choices go into a separate list for the Edit menu. The gang's
+    Model choices go into a separate list for the Edit page. The gang's
     own choices may be revealed inline, with a show/hide control at ``at``.
 
     One query for every holder together. ``at`` empty draws no control,
     which is what a reader who does not own the gang gets: the offers
     still go, and nothing is offered. ``hide_only`` holders lose their
     dismissed offers whatever ``showing`` says and get no control — a
-    gang-sheet model card or a dead model has no Restore menu.
+    gang-sheet model card or a dead model has no Restore controls.
     """
     from n26.core.models import DismissedOffer
     from n26.core.render import ModelCard, hide_dismissed
@@ -704,7 +704,11 @@ def dismiss_offer(request, pk, slot):
         offer=label,
         action="dismiss",
     )
-    where = "the model’s Edit menu" if found.miniature else "Dismissed choices"
+    where = (
+        "Dismissed choices on the model’s Edit page"
+        if found.miniature
+        else "Dismissed choices"
+    )
     messages.success(request, f"Dismissed {label}. You can restore it from {where}.")
     return _safe_redirect(request, request.POST.get("back"), fallback)
 

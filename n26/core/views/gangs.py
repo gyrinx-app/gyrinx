@@ -319,7 +319,7 @@ def gang_sheet(request, pk):
     # The offers the owner has dismissed come off every card and the
     # gang's own strip, whoever is reading: one query. The owner may ask
     # to see the gang's own choices here. Dismissed model choices are
-    # restored from the model's Edit menu, never from a card.
+    # restored from the model's Edit page, never from a model card.
     showing = yours and showing_dismissed(request.get_full_path())
     shown_at = dismissed_toggle(at, not showing)
     settle_dismissed(

@@ -21,7 +21,7 @@ than anything hidden on the client.
 <c-vars :choice="None" class="" />
 
 {% if choice.restore_href %}
-    <form method="post" action="{{ choice.restore_href }}" class="inline {{ class }}">
+    <form method="post" action="{{ choice.restore_href }}" class="inline-flex shrink-0 items-center {{ class }}">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ choice.back }}">
         <c-ui.button type="submit" size="xs" variant="ghost">
@@ -29,14 +29,14 @@ than anything hidden on the client.
         </c-ui.button>
     </form>
 {% elif choice.dismiss_href %}
-    <form method="post" action="{{ choice.dismiss_href }}" class="inline {{ class }}">
+    {% comment %}Flex both tooltip wrappers so their inline baselines add no height.{% endcomment %}
+    <form method="post" action="{{ choice.dismiss_href }}" class="inline-flex shrink-0 items-center [&>div]:flex [&>div>div]:flex {{ class }}">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ choice.back }}">
         <c-ui.tooltip size="sm">
             <c-ui.button type="submit"
                          size="xs"
                          variant="ghost"
-                         class="py-0!"
                          aria-label="Dismiss {{ choice.kind_label }}">
                 <span class="n26-icon-only">
                     <c-n26.icon name="x" class="size-3" stroke_width="2" />

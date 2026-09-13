@@ -52,7 +52,7 @@ a variable of that name would turn every row into a dialog trigger.
 
 <div class="flex min-w-0 max-w-full items-baseline gap-1.5 {{ class }}">
     <dt class="shrink-0 whitespace-nowrap text-xs text-muted">{{ label }}</dt>
-    <dd class="min-w-0 text-xs">
+    <dd class="flex min-w-0 items-center gap-0 text-xs">
         {% if not editable %}
             {# Padded to the button's own inset, so a settled fact sits level with #}
             {# the values that can be changed. #}
@@ -70,6 +70,6 @@ a variable of that name would turn every row into a dialog trigger.
         {% else %}
             <c-ui.button size="xs" variant="{{ variant }}" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
         {% endif %}
-        {% if trailing.strip %}<span class="ms-1 inline-flex items-center align-middle">{{ trailing }}</span>{% endif %}
+        {% if trailing.strip %}<div class="flex shrink-0 items-center">{{ trailing }}</div>{% endif %}
     </dd>
 </div>

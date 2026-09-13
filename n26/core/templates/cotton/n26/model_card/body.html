@@ -69,12 +69,14 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                 {% if card.skill_choices %}
                     <div class="mt-1 flex flex-wrap items-center gap-2">
                         {% for choice in card.skill_choices %}
-                            {% if choice.href %}
-                                <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
-                            {% else %}
-                                <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                            {% endif %}
-                            <c-n26.choice-dismiss :choice="choice" />
+                            <div class="inline-flex items-center gap-0">
+                                {% if choice.href %}
+                                    <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
+                                {% else %}
+                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                {% endif %}
+                                <c-n26.choice-dismiss :choice="choice" />
+                            </div>
                         {% endfor %}
                     </div>
                 {% endif %}
@@ -88,14 +90,16 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                 {% if card.skill_choices or card.skills_href %}
                     <div class="mt-1 flex flex-wrap items-center gap-1">
                         {% for choice in card.skill_choices %}
-                            {% if choice.href %}
-                                <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
-                                    Choose {{ choice.kind_label|lower }}
-                                </c-ui.button>
-                            {% else %}
-                                <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                            {% endif %}
-                            <c-n26.choice-dismiss :choice="choice" />
+                            <div class="inline-flex items-center gap-0">
+                                {% if choice.href %}
+                                    <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
+                                        Choose {{ choice.kind_label|lower }}
+                                    </c-ui.button>
+                                {% else %}
+                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                {% endif %}
+                                <c-n26.choice-dismiss :choice="choice" />
+                            </div>
                         {% endfor %}
                         {% if card.skills_href %}
                             <c-ui.tooltip size="sm">
@@ -141,12 +145,14 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                     {% if card.power_choices %}
                         <div class="mt-1 flex flex-wrap items-center gap-2">
                             {% for choice in card.power_choices %}
-                                {% if choice.href %}
-                                    <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
-                                {% else %}
-                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                                {% endif %}
-                                <c-n26.choice-dismiss :choice="choice" />
+                                <div class="inline-flex items-center gap-0">
+                                    {% if choice.href %}
+                                        <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose {{ choice.kind_label|lower }}</c-ui.button>
+                                    {% else %}
+                                        <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                    {% endif %}
+                                    <c-n26.choice-dismiss :choice="choice" />
+                                </div>
                             {% endfor %}
                         </div>
                     {% endif %}
@@ -155,14 +161,16 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                     {% if card.power_choices %}
                         <div class="mt-1 flex flex-wrap items-center gap-1">
                             {% for choice in card.power_choices %}
-                                {% if choice.href %}
-                                    <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
-                                        Choose {{ choice.kind_label|lower }}
-                                    </c-ui.button>
-                                {% else %}
-                                    <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
-                                {% endif %}
-                                <c-n26.choice-dismiss :choice="choice" />
+                                <div class="inline-flex items-center gap-0">
+                                    {% if choice.href %}
+                                        <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}">
+                                            Choose {{ choice.kind_label|lower }}
+                                        </c-ui.button>
+                                    {% else %}
+                                        <span class="text-xs text-muted">Choose {{ choice.kind_label|lower }}</span>
+                                    {% endif %}
+                                    <c-n26.choice-dismiss :choice="choice" />
+                                </div>
                             {% endfor %}
                         </div>
                     {% endif %}
@@ -195,7 +203,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
         {% endcomment %}
         {% for choice in card.choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
-            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            <dd class="flex min-w-0 items-center gap-0 text-ink-900 dark:text-ink-100">
                 {% if choice.is_resolved %}
                     {% if choice.href %}
                         <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs" class="max-w-full whitespace-normal! text-left">{{ choice.chosen }}</c-ui.button>
@@ -220,7 +228,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                 {% comment %}
                 Only the owner gets an X to dismiss an open choice.
                 {% endcomment %}
-                <c-n26.choice-dismiss :choice="choice" class="ms-1" />
+                <c-n26.choice-dismiss :choice="choice" />
             </dd>
         {% endfor %}
 
@@ -381,20 +389,22 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                         {% for choice in weapon.choices %}
                                             <li class="flex items-center gap-2">
                                                 <span class="min-w-0">{{ choice.kind_label }}: {% if choice.is_resolved %}{{ choice.chosen }}{% else %}&mdash;{% endif %}</span>
-                                                <c-n26.model-card.mode when="edit">
-                                                    {% if choice.href %}
-                                                        <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
-                                                    {% endif %}
-                                                </c-n26.model-card.mode>
-                                                {% comment %}
-                                                Dismissing is offered wherever the owner reads the
-                                                card, as it is for the card's other offers: the
-                                                sheet as well as the model's own page. Only the
-                                                way to change the level is the page's alone.
-                                                {% endcomment %}
-                                                <c-n26.model-card.mode when="gang edit">
-                                                    <c-n26.choice-dismiss :choice="choice" />
-                                                </c-n26.model-card.mode>
+                                                <div class="inline-flex items-center gap-0">
+                                                    <c-n26.model-card.mode when="edit">
+                                                        {% if choice.href %}
+                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
+                                                        {% endif %}
+                                                    </c-n26.model-card.mode>
+                                                    {% comment %}
+                                                    Dismissing is offered wherever the owner reads the
+                                                    card, as it is for the card's other offers: the
+                                                    sheet as well as the model's own page. Only the
+                                                    way to change the level is the page's alone.
+                                                    {% endcomment %}
+                                                    <c-n26.model-card.mode when="gang edit">
+                                                        <c-n26.choice-dismiss :choice="choice" />
+                                                    </c-n26.model-card.mode>
+                                                </div>
                                             </li>
                                         {% endfor %}
                                     </ul>

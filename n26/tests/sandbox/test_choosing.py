@@ -961,7 +961,7 @@ def dismissed_keys(gang):
 
 
 @pytest.fixture
-def menu_choices(gang, crew, profiles):
+def model_choices(gang, crew, profiles):
     from n26.core.operations import operation
     from n26.library.authoring import (
         add_built_in,
@@ -998,6 +998,30 @@ def menu_choices(gang, crew, profiles):
 class TestTheXBesideAnOpenOffer:
     """An open offer the owner may dismiss ends in an X. Nobody else is
     offered one, and an offer holding a pick is not either."""
+
+    def test_each_choice_and_dismiss_button_share_a_gapless_aligned_group(
+        self, client, owner, gang, crew, model_choices
+    ):
+        from bs4 import BeautifulSoup
+
+        client.force_login(owner)
+        page = BeautifulSoup(edit_body(client, crew["leader"]), "html.parser")
+        for line in model_choices.values():
+            form = page.find("form", action=dismiss_url(gang, line))
+            group = form.parent
+            assert {"items-center", "gap-0"} <= set(group["class"])
+            assert group.find(
+                "a",
+                href=lambda href, prefix=line.href: href and href.startswith(prefix),
+            )
+            assert "py-0!" not in form.find("button")["class"]
+        page = BeautifulSoup(sheet_body(client, gang), "html.parser")
+        form = page.find(
+            "form", action=dismiss_url(gang, sheet_slots(gang)["Affiliation"])
+        )
+        group = form.find_parent("dd")
+        assert {"items-center", "gap-0"} <= set(group["class"])
+        assert "ms-1" not in form.parent["class"]
 
     def test_the_owner_sees_the_x_on_the_sheet_and_the_models_page(
         self, client, owner, gang, crew
@@ -1136,7 +1160,7 @@ class TestDismissalAddressesThatShouldNotResolve:
 
 
 class TestShowingDismissedOffers:
-    """Restore model choices from the Edit menu, gang choices on the sheet."""
+    """Restore model choices from the Edit page, gang choices on the sheet."""
 
     def test_an_empty_picklist_can_be_dismissed_and_restored(
         self, client, owner, gang, crew
@@ -1195,41 +1219,47 @@ class TestShowingDismissedOffers:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
-    def test_every_kind_of_model_choice_is_restored_only_from_the_edit_menu(
-        self, client, owner, gang, crew, menu_choices
+    def test_every_kind_of_model_choice_is_restored_only_from_the_edit_grid(
+        self, client, owner, gang, crew, model_choices
     ):
         from bs4 import BeautifulSoup
 
         client.force_login(owner)
-        for line in menu_choices.values():
+        for line in model_choices.values():
             client.post(dismiss_url(gang, line))
         for query in ({}, {"dismissed": "show"}):
             page = BeautifulSoup(
                 edit_body(client, crew["leader"], **query), "html.parser"
             )
-            menu = page.find(id="n26-dismissed-choices-menu")
+            box = page.find(id="n26-dismissed-choices")
             card = page.find(id="n26-model-card-host")
-            assert len(menu.find_all("form")) == 4
-            for line in menu_choices.values():
-                assert menu.find("form", action=restore_url(gang, line))
+            assert "contents" in box["class"]
+            assert "grid" in box.parent["class"]
+            assert box.find_parent(attrs={"role": "menu"}) is None
+            assert box.find_parent(id="n26-model-card-host") is None
+            assert "Dismissed choices" in box.get_text()
+            assert len(box.find_all("form")) == 4
+            for line in model_choices.values():
+                assert box.find("form", action=restore_url(gang, line))
                 assert line.kind_label not in card.get_text()
                 assert restore_url(gang, line) not in sheet_body(client, gang, **query)
             for route in ("n26-equip", "n26-fighter-options"):
                 body = client.get(
                     reverse(route, args=[crew["leader"].pk]), query
                 ).content.decode()
-                assert "n26-dismissed-choices-menu" not in body
+                assert "n26-dismissed-choices" not in body
                 assert all(
                     restore_url(gang, line) not in body
-                    for line in menu_choices.values()
+                    for line in model_choices.values()
                 )
         other_model = edit_body(client, crew["ganger"])
         assert all(
-            restore_url(gang, line) not in other_model for line in menu_choices.values()
+            restore_url(gang, line) not in other_model
+            for line in model_choices.values()
         )
 
     def test_choice_controls_are_ghost_buttons_including_chosen_values(
-        self, client, owner, gang, crew, menu_choices, affiliations
+        self, client, owner, gang, crew, model_choices, affiliations
     ):
         from bs4 import BeautifulSoup
 
@@ -1247,7 +1277,7 @@ class TestShowingDismissedOffers:
                 assert "rounded-button" in control["class"]
                 assert "hover:underline" not in control["class"]
 
-    def test_a_redrawn_menu_clears_its_last_dismissed_choice(
+    def test_a_redrawn_dismissed_card_appears_and_clears_its_last_choice(
         self, client, owner, gang, crew
     ):
         from bs4 import BeautifulSoup
@@ -1257,23 +1287,30 @@ class TestShowingDismissedOffers:
 
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
         with operation(gang, actor=owner) as op:
             counter = op.assign(create_counter("Tally"), miniature=crew["leader"])
         here = reverse("n26-edit-fighter", args=[crew["leader"].pk])
-        for restored in (False, True):
-            if restored:
+        for state in ("empty", "dismissed", "restored"):
+            if state == "dismissed":
+                client.post(dismiss_url(gang, line), {"back": here})
+            elif state == "restored":
                 client.post(restore_url(gang, line), {"back": here})
             response = client.post(
                 reverse("n26-tally", args=[counter.pk]),
                 {"change": "1", "back": here},
                 headers={"HX-Request": "true"},
             )
-            menu = BeautifulSoup(response.content, "html.parser").find(
-                id="n26-dismissed-choices-menu"
+            box = BeautifulSoup(response.content, "html.parser").find(
+                id="n26-dismissed-choices"
             )
-            assert menu["hx-swap-oob"] == "outerHTML"
-            assert bool(menu.find("form")) is not restored
+            assert box["hx-swap-oob"] == "outerHTML"
+            assert "contents" in box["class"]
+            assert bool(box.find("form")) == (state == "dismissed")
+            assert bool(box.find(recursive=False)) == (state == "dismissed")
+            full_page_box = BeautifulSoup(
+                edit_body(client, crew["leader"]), "html.parser"
+            ).find(id="n26-dismissed-choices")
+            assert bool(full_page_box.find(recursive=False)) == (state == "dismissed")
 
     def test_the_sheet_offers_to_show_what_was_dismissed(
         self, client, owner, gang, crew
@@ -1315,10 +1352,11 @@ class TestShowingDismissedOffers:
         page = edit_body(client, crew["leader"])
         assert "Dismissed choices" in page
         assert line.href not in page
-        menu = BeautifulSoup(page, "html.parser").find(id="n26-dismissed-choices-menu")
-        form = menu.find("form", action=restore_url(gang, line))
+        box = BeautifulSoup(page, "html.parser").find(id="n26-dismissed-choices")
+        form = box.find("form", action=restore_url(gang, line))
         assert form["method"] == "post"
-        assert form.find("button").get_text(strip=True) == "Restore archetype"
+        assert form.find("button").get_text(strip=True) == "Restore"
+        assert form.find("button")["aria-label"] == "Restore Archetype"
         data = {
             field["name"]: field.get("value", "") for field in form.find_all("input")
         }
@@ -1459,7 +1497,7 @@ class TestShowingDismissedOffers:
     def test_the_redrawn_card_builds_its_control_from_this_site_only(
         self, rf, owner, gang, crew
     ):
-        """A redrawn menu's Restore form returns to this model's Edit page."""
+        """A redrawn box's Restore form returns to this model's Edit page."""
         from django.contrib.messages.storage.fallback import FallbackStorage
         from django.contrib.sessions.backends.db import SessionStore
 
@@ -1482,7 +1520,7 @@ class TestShowingDismissedOffers:
     @pytest.mark.parametrize(
         "route", ("n26-edit-fighter", "n26-equip", "n26-fighter-options")
     )
-    def test_a_tally_updates_only_the_edit_screens_restore_menu(
+    def test_a_tally_updates_only_the_edit_screens_dismissed_choices_card(
         self, client, owner, gang, crew, route
     ):
         from n26.core.operations import operation
@@ -1510,9 +1548,7 @@ class TestShowingDismissedOffers:
         assert response.status_code == 200
         body = response.content.decode()
         assert (restore_url(gang, line) in body) == (route == "n26-edit-fighter")
-        assert ('id="n26-dismissed-choices-menu"' in body) == (
-            route == "n26-edit-fighter"
-        )
+        assert ('id="n26-dismissed-choices"' in body) == (route == "n26-edit-fighter")
         assert f'name="back" value="{shown}"' in body
         assert dismissed_keys(gang) == {line.key}
 

@@ -578,7 +578,7 @@ class ChoiceLine:
     #: on the control: a choice of one is chosen, a choice of several has
     #: picks added to it.
     takes_several: bool = False
-    #: Dismissed choices are kept off the card. The model's Edit menu
+    #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's revealed choices offer Restore instead of Choose.
     dismissed: bool = False
     #: Where dismissing this offer posts to, and where restoring it does.
@@ -1058,7 +1058,7 @@ class ModelCard:
     #: not where a browsing screen lives. Empty draws no control, which
     #: is what a print sheet and a hire preview want.
     skills_href: str = ""
-    #: Kept outside question_lists so only the Edit menu can restore them;
+    #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
     dismissed_choices: list[ChoiceLine] = field(default_factory=list)
     #: The collections this model's grid places a category into, by id.
@@ -2009,7 +2009,7 @@ def hide_dismissed(keys, holder, *, reveal=False, removed=None):
     it back. The count is the same either way, so a control can say how
     many there are to show before any are drawn.
 
-    ``removed`` collects the hidden lines for a separate Restore menu.
+    ``removed`` collects the hidden lines for separate Restore controls.
     """
     if not keys:
         return 0

@@ -781,13 +781,13 @@ class TestThePickerReturnsWhereItWasOpened:
 
 
 class TestDismissingTheLadderFromTheSheet:
-    """Dismiss a weapon choice on its card; restore it from the Edit menu."""
+    """Dismiss a weapon choice on its card; restore it from the Edit page."""
 
     def key(self, orrus):
         ladder = ladder_of(orrus, "Bolt launchers")
         return f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
 
-    def test_the_sheet_offers_the_x_and_the_edit_menu_offers_restore(
+    def test_the_sheet_offers_the_x_and_the_edit_grid_offers_restore(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         client.force_login(owner)

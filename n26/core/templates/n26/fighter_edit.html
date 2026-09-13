@@ -79,7 +79,6 @@ is named by the page's own heading directly below.
                         </span>
                     </c-ui.button>
                 </c-slot>
-                {% include "n26/includes/dismissed_choices_menu.html" %}
                 {% comment %}
                 Both ask the sheet for the question and land the act back
                 here; the host the panel arrives in is drawn below. Absent
@@ -141,6 +140,9 @@ is named by the page's own heading directly below.
                     </c-ui.button>
                 </div>
             </form>
+        </c-slot>
+        <c-slot name="dismissed_choices">
+            {% include "n26/includes/dismissed_choices.html" %}
         </c-slot>
         <c-slot name="picture">
             <c-n26.picture-box action="{{ edit_url }}"

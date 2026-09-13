@@ -2465,6 +2465,11 @@ def model_card_editable():
     accessorise = Action("Add accessory", LINK, "#", SECONDARY)
 
     card = model_card_as("edit")
+    card.dismissed_choices = [
+        ChoiceLine(
+            kind_label="Archetype", chosen=None, dismissed=True, restore_href="#"
+        )
+    ]
     card.counters = [replace(line, href="#") for line in card.counters]
     # The base card draws several of one thing as one line with a count.
     # The model's own page draws one line per assignment, each with the

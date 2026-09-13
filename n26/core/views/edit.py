@@ -394,7 +394,7 @@ def card_screen(miniature, back):
 
 
 def _dismissal_holders(miniature, card):
-    """Only live models collect dismissed choices for their Edit menu."""
+    """Only live models collect dismissed choices for their Edit page."""
     from n26.core.status import Status
 
     return [] if miniature.status == Status.DEAD else [card]
@@ -448,7 +448,7 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
-            "update_dismissed_menu": back.split("?")[0]
+            "update_dismissed_choices": back.split("?")[0]
             == reverse("n26-edit-fighter", args=[miniature.pk]),
             "status_href": (
                 status_href(gang, miniature, back="edit")
