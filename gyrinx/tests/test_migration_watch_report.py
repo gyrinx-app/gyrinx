@@ -1,10 +1,9 @@
 """What the migration watch tells a pull request.
 
-The result a run leaves behind is the whole point of the watch, so the rule
-these pin is: a run only says a branch is clear when every check ran and
-found nothing. A run that was cancelled, or whose checks were skipped because
-something earlier broke, has not verified the branch and must not look as
-though it has.
+These tests enforce one rule: the watch says a branch is clear only when every
+check gave an answer and none of them found anything. A run that was cancelled,
+or whose checks were skipped because something earlier broke, has not verified
+the branch, and its result must not look as though it has.
 """
 
 import importlib.util
@@ -91,6 +90,31 @@ def test_a_skipped_check_is_not_a_pass(run):
     assert "clear" not in headline
     assert problems == []
     assert any("the deploy replay" in note for note in notes)
+
+
+def test_an_overlap_check_that_wrote_no_findings_is_not_a_pass(run):
+    # The command exits non-zero both when it finds a clash and when it cannot
+    # run, so a failure with no findings file means it checked nothing.
+    state, headline, problems, notes = run(**{**ALL_RAN, "OVERLAP": "failure"})
+    assert state != "success"
+    assert "clear" not in headline
+    assert problems == []
+    assert any("main gained" in note for note in notes)
+
+
+def test_an_overlap_check_that_passed_without_findings_is_not_a_pass(run):
+    # A green step with no findings file has still read nothing.
+    state, headline, _, _ = run(**ALL_RAN)
+    assert state != "success"
+    assert "clear" not in headline
+
+
+def test_unreadable_overlap_findings_are_not_a_pass(run, tmp_path):
+    (tmp_path / "overlap.json").write_text("{not json", encoding="utf-8")
+    state, headline, _, notes = run(**ALL_RAN)
+    assert state != "success"
+    assert "clear" not in headline
+    assert any("could not be read" in note for note in notes)
 
 
 def test_a_failing_check_is_a_problem(run):

@@ -100,7 +100,8 @@ class Command(BaseCommand):
                 + "\n".join(failures)
                 + f"\n\nCheck first that {options['base']} is up to date: this compares against "
                 "the ref you have, and a fetch does not happen here. If one of the migrations "
-                "named above is already on main, the ref is behind. Fetch it and run this again.\n\n"
+                f"named above is already in {options['base']} upstream, the ref is behind. "
+                "Fetch it and run this again.\n\n"
                 "Otherwise, a migration written on a tree with several leaves must depend on all "
                 "of them, which `manage makemigrations` does itself. Regenerate the newer "
                 "migration, or add the missing leaf to its dependencies."
