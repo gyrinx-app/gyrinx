@@ -16,6 +16,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
+from n26.core import icons
 from n26.core.capture import differences, gang_state
 from n26.core.models import Miniature
 from n26.core.operations import operation
@@ -343,6 +344,7 @@ class TestThePetCardNamesItsOwner:
         assert f'href="#model-{yolanda.pk}"' in body
         # A control among the others, named for whoever uses a reader.
         assert 'aria-label="Owned by Yolanda"' in body
+        assert str(icons.resolve("cat").body) in body
 
     def test_a_reader_who_does_not_own_the_gang_gets_the_link_too(
         self, client, gang, bought, yolanda

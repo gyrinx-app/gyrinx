@@ -12,6 +12,8 @@ from html import unescape
 import pytest
 from django.contrib.auth import get_user_model
 
+from n26.core import icons
+
 pytestmark = pytest.mark.django_db
 
 #: The colour <c-n26.founding-mark> paints itself. One component draws the
@@ -263,10 +265,11 @@ class TestThePetOnAModelCard:
 
     def test_the_pet_demo_links_the_owners_card(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
-        # A chain among the controls, named for whoever uses a reader.
+        # A cat among the controls, named for whoever uses a reader.
         assert 'aria-label="Owned by Vesna Krail"' in page
         assert 'href="#model-vesna-krail"' in page
         assert page.count('id="model-vesna-krail"') == 1
+        assert str(icons.resolve("cat").body) in page
 
     @pytest.mark.parametrize(
         "url, at_least",
