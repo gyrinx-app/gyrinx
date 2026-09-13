@@ -146,7 +146,9 @@ def test_tally_writes_a_structured_chain(user, gang, fighter):
         (LedgerEvent.Kind.TALLIED, 0, 7, 7),
         (LedgerEvent.Kind.TALLIED, 7, -7, 0),
     ]
-    assert reconcile.check_counter_value(held.counter_value) == []
+    counter_value = held.counter_value
+    counter_value.refresh_from_db()
+    assert reconcile.check_counter_value(counter_value) == []
 
 
 def test_counter_event_arithmetic_is_enforced(user, gang, fighter):
@@ -164,3 +166,16 @@ def test_counter_event_arithmetic_is_enforced(user, gang, fighter):
             counter_delta=2,
             counter_after=3,
         )
+
+
+def test_tally_ignores_a_counter_value_cached_before_the_lock(user, gang, fighter):
+    counter = Counter.objects.create(name="XP")
+    with operation(gang, actor=user) as op:
+        held = op.assign(counter, miniature=fighter)
+        op.tally(held, 2)
+    stale = held.counter_value
+    assert stale.value == 2
+    with operation(gang, actor=user) as op:
+        op.tally(held, 3)
+    with operation(gang, actor=user) as op:
+        assert op.tally(held, 4) == 9
