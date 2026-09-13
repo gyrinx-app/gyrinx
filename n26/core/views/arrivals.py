@@ -27,19 +27,17 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from n26.core.arrivals import asking, interstitials_on, next_url
+from n26.core.arrivals import MAX_ASKS, asking, interstitials_on, next_url
 from n26.core.owned import with_query
 from n26.core.views.choose import find_slots, settle_pick
 from n26.core.views.permissions import _own_gang_or_404, own_address
 from n26.library.staged import sees_staged
 
-#: The most questions one address may name. An address is typed as well
-#: as followed, and a screen of twenty pickers is already past reading.
-MAX_ASKS = 20
-
 
 def _asks(query):
-    """The addresses the screen was asked about, each once, in order."""
+    """The addresses the screen was asked about, each once, in order.
+    Capped where the address was typed rather than built: ``next_url``
+    never names more than a screenful."""
     seen = []
     for key in query.getlist("ask"):
         if key and key not in seen:
@@ -103,7 +101,6 @@ def gang_next(request, pk):
         if found.slot.slot is not None and found.slot.max_picks > 0
     }
     located = {key: located[key] for key in asks if key in located}
-    here = next_url(gang, list(located), back)
 
     carrying = interstitials_on(
         {found.slot.slot.pk for found in located.values()}, include_staged=shown
@@ -114,6 +111,11 @@ def gang_next(request, pk):
             grouped.setdefault(interstitial.pk, (interstitial, []))[1].append(key)
     if not grouped:
         return redirect(back)
+    # Only a question some screen draws is on this page: the address
+    # self-cleans of the rest, and a post naming one settles nothing here.
+    screened = {key for _interstitial, keys in grouped.values() for key in keys}
+    located = {key: found for key, found in located.items() if key in screened}
+    here = next_url(gang, list(located), back)
 
     if request.method == "POST":
         key = request.POST.get("ask", "")

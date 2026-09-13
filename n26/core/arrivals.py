@@ -30,6 +30,11 @@ from django.urls import reverse
 
 from n26.library.staged import sees_staged
 
+#: The most questions one screen asks. A founding can bring more than a
+#: reader can take in at once; the rest wait on a screen of their own,
+#: reached by Continue, so nothing that arrived is dropped.
+MAX_ASKS = 20
+
 
 def any_interstitials():
     """Whether any interstitial is attached to any slot: the one query an
@@ -122,13 +127,26 @@ def asking(gang, written, *, include_staged=False):
 
 
 def next_url(gang, keys, back):
-    """The screen's address: every question it asks, and where Continue
-    leads. Encoded once here, so an address nested inside another is
-    carried whole."""
+    """The screen's address: every question it asks, each once, and where
+    Continue leads. Encoded once here, so an address nested inside
+    another is carried whole.
+
+    More than ``MAX_ASKS`` questions are split: the first screenful is
+    asked here, and the rest become a further screen that ``next``
+    leads to — so Continue walks the reader through everything that
+    arrived, and no question is quietly dropped.
+    """
+    asked = []
+    for key in keys:
+        if key and key not in asked:
+            asked.append(key)
+    if len(asked) > MAX_ASKS:
+        back = next_url(gang, asked[MAX_ASKS:], back)
+        asked = asked[:MAX_ASKS]
     return (
         reverse("n26-next", args=[gang.pk])
         + "?"
-        + urlencode([*(("ask", key) for key in keys), ("next", back)])
+        + urlencode([*(("ask", key) for key in asked), ("next", back)])
     )
 
 
@@ -148,15 +166,23 @@ def _already_asking(gang, back):
     return query.get("ask", []), query.get("next", [""])[0]
 
 
-def onward(request, gang, op, back):
+def onward(request, gang, op, back, *, via=""):
     """Where the reader goes after an act: the screen for what just
-    arrived when any of it carries an interstitial, else ``back``."""
+    arrived when any of it carries an interstitial, else ``back``.
+
+    ``via`` is a second address that may be that screen already — the
+    pick screen's own return, where a choice worked at a pick at a time
+    comes back to itself rather than to it. Where either is the screen,
+    what arrived joins its questions instead of opening a second one.
+    """
     if not op.written or not any_interstitials():
         return back
     keys = asking(gang, op.written, include_staged=sees_staged(request.user))
     if not keys:
         return back
     standing = _already_asking(gang, back)
+    if standing is None and via:
+        standing = _already_asking(gang, via)
     if standing is not None:
         asked, back = standing
         keys = [*asked, *(key for key in keys if key not in asked)]

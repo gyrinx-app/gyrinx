@@ -641,12 +641,21 @@ class ArrivalScreen:
 
     @property
     def outstanding(self):
-        """The labels of the questions still open, in the order drawn."""
-        return [
-            question.label
+        """The questions still open, in the order drawn, each named by
+        its label — and by whose it is where two share a label, so
+        "Primary skill for Kal" and "Primary skill for Vex" read apart."""
+        open_questions = [
+            question
             for block in self.blocks
             for question in block.questions
             if not question.settled
+        ]
+        labels = [question.label for question in open_questions]
+        return [
+            f"{question.label} for {question.bearer}"
+            if labels.count(question.label) > 1
+            else question.label
+            for question in open_questions
         ]
 
     @property

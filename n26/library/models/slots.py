@@ -686,6 +686,8 @@ class Slot(Content, Assignable):
         already holding the slot, so the screen goes on showing there.
         Staged ones are included either way; a player path narrows them
         by whether the reader may see staged content.
+        ``n26.core.arrivals.interstitials_on`` reads many slots at once
+        on the player's terms; a change to those terms is made in both.
         """
         # One filter call, so every condition on the attachment reads
         # the same join; a second call would join the attachments again

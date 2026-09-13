@@ -380,11 +380,22 @@ class TestWhatArrived:
     def test_purchases_and_clones_never_send_the_reader_here(self):
         """The seam opts in per act: the founding, hire and pick views
         call it, and the equip and cloning views do not."""
-        views = CORE / "views"
-        for name in ("gangs", "hire", "choose"):
-            assert "onward(" in (views / f"{name}.py").read_text(), name
+        import inspect
+        from importlib import import_module
+
+        # By module path: the views package re-exports a view named
+        # ``gangs``, which would shadow the module of the same name.
+        def module(name):
+            return import_module(f"n26.core.views.{name}")
+
+        for name, view in (
+            ("gangs", "create_gang"),
+            ("hire", "hire_fighter"),
+            ("choose", "choose"),
+        ):
+            assert "onward(" in inspect.getsource(getattr(module(name), view)), view
         for name in ("equip", "cloning", "options", "owned"):
-            assert "onward(" not in (views / f"{name}.py").read_text(), name
+            assert "onward(" not in inspect.getsource(module(name)), name
 
 
 def _fresh_gang(owner, gang_type):
@@ -524,6 +535,48 @@ class TestPickingOnTheScreen:
         assert path == reverse("n26-next", args=[gang.pk])
         assert asks == [sheet_slot(gang, "Brawler's creed").key]
         assert back == picker
+
+    def test_a_worked_at_choice_opened_from_here_comes_back_here_with_what_it_brought(
+        self, client, owner, gang_type, legacy, picklist, archetypes
+    ):
+        """A choice of several, reached from this screen for its own page,
+        sends what a pick brought back to this screen rather than opening
+        a second one — and with nothing brought, comes back to itself."""
+        several = create_slot(
+            "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
+        )
+        add_built_in(gang_type, several)
+        create_interstitial("Paths", slots=[several])
+        creed = create_slot("Brawler's creed", legacy, picklist, assigned_to="gang")
+        modifier(
+            "Brawler: asks a creed",
+            targets_gang(),
+            ef_adds(creed),
+            carried_by=archetypes["Brawler"],
+        )
+        create_interstitial("Creed", slots=[creed])
+        gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
+        client.force_login(owner)
+        key = sheet_slot(gang, "Paths").key
+        here = screen_url(gang, [key])
+        picker = with_query(
+            reverse("n26-choose", args=[gang.pk, key]), **{"return": here}
+        )
+
+        response = client.post(
+            picker, {"thing": pick_key(archetypes["Gunslinger"]), "return": here}
+        )
+        assert response["Location"].startswith(
+            reverse("n26-choose", args=[gang.pk, key])
+        )
+
+        response = client.post(
+            picker, {"thing": pick_key(archetypes["Brawler"]), "return": here}
+        )
+        path, asks, back = asks_in(response["Location"])
+        assert path == reverse("n26-next", args=[gang.pk])
+        assert asks == [key, sheet_slot(gang, "Brawler's creed").key]
+        assert back == reverse("n26-gang", args=[gang.pk])
 
     def test_a_pick_that_brings_another_screen_joins_the_address(
         self, client, landed, archetypes, legacy, picklist
@@ -765,11 +818,62 @@ class TestTheAddress:
     def test_the_address_is_capped_at_twenty_questions(self):
         from django.http import QueryDict
 
-        from n26.core.views.arrivals import MAX_ASKS, _asks
+        from n26.core.arrivals import MAX_ASKS
+        from n26.core.views.arrivals import _asks
 
         query = QueryDict(mutable=True)
         query.setlist("ask", [f"gang:{i}:{i}" for i in range(30)] + ["gang:1:1"])
         assert len(_asks(query)) == MAX_ASKS == 20
+
+    def test_more_than_a_screenful_waits_on_a_further_screen(self, gang):
+        """Nothing that arrived is dropped: the first screenful is asked
+        here, and Continue leads to a screen asking the rest, and only
+        then to where the act was going."""
+        keys = [f"gang:{i}:{i}" for i in range(25)] + ["gang:3:3"]
+
+        path, asks, back = asks_in(screen_url(gang, keys, back="/n26/"))
+
+        assert asks == keys[:20]
+        overflow_path, overflow_asks, overflow_back = asks_in(back)
+        assert overflow_path == path
+        assert overflow_asks == keys[20:25]
+        assert overflow_back == "/n26/"
+
+    def test_one_malformed_question_does_not_take_the_others_with_it(
+        self, client, owner, gang, hunter
+    ):
+        kal = hire(gang, hunter, "Kal", paid=100)
+        good = sheet_slot(gang, "Hunter's path").key
+        client.force_login(owner)
+
+        body = page(client, screen_url(gang, ["not-a-fighter:x:y", good]))
+
+        assert "Hunter's path" in body and kal.name in body
+
+    def test_a_post_naming_a_question_no_screen_draws_settles_nothing(
+        self, client, owner, gang, person_type, gang_type, legacy, picklist, archetypes
+    ):
+        """A valid address for a slot with no screen is not on this page,
+        however it got into the address: a post naming it is refused."""
+        plain = create_profile("Ganger", person_type, gang_type, price=50)
+        add_built_in(plain, create_slot("Bare", legacy, picklist))
+        hire(gang, plain, "Rat", paid=50)
+        bare = sheet_slot(gang, "Bare").key
+        archetype = sheet_slot(gang, "Archetype").key
+        client.force_login(owner)
+        here = screen_url(gang, [archetype, bare])
+
+        body = page(client, here)
+        assert "Bare" not in body
+
+        response = client.post(
+            here, {"ask": bare, "thing": pick_key(archetypes["Brawler"])}
+        )
+
+        assert "That choice is no longer on this screen." in page(
+            client, response["Location"]
+        )
+        assert not Assignment.objects.filter(pickable=archetypes["Brawler"]).exists()
 
     def test_a_question_is_asked_once_however_often_the_address_names_it(
         self, client, owner, gang
@@ -860,6 +964,39 @@ class TestWhatTheScreenSays:
         assert (
             self.screen("Archetype", "Creed", "Path").outstanding_words
             == "Archetype, Creed and Path"
+        )
+
+    def test_two_questions_sharing_a_label_say_whose_they_are(self):
+        from n26.core.render import (
+            ArrivalBlock,
+            ArrivalQuestion,
+            ArrivalScreen,
+            ChoiceOffer,
+        )
+
+        def question(bearer):
+            return ArrivalQuestion(
+                key=f"{bearer}:1:1",
+                label="Primary skill",
+                bearer=bearer,
+                chosen=None,
+                settled=False,
+                offer=ChoiceOffer(label="Primary skill"),
+            )
+
+        screen = ArrivalScreen(
+            blocks=(
+                ArrivalBlock(
+                    heading="Skills",
+                    description="",
+                    questions=(question("Kal"), question("Vex")),
+                ),
+            ),
+            next_url="/n26/gangs/1/",
+        )
+        assert (
+            screen.outstanding_words
+            == "Primary skill for Kal and Primary skill for Vex"
         )
 
     def test_settled_questions_are_left_out(self):
