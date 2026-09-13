@@ -597,6 +597,15 @@ class ArrivalQuestion:
     #: table: rolling happens there. Empty for every other choice.
     roll_href: str = ""
 
+    @property
+    def heading_id(self):
+        """The id the heading carries, which the picker under it is
+        labelled by: several questions share one page, and a reader who
+        hears the options has to hear which question they answer. Made
+        from the address, so it is one per question however the page is
+        ordered."""
+        return "ask-" + self.key.replace(":", "-")
+
 
 @dataclass(frozen=True)
 class ArrivalBlock:

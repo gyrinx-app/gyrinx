@@ -211,6 +211,7 @@ class TestTheRadioCardsPage:
         # nowhere else still has to appear here.
         assert "min" in page
         assert "description" in page
+        assert "labelled_by" in page
 
     def test_the_page_names_the_card_subcomponent(self, reader):
         page = reader.get("/n26/design/c/radio-cards/").content.decode()
@@ -263,6 +264,7 @@ class TestTheChoicePicksPage:
         page = reader.get("/n26/design/c/choice-picks/").content.decode()
         assert "offer" in page
         assert "name" in page
+        assert "labelled_by" in page
 
     def test_both_demos_draw_real_acts(self, reader):
         page = reader.get("/n26/design/c/choice-picks/").content.decode()
@@ -688,6 +690,9 @@ class TestTheArrivalBlockPage:
         assert "Choices for The Forgotten" in body
         assert "Founded The Forgotten." in body
         assert "Choose Archetype and Hunter's path to continue." in unescape(body)
+        # Each picker is named by the heading that asks its question.
+        assert 'id="ask-gang-1-1"' in body
+        assert 'aria-labelledby="ask-gang-1-1' in body
         assert "nterstitial" not in body
 
     def test_the_shells_forms_post_nowhere(self, reader):

@@ -22,8 +22,12 @@ which option to add or take back.
     reads. Remove always submits under "remove".
   empty — what to say when there is nothing to pick; the page knows why it is
     empty, so the page supplies the words.
+  labelled_by — the id of the heading that asks this question, where the page
+    draws one above the list. Each group is then named by that heading and its
+    own, so a reader who hears the options hears which question they answer.
+    Optional.
 {% endcomment %}
-<c-vars :offer="None" name="thing" class="" />
+<c-vars :offer="None" name="thing" labelled_by="" class="" />
 
 {% comment %}
 space-y-8 between groups, the same rhythm <c-n26.choice-offer> keeps, so a
@@ -39,9 +43,9 @@ that holds one.
         </c-n26.form-section>
     {% else %}
         {% for group in offer.groups %}
-            <fieldset>
+            <fieldset{% if labelled_by %} id="{{ labelled_by }}-g{{ forloop.counter }}" aria-labelledby="{{ labelled_by }}{% if group.name %} {{ labelled_by }}-g{{ forloop.counter }}-legend{% endif %}"{% endif %}>
                 {% if group.name %}
-                    <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">
+                    <legend{% if labelled_by %} id="{{ labelled_by }}-g{{ forloop.counter }}-legend"{% endif %} class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">
                         {{ group.name }}
                         {% if group.caption %}<span class="font-normal text-muted">{{ group.caption }}</span>{% endif %}
                     </legend>
