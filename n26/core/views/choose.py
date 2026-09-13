@@ -56,48 +56,21 @@ def showing_dismissed(url):
     return SHOWING in query.get(SHOW_DISMISSED, [])
 
 
-def settle_dismissed(gang, *holders, at="", showing=False, hide_only=()):
+def settle_dismissed(gang, *holders, hide_only=()):
     """Hide dismissed choices with one query for all holders.
 
-    Model choices go into a separate list for the Edit page. The gang's
-    own choices may be revealed inline, with a show/hide control at ``at``.
-
-    One query for every holder together. ``at`` empty draws no control,
-    which is what a reader who does not own the gang gets: the offers
-    still go, and nothing is offered. ``hide_only`` holders lose their
-    dismissed offers whatever ``showing`` says and get no control — a
-    gang-sheet model card or a dead model has no Restore controls.
+    Model choices go into a separate list for the Edit page. ``hide_only``
+    holders get no Restore controls: gang sheets and dead models only hide
+    their dismissed choices.
     """
     from n26.core.models import DismissedOffer
-    from n26.core.render import ModelCard, hide_dismissed
+    from n26.core.render import hide_dismissed
 
     keys = DismissedOffer.keys_for(gang)
-    toggle = dismissed_toggle(at, showing) if at else ""
     for holder in holders:
-        if isinstance(holder, ModelCard):
-            hide_dismissed(keys, holder, removed=holder.dismissed_choices)
-            continue
-        holder.dismissed_count = hide_dismissed(keys, holder, reveal=showing)
-        holder.dismissed_shown = showing
-        holder.dismissed_href = toggle if holder.dismissed_count else ""
+        hide_dismissed(keys, holder, removed=holder.dismissed_choices)
     for holder in hide_only:
         hide_dismissed(keys, holder)
-
-
-def dismissed_toggle(url, showing):
-    """Where the control that shows or hides the dismissed offers leads:
-    ``url`` with the query added, or with it taken off again."""
-    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-
-    parts = urlsplit(url)
-    query = [
-        (name, value)
-        for name, value in parse_qsl(parts.query, keep_blank_values=True)
-        if name != SHOW_DISMISSED
-    ]
-    if not showing:
-        query.append((SHOW_DISMISSED, SHOWING))
-    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 @dataclass(frozen=True)
@@ -134,10 +107,8 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
     grows another row is linked by the same line.
 
     ``dismiss_back`` is where dismissing or restoring an offer lands,
-    where that differs from where a settled choice does — the gang sheet
-    sends a settled choice to the gang and a dismissal back to the sheet
-    as it stood, showing the dismissed offers or not. Left unsaid, it is
-    ``back``.
+    where that differs from where a settled choice does. Left unsaid,
+    it is ``back``.
     """
     from n26.core.owned import with_query
     from n26.core.status import Status
@@ -707,7 +678,7 @@ def dismiss_offer(request, pk, slot):
     where = (
         "Dismissed choices on the model’s Edit page"
         if found.miniature
-        else "Dismissed choices"
+        else "the Dismissed choices tab on the gang’s Edit page"
     )
     messages.success(request, f"Dismissed {label}. You can restore it from {where}.")
     return _safe_redirect(request, request.POST.get("back"), fallback)
@@ -725,8 +696,7 @@ def restore_offer(request, pk, slot):
     after the other and the reply says what stands. The slot is then
     found again only to name the offer in the confirmation — the same
     derivation opening its pick screen pays. Lands where the control was
-    clicked, or on the gang with its dismissed offers still showing,
-    since the reader was in the middle of looking at them.
+    clicked, or on the gang's Dismissed choices tab.
     """
     from django.db import transaction
 
@@ -750,7 +720,7 @@ def restore_offer(request, pk, slot):
         offer=label,
     )
     messages.success(request, f"Restored {label}.")
-    fallback = dismissed_toggle(reverse("n26-gang", args=[gang.pk]), showing=False)
+    fallback = with_query(reverse("n26-edit-gang", args=[gang.pk]), tab="dismissed")
     return _safe_redirect(request, request.POST.get("back"), fallback)
 
 

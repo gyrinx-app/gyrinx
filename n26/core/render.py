@@ -579,7 +579,7 @@ class ChoiceLine:
     #: picks added to it.
     takes_several: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
-    #: and the gang's revealed choices offer Restore instead of Choose.
+    #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
     #: Where dismissing this offer posts to, and where restoring it does.
     #: Filled in by whoever knows the URL space, as ``href`` is, and only
@@ -1445,11 +1445,6 @@ class GangSheet:
     #: the end and count nothing towards the rating or the tally.
     dead: list[ModelCard] = field(default_factory=list)
 
-    #: The gang's own dismissed choices can be shown inline on its sheet.
-    dismissed_count: int = 0
-    dismissed_href: str = ""
-    dismissed_shown: bool = False
-
     @property
     def questions(self):
         """Every question this sheet draws — the gang's own, one strip of
@@ -2011,21 +2006,28 @@ def hide_dismissed(keys, holder, *, reveal=False, removed=None):
 
     ``removed`` collects the hidden lines for separate Restore controls.
     """
+    return sum(
+        hide_dismissed_choices(keys, lines, reveal=reveal, removed=removed)
+        for lines in holder.question_lists()
+    )
+
+
+def hide_dismissed_choices(keys, choices, *, reveal=False, removed=None):
+    """Filter one choice list with the same eligibility rule as a whole card."""
     if not keys:
         return 0
     found = 0
-    for lines in holder.question_lists():
-        kept = []
-        for line in lines:
-            if line.key in keys and not line.is_resolved and not line.is_full:
-                found += 1
-                line.dismissed = True
-                if not reveal:
-                    if removed is not None:
-                        removed.append(line)
-                    continue
-            kept.append(line)
-        lines[:] = kept
+    kept = []
+    for line in choices:
+        if line.key in keys and not line.is_resolved and not line.is_full:
+            found += 1
+            line.dismissed = True
+            if not reveal:
+                if removed is not None:
+                    removed.append(line)
+                continue
+        kept.append(line)
+    choices[:] = kept
     return found
 
 
