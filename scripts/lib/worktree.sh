@@ -145,7 +145,7 @@ homebrew_postgres_data_dir() {
   fi
 }
 
-# provision_worktree_venv <worktree_root>
+# provision_worktree_venv <worktree_root> [reset]
 #   Ensure <worktree_root>/.venv matches uv.lock and pyproject.toml, and has
 #   the project editable-installed from that worktree. A hash stamp makes the
 #   unchanged case a cheap no-op while still catching dependency-input changes
@@ -164,6 +164,7 @@ homebrew_postgres_data_dir() {
 #   dependency inputs cannot be hashed, or provisioning fails.
 provision_worktree_venv() {
   local wt_root="$1"
+  local reset_venv="${2:-false}"
   if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
     return 1
   fi
@@ -193,7 +194,8 @@ provision_worktree_venv() {
   if [ -f "$stamp_file" ]; then
     stamped_inputs=$(<"$stamp_file")
   fi
-  if [ -d "$venv" ] && [ "$stamped_inputs" = "$current_inputs" ]; then
+  if [ "$reset_venv" != true ] && [ -d "$venv" ] \
+    && [ "$stamped_inputs" = "$current_inputs" ]; then
     return 0
   fi
 
@@ -207,12 +209,20 @@ provision_worktree_venv() {
       read -r lock_pid < "$lock_dir/pid" || lock_pid=""
     fi
     if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
-      if rm -f "$lock_dir/pid" && rmdir "$lock_dir" 2>/dev/null; then
+      if rm "$lock_dir/pid" 2>/dev/null && rmdir "$lock_dir" 2>/dev/null; then
+        attempts=0
         continue
       fi
     fi
     attempts=$((attempts + 1))
-    if [ "$attempts" -ge 300 ]; then
+    # Recover the empty directory left if its owner died between mkdir and
+    # writing the PID. rmdir remains safe if a live owner writes it meanwhile.
+    if [ "$attempts" -ge 10 ] && [ ! -e "$lock_dir/pid" ] \
+      && rmdir "$lock_dir" 2>/dev/null; then
+      attempts=0
+      continue
+    fi
+    if [ "$attempts" -ge 1200 ]; then
       echo "[gyrinx] Timed out waiting to provision ${venv}." >&2
       return 1
     fi
@@ -230,7 +240,8 @@ provision_worktree_venv() {
     if [ -f "$stamp_file" ]; then
       stamped_inputs=$(<"$stamp_file")
     fi
-    if [ -d "$venv" ] && [ "$stamped_inputs" = "$current_inputs" ]; then
+    if [ "$reset_venv" != true ] && [ -d "$venv" ] \
+      && [ "$stamped_inputs" = "$current_inputs" ]; then
       return 0
     fi
     if ! command -v uv >/dev/null 2>&1; then
@@ -238,6 +249,12 @@ provision_worktree_venv() {
       echo "[gyrinx] Install uv (https://docs.astral.sh/uv/) then re-run, or:" >&2
       echo "[gyrinx]   cd '${wt_root}' && UV_PROJECT_ENVIRONMENT='${venv}' uv sync --locked" >&2
       return 1
+    fi
+    if [ "$reset_venv" = true ] && [ -d "$venv" ]; then
+      echo "[gyrinx] Removing existing per-worktree venv at ${venv}..." >&2
+      if ! rm -rf "$venv"; then
+        return 1
+      fi
     fi
     local new_venv=false
     if [ ! -d "$venv" ]; then

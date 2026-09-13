@@ -74,13 +74,11 @@ MAIN_WT=$(_main_worktree)
 # from a child worktree would resolve gyrinx from the main worktree's editable
 # install — see issue #1772.
 WT_VENV="${WT_ROOT}/.venv"
-if [ "$WT_ROOT" != "$MAIN_WT" ]; then
-  if [ "$RESET_VENV" = true ] && [ -d "$WT_VENV" ]; then
-    echo "Removing existing per-worktree venv at $WT_VENV..."
-    rm -rf "$WT_VENV"
-  fi
+if [ "$WT_ROOT" != "$MAIN_WT" ] && [ "$RESET_VENV" = true ]; then
+  provision_worktree_venv "$WT_ROOT" true || exit 1
+else
+  provision_worktree_venv "$WT_ROOT" || exit 1
 fi
-provision_worktree_venv "$WT_ROOT" || exit 1
 # Always (re-)ensure the activate hook is present. Idempotent — no-op if the
 # marker is already there. Catches venvs created before this hook existed.
 install_worktree_venv_hook "$WT_VENV/bin/activate" || true

@@ -46,15 +46,18 @@ def _write_failing_hash_commands(bin_dir: Path) -> None:
         executable.chmod(0o755)
 
 
-def _provision(worktree: Path, bin_dir: Path, call_log: Path, **extra_env):
+def _provision(
+    worktree: Path, bin_dir: Path, call_log: Path, *, reset=False, **extra_env
+):
     return subprocess.run(
         [
             "/bin/bash",
             "-c",
-            'source "$1" && provision_worktree_venv "$2"',
+            'source "$1" && provision_worktree_venv "$2" "$3"',
             "test",
             str(REPO_ROOT / "scripts/lib/worktree.sh"),
             str(worktree),
+            "true" if reset else "false",
         ],
         text=True,
         capture_output=True,
@@ -201,3 +204,41 @@ def test_provisioner_repairs_a_stale_editable_install_before_stamping(tmp_path):
     assert result.returncode == 0, result.stderr
     assert call_log.read_text().splitlines() == ["sync", "sync"]
     assert "Editable install is stale" in result.stderr
+
+
+def test_reset_removes_the_venv_inside_the_provisioning_lock(tmp_path):
+    worktree = tmp_path / "worktree"
+    bin_dir = tmp_path / "bin"
+    call_log = tmp_path / "uv-calls"
+    worktree.mkdir()
+    bin_dir.mkdir()
+    (worktree / "uv.lock").write_text("version = 1\n")
+    (worktree / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+    _write_fake_uv(bin_dir)
+    assert _provision(worktree, bin_dir, call_log).returncode == 0
+    marker = worktree / ".venv/old-marker"
+    marker.touch()
+
+    reset = _provision(worktree, bin_dir, call_log, reset=True)
+
+    assert reset.returncode == 0, reset.stderr
+    assert not marker.exists()
+    assert call_log.read_text().splitlines() == ["sync", "sync"]
+
+
+def test_provisioner_recovers_an_abandoned_empty_lock(tmp_path):
+    worktree = tmp_path / "worktree"
+    bin_dir = tmp_path / "bin"
+    call_log = tmp_path / "uv-calls"
+    worktree.mkdir()
+    bin_dir.mkdir()
+    (worktree / "uv.lock").write_text("version = 1\n")
+    (worktree / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+    (worktree / ".gyrinx-venv-provision.lock").mkdir()
+    _write_fake_uv(bin_dir)
+
+    result = _provision(worktree, bin_dir, call_log)
+
+    assert result.returncode == 0, result.stderr
+    assert not (worktree / ".gyrinx-venv-provision.lock").exists()
+    assert call_log.read_text().splitlines() == ["sync"]
