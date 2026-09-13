@@ -1,3 +1,4 @@
+import json
 from io import StringIO
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from gyrinx.page_inspection import (
     PageCapture,
     build_report,
     capture_request,
+    render_text,
 )
 
 
@@ -120,8 +122,14 @@ def test_report_redacts_sensitive_headers():
             "X-Api-Key": "api-secret",
             "X-Public": "visible",
         },
-        "response_headers": {"Set-Cookie": "response-secret"},
-        "environ": {"HTTP_AUTHORIZATION": "Bearer environ-secret"},
+        "response_headers": {
+            "Set-Cookie": "response-secret",
+            "Location": "/next/?token=location-secret",
+        },
+        "environ": {
+            "HTTP_AUTHORIZATION": "Bearer environ-secret",
+            "HTTP_COOKIE": "sessionid=environ-cookie-secret",
+        },
     }
 
     report = build_report(
@@ -140,8 +148,44 @@ def test_report_redacts_sensitive_headers():
         "X-Public": "visible",
     }
     assert headers["response"]["Set-Cookie"] == "<redacted>"
+    assert headers["response"]["Location"] == "/next/?token=<redacted>"
     assert headers["wsgi"]["HTTP_AUTHORIZATION"] == "<redacted>"
+    assert headers["wsgi"]["HTTP_COOKIE"] == "<redacted>"
     assert "secret" not in str(report)
+
+
+def test_report_redacts_sensitive_query_values_in_urls():
+    capture = _capture()
+    capture.path = "/reset/?token=path-secret&next=%2Fsafe%2F"
+    capture.redirect_chain = [
+        ("/login/?signature=redirect-secret&next=%2Fsafe%2F", 302)
+    ]
+    capture.panels["HistoryPanel"] = {
+        "request_url": "/reset/?password=history-secret",
+        "request_method": "GET",
+        "status_code": 200,
+    }
+
+    report = build_report(
+        [capture],
+        username="agent",
+        warmup_requests=0,
+        detail_panels=["history"],
+        limit=10,
+    )
+
+    assert report["request"]["path"] == "/reset/?token=<redacted>&next=%2Fsafe%2F"
+    assert report["request"]["followed_redirects"] == [
+        {
+            "url": "/login/?signature=<redacted>&next=%2Fsafe%2F",
+            "status_code": 302,
+        }
+    ]
+    assert report["details"]["history"]["request_url"] == (
+        "/reset/?password=<redacted>"
+    )
+    assert "secret" not in json.dumps(report)
+    assert "secret" not in render_text(report)
 
 
 def test_all_detailed_panels_bound_nested_toolbar_data():

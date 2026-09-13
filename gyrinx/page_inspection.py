@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.test import Client
 
@@ -108,12 +109,12 @@ def build_report(
     capture = captures[-1]
     report = {
         "request": {
-            "path": capture.path,
+            "path": _redacted_url(capture.path),
             "status_code": capture.status_code,
             "content_type": capture.content_type,
             "user": username or "anonymous",
             "followed_redirects": [
-                {"url": url, "status_code": status}
+                {"url": _redacted_url(url), "status_code": status}
                 for url, status in capture.redirect_chain
             ],
             "warmup_requests": warmup_requests,
@@ -356,7 +357,9 @@ def _panel_detail(
         }
     if name == "history":
         return {
-            "request_url": _bounded_value(stats.get("request_url"), limit=limit),
+            "request_url": _bounded_value(
+                _redacted_url(stats.get("request_url")), limit=limit
+            ),
             "request_method": stats.get("request_method"),
             "status_code": stats.get("status_code"),
             "data": _bounded_value(stats.get("data"), limit=limit),
@@ -584,7 +587,10 @@ def _bounded_headers(value: Any, *, limit: int) -> dict[str, Any]:
     return {
         str(key): "<redacted>"
         if _sensitive_name(str(key))
-        else _bounded_value(item, limit=limit)
+        else _bounded_value(
+            _redacted_url(item) if str(key).lower() == "location" else item,
+            limit=limit,
+        )
         for key, item in list(value.items())[:limit]
     }
 
@@ -593,14 +599,38 @@ def _sensitive_name(name: str) -> bool:
     normalized = name.lower().replace("-", "_")
     parts = set(normalized.split("_"))
     return (
-        normalized in {"cookie", "set_cookie"}
+        bool(
+            parts
+            & {
+                "auth",
+                "cookie",
+                "key",
+                "passwd",
+                "password",
+                "secret",
+                "signature",
+                "token",
+            }
+        )
         or "authorization" in normalized
-        or "auth" in parts
         or "api_key" in normalized
         or "apikey" in normalized
-        or "token" in normalized
-        or "secret" in normalized
     )
+
+
+def _redacted_url(value: Any) -> Any:
+    """Redact credential-like query values while retaining a useful local URL."""
+    if not isinstance(value, str) or "?" not in value:
+        return value
+    parts = urlsplit(value)
+    query = urlencode(
+        [
+            (name, "<redacted>" if _sensitive_name(name) else item)
+            for name, item in parse_qsl(parts.query, keep_blank_values=True)
+        ],
+        safe="<>",
+    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
 
 def _bounded_mapping(value: Any, *, limit: int) -> dict[str, Any]:
