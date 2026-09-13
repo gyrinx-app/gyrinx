@@ -34,9 +34,13 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings_dev")
 django.setup()
 
 from asgiref.sync import sync_to_async  # noqa: E402
-from django.contrib.auth import get_user_model  # noqa: E402
 from django.test import Client  # noqa: E402
 from django.urls import reverse  # noqa: E402
+
+from gyrinx.debug_login import (  # noqa: E402
+    ensure_debug_agent_user,
+    validate_agent_username,
+)
 
 try:
     from playwright.async_api import async_playwright
@@ -124,31 +128,11 @@ class ScreenshotCapture:
 
     async def authenticate(self, username=None):
         """Mint a local staff session and return its cookie."""
-        if not settings.DEBUG:
-            raise RuntimeError(
-                "Screenshot sessions can only be minted with DEBUG enabled"
-            )
         username = username or self.username
-        User = get_user_model()
 
         @sync_to_async
         def get_user_and_login():
-            email = f"{username}@localhost"
-            user, created = User.objects.get_or_create(
-                username=username,
-                defaults={
-                    "email": email,
-                    "is_staff": True,
-                    "is_superuser": True,
-                },
-            )
-            if created:
-                user.set_password("password")
-            user.is_staff = True
-            user.is_superuser = True
-            if not user.email:
-                user.email = email
-            user.save()
+            user = ensure_debug_agent_user(username)
             self.client.force_login(user)
 
             session_cookie = self.client.cookies.get(settings.SESSION_COOKIE_NAME)
@@ -361,6 +345,10 @@ async def capture_screenshots(
         if not result:
             success = False
 
+    output_path = Path(output_dir).resolve()
+    if output_path.exists():
+        print(f"\nScreenshot folder: {output_path}")
+
     return success
 
 
@@ -405,7 +393,10 @@ def main():
         help="Capture only the viewport (not full page)",
     )
     parser.add_argument(
-        "--username", type=str, default="agent", help="Username to authenticate as"
+        "--username",
+        type=str,
+        default="agent",
+        help="Dedicated user: agent or agent-<purpose> (default: agent)",
     )
     parser.add_argument(
         "--check",
@@ -439,6 +430,11 @@ def main():
     if not args.url_name:
         parser.error("url_name is required unless using --check")
 
+    try:
+        validate_agent_username(args.username)
+    except ValueError as error:
+        parser.error(str(error))
+
     # Determine label
     label = args.label
     if args.before:
@@ -471,19 +467,22 @@ def main():
         sys.exit(1)
 
     # Run async capture
-    success = asyncio.run(
-        capture_screenshots(
-            url_name=args.url_name,
-            url_args=args.args,
-            label=label,
-            viewports=viewports,
-            theme=args.theme,
-            output_dir=args.output_dir,
-            full_page=not args.no_full_page,
-            selector=args.selector,
-            username=args.username,
+    try:
+        success = asyncio.run(
+            capture_screenshots(
+                url_name=args.url_name,
+                url_args=args.args,
+                label=label,
+                viewports=viewports,
+                theme=args.theme,
+                output_dir=args.output_dir,
+                full_page=not args.no_full_page,
+                selector=args.selector,
+                username=args.username,
+            )
         )
-    )
+    except ValueError as error:
+        parser.error(str(error))
 
     if not success:
         sys.exit(1)

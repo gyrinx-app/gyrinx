@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Critical Commands:**
 
 - Start dev server: `./scripts/dev.sh` (starts Django + CSS watch, per-worktree isolation)
+- Print a one-click local login link: `manage agent_login_url /path/to/page`
 - Format code: `./scripts/fmt.sh`
 - Run tests: `pytest -n auto`
 - Django commands: Use `manage` (not `python manage.py`)
@@ -197,9 +198,9 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **pr-feedback** — Review PR feedback from reviewers and Copilot, triage each comment
   (implement / acknowledge / decline), plan changes, and implement approved fixes. Invoke with
   `/pr-feedback [PR number or URL]`. Uses the `pr-comments` fetch script for data.
-- **dev-server** — Knowledge about starting/stopping the dev server, reading ports, telling Claude in Chrome
-  where to point, log file locations, **and how to mint a session cookie for the browser**. Do not POST
-  `/accounts/login/` from an agent session; reCAPTCHA and mandatory email verification block it.
+- **dev-server** — Knowledge about starting/stopping the dev server, reading ports, log files, and creating
+  **one-click DEBUG login links** for local `agent` users. Do not POST `/accounts/login/` from an agent session;
+  reCAPTCHA and mandatory email verification block it.
 - **pr-screenshots** — Capture useful UI evidence and attach it to a PR with GitHub-native attachments.
   Load for meaningful rendered UI changes, especially when working in a cloud session where the user cannot
   see the browser, and when preserving or refreshing screenshots while rewriting a PR description.
@@ -223,63 +224,33 @@ Cloud Agent install (`.cursor/install.sh`) runs `setupenv` but not
 `ensuresuperuser`, so the database may have no users at all. Do not guess
 usernames (`tom`, `admin`) or passwords from `.env`.
 
-Mint a session instead. From the repo root, with the venv active:
+Start the dev server, then create a dedicated local agent user and print a link
+that signs into it before opening the exact page under review:
 
 ```bash
-python <<'PY'
-import os, django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings_dev")
-django.setup()
-from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.test import Client
-from allauth.account.models import EmailAddress
-
-User = get_user_model()
-username = os.environ.get("AGENT_LOGIN_AS", "agent")
-email = f"{username}@localhost"
-u, created = User.objects.get_or_create(
-    username=username,
-    defaults={"email": email, "is_staff": True, "is_superuser": True},
-)
-if created:
-    u.set_password("password")
-u.is_staff = True
-u.is_superuser = True
-if not u.email:
-    u.email = email
-u.save()
-EmailAddress.objects.get_or_create(
-    user=u, email=u.email, defaults={"verified": True, "primary": True},
-)
-client = Client()
-client.force_login(u)
-cookie = client.cookies[settings.SESSION_COOKIE_NAME]
-print(f"{settings.SESSION_COOKIE_NAME}={cookie.value}")
-print(f"user={u.username}")
-PY
+manage agent_login_url /n26/gangs/
+# Codex shells use: .codex/run.sh manage agent_login_url /n26/gangs/
 ```
 
-The cookie name is `gyrinx_sessionid_<DJANGO_PORT>` (see `settings_dev.py`), not
-`sessionid`. Setting the default name is a silent no-op.
+Send the printed URL to the user rather than a bare server URL. Following it
+creates the browser session server-side and safely redirects to the requested
+local path. A path with its own query string is encoded correctly by the command.
 
-**curl:** `curl -b "$COOKIE" http://localhost:8000/n26/`
+Local agent-user rules are strict:
 
-**Browser / computer-use:** open any `http://localhost:<port>/` page so the
-origin is right, then in the console:
+- Use `agent` by default. Use `agent-<purpose>` only when a task needs a separate
+  owner or dataset: `manage agent_login_url /path --username agent-campaign`.
+- If that name already belongs to an account not provisioned for agent use, the
+  command refuses to change it. Choose a purpose-specific variant instead.
+- Every dedicated agent user has password `password`, is staff, and is not a
+  superuser. The command and login endpoint enforce this.
+- Never inspect, guess, set, or reset a pre-existing user's password, especially
+  a superuser's. Never reuse a person's account for agent-created local data.
 
-```js
-document.cookie = "gyrinx_sessionid_8000=<value>; path=/";
-```
-
-Use the name the snippet printed. Navigate to the page under test. n26's gallery
-(`/n26/design/`) and authoring screens are `staff_member_required`; the snippet
-sets `is_staff`. To use an existing account that already owns gangs, run the
-same snippet with `AGENT_LOGIN_AS=<username>` — `force_login` does not need
-their password.
-
-This is the same cookie `scripts/screenshot.py` mints. The full SOP lives in
-`.claude/skills/dev-server/SKILL.md`.
+`/_debug/login/` returns 404 unless `DEBUG=True`, and `agent_login_url` refuses
+to run without DEBUG. Both accept only `agent` or `agent-<purpose>` usernames.
+The same user setup is shared by `scripts/screenshot.py`. The full workflow lives
+in `.claude/skills/dev-server/SKILL.md`.
 
 ## Long sessions
 
@@ -330,8 +301,9 @@ titles, which should freely name model classes, functions and flags.
 2. **Start the dev server** (`./scripts/dev.sh`) near the start of any coding session —
    don't wait to be asked. Share the URL (per-worktree port, printed in the startup
    banner) so changes can be tested in the browser as they land.
-   If the page needs a signed-in user, **mint a session cookie** — do not submit
-   `/accounts/login/`. See **Logging in locally** below, or load the `dev-server` skill.
+   If the page needs a signed-in user, use `manage agent_login_url <path>` and
+   share its one-click link — do not submit `/accounts/login/` or alter another
+   user's password. See **Logging in locally** below, or load the `dev-server` skill.
 3. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
    (`CLAUDE_CODE_REMOTE=true`), label it so the team knows it's being handled:
    `gh issue edit <NUMBER> --add-label claude-code-web`
@@ -749,9 +721,11 @@ Key fixtures:
 When tests need multiple distinct users (e.g. campaign owner vs list owner), use `make_user` for the extra users
 and override the `owner` kwarg on the factory fixtures.
 
-- When seeding demo/test users locally (via `manage shell`, not pytest fixtures), also give each one a verified,
-  primary allauth `EmailAddress` so they can log in without hitting email-verification gates. Set `user.email`,
-  then `EmailAddress.objects.get_or_create(user=u, email=u.email, defaults={"verified": True, "primary": True})`.
+- When seeding demo data locally (outside pytest), own it with `agent` or a
+  purpose-specific `agent-<purpose>` created by `manage agent_login_url`. That
+  helper enforces password `password`, staff access, no superuser access, and a
+  verified primary email. Never create demo data under a person's account or
+  change an existing superuser's password.
 
 ### Security
 

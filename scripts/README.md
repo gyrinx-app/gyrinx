@@ -40,14 +40,14 @@ Automated UI screenshot utility using Playwright for capturing views without man
 - `--output-dir`: Output directory (default: screenshots)
 - `--selector`: CSS selector for specific element
 - `--no-full-page`: Capture only viewport (not full page)
-- `--username`: Local staff username to authenticate as (default: agent)
+- `--username`: Dedicated `agent` or `agent-<purpose>` username (default: agent)
 - `--check`: Check if Playwright is installed
 
 **Requirements:**
 
 - Playwright is a locked dependency, so `uv sync --locked` installs it
 - Run through `.codex/run.sh` so the script uses the worktree's database and port
-- The named local staff user is created if it does not exist
+- The named local staff user is created with password `password` and no superuser access
 - Chromium browser will be automatically installed on first run
 
 **Output:**
@@ -56,6 +56,7 @@ Automated UI screenshot utility using Playwright for capturing views without man
 - Files are named: `<url_name>_<label>_<viewport>_<timestamp>.png`
 - Latest versions: `<url_name>_<label>_<viewport>_latest.png`
 - Comparison markdown is generated for before/after pairs
+- The script prints the full absolute screenshot directory for linking from a local CLI
 
 For pull-request evidence, load the `pr-screenshots` skill. Put local image paths
 in a `## Screenshots` section of the PR body and upload them with GitHub CLI 2.99+:

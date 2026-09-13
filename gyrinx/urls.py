@@ -35,6 +35,11 @@ admin.site.site_header = "Gyrinx Admin"
 # /n23/_debug/ with the rest of the edition.
 _debug_urls = [
     path(
+        "_debug/login/",
+        views_debug.debug_agent_login,
+        name="debug_agent_login",
+    ),
+    path(
         "_debug/test-plans/",
         views_debug.debug_test_plan_index,
         name="debug_test_plans",

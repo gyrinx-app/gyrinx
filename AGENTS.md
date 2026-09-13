@@ -15,6 +15,6 @@ and the path-scoped files under [.github/instructions/](.github/instructions/).
 ## Cursor Cloud specific instructions
 
 Local login in a Cloud Agent (reCAPTCHA on `/accounts/login/`, port-suffixed
-session cookies, minting a staff session) is documented in
+session cookies, and one-click agent sessions) is documented in
 [CLAUDE.md](CLAUDE.md) under **Logging in locally**. Do not POST the login form;
-load the `dev-server` skill and mint a session cookie.
+load the `dev-server` skill and create an `agent_login_url` link.
