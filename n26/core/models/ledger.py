@@ -209,6 +209,10 @@ class LedgerEvent(Base):
         # figure the act carried where it carried one.
         ACTION_OPENED = "action_opened", "Action started"
         ACTION_CLOSED = "action_closed", "Action completed"
+        ACTION_USE_STARTED = "use_started", "Action use started"
+        ACTION_USE_COMPLETED = "use_completed", "Action use completed"
+        ACTION_USE_CANCELLED = "use_cancelled", "Action use cancelled"
+        ACTION_USE_PAID = "use_paid", "Action use paid"
 
         # Where the gang plays. Its own acts, because a gang joining or
         # leaving is something that happened to the gang — the campaign it
