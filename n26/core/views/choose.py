@@ -563,28 +563,26 @@ def _item_behind(found):
     return None
 
 
-def settle_pick(request, gang, slot_key, found, offer, *, here, land):
-    """The click that settles a choice, wherever the picker was drawn.
+class NotOnTheList(Exception):
+    """A click naming something the list drawn to this reader does not
+    hold: a stale page, or a post built by hand. The list itself is the
+    reply, so the caller redraws rather than explaining."""
 
-    Reads the post the picker sends — a thing to choose, or one to take
-    back — writes it as an assignment caused by the carrier's, and
-    redirects. ``here`` is where a refused or stale click lands, the
-    page that drew the list; ``land`` is called with the operation once
-    the pick is written and says where a settled click goes, so the
-    pick screen can send a worked-at choice back to itself and the
-    screen after an act can ask what the pick brought.
 
-    The pick screen and the screen shown after an act both draw the
-    picker and both post here, so a pick made on either is one code
-    path: what is refused, what is recorded and what the message says
-    cannot come to differ between them.
+def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""):
+    """Write one settled choice inside an operation already open, and
+    say what was picked.
+
+    The one place a pick is written, whichever screen drew the picker:
+    the pick screen settles one at a time, and the screen after an act
+    settles a page of them together. Raises ``NotOnTheList`` for a
+    choice this reader was never offered and ``Refusal`` for one the
+    rules will not take. ``None`` comes back where the reader chose
+    none: the standing pick is taken back and nothing is written.
     """
-    from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal
     from n26.core.render import NONE_KEY
 
-    dropped = request.POST.get("remove", "")
-    wanted = dropped or request.POST.get("thing", "")
     rolled_on = _roll_posted(request, gang, found)
     if wanted == NONE_KEY and not dropped:
         # The None row on an optional choice: nothing is written —
@@ -595,21 +593,10 @@ def settle_pick(request, gang, slot_key, found, offer, *, here, land):
             option.key == NONE_KEY for group in offer.groups for option in group.options
         )
         if not offered_none:
-            messages.error(request, "That is not one of the things available to pick.")
-            return redirect(here)
-        with operation(gang, actor=request.user) as op:
-            for pick in _settled(find_slot(gang, slot_key)):
-                op.remove(pick.assignment)
-        record(
-            request,
-            N26Noun.CHOICE,
-            EventVerb.ARCHIVE,
-            gang,
-            offer=offer.label,
-            picked="None",
-        )
-        messages.success(request, f"Chose none — {offer.label}.")
-        return redirect(land(op))
+            raise NotOnTheList
+        for pick in _settled(find_slot(gang, slot_key)):
+            op.remove(pick.assignment)
+        return None
     picked = next(
         (
             option
@@ -621,82 +608,158 @@ def settle_pick(request, gang, slot_key, found, offer, *, here, land):
     )
     if picked is None or (dropped and _pick_of(found, wanted) is None):
         # Nothing on the list, or nothing behind the option a click
-        # asked to take back — a stale page either way, and the list
-        # itself is the reply.
-        messages.error(request, "That is not one of the things available to pick.")
-        return redirect(here)
-    try:
-        with operation(gang, actor=request.user) as op:
-            # The page named the picks it drew, but it was drawn
-            # before this answer and before any other in flight. The
-            # card is computed again with the gang held, so what
-            # settles the question is what stands at the moment of
-            # writing — and a question that has since gone stops
-            # resolving here rather than growing an answer nobody
-            # asked for.
-            fresh = find_slot(gang, slot_key)
-            if dropped:
-                taken = _pick_of(fresh, wanted)
-                if taken is not None:
-                    op.remove(taken.assignment)
-            elif (
-                offer.takes_several
-                and _pick_of(fresh, wanted) is not None
-                and not (
-                    fresh.slot.slot is not None
-                    and fresh.slot.slot.slot_type.allows_repeats
-                )
-            ):
-                # A worked-at choice, and this pick is already among
-                # them: the click has landed once already, and once is
-                # what it asked for. Where the slot type allows
-                # repeats a second click is a second pick, and falls
-                # through to be written like any other.
-                pass
-            else:
-                if not offer.takes_several:
-                    # One pick, already made: the new pick replaces it.
-                    for standing in _settled(fresh):
-                        op.remove(standing.assignment)
-                elif fresh.slot.is_full:
-                    # Filled while this page stood open. The way to
-                    # something else is to take a pick back, never to
-                    # have one pushed out unasked.
-                    raise Refusal(
-                        f"{offer.label} holds all the picks it will "
-                        "take. Take one back to make room."
-                    )
-                op.choose(
-                    fresh.anchor,
-                    picked.thing,
-                    slot=fresh.slot.slot,
-                    offer=fresh.slot.offer,
-                    roll=rolled_on,
-                    **_host(fresh),
-                )
-    except Refusal as refusal:
-        messages.error(request, str(refusal))
-        return redirect(here)
-    # Which choice was made and with what. Changing your mind
-    # records a second choice rather than editing the first: what a
-    # player picked and then dropped is a thing worth being able to ask
-    # about.
-    record(
-        request,
-        N26Noun.CHOICE,
-        EventVerb.ARCHIVE if dropped else EventVerb.CONFIRM,
-        gang,
-        offer=offer.label,
-        picked=picked.name,
-    )
-    # The confirmation says what happened in the choice's own terms: a
-    # several-pick choice has picks added to it, a choice of one is
-    # chosen — whatever the button that sent it was called.
+        # asked to take back — a stale page either way.
+        raise NotOnTheList
+    # The page named the picks it drew, but it was drawn before this
+    # answer and before any other in flight. The card is computed again
+    # with the gang held, so what settles the question is what stands at
+    # the moment of writing — and a question that has since gone stops
+    # resolving here rather than growing an answer nobody asked for.
+    fresh = find_slot(gang, slot_key)
+    if dropped:
+        taken = _pick_of(fresh, wanted)
+        if taken is not None:
+            op.remove(taken.assignment)
+    elif (
+        offer.takes_several
+        and _pick_of(fresh, wanted) is not None
+        and not (
+            fresh.slot.slot is not None and fresh.slot.slot.slot_type.allows_repeats
+        )
+    ):
+        # A worked-at choice, and this pick is already among them: the
+        # click has landed once already, and once is what it asked for.
+        # Where the slot type allows repeats a second click is a second
+        # pick, and falls through to be written like any other.
+        pass
+    else:
+        if not offer.takes_several:
+            # One pick, already made: the new pick replaces it.
+            for standing in _settled(fresh):
+                op.remove(standing.assignment)
+        elif fresh.slot.is_full:
+            # Filled while this page stood open. The way to something
+            # else is to take a pick back, never to have one pushed out
+            # unasked.
+            raise Refusal(
+                f"{offer.label} holds all the picks it will "
+                "take. Take one back to make room."
+            )
+        op.choose(
+            fresh.anchor,
+            picked.thing,
+            slot=fresh.slot.slot,
+            offer=fresh.slot.offer,
+            roll=rolled_on,
+            **_host(fresh),
+        )
+    return picked
+
+
+def _said_about(picked, offer, dropped):
+    """What the confirmation calls what just happened, in the choice's
+    own terms: a several-pick choice has picks added to it, a choice of
+    one is chosen — whatever the control that sent it was called."""
+    if picked is None:
+        return f"Chose none — {offer.label}."
     if dropped:
         said = "Removed"
     elif offer.takes_several:
         said = "Added"
     else:
         said = "Chose"
-    messages.success(request, f"{said} {picked.name} — {offer.label}.")
+    return f"{said} {picked.name} — {offer.label}."
+
+
+def _record_pick(request, gang, offer, picked, dropped):
+    """Which choice was made and with what. Changing your mind records a
+    second choice rather than editing the first: what a player picked
+    and then dropped is a thing worth being able to ask about."""
+    from n26.analytics import EventVerb, N26Noun, record
+
+    record(
+        request,
+        N26Noun.CHOICE,
+        EventVerb.ARCHIVE if dropped or picked is None else EventVerb.CONFIRM,
+        gang,
+        offer=offer.label,
+        picked="None" if picked is None else picked.name,
+    )
+
+
+def settle_pick(
+    request, gang, slot_key, found, offer, *, here, land, wanted=None, dropped=None
+):
+    """The click that settles one choice, wherever the picker was drawn.
+
+    Reads the post the picker sends — a thing to choose, or one to take
+    back — writes it as an assignment caused by the carrier's, and
+    redirects. ``here`` is where a refused or stale click lands, the
+    page that drew the list; ``land`` is called with the operation once
+    the pick is written and says where a settled click goes, so the
+    pick screen can send a worked-at choice back to itself.
+
+    The writing itself is ``_write_pick``, which the screen after an act
+    also uses for a page of answers at once: what is refused and what is
+    recorded cannot come to differ between the two screens.
+    """
+    from n26.core.operations import Refusal, operation
+
+    # The pick screen draws one question, so its controls are named
+    # plainly. A page drawing several names each control after its own
+    # question and hands the answer in, because "thing" would say
+    # nothing about which one was answered.
+    if dropped is None:
+        dropped = request.POST.get("remove", "")
+    if wanted is None:
+        wanted = request.POST.get("thing", "")
+    wanted = dropped or wanted
+    try:
+        with operation(gang, actor=request.user) as op:
+            picked = _write_pick(
+                op, request, gang, slot_key, found, offer, wanted, dropped=dropped
+            )
+    except NotOnTheList:
+        messages.error(request, "That is not one of the things available to pick.")
+        return redirect(here)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(here)
+    _record_pick(request, gang, offer, picked, dropped)
+    messages.success(request, _said_about(picked, offer, dropped))
+    return redirect(land(op))
+
+
+def settle_picks(request, gang, answers, *, here, land):
+    """Every answer a page of questions carries, written together.
+
+    The screen after an act asks several choices at once and settles
+    them with one control, so they are written in one operation: either
+    the page lands whole or nothing in it does. ``answers`` is
+    ``[(slot_key, found, offer, wanted)]`` for the questions the reader
+    answered; a question left blank is not among them and stays open.
+
+    Each is written by ``_write_pick``, the same call the pick screen
+    makes, so a choice settled here and one settled there cannot come to
+    differ.
+    """
+    from n26.core.operations import Refusal, operation
+
+    if not answers:
+        return redirect(land(None))
+    written = []
+    try:
+        with operation(gang, actor=request.user) as op:
+            for slot_key, found, offer, wanted in answers:
+                picked = _write_pick(op, request, gang, slot_key, found, offer, wanted)
+                written.append((offer, picked))
+    except NotOnTheList:
+        messages.error(request, "That is not one of the things available to pick.")
+        return redirect(here)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(here)
+    for offer, picked in written:
+        _record_pick(request, gang, offer, picked, "")
+        messages.success(request, _said_about(picked, offer, ""))
     return redirect(land(op))

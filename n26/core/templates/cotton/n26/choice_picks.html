@@ -19,7 +19,9 @@ which option to add or take back.
 
   :offer — a n26.render.ChoiceOffer.
   name — the input name a Choose click submits under, matching what the view
-    reads. Remove always submits under "remove".
+    reads.
+  remove_name — the same for a Remove click. Both are named where one page
+    draws several of these, so a click says which question it answered.
   empty — what to say when there is nothing to pick; the page knows why it is
     empty, so the page supplies the words.
   labelled_by — the id of the heading that asks this question, where the page
@@ -27,7 +29,7 @@ which option to add or take back.
     own, so a reader who hears the options hears which question they answer.
     Optional.
 {% endcomment %}
-<c-vars :offer="None" name="thing" labelled_by="" class="" />
+<c-vars :offer="None" name="thing" remove_name="remove" labelled_by="" class="" />
 
 {% comment %}
 space-y-8 between groups, the same rhythm <c-n26.choice-offer> keeps, so a
@@ -77,7 +79,7 @@ that holds one.
                             {% endcomment %}
                             {% if option.control == "remove" or option.control == "both" %}
                                 <c-ui.button type="submit"
-                                             name="remove"
+                                             name="{{ remove_name }}"
                                              value="{{ option.key }}"
                                              variant="text-danger"
                                              size="sm"

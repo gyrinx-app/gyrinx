@@ -926,15 +926,20 @@ class TestTheArrivalBlockPage:
         body = reader.get("/n26/design/c/arrival-block/").content.decode()
         assert "Choose a gang archetype" in body
         assert "Chosen: Chaos Corrupted" in body
-        assert ">Skip<" in body
-        assert body.count(">Skip<") == 1
+        assert "Choose a Chaos god" in body
+        # A block draws no control of its own: Continue and Skip sit once
+        # at the foot of the whole screen, which the shell page draws.
+        # Matched on the control, because the page's own words name it
+        # and the layout carries a "Skip to main content" link.
+        assert not re.search(r"<a[^>]*>\s*Skip\s*</a>", body)
         assert "could not be rendered" not in body.lower()
 
     def test_the_shell_page_renders_on_an_empty_database(self, reader):
         body = reader.get("/n26/design/shell/next/").content.decode()
         assert "Choices for The Forgotten" in body
         assert "Founded The Forgotten." in body
-        assert "Choose Gang archetype and Chaos God to continue." in unescape(body)
+        # The Chaos god may be skipped, so it never holds Continue.
+        assert "Choose Gang archetype to continue." in unescape(body)
         # Each picker is named by the heading that asks its question.
         assert 'id="ask-1-gang-1-1"' in body
         assert 'aria-labelledby="ask-1-gang-1-1' in body

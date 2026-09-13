@@ -12,6 +12,7 @@ and Continue behave; what a broken or borrowed address does; and that
 the printed sheet and the text card do not know the screen exists.
 """
 
+import re
 from dataclasses import replace
 from html import unescape
 from pathlib import Path
@@ -185,6 +186,14 @@ def screen_url(gang, keys, back=None):
 
 def pick_key(pickable):
     return f"{pickable._meta.label_lower}:{pickable.pk}"
+
+
+def skip_href(body):
+    """Where Skip leads, or "" where the screen draws none. Matched on
+    the control rather than on ">Skip<": a button draws its words on a
+    line of their own."""
+    found = re.search(r'<a[^>]*href="([^"]*)"[^>]*>\s*Skip\s*</a>', body)
+    return found.group(1).replace("&amp;", "&") if found else ""
 
 
 # --- Which acts send the reader here ----------------------------------------
@@ -520,24 +529,29 @@ class TestPickingOnTheScreen:
         response, gang = found_through_the_page(client, owner, gang_type)
         return gang, response["Location"]
 
-    def test_a_pick_comes_back_with_it_chosen_and_continue_offered(
-        self, client, landed, archetypes
-    ):
+    def test_continue_writes_the_answer_and_goes_on(self, client, landed, archetypes):
+        """Continue is what writes: the answer lands and the reader goes
+        where the act was going, rather than back to a question they
+        have just answered."""
         gang, here = landed
         key = sheet_slot(gang, "Archetype").key
 
-        response = client.post(
-            here, {"ask": key, "thing": pick_key(archetypes["Brawler"])}
-        )
+        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
 
         assert response.status_code == 302
-        assert asks_in(response["Location"]) == asks_in(here)
-        body = page(client, response["Location"])
-        assert "Chose Brawler — Archetype." in body
-        assert "Chosen: Brawler" in body
-        assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
-        assert "to continue." not in body
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
         assert Assignment.objects.get(pickable=archetypes["Brawler"]).gang == gang
+        assert "Chose Brawler — Archetype." in page(client, response["Location"])
+
+    def test_continue_with_nothing_answered_writes_nothing_and_goes_on(
+        self, client, landed
+    ):
+        gang, here = landed
+
+        response = client.post(here, {})
+
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
+        assert not Assignment.objects.filter(pickable__isnull=False).exists()
 
     def test_continue_leads_where_the_address_says(
         self, client, owner, landed, archetypes
@@ -546,18 +560,17 @@ class TestPickingOnTheScreen:
         key = sheet_slot(gang, "Archetype").key
         elsewhere = reverse("n26-hire-fighter", args=[gang.pk])
         here = screen_url(gang, [key], back=elsewhere)
-        client.post(here, {"ask": key, "thing": pick_key(archetypes["Brawler"])})
 
-        body = page(client, here)
+        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
 
-        assert f'href="{elsewhere}"' in body
+        assert response["Location"] == elsewhere
 
     def test_a_thing_not_on_the_list_is_refused_in_words(self, client, landed, legacy):
         gang, here = landed
         key = sheet_slot(gang, "Archetype").key
         stranger = create_pickable("Stranger", legacy)
 
-        response = client.post(here, {"ask": key, "thing": pick_key(stranger)})
+        response = client.post(here, {f"thing:{key}": pick_key(stranger)})
 
         assert asks_in(response["Location"]) == asks_in(here)
         body = page(client, response["Location"])
@@ -571,7 +584,7 @@ class TestPickingOnTheScreen:
 
         response = client.post(
             here,
-            {"ask": "gang:nothing:nothing", "thing": pick_key(archetypes["Brawler"])},
+            {"thing:gang:nothing:nothing": pick_key(archetypes["Brawler"])},
         )
 
         body = page(client, response["Location"])
@@ -782,12 +795,13 @@ class TestPickingOnTheScreen:
         create_interstitial("Creed", slots=[creed], skippable=True)
         key = sheet_slot(gang, "Archetype").key
 
-        response = client.post(
-            here, {"ask": key, "thing": pick_key(archetypes["Brawler"])}
-        )
+        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
 
-        _, asks, _ = asks_in(response["Location"])
-        assert asks == [key, sheet_slot(gang, "Brawler's creed").key]
+        # Continue writes and goes on, so what the pick brought is a
+        # screen of its own rather than the answered question redrawn.
+        _, asks, back = asks_in(response["Location"])
+        assert asks == [sheet_slot(gang, "Brawler's creed").key]
+        assert back == reverse("n26-gang", args=[gang.pk])
         body = page(client, response["Location"])
         assert "Creed" in body and "Brawler's creed" in body
 
@@ -796,46 +810,50 @@ class TestPickingOnTheScreen:
 
 
 class TestSkipAndContinue:
-    """Skip is a link to the same screen without that block's questions;
-    Continue waits for every question still on the screen."""
+    """Continue writes every answer and goes on; Skip walks past the
+    whole screen, and is offered only where nothing is compulsory."""
 
     @pytest.fixture
     def gang(self, owner, gang_type, shown):
         return found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
 
-    def test_a_skippable_block_offers_skip_and_it_drops_only_that_block(
+    def test_skip_is_offered_only_where_no_question_is_compulsory(
         self, client, owner, gang, hunter
     ):
+        """Skip goes past the whole screen writing nothing, so a screen
+        holding a question the author made compulsory offers none: the
+        archetype's screen is not skippable, the hunter's path is."""
         kal = hire(gang, hunter, "Kal", paid=100)
         archetype = sheet_slot(gang, "Archetype").key
         path = sheet_slot(gang, "Hunter's path").key
         client.force_login(owner)
 
-        body = page(client, screen_url(gang, [archetype, path]))
+        together = page(client, screen_url(gang, [archetype, path]))
+        assert skip_href(together) == ""
+        assert kal.name in together
 
-        assert ">Skip<" in body
-        skip = body.split(">Skip<")[0].rsplit('href="', 1)[1].split('"')[0]
-        _, asks, back = asks_in(skip.replace("&amp;", "&"))
-        assert asks == [archetype]
-        assert back == reverse("n26-gang", args=[gang.pk])
-        assert kal.name in body
+        alone = page(client, screen_url(gang, [path]))
+        assert skip_href(alone) == reverse("n26-gang", args=[gang.pk])
 
-    def test_continue_waits_for_a_skippable_block_until_it_is_skipped_or_chosen(
+    def test_a_skippable_question_never_holds_continue(
         self, client, owner, gang, hunter, archetypes
     ):
+        """A question the author let the reader skip does not stand in
+        the way: only the compulsory ones are named, and leaving the
+        skippable one blank is the way past it."""
         hire(gang, hunter, "Kal", paid=100)
         archetype = sheet_slot(gang, "Archetype").key
         path = sheet_slot(gang, "Hunter's path").key
         client.force_login(owner)
         here = screen_url(gang, [archetype, path])
-        client.post(here, {"ask": archetype, "thing": pick_key(archetypes["Brawler"])})
 
         body = page(client, here)
-        assert "Choose Hunter's path to continue." in body
+        assert "Choose Archetype to continue." in body
+        assert "Hunter's path to continue." not in body
 
-        body = page(client, screen_url(gang, [archetype]))
-        assert "to continue." not in body
-        assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
+        client.post(here, {f"thing:{archetype}": pick_key(archetypes["Brawler"])})
+
+        assert "to continue." not in page(client, here)
 
     def test_continue_waits_for_every_pick_a_choice_asks_for(
         self, client, owner, gang_type, legacy, picklist, archetypes
@@ -852,12 +870,12 @@ class TestSkipAndContinue:
         key = sheet_slot(gang, "Paths").key
         here = screen_url(gang, [key])
 
-        client.post(here, {"ask": key, "thing": pick_key(archetypes["Brawler"])})
+        client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
         body = page(client, here)
         assert "Chosen: Brawler" in body
         assert "Choose Paths to continue." in body
 
-        client.post(here, {"ask": key, "thing": pick_key(archetypes["Gunslinger"])})
+        client.post(here, {f"thing:{key}": pick_key(archetypes["Gunslinger"])})
         body = page(client, here)
 
         assert "to continue." not in body
@@ -974,25 +992,23 @@ class TestSkipAndContinue:
             block = page(client, screen_url(gang, keys)).split("Two at once", 1)[1]
             assert block.index("Archetype") < block.index("Creed"), keys
 
-    def test_skip_keeps_a_question_another_block_still_asks(
-        self, client, owner, gang, archetype_slot, legacy, picklist
+    def test_skip_writes_nothing_at_all(
+        self, client, owner, gang, archetype_slot, legacy, picklist, archetypes
     ):
-        """A skippable screen on a slot of its own and on one another
-        screen also asks about: skipping it drops its own question and
-        must not wave the shared one through."""
+        """Skip is a link past the screen, not an answer to it: every
+        question it walks past stays exactly as open as it was."""
         creed = create_slot("Creed", legacy, picklist, assigned_to="gang")
         with operation(gang, actor=owner) as op:
             op.assign(creed, gang=gang)
         create_interstitial("Also asked", slots=[archetype_slot, creed], skippable=True)
-        archetype = sheet_slot(gang, "Archetype").key
         creed_key = sheet_slot(gang, "Creed").key
         client.force_login(owner)
 
-        body = page(client, screen_url(gang, [archetype, creed_key]))
+        # The creed alone: one block, and the author let it be skipped.
+        body = page(client, screen_url(gang, [creed_key]))
 
-        skip = body.split(">Skip<")[0].rsplit('href="', 1)[1].split('"')[0]
-        _, asks, _ = asks_in(skip)
-        assert asks == [archetype]
+        assert skip_href(body) == reverse("n26-gang", args=[gang.pk])
+        assert not Assignment.objects.filter(pickable__in=archetypes.values()).exists()
 
     def test_a_slot_carrying_no_screen_is_not_asked_about(
         self, client, owner, gang, person_type, gang_type, legacy, picklist
@@ -1036,11 +1052,8 @@ class TestTheAddress:
         body = page(client, here)
         assert "elsewhere.example" not in body
 
-        response = client.post(
-            here, {"ask": key, "thing": pick_key(archetypes["Brawler"])}
-        )
-        _, _, back = asks_in(response["Location"])
-        assert back == reverse("n26-gang", args=[gang.pk])
+        response = client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
+        assert response["Location"] == reverse("n26-gang", args=[gang.pk])
 
     def test_asking_more_costs_the_offers_and_not_another_derivation(
         self, client, owner, gang, hunter
@@ -1088,7 +1101,7 @@ class TestTheAddress:
         here = screen_url(gang, [key])
         assert "Roll on its own page" in page(client, here)
 
-        client.post(here, {"ask": key, "thing": pick_key(archetypes["Brawler"])})
+        client.post(here, {f"thing:{key}": pick_key(archetypes["Brawler"])})
 
         assert "Roll on its own page" not in page(client, here)
 
@@ -1142,7 +1155,7 @@ class TestTheAddress:
         body = page(client, screen_url(gang, [spelled]))
 
         assert "Hunter's path" in body and "Kal" in body
-        assert f'name="ask" value="{spelled}"' in body
+        assert f'name="thing:{spelled}"' in body
 
     def test_a_post_naming_a_question_no_screen_draws_settles_nothing(
         self, client, owner, gang, person_type, gang_type, legacy, picklist, archetypes
@@ -1160,9 +1173,7 @@ class TestTheAddress:
         body = page(client, here)
         assert "Bare" not in body
 
-        response = client.post(
-            here, {"ask": bare, "thing": pick_key(archetypes["Brawler"])}
-        )
+        response = client.post(here, {f"thing:{bare}": pick_key(archetypes["Brawler"])})
 
         assert "That choice is no longer on this screen." in page(
             client, response["Location"]

@@ -1546,14 +1546,13 @@ GROUPS: list[Group] = [
                     "Drawn on the screen after founding a gang, hiring a model "
                     "or making a pick, one per screen an author attached to a "
                     "slot that arrived. The heading and words are the "
-                    "author's; the questions come through the slot, one form "
-                    "each, because every form needs the page's token. Skip is "
-                    "a link to the same screen without this block's questions "
-                    "— nothing is written and nothing is stored. A block that "
-                    "may not be skipped draws no Skip; the page withholds "
-                    "Continue until every question on it is settled — holds "
-                    "every pick it asks for, asks for none, or has nothing to "
-                    "offer."
+                    "author's; the questions come through the slot, because "
+                    "the whole screen is one form and Continue writes every "
+                    "answer together. A block draws no control of its own. "
+                    "The page withholds Continue until every question the "
+                    "author made compulsory is settled — holds every pick it "
+                    "asks for, asks for none, or has nothing to offer — and "
+                    "offers Skip beside it only where no question is."
                 ),
             ),
             Component(

@@ -1139,7 +1139,7 @@ def arrival_screen():
                         ),
                     ),
                 ),
-                skip_url="#",
+                skippable=True,
             ),
         ),
         next_url=back,

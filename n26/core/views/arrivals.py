@@ -16,11 +16,14 @@ reader on to ``next``. The picker draws in place and posts back here,
 through the same handling the pick screen uses, so a pick made on
 either is one code path.
 
-Skip is a link to this screen with that block's questions dropped from
-the address. Continue is offered once every question still on the
-screen is settled — it holds every pick it asks for, asks for none, or
-has nothing to offer — leaving by the navigation is always open, and
-nothing is policed.
+The whole screen is one form and Continue submits it, so every choice
+the reader made is written together. Continue is offered once every
+compulsory question is settled — it holds every pick it asks for, asks
+for none, or has nothing to offer; a question on a block the author
+made skippable never holds anybody, and leaving it blank is the way
+past it. Where no question is compulsory, Skip sits beside Continue and
+goes on without writing anything. Leaving by the navigation is always
+open, and nothing is policed.
 """
 
 from django.contrib import messages
@@ -30,7 +33,7 @@ from django.urls import reverse
 
 from n26.core.arrivals import MAX_ASKS, asking, interstitials_on, next_url
 from n26.core.owned import with_query
-from n26.core.views.choose import find_slots, settle_pick
+from n26.core.views.choose import find_slots, settle_pick, settle_picks
 from n26.core.views.permissions import _own_gang_or_404, own_address
 from n26.library.staged import sees_staged
 
@@ -84,9 +87,11 @@ def _question(request, gang, key, found, *, here, include_staged, under=""):
 def gang_next(request, pk):
     """What just arrived, and the choices it brought.
 
-    GET writes nothing. POST is one picker's click, handed to the pick
-    screen's own handling, and comes back here with whatever the pick
-    itself brought added to the address.
+    GET writes nothing. POST is Continue, which writes every question
+    the reader answered in one operation — or one click of a choice
+    worked at a pick at a time, handed to the pick screen's own
+    handling. Either comes back here with whatever the picks brought
+    added to the address.
     """
     from n26.core.render import ArrivalBlock, ArrivalScreen
 
@@ -136,34 +141,81 @@ def gang_next(request, pk):
     here = next_url(gang, list(located), back)
 
     if request.method == "POST":
-        key = request.POST.get("ask", "")
-        found = located.get(key)
-        if found is None:
-            messages.error(request, "That choice is no longer on this screen.")
-            return redirect(here)
-        question = _question(request, gang, key, found, here=here, include_staged=shown)
 
-        def land(op):
-            # What the pick itself brought joins the screen, after what
-            # was already on it.
-            brought = [
+        def brought_by(op):
+            """What the picks themselves brought that asks for a screen
+            of its own — nothing, where the answer wrote nothing."""
+            if op is None:
+                return []
+            return [
                 more
                 for more in asking(gang, op.written, include_staged=shown)
                 if more not in located
             ]
-            return next_url(gang, [*located, *brought], back)
 
-        return settle_pick(
-            request, gang, key, found, question.offer, here=here, land=land
-        )
+        def stay(op):
+            """Back to this screen with what the pick brought added:
+            where one click of a choice worked at a pick at a time
+            lands, because the rest of the page is still to answer."""
+            return next_url(gang, [*located, *brought_by(op)], back)
 
-    # How many blocks ask each question: Skip on one block drops only
-    # the questions no other block still asks, so a slot under two
-    # screens is not waved through by skipping the one that allows it.
-    asked_by = {}
-    for _interstitial, keys in grouped.values():
-        for key in keys:
-            asked_by[key] = asked_by.get(key, 0) + 1
+        def leave(op):
+            """Where Continue lands: on to what the act was going to,
+            or first to a screen for whatever the answers themselves
+            brought — never back to the questions just answered."""
+            brought = brought_by(op)
+            return next_url(gang, brought, back) if brought else back
+
+        # Each question's controls are named after it, so a click says
+        # which one it answered and a page of them cannot be confused
+        # for one another.
+        drawn = {
+            key: _question(request, gang, key, found, here=here, include_staged=shown)
+            for key, found in located.items()
+        }
+        # A post naming a question no screen here draws is a stale page
+        # or a hand-built post; the screen says so rather than quietly
+        # writing nothing.
+        named = {
+            field.split(":", 1)[1]
+            for field in request.POST
+            if field.startswith(("thing:", "remove:"))
+        }
+        if named - set(drawn):
+            messages.error(request, "That choice is no longer on this screen.")
+            return redirect(here)
+
+        # A choice worked at a pick at a time acts on its own, the way it
+        # does on the pick screen: one click is one pick, and the rest of
+        # the page is left as it stands.
+        for key, question in drawn.items():
+            dropped = request.POST.get(question.remove_name, "")
+            wanted = dropped or request.POST.get(question.field_name, "")
+            if wanted and (dropped or question.offer.takes_several):
+                return settle_pick(
+                    request,
+                    gang,
+                    key,
+                    located[key],
+                    question.offer,
+                    here=here,
+                    land=stay,
+                    wanted=wanted,
+                    dropped=dropped,
+                )
+
+        # Continue: every question the reader answered, written together.
+        # A blank one is left out rather than settled as nothing, so
+        # Continue on an untouched screen writes nothing at all.
+        answers = [
+            (key, located[key], question.offer, request.POST[question.field_name])
+            for key, question in drawn.items()
+            if not question.offer.takes_several
+            and not question.offer.is_empty
+            and request.POST.get(question.field_name)
+        ]
+        return settle_picks(request, gang, answers, here=here, land=leave)
+
     blocks = []
     ordered = sorted(
         grouped.values(), key=lambda pair: (pair[0].position, pair[0].name.lower())
@@ -187,16 +239,10 @@ def gang_next(request, pk):
                     )
                     for key in keys
                 ),
-                # Skip drops the block's own questions — the ones no other
-                # block asks. A block with none of its own has nothing to
-                # drop, so it draws no Skip rather than a link to here.
-                skip_url=next_url(
-                    gang,
-                    [k for k in located if k not in keys or asked_by[k] > 1],
-                    back,
-                )
-                if interstitial.skippable and any(asked_by[k] == 1 for k in keys)
-                else "",
+                # What the author said: a block nobody has to answer
+                # never holds Continue, and a screen of nothing but
+                # those offers Skip beside it.
+                skippable=interstitial.skippable,
             )
         )
     screen = ArrivalScreen(blocks=tuple(blocks), next_url=back)

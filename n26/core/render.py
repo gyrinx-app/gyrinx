@@ -721,6 +721,21 @@ class ArrivalQuestion:
         block = f"{self.under}-" if self.under else ""
         return f"ask-{block}" + self.key.replace(":", "-")
 
+    @property
+    def field_name(self):
+        """What this question's radios are named. One form carries the
+        whole screen, so every question needs a name of its own or the
+        browser would hold one selection across the lot. The address is
+        what makes it unique, and what the view reads it back by."""
+        return f"thing:{self.key}"
+
+    @property
+    def remove_name(self):
+        """What a take-back on this question submits under. Named like
+        the picker for the same reason: one form carries the page, so a
+        click has to say which question it answered."""
+        return f"remove:{self.key}"
+
 
 @dataclass(frozen=True)
 class ArrivalBlock:
@@ -728,21 +743,15 @@ class ArrivalBlock:
     heading and words, then each arriving slot's question beneath.
 
     A block attached to several arriving slots draws once with every one
-    of them under it. ``skip_url`` is this screen with the block's
-    questions dropped from the address — blank for a block that may not
-    be skipped, which draws no Skip.
+    of them under it. ``skippable`` is what the author said: a reader
+    may carry on past it without picking, so its questions never hold
+    Continue.
     """
 
     heading: str
     description: str
     questions: tuple[ArrivalQuestion, ...]
-    skip_url: str = ""
-
-    @property
-    def skippable(self):
-        """Whether the reader may carry on past this block without
-        picking: exactly when there is somewhere Skip leads."""
-        return bool(self.skip_url)
+    skippable: bool = False
 
     @property
     def settled(self):
@@ -760,9 +769,20 @@ class ArrivalScreen:
 
     @property
     def may_continue(self):
-        """Whether every question still on the screen is settled — holds every pick it asks for, asks for none, or has nothing to offer
-        — so the reader may carry on."""
-        return all(block.settled for block in self.blocks)
+        """Whether the reader may carry on: every question the author
+        made compulsory is settled — it holds every pick it asks for,
+        asks for none, or has nothing to offer. A question on a
+        skippable block never holds anybody: leaving it blank is the
+        way past it, and Continue writes whatever was picked."""
+        return all(block.settled for block in self.blocks if not block.skippable)
+
+    @property
+    def skip_url(self):
+        """Where Skip leads: on past the whole screen, writing nothing.
+        Offered only where no question is compulsory — a Skip that
+        walked past a choice the author made compulsory would make the
+        word meaningless."""
+        return self.next_url if all(block.skippable for block in self.blocks) else ""
 
     @property
     def outstanding(self):
@@ -777,6 +797,8 @@ class ArrivalScreen:
         open_questions = []
         named = set()
         for block in self.blocks:
+            if block.skippable:
+                continue
             for question in block.questions:
                 if question.settled or question.key in named:
                     continue

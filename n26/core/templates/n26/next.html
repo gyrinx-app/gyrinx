@@ -9,11 +9,11 @@ state is in the address — every question asked, and where Continue leads — s
 the page survives a reload, can be linked to, and works with scripting off.
 The act's own confirmation draws at the top, where the layout puts messages.
 
-Each question is a form of its own posting back to this page, so a click
-settles one choice and the page comes back with it chosen. Skip on a block is
-a link to the same page without that block's questions; Continue is offered
-once every question still here is settled — it holds every pick it asks for,
-asks for none, or has nothing to offer.
+The whole screen is one form. Continue submits it and writes every choice the
+reader made together; a question left blank stays open. Continue is withheld
+until every compulsory question is settled — it holds every pick it asks for,
+asks for none, or has nothing to offer. Where no question is compulsory, Skip
+sits beside Continue and goes on without writing anything.
 {% endcomment %}
 {% block head_title %}Choices for {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -25,8 +25,7 @@ asks for none, or has nothing to offer.
 {% endblock %}
 {% block content %}
     <div class="max-w-3xl space-y-10">
-        <c-n26.page-header title="Choices for {{ gang.name }}"
-                           lead="These choices came with what you just added. Make them here. Where a choice has a Skip link, you can leave it for now and make it later on the gang sheet.">
+        <c-n26.page-header title="Choices for {{ gang.name }}">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
