@@ -41,6 +41,7 @@ from n26.tests.sandbox.actions import (
     create_slot,
     create_slot_type,
     ef_adds,
+    ef_removes,
     found_gang,
     hire,
     modifier,
@@ -663,6 +664,51 @@ class TestPickingOnTheScreen:
         assert path == reverse("n26-next", args=[gang.pk])
         assert asks == [key, sheet_slot(gang, "Gunslinger's creed").key]
         assert back == reverse("n26-gang", args=[gang.pk])
+
+    def test_a_pick_that_takes_its_own_question_away_still_lands(
+        self, client, owner, gang_type, legacy, picklist, archetypes
+    ):
+        """A choice of several whose pick removes the very slot being
+        answered, and brings a screen: nothing is left to work at, so
+        what the pick brought joins the screen the reader came from
+        rather than the click failing after the pick was written."""
+        several = create_slot(
+            "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
+        )
+        add_built_in(gang_type, several)
+        create_interstitial("Paths", slots=[several])
+        creed = create_slot("Brawler's creed", legacy, picklist, assigned_to="gang")
+        modifier(
+            "Brawler: one path only",
+            targets_gang(),
+            ef_removes(several),
+            carried_by=archetypes["Brawler"],
+        )
+        modifier(
+            "Brawler: asks a creed",
+            targets_gang(),
+            ef_adds(creed),
+            carried_by=archetypes["Brawler"],
+        )
+        create_interstitial("Creed", slots=[creed])
+        gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
+        client.force_login(owner)
+        key = sheet_slot(gang, "Paths").key
+        arrival = screen_url(gang, [key])
+        picker = with_query(
+            reverse("n26-choose", args=[gang.pk, key]), **{"return": arrival}
+        )
+
+        response = client.post(
+            picker, {"thing": pick_key(archetypes["Brawler"]), "return": arrival}
+        )
+
+        assert response.status_code == 302
+        path, asks, back = asks_in(response["Location"])
+        assert path == reverse("n26-next", args=[gang.pk])
+        assert asks == [key, sheet_slot(gang, "Brawler's creed").key]
+        assert back == reverse("n26-gang", args=[gang.pk])
+        assert client.get(picker).status_code == 404
 
     def test_a_pick_that_brings_another_screen_joins_the_address(
         self, client, landed, archetypes, legacy, picklist
