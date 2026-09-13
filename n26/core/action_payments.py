@@ -43,21 +43,23 @@ class QuotedLine:
 
     balance: Balance
     amount: int
-    available: int
+    available: int | None
     position: int = 0
     name: str = ""
 
     def __post_init__(self):
         if self.amount <= 0:
             raise ValueError("A price component amount must be positive.")
-        if self.available < 0:
+        if self.available is None and self.balance.resource != Resource.CREDITS:
+            raise ValueError("Only a credits balance may be unlimited.")
+        if self.available is not None and self.available < 0:
             raise ValueError("An available balance cannot be negative.")
         if self.position < 0:
             raise ValueError("A price component position cannot be negative.")
 
     @property
     def after_payment(self):
-        return self.available - self.amount
+        return None if self.available is None else self.available - self.amount
 
     def snapshot(self):
         return {
@@ -98,7 +100,9 @@ class Quote:
 
     @property
     def affordable(self):
-        return all(line.after_payment >= 0 for line in self.lines)
+        return all(
+            line.after_payment is None or line.after_payment >= 0 for line in self.lines
+        )
 
     def snapshot(self):
         return [line.snapshot() for line in self.lines]

@@ -59,6 +59,29 @@ def test_quote_requires_every_resource_in_a_mixed_price():
     assert not quote.affordable
 
 
+def test_unlimited_credits_are_affordable_and_preserved_in_snapshot():
+    quote = Quote.coalesce(
+        [
+            QuotedLine(
+                Balance(Resource.CREDITS, gang_id="gang-1"),
+                amount=100,
+                available=None,
+            ),
+            QuotedLine(counter_balance(), amount=2, available=2),
+        ]
+    )
+
+    assert quote.affordable
+    assert quote.lines[0].after_payment is None
+    assert quote.snapshot()[0]["available"] is None
+    assert quote.snapshot()[0]["after_payment"] is None
+
+
+def test_counter_balance_cannot_be_unlimited():
+    with pytest.raises(ValueError, match="Only a credits balance"):
+        QuotedLine(counter_balance(), amount=1, available=None)
+
+
 def test_quote_snapshot_records_exact_balance_and_review_values():
     quote = Quote.coalesce(
         [

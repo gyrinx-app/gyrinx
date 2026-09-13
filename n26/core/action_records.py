@@ -8,7 +8,13 @@ from django.db.models import Q
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
-from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
+from n26.core.models import (
+    ActionAllowance,
+    ActionRecord,
+    AdvancementSelection,
+    Assignment,
+    LedgerEvent,
+)
 from n26.core.operations import LibraryError, Refusal
 
 
@@ -213,6 +219,16 @@ def _content_snapshot(action):
     return {
         "action": str(action.pk),
         "action_modified": action.modified.isoformat(),
+        "recruitment_allowance_rule": (
+            str(action.recruitment_allowance_rule_id)
+            if action.recruitment_allowance_rule_id
+            else None
+        ),
+        "rank_allowance_rule": (
+            str(action.rank_allowance_rule_id)
+            if action.rank_allowance_rule_id
+            else None
+        ),
         "outcomes": outcomes,
     }
 
@@ -259,6 +275,7 @@ def _target_snapshot(record, configured, terms):
 
     if isinstance(configured, ApplyChanges):
         values = []
+        simulated = {}
         for member in configured.changes.select_related(
             "counter_change__counter", "remove_picks__slot_type"
         ):
@@ -270,11 +287,18 @@ def _target_snapshot(record, configured, terms):
                     "fighter",
                     record.action,
                 )
+                before = simulated.setdefault(
+                    assignment.pk, assignment.counter_value.value
+                )
+                after = before + _counter_change_delta(member.counter_change, before)
+                simulated[assignment.pk] = after
                 values.append(
                     {
                         "kind": "counter",
                         "assignment": str(assignment.pk),
-                        "value": assignment.counter_value.value,
+                        "name": str(member.counter_change.counter),
+                        "before": before,
+                        "after": after,
                     }
                 )
             else:
@@ -284,7 +308,13 @@ def _target_snapshot(record, configured, terms):
                     pickable__slot_type=member.remove_picks.slot_type,
                 ).order_by("created", "pk")
                 values.append(
-                    {"kind": "picks", "assignments": [str(row.pk) for row in picks]}
+                    {
+                        "kind": "picks",
+                        "slot_type": str(member.remove_picks.slot_type),
+                        "slot_type_id": str(member.remove_picks.slot_type_id),
+                        "removed_count": len(picks),
+                        "assignments": [str(row.pk) for row in picks],
+                    }
                 )
         return values
     if isinstance(configured, AugmentCarriedItem):
@@ -376,13 +406,31 @@ def _locked(op, record):
     return locked
 
 
+def _validate_draft_definition(record):
+    """Reject a draft whose free/earned-use contract changed after it began."""
+    if record.allowance_id is None:
+        if record.action.allowance_rule is not None:
+            raise Refusal(
+                "That action now requires an earned allowance. Start it again."
+            )
+        if not _has_access(record.fighter, record.action):
+            raise Refusal("That fighter can no longer use this action.")
+        return
+    allowance = record.allowance
+    if (
+        allowance.fighter_id != record.fighter_id
+        or allowance.action_id != record.action_id
+        or allowance.recruitment_id != record.fighter.membership_id
+    ):
+        raise Refusal("That allowance belongs to another action use.")
+
+
 def review_action(op, record, *, outcome, terms=None):
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer awaiting confirmation.")
-    if record.allowance_id is None and not _has_access(record.fighter, record.action):
-        raise Refusal("That fighter can no longer use this action.")
+    _validate_draft_definition(record)
     if not record.action.outcomes.filter(outcome=outcome).exists():
         raise Refusal("That outcome is not available for this action.")
     quote = quote_action(op, record.fighter, record.action)
@@ -407,13 +455,13 @@ def save_action_choices(op, record, *, outcome, terms):
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer being selected.")
-    if record.allowance_id is None and not _has_access(record.fighter, record.action):
-        raise Refusal("That fighter can no longer use this action.")
+    _validate_draft_definition(record)
     if not record.action.outcomes.filter(outcome=outcome).exists():
         raise Refusal("That outcome is not available for this action.")
     supplied = deepcopy(terms)
     supplied.pop("outcome", None)
-    record.terms = {**record.terms, **supplied, "outcome": str(outcome.pk)}
+    previous = record.terms if record.outcome_id == outcome.pk else {}
+    record.terms = {**previous, **supplied, "outcome": str(outcome.pk)}
     record.outcome = outcome
     record.revision += 1
     record.review = {}
@@ -428,7 +476,7 @@ def _plan_apply_changes(op, record, operation):
         )
     )
     planned = []
-    meaningful = False
+    simulated = {}
     for change in changes:
         if change.counter_change_id:
             configured = change.counter_change
@@ -439,9 +487,9 @@ def _plan_apply_changes(op, record, operation):
                 "fighter",
                 record.action,
             )
-            before = assignment.counter_value.value
+            before = simulated.setdefault(assignment.pk, assignment.counter_value.value)
             delta = _counter_change_delta(configured, before)
-            meaningful = meaningful or delta != 0
+            simulated[assignment.pk] = before + delta
             planned.append(("counter", assignment.pk, configured))
         else:
             picks = list(
@@ -451,9 +499,17 @@ def _plan_apply_changes(op, record, operation):
                     pickable__slot_type=change.remove_picks.slot_type,
                 ).order_by("created", "pk")
             )
-            meaningful = meaningful or bool(picks)
             planned.append(("picks", picks, None))
-    if not meaningful:
+    changed_counter = any(
+        after
+        != Assignment.objects.select_related("counter_value")
+        .get(pk=assignment_id)
+        .counter_value.value
+        for assignment_id, after in simulated.items()
+    )
+    if not changed_counter and not any(
+        kind == "picks" and target for kind, target, _ in planned
+    ):
         raise Refusal("That outcome would not change this fighter.")
     return planned
 
@@ -507,7 +563,7 @@ def _prepare_outcome(op, record, configured):
 def _pay(op, record, quote):
     payment_id = uuid4() if quote.lines else None
     for line in quote.lines:
-        if line.after_payment < 0:
+        if line.after_payment is not None and line.after_payment < 0:
             raise Refusal(f"There is not enough {line.name} to use this action.")
         if line.balance.resource == Resource.CREDITS:
             op.event(
@@ -543,8 +599,7 @@ def complete_action(op, record, *, revision, review, outcome):
         raise Refusal("That action use is no longer awaiting confirmation.")
     if revision != record.revision or review != record.review:
         raise Refusal("Review this action again before confirming it.")
-    if record.allowance_id is None and not _has_access(record.fighter, record.action):
-        raise Refusal("That fighter can no longer use this action.")
+    _validate_draft_definition(record)
     if record.terms.get("outcome") != str(outcome.pk):
         raise Refusal("Review this outcome again before confirming it.")
     outcome_member = (
@@ -604,6 +659,13 @@ def cancel_action(op, record):
         return record
     if record.state != ActionRecord.State.STARTED or record.payment_id is not None:
         raise Refusal("That action use can no longer be cancelled.")
+    if (
+        record.allowance_id
+        and AdvancementSelection.objects.filter(
+            action_record=record, roll_event__isnull=False
+        ).exists()
+    ):
+        raise Refusal("A recorded advancement roll must be resumed.")
     record.state = ActionRecord.State.CANCELLED
     op.event(
         record.fighter,
