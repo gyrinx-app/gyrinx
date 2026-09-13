@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
@@ -84,8 +85,9 @@ def test_accessory_form_shows_weapon_info_and_tooltip(client):
     # Check weapon name is displayed in the card header
     assert "Lasgun" in content
 
-    # Check weapon cost is displayed (10¢)
-    assert "10¢" in content
+    weapon_heading = BeautifulSoup(content, "html.parser").find("h4", string="Lasgun")
+    assert weapon_heading is not None
+    assert weapon_heading.parent.get_text(" ", strip=True) == "Lasgun 10¢"
 
     # Check form shows accessories with correct costs
     # Red Dot Sight should show 10¢ in Available Accessories

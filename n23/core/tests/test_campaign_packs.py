@@ -1,6 +1,7 @@
 """Tests for campaign pack integration."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from n23.core.models.campaign import Campaign
@@ -1006,6 +1007,8 @@ def test_campaign_packs_member_does_not_see_add_remove_controls(
 
     content = response.content.decode()
     assert "Add Packs" not in content
+    remove_url = reverse("core:campaign-pack-remove", args=[campaign.id, pack.id])
+    assert BeautifulSoup(content, "html.parser").find("a", href=remove_url) is None
 
 
 @pytest.mark.django_db
@@ -1090,6 +1093,8 @@ def test_campaign_packs_owner_sees_both_controls(
     assert "Add to" in content
     assert "Owner Gang" in content
     assert "Add Packs" in content
+    remove_url = reverse("core:campaign-pack-remove", args=[campaign.id, pack.id])
+    assert BeautifulSoup(content, "html.parser").find("a", href=remove_url) is not None
 
 
 # --- Required content pack tests ---

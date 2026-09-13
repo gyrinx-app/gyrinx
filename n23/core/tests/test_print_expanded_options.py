@@ -431,7 +431,7 @@ def test_lore_notes_print_classic_style(client, user, make_list, make_list_fight
     lst.narrative = "<p>Founded in the ash wastes.</p>"
     lst.save()
     fighter = make_list_fighter(lst, "Grimjaw")
-    fighter.narrative = "<p>Grew up underhive.</p>"
+    fighter.narrative = "<p><strong>Grew up</strong> underhive.</p>"
     fighter.save()
     client.force_login(user)
 
@@ -442,9 +442,10 @@ def test_lore_notes_print_classic_style(client, user, make_list, make_list_fight
     assert "print-sheet" in body
     # Rich text is flattened onto the plate.
     assert "Grew up underhive." in body
-    assert (
-        BeautifulSoup(body, "html.parser").find("p", string="Grew up underhive.")
-        is None
+    paragraphs = BeautifulSoup(body, "html.parser").find_all("p")
+    assert all(
+        "Grew up underhive." not in paragraph.get_text(" ", strip=True)
+        for paragraph in paragraphs
     )
 
 

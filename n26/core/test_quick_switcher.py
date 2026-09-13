@@ -6,6 +6,7 @@ checks do not exercise browser layout or native touch scrolling.
 
 import re
 
+from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -81,9 +82,16 @@ class TestTheList:
     """Every destination is in the HTML before any script runs, and the panel
     says which one you are on."""
 
-    def test_the_current_row_is_marked_without_the_tick(self):
+    def test_only_the_current_destination_is_marked_in_each_copy(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
-        assert 'aria-current="page"' in html
+        panel, fallback = html.split("<noscript>", 1)
+        for fragment in (panel, fallback):
+            document = BeautifulSoup(fragment, "html.parser")
+            current = document.find("a", href="/n26/gangs/1/")
+            other = document.find("a", href="/n26/gangs/2/")
+            assert current is not None and other is not None
+            assert current.get("aria-current") == "page"
+            assert not other.has_attr("aria-current")
 
     def test_the_rows_are_drawn_again_for_a_reader_with_no_script(self):
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
@@ -247,7 +255,11 @@ class TestMovingThroughItFromTheKeyboard:
         # The name has to reach something: the list the box points at, and
         # rows carrying the ids it names.
         assert ":id=\"$id('n26-switcher') + '-list'\"" in html
-        assert ':id="id"' in html
+        items = BeautifulSoup(html.split("<noscript>", 1)[0], "html.parser").find_all(
+            "a", role="menuitem"
+        )
+        assert {item["href"] for item in items} == {"/n26/gangs/1/", "/n26/gangs/2/"}
+        assert all(item.get(":id") == "id" for item in items)
 
     def test_the_box_and_the_rows_mint_their_ids_from_one_root(self):
         """`$id` counts per element left to itself, so the box would point at
@@ -260,7 +272,11 @@ class TestMovingThroughItFromTheKeyboard:
         """A fill under the pointer and a highlight somewhere else are two
         answers to where Enter goes, and Enter can only take one of them."""
         html = panel()
-        assert '@mouseenter="highlight(id)"' in html
+        items = BeautifulSoup(html.split("<noscript>", 1)[0], "html.parser").find_all(
+            "a", role="menuitem"
+        )
+        assert {item["href"] for item in items} == {"/n26/gangs/1/", "/n26/gangs/2/"}
+        assert all(item.get("@mouseenter") == "highlight(id)" for item in items)
 
     def test_the_rows_stay_reachable_without_any_of_this(self):
         """None of the above is how the list is reached: every destination is

@@ -186,8 +186,7 @@ def test_print_config_form_shows_card_style(client, user, make_list):
 def test_classic_renders_fighter_portrait(
     client, user, make_list, make_list_fighter, tmp_path, settings
 ):
-    """A fighter with an image gets a portrait (and the space-reserving class);
-    a fighter without one gets neither."""
+    """A fighter with an image gets a portrait; a fighter without one does not."""
     from io import BytesIO
 
     from django.core.files.uploadedfile import SimpleUploadedFile
@@ -209,12 +208,16 @@ def test_classic_renders_fighter_portrait(
     client.force_login(user)
     body = client.get(_print_url(lst, cfg)).content.decode()
 
-    portraits = [
-        image
-        for image in BeautifulSoup(body, "html.parser").find_all("img")
-        if "snap" in (image.get("src") or "")
-    ]
-    assert len(portraits) == 1
+    cards = BeautifulSoup(body, "html.parser").find_all(attrs={"data-kind": "fighter"})
+    assert len(cards) == 2
+    for name in ("Snap", "Plain"):
+        card = next(card for card in cards if name in card.stripped_strings)
+        portraits = card.find_all("img")
+        if name == "Snap":
+            assert len(portraits) == 1
+            assert "snap" in portraits[0]["src"]
+        else:
+            assert portraits == []
 
 
 @pytest.mark.django_db
@@ -226,7 +229,8 @@ def test_classic_appends_blank_cards(client, user, make_list, make_list_fighter)
 
     body = client.get(_print_url(lst, cfg)).content.decode()
     assert "Alpha" in body
-    assert body.count('data-kind="blank"') == 3
+    blanks = BeautifulSoup(body, "html.parser").find_all(attrs={"data-kind": "blank"})
+    assert len(blanks) == 3
 
 
 # ---------------------------------------------------------------------------

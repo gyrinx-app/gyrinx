@@ -7,6 +7,8 @@ rather than a control that posts, and an act that carries the colour of what it
 does.
 """
 
+import pytest
+from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -108,6 +110,23 @@ class TestTheFormPageFooter:
 
         assert 'href="/gangs/1/"' in html
         assert html.index("Cancel") < html.index("Delete gang")
+
+    @pytest.mark.parametrize("component", ["form-actions", "form-page"])
+    @pytest.mark.parametrize("variant", ["success", "danger", "primary"])
+    def test_the_submit_variant_reaches_the_button(self, component, variant):
+        html = render(
+            f'<c-n26.{component} submit_label="Confirm" submit_variant="{variant}"'
+            ' cancel_url="/back/" />'
+        )
+        expected = render(
+            f'<c-ui.button type="submit" variant="{variant}" size="md">Confirm</c-ui.button>'
+        )
+        submit = BeautifulSoup(html, "html.parser").find(
+            "button", string=lambda text: text and text.strip() == "Confirm"
+        )
+        button = BeautifulSoup(expected, "html.parser").find("button")
+        assert submit is not None and button is not None
+        assert set(submit.get("class", [])) == set(button.get("class", []))
 
     def test_a_form_with_neither_gets_no_footer(self):
         """The hire screen's list carries a Hire on every row, so a control
