@@ -149,6 +149,12 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
         for line in holder.questions:
             if not line.key:
                 continue
+            if line.is_full and not line.is_resolved:
+                # Full with nothing chosen — authored to take no picks.
+                # Its picker lists nothing, so the line keeps no address
+                # and every screen draws it as a fact; a settled choice
+                # keeps its link, since clicking it is how it is changed.
+                continue
             line.href = reverse("n26-choose", args=[gang.pk, line.key])
             if back:
                 line.href = with_query(line.href, **{"return": back})
