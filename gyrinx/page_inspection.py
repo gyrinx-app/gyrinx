@@ -445,6 +445,7 @@ def _query_source(
             try:
                 name = name.resolve().relative_to(project_root.resolve())
             except ValueError:
+                # Templates outside the project keep their absolute source path.
                 pass
         highlighted = next(
             (line for line in template.get("context", []) if line.get("highlight")),
