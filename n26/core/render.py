@@ -1692,7 +1692,10 @@ def hide_dismissed(keys, holder, *, reveal=False):
     goes whether it sits among the choices, in the Skills row or under a
     weapon. Only an open line goes: an offer holding a pick draws that
     pick whatever a stale row says, since what was chosen is a fact about
-    the gang and a dismissal is not.
+    the gang and a dismissal is not — and one full with nothing chosen
+    (authored to take no picks) stays too, because no screen offers to
+    dismiss or restore such a line, so a row for it — written before the
+    content changed — would hide it for good.
 
     ``reveal`` keeps the lines and marks them dismissed instead, which is
     the screen where the owner is shown what they put away and offered
@@ -1705,7 +1708,7 @@ def hide_dismissed(keys, holder, *, reveal=False):
     for lines in holder.question_lists():
         kept = []
         for line in lines:
-            if line.key in keys and not line.is_resolved:
+            if line.key in keys and not line.is_resolved and not line.is_full:
                 found += 1
                 if not reveal:
                     continue
