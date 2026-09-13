@@ -1197,3 +1197,56 @@ class TestThePages:
             "Turf 1",
             "Turf 2",
         ]
+
+    def test_a_dialog_on_its_own_reads_nobodys_badge(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        """Fetched over htmx, a roll dialog names nobody — not the
+        arbitrator, not a gang's owner — so it is built without anybody's
+        badge data, which the page reads for the names it draws. The
+        dialog a refused roll comes back in is built the same way."""
+
+        def badge_reads(captured):
+            """Every read of a profile or of badge grants, less the one the
+            platform makes of the reader's own profile for their time zone
+            on a request whose session has none: the request's, not the
+            dialog's. A badge drawn lazily for the arbitrator would be a
+            second read of the same row, and for a gang's owner a read of
+            another's."""
+            reads = [
+                q["sql"]
+                for q in captured.captured_queries
+                if "core_userprofile" in q["sql"] or "accounts_badgegrant" in q["sql"]
+            ]
+            own = f'"core_userprofile"."user_id" = {arbitrator.pk} LIMIT'
+            for index, sql in enumerate(reads):
+                if own in sql:
+                    del reads[index]
+                    break
+            return reads
+
+        client.force_login(arbitrator)
+        address = reverse("n26-campaign", args=[campaign.pk])
+        client.get(address)
+
+        with CaptureQueriesContext(connection) as asked:
+            response = client.get(
+                f"{address}?roll={territory.pk}", HTTP_HX_REQUEST="true"
+            )
+        assert response.status_code == 200
+        assert "<dialog" in response.content.decode()
+        assert not badge_reads(asked)
+
+        with CaptureQueriesContext(connection) as refused:
+            response = client.post(
+                reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+                {
+                    "type": str(territory.pk),
+                    "table": str(selection_table.pk),
+                    "rolled": "7",
+                },
+                HTTP_HX_REQUEST="true",
+            )
+        assert response.status_code == 200
+        assert "You cannot roll 7 on a D66." in response.content.decode()
+        assert not badge_reads(refused)

@@ -288,10 +288,12 @@ class TestTheNamesOnACampaign:
     def _queries(client, path):
         """How many queries a page costs, once the session has settled — the
         first request after signing in records the session, which is a
-        cost of signing in and not of the page."""
-        client.get(path)
+        cost of signing in and not of the page. A path asking for a roll
+        dialog is asked for the way the page asks, over htmx."""
+        headers = {"HX-Request": "true"} if "?roll=" in path else {}
+        client.get(path, headers=headers)
         with CaptureQueriesContext(connection) as context:
-            response = client.get(path)
+            response = client.get(path, headers=headers)
         assert response.status_code == 200
         return len(context.captured_queries)
 
@@ -353,6 +355,28 @@ class TestTheNamesOnACampaign:
             with campaign_operation(campaign, actor=person) as act:
                 act.answer_invitation(person, accepted=True)
         assert self._queries(client, "/n26/campaigns/") == with_one
+
+    def test_a_dialog_that_cannot_be_drawn_serves_the_page_without_a_read_per_gang(
+        self, table, player, client
+    ):
+        """An htmx request for a roll dialog fetches the campaign and builds
+        the sheet without anybody's badge data, since a dialog names nobody.
+        When the question turns out stale and the whole page is served
+        instead, the people it names get their badge data read for the page,
+        not once per gang."""
+        player(table, "vex")
+        with_one = self._queries(
+            client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
+        )
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        assert (
+            self._queries(
+                client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
+            )
+            == with_one
+        )
 
     def test_the_log_names_who_acted_with_their_badge(self, table, player, client):
         """Somebody else's act is theirs by name, and the name carries the

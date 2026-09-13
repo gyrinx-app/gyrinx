@@ -1143,22 +1143,26 @@ def campaign_history(campaign, viewer=None, limit=None):
 
 
 def load_actor_badges(acts):
-    """Read the badge grants of the people a page of acts names, in one query.
+    """Read what naming a page of acts' actors with their badges needs — the
+    profile and the badge grants — where a page of acts still lacks it.
 
-    Which badge somebody shows is decided from their profile and their grants.
-    The profile rides each source's own read; the grants cannot, because a
-    prefetch is a second statement over the rows the first returned, and
-    ``campaign_history`` reads each source one page at a time and nothing
-    else. So the grants are read here, for the acts a caller has settled on
-    — after the merge, after any paging — keyed on those acts' actors and
-    never on the history behind them. Acts that name nobody, or the reader,
-    carry no person and cost nothing.
+    The grants never ride the sources' own reads: a prefetch is a second
+    statement over the rows the first returned, and ``campaign_history``
+    reads each source one page at a time and nothing else. The profile
+    rides a bounded read, where it widens only the page's rows, and is left
+    off an unbounded one — the log page reads the whole history before
+    paging it, and a join there would widen every event's row for the
+    fifty shown. So the grants, and the profile where it did not ride, are
+    read here, for the acts a caller has settled on — after the merge,
+    after any paging — keyed on those acts' actors and never on the
+    history behind them. A profile already read is not read again. Acts
+    that name nobody, or the reader, carry no person and cost nothing.
     """
     from django.db.models import prefetch_related_objects
 
     people = [act.actor_user for act in acts if act.actor_user is not None]
     if people:
-        prefetch_related_objects(people, "badge_grants")
+        prefetch_related_objects(people, "profile", "badge_grants")
 
 
 def campaign_history_size(campaign):
@@ -1191,12 +1195,14 @@ def campaign_history_size(campaign):
 
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
-    # The actor is named with the badge they hold, which reads their
-    # profile — joined here, inside the one page this reads — and their
-    # grants, which ``load_actor_badges`` reads for the page once it is cut.
-    events = campaign.events.select_related(
-        "actor", "actor__profile", "battle", "about_user"
-    )
+    # Naming the actor with their badge reads their profile and their
+    # grants. The profile rides a bounded read, which is a page; an
+    # unbounded read is the whole history, paged afterwards, and the join
+    # would widen every row for the page's worth drawn. What a page still
+    # lacks, ``load_actor_badges`` reads once it is cut.
+    events = campaign.events.select_related("actor", "battle", "about_user")
+    if limit is not None:
+        events = events.select_related("actor__profile")
     # Newest first while the database is doing the cutting, so a limit takes
     # the recent end; the caller sorts the merged result back into order.
     events = (
@@ -1233,14 +1239,16 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         .select_related(
             "miniature",
             "actor",
-            # The actor's badge reads their profile; see _campaign_own_acts.
-            "actor__profile",
             "gang",
             "campaign",
             "campaign_asset__asset__asset_type",
             "counterpart",
         )
     )
+    if limit is not None:
+        # A page brings each actor's profile with the acts; see
+        # _campaign_own_acts.
+        events = events.select_related("actor__profile")
     events = (
         events.order_by("-created", "-id")[:limit]
         if limit is not None

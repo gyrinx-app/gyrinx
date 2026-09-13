@@ -195,13 +195,14 @@ def campaign(request, pk):
     from django.urls import reverse
 
     from n26.core.models import CampaignParticipant
-    from n26.core.render import render_campaign
+    from n26.core.render import load_owner_badges, render_campaign
     from n26.core.views.htmx import is_htmx
 
     accepted = CampaignParticipant.State.ACCEPTED
 
-    # A roll dialog asked for over htmx is sent on its own and names no
-    # arbitrator, so only the whole page reads the owner's badge data.
+    # A roll dialog asked for over htmx is sent on its own and names nobody
+    # — not the arbitrator, not a gang's owner — so only the whole page
+    # reads their badge data with the campaign and the sheet.
     asked_for_a_dialog = (
         request.method == "GET"
         and is_htmx(request)
@@ -210,7 +211,9 @@ def campaign(request, pk):
     found = _any_campaign_or_404(request, pk, with_owner_badge=not asked_for_a_dialog)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
-    sheet = render_campaign(found, viewer=request.user)
+    sheet = render_campaign(
+        found, viewer=request.user, with_owner_badges=not asked_for_a_dialog
+    )
     # The two roll questions the address may ask — ``?roll=`` for the pool,
     # ``?starting=`` for one gang — and only the arbitrator's to ask. Over
     # htmx the panel alone is sent, in its host, and the page underneath
@@ -229,6 +232,10 @@ def campaign(request, pk):
         )
         response["HX-Replace-Url"] = request.get_full_path()
         return response
+    if asked_for_a_dialog:
+        # Asked for a dialog that cannot be drawn — a stale or withdrawn
+        # question — so the whole page is served, and it names everybody.
+        load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
     _fill_addresses(sheet, found, yours=yours)
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
@@ -564,7 +571,8 @@ def _roll_refused(request, campaign, form, again, question):
     if not is_htmx(request):
         messages.error(request, _first_error(form))
         return redirect(again)
-    sheet = render_campaign(campaign, viewer=request.user)
+    # A dialog names no gang's owner.
+    sheet = render_campaign(campaign, viewer=request.user, with_owner_badges=False)
     asked = question(sheet)
     if asked is None:
         # The dialog no longer has anything to offer — the table was
