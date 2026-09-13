@@ -300,6 +300,27 @@ class TestTheHeaderBandSpecimens:
         assert "Escher Death-Maiden" in page
         assert "Owned by" in page
 
+    def test_the_live_specimens_draw_the_quiet_active_control(self, reader):
+        """A card carrying no status of its own gets Active as a muted
+        control rather than a badge — what most of a roster reads, and
+        the width the controls row usually has. Four of the five, the
+        fifth being the badged one."""
+        import re
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
+        assert len(re.findall(r">\s*Active\s*<", band)) == 4
+
+    def test_one_specimen_badges_the_longest_status(self, reader):
+        from n26.designsystem import sampledata
+
+        card = sampledata.model_card_header_badged()
+        assert card.status_label == "Critically Injured"
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
+        assert "Critically Injured" in band
+
     def test_both_names_are_drawn_short_and_long(self, reader):
         from n26.designsystem import sampledata
 

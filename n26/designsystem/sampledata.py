@@ -68,6 +68,7 @@ from n26.core.render import (
     WeaponLine,
     WeaponProfileLine,
 )
+from n26.core.status import Status, label_for
 from n26.core.views.equip import PRICE_CEILING
 
 HOUSES = [
@@ -2235,7 +2236,7 @@ SHORT_HEADER_OWNER = "Yolanda"
 LONG_HEADER_OWNER = "Archregent Hollis Varn-Mortenkeep"
 
 
-def _header_card(name, owned_by):
+def _header_card(name, owned_by, **changes):
     """One header specimen: everything the header band can hold at once,
     over as little card as a card can have.
 
@@ -2244,6 +2245,10 @@ def _header_card(name, owned_by):
     to them — and the sample card's weapons, skills and gear would bury
     it. The statline stays: every card has one, and the header has to
     sit above something.
+
+    Carries no status of its own, so the demo's ``status_href`` draws the
+    quiet Active control the live half of a roster shows; a specimen
+    wanting the badge instead passes ``status`` and ``status_label``.
 
     No ``id``, so the card draws its body plain rather than behind the
     tab strip, and carries no anchor to collide with the pet demo's.
@@ -2263,6 +2268,7 @@ def _header_card(name, owned_by):
         image_url=CARD_IMAGE,
         xp=0,
         xp_target=6,
+        **changes,
     )
 
 
@@ -2282,8 +2288,21 @@ def model_card_header_long_owner():
 
 
 def model_card_header_long_both():
-    """The header with both names long — the worst the band has to take."""
+    """The header with both names long."""
     return _header_card(LONG_HEADER_NAME, LONG_HEADER_OWNER)
+
+
+def model_card_header_badged():
+    """The header at its widest: the longest status there is, badged
+    rather than drawn as the quiet Active control, against the longest
+    names. Every other specimen shows Active, which is what most of a
+    roster reads; this is the row at full stretch."""
+    return _header_card(
+        LONG_HEADER_NAME,
+        LONG_HEADER_OWNER,
+        status=Status.CRITICAL,
+        status_label=label_for(Status.CRITICAL),
+    )
 
 
 def model_card_editable():
