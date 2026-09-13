@@ -2622,7 +2622,9 @@ def ef_contributes_to_counter(counter, amount=0):
 
 
 @guarded_write
-def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):
+def ef_offers_choice(
+    model, from_section=None, label="", will_be_assigned_to="bearer", mode="select"
+):
     """Puts an open question on the bearer's card —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a
     set that is Primary for this fighter".
@@ -2634,6 +2636,7 @@ def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="be
         from_section=from_section,
         label=label,
         will_be_assigned_to=will_be_assigned_to,
+        mode=mode,
     )
 
 
