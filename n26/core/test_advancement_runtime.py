@@ -110,6 +110,7 @@ def test_advancement_roll_is_saved_and_full_checkout_uses_it(fighter):
         reviewed = op.review_action(
             record, outcome=outcome, terms={"pickable_id": choice.id}
         )
+        reviewed.refresh_from_db()
         completed = op.complete_action(
             reviewed,
             revision=reviewed.revision,

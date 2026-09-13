@@ -134,7 +134,7 @@ def _fighter_state(record, additions=()):
             }
         ),
         "placements": sorted(
-            (str(row.category.pk), str(row.section.pk)) for row in computed.placements
+            [str(row.category.pk), str(row.section.pk)] for row in computed.placements
         ),
     }
 
