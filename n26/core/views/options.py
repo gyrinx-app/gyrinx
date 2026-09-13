@@ -139,7 +139,15 @@ def fighter_options(request, pk):
     computed = compute(own, build_modifier_index(carriers(own)))
     edit = reverse("n26-edit-fighter", args=[miniature.pk])
     host = EquipHost.fighter(gang, own, miniature, edit)
-    card = link_model_card(gang, miniature, own, computed, host, back=edit)
+    card = link_model_card(
+        gang,
+        miniature,
+        own,
+        computed,
+        host,
+        back=edit,
+        dismissal_at=request.get_full_path(),
+    )
     return render(
         request,
         "n26/fighter_options.html",

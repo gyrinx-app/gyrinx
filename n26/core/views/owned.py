@@ -301,6 +301,8 @@ def removal_words(gang, paid, trade_points):
 
 def _panel(request, assignment, kind, at):
     """What every one of these dialogs says, whatever it is asking."""
+    from n26.core.views.choose import SHOWING, showing_dismissed
+
     return {
         "kind": kind,
         # With the book's asterisk where this is a two-slot weapon, as
@@ -314,6 +316,7 @@ def _panel(request, assignment, kind, at):
         # listing's own form does this with a hidden field the picker
         # writes; a dialog is a form of its own and has to say it here.
         "section": request.GET.get("section", ""),
+        "dismissed": SHOWING if showing_dismissed(at) else "",
     }
 
 
@@ -724,7 +727,7 @@ def _back_to(request, assignment, gang):
         base = reverse("n26-gang", args=[gang.pk])
     where = {
         key: value
-        for key in ("list", "section", "owned")
+        for key in ("list", "section", "owned", "dismissed")
         if (value := request.POST.get(key, ""))
     }
     return with_query(base, **where) if where else base

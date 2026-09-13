@@ -24,9 +24,9 @@ from n26.core.effects import (
     limit_notes,
     stacked_names,
 )
-from n26.core.owned import thing_key
 from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
 from n26.core.models.dismissed_offer import slot_key as _address
+from n26.core.owned import thing_key
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (

@@ -740,9 +740,9 @@ class TestTheQueryBudget:
         # Two of these are flag readings — whether the reader is offered
         # the model's status, and whether they see staged content — each
         # taken once for the page rather than once per model, so the count
-        # below still holds however large the gang grows. One more reads which offers the
-        # owner has dismissed — the whole gang's in one query, whether
-        # any are or not.
+        # below still holds however large the gang grows. One more reads
+        # which offers the owner has dismissed — the whole gang's in one
+        # query, whether any are or not.
         assert self.measure(client, edit_url(vex)) == 44
 
     def test_the_rest_of_the_gang_costs_nothing(

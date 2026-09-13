@@ -908,7 +908,8 @@ def equip(request, pk):
     purchases, and the breadcrumb is the way back.
     """
     from n26.core.listing import build_catalogue
-    from n26.core.owned import possessions
+    from n26.core.owned import possessions, with_query
+    from n26.core.views.choose import SHOW_DISMISSED, SHOWING, showing_dismissed
     from n26.core.views.owned import (
         accessorise_dialogs,
         owned_dialog,
@@ -940,6 +941,8 @@ def equip(request, pk):
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
     expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
 
+    dismissed_shown = showing_dismissed(request.get_full_path())
+
     def here(collection):
         params = []
         if everything:
@@ -950,6 +953,8 @@ def equip(request, pk):
             params.append(("section", section))
         if expanded_key:
             params.append(("owned", expanded_key))
+        if dismissed_shown:
+            params.append((SHOW_DISMISSED, SHOWING))
         return f"{request.path}?{urlencode(params)}" if params else request.path
 
     if request.method == "POST" and view is not None:
@@ -1035,9 +1040,8 @@ def equip(request, pk):
     # alone, and the rail is drawn all the same, so a reader on it can see
     # where they are. The search box names the list it is searching.
     tabs = list_tabs(collections, chosen, everything)
-    # The whole catalogue posts back to the list it was drawn from — only
-    # that: the picker's own state travels in the form, not in the address
-    # it posts to.
+    # The catalogue posts to its list with the card's dismissal visibility.
+    # The picker's section and expanded item travel in the form.
     if everything:
         action = f"{request.path}?list={ALL_SCOPE}"
         browsing = ALL_BROWSING
@@ -1047,6 +1051,8 @@ def equip(request, pk):
     else:
         action = request.path
         browsing = ""
+    if dismissed_shown:
+        action = with_query(action, **{SHOW_DISMISSED: SHOWING})
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
 

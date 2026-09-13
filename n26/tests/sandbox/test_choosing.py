@@ -1013,6 +1013,11 @@ class TestDismissingAnOffer:
 
         assert line.href not in sheet_body(client, gang)
         assert line.href not in edit_body(client, crew["leader"])
+        for route in ("n26-equip", "n26-fighter-options"):
+            page = client.get(reverse(route, args=[crew["leader"].pk]))
+            assert page.status_code == 200
+            assert dismiss_url(gang, line) not in page.content.decode()
+            assert restore_url(gang, line) not in page.content.decode()
         printed = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
         assert "Primary skill" not in printed
         assert "Archetype" in printed, "the offer beside it still prints"
@@ -1293,13 +1298,109 @@ class TestShowingDismissedOffers:
         body = render_card_update(
             request, crew["leader"], "https://elsewhere.example/?dismissed=show"
         ).content.decode()
-        # The pick screen's return address and the forms' hidden fields
-        # may carry it — both are checked again where they land — but no
-        # link on the card leads there.
-        assert 'href="https://elsewhere' not in body
+        assert "elsewhere.example" not in body
         edit = reverse("n26-edit-fighter", args=[crew["leader"].pk])
-        assert f'href="{edit}"' in body, "showing, so the control offers Hide"
+        assert f'href="{edit}?dismissed=show"' in body
+        assert restore_url(gang, line) not in body
+
+    @pytest.mark.parametrize(
+        "route", ("n26-edit-fighter", "n26-equip", "n26-fighter-options")
+    )
+    def test_a_tally_keeps_dismissed_offers_shown_on_each_model_screen(
+        self, client, owner, gang, crew, route
+    ):
+        from n26.core.operations import operation
+        from n26.library.authoring import create_counter
+
+        client.force_login(owner)
+        miniature = crew["leader"]
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        with operation(gang, actor=owner) as op:
+            counter = op.assign(create_counter("Review tally"), miniature=miniature)
+        here = reverse(route, args=[miniature.pk])
+        shown = f"{here}?dismissed=show"
+        page = client.get(shown)
+        assert page.status_code == 200
+        assert restore_url(gang, line) in page.content.decode()
+
+        response = client.post(
+            reverse("n26-tally", args=[counter.pk]),
+            {"change": "1", "back": shown},
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
         assert restore_url(gang, line) in body
+        assert f'href="{here}"' in body
+        assert f'name="back" value="{shown}"' in body
+        assert dismissed_keys(gang) == {line.key}
+
+    @pytest.mark.parametrize("htmx", (False, True))
+    def test_buying_and_selling_keep_dismissed_offers_shown(
+        self, client, owner, gang, crew, htmx
+    ):
+        from urllib.parse import parse_qs, urlsplit
+
+        from bs4 import BeautifulSoup
+
+        from n26.core.operations import operation
+        from n26.library.authoring import create_wargear, create_weapon
+
+        client.force_login(owner)
+        miniature = crew["leader"]
+        line = sheet_slots(gang)["Sorrow: Archetype"]
+        client.post(dismiss_url(gang, line))
+        knife = create_wargear("Knife", price=10)
+        collection = create_collection("Equipment", entries=[knife])
+        weapon = create_weapon("Autogun", price=5, profiles=[("", 0)])
+        with operation(gang, actor=owner) as op:
+            op.assign(collection, gang=gang)
+            gun = op.buy(miniature, thing=weapon, paid=5)
+        here = reverse("n26-equip", args=[miniature.pk])
+        shown = f"{here}?list={collection.pk}&dismissed=show"
+        page = BeautifulSoup(client.get(shown).content, "html.parser")
+        action = page.find("form", id="equip-catalogue")["action"]
+        assert parse_qs(urlsplit(action).query)["dismissed"] == ["show"]
+
+        headers = {"HX-Request": "true"} if htmx else {}
+        response = client.post(
+            action, {"thing": f"library.wargear:{knife.pk}"}, headers=headers
+        )
+        if not htmx:
+            assert response.url == shown
+            response = client.get(response.url)
+        assert response.status_code == 200
+        assert restore_url(gang, line) in response.content.decode()
+
+        bought = Assignment.objects.get(miniature=miniature, wargear=knife)
+        page = BeautifulSoup(
+            client.get(f"{shown}&sell={bought.pk}").content, "html.parser"
+        )
+        form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
+        assert form is not None
+        data = {
+            field["name"]: field.get("value", "")
+            for field in form.find_all("input", type="hidden")
+        }
+        assert data["dismissed"] == "show"
+        response = client.post(form["action"], data, headers=headers)
+        if not htmx:
+            assert response.url == shown
+            response = client.get(response.url)
+        else:
+            assert response["HX-Replace-Url"] == shown
+        assert response.status_code == 200
+        assert restore_url(gang, line) in response.content.decode()
+        page = BeautifulSoup(response.content, "html.parser")
+        accessory_form = page.find(
+            "form", action=reverse("n26-accessorise", args=[gun.pk])
+        )
+        assert (
+            accessory_form.find("input", attrs={"name": "dismissed"})["value"] == "show"
+        )
+        assert dismissed_keys(gang) == {line.key}
+        assert_reconciled(gang)
 
     def test_a_row_left_behind_by_a_sold_carrier_can_still_be_taken_off(
         self, client, owner, gang, crew
