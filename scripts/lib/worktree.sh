@@ -129,7 +129,7 @@ homebrew_postgres_data_dir() {
 }
 
 # provision_worktree_venv <worktree_root>
-#   Ensure <worktree_root>/.venv matches uv.lock and has gyrinx
+#   Ensure <worktree_root>/.venv matches uv.lock and has the project
 #   editable-installed from that worktree. A hash stamp makes the unchanged
 #   case a cheap no-op while still catching lock changes after a rebase.
 #

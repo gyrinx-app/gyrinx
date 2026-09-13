@@ -1,6 +1,6 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-# fail_fast: true
+fail_fast: true
 # Hook environments must match the project runtime. Several hooks parse
 # Python with Python (check-ast, debug-statements, bandit); on 3.12 they
 # cannot parse the PEP 758 `except A, B:` this codebase now uses, and every
@@ -9,6 +9,17 @@ default_language_version:
   python: python3.14
 
 repos:
+  # Keep this first and fail fast: a mismatched formatter must not rewrite files
+  # before the version check reports the stale pin.
+  - repo: local
+    hooks:
+      - id: check-formatter-versions
+        name: Check formatter version pins
+        entry: python3 scripts/check_formatter_versions.py --config-only
+        language: system
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/djlint/djLint
     rev: v1.46.1
     hooks:
@@ -66,13 +77,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: check-formatter-versions
-        name: Check formatter version pins
-        entry: python3 scripts/check_formatter_versions.py --config-only
-        language: system
-        pass_filenames: false
-        always_run: true
-
       - id: check-fmt
         name: check-fmt
         entry: ./scripts/fmt-check.sh

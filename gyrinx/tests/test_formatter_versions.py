@@ -23,6 +23,17 @@ def test_repository_formatter_pins_match():
     assert not mismatches(locked, configured)
 
 
+def test_pre_commit_stops_before_running_a_mismatched_formatter():
+    config = (REPO_ROOT / ".pre-commit-config.yaml").read_text()
+    guard_position = config.index("id: check-formatter-versions")
+
+    assert "fail_fast: true" in config
+    assert guard_position < config.index("repo: https://github.com/djlint/djLint")
+    assert guard_position < config.index(
+        "repo: https://github.com/astral-sh/ruff-pre-commit"
+    )
+
+
 def test_active_test_environment_matches_the_lock():
     locked = locked_versions(REPO_ROOT / "uv.lock")
 
