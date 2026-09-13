@@ -760,7 +760,7 @@ class Interstitial(Content):
         default="",
         help_text=(
             "What the screen says under the heading: what the choice is "
-            "and why it matters. Use your own words, not the book's."
+            "and why it matters."
         ),
     )
     skippable = models.BooleanField(

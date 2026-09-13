@@ -59,7 +59,7 @@ class Migration(migrations.Migration):
                     models.TextField(
                         blank=True,
                         default="",
-                        help_text="What the screen says under the heading: what the choice is and why it matters. Use your own words, not the book's.",
+                        help_text="What the screen says under the heading: what the choice is and why it matters.",
                     ),
                 ),
                 (
