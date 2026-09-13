@@ -14,3 +14,6 @@ The host is the one every per-model screen draws (model_card_host.html), so
 this lands on whichever of them the act came from.
 {% endcomment %}
 {% include "n26/includes/model_card_host.html" with redrawn=True htmx=True %}
+{% if update_dismissed_menu %}
+    {% include "n26/includes/dismissed_choices_menu.html" with oob=True %}
+{% endif %}

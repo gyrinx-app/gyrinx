@@ -1,0 +1,28 @@
+{% comment %}
+Always keep the wrapper: a card update must clear the menu when its last
+dismissed choice disappears. Restore is a POST, not a dropdown link.
+{% endcomment %}
+<div id="n26-dismissed-choices-menu"
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+    {% if card.dismissed_choices %}
+        <c-ui.dropdown.group label="Dismissed choices">
+            {% for choice in card.dismissed_choices %}
+                <form method="post" action="{{ choice.restore_href }}">
+                    {% csrf_token %}
+                    <input type="hidden"
+                           name="back"
+                           value="{% url 'n26-edit-fighter' miniature.pk %}">
+                    <c-ui.button type="submit"
+                                 role="menuitem"
+                                 x-bind="menuItem"
+                                 variant="ghost"
+                                 size="sm"
+                                 class="w-full whitespace-normal! text-left">
+                        Restore {{ choice.kind_label|lower }}
+                    </c-ui.button>
+                </form>
+            {% endfor %}
+        </c-ui.dropdown.group>
+        <c-ui.dropdown.separator />
+    {% endif %}
+</div>

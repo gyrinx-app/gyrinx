@@ -1972,9 +1972,8 @@ GROUPS: list[Group] = [
                     "rather than a grid, which would align every value to the "
                     "widest label on the sheet. A long chosen list wraps inside "
                     "the control: the kit button is nowrap, and without the "
-                    "override the sheet grows sideways. The control keeps its "
-                    "border rather than going ghost, which on a phone would look "
-                    "clickable to nobody."
+                    "override the sheet grows sideways. Choice controls pass "
+                    "variant=ghost; other editable facts keep the default border."
                 ),
             ),
             Component(

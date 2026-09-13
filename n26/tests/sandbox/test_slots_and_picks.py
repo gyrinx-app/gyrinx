@@ -1861,8 +1861,8 @@ class TestAChoiceThatHoldsNone:
 
         row = body[body.index("Gang Legacy</dt>") :]
         row = row[: row.index("</dd>")]
-        assert ">Choose</" not in row
-        assert ">Add</" not in row
+        assert "Choose" not in row
+        assert "Add" not in row
 
     def dismiss_href(self, gang, miniature):
         from django.urls import reverse
@@ -2383,7 +2383,8 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         # The row, not the flash message that also names the choice.
         row = body[body.index("Lasting Injuries</dt>") :]
         assert "Out Cold" in row
-        assert ">Add</" in row[: row.index("</dd>")]
+        assert "Add" in row[: row.index("</dd>")]
+        assert "bg-transparent" in row[: row.index("</dd>")]
 
     def test_and_stops_asking_once_full(self, client, owner, gang, yolanda, results):
         client.force_login(owner)
@@ -2396,7 +2397,7 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         row = body[body.index("Lasting Injuries</dt>") :]
         assert "Eye Injury (x2)" in row
         assert "Eye Injury, Eye Injury" not in row
-        assert ">Add</" not in row[: row.index("</dd>")]
+        assert "Add" not in row[: row.index("</dd>")]
 
     def test_the_confirmation_uses_the_verb_the_button_did(
         self, client, owner, gang, yolanda, results

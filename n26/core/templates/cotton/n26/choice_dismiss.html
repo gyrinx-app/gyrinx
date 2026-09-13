@@ -24,7 +24,7 @@ than anything hidden on the client.
     <form method="post" action="{{ choice.restore_href }}" class="inline {{ class }}">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ choice.back }}">
-        <c-ui.button type="submit" size="xs" variant="default" :outlined="True" class="py-0!">
+        <c-ui.button type="submit" size="xs" variant="ghost">
             Restore
         </c-ui.button>
     </form>

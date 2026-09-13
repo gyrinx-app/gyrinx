@@ -294,7 +294,7 @@ def link_model_card(
     """
     from n26.core.access import model_collections
     from n26.core.render import build_model_card
-    from n26.core.views.choose import link_slots, settle_dismissed, showing_dismissed
+    from n26.core.views.choose import link_slots, settle_dismissed
     from n26.core.views.owned import link_counters, link_possession_actions
     from n26.core.views.skills import link_skills
 
@@ -308,8 +308,6 @@ def link_model_card(
     settle_dismissed(
         gang,
         *_dismissal_holders(miniature, card),
-        at=dismissal_at,
-        showing=showing_dismissed(dismissal_at),
         hide_only=_dismissal_hidden(miniature, card),
     )
     link_slots(gang, card, back=back, dismiss_back=dismissal_at)
@@ -396,14 +394,7 @@ def card_screen(miniature, back):
 
 
 def _dismissal_holders(miniature, card):
-    """The card, as something whose dismissed offers may be shown and
-    restored — or nothing, for a dead model. The gang sheet draws the
-    dead with nothing to click and only ever hides their dismissed
-    offers; the model's own page follows the sheet, so the two never
-    disagree about what a dead model offers back. Its picker links stay,
-    as the skills box and the Equip face do: the page still lets the
-    owner act on the model, and only the dismissal is settled here.
-    """
+    """Only live models collect dismissed choices for their Edit menu."""
     from n26.core.status import Status
 
     return [] if miniature.status == Status.DEAD else [card]
@@ -457,6 +448,8 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
+            "update_dismissed_menu": back.split("?")[0]
+            == reverse("n26-edit-fighter", args=[miniature.pk]),
             "status_href": (
                 status_href(gang, miniature, back="edit")
                 if may_mark_status(gang, request.user)

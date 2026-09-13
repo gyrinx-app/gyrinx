@@ -9,8 +9,7 @@
 
 The value is one control however much it holds: three skill trees are still the
 one choice "which trees does this gang have", and the dialog is where the three
-become three. The control is bordered rather than a ghost button, since a value
-that only looks clickable when pointed at never looks clickable on a phone.
+become three. The variant prop selects the button style; choices use ghost.
 
 The kit button is whitespace-nowrap. A list of pickables is still that one
 control, so the value wraps inside it — whitespace-normal! beats the kit class,
@@ -43,6 +42,7 @@ a variable of that name would turn every row into a dialog trigger.
     value=""
     :editable="True"
     href=""
+    variant="default"
     trailing=""
     dialog=""
     dialog_header=""
@@ -61,14 +61,14 @@ a variable of that name would turn every row into a dialog trigger.
             {# The dialog wraps its trigger, so the button has to be inside it. #}
             <c-ui.dialog size="sm">
                 <c-slot name="trigger">
-                    <c-ui.button size="xs" variant="default" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+                    <c-ui.button size="xs" variant="{{ variant }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
                 </c-slot>
                 {% if dialog_header %}<c-slot name="header">{{ dialog_header }}</c-slot>{% endif %}
                 {{ dialog }}
                 {% if dialog_footer %}<c-slot name="footer">{{ dialog_footer }}</c-slot>{% endif %}
             </c-ui.dialog>
         {% else %}
-            <c-ui.button size="xs" variant="default" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+            <c-ui.button size="xs" variant="{{ variant }}" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
         {% endif %}
         {% if trailing.strip %}<span class="ms-1 inline-flex items-center align-middle">{{ trailing }}</span>{% endif %}
     </dd>

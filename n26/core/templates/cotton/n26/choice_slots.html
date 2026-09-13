@@ -41,6 +41,7 @@ dismiss — every reader who is not the owner sees only those — carries nothin
     {% elif choice.href %}
         <c-n26.detail-list.row label="{{ choice.kind_label }}"
                                href="{{ choice.href }}"
+                               variant="ghost"
                                class="{{ class }}"
                                value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}{{ choose_label }}{% endif %}">
             <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>

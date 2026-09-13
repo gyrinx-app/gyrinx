@@ -57,24 +57,26 @@ def showing_dismissed(url):
 
 
 def settle_dismissed(gang, *holders, at="", showing=False, hide_only=()):
-    """Take the gang's dismissed offers off these cards and sheets, or keep
-    them on marked when the screen at ``at`` is showing them — and point
-    each holder that had any at ``at`` with the query the other way, so
-    the control sits beside where the offers were.
+    """Hide dismissed choices with one query for all holders.
+
+    Model choices go into a separate list for the Edit menu. The gang's
+    own choices may be revealed inline, with a show/hide control at ``at``.
 
     One query for every holder together. ``at`` empty draws no control,
     which is what a reader who does not own the gang gets: the offers
     still go, and nothing is offered. ``hide_only`` holders lose their
     dismissed offers whatever ``showing`` says and get no control — a
-    dead model's card is drawn with nothing to click, so a line kept on
-    it to be restored would be a line with no way to restore it.
+    gang-sheet model card or a dead model has no Restore menu.
     """
     from n26.core.models import DismissedOffer
-    from n26.core.render import hide_dismissed
+    from n26.core.render import ModelCard, hide_dismissed
 
     keys = DismissedOffer.keys_for(gang)
     toggle = dismissed_toggle(at, showing) if at else ""
     for holder in holders:
+        if isinstance(holder, ModelCard):
+            hide_dismissed(keys, holder, removed=holder.dismissed_choices)
+            continue
         holder.dismissed_count = hide_dismissed(keys, holder, reveal=showing)
         holder.dismissed_shown = showing
         holder.dismissed_href = toggle if holder.dismissed_count else ""
@@ -149,7 +151,7 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
         # sheet): an X would offer an act with no way back. The picker
         # links stay, as every other control on the model's page does.
         dead = getattr(holder, "status", None) == Status.DEAD
-        for line in holder.questions:
+        for line in [*holder.questions, *getattr(holder, "dismissed_choices", ())]:
             if not line.key:
                 continue
             if line.is_full and not line.is_resolved:
@@ -702,9 +704,8 @@ def dismiss_offer(request, pk, slot):
         offer=label,
         action="dismiss",
     )
-    messages.success(
-        request, f"Dismissed {label}. You can bring it back from Dismissed choices."
-    )
+    where = "the model’s Edit menu" if found.miniature else "Dismissed choices"
+    messages.success(request, f"Dismissed {label}. You can restore it from {where}.")
     return _safe_redirect(request, request.POST.get("back"), fallback)
 
 

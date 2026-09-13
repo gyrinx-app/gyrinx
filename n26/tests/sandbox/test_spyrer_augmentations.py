@@ -781,16 +781,13 @@ class TestThePickerReturnsWhereItWasOpened:
 
 
 class TestDismissingTheLadderFromTheSheet:
-    """The level is drawn under the weapon, and only the model's own page
-    offers to change it — but putting the offer out of sight, and
-    bringing it back, is offered wherever the owner reads the card, as
-    it is for every other offer on it."""
+    """Dismiss a weapon choice on its card; restore it from the Edit menu."""
 
     def key(self, orrus):
         ladder = ladder_of(orrus, "Bolt launchers")
         return f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
 
-    def test_the_sheet_offers_the_x_and_the_restore(
+    def test_the_sheet_offers_the_x_and_the_edit_menu_offers_restore(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         client.force_login(owner)
@@ -809,9 +806,11 @@ class TestDismissingTheLadderFromTheSheet:
         assert dismiss not in page
 
         page = client.get(f"{sheet}?dismissed=show").content.decode()
-        assert ">dismissed</span>" in page
-        assert restore in page
-        client.post(restore)
+        assert "Augmentation:" not in page
+        assert restore not in page
+        edit = reverse("n26-edit-fighter", args=[orrus.pk])
+        assert restore in client.get(edit).content.decode()
+        client.post(restore, {"back": edit})
         assert "Augmentation: &mdash;" in client.get(sheet).content.decode()
 
     def test_choosing_a_level_through_a_dismissed_ladder_takes_the_dismissal_off(

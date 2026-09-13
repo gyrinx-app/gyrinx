@@ -318,18 +318,16 @@ def gang_sheet(request, pk):
     link_owners(sheet)
     # The offers the owner has dismissed come off every card and the
     # gang's own strip, whoever is reading: one query. The owner may ask
-    # for them back on screen, marked, each with a way to restore it —
-    # on the living cards and the gang's own strip; a dead model's card
-    # has nothing to click, so its dismissed offers only go.
+    # to see the gang's own choices here. Dismissed model choices are
+    # restored from the model's Edit menu, never from a card.
     showing = yours and showing_dismissed(request.get_full_path())
     shown_at = dismissed_toggle(at, not showing)
     settle_dismissed(
         gang,
         sheet,
-        *sheet.models,
         at=at if yours else "",
         showing=showing,
-        hide_only=sheet.dead,
+        hide_only=(*sheet.models, *sheet.dead),
     )
     if yours:
         # A settled choice lands on the gang; a dismissal or a restore

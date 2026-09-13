@@ -886,11 +886,15 @@ class TestTheModelCardsTooltips:
         page = reader.get("/n26/design/c/model-card/").content.decode()
         legacy = page[page.index("Gang Legacy</dt>") :]
         legacy_dd = legacy[: legacy.index("</dd>")]
-        assert ">Choose</" in legacy_dd
+        assert "Choose" in legacy_dd
+        assert "rounded-button" in legacy_dd
+        assert "bg-transparent" in legacy_dd
         assert "text-xs" in legacy_dd
         injuries = page[page.index("Lasting Injuries</dt>") :]
         injuries_dd = injuries[: injuries.index("</dd>")]
-        assert ">Add</" in injuries_dd
+        assert "Add" in injuries_dd
+        assert "rounded-button" in injuries_dd
+        assert "bg-transparent" in injuries_dd
         assert "text-xs" in injuries_dd
 
 

@@ -578,11 +578,8 @@ class ChoiceLine:
     #: on the control: a choice of one is chosen, a choice of several has
     #: picks added to it.
     takes_several: bool = False
-    #: Whether the gang's owner has dismissed this offer. A dismissed
-    #: line is normally left off the structure altogether
-    #: (``hide_dismissed``); it is kept and marked only on a screen the
-    #: owner has asked to show dismissed offers on, where it draws as
-    #: what it was with a way to bring it back rather than a Choose.
+    #: Dismissed choices are kept off the card. The model's Edit menu
+    #: and the gang's revealed choices offer Restore instead of Choose.
     dismissed: bool = False
     #: Where dismissing this offer posts to, and where restoring it does.
     #: Filled in by whoever knows the URL space, as ``href`` is, and only
@@ -1061,16 +1058,9 @@ class ModelCard:
     #: not where a browsing screen lives. Empty draws no control, which
     #: is what a print sheet and a hire preview want.
     skills_href: str = ""
-    #: How many of this card's offers the owner has dismissed, and where
-    #: the screen that shows or hides them again is. Filled in by the
-    #: view, like ``skills_href``: this module knows which lines were
-    #: taken off (``hide_dismissed``) and not where a screen lives. A
-    #: count of 0 draws no control.
-    dismissed_count: int = 0
-    dismissed_href: str = ""
-    #: Whether the dismissed offers are being shown on this card — the
-    #: control then offers to hide them again.
-    dismissed_shown: bool = False
+    #: Kept outside question_lists so only the Edit menu can restore them;
+    #: they never draw among the card's choices, including on print.
+    dismissed_choices: list[ChoiceLine] = field(default_factory=list)
     #: The collections this model's grid places a category into, by id.
     #: Standing access, computed rather than assigned: it is what a
     #: screen for selecting is built on, and asking which of these hold
@@ -1455,9 +1445,7 @@ class GangSheet:
     #: the end and count nothing towards the rating or the tally.
     dead: list[ModelCard] = field(default_factory=list)
 
-    #: How many of the gang's own offers the owner has dismissed, and
-    #: where the screen that shows or hides them again is — a card's
-    #: ``dismissed_count`` and ``dismissed_href``, for the gang's strip.
+    #: The gang's own dismissed choices can be shown inline on its sheet.
     dismissed_count: int = 0
     dismissed_href: str = ""
     dismissed_shown: bool = False
@@ -2001,7 +1989,7 @@ def choice_lines(computed, host=""):
     return [_choice_line(slot, host) for slot in computed.choices]
 
 
-def hide_dismissed(keys, holder, *, reveal=False):
+def hide_dismissed(keys, holder, *, reveal=False, removed=None):
     """Take the offers the owner has dismissed off a card or a sheet, and
     say how many there were.
 
@@ -2020,6 +2008,8 @@ def hide_dismissed(keys, holder, *, reveal=False):
     the screen where the owner is shown what they put away and offered
     it back. The count is the same either way, so a control can say how
     many there are to show before any are drawn.
+
+    ``removed`` collects the hidden lines for a separate Restore menu.
     """
     if not keys:
         return 0
@@ -2029,9 +2019,11 @@ def hide_dismissed(keys, holder, *, reveal=False):
         for line in lines:
             if line.key in keys and not line.is_resolved and not line.is_full:
                 found += 1
-                if not reveal:
-                    continue
                 line.dismissed = True
+                if not reveal:
+                    if removed is not None:
+                        removed.append(line)
+                    continue
             kept.append(line)
         lines[:] = kept
     return found
