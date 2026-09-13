@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 
+from n26.core.action_records import action_changes
 from n26.core.models import ActionAllowance, ActionRecord, Gang, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.library import authoring
@@ -96,6 +97,15 @@ def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
     assert payments.count() == 2
     assert sum(event.credits_delta for event in payments) == 20
     assert sum(event.counter_delta or 0 for event in payments) == -3
+    changes = action_changes(completed)
+    assert changes.credits_paid == 20
+    assert changes.rating_delta == 0
+    assert [
+        (change.before, change.after, change.payment) for change in changes.counters
+    ] == [
+        (5, 2, True),
+        (2, 0, False),
+    ]
 
 
 def test_insufficient_coalesced_counter_rolls_back_everything(user, gang, fighter):
@@ -262,6 +272,7 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
         )
     held_pick.refresh_from_db()
     assert held_pick.archived
+    assert action_changes(record).picks[0].before_assignment_id == str(held_pick.pk)
 
 
 def test_another_gang_cannot_complete_the_record(user, gang, fighter, gang_type):

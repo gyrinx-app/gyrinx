@@ -213,6 +213,7 @@ class LedgerEvent(Base):
         ACTION_USE_COMPLETED = "use_completed", "Action use completed"
         ACTION_USE_CANCELLED = "use_cancelled", "Action use cancelled"
         ACTION_USE_PAID = "use_paid", "Action use paid"
+        ACTION_USE_CORRECTED = "use_corrected", "Action use corrected"
 
         # Where the gang plays. Its own acts, because a gang joining or
         # leaving is something that happened to the gang — the campaign it
