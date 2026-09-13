@@ -21,6 +21,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import STAFF_BADGE, badge_by_slug
@@ -457,6 +458,61 @@ class TestTheNamesOnACampaign:
         assert (
             self._queries(client, f"/n26/campaigns/{table.pk}/players/add/?q=vex")
             == with_one
+        )
+
+    def test_the_add_gang_screen_marks_each_gangs_owner(self, table, player, client):
+        """The arbitrator picks from every gang at the table, each named
+        with whose it is, and the name carries the owner's badge. A player
+        picking from their own gangs is told nobody's name."""
+        player(table, "vex")
+        person = player(table, "kesh")
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+
+        body = client.get(address).content.decode()
+        below_the_bar = body.split("</header>")[-1]
+        # The arbitrator in the trail, then vex and kesh on their gangs.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 3
+
+        client.force_login(person)
+        body = client.get(address).content.decode()
+        below_the_bar = body.split("</header>")[-1]
+        assert "kesh&#x27;s gang" in below_the_bar
+        # The arbitrator in the trail alone.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 1
+
+    def test_the_add_gang_screen_reads_the_badges_once_for_everybody(
+        self, table, player, client
+    ):
+        player(table, "vex")
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+        with_one = self._queries(client, address)
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        assert self._queries(client, address) == with_one
+
+    def test_the_remove_player_question_names_them_with_their_badge(
+        self, table, player, client
+    ):
+        """The question says who is being taken out, and the name carries
+        their badge — read with the player, not looked up for the name, so
+        the page costs the same whether or not they hold one."""
+        from n26.core.campaigns import campaign_operation
+
+        badged = player(table, "vex")
+        plain = User.objects.create_user("kesh")
+        with campaign_operation(table, actor=table.owner) as act:
+            act.invite(plain)
+
+        def remove(person):
+            return reverse("n26-campaign-remove-player", args=[table.pk, person.pk])
+
+        body = client.get(remove(badged)).content.decode()
+        question = body[body.index("Their gangs stay where they are") :]
+        assert "vex" in question
+        assert badge_svg(GUILDER).strip() in question
+        assert self._queries(client, remove(badged)) == self._queries(
+            client, remove(plain)
         )
 
     def test_an_invitation_names_its_arbitrator_with_their_badge(self, table, client):

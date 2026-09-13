@@ -867,7 +867,7 @@ def add_gang(request, pk):
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal, operation
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
     if not arbitrating and not _plays_in(found, request.user):
         raise Http404("No such campaign")
@@ -904,18 +904,30 @@ def add_gang(request, pk):
 
     # Drawn here rather than in the template, which cannot ask a gang what
     # it is worth without a query per row.
+    drawn = offering
+    if arbitrating:
+        # The arbitrator's rows name each gang's owner with their badge,
+        # which reads their profile and their grants: with the rows, never
+        # once per row.
+        drawn = offering.select_related("owner__profile").prefetch_related(
+            "owner__badge_grants"
+        )
     gangs = [
         {
             "pk": str(row.pk),
             "name": row.name,
             "owner": row.owner.username,
+            # The person behind the name the arbitrator's rows draw. Which
+            # badge follows it is the platform's to decide from the person,
+            # so the name alone will not do.
+            "owned_by": row.owner,
             "wealth": row.wealth,
             # The arbitrator's rows draw the owner, so a search that did not
             # reach it would find nothing for a name the reader can see.
             "search": f"{row.name} {row.owner.username}".lower(),
             "playing": row.playing_now,
         }
-        for row in offering
+        for row in drawn
     ]
     # Only where there is somebody to tell apart: a list of one person's
     # gangs is not narrowed by asking which person.
@@ -2160,12 +2172,15 @@ def remove_player(request, pk, user_pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignParticipant
 
-    found = _own_campaign_or_404(request, pk)
-    player = get_object_or_404(
-        CampaignParticipant.objects.select_related("user"),
-        campaign=found,
-        user__pk=user_pk,
-    )
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    players = CampaignParticipant.objects.select_related("user")
+    if request.method != "POST":
+        # The question names the player with their badge, which reads
+        # their profile and their grants; the act names nobody.
+        players = players.select_related("user__profile").prefetch_related(
+            "user__badge_grants"
+        )
+    player = get_object_or_404(players, campaign=found, user__pk=user_pk)
 
     if request.method == "POST":
         name = player.user.username

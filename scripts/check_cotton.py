@@ -19,13 +19,19 @@ COTTON_DIRS = [
     ROOT / "gyrinx" / "templates" / "cotton",
     ROOT / "n26" / "core" / "templates" / "cotton",
 ]
+# What a PRE_EXISTING entry is known to fail on: the words that check's
+# message carries and no other check's does.
+IN_ATTRIBUTE_POSITION = "template tag in attribute position"
+
 # Calls the gate would fail that predate the n26 root joining the scan: n26
 # component sources putting cotton's own attrs passthrough, or an if block, in
 # attribute position on a nested component call. Each is pinned to the exact
-# source of the call (whitespace collapsed), so the entry stops matching the
-# moment the call is edited and everything else in the file is checked as
-# normal; an entry that matches no failing call fails the gate, so a fixed call
-# must take its entry with it. Fix them (or prove them harmless) and delete.
+# source of the call (whitespace collapsed) and to the one violation it is
+# known to carry, so the entry stops matching the moment the call is edited,
+# a second violation on the same call is reported, and everything else in the
+# file is checked as normal; an entry that matches no failing call fails the
+# gate, so a fixed call must take its entry with it. Fix them (or prove them
+# harmless) and delete.
 PRE_EXISTING = {
     (
         "n26/core/templates/cotton/n26/quick_switcher/of.html",
@@ -34,13 +40,13 @@ PRE_EXISTING = {
         'menu_label="{{ switcher.menu_label }}" placeholder="{{ switcher.placeholder }}" '
         'empty="{{ switcher.empty }}" align="{{ align }}" min_width="{{ min_width }}" '
         'hotkey="{{ hotkey }}" class="{{ class }}" {{ attrs }}>',
-    ),
+    ): IN_ATTRIBUTE_POSITION,
     (
         "n26/core/templates/cotton/n26/view/create_gang.html",
         '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
         'title="{{ heading }}" lead="Required fields are marked with an asterisk (*)." '
         'submit_label="{{ submit_label }}" class="{{ class }}">',
-    ),
+    ): IN_ATTRIBUTE_POSITION,
     (
         "n26/core/templates/cotton/n26/view/fighter_hire.html",
         '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
@@ -48,7 +54,7 @@ PRE_EXISTING = {
         "fighter. The options under each one change what you get and what you pay, "
         'and you can hire as many as you like without leaving this page." '
         'class="{{ class }}">',
-    ),
+    ): IN_ATTRIBUTE_POSITION,
 }
 
 COMMENT = re.compile(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.S)
@@ -228,15 +234,19 @@ def main():
 
             if found:
                 key = (rel.as_posix(), " ".join(match.group(0).split()))
-                if key in PRE_EXISTING:
+                expected = PRE_EXISTING.get(key)
+                if expected is not None and any(expected in f for f in found):
                     used.add(key)
-                else:
-                    problems.extend(found)
+                # The entry covers the one violation it names; anything else
+                # the same call fails on is as new as it would be anywhere.
+                problems.extend(
+                    f for f in found if expected is None or expected not in f
+                )
 
     # A suppression that matches nothing is either a call somebody fixed, or a
     # call somebody edited: either way the entry is stale, and leaving it
     # would let the next bad call in that file through.
-    for rel, call in sorted(PRE_EXISTING - used):
+    for rel, call in sorted(set(PRE_EXISTING) - used):
         problems.append(
             f"{rel}: PRE_EXISTING entry no longer matches a failing call "
             f"({call[:60]}...). Delete the entry, or re-pin it to the call's "
