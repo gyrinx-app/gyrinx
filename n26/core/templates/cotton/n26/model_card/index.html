@@ -81,13 +81,13 @@ header band, the anchor the sheet links to.
                 {% endif %}
                 {% comment %}
                 Whose the model is, where a purchase brought it in. The
-                owner's name is the link where the sheet gave one; the words
-                around it are ModelCard.owner_line's, so every renderer says
-                the same thing.
+                owner's name is the link where the sheet gave one, and the
+                words before it are ModelCard.owner_prefix — the same ones
+                owner_line opens with — so every renderer says the same thing.
                 {% endcomment %}
                 {% if card.owned_by %}
                     <div class="text-sm text-muted">
-                        Owned by <c-n26.link href="{{ owner_href }}" tone="current" underline="always">{{ card.owned_by }}</c-n26.link>
+                        {{ card.owner_prefix }} <c-n26.link href="{{ owner_href }}" tone="current" underline="always">{{ card.owned_by }}</c-n26.link>
                     </div>
                 {% elif card.owner_line %}
                     <div class="text-sm text-muted">{{ card.owner_line }}</div>

@@ -23,7 +23,8 @@ from n26.core.reconcile import assert_reconciled, ledger_for_gang
 from n26.core.render import build_model_card, render_gang
 from n26.core.render_text import gang_to_text
 from n26.core.status import Status
-from n26.library.authoring import targets_gang
+from n26.library.authoring import create_subtype, has_subtypes, targets_gang
+from n26.library.authoring import targets_model as targets_model_where
 from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
@@ -1137,3 +1138,48 @@ class TestTheCaptureNamesThePet:
         assert name == "Beast lash (Fang)"
         assert [profile[0] for profile in profiles] == ["", "Barbs (Rex)"]
         assert accessories == ("Leash mount (Bo)",)
+
+
+class TestAStoredEffectWhoseScopeIsSkipped:
+    """A stored effect runs when its kit arrives, whatever its scope says
+    of the bearer at the time, and the pet it hired stays on the roster
+    after. On a later render the step is skipped for the bearer's card
+    — its scope does not point at them — yet the kit did bring a model,
+    so the bearer's own page still names it: the plan cannot tell a
+    skipped collar that brought nothing from one that did."""
+
+    def test_a_lone_card_still_names_a_pet_its_skipped_collar_brought(
+        self, gang, yolanda, mastiff_profile
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        handler = create_subtype("Beast handler")
+        collar = create_wargear("Handler's collar", price=100)
+        modifier(
+            "A handler's collar brings a mastiff",
+            targets_model_where(has_subtypes(handler)),
+            op_adds_model(mastiff_profile),
+            carried_by=collar,
+        )
+        assign(collar, miniature=yolanda, paid=100)
+        rename(gang, pet_of(gang), "Fang")
+
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+        (step,) = [
+            step
+            for step in computed.plan
+            if isinstance(step.modifier.effect, type(collar.modifiers.first().effect))
+        ]
+        assert (step.outcome, step.echoed) == ("skipped", False)
+
+        with CaptureQueriesContext(connection) as alone:
+            card = build_model_card(owner, card=own, computed=computed)
+        (line,) = [line for line in card.equipment if line.name == "Handler's collar"]
+        assert line.brought_in == ("Fang",)
+        assert len(alone.captured_queries) == 1

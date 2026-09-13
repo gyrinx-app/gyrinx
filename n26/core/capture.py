@@ -34,7 +34,7 @@ def _each(lines):
             yield line
 
 
-def _said(line):
+def _line_label(line):
     """A line's name as the reader is told it: with the name of any
     model the kit brought after it, since a collar that reads "Collar
     (Fang)" and one that reads "Collar" say different things."""
@@ -42,7 +42,7 @@ def _said(line):
 
 
 def _names(lines):
-    return sorted(_said(line) for line in _each(lines))
+    return sorted(_line_label(line) for line in _each(lines))
 
 
 def _assets(lines):
@@ -55,7 +55,7 @@ def _assets(lines):
 
 def _rated(lines):
     """Lines whose printed figure matters as much as their name."""
-    return sorted((_said(line), line.rating) for line in _each(lines))
+    return sorted((_line_label(line), line.rating) for line in _each(lines))
 
 
 def _choices(lines):
@@ -70,18 +70,18 @@ def _statline(statline):
 def _weapons(lines):
     return sorted(
         (
-            _said(weapon),
+            _line_label(weapon),
             weapon.base_rating,
             tuple(
                 (
-                    _said(profile),
+                    _line_label(profile),
                     profile.rating,
                     _statline(profile.statline),
                     tuple(sorted(t.name for t in profile.traits)),
                 )
                 for profile in weapon.profiles
             ),
-            tuple(sorted(_said(a) for a in weapon.accessories)),
+            tuple(sorted(_line_label(a) for a in weapon.accessories)),
             tuple(_choices(weapon.choices)),
         )
         for weapon in lines

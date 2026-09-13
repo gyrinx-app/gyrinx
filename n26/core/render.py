@@ -992,10 +992,18 @@ class ModelCard:
         words.
         """
         if self.owned_by:
-            return f"{OWNED_BY} {self.owned_by}"
+            return f"{self.owner_prefix} {self.owned_by}"
         if self.in_stash:
             return IN_THE_STASH
         return ""
+
+    @property
+    def owner_prefix(self):
+        """The words before the owner's name in ``owner_line`` — what a
+        renderer that draws the name as a link writes on its own, so
+        the sentence is the same one whether or not the name is a link.
+        Empty for a model nobody's purchase brought in."""
+        return OWNED_BY if self.owned_by else ""
 
     @property
     def type_line(self):
