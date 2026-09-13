@@ -211,6 +211,33 @@ def test_allowance_action_refuses_an_unearned_use(user, gang, fighter):
             op.start_action(fighter, action, uuid.uuid4())
 
 
+def test_ordered_counter_changes_with_the_same_final_value_are_refused(
+    user, gang, fighter
+):
+    counter = Counter.objects.create(name="Heat")
+    configured = authoring.apply_changes(
+        authoring.counter_change(counter, "add", 1),
+        authoring.counter_change(counter, "subtract", 1),
+    )
+    outcome = authoring.create_outcome("Cycle heat", configured)
+    action = authoring.create_action(
+        "Cycle", Action.Timing.POST_CYCLE, outcomes=[outcome]
+    )
+    with operation(gang, actor=user) as op:
+        op.assign(action, miniature=fighter)
+        held = op.assign(counter, miniature=fighter)
+        op.open_counter(held, 2)
+        record = op.start_action(fighter, action, uuid.uuid4())
+        record = op.review_action(record, outcome=outcome)
+        with pytest.raises(Refusal, match="would not change"):
+            op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=outcome,
+            )
+
+
 def test_confirmation_is_bound_to_the_reviewed_outcome(user, gang, fighter):
     action, outcome, _, _ = configured_action(user, gang, fighter)
     other_operation = authoring.apply_changes(
