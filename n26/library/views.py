@@ -1426,6 +1426,33 @@ def _interstitial_listing(rows):
     )
 
 
+def _interstitial_staged_loading(rows):
+    """What ``_describe_interstitial`` walks, loaded onto rows already
+    read — the staged page holds a list, not a queryset — in two
+    queries for the lot: each row's pack, and the attachments with
+    theirs."""
+    from django.db.models import Prefetch, prefetch_related_objects
+
+    from n26.library.models import InterstitialSlot
+
+    rows = list(rows)
+    prefetch_related_objects(
+        rows,
+        "pack",
+        Prefetch(
+            "attachments", queryset=InterstitialSlot.objects.select_related("pack")
+        ),
+    )
+    return rows
+
+
+#: What the staged-content page loads with a kind's rows before
+#: describing them. Kept apart from ``LEAF_LISTING_HINTS``: those also
+#: narrow (a campaign's own campaign type is left off its listing), and
+#: the staged page must show every staged row.
+STAGED_LISTING_HINTS = {"interstitial": _interstitial_staged_loading}
+
+
 #: Kinds whose describer — or whose own name — reads beyond the row.
 LEAF_LISTING_HINTS = {
     "profile": _profile_listing,
@@ -2750,6 +2777,9 @@ def staged(request):
     for model, rows in staged_rows():
         kind = slugs.get(model)
         describe = LEAF_DESCRIBE.get(kind, _describe_row)
+        hint = STAGED_LISTING_HINTS.get(kind)
+        if hint is not None:
+            rows = hint(rows)
         total += len(rows)
         groups.append(
             {

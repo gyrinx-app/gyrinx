@@ -120,6 +120,49 @@ def test_statline_admin_inlines_its_values(admin_client, make_profile, make_stat
     assert response.status_code == 200
 
 
+def test_an_attachment_added_with_its_interstitial_joins_its_pack(
+    admin_client, default_pack, homebrew
+):
+    """On the add page nothing can know the parent's pack before it is
+    saved, so the inline's save is what puts a new attachment there."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import Interstitial, InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+
+    response = admin_client.post(
+        "/admin/library/interstitial/add/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "0",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": str(default_pack.pk),
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    made = Interstitial.objects.get(name="Outcast archetype")
+    assert made.pack == homebrew
+    assert InterstitialSlot.objects.get(interstitial=made).pack == homebrew
+
+
 def test_a_slot_type_of_choice_is_inspectable_by_its_own_name(
     admin_client, default_pack
 ):

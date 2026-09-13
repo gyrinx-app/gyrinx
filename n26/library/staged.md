@@ -41,11 +41,11 @@ the things.
 
 An interstitial — the screen shown when a slot arrives — can be staged:
 stage it while its words are being written, and put it live when they
-read right. Its attachments to slots carry the flag as well, so an
-import can hold one slot's attachment back while the rest go live and
-the staged-content page lists it; the authoring page that attaches a
-slot has no switch of its own, and a slot attached there to a live
-interstitial is live at once.
+read right. Its attachments to slots carry the flag as well: an
+attachment held back in the admin is listed on the staged-content page
+and put live from there, so one slot can wait while the rest show the
+screen. The authoring page that attaches a slot has no switch of its
+own, and a slot attached there to a live interstitial is live at once.
 
 Things players are never offered directly — categories, statlines,
 modifiers, collections themselves — cannot be staged and do not need to
