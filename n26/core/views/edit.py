@@ -722,6 +722,13 @@ def edit_fighter(request, pk):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
 
+    from n26.core.action_flow import action_panels
+    from n26.core.views.action_flows import link_action_panels
+
+    flows = link_action_panels(
+        miniature, action_panels(miniature, card=own, computed=computed)
+    )
+
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.
@@ -823,6 +830,7 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
+            "action_panels": flows,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to

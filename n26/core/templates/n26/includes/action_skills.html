@@ -1,0 +1,48 @@
+<c-n26.form-section title="Select a skill">
+    {% if skill_attempts %}
+        <ol class="space-y-2">
+            {% for attempt in skill_attempts %}
+                <li>
+                    <span class="font-semibold">D6: {{ attempt.roll }}</span>
+                    {% if attempt.result_name %}— {{ attempt.result_name }}{% endif %}
+                    {% if not attempt.is_available %}<p class="text-sm text-muted">{{ attempt.unavailable_reason }}</p>{% endif %}
+                </li>
+            {% endfor %}
+        </ol>
+    {% endif %}
+    {% if skill_random %}
+        {% if skill_resolved %}
+            <p class="font-semibold">{{ skill_selected }}</p>
+        {% elif correction %}
+            <p class="text-muted">This result needs a recorded skill roll. Choose a result supported by the existing rolls.</p>
+        {% else %}
+            <c-n26.radio-cards label="Select a Skill Set"
+                               :form="form"
+                               name="skill_set_id"
+                               min="min(100%, 18rem)">
+                {% for group in skill_groups %}
+                    <c-n26.radio-cards.card name="skill_set_id"
+                                            value="{{ group.key }}"
+                                            label="{{ group.name }}"
+                                            :checked="group.checked" />
+                {% empty %}
+                    <p class="text-muted">No Skill Set has an available skill for this result.</p>
+                {% endfor %}
+            </c-n26.radio-cards>
+        {% endif %}
+    {% else %}
+        <c-ui.error :form="form" name="skill_id" />
+        {% for group in skill_groups %}
+            <c-n26.radio-cards label="{{ group.name }}" name="skill_id" min="min(100%, 18rem)">
+                {% for skill in group.skills %}
+                    <c-n26.radio-cards.card name="skill_id"
+                                            value="{{ skill.key }}"
+                                            label="{{ skill.name }}"
+                                            :checked="skill.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+        {% empty %}
+            <p class="text-muted">No skill is available for this result.</p>
+        {% endfor %}
+    {% endif %}
+</c-n26.form-section>
