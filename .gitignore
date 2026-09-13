@@ -3,6 +3,7 @@ staticfiles/
 .env
 venv/
 .venv/
+.gyrinx-venv-provision.lock/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/

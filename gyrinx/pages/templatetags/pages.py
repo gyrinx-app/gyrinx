@@ -412,3 +412,30 @@ def page_contents(page):
     if not headings:
         return ""
     return render_to_string("flatpages/includes/contents.html", {"headings": headings})
+
+
+@register.simple_tag
+def page_introduction(page):
+    """
+    Render the page's introduction, when its options carry one. Renders
+    nothing otherwise.
+
+    The introduction is authored in the same editor as the page content, so it
+    is HTML and is rendered as such. It sits above the contents block, which is
+    why it is a separate field rather than the first paragraphs of the content:
+    anything inside ``content`` is below the contents by construction.
+
+    Usage:
+        {% page_introduction flatpage %}
+    """
+    introduction = (
+        FlatPageOptions.objects.filter(page=page)
+        .values_list("introduction", flat=True)
+        .first()
+    )
+    if not introduction or not introduction.strip():
+        return ""
+    return render_to_string(
+        "flatpages/includes/introduction.html",
+        {"introduction": mark_safe(introduction)},
+    )

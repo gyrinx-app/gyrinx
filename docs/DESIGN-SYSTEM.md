@@ -8,6 +8,7 @@
 | 2026-03-28 | v2: Remove `bi-plus-circle`/`bi-check-circle` — use `bi-plus-lg` and `bi-check-lg` only. Button colours: `btn-success` for create/confirm, `btn-primary` for navigation/open. Section header bar now includes padded inner content. Alert heading uses body font size. Unify list/detail page shells. Add search pattern, list header, campaign info columns. |
 | 2026-07-24 | Section header actions: a `.section-actions` row with `·` between items. Links to a management page are `bi-pencil` + the noun ("Attributes"), not "Manage Attributes →". |
 | 2026-09-12 | Flat page (help) headings: weight and colour per level inside `.flatpage-content` (bold gold h2, emphasis-grey h3/h4), no underline on heading anchors, optional contents block. |
+| 2026-09-13 | Flat page h4 and below take their own mid-grey (`--gy-flatpage-h4-color`) so prominence falls at every level. Flat page options gain an Introduction, rendered above the contents block. |
 
 ---
 
@@ -78,12 +79,17 @@ Help pages are long prose, so inside `.flatpage-content` heading levels differ b
 |-------|--------|--------|-------------------------|
 | `h2` | bold (700) | `--gy-flatpage-h2-color` — gold `#8a6000` light, `#f0b02a` dark | 5.59:1 / 8.04:1 |
 | `h3` | bold (700) | `--bs-secondary-text-emphasis` | 13.5:1 / 6.7:1 |
-| `h4` | semibold (600) | `--bs-secondary-text-emphasis` | 13.5:1 / 6.7:1 |
-| `h5`, `h6` | semibold (600) | body | — |
+| `h4`, `h5`, `h6` | semibold (600) | `--gy-flatpage-h4-color` — `#4a5568` light, `#8c97a8` dark | 7.5:1 / 5.2:1 |
+
+Prominence falls at every level: gold, near-black, mid-grey. `h4` had shared `h3`'s colour, which left the two separated by one weight step and 3.5px — not enough to see. The two mid-greys are not a lightened and darkened pair of each other because the themes start from different places: in light mode headings sit just below body text in contrast (body 16:1), in dark mode well below it (body ~12:1, `h3` 6.7:1).
+
+These rules match the `.h1`–`.h6` classes as well as the elements, because Bootstrap `@extend`s each element selector onto its class. A heading looks like the level it is *drawn* at, not the level it is marked up as — so the contents block's "Contents" and the child listing's "In &lt;page&gt;:", both `<h2 class="h5">`, take the quiet mid-grey rather than the gold.
 
 All pass WCAG AA (4.5:1) for normal text in both themes. `$yellow` itself is 2.2:1 on white and is also the injured-state colour, so the gold is a separate per-theme custom property, never `$warning`. Heading anchors (`add_heading_links`) never underline; the link icon on hover is the affordance.
 
 An admin can tick **Show contents** on a page's options (the "Flat page options" inline on the flat page admin) to render a nested list of its headings above the content: `{% page_contents flatpage %}` in `flatpages/default.html`. The list has no bullets or numbers, like the sidebar page nav; nesting shows as indentation. Heading ids are slugs of their text, de-duplicated with `-2`, `-3`… against every id already in the content, so the contents links always resolve.
+
+The same options carry an **Introduction**, authored in the same editor as the page content and rendered by `{% page_introduction flatpage %}` above the contents block. It is a separate field rather than the opening paragraphs of the content because anything inside `content` falls below the contents list by construction. `.flatpage-introduction` sets it a little larger than body text and drops its last child's bottom margin.
 
 ### Caps label
 
@@ -326,6 +332,34 @@ The standard page header: title left, action buttons right, metadata below.
     <span><i class="bi-eye"></i> Public</span>
 </div>
 ```
+
+### User link
+
+A username is a link to the user's page with the badge they hold after it,
+drawn by `c-user-link` (`gyrinx/templates/cotton/user_link.html`):
+
+```html
+<c-user-link :user="list.owner" />
+<c-user-link :user="campaign.owner" class="linked-body" />
+<span class="text-secondary fs-7"><i class="bi-person" aria-hidden="true"></i> <c-user-link :user="list.owner" class="linked-secondary" /></span>
+```
+
+- Pass the user with the colon. `user="{{ list.owner }}"` stringifies it, the
+  link then has no username to build from, and `scripts/check_cotton.py` fails
+  the call site.
+- `class` is the link style: `linked` (default), `linked-body` for names in
+  body text, `linked-secondary` in metadata rows.
+- The badge is dropped when the ambient `print` context flag is set, as
+  `c-breadcrumb.user` does.
+- A view drawing many names must
+  `select_related("…__profile").prefetch_related("…__badge_grants")` on the
+  queryset that carries them, or each name costs two queries. The campaign
+  screens' query-count tests (`n23/core/tests/test_campaign_user_badges.py`)
+  are the pattern.
+- Never place it inside another link (a row wrapped in an `<a>`); link the
+  row's name instead.
+- An icon beside the name (the person icon in metadata rows) is decoration:
+  give it `aria-hidden="true"`.
 
 ### Campaign info columns
 

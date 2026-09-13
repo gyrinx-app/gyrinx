@@ -6,20 +6,27 @@ from django.shortcuts import get_object_or_404
 from n23.core.models.campaign import Campaign, CampaignListResource
 
 
-def get_campaign_admin_or_404(request, id):
+def get_campaign_admin_or_404(request, id, *, with_owner_badge=False):
     """Fetch a campaign the user can administer (owner or shared admin), or 404.
 
     Drop-in replacement for ``get_object_or_404(Campaign, id=id, owner=request.user)``
     in views that gate on campaign administration. The shared-admin branch uses a
     subquery rather than a join on the admins M2M, so no .distinct() is needed.
+
+    ``with_owner_badge`` loads what drawing the owner's name with their badge
+    reads — the profile, joined, and the badge grants, one prefetch query. Off
+    by default: most of the pages this gates, and every POST handler, never
+    draw the owner, and would pay the grants query for nothing.
     """
-    return get_object_or_404(
-        Campaign.objects.filter(
-            models.Q(owner=request.user)
-            | models.Q(id__in=Campaign.objects.filter(admins=request.user))
-        ),
-        id=id,
+    campaigns = Campaign.objects.filter(
+        models.Q(owner=request.user)
+        | models.Q(id__in=Campaign.objects.filter(admins=request.user))
     )
+    if with_owner_badge:
+        campaigns = campaigns.select_related(
+            "owner", "owner__profile"
+        ).prefetch_related("owner__badge_grants")
+    return get_object_or_404(campaigns, id=id)
 
 
 def ensure_campaign_list_resources(campaign, resource_types, campaign_lists):

@@ -1959,7 +1959,12 @@ class TestTheAccessoryDialog:
         ).content.decode()
 
         assert "Nothing in the library fits this weapon." in body
-        assert ">Add accessory<" not in body
+        # The panel's own submit. The card above the listing still offers
+        # the way to the panel on every gun — that is the menu item, not
+        # the commit — so the check is on the panel's markup alone.
+        panel = body[body.index(f"n26-accessorise-{owned_gun.pk}") :]
+        panel = panel[: panel.index("</dialog>")]
+        assert ">Add accessory<" not in panel
 
     def test_a_row_that_is_not_a_weapon_draws_no_dialog(
         self, client, tester, gang, fighter, house_list
@@ -2155,8 +2160,31 @@ class TestBuyingWithoutRebuildingThePage:
         # And the accessory questions, since a gun that has just arrived
         # offers a control that names its own panel.
         assert 'id="n26-accessorise-host"' in body
-        # All three, and nothing left targeted.
-        assert body.count('hx-swap-oob="true"') == 3
+        # The model's card above the listing, which now names the knife.
+        host = body[body.index('id="n26-model-card-host"') :]
+        assert 'hx-swap-oob="true"' in host[: host.index(">")]
+        # All four, and nothing left targeted.
+        assert body.count('hx-swap-oob="true"') == 4
+
+    def test_the_card_comes_back_carrying_what_was_bought(
+        self, client, tester, fighter, house_list
+    ):
+        """The card above the listing says what the model holds; a
+        purchase that left it as drawn would have it contradict the row
+        under it."""
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        client.force_login(tester)
+        body = self.asked(client, fighter, house_list, knife).content.decode()
+
+        card = body[body.index('id="n26-model-card-host"') :]
+        card = card[: card.index('id="n26-gang-wealth"')]
+        assert "Knife" in card
+        # In edit mode, with the kit acts out: the copy just bought
+        # carries its menu, addressed to this screen.
+        assert "More for Knife" in card
+        assert "sell=" in card
 
     def test_the_confirmation_travels_in_the_header(
         self, client, tester, fighter, house_list
@@ -2693,16 +2721,18 @@ class TestTheLibraryTabsQueryBudget:
         client.force_login(tester)
 
         # The reader and their session, the gang, the fighter's card with
-        # its options, the roster behind the header's count, which held
-        # lists hold gear, the campaign's assets the gang holds, the
-        # drawer's one question about campaigns, the founding flag's row
-        # and whether its group holds this owner —
-        # the library: one query per gear kind, plus the guns' paid
-        # rounds, each kind's offers and each restricted kind's use
-        # lists — and a browse of each list held, which is what prices
-        # the library's lines. A fixed number per list, never one per
-        # item.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 55
+        # its options and — since the card is drawn above the listing —
+        # its characteristics strip, which is the statline's own handful
+        # of reads plus the owner's hand-set values, the roster behind
+        # the header's count, which held lists hold gear, the campaign's
+        # assets the gang holds, the drawer's one question about
+        # campaigns, the founding flag's row and whether its group holds
+        # this owner — the library: one query per gear kind, plus the
+        # guns' paid rounds, each kind's offers and each restricted
+        # kind's use lists — and a browse of each list held, which is
+        # what prices the library's lines. A fixed number per list,
+        # never one per item.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 64
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked
@@ -2725,3 +2755,187 @@ class TestTheLibraryTabsQueryBudget:
                 usable_by_subtypes=[stocked],
             )
         assert self.measure(client, url) == few
+
+
+class TestTheCardAboveTheListing:
+    """The Equip screen draws the model's card above its tabs — the same
+    card the Edit face draws, its controls out — so what the model holds
+    and what it makes of them are in view while buying.
+    """
+
+    def test_the_card_sits_between_the_header_and_the_tabs(
+        self, client, tester, fighter, house_list
+    ):
+        client.force_login(tester)
+        response = client.get(equip_url(fighter, house_list))
+        body = response.content.decode()
+
+        card = body.index('id="n26-model-card-host"')
+        assert body.index("<h1") < card < body.index("This model")
+        # With its characteristics: the strip is what a card is read by.
+        assert [cell.short_name for cell in response.context["card"].statline.cells]
+
+    def test_it_is_drawn_in_edit_mode_with_the_kit_acts_out(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """The kit acts open over this screen, which holds the panels
+        the listing's own copies open."""
+        from n26.library.models import Wargear
+
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, house_list)).content.decode()
+
+        card = body[body.index('id="n26-model-card-host"') :]
+        card = card[: card.index("This model")]
+        assert "More for Sword" in card
+        assert 'id="n26-status-dialog-host"' in body
+
+    def counter_on(self, gang, tester, fighter):
+        """The fighter's XP counter, given once."""
+        from n26.library.authoring import create_counter
+
+        with operation(gang, actor=tester) as op:
+            op.assign(create_counter("XP"), miniature=fighter)
+        return Assignment.objects.get(miniature=fighter, counter__name="XP")
+
+    def tallied_from(self, client, counter, back):
+        """The counter moved over htmx, the control posting ``back`` as
+        the screen it was drawn on — and the card sent back."""
+        response = client.post(
+            reverse("n26-tally", args=[counter.pk]),
+            {"change": "1", "back": back},
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
+        return body[body.index('id="n26-model-card-host"') :]
+
+    def test_a_tally_from_here_sends_back_a_card_addressed_to_here(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """The card an act sends back replaces the one on the page, kit
+        menus and all. A card addressed to the Edit face would leave the
+        Equip screen with a Sell that opens somewhere else."""
+        from n26.library.models import Wargear
+
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        here = equip_url(fighter, house_list)
+
+        card = self.tallied_from(client, self.counter_on(gang, tester, fighter), here)
+
+        assert f'href="{here}&amp;sell=' in card
+        assert f"{reverse('n26-edit-fighter', args=[fighter.pk])}?sell=" not in card
+
+    def test_a_tally_naming_another_screen_is_answered_for_the_edit_face(
+        self, client, tester, gang, fighter, house_list, make_profile, make_statline
+    ):
+        """What the control posted names a screen and nothing more: the
+        address is rebuilt from the route, so another model's page, a
+        page elsewhere, or a query nobody's screen carries never reaches
+        a link on the card."""
+        from n26.library.models import Wargear
+
+        juve = make_profile("Juve", price=0)
+        make_statline(juve)
+        with operation(gang, actor=tester) as op:
+            other = op.hire(juve, "Kid")
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        edit = reverse("n26-edit-fighter", args=[fighter.pk])
+        counter = self.counter_on(gang, tester, fighter)
+
+        # Another model's Equip screen, and a page that is not this app's:
+        # neither is a screen of this model, so the Edit face is drawn.
+        for back in (equip_url(other, house_list), "https://elsewhere.example/n26/"):
+            card = self.tallied_from(client, counter, back)
+            assert f'href="{edit}?sell=' in card
+            assert "elsewhere.example" not in card
+            assert str(other.pk) not in card
+
+        # This model's own Equip screen with a parameter no screen carries:
+        # the screen is recognised and the parameter is dropped.
+        here = equip_url(fighter, house_list)
+        card = self.tallied_from(client, counter, f"{here}&evil=1")
+        assert f'href="{here}&amp;sell=' in card
+        assert "evil" not in card
+
+    def test_a_tally_naming_no_address_at_all_is_answered_for_the_edit_face(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """``back`` is a hidden field anybody can type into. A value that
+        is not an address — an unclosed IPv6 bracket — is read as the
+        Edit face like any other stranger, and never as an error."""
+        from n26.library.models import Wargear
+
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=Wargear.objects.get(name="Sword"), paid=35)
+        client.force_login(tester)
+        edit = reverse("n26-edit-fighter", args=[fighter.pk])
+        counter = self.counter_on(gang, tester, fighter)
+
+        for back in ("http://[::1/edit/", "http://[::1/n26/fighters/x/equip/"):
+            card = self.tallied_from(client, counter, back)
+            assert f'href="{edit}?sell=' in card
+            assert "[::1" not in card
+
+    def test_the_options_face_draws_it_too(self, client, tester, fighter):
+        client.force_login(tester)
+        body = client.get(
+            reverse("n26-fighter-options", args=[fighter.pk])
+        ).content.decode()
+        assert body.index('id="n26-model-card-host"') < body.index("This model")
+
+
+class TestTheCardsQueryBudget:
+    """The card above the listing is read from the same rows the rows
+    are, so drawing it costs a fixed number however much the model holds
+    and however large the gang around it. Measured after one warm
+    request — the first request of a session writes its own row.
+    """
+
+    def measure(self, client, url):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        assert client.get(url).status_code == 200
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(url).status_code == 200
+        return len(captured.captured_queries)
+
+    def test_the_rest_of_the_gang_costs_nothing(
+        self, client, tester, gang, fighter, house_list, make_profile, make_statline
+    ):
+        client.force_login(tester)
+        alone = self.measure(client, equip_url(fighter, house_list))
+        juve = make_profile("Juve", price=0)
+        make_statline(juve)
+        for n in range(12):
+            with operation(gang, actor=tester) as op:
+                op.hire(juve, f"Extra {n}")
+        assert self.measure(client, equip_url(fighter, house_list)) == alone
+
+    def test_the_kit_costs_nothing_per_copy(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """Each piece of kit on the card carries Sell and the rest, and
+        saying what a copy was bought with must come off the card already
+        built, never from a query per copy."""
+        from n26.library.authoring import create_weapon
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        gun = create_weapon("Lasgun", price=5, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=knife, paid=10)
+            op.buy(fighter, thing=gun, paid=5)
+        client.force_login(tester)
+        one_each = self.measure(client, equip_url(fighter, house_list))
+        with operation(gang, actor=tester) as op:
+            for _ in range(4):
+                op.buy(fighter, thing=knife, paid=10)
+                op.buy(fighter, thing=gun, paid=5)
+        assert self.measure(client, equip_url(fighter, house_list)) == one_each

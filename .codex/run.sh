@@ -17,6 +17,12 @@ if [ ! -f "$VENV_ACTIVATE" ]; then
   exit 1
 fi
 
+# A rebase can change uv.lock without replacing .venv. The shared provisioner
+# uses a dependency-input stamp, so this is a cheap no-op unless they changed.
+# shellcheck disable=SC1090
+source "$WORKTREE_LIB"
+provision_worktree_venv "$PROJECT_DIR" || exit 1
+
 # The activation script includes the repository's per-worktree DB hook, which
 # sets DB_NAME, DJANGO_PORT and DB_CONFIG for this checkout.
 # shellcheck disable=SC1090
@@ -24,8 +30,6 @@ source "$VENV_ACTIVATE"
 
 # Do not depend on the optional activation block installed by
 # setup-local-postgres.sh. Older main-worktree venvs may not contain it.
-# shellcheck disable=SC1090
-source "$WORKTREE_LIB"
 export DB_NAME
 DB_NAME=$(worktree_db_name "$PROJECT_DIR")
 export DJANGO_PORT

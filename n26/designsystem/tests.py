@@ -6,6 +6,8 @@ raising. Registering a component and never loading its page is therefore
 indistinguishable from registering it wrongly — which is what this asks.
 """
 
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 
@@ -532,6 +534,15 @@ class TestTheShellStillDraws:
         # the same name, which sits further up the page.
         assert page.index("Found and equip gang") < page.index(">Stash</span>")
 
+    def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
+        """The gallery's two-thumb range menu draws two real range inputs,
+        each bound to the caller's variable — the slider is called once for
+        each form rather than with a conditional inside one call."""
+        page = reader.get("/n26/design/c/range-menu/").content.decode()
+        assert 'aria-label="Minimum"' in page and 'aria-label="Maximum"' in page
+        assert ':value="lowCost"' in page and ':value="highCost"' in page
+        assert "{% if" not in page
+
     def test_the_campaign_shell_draws_the_tables(self, reader):
         """The gangs table and an assets table both fill from the sample
         sheet, and every slot the view declares is drawn from the page
@@ -539,6 +550,16 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/campaign/").content.decode()
         assert "Territory campaign" in page
         assert "Gravebolt Kin" in page
+        # Each gang names its owner under its name, through the same
+        # component the app draws people with — a sample person is a
+        # username, so the name comes through and no badge follows it.
+        assert re.search(r"Goliath \(HoC\) · <span[^>]*>marta<", page)
+        assert re.search(r"Escher \(HoB\) · <span[^>]*>tom<", page)
+        # The players and the log name people the same way; the
+        # arbitrator's own acts read "You", as the page reads them.
+        assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)
+        assert re.search(r"<span[^>]*font-medium[^>]*>ossian<", page)
+        assert ">You</span>" in page
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
         assert "Unclaimed" in page
@@ -578,6 +599,57 @@ class TestTheShellStillDraws:
         assert "Grav-cutter plasma guns" in page
         assert "+15¢" in page
         assert "Choose one, or none" in page
+
+
+class TestTheModelHeaderPage:
+    """Its card slot reaches the gallery drawn, above the tab strip."""
+
+    def test_both_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/model-header/").content.decode()
+        assert "One model's screens" in page or "One model&#x27;s screens" in page
+        assert "With the model" in page
+        assert 'id="n26-model-card-host"' in page
+
+    def test_the_card_sits_between_the_heading_and_the_tabs(self, reader):
+        # The component page, since the second demo is the one with the
+        # card, and the plain preview draws a component's first alone.
+        page = reader.get("/n26/design/c/model-header/").content.decode()
+        demo = page.index("With the model")
+        card = page.index('id="n26-model-card-host"', demo)
+        assert page.index("Vesna Krail", demo) < card < page.index("This model", card)
+
+
+class TestTheModelEditPage:
+    """The card above the tabs, then the boxes in their order, Lore last."""
+
+    def test_the_card_sits_above_the_tabs(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page.index('id="n26-model-card-host"')
+        assert page.index("<h1") < card < page.index("This model")
+
+    def test_the_demos_name_action_reaches_the_card(self, reader):
+        """The demo passes a rename link of its own — there is no model
+        to rename — and the host include draws it in place of the real
+        pencil. A slot that went unforwarded would draw the pencil
+        pointing at an Edit page for a model that does not exist."""
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page[page.index('id="n26-model-card-host"') : page.index("This model")]
+        assert 'href="#rename"' in card
+        assert "?rename=" not in card
+
+    def test_the_boxes_run_picture_notes_skills_characteristics_lore(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+
+        def heading(name):
+            return page.index(f'<span class="font-semibold">{name}</span>')
+
+        assert (
+            heading("Picture")
+            < heading("Notes")
+            < heading("Skills &amp; Powers")
+            < heading("Characteristics")
+            < heading("Lore")
+        )
 
 
 class TestCounterLinesInTheGallery:
