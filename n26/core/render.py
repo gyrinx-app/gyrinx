@@ -768,13 +768,20 @@ class ArrivalScreen:
     def outstanding(self):
         """The questions still open, in the order drawn, each named by
         its label — and by whose it is where two share a label, so
-        "Primary skill for Kal" and "Primary skill for Vex" read apart."""
-        open_questions = [
-            question
-            for block in self.blocks
-            for question in block.questions
-            if not question.settled
-        ]
+        "Primary skill for Kal" and "Primary skill for Vex" read apart.
+
+        Each question once, by its address: a slot two screens ask about
+        is drawn under each of them, and one pick settles every drawing,
+        so the line that names what is left to choose names it once.
+        """
+        open_questions = []
+        named = set()
+        for block in self.blocks:
+            for question in block.questions:
+                if question.settled or question.key in named:
+                    continue
+                named.add(question.key)
+                open_questions.append(question)
         labels = [question.label for question in open_questions]
         return [
             f"{question.label} for {question.bearer}"

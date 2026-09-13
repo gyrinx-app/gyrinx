@@ -12,6 +12,7 @@ and Continue behave; what a broken or borrowed address does; and that
 the printed sheet and the text card do not know the screen exists.
 """
 
+from dataclasses import replace
 from html import unescape
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -1168,6 +1169,7 @@ class TestReadingTheScreenAloud:
 
         body = page(client, screen_url(gang, [key]))
 
+        assert "Choose Archetype to continue." in body
         ids = re.findall(r'\bid="(ask-[^"]+)"', body)
         assert len(ids) == len(set(ids))
         headings = [i for i in ids if i.endswith(key.replace(":", "-"))]
@@ -1260,6 +1262,40 @@ class TestWhatTheScreenSays:
             screen.outstanding_words
             == "Primary skill for Kal and Primary skill for Vex"
         )
+
+    def test_a_question_two_blocks_ask_is_named_once(self):
+        """One slot two screens ask about is drawn under each, and one
+        pick settles both drawings: the line names it once rather than
+        telling the reader to choose the same thing twice."""
+        from n26.core.render import (
+            ArrivalBlock,
+            ArrivalQuestion,
+            ArrivalScreen,
+            ChoiceOffer,
+        )
+
+        asked = ArrivalQuestion(
+            key="gang:1:1",
+            label="Archetype",
+            bearer="The Forgotten",
+            chosen=None,
+            settled=False,
+            offer=ChoiceOffer(label="Archetype"),
+        )
+        screen = ArrivalScreen(
+            blocks=tuple(
+                ArrivalBlock(
+                    heading=heading,
+                    description="",
+                    questions=(replace(asked, under=str(order)),),
+                )
+                for order, heading in enumerate(("Outcast archetype", "Also asked"), 1)
+            ),
+            next_url="/n26/gangs/1/",
+        )
+
+        assert screen.outstanding == ["Archetype"]
+        assert screen.outstanding_words == "Archetype"
 
     def test_settled_questions_are_left_out(self):
         screen = self.screen("Archetype", "Creed", "Path", settled=("Creed",))
