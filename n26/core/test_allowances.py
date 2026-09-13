@@ -91,3 +91,24 @@ def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(fighte
             kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED
         )
         assert starting_counter_value(counter_assignment) is None
+
+
+def test_clone_copies_only_unused_allowances(fighter):
+    rule = RecruitmentAllowanceRule.objects.create()
+    action = Action.objects.create(
+        name="Recruitment augmentation",
+        timing="recruitment",
+        recruitment_allowance_rule=rule,
+    )
+    unused = ActionAllowance.objects.create(
+        action=action,
+        fighter=fighter,
+        recruitment=fighter.membership,
+        source_kind=ActionAllowance.Source.RECRUITMENT,
+    )
+    with operation(fighter.gang) as op:
+        clone = op.clone_miniature(fighter)
+    copied = clone.action_allowances.get()
+    assert copied.action == unused.action
+    assert copied.recruitment == clone.membership
+    assert copied.granted_event.kind == LedgerEvent.Kind.GRANTED

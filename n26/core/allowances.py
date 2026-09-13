@@ -115,3 +115,29 @@ def bootstrap_rank_allowances(op, counter_assignment):
     except CounterValue.DoesNotExist:
         return []
     return grant_rank_allowances(op, counter_assignment, baseline, current)
+
+
+@transaction.atomic
+def clone_unused_allowances(op, source, clone):
+    """Copy the earned uses that were unused in the source snapshot."""
+    copied = []
+    unused = source.action_allowances.exclude(
+        records__state__in=["started", "completed"]
+    ).order_by("created", "pk")
+    for allowance in unused:
+        duplicate = ActionAllowance.objects.create(
+            action=allowance.action,
+            fighter=clone,
+            recruitment=clone.membership,
+            source_kind=allowance.source_kind,
+            threshold=allowance.threshold,
+            rank_table=allowance.rank_table,
+        )
+        duplicate.granted_event = op.event(
+            clone,
+            LedgerEvent.Kind.GRANTED,
+            note=f"Copied one unused use of {allowance.action} with the fighter.",
+        )
+        duplicate.save(update_fields=["granted_event", "modified"])
+        copied.append(duplicate)
+    return copied
