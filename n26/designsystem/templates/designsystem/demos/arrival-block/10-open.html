@@ -1,0 +1,12 @@
+{# title: Open and not skippable #}
+{# note: The author's heading and words, then the question with the pick screen's own picker under it. No Skip: the author did not allow one, and the page around this withholds Continue until the question holds a pick. #}
+{# layout: full #}
+<c-n26.arrival-block :block="arrival_screen.blocks.0">
+    <form method="post" action="#">
+        {% csrf_token %}
+        <input type="hidden"
+               name="ask"
+               value="{{ arrival_screen.blocks.0.questions.0.key }}">
+        <c-n26.arrival-question :question="arrival_screen.blocks.0.questions.0" />
+    </form>
+</c-n26.arrival-block>

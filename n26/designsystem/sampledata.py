@@ -844,6 +844,8 @@ def context():
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
+        # The screen after an act: what arrived, and the choices it asks.
+        "arrival_screen": arrival_screen(),
         # A choice that holds several picks, part-way through and with no
         # room left: the two states where its acts differ.
         "choice_picks_offer": choice_picks_offer(),
@@ -1008,6 +1010,116 @@ def choice_offer():
                 ],
             ),
         ],
+    )
+
+
+def _archetype_offer(chosen=None):
+    """The archetype picker as the screen after founding draws it."""
+    return ChoiceOffer(
+        label="Archetype",
+        chosen=chosen,
+        groups=[
+            ChoosableGroup(
+                name="",
+                options=[
+                    Choosable(
+                        key="library.pickable:1",
+                        name="Brawler",
+                        is_current=chosen == "Brawler",
+                    ),
+                    Choosable(
+                        key="library.pickable:2",
+                        name="Gunslinger",
+                        detail="opens the Shooting set as Primary",
+                    ),
+                ],
+            )
+        ],
+    )
+
+
+def arrival_screen():
+    """The screen shown after an act, three blocks deep: a question
+    that cannot be skipped and is still open, one already chosen, and
+    one the author let the reader skip. Hard-coded, as everything here
+    is: the gallery renders on an empty database."""
+    from n26.core.render import ArrivalBlock, ArrivalQuestion, ArrivalScreen
+
+    # Nowhere real, as every sample link: the gallery founds no gang.
+    back = "#"
+    return ArrivalScreen(
+        blocks=(
+            ArrivalBlock(
+                heading="Choose an archetype",
+                description=(
+                    "The archetype shapes the whole gang: which skills come "
+                    "first, and what the leader is for.\n\nPick one before "
+                    "hiring anybody."
+                ),
+                questions=(
+                    ArrivalQuestion(
+                        key="gang:1:1",
+                        under="1",
+                        label="Archetype",
+                        bearer="The Forgotten",
+                        chosen=None,
+                        settled=False,
+                        offer=_archetype_offer(),
+                    ),
+                ),
+            ),
+            ArrivalBlock(
+                heading="Name a creed",
+                description="A creed follows from the archetype.",
+                questions=(
+                    ArrivalQuestion(
+                        key="gang:1:2",
+                        under="2",
+                        label="Creed",
+                        bearer="The Forgotten",
+                        chosen="Iron Law",
+                        settled=True,
+                        offer=ChoiceOffer(
+                            label="Creed",
+                            chosen="Iron Law",
+                            groups=[
+                                ChoosableGroup(
+                                    name="",
+                                    options=[
+                                        Choosable(
+                                            key="library.pickable:3",
+                                            name="Iron Law",
+                                            is_current=True,
+                                        ),
+                                        Choosable(
+                                            key="library.pickable:4",
+                                            name="Open Hand",
+                                        ),
+                                    ],
+                                )
+                            ],
+                        ),
+                    ),
+                ),
+            ),
+            ArrivalBlock(
+                heading="A hunter's path",
+                description="Can be chosen later, from the model's card.",
+                questions=(
+                    ArrivalQuestion(
+                        key="2:3:4",
+                        under="3",
+                        label="Hunter's path",
+                        bearer="Kal",
+                        chosen=None,
+                        settled=False,
+                        offer=_archetype_offer(),
+                    ),
+                ),
+                skip_url="#",
+            ),
+        ),
+        next_url=back,
     )
 
 

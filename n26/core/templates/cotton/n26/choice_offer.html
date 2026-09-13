@@ -17,8 +17,13 @@ draws its cards and no legend.
 
 `empty` is what to say when there is nothing to choose; why an offer is empty is
 something the page knows and this does not.
+
+  labelled_by — the id of the heading that asks this question, where the page
+    draws one above the list. Each group is then named by that heading and its
+    own, so a reader who hears the options hears which question they answer.
+    Optional.
 {% endcomment %}
-<c-vars :offer="None" name="thing" class="" />
+<c-vars :offer="None" name="thing" labelled_by="" class="" />
 
 <div {{ attrs }} class="space-y-8 {{ class }}">
     {% if offer.is_empty %}
@@ -35,7 +40,9 @@ something the page knows and this does not.
             {% endcomment %}
             <c-n26.radio-cards label="{{ group.name }}"
                                description="{{ group.caption }}"
-                               name="{{ name }}">
+                               name="{{ name }}"
+                               id="{% if labelled_by %}{{ labelled_by }}-g{{ forloop.counter }}{% endif %}"
+                               labelled_by="{{ labelled_by }}">
                 {% comment %}
                 The muted line is the option's own remark (n26.render.Choosable)
                 — including, where a slot takes a thing only once, which other

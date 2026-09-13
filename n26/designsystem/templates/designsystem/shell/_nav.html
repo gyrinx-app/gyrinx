@@ -19,7 +19,7 @@ set of links.
 the form Cotton is reliable with, where one emitting a whole attribute is not.
 
 Takes `here` — "home", "new-gang", "gang", "campaign", "hire", "shop" (the equip
-screen) or "print".
+screen), "print" or "next" (the screen after an act).
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'designsystem:shell_home' %}"
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
@@ -35,3 +35,5 @@ screen) or "print".
                   current="{% if here == 'shop' %}1{% endif %}">Equip</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'designsystem:shell_print' %}"
                   current="{% if here == 'print' %}1{% endif %}">Print</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_next' %}"
+                  current="{% if here == 'next' %}1{% endif %}">Choices</c-ui.navbar.item>

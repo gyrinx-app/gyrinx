@@ -1,0 +1,52 @@
+{% comment %}
+<c-n26.arrival-question> — one arriving slot's question, with its picker.
+    <form method="post" action="{{ here }}">
+        {% csrf_token %}
+        <input type="hidden" name="ask" value="{{ question.key }}">
+        <c-n26.arrival-question :question="question" />
+    </form>
+Takes a n26.render.ArrivalQuestion. Draws whose question it is and what it
+asks, then the same picker the pick screen draws — radios and a Save for a
+choice of one, a button per option for a choice of several — so the two
+screens cannot list different things. No form of its own: the page wraps
+each question in one and puts the token in it.
+
+Several questions share one page, so the heading carries the question's
+heading_id and the picker is labelled by it: a reader who hears the options
+hears which question they answer.
+  :question — a n26.render.ArrivalQuestion.
+{% endcomment %}
+<c-vars :question="None" class="" />
+<div {{ attrs }} class="space-y-4 {{ class }}">
+    <div class="space-y-1">
+        <h3 id="{{ question.heading_id }}" class="text-lg font-semibold text-ink-900 dark:text-ink-100">
+            {{ question.label }}
+            <span class="ml-1 text-sm font-normal text-muted">for {{ question.bearer }}</span>
+        </h3>
+        {% if question.chosen %}
+            <p class="text-muted">Chosen: {{ question.chosen }}</p>
+        {% elif not question.settled %}
+            <p class="text-muted">Not chosen yet.</p>
+        {% endif %}
+        {% if question.roll_href %}
+            <p class="text-muted">
+                You can roll for this choice.
+                <c-n26.link href="{{ question.roll_href }}">Roll on its own page</c-n26.link>
+                and come back here.
+            </p>
+        {% endif %}
+    </div>
+    {% if question.offer.takes_several %}
+        <c-n26.choice-picks :offer="question.offer" labelled_by="{{ question.heading_id }}" />
+    {% else %}
+        <c-n26.choice-offer :offer="question.offer" labelled_by="{{ question.heading_id }}">
+            <c-slot name="empty">
+                Nothing is available to choose here. It draws on a list of options
+                that other picks open up, so making those choices first fills it in.
+            </c-slot>
+        </c-n26.choice-offer>
+        {% if not question.offer.is_empty %}
+            <c-ui.button type="submit" variant="success" size="sm">Save</c-ui.button>
+        {% endif %}
+    {% endif %}
+</div>

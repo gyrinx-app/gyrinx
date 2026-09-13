@@ -988,6 +988,7 @@ def create_gang(request):
     lands back on the dashboard where the new gang is now a row.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.arrivals import onward
     from n26.core.forms import CreateGangForm
     from n26.core.models import Gang
     from n26.core.operations import operation
@@ -1027,8 +1028,11 @@ def create_gang(request):
             messages.success(request, f"Founded {gang.name}.")
             # Straight to the new gang's own sheet: hiring is the next
             # thing a founder does, and the dashboard is a detour past
-            # every gang they already have.
-            return redirect("n26-gang", pk=gang.pk)
+            # every gang they already have. By way of the screen for
+            # what the founding brought, where any of it asks for one.
+            return redirect(
+                onward(request, gang, op, reverse("n26-gang", args=[gang.pk]))
+            )
     else:
         form = CreateGangForm(include_staged=shown)
 

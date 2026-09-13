@@ -573,6 +573,118 @@ class ChoiceOffer:
 
 
 @dataclass(frozen=True)
+class ArrivalQuestion:
+    """One slot that just arrived, as the screen after an act draws it:
+    whose question it is, what it asks, and the picker for it.
+
+    ``settled`` is whether the reader may carry on past it: the choice
+    holds a pick, asks for none, or has nothing to offer this reader —
+    a screen must not stand in the way of a choice nobody can make.
+    ``offer`` is the same structure the pick screen draws, so the two
+    cannot list different things.
+    """
+
+    #: The address the pick screen reads — ``card:carrier:offer``.
+    key: str
+    #: What the card calls the choice — "Archetype".
+    label: str
+    #: Whose question it is: the model's name, or the gang's.
+    bearer: str
+    chosen: str | None
+    settled: bool
+    offer: ChoiceOffer
+    #: The pick screen's own address, for a choice whose list is a roll
+    #: table: rolling happens there. Empty for every other choice.
+    roll_href: str = ""
+    #: Which block of the screen draws this, counted from one, where a
+    #: slot under several screens is asked under each: the same question
+    #: drawn twice needs two headings. Blank where one block draws it.
+    under: str = ""
+
+    @property
+    def heading_id(self):
+        """The id the heading carries, which the picker under it is
+        labelled by: several questions share one page, and a reader who
+        hears the options has to hear which question they answer. Made
+        from the address and the block, so it is one per drawing of the
+        question however the page is ordered."""
+        block = f"{self.under}-" if self.under else ""
+        return f"ask-{block}" + self.key.replace(":", "-")
+
+
+@dataclass(frozen=True)
+class ArrivalBlock:
+    """One screen an author attached to the slots that arrived: its
+    heading and words, then each arriving slot's question beneath.
+
+    A block attached to several arriving slots draws once with every one
+    of them under it. ``skip_url`` is this screen with the block's
+    questions dropped from the address — blank for a block that may not
+    be skipped, which draws no Skip.
+    """
+
+    heading: str
+    description: str
+    questions: tuple[ArrivalQuestion, ...]
+    skip_url: str = ""
+
+    @property
+    def skippable(self):
+        """Whether the reader may carry on past this block without
+        picking: exactly when there is somewhere Skip leads."""
+        return bool(self.skip_url)
+
+    @property
+    def settled(self):
+        return all(question.settled for question in self.questions)
+
+
+@dataclass(frozen=True)
+class ArrivalScreen:
+    """Everything the screen after an act says: the blocks, and where
+    Continue leads. Derived from the address every time; nothing about
+    it is stored."""
+
+    blocks: tuple[ArrivalBlock, ...]
+    next_url: str
+
+    @property
+    def may_continue(self):
+        """Whether every question still on the screen is settled — holds
+        a pick, asks for none, or has nothing to offer — so the reader
+        may carry on."""
+        return all(block.settled for block in self.blocks)
+
+    @property
+    def outstanding(self):
+        """The questions still open, in the order drawn, each named by
+        its label — and by whose it is where two share a label, so
+        "Primary skill for Kal" and "Primary skill for Vex" read apart."""
+        open_questions = [
+            question
+            for block in self.blocks
+            for question in block.questions
+            if not question.settled
+        ]
+        labels = [question.label for question in open_questions]
+        return [
+            f"{question.label} for {question.bearer}"
+            if labels.count(question.label) > 1
+            else question.label
+            for question in open_questions
+        ]
+
+    @property
+    def outstanding_words(self):
+        """The open questions as a sentence names them: "Archetype",
+        "Archetype and Creed", "Archetype, Creed and Path"."""
+        labels = self.outstanding
+        if len(labels) <= 1:
+            return "".join(labels)
+        return f"{', '.join(labels[:-1])} and {labels[-1]}"
+
+
+@dataclass(frozen=True)
 class RollTable:
     """The die behind a choice, as the pick screen offers to roll it.
 
@@ -1509,7 +1621,7 @@ def _computed_provenance(contribution):
     )
 
 
-def _slot_key(slot, host):
+def slot_key(slot, host):
     """What addresses one computed slot, or empty when nothing does.
 
     A slot hangs off an assignment, so a card built from a profile's
@@ -1529,7 +1641,7 @@ def _choice_line(slot, host):
         chosen=slot.chosen_name,
         is_full=slot.is_full,
         takes_several=slot.max_picks > 1,
-        key=_slot_key(slot, host),
+        key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
             source_kind=slot.source_kind,
