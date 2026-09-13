@@ -371,6 +371,7 @@ def _build_registry():
     from n26.library import authoring
     from n26.library.income import INCOME_HELP
     from n26.library.models import (
+        Action,
         AddsAssignable,
         Affiliation,
         AllowsAtMost,
@@ -415,6 +416,7 @@ def _build_registry():
         Power,
         Profile,
         ProfileType,
+        RankTable,
         RequiresCompanions,
         Rule,
         Section,
@@ -1082,6 +1084,29 @@ def _build_registry():
                 "name": Text(source=(SlotType, "name")),
                 "plural_name": Text(source=(SlotType, "plural_name")),
                 "allows_repeats": Bool(source=(SlotType, "allows_repeats")),
+            },
+        ),
+        Spec(
+            authoring.create_rank_table,
+            {
+                "name": Text(source=(RankTable, "name")),
+                "counter": One(model=Counter, source=(RankTable, "counter")),
+                "qualifier": Text(source=(RankTable, "qualifier")),
+                "library_author_help": Text(
+                    source=(RankTable, "library_author_help"), long=True
+                ),
+            },
+        ),
+        Spec(
+            authoring.create_action,
+            {
+                "name": Text(source=(Action, "name")),
+                "timing": Choice(source=(Action, "timing")),
+                **use_lists(Action),
+                "qualifier": Text(source=(Action, "qualifier")),
+                "library_author_help": Text(
+                    source=(Action, "library_author_help"), long=True
+                ),
             },
         ),
         Spec(

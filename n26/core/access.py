@@ -44,6 +44,81 @@ class CollectionAccess:
         return str(self.collection)
 
 
+@dataclass(frozen=True)
+class ActionAccess:
+    """One action a fighter may use, and what provides it."""
+
+    action: object
+    source: str | None = None
+    computed: bool = False
+
+    @property
+    def name(self):
+        return str(self.action)
+
+    @property
+    def usability(self):
+        return self.action.usable_by_words()
+
+
+@dataclass(frozen=True)
+class RankTableAccess:
+    """One rank table a fighter holds, and what provides it."""
+
+    rank_table: object
+    source: str | None = None
+    computed: bool = False
+
+    @property
+    def name(self):
+        return str(self.rank_table)
+
+
+def actions_for(miniature, card=None, computed=None):
+    """Every effective action this fighter holds, with duplicate grants collapsed."""
+    from n26.library.models import Action
+
+    return _access_for(miniature, Action, ActionAccess, "action", card, computed)
+
+
+def rank_tables_for(miniature, card=None, computed=None):
+    """Every effective rank table this fighter holds, with duplicate grants collapsed."""
+    from n26.library.models import RankTable
+
+    return _access_for(
+        miniature, RankTable, RankTableAccess, "rank_table", card, computed
+    )
+
+
+def _access_for(miniature, model, access_type, attribute, card=None, computed=None):
+    """Read one assignable kind from the same stored and computed card sources."""
+    if card is None:
+        card = build_card(miniature)
+    if computed is None:
+        computed = compute(card, build_modifier_index(carriers(card)))
+
+    found = {}
+    nodes_by_key = {node.key: node for node in card.all_nodes()}
+    for node in card.all_nodes():
+        if node.suppressed or node.assignment is None:
+            continue
+        if getattr(node.assignment, f"{attribute}_id", None) is None:
+            continue
+        cause = nodes_by_key.get(node.caused_by_key)
+        found.setdefault(
+            node.assignable.pk,
+            access_type(node.assignable, cause.name if cause is not None else None),
+        )
+
+    for contribution in (*computed.acquired, *computed.echoed):
+        if isinstance(contribution.thing, model):
+            found.setdefault(
+                contribution.thing.pk,
+                access_type(contribution.thing, contribution.source, computed=True),
+            )
+    return list(found.values())
+
+
 def collections_for(miniature, card=None, computed=None):
     """Every collection this fighter can browse, in discovery order:
     their own, then their gang's, then computed grants. First mention of

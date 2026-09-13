@@ -59,6 +59,8 @@ LEAF_KINDS = {
     "skill": "create_skill",
     "power": "create_power",
     "counter": "create_counter",
+    "action": "create_action",
+    "rank-table": "create_rank_table",
     "hidden": "create_hidden",
     "asset": "create_asset",
     "asset-table": "create_asset_table",

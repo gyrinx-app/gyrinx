@@ -59,6 +59,8 @@ ASSIGNABLE_FIELDS = {
     "counter": "library.Counter",
     "slot": "library.Slot",
     "pickable": "library.Pickable",
+    "action": "library.Action",
+    "rank_table": "library.RankTable",
 }
 
 HOST_FIELDS = ("gang", "miniature", "parent", "stash")
@@ -68,6 +70,20 @@ class Assignment(NamesAnAssignable, Base, Archived):
     # What was assigned — exactly one of these, see ASSIGNABLE_FIELDS.
     profile = models.ForeignKey(
         "library.Profile",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+    action = models.ForeignKey(
+        "library.Action",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+    rank_table = models.ForeignKey(
+        "library.RankTable",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

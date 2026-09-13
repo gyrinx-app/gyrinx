@@ -122,6 +122,8 @@ GRANTABLE_FIELDS = {
     # Goliath Territories, given to every gang of that House by a modifier
     # on the House pick. A fact on the gang's card that draws no line.
     "asset_table": "library.AssetTable",
+    "action": "library.Action",
+    "rank_table": "library.RankTable",
 }
 
 #: What an ``AllowsAtMost`` may count. The books limit ranks ("no
@@ -1060,6 +1062,20 @@ class AssignableChoice(models.Model):
     )
     asset_table = models.ForeignKey(
         "library.AssetTable",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    action = models.ForeignKey(
+        "library.Action",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    rank_table = models.ForeignKey(
+        "library.RankTable",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

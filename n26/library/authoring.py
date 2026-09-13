@@ -879,6 +879,190 @@ def create_affiliation(
 # --- Slots and picks: a slot type, authored ----------------------------------
 
 
+def create_rank_table(
+    name, counter, thresholds=(), qualifier="", library_author_help="", **kwargs
+):
+    """An XP schedule a fighter may hold; thresholds are positive XP values."""
+    from n26.library.models import RankTable, RankThreshold
+
+    table = RankTable.objects.create(
+        name=name,
+        counter=counter,
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **kwargs,
+    )
+    for threshold in thresholds:
+        RankThreshold.objects.create(rank_table=table, threshold=threshold, **kwargs)
+    return table
+
+
+def add_rank_threshold(rank_table, threshold, **kwargs):
+    """Add one XP threshold to a rank table."""
+    from n26.library.models import RankThreshold
+
+    return RankThreshold.objects.create(
+        rank_table=rank_table, threshold=threshold, **kwargs
+    )
+
+
+def create_action(
+    name,
+    timing,
+    outcomes=(),
+    use_price=(),
+    allowance_rule=None,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    qualifier="",
+    library_author_help="",
+    **kwargs,
+):
+    """A fighter capability with ordered outcomes and a price for each use."""
+    from n26.library.models import (
+        Action,
+        ActionOutcome,
+        ActionPriceComponent,
+        RecruitmentAllowanceRule,
+    )
+
+    rule_kwargs = {}
+    if allowance_rule is not None:
+        field = (
+            "recruitment_allowance_rule"
+            if isinstance(allowance_rule, RecruitmentAllowanceRule)
+            else "rank_allowance_rule"
+        )
+        rule_kwargs[field] = allowance_rule
+    action = Action.objects.create(
+        name=name,
+        timing=timing,
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **rule_kwargs,
+        **kwargs,
+    )
+    for position, outcome in enumerate(outcomes):
+        ActionOutcome.objects.create(
+            action=action, outcome=outcome, position=position, **kwargs
+        )
+    for position, component in enumerate(use_price):
+        ActionPriceComponent.objects.create(
+            action=action, position=position, **component, **kwargs
+        )
+    return set_usable_by(
+        action,
+        usable_by_profile_types=usable_by_profile_types,
+        usable_by_subtypes=usable_by_subtypes,
+        usable_by_profiles=usable_by_profiles,
+    )
+
+
+def add_action_outcome(action, outcome, position=None, **kwargs):
+    """Add one possible result to an action, at the end unless placed."""
+    from n26.library.models import ActionOutcome
+
+    if position is None:
+        position = action.outcomes.count()
+    return ActionOutcome.objects.create(
+        action=action, outcome=outcome, position=position, **kwargs
+    )
+
+
+def add_action_price_component(
+    action, resource, payer, amount, counter=None, position=None, **kwargs
+):
+    """Add one required resource to the price paid for each use."""
+    from n26.library.models import ActionPriceComponent
+
+    if action.allowance_rule is not None:
+        raise ValidationError(
+            "An action with an allowance rule cannot also have a use price."
+        )
+    if position is None:
+        position = action.use_price.count()
+    component = ActionPriceComponent(
+        action=action,
+        resource=resource,
+        payer=payer,
+        counter=counter,
+        amount=amount,
+        position=position,
+        **kwargs,
+    )
+    component.full_clean()
+    component.save()
+    return component
+
+
+def create_outcome(name, operation, **kwargs):
+    """A reusable named result with one typed operation configuration."""
+    from n26.library.models import Outcome
+
+    fields = {
+        "AugmentCarriedItem": "augment_carried_item",
+        "ResolveAdvancement": "resolve_advancement",
+        "ApplyChanges": "apply_changes",
+    }
+    field = fields.get(type(operation).__name__)
+    if field is None:
+        raise ValueError(f"{type(operation).__name__} is not an outcome operation")
+    return Outcome.objects.create(name=name, **{field: operation}, **kwargs)
+
+
+def augment_carried_item(slot_type, **kwargs):
+    from n26.library.models import AugmentCarriedItem
+
+    return AugmentCarriedItem.objects.create(slot_type=slot_type, **kwargs)
+
+
+def resolve_advancement(slot, **kwargs):
+    from n26.library.models import ResolveAdvancement
+
+    return ResolveAdvancement.objects.create(slot=slot, **kwargs)
+
+
+def apply_changes(*changes, **kwargs):
+    from n26.library.models import ApplyChange, ApplyChanges, CounterChange
+
+    result = ApplyChanges.objects.create(**kwargs)
+    for position, change in enumerate(changes):
+        field = (
+            "counter_change" if isinstance(change, CounterChange) else "remove_picks"
+        )
+        ApplyChange.objects.create(
+            apply_changes=result, position=position, **{field: change}, **kwargs
+        )
+    return result
+
+
+def counter_change(counter, mode, amount=0, **kwargs):
+    from n26.library.models import CounterChange
+
+    return CounterChange.objects.create(
+        counter=counter, mode=mode, amount=amount, **kwargs
+    )
+
+
+def remove_picks(slot_type, **kwargs):
+    from n26.library.models import RemovePicks
+
+    return RemovePicks.objects.create(slot_type=slot_type, **kwargs)
+
+
+def recruitment_allowance_rule(**kwargs):
+    from n26.library.models import RecruitmentAllowanceRule
+
+    return RecruitmentAllowanceRule.objects.create(**kwargs)
+
+
+def rank_allowance_rule(counter, **kwargs):
+    from n26.library.models import RankAllowanceRule
+
+    return RankAllowanceRule.objects.create(counter=counter, **kwargs)
+
+
 def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
     """What is chosen — Gang Legacy, Specialisation, Path.
 
@@ -966,6 +1150,7 @@ def add_picklist_member(
     position=None,
     roll_low=None,
     roll_high=None,
+    level=None,
     **kwargs,
 ):
     """One more pickable on a list, at the end unless placed.
@@ -1003,6 +1188,7 @@ def add_picklist_member(
         position=position,
         roll_low=roll_low,
         roll_high=roll_high,
+        level=level,
         **kwargs,
     )
 
@@ -1026,6 +1212,7 @@ def create_slot(
     max_picks=1,
     assigned_to="bearer",
     hidden=False,
+    mode="standard",
     position=0,
     qualifier="",
     library_author_help="",
@@ -1054,6 +1241,7 @@ def create_slot(
         max_picks=max_picks,
         assigned_to=assigned_to,
         hidden=hidden,
+        mode=mode,
         position=position,
         qualifier=qualifier,
         library_author_help=library_author_help,

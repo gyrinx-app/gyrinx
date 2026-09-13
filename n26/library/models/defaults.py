@@ -76,6 +76,8 @@ DEFAULT_ASSIGNABLE_FIELDS = (
     "slot",
     "asset",
     "asset_table",
+    "action",
+    "rank_table",
 )
 
 
@@ -221,6 +223,20 @@ class DefaultAssignment(NamesAnAssignable, Content):
     )
     asset_table = models.ForeignKey(
         "library.AssetTable",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    action = models.ForeignKey(
+        "library.Action",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    rank_table = models.ForeignKey(
+        "library.RankTable",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

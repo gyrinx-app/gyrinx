@@ -477,6 +477,11 @@ class PicklistMember(Content):
         default=0,
         help_text="Where it sits in the list. Ties fall back to name.",
     )
+    level = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Numeric tier for a tier ladder. Level 0 means no pick.",
+    )
     #: The band of rolls that lands on this row, both ends inclusive —
     #: "21-26" as readily as "11", which is the band with one roll in it.
     #: Plain integers even on a D66, where a band may span rolls that
@@ -499,6 +504,12 @@ class PicklistMember(Content):
         constraints = [
             models.UniqueConstraint(
                 "picklist", "pickable", name="picklist_member_listed_once"
+            ),
+            models.UniqueConstraint(
+                "picklist",
+                "level",
+                condition=models.Q(level__isnull=False),
+                name="picklist_member_level_once",
             ),
             # A band is both ends or neither, and runs upwards.
             models.CheckConstraint(
@@ -531,6 +542,8 @@ class PicklistMember(Content):
 
     def clean(self):
         super().clean()
+        if self.level is not None and self.level < 1:
+            raise ValidationError({"level": "A tier level must be 1 or higher."})
         if problem := band_problem(self.roll_low, self.roll_high):
             raise ValidationError({"roll_low": problem})
         if self.roll_low is not None and self.picklist_id and not self.picklist.dice:
@@ -598,6 +611,12 @@ class Slot(Content, Assignable):
         #: The Leader → Gang arrow: the Outcast Leader is asked, and what
         #: he picks belongs to the gang, reaching every member.
         GANG = "gang", "the gang"
+
+    class Mode(models.TextChoices):
+        STANDARD = "standard", "standard"
+        TIER_LADDER = "tier_ladder", "tier ladder"
+
+    mode = models.CharField(max_length=20, choices=Mode, default=Mode.STANDARD)
 
     slot_type = models.ForeignKey(
         SlotType,
@@ -712,6 +731,18 @@ class Slot(Content, Assignable):
 
     def clean(self):
         super().clean()
+        if self.mode == self.Mode.TIER_LADDER:
+            if self.max_picks != 1:
+                raise ValidationError(
+                    {"max_picks": "A tier ladder holds one tier at a time."}
+                )
+            if (
+                self.picklist_id
+                and self.picklist.members.filter(level__isnull=True).exists()
+            ):
+                raise ValidationError(
+                    {"picklist": "Every member of a tier ladder needs a numeric level."}
+                )
         if self.slot_type_id and self.picklist_id:
             if self.picklist.slot_type_id != self.slot_type_id:
                 raise ValidationError(
