@@ -163,16 +163,22 @@ def find_slots(gang, keys):
     computed = {}
     if GANG_SLOT_HOST in wanted:
         computed[GANG_SLOT_HOST] = (compute_gang(gang_card, index), None)
-    named = [where for where in wanted if where != GANG_SLOT_HOST]
-    if named:
+    named = []
+    for where in wanted:
+        if where == GANG_SLOT_HOST:
+            continue
         try:
-            miniatures = Miniature.objects.filter(
-                pk__in=named, membership__gang=gang, membership__archived=False
-            )
-            members = {str(m.pk): m for m in miniatures}
+            Miniature._meta.pk.to_python(where)
         except ValidationError:
-            # A pk that is not a ULID at all is only ever a bad link.
-            members = {}
+            # A pk that is not a ULID at all is only ever a bad link, and
+            # one bad link must not take the well-formed ones with it.
+            continue
+        named.append(where)
+    if named:
+        miniatures = Miniature.objects.filter(
+            pk__in=named, membership__gang=gang, membership__archived=False
+        )
+        members = {str(m.pk): m for m in miniatures}
         for where, miniature in members.items():
             card = cards.get(miniature.pk)
             if card is not None:
@@ -445,9 +451,11 @@ def choose(request, pk, slot):
             here=here,
             # A worked-at choice comes back to itself; a settled one
             # leaves. Either way by way of the screen for whatever the
-            # pick itself brought, where any of it asks for one.
+            # pick itself brought, where any of it asks for one — and
+            # where the reader came from that screen, what the pick
+            # brought joins it rather than opening a second.
             land=lambda op: onward(
-                request, gang, op, here if offer.takes_several else back
+                request, gang, op, here if offer.takes_several else back, via=back
             ),
         )
 
