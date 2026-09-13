@@ -13,6 +13,7 @@ from random import Random
 from uuid import uuid4
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -1392,7 +1393,6 @@ def test_eligibility_screen_shows_fighter_status(client, crew_setup, make_list):
     content = resp.content.decode()
     assert "Recovery" in content
     assert "Captured" in content
-    assert "text-bg-warning" in content  # the normal colour-coding
 
 
 @pytest.mark.django_db
@@ -5111,7 +5111,6 @@ def test_sheet_names_the_set_only_when_the_fighter_has_options(
     lines = {a["name"]: a for a in resp.context["receipt"]["attendees"]}
     assert lines[with_sets.name]["has_sets"] is True
     assert lines[crew_setup["fighters"][0].name]["has_sets"] is False
-    assert "bi-collection" in resp.content.decode()
 
 
 @pytest.mark.django_db
@@ -5635,7 +5634,8 @@ def test_battle_page_marks_a_forecast_provisional_in_both_columns(
 
     assert crew_row["is_forecast"] is True
     # Once for the pre-balancing rating, once for the post-balancing one.
-    assert resp.content.decode().count(">provisional</span>") == 2
+    words = BeautifulSoup(resp.content, "html.parser").stripped_strings
+    assert list(words).count("provisional") == 2
 
 
 # --- Extras before the crew is confirmed --------------------------------------

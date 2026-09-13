@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
@@ -824,10 +825,9 @@ def test_post_battle_button_on_gang_page_once_and_not_in_dropdown(
     assert resp.status_code == 200
     html = resp.content.decode()
     post_battle_url = reverse("core:list-post-battle", args=[list_with_campaign.id])
-    assert html.count(f'href="{post_battle_url}"') == 1
-    assert f'class="btn btn-primary btn-sm" href="{post_battle_url}"' in html, (
-        "expected a primary c-btn, not a dropdown item"
-    )
+    links = BeautifulSoup(html, "html.parser").find_all("a", href=post_battle_url)
+    assert len(links) == 1
+    assert "Post-battle updates" in links[0].get_text(" ", strip=True)
 
 
 @pytest.mark.django_db
@@ -914,9 +914,11 @@ def test_post_battle_button_visible_to_shared_campaign_admin(
     # The link must lead somewhere the shared admin may go.
     assert client.get(post_battle_url).status_code == 200
     html = client.get(reverse("core:list", args=[plist.id])).content.decode()
-    assert html.count(post_battle_url) == 1
-    assert "Post-battle updates" in html
+    links = BeautifulSoup(html, "html.parser").find_all("a", href=post_battle_url)
+    assert len(links) == 1
+    assert "Post-battle updates" in links[0].get_text(" ", strip=True)
 
     html = client.get(reverse("core:list-about", args=[plist.id])).content.decode()
-    assert post_battle_url in html
-    assert '<span class="visually-hidden">Post-battle updates</span>' in html
+    link = BeautifulSoup(html, "html.parser").find("a", href=post_battle_url)
+    assert link is not None
+    assert "Post-battle updates" in link.get_text(" ", strip=True)

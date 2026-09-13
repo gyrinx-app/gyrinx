@@ -108,5 +108,4 @@ def test_battle_card_announces_the_winner_to_screen_readers(
         reverse("core:campaign-battles", args=[campaign.id])
     ).content.decode()
 
-    assert '<i class="bi-trophy-fill text-warning" aria-hidden="true"></i>' in content
-    assert '<span class="visually-hidden">(winner)</span>' in content
+    assert "(winner)" in content

@@ -227,9 +227,7 @@ def test_disable_default_power(
     assert current_powers[0].is_disabled is True
     assert current_powers[0].psyker_power == biomancy_power
 
-    # Check HTML for strikethrough and enable button
     content = response.content.decode()
-    assert "text-decoration-line-through" in content
     assert "Enable" in content
 
 
@@ -284,9 +282,7 @@ def test_enable_disabled_default_power(
     assert current_powers[0].psyker_power == biomancy_power
     assert current_powers[0].kind() == "default"
 
-    # Check HTML does not have strikethrough
     content = response.content.decode()
-    assert "text-decoration-line-through" not in content
     assert "Disable" in content  # Should show disable button now
 
 

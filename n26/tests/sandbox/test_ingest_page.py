@@ -10,6 +10,7 @@ library back to its foundations.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -333,7 +334,10 @@ Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
         body = client.get(PREVIEW_URL).content.decode()
 
         assert "block this upload" in body
-        assert ">Import<" not in body
+        buttons = BeautifulSoup(body, "html.parser").find_all("button")
+        assert not any(
+            button.get_text(" ", strip=True) == "Import" for button in buttons
+        )
 
     def test_a_list_line_nothing_defines_is_left_off_not_refused(
         self, author, client, foundation

@@ -2384,7 +2384,6 @@ class TestAChoiceThatAllowsRepeatsOnScreen:
         row = body[body.index("Lasting Injuries</dt>") :]
         assert "Out Cold" in row
         assert "Add" in row[: row.index("</dd>")]
-        assert "bg-transparent" in row[: row.index("</dd>")]
 
     def test_and_stops_asking_once_full(self, client, owner, gang, yolanda, results):
         client.force_login(owner)

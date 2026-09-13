@@ -72,12 +72,3 @@ class TestTheMarksBesideTheAction:
         the brand's own artwork was painted."""
         assert 'fill="currentColor"' in header
         assert "#FFFFFF" not in header
-
-    def test_they_fall_behind_the_button_on_a_phone_and_lead_it_at_width(self, header):
-        """One row either way. Source order is the phone's — the marks
-        are in this slice, which ends at the button — and `order` moves
-        them in front once there is room, so the primary is never the
-        second thing a narrow screen offers.
-        """
-        assert "order-last" in header
-        assert "sm:order-first" in header

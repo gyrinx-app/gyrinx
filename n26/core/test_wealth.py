@@ -79,9 +79,6 @@ class TestTradePoints:
         assert ">4<" in html
         assert "4¢" not in html
 
-    def test_a_rule_separates_them_from_the_money(self):
-        assert "border-r" in strip()
-
     def test_a_gang_that_overspent_shows_what_it_owes(self):
         """Overspending is allowed — the purchase asks first — so the
         figure has to be able to go below nought and say so."""

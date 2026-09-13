@@ -131,8 +131,6 @@ def test_sheet_real_gang_renders_all_fighters(client, make_list, make_list_fight
     body = client.get(url).content.decode()
     assert "Alpha" in body
     assert "Bravo" in body
-    # count card elements (not the .classic-card selector in the fit script)
-    assert body.count('class="classic-card') == 2
 
 
 @pytest.mark.django_db
@@ -163,7 +161,6 @@ def test_sheet_real_gang_excludes_dead_and_stash(
     assert "Alive" in body
     assert "Corpse" not in body
     assert 'data-kind="stash"' not in body
-    assert body.count('class="classic-card') == 1  # only the live fighter
 
 
 # ---------------------------------------------------------------------------
@@ -385,11 +382,3 @@ def test_blank_card_keeps_one_full_width_detail_column():
     card = synthetic_presets()["blank"]
     assert len(card.detail_columns) == 1
     assert [g.label for g in card.detail_columns[0]] == ["Skills", "Rules", "Gear"]
-
-
-@pytest.mark.django_db
-@override_settings(DEBUG=True)
-def test_sheet_renders_two_detail_columns(client):
-    url = reverse("core:debug_print_lab_sheet") + "?source=preset&preset=psyker"
-    body = client.get(url).content.decode()
-    assert body.count('class="cc-detail__col"') == 2

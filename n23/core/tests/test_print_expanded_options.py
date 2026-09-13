@@ -12,6 +12,7 @@ information:
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from n23.content.models import ContentAttribute, ContentAttributeValue
@@ -321,12 +322,18 @@ def test_classic_card_xp_follows_the_same_toggle(
     client.force_login(user)
 
     body = client.get(_print_url(lst, cfg)).content.decode()
-    assert ">12<" in body  # the classic card's XP value
+    soup = BeautifulSoup(body, "html.parser")
+    xp_label = soup.find(string=lambda value: value and value.strip() == "XP")
+    assert xp_label is not None
+    assert "12" in xp_label.parent.parent.get_text(" ", strip=True)
 
     cfg.include_xp = False
     cfg.save()
     body = client.get(_print_url(lst, cfg)).content.decode()
-    assert ">12<" not in body
+    soup = BeautifulSoup(body, "html.parser")
+    xp_label = soup.find(string=lambda value: value and value.strip() == "XP")
+    assert xp_label is not None
+    assert "12" not in xp_label.parent.parent.get_text(" ", strip=True)
 
 
 @pytest.mark.django_db
@@ -424,7 +431,7 @@ def test_lore_notes_print_classic_style(client, user, make_list, make_list_fight
     lst.narrative = "<p>Founded in the ash wastes.</p>"
     lst.save()
     fighter = make_list_fighter(lst, "Grimjaw")
-    fighter.narrative = "<p>Grew up underhive.</p>"
+    fighter.narrative = "<p><strong>Grew up</strong> underhive.</p>"
     fighter.save()
     client.force_login(user)
 
@@ -435,7 +442,11 @@ def test_lore_notes_print_classic_style(client, user, make_list, make_list_fight
     assert "print-sheet" in body
     # Rich text is flattened onto the plate.
     assert "Grew up underhive." in body
-    assert "<p>Grew up underhive.</p>" not in body
+    paragraphs = BeautifulSoup(body, "html.parser").find_all("p")
+    assert all(
+        "Grew up underhive." not in paragraph.get_text(" ", strip=True)
+        for paragraph in paragraphs
+    )
 
 
 @pytest.mark.django_db

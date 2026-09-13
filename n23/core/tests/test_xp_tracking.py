@@ -442,8 +442,7 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
     assert response.status_code == 200
 
     content = response.content.decode()
-    # Check XP is displayed
-    assert 'badge text-bg-primary">8 XP</span>' in content
+    assert "8 XP" in content
     # Check edit link is present
     assert (
         f'href="{reverse("core:list-fighter-xp-edit", args=[list_obj.id, fighter.id])}"'

@@ -1710,7 +1710,7 @@ def test_a_template_row_is_badged_as_one(client, user, template_campaign):
 
     content = client.get(reverse("core:campaigns")).content.decode()
 
-    assert "text-bg-info" in content
+    assert "Template" in content
 
 
 @pytest.mark.django_db

@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
@@ -7,6 +8,14 @@ from n23.core.models.campaign import Campaign, CampaignAction
 from n23.core.models.list import List
 
 User = get_user_model()
+
+
+def control_labels(response):
+    """The exact words on links and buttons in a response."""
+    soup = BeautifulSoup(response.content, "html.parser")
+    return {
+        control.get_text(" ", strip=True) for control in soup.find_all(["a", "button"])
+    }
 
 
 @pytest.mark.django_db
@@ -202,7 +211,6 @@ def test_campaign_reopen_functionality(client):
     # Check that the campaign detail page shows "End" button again
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert b"End" in response.content
-    assert b"bi-stop-circle" in response.content
 
 
 @pytest.mark.django_db
@@ -224,7 +232,6 @@ def test_campaign_reopen_button_display(client):
     response = client.get(reverse("core:campaign", args=[campaign.id]))
     assert response.status_code == 200
     assert b"Reopen" in response.content
-    assert b"bi-arrow-clockwise" in response.content
 
 
 @pytest.mark.django_db
@@ -347,7 +354,7 @@ def test_campaign_status_display(client):
     response = client.get(reverse("core:campaign", args=[pre_campaign.id]))
     assert response.status_code == 200
     assert b"Pre-Campaign" in response.content
-    assert b"bi-play-circle" not in response.content  # No lists yet, so no start button
+    assert "Start" not in control_labels(response)
 
     # Add a list to pre_campaign
     list_obj = List.objects.create_with_user(
@@ -359,18 +366,16 @@ def test_campaign_status_display(client):
     pre_campaign.lists.add(list_obj)
 
     response = client.get(reverse("core:campaign", args=[pre_campaign.id]))
-    assert b"Start" in response.content
-    assert b"bi-play-circle" in response.content  # Check for the start icon
+    assert "Start" in control_labels(response)
 
     response = client.get(reverse("core:campaign", args=[in_progress.id]))
     assert b"In Progress" in response.content
-    assert b"End" in response.content
-    assert b"bi-stop-circle" in response.content  # Check for the end icon
+    assert "End" in control_labels(response)
 
     response = client.get(reverse("core:campaign", args=[post_campaign.id]))
     assert b"Post-Campaign" in response.content
-    assert b"bi-play-circle" not in response.content  # No start button
-    assert b"bi-stop-circle" not in response.content  # No end button
+    assert "Start" not in control_labels(response)
+    assert "End" not in control_labels(response)
 
 
 @pytest.mark.django_db

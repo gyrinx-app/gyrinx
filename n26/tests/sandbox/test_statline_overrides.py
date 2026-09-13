@@ -22,6 +22,7 @@ The rules this file pins:
 import re
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -351,10 +352,15 @@ class TestOnPaper:
     ):
         set_by_hand(yolanda, cell_for, toughness="12")
         client.force_login(player)
-        page = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
-        # Marked as changed, exactly as the screen marks it: the value
-        # alone could be any number on the page.
-        assert '<span class="is-modified">12</span>' in page
+        response = client.get(reverse("n26-print", args=[gang.pk]))
+        assert response.status_code == 200
+        document = BeautifulSoup(response.content, "html.parser")
+        headings = document.find_all("th", string="T")
+        assert len(headings) == 1
+        heading = headings[0]
+        index = heading.parent.find_all("th").index(heading)
+        cells = heading.parent.find_next_sibling("tr").find_all("td")
+        assert cells[index].get_text(" ", strip=True) == "12"
 
     def test_the_text_card_carries_it_too(self, yolanda, cell_for):
         from n26.core.render_text import render_model_card

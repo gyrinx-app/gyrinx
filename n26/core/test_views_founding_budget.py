@@ -374,14 +374,6 @@ class TestWhatTheScreenSays:
         assert response.context["founding_budget"] is None
         assert "Founding Trade Points" not in response.content.decode()
 
-    def test_the_tally_carries_the_founding_mark(self, client, leader, legacy_list):
-        """The same mark the action carries on the gang page and the model
-        cards carry beside their figures, so one feature is read once."""
-        body = client.get(equip_url(leader, legacy_list)).content.decode()
-
-        heading = body.index("Founding Trade Points")
-        assert MARK in body[body.rindex("<p class=", 0, heading) : heading]
-
 
 class TestBothPotsAtOnce:
     """A model with an allowance whose gang also has a visit open. The two

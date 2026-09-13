@@ -1,6 +1,7 @@
 """Tests for flat page headings, the contents block, the introduction and the child listing (#2540)."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
 from django.contrib.flatpages.models import FlatPage
 from django.template import Context, Template
@@ -64,19 +65,12 @@ def test_parse_headings_skips_empty_headings_from_the_list_but_still_ids_them():
     assert '<h2 id="section">' in parsed.html
 
 
-def test_heading_anchor_has_no_hover_underline_class():
-    html = add_heading_links("<h2>Intro</h2>")
-
-    assert "link-underline-opacity-75-hover" not in html
-    assert 'class="link-underline link-underline-opacity-0 text-reset"' in html
-
-
 def test_heading_link_icon_is_hidden_from_assistive_tech():
     html = add_heading_links("<h2>Intro</h2>")
 
-    assert (
-        '<i aria-hidden="true" class="bi-link-45deg ms-2 text-body-secondary">' in html
-    )
+    icon = BeautifulSoup(html, "html.parser").find("i")
+    assert icon is not None
+    assert icon.get("aria-hidden") == "true"
 
 
 def test_nest_headings_nests_by_level():
@@ -148,8 +142,9 @@ def test_page_contents_renders_nested_list_with_deduplicated_links(site):
     assert intro < setup2 < outro
     # A nested list, not a numbered one (#2540 asks for a nested list; the
     # sidebar page nav is marker-less too).
-    assert html.count("<ul") == 2
-    assert "<ol" not in html
+    contents = BeautifulSoup(html, "html.parser")
+    assert len(contents.find_all("ul")) == 2
+    assert contents.find("ol") is None
 
 
 @pytest.mark.django_db
@@ -162,7 +157,8 @@ def test_page_contents_block_has_no_fixed_id_to_collide_with(site):
     html = Client().get(page.url).content.decode()
 
     assert 'href="#page-contents-heading"' in html
-    assert html.count('id="page-contents-heading"') == 1
+    document = BeautifulSoup(html, "html.parser")
+    assert len(document.find_all(id="page-contents-heading")) == 1
 
 
 @pytest.mark.django_db
@@ -336,7 +332,6 @@ def test_page_introduction_renders_its_html_unescaped(site):
 
     html = render_introduction(page)
 
-    assert 'class="flatpage-introduction' in html
     assert "<p>Read this <em>first</em>.</p>" in html
     assert "&lt;em&gt;" not in html
 

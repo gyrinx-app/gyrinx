@@ -9,18 +9,16 @@ server-rendered behaviour so the deletion stays safe.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.test import Client
 from django.urls import reverse
 
 
-def _availability_button_html(html):
-    """Slice out just the availability dropdown <button ...> element so
-    assertions don't collide with the unrelated theme-switcher dropdown."""
-    start = html.index('id="availability-dropdown-button"')
-    # Walk back to the opening "<button" and forward to the closing ">".
-    open_idx = html.rindex("<button", 0, start)
-    close_idx = html.index(">", start)
-    return html[open_idx : close_idx + 1]
+def _availability_button(html):
+    """The availability control, addressed by its stable id."""
+    return BeautifulSoup(html, "html.parser").find(
+        "button", id="availability-dropdown-button"
+    )
 
 
 @pytest.mark.django_db
@@ -39,17 +37,13 @@ def test_availability_disabled_when_equipment_list_filter_on(
     response = client.get(url, {"filter": "equipment-list"})
     assert response.status_code == 200
     html = response.content.decode()
-    button = _availability_button_html(html)
-    # Collapse runs of whitespace so attribute assertions don't depend on
-    # template indentation / djlint formatting.
-    button_compact = " ".join(button.split())
+    button = _availability_button(html)
+    assert button is not None
 
-    # The button is disabled and styled as such: both the `disabled` class
-    # (in the class list) and the bare `disabled` attribute are rendered.
-    assert "dropdown-toggle disabled" in button_compact
-    assert "disabled >" in button_compact
+    # The native disabled attribute is the behaviour browsers enforce.
+    assert button.has_attr("disabled")
     # The dropdown trigger is dropped while disabled.
-    assert 'data-bs-toggle="dropdown"' not in button_compact
+    assert button.get("data-bs-toggle") is None
     # The parent group carries the explanatory tooltip.
     assert 'data-bs-toggle="tooltip"' in html
     assert "Availability filters are disabled" in html
@@ -71,11 +65,12 @@ def test_availability_enabled_when_equipment_list_filter_off(
     response = client.get(url, {"filter": "all"})
     assert response.status_code == 200
     html = response.content.decode()
-    button_compact = " ".join(_availability_button_html(html).split())
+    button = _availability_button(html)
+    assert button is not None
 
-    # Dropdown trigger is present and the button is not marked disabled.
-    assert 'data-bs-toggle="dropdown"' in button_compact
-    assert "dropdown-toggle disabled" not in button_compact
+    # Dropdown trigger is present and the button is enabled.
+    assert button.get("data-bs-toggle") == "dropdown"
+    assert not button.has_attr("disabled")
     assert "Availability filters are disabled" not in html
 
 

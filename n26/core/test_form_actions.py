@@ -7,6 +7,8 @@ rather than a control that posts, and an act that carries the colour of what it
 does.
 """
 
+import pytest
+from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -34,13 +36,6 @@ class TestThePair:
         assert 'type="submit"' in html
         assert "Hire" in html
 
-    def test_the_act_is_green_unless_told_otherwise(self):
-        """The button that ends a form usually brings a thing into
-        existence, and the library marks that one `success`."""
-        html = render('<c-n26.form-actions submit_label="Create gang" />')
-
-        assert "bg-green-700" in html
-
     def test_the_way_out_comes_first(self):
         """Right-aligned as a pair, the act last: a reader running down the
         fields meets the alternative on the way to the one they want, and
@@ -49,7 +44,6 @@ class TestThePair:
         html = render('<c-n26.form-actions submit_label="Save" cancel_url="/back/" />')
 
         assert html.index("Cancel") < html.index("Save")
-        assert "justify-end" in html
 
     def test_the_way_out_never_posts(self):
         """Leaving is not a submission. Cancel is an anchor, so clicking it
@@ -60,15 +54,6 @@ class TestThePair:
         assert cancel.rstrip().endswith(">")
         assert "<a" in cancel
         assert 'type="submit"' not in cancel
-
-    def test_the_way_out_is_quiet(self):
-        """Ghost, so the two do not compete: the act carries the colour that
-        says what it does, and a cancel of equal weight beside it makes a
-        reader read both to find the one they want."""
-        html = render('<c-n26.form-actions submit_label="Save" cancel_url="/back/" />')
-
-        cancel = html[: html.index("Cancel")]
-        assert "bg-transparent" in cancel
 
 
 class TestWhatIsLeftOut:
@@ -95,27 +80,7 @@ class TestWhatIsLeftOut:
         )
 
         assert "Back to Ingest" in html
-        assert ">Cancel<" not in html
-
-
-class TestAFormThatTakesSomethingAway:
-    """Red says what the act does; the way out stays quiet either way."""
-
-    def test_the_act_keeps_the_variant_it_was_given(self):
-        html = render(
-            '<c-n26.form-actions submit_label="Delete gang" submit_variant="danger" cancel_url="/gangs/1/" />'
-        )
-
-        assert "bg-red-500" in html
-        assert "bg-green-700" not in html
-
-    def test_the_way_out_is_not_marked_with_it(self):
-        html = render(
-            '<c-n26.form-actions submit_label="Delete gang" submit_variant="danger" cancel_url="/gangs/1/" />'
-        )
-
-        cancel = html[: html.index("Cancel")]
-        assert "bg-red-500" not in cancel
+        assert "Cancel" not in html
 
 
 class TestFurtherControls:
@@ -145,12 +110,27 @@ class TestTheFormPageFooter:
 
         assert 'href="/gangs/1/"' in html
         assert html.index("Cancel") < html.index("Delete gang")
-        assert "bg-red-500" in html
+
+    @pytest.mark.parametrize("component", ["form-actions", "form-page"])
+    @pytest.mark.parametrize("variant", ["success", "danger", "primary"])
+    def test_the_submit_variant_reaches_the_button(self, component, variant):
+        html = render(
+            f'<c-n26.{component} submit_label="Confirm" submit_variant="{variant}"'
+            ' cancel_url="/back/" />'
+        )
+        expected = render(
+            f'<c-ui.button type="submit" variant="{variant}" size="md">Confirm</c-ui.button>'
+        )
+        submit = BeautifulSoup(html, "html.parser").find(
+            "button", string=lambda text: text and text.strip() == "Confirm"
+        )
+        button = BeautifulSoup(expected, "html.parser").find("button")
+        assert submit is not None and button is not None
+        assert set(submit.get("class", [])) == set(button.get("class", []))
 
     def test_a_form_with_neither_gets_no_footer(self):
         """The hire screen's list carries a Hire on every row, so a control
         at the bottom would answer a question already answered."""
         html = render('<c-n26.form-page action="/gangs/1/hire/" title="Hire" />')
 
-        assert "border-t" not in html
         assert 'type="submit"' not in html

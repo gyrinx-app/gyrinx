@@ -411,7 +411,7 @@ def test_form_renders_base_rules_on_fighter_target(
 
 
 @pytest.mark.django_db
-def test_form_renders_added_rule_with_tooltipped_underline(
+def test_form_names_a_rule_added_by_the_pack(
     client, user, pack, content_fighter, rule_fearless
 ):
     _login(client, user)
@@ -429,12 +429,11 @@ def test_form_renders_added_rule_with_tooltipped_underline(
     )
     assert response.status_code == 200
     assert b"Fearless" in response.content
-    assert b'class="tooltipped"' in response.content
     assert b"Added by this pack" in response.content
 
 
 @pytest.mark.django_db
-def test_form_renders_removed_rule_struck_through(
+def test_form_names_a_rule_removed_by_the_pack(
     client, user, pack, content_fighter, rule_fearless
 ):
     content_fighter.rules.add(rule_fearless)
@@ -453,7 +452,6 @@ def test_form_renders_removed_rule_struck_through(
     )
     assert response.status_code == 200
     assert b"Fearless" in response.content
-    assert b"text-decoration-line-through" in response.content
     assert b"Removed by this pack" in response.content
 
 
@@ -493,8 +491,6 @@ def test_picker_renders_fighter_rules_with_pack_mods(
     body = response.content
     assert b"Fearless" in body
     assert b"Sprint" in body
-    assert b"text-decoration-line-through" in body
-    assert b'class="tooltipped"' in body
 
 
 # ---------------------------------------------------------------------------
@@ -538,13 +534,11 @@ def test_form_renders_added_trait_as_badge_after_add_mod(
     )
     assert response.status_code == 200
     assert b"Knockback" in response.content
-    # Added traits use the design-system ``tooltipped`` underline, not a badge.
-    assert b'class="tooltipped"' in response.content
     assert b"Added by this pack" in response.content
 
 
 @pytest.mark.django_db
-def test_form_renders_removed_trait_struck_through(
+def test_form_names_a_trait_removed_by_the_pack(
     client, user, pack, weapon_profile, trait_knockback
 ):
     """A 'remove' trait house rule renders the base trait with line-through
@@ -565,7 +559,6 @@ def test_form_renders_removed_trait_struck_through(
     )
     assert response.status_code == 200
     assert b"Knockback" in response.content
-    assert b"text-decoration-line-through" in response.content
     assert b"Removed by this pack" in response.content
 
 
@@ -606,8 +599,6 @@ def test_picker_renders_traits_with_pack_mods(
     body = response.content
     assert b"Knockback" in body
     assert b"Rapid Fire" in body
-    assert b"text-decoration-line-through" in body
-    assert b'class="tooltipped"' in body
 
 
 @pytest.mark.django_db

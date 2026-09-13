@@ -306,9 +306,10 @@ def test_a_long_list_comes_a_page_at_a_time(client, tester, make_gang):
         make_gang(f"Gang {number:02d}")
 
     client.force_login(tester)
-    body = client.get(reverse("n26-gangs")).content.decode()
+    response = client.get(reverse("n26-gangs"))
+    body = response.content.decode()
 
-    assert body.count("n26-row-link") == GANGS_PER_PAGE
+    assert len(response.context["gangs"]) == GANGS_PER_PAGE
     assert f"of {GANGS_PER_PAGE + 5} gangs" in body
     assert "Page 1 of 2" in body
 
@@ -320,9 +321,10 @@ def test_the_second_page_holds_the_rest(client, tester, make_gang):
         make_gang(f"Gang {number:02d}")
 
     client.force_login(tester)
-    body = client.get(reverse("n26-gangs"), {"page": "2"}).content.decode()
+    response = client.get(reverse("n26-gangs"), {"page": "2"})
+    body = response.content.decode()
 
-    assert body.count("n26-row-link") == 5
+    assert len(response.context["gangs"]) == 5
     assert "Page 2 of 2" in body
 
 

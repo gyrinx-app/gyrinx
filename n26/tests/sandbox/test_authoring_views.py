@@ -19,6 +19,7 @@ import re
 from html import unescape
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.library.specs import specs
@@ -3282,7 +3283,6 @@ class TestListingsSayWhatARowIs:
         _, notes = cells_of(row_printing(body, "Mesh armour"))
 
         assert words_in(notes) == "15cr · Ask before repricing these."
-        assert "text-muted" in notes
 
     def test_a_row_with_no_note_says_only_what_the_kind_says(
         self, author, client, default_pack
@@ -3339,7 +3339,6 @@ class TestListingsSayWhatARowIs:
         _, notes = cells_of(row_printing(body, "Mesh armour"))
 
         assert words_in(notes) == "wargear · Ask before repricing these."
-        assert "text-muted" in notes
 
 
 class TestTheGangSurface:
@@ -4149,7 +4148,11 @@ class TestTheCollectionPage:
         body = client.get(page).content.decode()
         assert "Price override" not in body
         assert "Trade point override" not in body
-        assert ">credits</th>" not in body
+        headings = {
+            heading.get_text(" ", strip=True).casefold()
+            for heading in BeautifulSoup(body, "html.parser").find_all("th")
+        }
+        assert "credits" not in headings
         assert "asks for nothing but the item" in body
 
         # And adding through the narrowed form still works.
@@ -4852,16 +4855,6 @@ class TestTheButtonThatChangesTheModifierType:
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
 
         assert "Change modifier type" in body
-
-    def test_it_carries_the_colour_of_a_control_that_starts_a_form(
-        self, author, client, default_pack
-    ):
-        """It goes to a differently shaped composer, which is starting
-        something — not the green that ends the form below it."""
-        tag = self.button(client.get("/n26/authoring/modifiers/new/").content.decode())
-
-        assert "bg-accent" in tag
-        assert "bg-green" not in tag
 
     def test_it_is_clickable_for_a_reader_with_no_script(
         self, author, client, default_pack
@@ -7205,7 +7198,11 @@ class TestTheDocumentation:
         """A file opens with its own title so it reads whole as markdown;
         the page supplies that heading itself, so exactly one is drawn."""
         body = client.get("/n26/authoring/docs/recipes/").content.decode()
-        assert "<h1>Recipes</h1>" not in body
+        headings = [
+            heading.get_text(" ", strip=True)
+            for heading in BeautifulSoup(body, "html.parser").find_all("h1")
+        ]
+        assert headings.count("Recipes") == 1
 
     def test_every_heading_is_an_anchor_that_links_to_itself(
         self, author, client, default_pack

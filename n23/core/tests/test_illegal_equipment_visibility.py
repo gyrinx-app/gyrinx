@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
@@ -180,8 +181,11 @@ def test_availability_filters_disabled_state(make_content_fighter):
 
     content = response.content.decode()
 
-    # Check for disabled state indicators
-    assert 'class="btn btn-outline-primary btn-sm dropdown-toggle disabled"' in content
+    availability = BeautifulSoup(content, "html.parser").find(
+        "button", id="availability-dropdown-button"
+    )
+    assert availability is not None
+    assert availability.has_attr("disabled")
     assert (
         "Availability filters are disabled when Equipment List is toggled on" in content
     )
@@ -195,7 +199,8 @@ def test_availability_filters_disabled_state(make_content_fighter):
 
     content = response.content.decode()
 
-    # Check that disabled state is not present
-    assert (
-        'class="btn btn-outline-primary btn-sm dropdown-toggle disabled"' not in content
+    availability = BeautifulSoup(content, "html.parser").find(
+        "button", id="availability-dropdown-button"
     )
+    assert availability is not None
+    assert not availability.has_attr("disabled")

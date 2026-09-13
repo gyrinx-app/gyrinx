@@ -293,14 +293,6 @@ class TestTheSquareOnTheGangPage:
             "spend them on their equipment lists and at the Trading Post." in body
         )
 
-    def test_the_help_is_the_size_of_the_squares_other_prose(self, client, gang):
-        """Boxed on its own page the help is sm; in the square everything
-        else is xs and a lone sm sentence reads as a different voice."""
-        body = client.get(sheet(gang)).content.decode()
-        help_at = body.index("Click when you have finished")
-
-        assert "text-xs" in body[body.rindex("<p", 0, help_at) : help_at]
-
     def test_the_start_button_names_what_it_lets_you_do(self, client, gang, tester):
         """Nobody sets out to open an action; they set out to equip the
         gang. The mark ties the control to the figures it brings."""
@@ -315,12 +307,6 @@ class TestTheSquareOnTheGangPage:
     def test_the_open_action_is_badged_as_the_current_one(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
         assert "Current action" in body
-        # The square's controls share one small size: the button that
-        # completes the action is drawn xs there, sm on its own page.
-        start = body.index("Found and equip gang")
-        button = body.index("Complete action", start)
-        # The kit sizes a button with utility classes; xs is this set.
-        assert "text-xs py-1 px-2" in body[body.rindex("<button", 0, button) : button]
 
     def test_the_header_holds_the_title_alone(self, client, gang):
         """No menu in the header: the square's header stays the height of

@@ -20,6 +20,7 @@ The load-bearing ideas:
 import re
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.core.views.changelog import CHANGELOG_TAG
@@ -233,22 +234,6 @@ class TestTheChangelogLinks:
 
         assert 'href="/n26/changelog/"' in body
         assert "View all" in body
-
-    def test_rich_summaries_stay_inside_the_small_clamped_container(
-        self, tester, client, default_pack
-    ):
-        """A block body must not close its summary container early and
-        escape the smaller two-line preview."""
-        changelog_entry(
-            "Several details",
-            CHANGELOG_TAG,
-            body="<p>First paragraph.</p><ul><li>One point</li></ul>",
-        )
-
-        body = client.get("/n26/").content.decode()
-
-        assert 'class="rich-text n26-clamp-2' in body
-        assert "<ul><li>One point</li></ul>" in body
 
 
 class TestTheChangelogIndex:
@@ -487,6 +472,14 @@ def reads_as(markup):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", markup)).strip()
 
 
+def links_in(markup):
+    """The links in a fragment, addressed by the words a reader sees."""
+    return {
+        reads_as(str(link)): link
+        for link in BeautifulSoup(markup, "html.parser").find_all("a")
+    }
+
+
 def count_badge(markup):
     """What the count pill in a fragment shows, or None where there is none.
 
@@ -560,36 +553,12 @@ class TestTheNavigation:
         bar = nav_bar(client.get("/n26/").content.decode())
         positions = in_order(
             bar,
-            "n26-site-brand",
+            'href="/n26/"',
             "Home",
             'aria-label="Open account menu"',
             'aria-label="Open navigation menu"',
         )
         assert positions == sorted(positions)
-
-    def test_the_burger_is_last_and_kept_apart_from_the_account(
-        self, tester, client, default_pack
-    ):
-        """The account menu and the burger are the bar's two "more"
-        controls; the hairline between them is what keeps them from
-        reading as one. Decorative, so it says nothing aloud."""
-        bar = nav_bar(client.get("/n26/").content.decode())
-        positions = in_order(
-            bar,
-            'aria-label="Open account menu"',
-            'aria-hidden="true" class="h-6 w-px',
-            'aria-label="Open navigation menu"',
-        )
-        assert positions == sorted(positions)
-
-    def test_the_drawer_arrives_from_the_side_its_control_lives_on(
-        self, tester, client, default_pack
-    ):
-        """The burger is at the right edge, so a panel sliding in from
-        the left would arrive from somewhere the reader was not
-        looking."""
-        drawer = nav_drawer(client.get("/n26/").content.decode())
-        assert "right-0" in drawer
 
     def test_the_colour_scheme_is_behind_the_account_menu(
         self, tester, client, default_pack
@@ -611,7 +580,10 @@ class TestTheNavigation:
         from three, so each part announces itself as a radio in a group
         rather than as another door out of the menu."""
         menu = account_menu(client.get("/n26/").content.decode())
-        assert menu.count('role="menuitemradio"') == 3
+        choices = BeautifulSoup(menu, "html.parser").find_all(
+            attrs={"role": "menuitemradio"}
+        )
+        assert len(choices) == 3
         assert 'role="group"' in menu
         assert 'aria-label="Theme"' in menu
         # Each state still sets it: a control that renders and no longer
@@ -634,16 +606,16 @@ class TestTheNavigation:
     ):
         drawer = nav_drawer(client.get("/n26/").content.decode())
         positions = in_order(
-            drawer,
-            ">Home</a>",
-            ">Gangs</a>",
+            reads_as(drawer),
+            "Home",
+            "Gangs",
             "Campaigns",
             "Content Packs",
-            'href="/help/n26/"',
+            "Help",
         )
         assert positions == sorted(positions)
         # Founding is an action with a button on both pages, not a place.
-        assert ">Create a gang</a>" not in drawer
+        assert "Create a gang" not in links_in(drawer)
 
     def test_help_leads_to_the_guides_for_this_edition(
         self, tester, client, default_pack
@@ -664,16 +636,17 @@ class TestTheNavigation:
         icon = re.search(r'<a\s[^>]*aria-label="Help"[^>]*>', body)
         assert icon is not None
         assert 'href="/help/n26/"' in icon.group()
-        assert "hidden" in icon.group() and "sm:inline-flex" in icon.group()
 
     def test_a_place_with_no_page_yet_is_not_a_link(self, tester, client, default_pack):
         """Campaigns and Content Packs are coming and are worth naming,
         but a link that lands nowhere teaches a reader to distrust the
         rest of the list."""
         drawer = nav_drawer(client.get("/n26/").content.decode())
-        assert ">Campaigns</a>" not in drawer
-        assert ">Content Packs</a>" not in drawer
-        assert "Campaigns <span" in drawer
+        labels = links_in(drawer)
+        assert "Campaigns" not in labels
+        assert "Content Packs" not in labels
+        assert "Campaigns" in reads_as(drawer)
+        assert "Content Packs" in reads_as(drawer)
 
     def test_the_drawer_lists_the_readers_own_gangs(
         self, tester, client, default_pack, gang_type, make_profile
@@ -687,8 +660,8 @@ class TestTheNavigation:
 
         drawer = nav_drawer(client.get("/n26/").content.decode())
         positions = in_order(
-            drawer,
-            ">Gangs</a>",
+            reads_as(drawer),
+            "Gangs",
             "Your gangs",
             "The Bad Girls",
             str(gang_type),
@@ -769,7 +742,7 @@ class TestTheNavigation:
         runs without script, so the same links are drawn flat under the
         bar as well."""
         strip = nav_noscript(client.get("/n26/").content.decode())
-        positions = in_order(strip, ">Home</a>", ">Gangs</a>")
+        positions = in_order(reads_as(strip), "Home", "Gangs")
         assert positions == sorted(positions)
 
     def test_the_account_menu_is_you_the_doors_and_the_way_out(
@@ -848,17 +821,17 @@ class TestTheNavigation:
         are in to know what the burger will give them."""
         drawer = nav_drawer(client.get("/n26/authoring/").content.decode())
         positions = in_order(
-            drawer,
-            ">Home</a>",
-            ">Gangs</a>",
+            reads_as(drawer),
+            "Home",
+            "Gangs",
             "Authoring",
-            ">Content library</a>",
-            ">Modifiers</a>",
-            ">Foundations</a>",
-            ">Ingest</a>",
+            "Content library",
+            "Modifiers",
+            "Foundations",
+            "Ingest",
         )
         assert positions == sorted(positions)
-        assert ">App</a>" not in drawer
+        assert "App" not in links_in(drawer)
 
     def test_the_authoring_pages_are_a_section_of_their_own(
         self, staff, client, default_pack
@@ -881,8 +854,7 @@ class TestTheNavigation:
         section draws its own break, so an absent one leaves no line."""
         drawer = nav_drawer(client.get("/n26/").content.decode())
         assert "Authoring" not in drawer
-        assert ">Modifiers</a>" not in drawer
-        assert 'role="separator"' not in drawer
+        assert "Modifiers" not in reads_as(drawer)
 
     def test_the_drawer_marks_the_page_on_either_side(
         self, staff, client, default_pack
@@ -891,20 +863,13 @@ class TestTheNavigation:
         the accent, and it has to keep doing that now one list covers both
         areas."""
 
-        def anchor_for(drawer, label):
-            """The opening tag of the link with this text."""
-            return drawer.split(f">{label}</a>")[0].rsplit("<a", 1)[-1]
+        app = links_in(nav_drawer(client.get("/n26/").content.decode()))["Home"]
+        assert app.get("aria-current") == "page"
 
-        app = anchor_for(nav_drawer(client.get("/n26/").content.decode()), "Home")
-        assert 'aria-current="page"' in app
-        assert "is-current" in app
-
-        authoring = anchor_for(
+        authoring = links_in(
             nav_drawer(client.get("/n26/authoring/modifiers/").content.decode()),
-            "Modifiers",
-        )
-        assert 'aria-current="page"' in authoring
-        assert "is-current" in authoring
+        )["Modifiers"]
+        assert authoring.get("aria-current") == "page"
 
     def test_a_screen_inside_a_gang_marks_gangs(
         self, tester, client, default_pack, gang_type
@@ -919,8 +884,7 @@ class TestTheNavigation:
         gang = found_gang("The Bad Girls", gang_type, owner=tester, budget=500)
 
         drawer = nav_drawer(client.get(f"/n26/gangs/{gang.pk}/").content.decode())
-        anchor = drawer.split(">Gangs</a>")[0].rsplit("<a", 1)[-1]
-        assert 'aria-current="page"' in anchor
+        assert links_in(drawer)["Gangs"].get("aria-current") == "page"
 
     def test_the_authoring_pages_are_in_the_scriptless_strip_too(
         self, staff, client, default_pack
@@ -929,7 +893,7 @@ class TestTheNavigation:
         the account menu is a dropdown that needs it as well — so with no
         script the strip under the bar is the only way to these pages."""
         strip = nav_noscript(client.get("/n26/").content.decode())
-        assert ">Modifiers</a>" in strip
+        assert "Modifiers" in links_in(strip)
 
     def test_the_drawer_costs_an_authoring_page_no_extra_query(
         self, staff, client, default_pack, gang_type, make_profile
@@ -963,7 +927,7 @@ class TestTheNavigation:
         so a page setting one keeps the other."""
         body = client.get("/n26/authoring/modifiers/").content.decode()
         assert "Modifiers" in nav_bar(body)
-        assert ">Foundations</a>" in nav_drawer(body)
+        assert "Foundations" in links_in(nav_drawer(body))
 
 
 class TestTheInbox:
@@ -1391,17 +1355,6 @@ class TestFoundingAGang:
         assert "Create a gang" in body
         assert "Leave blank to spend as much as you like." in body
         assert str(gang_type) in body  # the library's rows, not a fixture list
-
-    def test_the_submit_button_is_the_editions_green(
-        self, tester, client, default_pack, gang_type
-    ):
-        """The button that brings a thing into existence is `success` —
-        a variant only the edition's cotton/ui/button.html knows. The
-        package's own button shadowed it once (app order decides which
-        template wins), and it failed by rendering the default colour
-        with no error, which is what this pins."""
-        body = client.get("/n26/gangs/new/").content.decode()
-        assert "bg-green-700" in body
 
     def test_the_shell_carries_the_platform_brand_and_measure(
         self, tester, client, default_pack

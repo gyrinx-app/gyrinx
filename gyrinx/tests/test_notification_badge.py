@@ -1,6 +1,7 @@
 """Tests for the navbar unread-count badge and its context processor."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 from django.urls import reverse
@@ -47,9 +48,14 @@ def test_badge_rendered_in_navbar_when_unread(client, user):
     client.force_login(user)
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
-    # The red count pill is shown.
-    assert "badge rounded-pill text-bg-danger" in content
-    assert 'href="/notifications/"' in content
+    links = BeautifulSoup(content, "html.parser").find_all(
+        "a",
+        href=reverse("core:notifications"),
+        attrs={"aria-label": "Inbox (1 unread)"},
+    )
+    assert links
+    for link in links:
+        assert link.get_text(" ", strip=True) == "1 unread notifications"
 
 
 @pytest.mark.django_db
@@ -57,9 +63,12 @@ def test_badge_absent_when_zero(client, user):
     client.force_login(user)
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
-    # The inbox link is present, but not the red count pill.
-    assert 'href="/notifications/"' in content
-    assert "badge rounded-pill text-bg-danger" not in content
+    links = BeautifulSoup(content, "html.parser").find_all(
+        "a", href=reverse("core:notifications"), attrs={"aria-label": "Inbox"}
+    )
+    assert links
+    for link in links:
+        assert link.get_text(" ", strip=True) == ""
 
 
 @pytest.mark.django_db

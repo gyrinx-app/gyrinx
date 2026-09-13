@@ -5,6 +5,7 @@ applies and creates a Backfill record + per-list audit ListAction.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
@@ -299,9 +300,8 @@ def test_backfills_changelist_shows_names_not_slugs(client, maintenance_superuse
     body = client.get(reverse("admin:maintenance_backfill_changelist")).content.decode()
 
     assert Operation.RECONCILE_LISTS.label in body
-    # The slug is still fine inside the filter's ?operation= links; what must
-    # not appear is a slug rendered as an element's visible text.
-    assert ">reconcile_lists<" not in body
+    visible_text = BeautifulSoup(body, "html.parser").stripped_strings
+    assert "reconcile_lists" not in visible_text
 
 
 @pytest.mark.django_db

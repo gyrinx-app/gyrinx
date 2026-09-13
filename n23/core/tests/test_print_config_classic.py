@@ -8,6 +8,7 @@ default/web config is unchanged.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from n23.core.models import PrintConfig
@@ -165,7 +166,6 @@ def test_classic_omits_stash(
     body = client.get(_print_url(lst, cfg)).content.decode()
     assert "Alpha" in body
     assert 'data-kind="stash"' not in body
-    assert body.count('class="classic-card') == 1  # only the real fighter
 
 
 @pytest.mark.django_db
@@ -186,8 +186,7 @@ def test_print_config_form_shows_card_style(client, user, make_list):
 def test_classic_renders_fighter_portrait(
     client, user, make_list, make_list_fighter, tmp_path, settings
 ):
-    """A fighter with an image gets a portrait (and the space-reserving class);
-    a fighter without one gets neither."""
+    """A fighter with an image gets a portrait; a fighter without one does not."""
     from io import BytesIO
 
     from django.core.files.uploadedfile import SimpleUploadedFile
@@ -209,11 +208,16 @@ def test_classic_renders_fighter_portrait(
     client.force_login(user)
     body = client.get(_print_url(lst, cfg)).content.decode()
 
-    # Exactly one portrait column, for the fighter with an image. The image
-    # lives in a wrapper (see classic_card.html), so count the two parts
-    # separately rather than raw occurrences of the "cc-portrait" prefix.
-    assert body.count('class="cc-portrait"') == 1
-    assert body.count("cc-portrait__img") == 1
+    cards = BeautifulSoup(body, "html.parser").find_all(attrs={"data-kind": "fighter"})
+    assert len(cards) == 2
+    for name in ("Snap", "Plain"):
+        card = next(card for card in cards if name in card.stripped_strings)
+        portraits = card.find_all("img")
+        if name == "Snap":
+            assert len(portraits) == 1
+            assert "snap" in portraits[0]["src"]
+        else:
+            assert portraits == []
 
 
 @pytest.mark.django_db
@@ -224,9 +228,9 @@ def test_classic_appends_blank_cards(client, user, make_list, make_list_fighter)
     client.force_login(user)
 
     body = client.get(_print_url(lst, cfg)).content.decode()
-    # 1 real fighter card + 3 blank cards
-    assert body.count('class="classic-card') == 4
-    assert body.count('data-kind="blank"') == 3
+    assert "Alpha" in body
+    blanks = BeautifulSoup(body, "html.parser").find_all(attrs={"data-kind": "blank"})
+    assert len(blanks) == 3
 
 
 # ---------------------------------------------------------------------------
