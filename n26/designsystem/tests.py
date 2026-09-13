@@ -924,8 +924,8 @@ class TestTheArrivalBlockPage:
 
     def test_all_three_demos_render_rather_than_falling_back(self, reader):
         body = reader.get("/n26/design/c/arrival-block/").content.decode()
-        assert "Choose an archetype" in body
-        assert "Chosen: Iron Law" in body
+        assert "Choose a gang archetype" in body
+        assert "Chosen: Chaos Corrupted" in body
         assert ">Skip<" in body
         assert body.count(">Skip<") == 1
         assert "could not be rendered" not in body.lower()
@@ -934,11 +934,22 @@ class TestTheArrivalBlockPage:
         body = reader.get("/n26/design/shell/next/").content.decode()
         assert "Choices for The Forgotten" in body
         assert "Founded The Forgotten." in body
-        assert "Choose Archetype and Hunter's path to continue." in unescape(body)
+        assert "Choose Gang archetype and Chaos God to continue." in unescape(body)
         # Each picker is named by the heading that asks its question.
         assert 'id="ask-1-gang-1-1"' in body
         assert 'aria-labelledby="ask-1-gang-1-1' in body
         assert "nterstitial" not in body
+
+    def test_the_founding_shell_asks_only_the_gangs_own_questions(self, reader):
+        """Founding brings the gang type's slots and nothing else, so a
+        model's question cannot appear on this screen. The sample says
+        so too: every question here is the gang's."""
+        body = unescape(reader.get("/n26/design/shell/next/").content.decode())
+        assert "The Forgotten" in body
+        for key in ("gang:1:1", "gang:1:2", "gang:1:3"):
+            assert key in body
+        # No question hosted on a model: those keys lead with its pk.
+        assert 'value="1:' not in body and 'value="2:' not in body
 
     def test_the_shells_forms_post_nowhere(self, reader):
         response = reader.post("/n26/design/shell/next/", {"ask": "gang:1:1"})

@@ -1030,25 +1030,21 @@ def choice_offer():
     )
 
 
-def _archetype_offer(chosen=None):
-    """The archetype picker as the screen after founding draws it."""
+def _gang_offer(label, options, chosen=None, first_key=1):
+    """One gang-hosted picker as the screen after founding draws it."""
     return ChoiceOffer(
-        label="Archetype",
+        label=label,
         chosen=chosen,
         groups=[
             ChoosableGroup(
                 name="",
                 options=[
                     Choosable(
-                        key="library.pickable:1",
-                        name="Brawler",
-                        is_current=chosen == "Brawler",
-                    ),
-                    Choosable(
-                        key="library.pickable:2",
-                        name="Gunslinger",
-                        detail="opens the Shooting set as Primary",
-                    ),
+                        key=f"library.pickable:{first_key + n}",
+                        name=name,
+                        is_current=name == chosen,
+                    )
+                    for n, name in enumerate(options)
                 ],
             )
         ],
@@ -1056,81 +1052,91 @@ def _archetype_offer(chosen=None):
 
 
 def arrival_screen():
-    """The screen shown after an act, three blocks deep: a question
-    that cannot be skipped and is still open, one already chosen, and
-    one the author let the reader skip. Hard-coded, as everything here
-    is: the gallery renders on an empty database."""
+    """The screen shown after founding a gang, three blocks deep: a
+    question that cannot be skipped and is still open, one already
+    chosen, and one the author let the reader skip.
+
+    Every question here is the gang's own. Founding brings the gang
+    type's slots and nothing else, so a model's question cannot appear
+    on this screen: it arrives when that model is hired, and is asked
+    on the screen for the hire. Hard-coded, as everything here is: the
+    gallery renders on an empty database.
+    """
     from n26.core.render import ArrivalBlock, ArrivalQuestion, ArrivalScreen
 
     # Nowhere real, as every sample link: the gallery founds no gang.
     back = "#"
+    bearer = "The Forgotten"
     return ArrivalScreen(
         blocks=(
             ArrivalBlock(
-                heading="Choose an archetype",
+                heading="Choose a gang archetype",
                 description=(
-                    "The archetype shapes the whole gang: which skills come "
-                    "first, and what the leader is for.\n\nPick one before "
-                    "hiring anybody."
+                    "A gang archetype changes who you can hire, what "
+                    "equipment you can buy, and which gang rules you "
+                    "have.\n\nPick one before hiring anybody."
                 ),
                 questions=(
                     ArrivalQuestion(
                         key="gang:1:1",
                         under="1",
-                        label="Archetype",
-                        bearer="The Forgotten",
+                        label="Gang archetype",
+                        bearer=bearer,
                         chosen=None,
                         settled=False,
-                        offer=_archetype_offer(),
-                    ),
-                ),
-            ),
-            ArrivalBlock(
-                heading="Name a creed",
-                description="A creed follows from the archetype.",
-                questions=(
-                    ArrivalQuestion(
-                        key="gang:1:2",
-                        under="2",
-                        label="Creed",
-                        bearer="The Forgotten",
-                        chosen="Iron Law",
-                        settled=True,
-                        offer=ChoiceOffer(
-                            label="Creed",
-                            chosen="Iron Law",
-                            groups=[
-                                ChoosableGroup(
-                                    name="",
-                                    options=[
-                                        Choosable(
-                                            key="library.pickable:3",
-                                            name="Iron Law",
-                                            is_current=True,
-                                        ),
-                                        Choosable(
-                                            key="library.pickable:4",
-                                            name="Open Hand",
-                                        ),
-                                    ],
-                                )
-                            ],
+                        offer=_gang_offer(
+                            "Gang archetype",
+                            ("Chymist Cult", "Wyld Hunt"),
+                            first_key=1,
                         ),
                     ),
                 ),
             ),
             ArrivalBlock(
-                heading="A hunter's path",
-                description="Can be chosen later, from the model's card.",
+                heading="Name the corruption",
+                description="A corrupted gang keeps its house list and adds its own.",
                 questions=(
                     ArrivalQuestion(
-                        key="2:3:4",
+                        key="gang:1:2",
+                        under="2",
+                        label="Variant",
+                        bearer=bearer,
+                        chosen="Chaos Corrupted",
+                        settled=True,
+                        offer=_gang_offer(
+                            "Variant",
+                            (
+                                "Chaos Corrupted",
+                                "Genestealer Cult Corrupted",
+                                "Malstrain Corrupted",
+                            ),
+                            chosen="Chaos Corrupted",
+                            first_key=3,
+                        ),
+                    ),
+                ),
+            ),
+            ArrivalBlock(
+                heading="Choose a Chaos god",
+                description="Can be chosen later, from the gang sheet.",
+                questions=(
+                    ArrivalQuestion(
+                        key="gang:1:3",
                         under="3",
-                        label="Hunter's path",
-                        bearer="Kal",
+                        label="Chaos God",
+                        bearer=bearer,
                         chosen=None,
                         settled=False,
-                        offer=_archetype_offer(),
+                        offer=_gang_offer(
+                            "Chaos God",
+                            (
+                                "Architect of Fate",
+                                "Blood God",
+                                "Dark Prince",
+                                "Plague Lord",
+                            ),
+                            first_key=6,
+                        ),
                     ),
                 ),
                 skip_url="#",
