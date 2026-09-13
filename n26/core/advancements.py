@@ -10,8 +10,8 @@ def _terms(terms):
     try:
         return (
             int(terms["roll"]),
-            int(terms["pickable_id"]),
-            int(terms["slot_assignment_id"]),
+            str(terms["pickable_id"]),
+            str(terms["slot_assignment_id"]),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise Refusal(
@@ -27,7 +27,7 @@ def preview_advancement(record, configured, terms):
     landed = slot.picklist.landing(roll, members)
     if not landed:
         landed = members
-    offered = {member.pickable_id: member for member in landed}
+    offered = {str(member.pickable_id): member for member in landed}
     if pickable_id not in offered:
         raise Refusal("That advancement result is not available for this roll.")
     anchor = Assignment.objects.filter(
@@ -38,9 +38,9 @@ def preview_advancement(record, configured, terms):
     pickable = offered[pickable_id].pickable
     return {
         "roll": roll,
-        "slot_assignment_id": anchor.pk,
-        "slot_id": slot.pk,
-        "pickable_id": pickable.pk,
+        "slot_assignment_id": str(anchor.pk),
+        "slot_id": str(slot.pk),
+        "pickable_id": str(pickable.pk),
         "result": str(pickable),
         "rating": pickable.rating_contribution,
     }
@@ -54,7 +54,7 @@ def apply_advancement(op, record, configured, terms):
         action_record=record
     )
     if not created and selection.roll_event_id:
-        if selection.intended_pick_id != snapshot["pickable_id"]:
+        if str(selection.intended_pick_id) != snapshot["pickable_id"]:
             raise Refusal("This advancement has already been rolled.")
         return snapshot
     anchor = Assignment.objects.get(pk=snapshot["slot_assignment_id"])
@@ -78,7 +78,7 @@ def correct_advancement(op, record, configured, terms):
     selection = record.advancement_selection
     snapshot = preview_advancement(record, configured, terms)
     if (
-        selection.intended_pick_id == snapshot["pickable_id"]
+        str(selection.intended_pick_id) == snapshot["pickable_id"]
         and selection.roll_event.roll == snapshot["roll"]
     ):
         return snapshot
