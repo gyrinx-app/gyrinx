@@ -590,6 +590,142 @@ class TestTheNamesOnACampaign:
             assert len(for_one) == len(own_reads), (screen, for_one)
             assert all(own in sql for sql in for_one), (screen, for_one)
 
+    def test_a_post_that_does_not_act_draws_the_page_with_the_badges_in_hand(
+        self, table, player, client
+    ):
+        """A POST the form refuses draws its page again rather than
+        leaving, and that page names the arbitrator. The fetch left the
+        grants out — the POST was meant to act — so the redraw reads them
+        before drawing, which is the same one read the GET makes and not
+        one taken while the trail renders."""
+        player(table, "vex")
+        refused = [
+            (
+                reverse("n26-campaign-add-gang", args=[table.pk]),
+                {"gang": "nothing-of-the-kind"},
+            ),
+            (reverse("n26-edit-campaign", args=[table.pk]), {"name": ""}),
+            # An addition page: four views share the one that draws it.
+            (reverse("n26-campaign-add-counter", args=[table.pk]), {"name": ""}),
+        ]
+
+        def grants(fetch, *args):
+            with CaptureQueriesContext(connection) as context:
+                response = fetch(*args)
+            assert response.status_code == 200
+            return [
+                q["sql"]
+                for q in context.captured_queries
+                if 'FROM "accounts_badgegrant"' in q["sql"]
+                and '"user_id" IN (' in q["sql"]
+            ]
+
+        for address, payload in refused:
+            drawn = grants(client.get, address)
+            redrawn = grants(client.post, address, payload)
+            assert redrawn and len(redrawn) == len(drawn), address
+
+    def test_a_post_that_acts_reads_nobodys_badge(
+        self, table, supporter, player, gang_type, client
+    ):
+        """The mirror of the screens above: a POST that acts leaves without
+        drawing anybody, so the fetch carrying it reads no badge grants at
+        all. The page the reader lands on names the arbitrator and reads
+        them for itself."""
+        from n26.core.models import Gang
+        from n26.tests.sandbox.actions import (
+            add_asset,
+            add_campaign_asset_type,
+            assign_asset,
+            create_campaign_asset,
+            found_gang,
+        )
+
+        person = player(table, "vex")
+        theirs = Gang.objects.get(owner=person)
+        racket = add_campaign_asset_type(table, "Racket")
+        unheld = add_asset(table, create_campaign_asset(table, racket, "Protection"))
+        held = add_asset(table, create_campaign_asset(table, racket, "Smuggling"))
+        assign_asset(held, theirs)
+        mine = found_gang("The Arbitrator's Own", gang_type, owner=supporter)
+
+        acts = [
+            (
+                reverse("n26-edit-campaign", args=[table.pk]),
+                {"name": "Dust Falls", "budget": 1000, "summary": ""},
+            ),
+            (reverse("n26-campaign-add-gang", args=[table.pk]), {"gang": str(mine.pk)}),
+            (reverse("n26-campaign-asset-unassign", args=[table.pk, held.pk]), {}),
+            (reverse("n26-campaign-asset-remove", args=[table.pk, unheld.pk]), {}),
+            (reverse("n26-campaign-remove-player", args=[table.pk, person.pk]), {}),
+            # Archives the campaign, so it is asked last.
+            (reverse("n26-archive-campaign", args=[table.pk]), {}),
+        ]
+        for address, payload in acts:
+            with CaptureQueriesContext(connection) as context:
+                response = client.post(address, payload)
+            assert response.status_code == 302, (address, response.status_code)
+            grants = [
+                q["sql"]
+                for q in context.captured_queries
+                if 'FROM "accounts_badgegrant"' in q["sql"]
+            ]
+            assert not grants, (address, grants)
+
+    def test_every_screen_under_a_campaign_says_whether_it_will_draw_anybody(self):
+        """A discovering guard, not a list. Every view reaching a campaign
+        through one of the two guards either draws the arbitrator in its
+        trail or does not, and the fetch is told which: a view that can
+        leave on a POST keys the read on the method, and one that never
+        draws anybody says so outright. A view added without saying takes
+        the default meant for the screens that only ever draw, and pays a
+        read on every act it performs."""
+        import ast
+        from pathlib import Path as _Path
+
+        from n26.core import views as n26_views
+
+        # The package re-exports a view function under the module's own
+        # name, so the file is found through the package directory.
+        source = (_Path(n26_views.__file__).parent / "campaigns.py").read_text()
+        tree = ast.parse(source)
+        guards = {"_any_campaign_or_404", "_own_campaign_or_404"}
+        checked, silent = [], []
+        for fn in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]:
+            found = [
+                call
+                for call in ast.walk(fn)
+                if isinstance(call, ast.Call)
+                and (getattr(call.func, "id", None) or getattr(call.func, "attr", None))
+                in guards
+            ]
+            if not found:
+                continue
+            said = {k.arg for k in found[0].keywords}
+            asks_the_method = any(
+                "request.method" in ast.unparse(k.value)
+                for k in found[0].keywords
+                if k.arg == "with_owner_badge"
+            )
+            takes_a_post = any(
+                isinstance(node, ast.If)
+                and "request.method" in ast.unparse(node.test)
+                and "POST" in ast.unparse(node.test)
+                and "!=" not in ast.unparse(node.test)
+                for node in ast.walk(fn)
+            )
+            checked.append(fn.name)
+            if takes_a_post and not asks_the_method and "with_owner_badge" not in said:
+                silent.append(fn.name)
+        assert len(checked) > 20, checked
+        assert not silent, (
+            "These views act on a POST and leave, but fetch the campaign with "
+            "the default that reads the arbitrator's badge grants for a page "
+            "they will not draw. Pass with_owner_badge=request.method == "
+            '"GET", or with_owner_badge=False where nothing is ever drawn: '
+            f"{silent}"
+        )
+
     def test_the_remove_player_question_names_them_with_their_badge(
         self, table, player, client
     ):

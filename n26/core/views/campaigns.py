@@ -679,6 +679,22 @@ def _campaign_page(campaign):
     return reverse("n26-campaign", args=[campaign.pk])
 
 
+def _badge_a_redrawn_page(request, campaign):
+    """A POST that did not act draws its page again, and every page under a
+    campaign names the arbitrator in its trail with the badge they hold.
+
+    The fetch reads their grants only where the request is a GET, since a
+    POST that acts leaves without drawing anybody. So a redraw reads them
+    here: ahead of the drawing, rather than during it, where it would be a
+    query in the middle of a template. A GET has them already and this
+    costs nothing.
+    """
+    from n26.core.render import load_owner_badges
+
+    if request.method == "POST":
+        load_owner_badges(campaign.owner)
+
+
 def _first_error(form):
     """The first thing wrong with a dialog's form, as the one sentence a
     message can carry: the dialog is drawn again and the reader tries
@@ -739,7 +755,7 @@ def edit_campaign(request, pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
 
     if request.method == "POST":
         form = CampaignForm(request.POST)
@@ -760,6 +776,7 @@ def edit_campaign(request, pk):
             }
         )
 
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/edit_campaign.html",
@@ -782,7 +799,7 @@ def archive_campaign(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
 
     if request.method == "POST":
         name = found.name
@@ -868,7 +885,6 @@ def add_gang(request, pk):
     from n26.core.campaigns import over_budget
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal, operation
-    from n26.core.render import load_owner_badges
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
@@ -904,13 +920,7 @@ def add_gang(request, pk):
                 return redirect("n26-campaign", pk=found.pk)
     else:
         form = BringGangForm(gangs=offering)
-    if request.method == "POST":
-        # Not added — the list did not offer the gang, or the operation
-        # refused it — so the page is drawn again, and its trail names the
-        # arbitrator with their badge. Their profile rode the fetch; the
-        # grants are read now, as a GET reads them with the campaign,
-        # rather than while the trail is drawn.
-        load_owner_badges(found.owner)
+    _badge_a_redrawn_page(request, found)
 
     # Drawn here rather than in the template, which cannot ask a gang what
     # it is worth without a query per row.
@@ -1021,7 +1031,7 @@ def add_battle(request, pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import BattleForm
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     playing = _playing(found)
 
     if request.method == "POST":
@@ -1034,6 +1044,7 @@ def add_battle(request, pk):
     else:
         form = BattleForm(playing=playing)
 
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/add_battle.html",
@@ -1048,7 +1059,7 @@ def remove_battle(request, pk, battle_pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.models import Battle
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     battle = get_object_or_404(Battle, pk=battle_pk, campaign=found)
 
     if request.method == "POST":
@@ -1155,7 +1166,7 @@ def add_asset(request, pk):
     from n26.core.forms import AddAssetForm
     from n26.library.income import income_of, with_income
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
     offered = _holding_assets(found, include_staged=sees_staged(request.user))
     if asset_type is not None:
@@ -1195,6 +1206,7 @@ def add_asset(request, pk):
     # the word's first letter, since the label is the author's to choose.
     noun = asset_type.label_singular.lower() if asset_type else "asset"
     article = "an" if noun[:1] in "aeiou" else "a"
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/add_asset.html",
@@ -1219,7 +1231,7 @@ def assign_asset(request, pk, asset_pk):
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
     playing = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
@@ -1247,6 +1259,7 @@ def assign_asset(request, pk, asset_pk):
     else:
         form = AssignAssetForm(playing=playing)
 
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/assign_asset.html",
@@ -1273,7 +1286,7 @@ def unassign_asset(request, pk, asset_pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
     reading = getattr(request.user, "id", None)
     arbitrating = found.owner_id == reading
@@ -1331,7 +1344,7 @@ def transfer_asset(request, pk, asset_pk):
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
     reading = getattr(request.user, "id", None)
     arbitrating = found.owner_id == reading
@@ -1374,6 +1387,7 @@ def transfer_asset(request, pk, asset_pk):
     else:
         form = AssignAssetForm(playing=receiving)
 
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/transfer_asset.html",
@@ -1398,7 +1412,7 @@ def remove_asset(request, pk, asset_pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
 
     if request.method == "POST":
@@ -1480,6 +1494,7 @@ def _addition_page(request, campaign, form, template, act, back, **context):
         else:
             messages.success(request, said)
             return redirect(back)
+    _badge_a_redrawn_page(request, campaign)
     return render(
         request,
         template,
@@ -1499,7 +1514,7 @@ def add_asset_type(request, pk):
     from n26.core.forms import AddAssetTypeForm
     from n26.library.models import AssetType
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     form = AddAssetTypeForm(request.POST or None)
 
     def act(op, data):
@@ -1552,7 +1567,7 @@ def new_asset(request, pk):
     """
     from n26.core.forms import NewAssetForm
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     asset_types = list(_campaign_asset_types(found))
     form = NewAssetForm(request.POST or None, asset_types=_campaign_asset_types(found))
 
@@ -1594,7 +1609,7 @@ def add_counter(request, pk):
     """Give every gang in the campaign a counter, opening at a value."""
     from n26.core.forms import AddCounterForm
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     form = AddCounterForm(request.POST or None)
 
     def act(op, data):
@@ -1612,7 +1627,7 @@ def add_label(request, pk):
     """Ask every gang in the campaign one question with fixed options."""
     from n26.core.forms import AddLabelForm
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     form = AddLabelForm(request.POST or None)
 
     def act(op, data):
@@ -1734,7 +1749,7 @@ def campaign_tables(request, pk):
     from n26.core.forms import OpenTablesForm
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     offered = _tables_offered(found, include_staged=sees_staged(request.user))
     given = _given_tables(found)
     was_open = _open_tables(found)
@@ -1851,7 +1866,7 @@ def new_table(request, pk):
     from n26.core.operations import Refusal
     from n26.library.models import AssetType
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     asset_types = _campaign_asset_types(found).filter(
         ownership=AssetType.Ownership.HOLDING
     )
@@ -1876,6 +1891,7 @@ def new_table(request, pk):
 
     picked = str(form["asset_type"].value() or request.GET.get("type", ""))
     chosen = str(form["dice"].value() or "")
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/new_table.html",
@@ -1939,7 +1955,7 @@ def campaign_table(request, pk, table_pk):
     from n26.core.forms import TableEntryForm
     from n26.library.views import _coverage_context
 
-    found = _own_campaign_or_404(request, pk)
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     table = _own_table_or_404(found, table_pk)
     offered = _holding_assets(found, include_staged=sees_staged(request.user)).filter(
         asset_type=table.asset_type
@@ -1972,6 +1988,7 @@ def campaign_table(request, pk, table_pk):
         else None
     )
     submitted = str(form["asset"].value() or "")
+    _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/campaign_table.html",
