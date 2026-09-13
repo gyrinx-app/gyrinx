@@ -1126,6 +1126,32 @@ class TestTheAddress:
         )
 
 
+class TestReadingTheScreenAloud:
+    """Several questions share one page, so each picker is named by the
+    heading that asks it: a reader who hears the options hears which
+    question they answer, whichever kind of choice it is."""
+
+    def test_each_picker_is_named_by_the_heading_that_asks_it(
+        self, client, owner, gang_type, shown, legacy, picklist
+    ):
+        several = create_slot(
+            "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
+        )
+        add_built_in(gang_type, several)
+        create_interstitial("Paths", slots=[several])
+        gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
+        client.force_login(owner)
+        one = sheet_slot(gang, "Archetype").key
+        many = sheet_slot(gang, "Paths").key
+
+        body = page(client, screen_url(gang, [one, many]))
+
+        for key in (one, many):
+            heading = "ask-" + key.replace(":", "-")
+            assert f'id="{heading}"' in body
+            assert f'aria-labelledby="{heading}' in body
+
+
 # --- The structure ------------------------------------------------------------
 
 

@@ -27,6 +27,11 @@ whichever card the server says.
   form, name — a Django form and the field, so the group can draw the field's
     error under the cards where the reader is looking. Both or neither.
   min — the narrowest a card may be before the grid drops to fewer per row.
+  id — the fieldset's id; with a label, the legend gets "<id>-legend". Optional.
+  labelled_by — the id of a heading elsewhere that asks this question, where
+    the page draws one above the group. The fieldset is then named by that
+    heading and its own legend, in that order, for a reader who hears the
+    options rather than seeing what they sit under. Optional.
   slot — the cards.
 {% endcomment %}
 <c-vars
@@ -35,12 +40,14 @@ whichever card the server says.
     :form="None"
     name=""
     min="14rem"
+    id=""
+    labelled_by=""
     class=""
 />
 
-<fieldset {{ attrs }} class="{{ class }}">
+<fieldset {{ attrs }} class="{{ class }}"{% if id %} id="{{ id }}"{% endif %}{% if labelled_by %} aria-labelledby="{{ labelled_by }}{% if label and id %} {{ id }}-legend{% endif %}"{% endif %}>
     {% if label %}
-        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">{{ label }}</legend>
+        <legend{% if id %} id="{{ id }}-legend"{% endif %} class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">{{ label }}</legend>
     {% endif %}
     {% if description %}
         <p class="mb-2 text-muted">{{ description }}</p>
