@@ -321,7 +321,8 @@ class TestTheNamesOnACampaign:
         player(table, "kesh")
         player(table, "ash")
         player(table, "nyx")
-        assert self._queries(client, f"/n26/campaigns/{table.pk}/") == with_one
+        with_more = self._queries(client, f"/n26/campaigns/{table.pk}/")
+        assert with_more == with_one
 
     def test_a_campaign_row_marks_its_arbitrator(self, table, player, client):
         """The list a player reads names whoever runs each campaign, and
@@ -355,7 +356,8 @@ class TestTheNamesOnACampaign:
                 act.invite(person)
             with campaign_operation(campaign, actor=person) as act:
                 act.answer_invitation(person, accepted=True)
-        assert self._queries(client, "/n26/campaigns/") == with_one
+        with_more = self._queries(client, "/n26/campaigns/")
+        assert with_more == with_one
 
     def test_a_dialog_that_cannot_be_drawn_serves_the_page_without_a_read_per_gang(
         self, table, player, client
@@ -372,12 +374,10 @@ class TestTheNamesOnACampaign:
         player(table, "kesh")
         player(table, "ash")
         player(table, "nyx")
-        assert (
-            self._queries(
-                client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
-            )
-            == with_one
+        with_more = self._queries(
+            client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
         )
+        assert with_more == with_one
 
     def test_the_log_names_who_acted_with_their_badge(self, table, player, client):
         """Somebody else's act is theirs by name, and the name carries the
@@ -399,7 +399,8 @@ class TestTheNamesOnACampaign:
         player(table, "kesh")
         player(table, "ash")
         player(table, "nyx")
-        assert self._queries(client, f"/n26/campaigns/{table.pk}/log/") == with_one
+        with_more = self._queries(client, f"/n26/campaigns/{table.pk}/log/")
+        assert with_more == with_one
 
     def test_the_players_screen_marks_players_and_people_found(
         self, table, player, client
@@ -455,10 +456,10 @@ class TestTheNamesOnACampaign:
         )
         for index in range(2, 5):
             player(table, f"vex-{index}")
-        assert (
-            self._queries(client, f"/n26/campaigns/{table.pk}/players/add/?q=vex")
-            == with_one
+        with_more = self._queries(
+            client, f"/n26/campaigns/{table.pk}/players/add/?q=vex"
         )
+        assert with_more == with_one
 
     def test_the_add_gang_screen_marks_each_gangs_owner(self, table, player, client):
         """The arbitrator picks from every gang at the table, each named
@@ -489,7 +490,8 @@ class TestTheNamesOnACampaign:
         player(table, "kesh")
         player(table, "ash")
         player(table, "nyx")
-        assert self._queries(client, address) == with_one
+        with_more = self._queries(client, address)
+        assert with_more == with_one
 
     def test_the_remove_player_question_names_them_with_their_badge(
         self, table, player, client
@@ -511,9 +513,9 @@ class TestTheNamesOnACampaign:
         question = body[body.index("Their gangs stay where they are") :]
         assert "vex" in question
         assert badge_svg(GUILDER).strip() in question
-        assert self._queries(client, remove(badged)) == self._queries(
-            client, remove(plain)
-        )
+        badged_queries = self._queries(client, remove(badged))
+        plain_queries = self._queries(client, remove(plain))
+        assert badged_queries == plain_queries
 
     def test_an_invitation_names_its_arbitrator_with_their_badge(self, table, client):
         """The campaigns list opens with the invitations still waiting, each
@@ -548,7 +550,8 @@ class TestTheNamesOnACampaign:
         for campaign in campaigns[1:]:
             with campaign_operation(campaign, actor=supporter) as act:
                 act.invite(person)
-        assert self._queries(client, "/n26/campaigns/") == with_one
+        with_more = self._queries(client, "/n26/campaigns/")
+        assert with_more == with_one
 
 
 class TestNoPageDecidesForItself:
