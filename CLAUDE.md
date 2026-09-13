@@ -322,12 +322,12 @@ titles, which should freely name model classes, functions and flags.
 5. If the diff added or changed user-facing strings, run the **copywriter** agent
    over it (also run it proactively right after finishing UI work — don't wait
    for push time)
-6. Commit and push changes
+6. After creating or materially changing a database-backed page, load the **sql-performance** skill and inspect its
+   SQL cascade with representative repeated data.
+7. Commit and push changes
 
 - Manually test changes through the running app (dev server + browser) before
   shipping — skip only when the change is trivial
-- After creating or materially changing a database-backed page, load the **sql-performance** skill and inspect its
-  SQL cascade with representative repeated data before shipping.
 - For a change that meaningfully alters rendered UI, normally attach one or more
   useful captures to the PR so reviewers can see the result. This matters most in
   cloud sessions where the user cannot see the browser. Use judgment rather than

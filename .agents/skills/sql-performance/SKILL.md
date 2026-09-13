@@ -77,11 +77,16 @@ more than the absolute total from one request.
 ## Inspect the exact browser state when needed
 
 `inspect_page` makes a fresh Django test-client GET. Use the browser toolbar when the state depends on earlier browser
-interactions, JavaScript, or a session that the command does not reproduce. Load the `dev-server` skill, start the
-worktree server, and create a one-click login link for the exact page:
+interactions, JavaScript, or a session that the command does not reproduce. Load the `dev-server` skill. Start the
+worktree server in one terminal:
 
 ```bash
 ./scripts/dev.sh
+```
+
+Create a one-click login link for the exact page in another terminal:
+
+```bash
 manage agent_login_url '/path/to/page/?variant=value'
 # Codex: .codex/run.sh manage agent_login_url '/path/to/page/?variant=value'
 ```
