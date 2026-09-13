@@ -109,17 +109,6 @@ if [ ! -d "$VENV_PATH" ] && [ "$WT_ROOT" != "$MAIN_WT" ]; then
 fi
 if [ -d "$VENV_PATH" ]; then
   source "$VENV_PATH/bin/activate"
-
-  # `uv sync` reconciles dependencies but does not revisit the project's own
-  # package list. Reinstall the editable project if a package move made it stale.
-  if [ "$VENV_PATH" = "${WT_ROOT}/.venv" ] \
-    && ! (cd / && python -c "import gyrinx, n23" >/dev/null 2>&1); then
-    echo "Editable install predates a package move — reinstalling project..." >&2
-    if ! (cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_PATH" \
-          uv sync --locked --quiet --reinstall-package gyrinx); then
-      echo "WARNING: project reinstall failed — 'import n23' will still fail." >&2
-    fi
-  fi
 else
   echo "ERROR: No .venv found in ${WT_ROOT} or ${MAIN_WT}." >&2
   echo "Create one from the main worktree before running dev.sh:" >&2

@@ -1,9 +1,9 @@
 """Checks for the formatter-version guard used by local tooling and CI."""
 
+import re
 from importlib import metadata
 
 import pytest
-import yaml
 
 from scripts.check_formatter_versions import (
     FORMATTERS,
@@ -36,32 +36,30 @@ def test_pre_commit_stops_before_running_a_mismatched_formatter():
 
 
 def test_dependabot_groups_only_formatter_updates_across_ecosystems():
-    config = yaml.safe_load((REPO_ROOT / ".github/dependabot.yml").read_text())
-    updates = config["updates"]
-    grouped = {
-        entry["package-ecosystem"]: entry
-        for entry in updates
-        if entry.get("multi-ecosystem-group") == "python-formatters"
-    }
-    regular = {
-        entry["package-ecosystem"]: entry
-        for entry in updates
-        if entry["package-ecosystem"] in {"uv", "pre-commit"}
-        and "multi-ecosystem-group" not in entry
-    }
+    config = (REPO_ROOT / ".github/dependabot.yml").read_text()
+    blocks = re.findall(
+        r"^  - package-ecosystem:.*?(?=^  - package-ecosystem:|\Z)",
+        config,
+        flags=re.MULTILINE | re.DOTALL,
+    )
 
-    assert set(grouped) == {"uv", "pre-commit"}
-    assert set(regular) == {"uv", "pre-commit"}
-    assert grouped["uv"]["patterns"] == ["djlint", "ruff"]
-    assert grouped["pre-commit"]["patterns"] == ["*djlint*", "*ruff*"]
-    assert {item["dependency-name"] for item in regular["uv"]["ignore"]} >= {
-        "djlint",
-        "ruff",
-    }
-    assert {item["dependency-name"] for item in regular["pre-commit"]["ignore"]} == {
-        "*djlint*",
-        "*ruff*",
-    }
+    for ecosystem, patterns in {
+        "uv": ('      - "djlint"', '      - "ruff"'),
+        "pre-commit": ('      - "*djlint*"', '      - "*ruff*"'),
+    }.items():
+        entries = [
+            block for block in blocks if f'"{ecosystem}"' in block.splitlines()[0]
+        ]
+        regular = [block for block in entries if "multi-ecosystem-group" not in block]
+        grouped = [block for block in entries if "multi-ecosystem-group" in block]
+
+        assert len(regular) == 1
+        assert len(grouped) == 1
+        assert all(pattern in grouped[0] for pattern in patterns)
+        assert all(
+            pattern.replace('      - "', '      - dependency-name: "') in regular[0]
+            for pattern in patterns
+        )
 
 
 def test_active_test_environment_matches_the_lock():

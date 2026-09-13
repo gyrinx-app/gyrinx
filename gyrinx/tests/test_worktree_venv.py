@@ -26,15 +26,24 @@ if [ -n "${UV_DELAY:-}" ]; then
 fi
 mkdir -p "$UV_PROJECT_ENVIRONMENT/bin"
 touch "$UV_PROJECT_ENVIRONMENT/bin/activate"
+python_status="${IMPORT_STATUS:-0}"
+for arg in "$@"; do
+  if [ "$arg" = "--reinstall-package" ]; then
+    python_status=0
+  fi
+done
+printf '#!/bin/bash\nexit %s\n' "$python_status" > "$UV_PROJECT_ENVIRONMENT/bin/python"
+chmod +x "$UV_PROJECT_ENVIRONMENT/bin/python"
 """
     )
     uv.chmod(0o755)
 
 
-def _write_failing_sha256sum(bin_dir: Path) -> None:
-    sha256sum = bin_dir / "sha256sum"
-    sha256sum.write_text("#!/bin/bash\nexit 7\n")
-    sha256sum.chmod(0o755)
+def _write_failing_hash_commands(bin_dir: Path) -> None:
+    for command in ("sha256sum", "shasum"):
+        executable = bin_dir / command
+        executable.write_text("#!/bin/bash\nexit 7\n")
+        executable.chmod(0o755)
 
 
 def _provision(worktree: Path, bin_dir: Path, call_log: Path, **extra_env):
@@ -121,7 +130,7 @@ def test_hash_failure_never_treats_an_existing_venv_as_current(tmp_path):
     (worktree / ".venv").mkdir()
     (worktree / ".venv/.gyrinx-uv-inputs").write_text("")
     _write_fake_uv(bin_dir)
-    _write_failing_sha256sum(bin_dir)
+    _write_failing_hash_commands(bin_dir)
 
     result = _provision(worktree, bin_dir, call_log)
 
@@ -175,3 +184,20 @@ def test_concurrent_provisioners_only_sync_once(tmp_path):
 
     assert all(result.returncode == 0 for result in results)
     assert call_log.read_text().splitlines() == ["sync"]
+
+
+def test_provisioner_repairs_a_stale_editable_install_before_stamping(tmp_path):
+    worktree = tmp_path / "worktree"
+    bin_dir = tmp_path / "bin"
+    call_log = tmp_path / "uv-calls"
+    worktree.mkdir()
+    bin_dir.mkdir()
+    (worktree / "uv.lock").write_text("version = 1\n")
+    (worktree / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+    _write_fake_uv(bin_dir)
+
+    result = _provision(worktree, bin_dir, call_log, IMPORT_STATUS="1")
+
+    assert result.returncode == 0, result.stderr
+    assert call_log.read_text().splitlines() == ["sync", "sync"]
+    assert "Editable install is stale" in result.stderr

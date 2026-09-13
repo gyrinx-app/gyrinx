@@ -62,7 +62,7 @@ if command -v provision_worktree_venv >/dev/null 2>&1; then
   START_WT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null || true)
   if [ -n "$START_WT" ] && [ "$START_WT" != "$MAIN_WT" ] \
      && [[ "$START_WT" == *"/.claude/worktrees/"* ]]; then
-    provision_worktree_venv "$START_WT" || true
+    PATH="${HOME}/.local/bin:${PATH}" provision_worktree_venv "$START_WT" || true
   fi
 fi
 
@@ -124,7 +124,8 @@ _gyrinx_activate_worktree() {
   venv="${wt_root}/.venv"
   if [[ "$wt_root" == *"/.claude/worktrees/"* ]] \
      && command -v provision_worktree_venv >/dev/null 2>&1; then
-    if ! provision_worktree_venv "$wt_root" >&2; then
+    if ! PATH="${HOME}/.local/bin:${PATH}" \
+      provision_worktree_venv "$wt_root" >&2; then
       provision_failed=true
       echo "[gyrinx] Worktree venv sync failed; leaving it inactive." >&2
     fi

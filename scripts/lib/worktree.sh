@@ -188,7 +188,8 @@ provision_worktree_venv() {
     echo "[gyrinx] Could not hash ${project_file}; cannot verify ${venv}." >&2
     return 1
   fi
-  current_inputs="${lock_hash}:${project_hash}"
+  # Bump the prefix whenever the verification represented by a stamp changes.
+  current_inputs="v2:${lock_hash}:${project_hash}"
   if [ -f "$stamp_file" ]; then
     stamped_inputs=$(<"$stamp_file")
   fi
@@ -256,6 +257,23 @@ provision_worktree_venv() {
         rm -rf "$venv"
       fi
       return 1
+    fi
+    if ! (cd / && "$venv/bin/python" -c "import gyrinx, n23" >/dev/null 2>&1); then
+      echo "[gyrinx] Editable install is stale; reinstalling the project..." >&2
+      if ! (cd "$wt_root" && UV_PROJECT_ENVIRONMENT="$venv" \
+            uv sync --locked --quiet --reinstall-package gyrinx); then
+        if [ "$new_venv" = true ]; then
+          rm -rf "$venv"
+        fi
+        return 1
+      fi
+      if ! (cd / && "$venv/bin/python" -c "import gyrinx, n23" >/dev/null 2>&1); then
+        echo "[gyrinx] Project imports still fail after reinstalling ${venv}." >&2
+        if [ "$new_venv" = true ]; then
+          rm -rf "$venv"
+        fi
+        return 1
+      fi
     fi
     if ! printf '%s\n' "$current_inputs" > "$stamp_file"; then
       echo "[gyrinx] Could not record dependency state in ${stamp_file}." >&2
