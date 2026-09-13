@@ -12,20 +12,20 @@ Automated UI screenshot utility using Playwright for capturing views without man
 
 ```bash
 # Basic usage
-python scripts/screenshot.py <url_name> [options]
+.codex/run.sh python scripts/screenshot.py <url_name> [options]
 
 # Capture before/after screenshots for UI changes
-python scripts/screenshot.py core:campaign --before --args <campaign_id>
-python scripts/screenshot.py core:campaign --after --args <campaign_id>
+.codex/run.sh python scripts/screenshot.py core:campaign --before --args <campaign_id>
+.codex/run.sh python scripts/screenshot.py core:campaign --after --args <campaign_id>
 
 # Multiple viewports
-python scripts/screenshot.py core:list --viewports desktop,mobile --args <list_id>
+.codex/run.sh python scripts/screenshot.py core:list --viewports desktop,mobile --args <list_id>
 
 # Specific element only
-python scripts/screenshot.py core:campaign --selector ".campaign-header" --args <id>
+.codex/run.sh python scripts/screenshot.py core:campaign --selector ".campaign-header" --args <id>
 
 # Check Playwright installation
-python scripts/screenshot.py --check
+.codex/run.sh python scripts/screenshot.py --check
 ```
 
 **Options:**
@@ -37,25 +37,36 @@ python scripts/screenshot.py --check
 - `--label`: Custom label for the screenshot
 - `--viewports`: Comma-separated viewports (desktop,tablet,mobile)
 - `--theme`: Color scheme (light/dark, default: light)
-- `--output-dir`: Output directory (default: ui_archive)
+- `--output-dir`: Output directory (default: screenshots)
 - `--selector`: CSS selector for specific element
 - `--no-full-page`: Capture only viewport (not full page)
-- `--username`: Username to authenticate as (default: admin)
+- `--username`: Local staff username to authenticate as (default: agent)
 - `--check`: Check if Playwright is installed
 
 **Requirements:**
 
 - Playwright is a locked dependency, so `uv sync --locked` installs it
-- Django project must be properly configured
-- User account must exist for authentication
+- Run through `.codex/run.sh` so the script uses the worktree's database and port
+- The named local staff user is created if it does not exist
 - Chromium browser will be automatically installed on first run
 
 **Output:**
 
-- Screenshots are saved to `ui_archive/` directory
+- Screenshots are saved to the gitignored `screenshots/` directory
 - Files are named: `<url_name>_<label>_<viewport>_<timestamp>.png`
 - Latest versions: `<url_name>_<label>_<viewport>_latest.png`
 - Comparison markdown is generated for before/after pairs
+
+For pull-request evidence, load the `pr-screenshots` skill. Put local image paths
+in a `## Screenshots` section of the PR body and upload them with GitHub CLI 2.99+:
+
+```bash
+gh pr create --body-file /tmp/pr-body.md \
+  --attach screenshots/<task>/after.png
+```
+
+GitHub replaces the local Markdown path with a durable user-attachment URL. Keep
+the generated image out of git and check it for private data before uploading.
 
 ### Other Scripts
 

@@ -46,6 +46,8 @@ For each test case, provide:
 - **Name**: Brief description
 - **Steps**: Numbered list of exact UI actions (click, type, select, etc.)
 - **Expected Result**: What should be visible on screen after the action
+- **Suggested Capture**: The state that would make useful PR evidence, or `None`
+  when a screenshot would add little value
 
 ### 3. Format Requirements
 
@@ -55,6 +57,11 @@ Format the test plan so Claude for Chrome can execute it step-by-step:
 - Include what to look for to verify success (e.g., "The credits value in the header should increase from X to Y")
 - Note any checkboxes or form fields to interact with
 - Specify page navigation clearly (e.g., "Navigate to the fighter's detail page by clicking on their name")
+- Suggest only the smallest useful set of screenshots. Prefer a focused final
+  state; use before/after or multiple viewports only when the comparison matters.
+- The browser executor should save suggested captures under the gitignored
+  `screenshots/<task>/` directory when it has filesystem access. Loading and
+  attaching them to the PR is handled separately by the `pr-screenshots` skill.
 
 ### 4. Human Assistance Required
 
@@ -127,6 +134,8 @@ Steps:
 **Verify**:
 - [ ] [Expected visual result]
 - [ ] [Expected visual result]
+
+**Suggested Capture**: [Useful final state, or None]
 
 ## Test 2: [Test Name]
 ...

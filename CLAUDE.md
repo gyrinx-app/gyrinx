@@ -200,6 +200,9 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **dev-server** — Knowledge about starting/stopping the dev server, reading ports, telling Claude in Chrome
   where to point, log file locations, **and how to mint a session cookie for the browser**. Do not POST
   `/accounts/login/` from an agent session; reCAPTCHA and mandatory email verification block it.
+- **pr-screenshots** — Capture useful UI evidence and attach it to a PR with GitHub-native attachments.
+  Load for meaningful rendered UI changes, especially when working in a cloud session where the user cannot
+  see the browser, and when preserving or refreshing screenshots while rewriting a PR description.
 - **worktree-db** — Knowledge about per-worktree database isolation: forking, resetting, migrating, cleanup,
   template workflow, pgAdmin access
 
@@ -349,6 +352,11 @@ titles, which should freely name model classes, functions and flags.
 
 - Manually test changes through the running app (dev server + browser) before
   shipping — skip only when the change is trivial
+- For a change that meaningfully alters rendered UI, normally attach one or more
+  useful captures to the PR so reviewers can see the result. This matters most in
+  cloud sessions where the user cannot see the browser. Use judgment rather than
+  treating this as a gate: omit captures when they add little value, and say why.
+  Load the **pr-screenshots** skill for capture, privacy, and upload guidance.
 - **Always smoke-test a migration, backfill, or any data-touching feature on a
   real database before shipping it.** Fork the content mirror
   (`createdb -T gyrinx_main gyrinx_smoke`), build a population at production's
@@ -758,6 +766,8 @@ and override the `owner` kwarg on the factory fixtures.
   and reach for `git stash` only in a plain single checkout.
 - This keeps `CLAUDE.local.md` up to date across pulls.
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
+- When updating a PR description that already contains screenshots, preserve
+  valid captures or refresh them if later commits changed the rendered result.
 - At the end of work, ship with the `commit-push-pr` skill — open the PR ready for
   review (not a draft) so bot reviews and the review-agent watcher kick off
   immediately. Only use `commit-push-draft` when a draft is explicitly requested.
