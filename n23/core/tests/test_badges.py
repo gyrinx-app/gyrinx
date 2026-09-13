@@ -410,6 +410,57 @@ def test_a_supporter_who_is_also_granted_a_badge_keeps_showing_the_tier(
     assert profile.display_badge.slug == "guilder"
 
 
+def _grant_queries(captured):
+    return [q for q in captured.captured_queries if "badgegrant" in q["sql"].lower()]
+
+
+@pytest.mark.django_db
+def test_display_badge_reads_the_grants_once(
+    user, clear_badge_cache, django_assert_max_num_queries
+):
+    """Every page draws the reader's own badge, so the read must not double up."""
+    profile = _profile(user)
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    # Warm the per-process badge table, so this measures the per-user read.
+    assert UserProfile.objects.get(pk=profile.pk).display_badge is not None
+
+    fresh = UserProfile.objects.get(pk=profile.pk)
+    with django_assert_max_num_queries(5) as captured:
+        assert fresh.display_badge.slug == "playtester"
+
+    assert len(_grant_queries(captured)) == 1, _grant_queries(captured)
+
+
+@pytest.mark.django_db
+def test_display_badge_reads_nothing_when_the_grants_are_prefetched(
+    user, clear_badge_cache, django_assert_max_num_queries
+):
+    profile = _profile(user)
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    assert UserProfile.objects.get(pk=profile.pk).display_badge is not None
+
+    prefetched = type(user).objects.prefetch_related("badge_grants").get(pk=user.pk)
+    with django_assert_max_num_queries(5) as captured:
+        assert prefetched.profile.display_badge.slug == "playtester"
+
+    assert _grant_queries(captured) == []
+
+
+@pytest.mark.django_db
+def test_forget_badges_lets_a_new_grant_show_on_the_same_profile(
+    user, clear_badge_cache
+):
+    profile = _profile(user)
+    assert profile.display_badge is None
+
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    profile.forget_badges()
+    assert profile.display_badge.slug == "playtester"
+
+
 @pytest.mark.django_db
 def test_a_badge_may_not_take_a_built_in_slug(clear_badge_cache):
     """The two kinds share a namespace, because a profile stores a bare slug."""

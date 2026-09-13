@@ -322,20 +322,48 @@ class UserProfile(Base):
             return []
         return [b for b in PATREON_BADGES if b.rank <= rank]
 
+    @cached_property
+    def _granted_badge_ids(self) -> set:
+        """Row ids of the badges granted to this person or to everybody.
+
+        The grants naming this person are the only part of the badge machinery
+        that reads the database per user, so the read is cached on the instance:
+        ``available_badges`` is evaluated more than once while working out
+        ``display_badge``, and every page that draws a username does that. Call
+        sites rendering many users should still ``prefetch_related`` the grants,
+        or each user costs a query.
+
+        Cached for the life of the instance, alongside ``display_badge``. Code
+        that grants or revokes a badge and then re-reads either on the *same*
+        profile object must drop both caches — see ``forget_badges``.
+        """
+        held = {grant.badge_id for grant in self.user.badge_grants.all()}
+        held.update(everyone_badge_ids())
+        return held
+
+    def forget_badges(self) -> None:
+        """Drop this instance's cached badge reads.
+
+        For the rare caller that changes what somebody holds and then draws
+        their badge again without reloading the profile.
+        """
+        self.__dict__.pop("_granted_badge_ids", None)
+        self.__dict__.pop("display_badge", None)
+
     @property
     def granted_badges(self) -> list[BadgeDef]:
         """Badges this user holds because somebody granted them one.
 
         Two sources, both read from the cached badge table rather than the
         database: the grants naming this person, and the grants naming
-        everybody. Grants are looked up by ``badge_id`` so this needs no join —
-        call sites rendering many users must ``prefetch_related`` the grants,
-        or this costs a query per user.
+        everybody. Grants are looked up by ``badge_id`` so this needs no join.
         """
         badges = granted_badges_by_id()
-        held = {grant.badge_id for grant in self.user.badge_grants.all()}
-        held.update(everyone_badge_ids())
-        return [badges[badge_id] for badge_id in held if badge_id in badges]
+        return [
+            badges[badge_id]
+            for badge_id in self._granted_badge_ids
+            if badge_id in badges
+        ]
 
     @property
     def available_badges(self) -> list[BadgeDef]:
