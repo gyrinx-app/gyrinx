@@ -105,10 +105,19 @@ def gang_next(request, pk):
     carrying = interstitials_on(
         {found.slot.slot.pk for found in located.values()}, include_staged=shown
     )
+    # Each screen's questions in the order the author gave its slots,
+    # then in address order for slots given the same place.
     grouped = {}
-    for key, found in located.items():
-        for interstitial in carrying.get(found.slot.slot.pk, ()):
-            grouped.setdefault(interstitial.pk, (interstitial, []))[1].append(key)
+    for order, (key, found) in enumerate(located.items()):
+        for attachment in carrying.get(found.slot.slot.pk, ()):
+            interstitial = attachment.interstitial
+            grouped.setdefault(interstitial.pk, (interstitial, []))[1].append(
+                (attachment.position, order, key)
+            )
+    grouped = {
+        pk: (interstitial, [key for _, _, key in sorted(placed)])
+        for pk, (interstitial, placed) in grouped.items()
+    }
     if not grouped:
         return redirect(back)
     # Only a question some screen draws is on this page: the address
@@ -166,12 +175,15 @@ def gang_next(request, pk):
                     )
                     for key in keys
                 ),
+                # Skip drops the block's own questions — the ones no other
+                # block asks. A block with none of its own has nothing to
+                # drop, so it draws no Skip rather than a link to here.
                 skip_url=next_url(
                     gang,
                     [k for k in located if k not in keys or asked_by[k] > 1],
                     back,
                 )
-                if interstitial.skippable
+                if interstitial.skippable and any(asked_by[k] == 1 for k in keys)
                 else "",
             )
         )

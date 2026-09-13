@@ -1045,7 +1045,8 @@ def arrival_screen():
     is: the gallery renders on an empty database."""
     from n26.core.render import ArrivalBlock, ArrivalQuestion, ArrivalScreen
 
-    back = "/n26/gangs/sample/"
+    # Nowhere real, as every sample link: the gallery founds no gang.
+    back = "#"
     return ArrivalScreen(
         blocks=(
             ArrivalBlock(
@@ -1112,7 +1113,7 @@ def arrival_screen():
                         offer=_archetype_offer(),
                     ),
                 ),
-                skip_url="/n26/gangs/sample/next/?ask=gang%3A1%3A1&ask=gang%3A1%3A2&next=%2Fn26%2Fgangs%2Fsample%2F",
+                skip_url="#",
             ),
         ),
         next_url=back,
