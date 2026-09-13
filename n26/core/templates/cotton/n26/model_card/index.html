@@ -46,7 +46,9 @@ page wants. A stored model's card carries id="model-<pk>" on its header
 band, the anchor the sheet links to.
 
 The header band is a query container: narrow, its two columns stack, the
-name and profile over one row holding the figures and every control.
+name and profile over one row holding the figures and every control. The
+status sits with the figures rather than with the acts below it — where a
+model stands is something the card says, not something to do.
 {% endcomment %}
 {% load richtext %}
 <c-vars
@@ -130,6 +132,38 @@ name and profile over one row holding the figures and every control.
             <div class="flex flex-wrap items-center justify-between gap-2 @md:flex-col @md:flex-nowrap @md:items-end @md:gap-1.5 @md:shrink-0">
                 <div class="flex items-baseline gap-1 text-sm font-medium tabular-nums">
                     {% comment %}
+                    Where the model stands between battles, ahead of the
+                    figures rather than among the acts below: a status is
+                    something the card says, not something to do. Anything
+                    but Active is a badge, its colour following how bad it
+                    is: Recovery amber, Critical or Captured red, Dead
+                    plain. Active is the quiet case and gets no badge — a
+                    reader is owed the word only where it is news — so
+                    where the status can be set the way in is a muted
+                    control instead. No separator after it: it is a
+                    control beside two figures, and the dot below is the
+                    one between them.
+                    {% endcomment %}
+                    {% if card.status_label %}
+                        <span class="self-center">
+                            {% if status_hx and status_href %}
+                                <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                            {% else %}
+                                <c-ui.badge size="sm" href="{{ status_href }}" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                            {% endif %}
+                        </span>
+                    {% elif status_href %}
+                        <span class="self-center">
+                            {# djlint:off #}
+                            {% if status_hx %}
+                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" class="!text-muted !font-normal">Active</c-ui.button>
+                            {% else %}
+                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
+                            {% endif %}
+                            {# djlint:on #}
+                        </span>
+                    {% endif %}
+                    {% comment %}
                     What the model has left of the Trade Points its books
                     give it to spend as it joins, ahead of the rating and
                     quieter than it: the allowance runs out with the
@@ -164,38 +198,13 @@ name and profile over one row holding the figures and every control.
                     </c-ui.tooltip>
                 </div>
 
-                {% if actions or card.image_url or card.status_label or status_href %}
+                {% if actions or card.image_url %}
                     {% comment %}
                     Wrapping while the card is narrow, where the longest
                     status badge and four controls do not fit one line: held
                     to one line the badge breaks its own words instead.
                     {% endcomment %}
                     <div class="flex flex-wrap items-center gap-2 @md:flex-nowrap">
-                        {% comment %}
-                        Where the model stands between battles, ahead of
-                        the controls. Anything but Active is a badge, its
-                        colour following how bad it is: Recovery amber,
-                        Critical or Captured red, Dead plain. Active is
-                        the quiet case and gets no badge — a reader is
-                        owed the word only where it is news — so where the
-                        status can be set the way in is a muted control
-                        beside the others instead.
-                        {% endcomment %}
-                        {% if card.status_label %}
-                            {% if status_hx and status_href %}
-                                <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
-                            {% else %}
-                                <c-ui.badge size="sm" href="{{ status_href }}" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
-                            {% endif %}
-                        {% elif status_href %}
-                            {# djlint:off #}
-                            {% if status_hx %}
-                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" class="!text-muted !font-normal">Active</c-ui.button>
-                            {% else %}
-                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
-                            {% endif %}
-                            {# djlint:on #}
-                        {% endif %}
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
                                 <c-slot name="trigger">
