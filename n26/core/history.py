@@ -1189,6 +1189,7 @@ def campaign_history_size(campaign):
         + campaign.gang_events.exclude(riders)
         .exclude(handed_over)
         .exclude(kind=Kind.CLONED, assignment__isnull=False)
+        .exclude(kind=Kind.COUNTER_OPENED)
         .count()
     )
 
@@ -1236,6 +1237,9 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         # letting the openings consume a page would make one large clone hide
         # the acts immediately before it.
         .exclude(kind=LedgerEvent.Kind.CLONED, assignment__isnull=False)
+        # An opening establishes a counter's ledger. It is not a campaign
+        # act, even when the counter arrived while joining the campaign.
+        .exclude(kind=LedgerEvent.Kind.COUNTER_OPENED)
         .select_related(
             "miniature",
             "actor",

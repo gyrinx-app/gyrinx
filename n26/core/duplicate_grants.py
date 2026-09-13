@@ -234,6 +234,7 @@ def _carry_the_tally(grant, owner, tally, goes_with):
     answering False, so the duplicate is left standing instead.
     """
     from n26.core.models import CounterValue
+    from n26.core.operations import operation
 
     if not tally:
         return True
@@ -241,8 +242,11 @@ def _carry_the_tally(grant, owner, tally, goes_with):
         return False
     standing, _ = CounterValue.objects.get_or_create(assignment=owner)
     if standing.value < tally:
-        standing.value = tally
-        standing.save(update_fields=["value", "modified"])
+        # This is a sanctioned repair, but the value still has to enter the
+        # structured journal. A bare CounterValue update would leave the
+        # survivor irreconcilable once the duplicate and its events are gone.
+        with operation(owner.gang_root) as op:
+            op.tally(owner, tally - standing.value, note="Duplicate tally merged")
     return True
 
 
