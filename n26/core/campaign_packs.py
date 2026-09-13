@@ -178,6 +178,7 @@ def _carry(apps, membership, campaign_type, batch, lines):
         )
         if field == "counter":
             CounterValue.objects.create(assignment=copy, value=member.amount)
+            _open_counter(apps, membership, copy, member.amount, batch)
         thing = getattr(member, field)
         if getattr(thing, "built_ins_id", None) is not None:
             lines.append(
@@ -208,6 +209,26 @@ def _grant(apps, membership, batch, reason, **fields):
         batch=batch,
     )
     return assignment
+
+
+def _open_counter(apps, membership, assignment, value, batch):
+    """Write an opening when the historical model state supports it."""
+    LedgerEvent = apps.get_model("n26", "LedgerEvent")
+    fields = {field.name for field in LedgerEvent._meta.fields}
+    if not {"counter_before", "counter_delta", "counter_after"} <= fields:
+        # The original migration predates these columns. The later structured
+        # counter checkpoint migration records rows created in that state.
+        return
+    LedgerEvent.objects.create(
+        assignment=assignment,
+        gang=membership.gang,
+        campaign_id=membership.campaign_id,
+        kind="counter_opened",
+        batch=batch,
+        counter_before=0,
+        counter_delta=value,
+        counter_after=value,
+    )
 
 
 def _names(member):
