@@ -142,9 +142,11 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
     if dismiss_back is None:
         dismiss_back = back
     for holder in holders:
-        # A dead model's card draws nothing to click, and its dismissed
-        # offers are never shown on it (``settle_dismissed``): an X there
-        # would offer an act the card cannot show the way back from.
+        # A dead model's dismissed offers are never shown on any screen
+        # (``settle_dismissed`` hides them on the sheet, which draws the
+        # dead with nothing to click, and the model's page follows the
+        # sheet): an X would offer an act with no way back. The picker
+        # links stay, as every other control on the model's page does.
         dead = getattr(holder, "status", None) == Status.DEAD
         for line in holder.questions:
             if not line.key:

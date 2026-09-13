@@ -271,9 +271,12 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
 
 def _dismissal_holders(miniature, card):
     """The card, as something whose dismissed offers may be shown and
-    restored — or nothing, for a dead model. A dead model's card draws
-    no Choose, so a dismissed offer kept on it to be restored would be a
-    line with nowhere to lead; the gang sheet draws the dead the same way.
+    restored — or nothing, for a dead model. The gang sheet draws the
+    dead with nothing to click and only ever hides their dismissed
+    offers; the model's own page follows the sheet, so the two never
+    disagree about what a dead model offers back. Its picker links stay,
+    as the skills box and the Equip face do: the page still lets the
+    owner act on the model, and only the dismissal is settled here.
     """
     from n26.core.status import Status
 
