@@ -253,6 +253,10 @@ class Operation(models.TextChoices):
         "n26_activate_counter_history",
         "n26: activate counter history",
     )
+    INITIALISE_ACTION_ALLOWANCES = (
+        "n26_initialise_action_allowances",
+        "n26: existing fighters receive earned action allowances",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -277,6 +281,7 @@ LOCK_KEYS = {
     Operation.CLEAR_ITEM_RESTRICTIONS: 826_020_623,
     Operation.ORDER_COLLECTIONS: 826_020_625,
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
+    Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
 }
 
 
@@ -1778,6 +1783,84 @@ register_operation(
 )
 
 
+@task
+def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
+    """Give existing fighters the rank allowances earned since recruitment."""
+    from n26.core.action_initialisation import apply_one, find
+
+    run_per_gang(
+        backfill_id,
+        operation=Operation.INITIALISE_ACTION_ALLOWANCES,
+        what="Existing fighter action allowances",
+        find=find,
+        apply_one=apply_one,
+        again=lambda: initialise_action_allowances.enqueue(backfill_id=backfill_id),
+    )
+
+
+def initialise_action_allowances_view(request):
+    """Preview the legacy fighter plan, or enqueue its recorded run."""
+    from n26.core.action_initialisation import find
+
+    operation = Operation.INITIALISE_ACTION_ALLOWANCES
+    address = reverse(f"admin:maintenance_{operation.value}")
+    plan = find()
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That initialisation is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        if plan.problems:
+            messages.error(request, "Resolve the reported rank-table conflicts first.")
+            return HttpResponseRedirect(address)
+        if plan.nothing_here:
+            messages.info(
+                request, "There are no existing fighter allowances to initialise."
+            )
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": plan.preview(), "attempts": 0},
+        )
+        initialise_action_allowances.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The initialisation is running.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    context = page_context(
+        request,
+        operation.label,
+        plan=plan,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(
+        request,
+        "admin/maintenance/n26/initialise_action_allowances.html",
+        context,
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.INITIALISE_ACTION_ALLOWANCES.value,
+        name=Operation.INITIALISE_ACTION_ALLOWANCES.label,
+        added=date(2026, 9, 14),
+        description=(
+            "Give existing fighters the action uses earned by XP thresholds crossed "
+            "since recruitment. Missing starting values are reported and skipped; "
+            "conflicting rank tables refuse the run. Each gang is proved before and after."
+        ),
+        view=initialise_action_allowances_view,
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
+    )
+)
+
+
 register_operation(
     MaintenanceOperation(
         operation=Operation.REHOST_GANG_PICKS.value,
@@ -2781,6 +2864,7 @@ task_routes = [
     N26TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(initialise_action_allowances, ack_deadline=600),
 ]
 
 
