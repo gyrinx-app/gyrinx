@@ -167,6 +167,19 @@ def test_a_data_migration_is_only_a_note(run):
     assert any("order does not matter" in note for note in notes)
 
 
+def test_the_log_excerpt_drops_the_application_chatter(tmp_path):
+    log = tmp_path / "leaves.log"
+    log.write_text(
+        "DEBUG 2026-01-01 tracing started\n"
+        "INFO 2026-01-01 tracing enabled\n"
+        "WARNING 2026-01-01 something noisy\n"
+        "CommandError: A branch may add one migration leaf per app.\n",
+        encoding="utf-8",
+    )
+    excerpt = report.tail(log)
+    assert excerpt == "CommandError: A branch may add one migration leaf per app."
+
+
 def test_a_run_that_checked_nothing_does_not_claim_it_checked(run):
     state, headline, problems, notes = run(FETCH="success", MERGE="success")
     body = report.render(state, headline, problems, notes, "https://run", "abc1234567")
