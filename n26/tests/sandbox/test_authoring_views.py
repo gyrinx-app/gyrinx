@@ -7651,6 +7651,30 @@ class TestTheInterstitialsOwnPage:
         assert "on 1 slot" not in body and "on no slot yet" not in body
         assert list(self.slot().interstitials()) == []
 
+    def test_the_staged_page_reads_flat_as_staged_interstitials_grow(
+        self, author, client, legacy
+    ):
+        """The staged-content page describes each staged interstitial the
+        listing's way, so it loads the attachments the listing's way."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_interstitial, create_slot, stage
+
+        def grow(indices):
+            for index in indices:
+                slot = create_slot(f"Slot {index}", legacy, self.slot().picklist)
+                stage(create_interstitial(f"Screen {index}", slots=[slot]))
+
+        grow(range(2))
+        with CaptureQueriesContext(connection) as few:
+            body = client.get("/n26/authoring/staged/").content.decode()
+        assert "Screen 1" in body and "on 1 slot" in body
+        grow(range(2, 8))
+        with CaptureQueriesContext(connection) as more:
+            assert client.get("/n26/authoring/staged/").status_code == 200
+        assert len(more) <= len(few)
+
     def test_the_listing_reads_flat_as_the_attachments_grow(
         self, author, client, legacy
     ):
