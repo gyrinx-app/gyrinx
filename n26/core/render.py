@@ -687,8 +687,9 @@ class ArrivalQuestion:
     whose question it is, what it asks, and the picker for it.
 
     ``settled`` is whether the reader may carry on past it: the choice
-    holds a pick, asks for none, or has nothing to offer this reader —
-    a screen must not stand in the way of a choice nobody can make.
+    holds every pick it asks for, asks for none, or has nothing to offer
+    this reader — a screen must not stand in the way of a choice nobody
+    can make.
     ``offer`` is the same structure the pick screen draws, so the two
     cannot list different things.
     """
@@ -759,9 +760,8 @@ class ArrivalScreen:
 
     @property
     def may_continue(self):
-        """Whether every question still on the screen is settled — holds
-        a pick, asks for none, or has nothing to offer — so the reader
-        may carry on."""
+        """Whether every question still on the screen is settled — holds every pick it asks for, asks for none, or has nothing to offer
+        — so the reader may carry on."""
         return all(block.settled for block in self.blocks)
 
     @property

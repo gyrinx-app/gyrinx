@@ -18,7 +18,8 @@ either is one code path.
 
 Skip is a link to this screen with that block's questions dropped from
 the address. Continue is offered once every question still on the
-screen holds a pick — leaving by the navigation is always open, and
+screen is settled — it holds every pick it asks for, asks for none, or
+has nothing to offer — leaving by the navigation is always open, and
 nothing is policed.
 """
 
@@ -65,10 +66,14 @@ def _question(request, gang, key, found, *, here, include_staged, under=""):
         label=slot.kind_label,
         bearer=found.miniature.name if found.miniature is not None else gang.name,
         chosen=slot.chosen_name,
-        # Nothing to offer is settled too: a screen that withheld Continue
-        # over a choice nobody can make would be policing, and the card's
-        # own note still says the choice is open.
-        settled=slot.is_resolved or slot.min_picks == 0 or offer.is_empty,
+        # Settled once it holds every pick it asks for — the count the
+        # sheet's own shortfall note reads, so the screen and the card
+        # agree on what is outstanding. A choice asking for none is
+        # settled from the start. Nothing to offer is settled too: a
+        # screen that withheld Continue over a choice nobody can make
+        # would be policing, and the card's own note still says the
+        # choice is open.
+        settled=len(slot.picks) >= slot.min_picks or offer.is_empty,
         offer=offer,
         roll_href=roll_href,
         under=under,

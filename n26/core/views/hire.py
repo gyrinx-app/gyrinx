@@ -14,7 +14,8 @@ Three submissions land on one URL, and each is a step of the same click:
     The dialog's own submit: the name, and the options it carried through
     as hidden fields. This is the one that hires, and it lands back on the
     list with a confirmation, because the next thing a player does after
-    hiring a Ganger is hire another one.
+    hiring a Ganger is hire another one — by way of the screen for what
+    the hire brought, where any of it asks for one.
 
 The two-step exists so that the dialog's URL holds one profile's answer.
 A form that reached it by GET would put every row's inputs and every filter

@@ -391,7 +391,8 @@ def choose(request, pk, slot):
 
     A choice that holds one pick is settled in one go: the list is a set
     of radios, clicking again replaces what was chosen, and the reader
-    lands back on the gang. One that holds several is worked at instead —
+    lands back where they came from — by way of the screen for whatever
+    the pick itself brought, where any of it asks for one. One that holds several is worked at instead —
     every option carries its own control, a click adds or takes back one
     pick, and the page comes back so the next one is a click away. It
     stops offering the rest when it is full: the way to something else is
@@ -399,8 +400,9 @@ def choose(request, pk, slot):
     that holds none offers nothing and writes nothing.
 
     Nothing here withholds a pick. The list is short because the offer is
-    narrow, and leaving the slot open costs nothing — the way back is the
-    gang. The operation may still refuse the click: a pick that would
+    narrow, and leaving the slot open costs nothing — the way back is
+    whatever opened the page, the gang sheet unless something says
+    otherwise. The operation may still refuse the click: a pick that would
     settle nothing, or a gang with no room in its budget. Either way the
     reader is told and lands back on the list, because a page that drew
     the button owes a reply rather than a traceback.

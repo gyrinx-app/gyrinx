@@ -780,6 +780,32 @@ class TestSkipAndContinue:
         assert "to continue." not in body
         assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
 
+    def test_continue_waits_for_every_pick_a_choice_asks_for(
+        self, client, owner, gang_type, legacy, picklist, archetypes
+    ):
+        """A choice asking for two picks is not settled by one: the line
+        still names it and Continue stays withheld until the second."""
+        both = create_slot(
+            "Paths", legacy, picklist, min_picks=2, max_picks=2, assigned_to="gang"
+        )
+        add_built_in(gang_type, both)
+        create_interstitial("Paths", slots=[both])
+        gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
+        client.force_login(owner)
+        key = sheet_slot(gang, "Paths").key
+        here = screen_url(gang, [key])
+
+        client.post(here, {"ask": key, "thing": pick_key(archetypes["Brawler"])})
+        body = page(client, here)
+        assert "Chosen: Brawler" in body
+        assert "Choose Paths to continue." in body
+
+        client.post(here, {"ask": key, "thing": pick_key(archetypes["Gunslinger"])})
+        body = page(client, here)
+
+        assert "to continue." not in body
+        assert f'href="{reverse("n26-gang", args=[gang.pk])}"' in body
+
     def test_when_nothing_is_left_to_ask_the_reader_goes_on(self, client, owner, gang):
         client.force_login(owner)
         elsewhere = reverse("n26-hire-fighter", args=[gang.pk])

@@ -1014,7 +1014,8 @@ def create_gang(request):
 
     POST founds for real — the Gang itself, then its founding assignment
     and whatever the type's built-ins bring, in one operation — and
-    lands back on the dashboard where the new gang is now a row.
+    lands on the new gang's own sheet, or first on the screen for what
+    the founding brought, where any of it asks for one.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.arrivals import onward
@@ -1055,10 +1056,10 @@ def create_gang(request):
                 starting_credits=budget,
             )
             messages.success(request, f"Founded {gang.name}.")
-            # Straight to the new gang's own sheet: hiring is the next
-            # thing a founder does, and the dashboard is a detour past
-            # every gang they already have. By way of the screen for
-            # what the founding brought, where any of it asks for one.
+            # To the new gang's own sheet: hiring is the next thing a
+            # founder does, and the dashboard is a detour past every
+            # gang they already have. By way of the screen for what the
+            # founding brought, where any of it asks for one.
             return redirect(
                 onward(request, gang, op, reverse("n26-gang", args=[gang.pk]))
             )
