@@ -202,6 +202,22 @@ When those checks pass, add the house collection to the real gang type's built-i
 
 If you archive the main hire collection, gangs can again hire fighters listed under their gang type. The collection stays hidden on the gang sheet. Check the gang type's fighter entries before using this fallback: it can include fighters that the collection excluded.
 
+## A screen when a choice arrives
+
+Use this recipe to explain a choice at the moment it appears, rather than leaving it as a line on the gang sheet. Founding a gang, hiring a model or making a pick can bring a slot; where a screen is attached to that slot, the reader is shown it before landing where they were going. A purchase and a clone never show one.
+
+The choice itself belongs to the slot. This recipe adds the words around it.
+
+1. Create an **interstitial**. **Name** is what you call it in the library; no player sees it. **Title** is the heading the screen shows — leave it blank to use the name. **Description** is what the screen says under the heading: what the choice is, and why it matters.
+2. Leave **Skippable** off where the reader should make the choice before carrying on. Turn it on where they can leave it and come back to it on the gang sheet.
+3. Set **Position** to order this screen against others shown at the same time. Ties fall back to the name.
+4. On the interstitial's own page, use **Attach a slot** for each slot whose arrival shows it. One interstitial can be attached to several slots, and one slot can carry several.
+5. Open **Staged content** from the library index and use **Put live**. A new interstitial is staged, so until then only staff and players with staged-content access see it. An attachment made on the authoring page has no staging control of its own and is live at once.
+
+A screen appears only when its slot arrives. A slot a gang already holds shows nothing, so attach the screen before the gangs that need it are founded, or before the models carrying the slot are hired.
+
+Continue writes every choice made on the screen. A choice you left unskippable holds Continue until it has the picks it asks for, and the screen names what is still outstanding. Where nothing on a screen is compulsory, Skip sits beside Continue and goes on without writing anything.
+
 ## A Clan House Outcast gang
 
 An Outcast gang chooses one of the six Clan Houses when it is created,
