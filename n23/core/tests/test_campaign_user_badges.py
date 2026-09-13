@@ -8,12 +8,13 @@ that naming more people costs no more queries.
 
 import pytest
 from django.db import connection
+from django.template.loader import render_to_string
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import badge_by_slug
-from n23.core.models.battle import Battle
+from n23.core.models.battle import Battle, BattleNote
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import List
@@ -233,6 +234,69 @@ def test_the_campaign_page_reads_the_actions_battles_with_the_actions(
     assert _queries(client, reverse("core:campaign", args=[large.id])) == _queries(
         client, reverse("core:campaign", args=[small.id])
     )
+
+
+@pytest.fixture
+def make_battle(owner, make_user):
+    """A battle in a campaign, with a note from each of ``notes`` badged
+    authors."""
+
+    def _make(campaign, *, notes=0):
+        battle = Battle.objects.create(
+            campaign=campaign, mission="Mission", owner=owner
+        )
+        for index in range(notes):
+            BattleNote.objects.create(
+                battle=battle,
+                content=f"Note {index}",
+                owner=_badged(make_user, f"{campaign.name}-writer-{index}"),
+            )
+        return battle
+
+    return _make
+
+
+@pytest.mark.django_db
+def test_the_battle_page_marks_its_owner_and_every_notes_author(
+    viewer, client, make_table, make_battle
+):
+    bare = make_battle(make_table("Bare"))
+    full = make_battle(make_table("Full"), notes=3)
+
+    # The three authors; the battle's owner and the campaign's owner (the
+    # same person, in the header and the trail) are on both pages.
+    assert _marks(client, reverse("core:battle", args=[full.id])) == (
+        _marks(client, reverse("core:battle", args=[bare.id])) + 3
+    )
+    assert _marks(client, reverse("core:battle", args=[bare.id])) >= 2
+
+
+@pytest.mark.django_db
+def test_the_battle_page_reads_the_badges_once_for_everybody(
+    viewer, client, make_table, make_battle
+):
+    small = make_battle(make_table("Small"), notes=1)
+    large = make_battle(make_table("Large"), notes=4)
+
+    assert _queries(client, reverse("core:battle", args=[large.id])) == _queries(
+        client, reverse("core:battle", args=[small.id])
+    )
+
+
+@pytest.mark.django_db
+def test_a_printed_breadcrumb_names_the_owner_without_a_link(owner):
+    """On paper there is nothing to click, so the breadcrumb include writes
+    the owner's name plain when ``print`` is set, and links it otherwise."""
+    context = {"type": "List", "owner": owner, "name": "Cawdor Facts"}
+
+    printed = render_to_string(
+        "core/includes/breadcrumb.html", {**context, "print": True}
+    )
+    screen = render_to_string("core/includes/breadcrumb.html", context)
+
+    assert owner.username in printed and "<a" not in printed
+    assert f'href="/user/{owner.username}"' in screen
+    assert MARK in screen and MARK not in printed
 
 
 @pytest.mark.django_db

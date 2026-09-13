@@ -2088,7 +2088,8 @@ def add_player(request, pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    # The trail names the arbitrator with their badge; a POST redirects.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     query = request.GET.get("q", "").strip()
 
     if request.method == "POST":

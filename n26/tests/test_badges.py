@@ -397,6 +397,30 @@ class TestTheNamesOnACampaign:
         # vexation among the people found.
         assert below_the_bar.count(badge_svg(GUILDER).strip()) == 4
 
+    def test_the_players_screen_reads_the_arbitrators_badge_with_the_campaign(
+        self, table, supporter
+    ):
+        """The screen's trail names the arbitrator with their badge, so the
+        guard that fetches the campaign for it brings the profile and the
+        grants along: asking which badge they hold then reads nothing."""
+        from django.test import RequestFactory
+
+        from gyrinx.site.templatetags.badge_tags import badge_for
+        from n26.core.views.permissions import _own_campaign_or_404
+
+        request = RequestFactory().get("/")
+        request.user = supporter
+        found = _own_campaign_or_404(request, table.pk, with_owner_badge=True)
+
+        with CaptureQueriesContext(connection) as context:
+            assert badge_for(found.owner) == GUILDER
+        person_reads = [
+            q["sql"]
+            for q in context.captured_queries
+            if "core_userprofile" in q["sql"] or '"user_id" =' in q["sql"]
+        ]
+        assert not person_reads
+
     def test_the_players_screen_reads_the_badges_once_for_everybody(
         self, table, player, client
     ):

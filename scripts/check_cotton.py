@@ -36,12 +36,6 @@ PRE_EXISTING = {
         'hotkey="{{ hotkey }}" class="{{ class }}" {{ attrs }}>',
     ),
     (
-        "n26/core/templates/cotton/n26/range_menu.html",
-        '<c-n26.range-slider {% if model_min and model_max %} model_min="{{ model_min }}" '
-        'model_max="{{ model_max }}" {% else %} model="{{ model }}" {% endif %} '
-        'min="{{ min }}" max="{{ max }}" step="{{ step }}" />',
-    ),
-    (
         "n26/core/templates/cotton/n26/view/create_gang.html",
         '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
         'title="{{ heading }}" lead="Required fields are marked with an asterisk (*)." '
@@ -110,17 +104,23 @@ def declared_props(component):
     # A hyphen in the tag is an underscore in the file: <c-n26.user-link> is
     # cotton/n26/user_link.html. Left as hyphens, every such component read as
     # undefined and its call sites were never checked for undeclared props.
-    rel = component.replace(".", "/").replace("-", "_") + ".html"
+    # A component may also be a directory with an index: <c-n26.quick-switcher>
+    # is cotton/n26/quick_switcher/index.html, the shape every n26 root
+    # component with parts takes. The direct file wins over the index, and
+    # the platform's tree over an edition's, so a name means one file.
+    rel = component.replace(".", "/").replace("-", "_")
     for base in COTTON_DIRS:
-        path = base / rel
-        if path.is_file():
+        for path in (base / f"{rel}.html", base / rel / "index.html"):
+            if not path.is_file():
+                continue
             # blank_comments FIRST: every component's doc comment talks about
-            # <c-vars>, and CVARS.search takes the first match, so without this it
-            # parses prose and returns an empty set. That silently blinded the
-            # undeclared-prop XSS check on back/badge/btn/cancel/icon/messages —
-            # fail-closed, but it also means a doc comment spelling out
-            # `<c-vars foo="">` as an example would mark foo "declared" and let a
-            # real `:foo=` through to the mark_safe'd attrs. Fail-open, from prose.
+            # <c-vars>, and CVARS.search takes the first match, so without this
+            # it parses prose and returns an empty set. That silently blinded
+            # the undeclared-prop XSS check on back/badge/btn/cancel/icon/
+            # messages — fail-closed, but it also means a doc comment spelling
+            # out `<c-vars foo="">` as an example would mark foo "declared" and
+            # let a real `:foo=` through to the mark_safe'd attrs. Fail-open,
+            # from prose.
             src = blank_comments(path.read_text(encoding="utf-8", errors="replace"))
             match = CVARS.search(src)
             if not match:

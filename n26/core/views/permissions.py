@@ -240,19 +240,29 @@ def _any_campaign_or_404(request, pk, *, with_owner_badge=False):
     return campaign
 
 
-def _own_campaign_or_404(request, pk):
+def _own_campaign_or_404(request, pk, *, with_owner_badge=False):
     """The campaign, if the viewer is its arbitrator.
 
     Owner-scoped where the page itself is not: reading a campaign is one
     question and changing it is another, so the screens that set a campaign
     up ask for its arbitrator by name rather than gating a control on a
     page anybody may open.
+
+    ``with_owner_badge`` loads what naming the arbitrator with their badge
+    reads — the profile, joined, and the badge grants, one prefetch query —
+    for a page that draws them; a view that acts and redirects would pay the
+    grants query for nothing.
     """
     from n26.core.models import Campaign
 
     try:
+        campaigns = Campaign.objects.select_related("owner")
+        if with_owner_badge:
+            campaigns = campaigns.select_related("owner__profile").prefetch_related(
+                "owner__badge_grants"
+            )
         return get_object_or_404(
-            Campaign.objects.select_related("owner"),
+            campaigns,
             pk=pk,
             owner=request.user,
             archived=False,

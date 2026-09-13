@@ -500,6 +500,15 @@ class TestTheShellStillDraws:
         # the same name, which sits further up the page.
         assert page.index("Found and equip gang") < page.index(">Stash</span>")
 
+    def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
+        """The gallery's two-thumb range menu draws two real range inputs,
+        each bound to the caller's variable — the slider is called once for
+        each form rather than with a conditional inside one call."""
+        page = reader.get("/n26/design/c/range-menu/").content.decode()
+        assert 'aria-label="Minimum"' in page and 'aria-label="Maximum"' in page
+        assert ':value="lowCost"' in page and ':value="highCost"' in page
+        assert "{% if" not in page
+
     def test_the_campaign_shell_draws_the_tables(self, reader):
         """The gangs table and an assets table both fill from the sample
         sheet, and every slot the view declares is drawn from the page

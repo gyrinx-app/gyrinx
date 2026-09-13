@@ -73,8 +73,11 @@
                     <span class="fst-italic"><i class="bi-calendar"></i> Date TBC</span>
                 {% endif %}
                 <span><i class="bi-flag"></i> {{ battle.mission }}</span>
-                <span><i class="bi-person"></i> <a class="linked"
-    href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a></span>
+                {% if battle.owner %}
+                    <span><i class="bi-person" aria-hidden="true"></i>
+                        <c-user-link :user="battle.owner" />
+                    </span>
+                {% endif %}
             </div>
         </div>
         <!-- Two-column layout on wide screens -->
@@ -292,10 +295,12 @@
                                     <div class="border-start border-2 ps-3">
                                         <div class="d-flex justify-content-between align-items-start mb-1">
                                             <div class="text-secondary fs-7">
-                                                <i class="bi-person"></i>
-                                                <a href="{% url 'core:user' note.owner.username %}"
-                                                   class="linked">{{ note.owner }}</a>
-                                                · {{ note.created|date:"M d, Y g:i A" }}
+                                                {% if note.owner %}
+                                                    <i class="bi-person" aria-hidden="true"></i>
+                                                    <c-user-link :user="note.owner" />
+                                                    ·
+                                                {% endif %}
+                                                {{ note.created|date:"M d, Y g:i A" }}
                                             </div>
                                             {% if note.owner == user %}
                                                 <a href="{% url 'core:battle-note-add' battle.id %}"
