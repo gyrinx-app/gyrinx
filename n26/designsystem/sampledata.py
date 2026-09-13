@@ -29,6 +29,7 @@ from n26.core.browse import (
     SectionGroup,
 )
 from n26.core.confirm import Fact
+from n26.core.flow import FlowStep, PaymentFigures
 from n26.core.hire import (
     STANDARD_OPTION_NAME,
     HireCategory,
@@ -838,6 +839,20 @@ def roster_summary():
 
 def context():
     return {
+        "augmentation_flow_steps": (
+            FlowStep("Choose improvement", complete=True),
+            FlowStep("Choose item", complete=True),
+            FlowStep("Review and pay", current=True),
+            FlowStep("Complete"),
+        ),
+        "advancement_flow_steps": (
+            FlowStep("Roll", complete=True),
+            FlowStep("Choose advancement", current=True),
+            FlowStep("Review"),
+            FlowStep("Complete"),
+        ),
+        "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
+        "credit_payment_figures": PaymentFigures("Credits", "430¢", "100¢", "330¢"),
         "houses": HOUSES,
         "gang_owner": OWNER,
         # Somebody for a demo to name who is not the reader: a fixed name,
