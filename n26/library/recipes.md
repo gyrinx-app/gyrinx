@@ -2,8 +2,8 @@
 
 How to build specific rulebook setups out of the library's pieces. Each
 recipe is a set of steps to follow in the authoring pages — the things to
-create, and how to join them. A recipe is added here once the way to
-author its setup is settled, so this page grows with the library.
+create, and how to join them. A recipe is added once the way to author
+its setup is settled.
 
 Where a step is not yet possible, the recipe says so.
 
@@ -21,14 +21,14 @@ To make slashing claws grant a grapnel launcher and a drop rig:
 
 The model's card shows both items while it holds the claws, including
 when the claws themselves are granted. The wargear adds zero rating and
-cannot be sold or moved independently. Its modifiers apply; its built-in
-items and option sets require an assignment. Two grants of the same
-wargear give two copies.
+cannot be sold or moved on its own. Its modifiers apply. Its built-in
+items and option sets need an assignment. Two grants of the same wargear
+give two copies.
 
 ## Corrupted gangs
 
-Genestealer Cult, Chaos and Malstrain corruption are one build with
-different contents. A corruption is a choice the player makes once for
+Genestealer Cult, Chaos and Malstrain corruption are built the same way
+and differ only in what they contain. A corruption is a choice the player makes once for
 the gang, and all of its effects come from modifiers attached to the
 chosen pickable.
 
@@ -38,8 +38,8 @@ Use a **slot type** for this gang-level choice. Follow the same six steps
 as a Gang Legacy, and assign the slot to the gang.
 
 1. Create a **slot type** named "Variant" — what is being chosen — and
-   give it a plural. Turn *allows repeats* off. Everything below is
-   built on its page.
+   give it a plural. Turn *allows repeats* off. Build the rest of this
+   recipe on that slot type's page.
 2. Add a **pickable** for each corruption — "Genestealer Cult
    Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
 3. Add a **picklist** named "Variants" containing those three.
@@ -78,8 +78,8 @@ marked default, with the name you want.
 *offers a choice* of power from the right Wyrd Powers list, and *puts a
 category into a section*, placing Wyrd Powers in the Primary section.
 List the subtype in the corruption's collection at 35 credits. A player
-can buy it for their Leader at hire or later. The app does not enforce
-when the book allows the purchase.
+can buy it for their Leader at hire or later. The app does not check
+whether the book allows the purchase at that point.
 
 **Familiars.** Create the familiar as **wargear**, usable by Leaders and
 Champions, and put it in a collection. On the pickable: targets models
@@ -110,7 +110,7 @@ each": targets models that are Leaders or Champions, naming the familiar,
 with the limit set to 1. That limit is counted per model, and its note
 appears on the fighter's own card, which is what "each" means. None of
 the three blocks anything. A player can hire and buy what they like, and
-the sheet shows where they have gone past the book.
+the sheet says where the roster is over a limit.
 
 **Losing the gang's own special rules.** This needs a small change to
 each gang type, made once, and then one step per corruption. On each
@@ -120,8 +120,8 @@ special rules onto it: one *gives* modifier per rule, targeting the
 gang. What the gang holds reaches its fighters, so a rule that improves
 their weapons or changes a characteristic works from there. Only a rule
 you also want printed on each fighter's card needs a second *gives*
-targeting the model. The rules are then granted rather than built in, so
-one item stands behind all of them. On each corruption's pickable, add
+targeting the model. The rules are then granted rather than built in, and
+one item carries all of them. On each corruption's pickable, add
 *takes something away* naming that hidden item: targeting the gang,
 which is where the item sits, and targeting the model too if the
 fighters' cards were given rules of their own. Everything the hidden
@@ -202,11 +202,27 @@ When those checks pass, add the house collection to the real gang type's built-i
 
 If you archive the main hire collection, gangs can again hire fighters listed under their gang type. The collection stays hidden on the gang sheet. Check the gang type's fighter entries before using this fallback: it can include fighters that the collection excluded.
 
+## Interstitials
+
+Use this recipe to put a heading and an explanation in front of a choice. Founding a gang, hiring a model or making a pick can add a slot to a card. If an interstitial is attached to that slot, the player sees it first. Buying an item and cloning a model do not show one.
+
+Create the slot before you start. You will create an interstitial and attach it to one or more slots.
+
+1. Create an **interstitial**. **Name** is what you call it in the library; players never see it. **Title** is the heading on the screen — leave it blank to use the name. **Description** is the text under the heading.
+2. Leave **Skippable** off if the player must make the choice before carrying on. Turn it on if they can leave it and make it later on the gang sheet.
+3. Set **Position** to order this screen against others shown at the same time. Ties fall back to the name.
+4. Use **Attach a slot** on the interstitial's page, once for each slot the screen is shown for. One interstitial can be attached to several slots, and one slot can show several interstitials.
+5. Open **Staged content** from the library index and use **Put live**. A new interstitial is staged. Attachments have no staging control and are live at once.
+
+The screen only appears when the slot is added. A gang that already holds the slot will not see it, so attach the interstitial before those gangs are founded or those models hired.
+
+**Continue** saves every choice on the screen. A choice that is not skippable blocks **Continue** until it has enough picks, and the screen lists what is missing. **Skip** appears only when no choice on the screen is required, and leaves without saving.
+
 ## A Clan House Outcast gang
 
 An Outcast gang chooses one of the six Clan Houses when it is created,
-and for campaign purposes counts as a gang of that House. Two gang-level
-choices are involved: the Clan House the Outcast player picks, and the
+and for campaign purposes counts as a gang of that House. This uses two
+choices the gang makes: the Clan House the Outcast player picks, and the
 hidden **Gang supertype** slot every gang carries. A Clan House gang
 type arrives with its supertype already picked. The Clan House pick
 fills the supertype slot.
@@ -245,8 +261,8 @@ both conditions stop matching. An Escher gang, or a Clanless Outcast
 gang that picked no Clan House, never matches either.
 
 Nothing new shows on the gang sheet. The given pick is a fact about the
-gang, not a line: it adds nothing to the rating and does not appear in
-the history.
+gang rather than a line on it. It adds nothing to the rating and does
+not appear in the history.
 
 ## A Gang Legacy
 
@@ -259,8 +275,9 @@ equipment list to the fighter who picks it. The same six steps build any
 slot type. This one is written out because it uses all of them.
 
 1. Create a **slot type** named "Gang Legacy" — what is being chosen —
-   and give it a plural, so a page can name several of them. Set *allows repeats* to [whether one gang may hold the same
-   legacy twice]. Everything below is built on its page.
+   and give it a plural, so a page can name several of them. Set *allows
+   repeats* to [whether one gang may hold the same legacy twice]. Build
+   the rest of this recipe on that slot type's page.
 2. Add a **pickable** for each legacy: [the legacies the rules give].
 3. On each pickable's page, attach a **modifier**: targets the model,
    *gives* that legacy's equipment list. The list is an ordinary
@@ -293,15 +310,15 @@ in and name a **starting pick** beside it. The player can change it
 afterwards the way they would change any pick.
 
 Two things this build cannot do yet. A gang cannot be given something
-because one of its fighters holds a legacy — a condition checks what a
-model has, never what any model in the gang has. And a picklist cannot
+because one of its fighters holds a legacy: a condition checks what a
+model has, never what any model in the gang has. A picklist also cannot
 be limited to a particular moment. It is open whenever the fighter's
-equip page is.
+equip page is open.
 
-## An item one list restricts
+## A restriction on one list only
 
 Some lists print a restriction beside an item that other lists print
-without one: the Goliath equipment list has "Heavy rock saw (Forge-born
+without one. The Goliath equipment list has "Heavy rock saw (Forge-born
 only)", while the Genestealer Cult and Corpse Grinder lists offer the
 same saw to anyone. The restriction belongs to that one list's entry.
 
@@ -314,7 +331,7 @@ same saw to anyone. The restriction belongs to that one list's entry.
 
 The saw still shows on the list for everyone. It is marked for the
 fighters the list does not offer it to, and an owner can still buy it
-for them. Nothing is blocked: the list shows the restriction.
+for them. Nothing is blocked. The list states the restriction.
 
 A restriction can go in three places:
 
@@ -377,13 +394,12 @@ were Primary skills.
    the model already has. Any other label gives the choice a line of its
    own, headed by that label.
 
-The two modifiers work together, and placement comes first: the offer is
+The two modifiers work together, and placement comes first. The offer is
 limited to whatever is Primary *for this model*, and the placement is
-what puts the family there. **An offer with no placement behind it is a
-choice with no options** — the player clicks Choose and lands on an empty
-page. The reverse is a valid setup rather than a mistake: place the
-family and offer nothing, and the model may select powers from it at any
-time but is not given a first one.
+what puts the family there. An offer without a placement gives the
+player an empty page when they click Choose. A placement without an
+offer is a valid setup: the model may select powers from the family at
+any time, but is not given a first one.
 
 ## An item's augmentation tiers
 
@@ -419,10 +435,10 @@ the model's card.
 
 Picking a tier replaces the one held. The player picks the next tier
 after a Hunting Rig Augmentation result, and the tier below after a
-System Downgrade glitch. Every tier is offered whatever the level, so a
-player who reads the book differently is not stopped. Tiers carry no
-price and add nothing to the rating: the credits sit on the Power Boost
-result that raised the level.
+System Downgrade glitch. Every tier is offered whatever the level, so nothing stops a player who
+reads the book differently. Tiers carry no price and add nothing to the
+rating. The credits are recorded on the Power Boost result that raised
+the level.
 
 A rig's tiers are not yet drawn under the rig: they show as a line of
 their own under Gear, because only a weapon draws its tiers under the
@@ -446,7 +462,7 @@ the owner decides when to roll.
    choice of up to twenty picks. The first band contains two results,
    one for Weapon Skill and one for Ballistic Skill, because the book
    lets the player raise either. The table's page says a roll of 1 is
-   claimed by more than one result. That is the book, not a mistake.
+   claimed by more than one result. That is what the book says.
 2. Give Spyrers a **Kill Count** counter if they do not have one: create
    the counter and build it into each Spyrer entry, starting at 0. The
    Glitch Count is built the same way.
@@ -456,8 +472,8 @@ the owner decides when to roll.
    one (Weapon Skill or Ballistic Skill for the two Combat Neuroware
    results, Initiative, Movement, Save). The characteristic's own
    maximum stops the change. When that happens the book counts the
-   result as Hunting Rig Augmentation instead; that is the player's to
-   apply. The picker offers every result whatever was rolled.
+   result as Hunting Rig Augmentation instead, and the player applies
+   it. The picker offers every result whatever was rolled.
 4. On every result, attach a **modifier** as well: targets the model,
    *moves a counter* — the Kill Count, down by four. It runs once, when
    the result is picked, and taking the result back later does not give
@@ -495,7 +511,7 @@ rolls. The player rolls at the table and adds the result they rolled.
 
 1. On **Foundations**, create the **lasting effect tables**. One click
    creates all four tables in full: a slot type each with *allows
-   repeats* on — a second Eye Injury is a second Eye Injury — every
+   repeats* on, so one model can take the same result twice, every
    result at its band, and a standing choice each. Each table's own
    page shows every roll covered. (Several results appear on more than
    one table at the same rolls. A pack has one pickable per name, so
@@ -546,8 +562,8 @@ rolls. The player rolls at the table and adds the result they rolled.
    marks it **Critically Injured**, Memorable Death marks it **Dead**,
    and Captured marks it **Captured** and gives it an **Escape** choice —
    a D6 table of its own (Executed, Ransomed, Daring Escape), each result
-   setting the status in turn. The card wears the status under the
-   model's name; the owner can set it by hand from the card's menu, and
+   setting the status in turn. The card shows the status under the
+   model's name. The owner can set it by hand from the card's menu, and
    Clean House on the gang's menu clears every Recovery at the end of a
    cycle. Taking a result off the card does not undo the status.
 

@@ -1,0 +1,22 @@
+{% comment %}
+<c-n26.arrival-block> — one screen an author attached to a slot that just
+arrived: its heading and words, and the slot's questions beneath.
+    <c-n26.arrival-block :block="block">
+        …a <c-n26.arrival-question> per question…
+    </c-n26.arrival-block>
+Takes a n26.render.ArrivalBlock. The questions come through the slot rather
+than being drawn here, so the page can put every block inside the one form
+that Continue submits. Nothing here submits or skips: Continue and Skip sit
+once at the foot of the screen.
+  :block — a n26.render.ArrivalBlock.
+{% endcomment %}
+<c-vars :block="None" class="" />
+<section {{ attrs }} class="space-y-6 {{ class }}">
+    <div class="space-y-2">
+        <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">{{ block.heading }}</h2>
+        {% if block.description %}
+            <c-n26.prose :measure="False">{{ block.description|linebreaks }}</c-n26.prose>
+        {% endif %}
+    </div>
+    {{ slot }}
+</section>

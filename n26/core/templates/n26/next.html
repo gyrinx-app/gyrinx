@@ -1,0 +1,45 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+What an act just brought, and the choices it asks for.
+
+Shown straight after founding a gang, hiring a model or making a pick, when
+something that arrived carries a screen an author attached to it. The whole
+state is in the address — every question asked, and where Continue leads — so
+the page survives a reload, can be linked to, and works with scripting off.
+The act's own confirmation draws at the top, where the layout puts messages.
+
+The whole screen is one form. Continue submits it and writes every choice the
+reader made together; a question left blank stays open. Continue is withheld
+until every compulsory question is settled — it holds every pick it asks for,
+asks for none, or has nothing to offer. Where no question is compulsory, Skip
+sits beside Continue and goes on without writing anything.
+{% endcomment %}
+{% block head_title %}Choices for {{ gang.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-10">
+        <c-n26.page-header title="Choices for {{ gang.name }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
+                        <c-n26.user-link :user="user" href="{% url 'n26-dashboard' %}" tone="current" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">
+                        {{ gang.name }}
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Choices
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        {% include "n26/includes/arrival_blocks.html" %}
+    </div>
+{% endblock content %}

@@ -1530,6 +1530,32 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="arrival-block",
+                tag="c-n26.arrival-block",
+                template="n26/arrival_block.html",
+                summary="One screen an author attached to a slot that just arrived.",
+                parts=(
+                    Part(
+                        "c-n26.arrival-question",
+                        "n26/arrival_question.html",
+                        "One arriving slot's question, with the same picker the pick screen draws.",
+                        required=True,
+                    ),
+                ),
+                notes=(
+                    "Drawn on the screen after founding a gang, hiring a model "
+                    "or making a pick, one per screen an author attached to a "
+                    "slot that arrived. The heading and words are the "
+                    "author's; the questions come through the slot, because "
+                    "the whole screen is one form and Continue writes every "
+                    "answer together. A block draws no control of its own. "
+                    "The page withholds Continue until every question the "
+                    "author made compulsory is settled — holds every pick it "
+                    "asks for, asks for none, or has nothing to offer — and "
+                    "offers Skip beside it only where no question is."
+                ),
+            ),
+            Component(
                 slug="roll-table",
                 tag="c-n26.roll-table",
                 template="n26/roll_table.html",

@@ -861,6 +861,8 @@ def context():
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
+        # The screen after an act: what arrived, and the choices it asks.
+        "arrival_screen": arrival_screen(),
         # A choice that holds several picks, part-way through and with no
         # room left: the two states where its acts differ.
         "choice_picks_offer": choice_picks_offer(),
@@ -1025,6 +1027,122 @@ def choice_offer():
                 ],
             ),
         ],
+    )
+
+
+def _gang_offer(label, options, chosen=None, first_key=1):
+    """One gang-hosted picker as the screen after founding draws it."""
+    return ChoiceOffer(
+        label=label,
+        chosen=chosen,
+        groups=[
+            ChoosableGroup(
+                name="",
+                options=[
+                    Choosable(
+                        key=f"library.pickable:{first_key + n}",
+                        name=name,
+                        is_current=name == chosen,
+                    )
+                    for n, name in enumerate(options)
+                ],
+            )
+        ],
+    )
+
+
+def arrival_screen():
+    """The screen shown after founding a gang, three blocks deep: a
+    question that cannot be skipped and is still open, one already
+    chosen, and one the author let the reader skip.
+
+    Every question here is the gang's own. Founding brings the gang
+    type's slots and nothing else, so a model's question cannot appear
+    on this screen: it arrives when that model is hired, and is asked
+    on the screen for the hire. Hard-coded, as everything here is: the
+    gallery renders on an empty database.
+    """
+    from n26.core.render import ArrivalBlock, ArrivalQuestion, ArrivalScreen
+
+    # Nowhere real, as every sample link: the gallery founds no gang.
+    back = "#"
+    bearer = "The Forgotten"
+    return ArrivalScreen(
+        blocks=(
+            ArrivalBlock(
+                heading="Choose a gang archetype",
+                description=(
+                    "A gang archetype changes who you can hire, what "
+                    "equipment you can buy, and which gang rules you "
+                    "have.\n\nPick one before hiring anybody."
+                ),
+                questions=(
+                    ArrivalQuestion(
+                        key="gang:1:1",
+                        under="1",
+                        label="Gang archetype",
+                        bearer=bearer,
+                        chosen=None,
+                        settled=False,
+                        offer=_gang_offer(
+                            "Gang archetype",
+                            ("Chymist Cult", "Wyld Hunt"),
+                            first_key=1,
+                        ),
+                    ),
+                ),
+            ),
+            ArrivalBlock(
+                heading="Name the corruption",
+                description="A corrupted gang keeps its house list and adds its own.",
+                questions=(
+                    ArrivalQuestion(
+                        key="gang:1:2",
+                        under="2",
+                        label="Variant",
+                        bearer=bearer,
+                        chosen="Chaos Corrupted",
+                        settled=True,
+                        offer=_gang_offer(
+                            "Variant",
+                            (
+                                "Chaos Corrupted",
+                                "Genestealer Cult Corrupted",
+                                "Malstrain Corrupted",
+                            ),
+                            chosen="Chaos Corrupted",
+                            first_key=3,
+                        ),
+                    ),
+                ),
+            ),
+            ArrivalBlock(
+                heading="Choose a Chaos god",
+                description="Can be chosen later, from the gang sheet.",
+                questions=(
+                    ArrivalQuestion(
+                        key="gang:1:3",
+                        under="3",
+                        label="Chaos God",
+                        bearer=bearer,
+                        chosen=None,
+                        settled=False,
+                        offer=_gang_offer(
+                            "Chaos God",
+                            (
+                                "Architect of Fate",
+                                "Blood God",
+                                "Dark Prince",
+                                "Plague Lord",
+                            ),
+                            first_key=6,
+                        ),
+                    ),
+                ),
+                skippable=True,
+            ),
+        ),
+        next_url=back,
     )
 
 

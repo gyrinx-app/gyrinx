@@ -18,7 +18,7 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import Assignment, Gang, Miniature
 from n26.core.render import build_choice_offer, render_gang
-from n26.core.views.choose import _find_slot, link_slots
+from n26.core.views.choose import find_slot, link_slots
 from n26.flags import STAGED_CONTENT
 from n26.library.authoring import put_everything_live, stage
 from n26.library.models import Category, Collection, CollectionEntry, Profile, Weapon
@@ -211,7 +211,7 @@ def legacy_offer(gang, include_staged):
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     line = next(line for line in sheet.choices if line.kind_label == "Gang Legacy")
-    found = _find_slot(gang, line.key)
+    found = find_slot(gang, line.key)
     offer = build_choice_offer(
         found.slot, found.computed, include_staged=include_staged
     )

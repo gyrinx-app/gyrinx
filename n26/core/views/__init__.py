@@ -13,6 +13,7 @@ what makes it a move rather than a change.
 """
 
 from n26.core.views.api import preview_view
+from n26.core.views.arrivals import gang_next
 from n26.core.views.campaigns import (
     add_asset,
     add_asset_type,
@@ -89,6 +90,7 @@ __all__ = [
     "changelog",
     "changelog_entry",
     "choose",
+    "gang_next",
     "clone_fighter",
     "clone_gang",
     "create_campaign",

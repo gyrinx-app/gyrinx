@@ -14,7 +14,8 @@ Three submissions land on one URL, and each is a step of the same click:
     The dialog's own submit: the name, and the options it carried through
     as hidden fields. This is the one that hires, and it lands back on the
     list with a confirmation, because the next thing a player does after
-    hiring a Ganger is hire another one.
+    hiring a Ganger is hire another one — by way of the screen for what
+    the hire brought, where any of it asks for one.
 
 The two-step exists so that the dialog's URL holds one profile's answer.
 A form that reached it by GET would put every row's inputs and every filter
@@ -393,6 +394,7 @@ def hire_fighter(request, pk):
 
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import gang_collections
+    from n26.core.arrivals import onward
     from n26.core.forms import HireFighterForm
     from n26.core.hire import (
         build_entries,
@@ -547,7 +549,9 @@ def hire_fighter(request, pk):
                         if miniature.name == profile.name
                         else f"Hired {miniature.name} — {profile.name}, {entry.paid}¢.",
                     )
-                return redirect(back)
+                # Back to the list — by way of the screen for what the
+                # hire brought, where any of it asks for one.
+                return redirect(onward(request, gang, op, back))
             # A name the field will not take. The dialog comes back holding
             # what was typed, with the error under it — the selection is in
             # the hidden fields, so nothing else has to be picked again.

@@ -21,15 +21,25 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from n26.impersonation import note_page_subject
 
 
-def _safe_redirect(request, url, fallback_url="/"):
-    """Redirect only to this request's host."""
+def own_address(request, url):
+    """``url`` if it is one of this site's own pages, else an empty string.
+
+    A return address arrives in the query and the form, so it is checked
+    against this request's host before anything redirects to it or
+    carries it on to the next page.
+    """
     if url and url_has_allowed_host_and_scheme(
         url,
         allowed_hosts={request.get_host()},
         require_https=request.is_secure(),
     ):
-        return HttpResponseRedirect(url)
-    return HttpResponseRedirect(fallback_url)
+        return url
+    return ""
+
+
+def _safe_redirect(request, url, fallback_url="/"):
+    """Redirect only to this request's host."""
+    return HttpResponseRedirect(own_address(request, url) or fallback_url)
 
 
 def may_mark_status(gang, user):

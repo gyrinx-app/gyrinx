@@ -1014,12 +1014,15 @@ def create_gang(request):
 
     POST founds for real — the Gang itself, then its founding assignment
     and whatever the type's built-ins bring, in one operation — and
-    lands back on the dashboard where the new gang is now a row.
+    lands on the new gang's own sheet, or first on the screen for what
+    the founding brought, where any of it asks for one.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.arrivals import onward
     from n26.core.forms import CreateGangForm
     from n26.core.models import Gang
     from n26.core.operations import operation
+    from n26.core.render import GANG_SLOT_HOST
     from n26.library.staged import sees_staged
 
     # Staged gang types are on the cards for whoever may see staged content
@@ -1054,10 +1057,25 @@ def create_gang(request):
                 starting_credits=budget,
             )
             messages.success(request, f"Founded {gang.name}.")
-            # Straight to the new gang's own sheet: hiring is the next
-            # thing a founder does, and the dashboard is a detour past
-            # every gang they already have.
-            return redirect("n26-gang", pk=gang.pk)
+            # To the new gang's own sheet: hiring is the next thing a
+            # founder does, and the dashboard is a detour past every
+            # gang they already have. By way of the screen for what the
+            # founding brought, where any of it asks for one.
+            #
+            # Only the gang's own questions: founding is where somebody
+            # says what the gang is, and a model's question belongs to
+            # the hire that brings the model. A gang type whose built-ins
+            # bring a model would otherwise put that model's questions on
+            # this screen; they stand unresolved on its card instead.
+            return redirect(
+                onward(
+                    request,
+                    gang,
+                    op,
+                    reverse("n26-gang", args=[gang.pk]),
+                    hosts={GANG_SLOT_HOST},
+                )
+            )
     else:
         form = CreateGangForm(include_staged=shown)
 
