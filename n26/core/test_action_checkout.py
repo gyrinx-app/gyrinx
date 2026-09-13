@@ -231,6 +231,34 @@ def test_confirmation_is_bound_to_the_reviewed_outcome(user, gang, fighter):
             )
 
 
+def test_incomplete_choices_are_saved_for_resume_and_invalidate_review(
+    user, gang, fighter
+):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    with operation(gang, actor=user) as op:
+        record = op.start_action(fighter, action, uuid.uuid4())
+        record = op.save_action_choices(
+            record,
+            outcome=outcome,
+            terms={"item_assignment": "first", "outcome": "tampered"},
+        )
+    assert record.outcome == outcome
+    assert record.terms == {
+        "item_assignment": "first",
+        "outcome": str(outcome.pk),
+    }
+    first_revision = record.revision
+
+    with operation(gang, actor=user) as op:
+        record = op.save_action_choices(
+            record, outcome=outcome, terms={"intended_pick": "second"}
+        )
+    assert record.terms["item_assignment"] == "first"
+    assert record.terms["intended_pick"] == "second"
+    assert record.review == {}
+    assert record.revision == first_revision + 1
+
+
 def test_no_effect_is_refused_before_payment(user, gang, fighter):
     action, outcome, _, _ = configured_action(
         user, gang, fighter, counter_value=0, counter_price=False
