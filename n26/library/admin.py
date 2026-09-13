@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.forms.models import BaseInlineFormSet
 
 from n26.library import artwork
 from n26.library.models import (
@@ -269,16 +270,35 @@ class SlotAdmin(admin.ModelAdmin):
     list_select_related = ["pack", "slot_type", "picklist"]
 
 
+class InterstitialSlotFormSet(BaseInlineFormSet):
+    """A new attachment lands in its interstitial's pack unless its own
+    pack was set to something else — on the add page too, where no
+    initial can know the parent's pack before it is saved. The pack box
+    starts on the default pack, so a row left on it follows the parent,
+    as the authoring verb's does."""
+
+    def save_new(self, form, commit=True):
+        from n26.library.models.pack import default_pack_id
+
+        attachment = super().save_new(form, commit=False)
+        if attachment.pack_id == default_pack_id():
+            attachment.pack_id = self.instance.pack_id
+        if commit:
+            attachment.save()
+        return attachment
+
+
 class InterstitialSlotInline(admin.TabularInline):
     model = InterstitialSlot
+    formset = InterstitialSlotFormSet
     extra = 1
     fields = ["slot", "position", "pack"]
     ordering = ["position"]
     autocomplete_fields = ["slot"]
 
     def get_formset(self, request, obj=None, **kwargs):
-        """A new attachment starts in its interstitial's pack, as the
-        authoring verb puts it, rather than in the default pack."""
+        """On the change page the pack box starts on the interstitial's
+        pack, so what the formset will do is what the author sees."""
         formset = super().get_formset(request, obj, **kwargs)
         if obj is not None:
             formset.form.base_fields["pack"].initial = obj.pack_id

@@ -757,8 +757,8 @@ class Interstitial(Content):
     skippable = models.BooleanField(
         default=False,
         help_text=(
-            "Whether the reader may carry on without picking. Unticked, "
-            "the screen does not offer Continue until the pick is made."
+            "Whether the reader may skip this screen. Unticked, the screen "
+            "does not offer Continue until every choice still on it is made."
         ),
     )
     position = models.PositiveIntegerField(
