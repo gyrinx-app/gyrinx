@@ -323,6 +323,7 @@ def gang_sheet(request, pk):
             gang,
             sheet,
             *sheet.models,
+            back=at,
             dismiss_back=at,
         )
         link_skills(*sheet.models)
