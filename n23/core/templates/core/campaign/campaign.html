@@ -214,12 +214,11 @@
                     <div class="caps-label">Arbitrators</div>
                     <div>
                         {% spaceless %}
-                            <a href="{% url 'core:user' campaign.owner.username %}"
-                               class="linked-body">{{ campaign.owner }}</a>
+                            <c-user-link :user="campaign.owner" class="linked-body" />
                             {% for admin in campaign.admins.all %}
                                 {# ", " as a template literal: djlint trims literal trailing spaces and rejects entities (H023) #}
                                 <span>{{ ", " }}</span>
-                                <a href="{% url 'core:user' admin.username %}" class="linked-body">{{ admin }}</a>
+                                <c-user-link :user="admin" class="linked-body" />
                             {% endfor %}
                         {% endspaceless %}
                     </div>
@@ -484,21 +483,19 @@
                     </div>
                 </div>
                 <div class="px-2">
-                    {% with recent_actions=campaign.actions.all|slice:":5" %}
-                        {% if recent_actions %}
-                            <div class="vstack gap-2">
-                                {% for action in recent_actions %}
-                                    {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
-                                {% endfor %}
-                            </div>
-                            {% if campaign.actions.count > 5 %}
-                                <a href="{% url 'core:campaign-actions' campaign.id %}"
-                                   class="fs-7 mt-2 d-inline-block">View all {{ campaign.actions.count }} actions →</a>
-                            {% endif %}
-                        {% else %}
-                            <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
+                    {% if recent_actions %}
+                        <div class="vstack gap-2">
+                            {% for action in recent_actions %}
+                                {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
+                            {% endfor %}
+                        </div>
+                        {% if actions_count > 5 %}
+                            <a href="{% url 'core:campaign-actions' campaign.id %}"
+                               class="fs-7 mt-2 d-inline-block">View all {{ actions_count }} actions →</a>
                         {% endif %}
-                    {% endwith %}
+                    {% else %}
+                        <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
+                    {% endif %}
                 </div>
             </section>
             <!-- Captured Fighters -->

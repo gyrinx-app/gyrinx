@@ -37,6 +37,9 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Check formatter versions
+        run: .venv/bin/python scripts/check_formatter_versions.py
+
       - name: Check Python formatting with ruff
         run: |
           source .venv/bin/activate && \

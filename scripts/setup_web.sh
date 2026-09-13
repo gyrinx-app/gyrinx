@@ -16,6 +16,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 echo "=== Claude Code on the Web: Gyrinx Environment Setup ==="
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+cd "$PROJECT_DIR"
 
 # ---------------------------------------------------------------------------
 # 0. Fix sudo configuration ownership
@@ -40,28 +42,40 @@ fi
 # 1. Install GitHub CLI
 # ---------------------------------------------------------------------------
 echo "--- [1/9] Installing GitHub CLI ---"
-if ! command -v gh &>/dev/null; then
+if command -v gh &>/dev/null \
+  && gh pr create --help 2>/dev/null | grep -q -- '--attach'; then
+  echo "gh already supports PR attachments: $(gh --version | head -1)"
+else
   # Install from a direct binary download rather than apt.
   # The web environment has limited network; apt-get update fails because
   # it tries to reach every configured apt source (PPAs, etc.).  Direct
   # download only needs github.com + objects.githubusercontent.com, both
-  # on the allow-list.
-  GH_VERSION="2.67.0"
+  # on the allow-list. gh 2.99+ is required for `gh pr create --attach`.
+  GH_VERSION="2.100.0"
   # Map kernel arch to the naming convention used by gh release tarballs.
   case "$(uname -m)" in
-    x86_64)  GH_ARCH="amd64" ;;
-    aarch64) GH_ARCH="arm64" ;;
-    *)       GH_ARCH="$(uname -m)" ;;
+    x86_64)
+      GH_ARCH="amd64"
+      GH_SHA256="e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be"
+      ;;
+    aarch64)
+      GH_ARCH="arm64"
+      GH_SHA256="ea4e7a581a32ccad6cc7923cb1576ac5859ba4b9a16ab22eb8f8a96e78e2e961"
+      ;;
+    *)
+      echo "Unsupported architecture for GitHub CLI: $(uname -m)" >&2
+      exit 1
+      ;;
   esac
   GH_TARBALL="gh_${GH_VERSION}_linux_${GH_ARCH}"
+  GH_TMP_DIR=$(mktemp -d)
   curl -LsSf "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_TARBALL}.tar.gz" \
-    -o /tmp/gh.tar.gz
-  tar -xzf /tmp/gh.tar.gz -C /tmp
-  sudo install /tmp/"${GH_TARBALL}"/bin/gh /usr/local/bin/gh
-  rm -rf /tmp/gh.tar.gz /tmp/"${GH_TARBALL}"
+    -o "${GH_TMP_DIR}/${GH_TARBALL}.tar.gz"
+  echo "${GH_SHA256}  ${GH_TMP_DIR}/${GH_TARBALL}.tar.gz" | sha256sum -c -
+  tar -xzf "${GH_TMP_DIR}/${GH_TARBALL}.tar.gz" -C "${GH_TMP_DIR}"
+  sudo install "${GH_TMP_DIR}/${GH_TARBALL}/bin/gh" /usr/local/bin/gh
+  rm -r "${GH_TMP_DIR}"
   echo "gh installed: $(gh --version | head -1)"
-else
-  echo "gh already installed: $(gh --version | head -1)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -95,12 +109,15 @@ echo "uv: $(uv --version)"
 # 4. Python virtual environment + project install
 # ---------------------------------------------------------------------------
 echo "--- [4/9] Setting up Python environment ---"
-# `uv sync` creates .venv if needed and installs exactly what uv.lock pins.
-# UV_PROJECT_ENVIRONMENT is pinned because the next line sources ./.venv — an
-# inherited value would sync a different environment and leave this broken.
-UV_PROJECT_ENVIRONMENT=.venv uv sync --locked
-# shellcheck disable=SC1091
-source .venv/bin/activate
+# Use the same dependency-input stamp as local and agent startup paths. This
+# avoids a second sync when the activation hook runs immediately afterward.
+# shellcheck source=lib/worktree.sh
+source "$PROJECT_DIR/scripts/lib/worktree.sh"
+provision_worktree_venv "$PROJECT_DIR"
+# Put the venv on PATH without sourcing its local-Postgres activation helpers;
+# the web environment configures its database separately below.
+export VIRTUAL_ENV="$PROJECT_DIR/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
 echo "Python $(python --version) — packages installed"
 
 # ---------------------------------------------------------------------------

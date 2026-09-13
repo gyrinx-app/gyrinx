@@ -144,7 +144,9 @@ reader's other campaigns — the same pattern a gang's screens use.
                     <tbody>
                         {% for player in players %}
                             <tr>
-                                <td class="font-semibold text-ink-900 dark:text-ink-100">{{ player.user.username }}</td>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">
+                                    <c-n26.user-link :user="player.user" tone="current" />
+                                </td>
                                 <td class="text-right">
                                     {% if player.state == "accepted" %}
                                         <c-ui.badge color="green" size="sm">

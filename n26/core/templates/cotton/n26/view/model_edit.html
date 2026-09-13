@@ -7,14 +7,26 @@
         <c-slot name="statline">…the characteristics form…</c-slot>
     </c-n26.view.model-edit>
 
-The Edit face of a model's own page: the header (see <c-n26.model-header>), then
-a grid holding the card and the forms, one column on a phone.
+The Edit face of a model's own page: the header (see <c-n26.model-header>)
+with the card in its card slot, above the tab strip, then a grid holding the
+forms, one column on a phone.
 
 The card is drawn in `edit` mode, which is where its controls come out. It is
 otherwise the same card the gang sheet draws, from the same renderer. Each
 piece of kit the model holds carries a menu of the listing's acts here — Add
 accessory, Sell and the rest — so taking something off does not mean finding
-it on the Equip tab first.
+it on the Equip tab first. The Equip and Options faces draw the same card in
+the same place (n26/includes/model_card_host.html), so what the model is stays
+in view whichever tab is open.
+
+The grid runs two columns all the way down and nothing spans both: Picture and
+Notes, then Skills & Powers beside a column holding Characteristics over
+Subtypes & Rules, then Lore. What is short and often changed comes first; the
+story, which is long and rarely edited, comes last.
+
+Characteristics and Subtypes & Rules share one cell so the pair stands level
+with Skills & Powers beside them, Subtypes & Rules taking whatever height
+Characteristics leaves.
 
 Saving is the caller's business. Notes, skills and statline arrive as whole
 forms — fields, submit and all — and this component only decides where each box
@@ -24,20 +36,20 @@ sits and what its heading says.
     built from pk.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
-  tab_actions — controls at the right-hand end of the Edit and Equip tabs.
-  lore — the lore form, a box of its own beside the notes. Without it no box
+  tab_actions — controls at the right-hand end of the tab strip.
+  name_action — a control beside the model's name. Without it the rename
+    pencil is drawn (n26/includes/model_name_action.html); the gallery, with
+    no model to rename, passes a link of its own.
+  lore — the lore form, a cell of its own on the bottom row. Without it no box
     is drawn.
-  picture — the picture forms, a box of their own. Without it no box is drawn.
-  edits — the subtypes and rules forms. Without it no box is drawn. Sits before
-    the skills box: what a model is reads before what it has selected.
-  buying — links to this model's lists on the Equip face, a box of their own.
-    Without it no box is drawn. Sits after the card, because a card row naming
-    something the model holds is only half of what an owner wants: the other
-    half is the screen that fills it.
+  picture — the picture forms, the first box of the grid. Without it no box is
+    drawn.
+  edits — the subtypes and rules forms, under the characteristics and sharing
+    a cell with them. Without it no box is drawn.
   skills — the skills form. Without it no box is drawn at all, so a model whose
     grid reaches no set is not asked rather than shown an empty list.
-  statline — the characteristics form. Without it, nothing is drawn. Full width
-    under the grid, so its boxes line up with the card's own strip.
+  statline — the characteristics form, over the subtypes and sharing a cell
+    with them. Without it no box is drawn.
   htmx — set by a screen that draws this view for a real model, so the card's
     own controls post through htmx and take back the card alone.
 {% endcomment %}
@@ -54,7 +66,6 @@ sits and what its heading says.
     lore=""
     picture=""
     edits=""
-    buying=""
     skills=""
     statline=""
     :htmx="False"
@@ -73,52 +84,23 @@ sits and what its heading says.
         {% if actions.strip %}
             <c-slot name="actions">{{ actions }}</c-slot>
         {% endif %}
+        {% comment %}
+        The card sits in a host of its own so an act on it can send back the
+        card alone — the same include every other screen of the model
+        draws, so the gallery's card and the pages' are one element and an
+        update addressed to its id always lands somewhere. The editors
+        below are the card's siblings, not its children, which is what
+        lets the whole card be replaced without rebuilding them.
+        {% endcomment %}
+        <c-slot name="card">
+            {% include "n26/includes/model_card_host.html" with name_action=name_action %}
+        </c-slot>
         {% if tab_actions.strip %}
             <c-slot name="tab_actions">{{ tab_actions }}</c-slot>
         {% endif %}
     </c-n26.model-header>
 
-    {% comment %}
-    auto-rows-min so the notes box keeps its own height rather than stretching
-    to the card's, which is almost always the taller of the two.
-    {% endcomment %}
-    <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
-        {% comment %}
-        The card sits in a host of its own so an act on it can send back the
-        card alone. Drawn whether or not anything posts over htmx, so the
-        gallery's card and this page's are the same element — and so an
-        update addressed to this id always lands somewhere. The editors
-        beside it are the card's siblings, not its children, which is what
-        lets the whole card be replaced without rebuilding them.
-        {% endcomment %}
-        <div id="n26-model-card-host">
-            <c-n26.model-card :card="card"
-                              mode="edit"
-                              :htmx="htmx"
-                              status_href="{{ status_href }}"
-                              :status_hx="htmx">
-                {% if name_action.strip %}
-                    <c-slot name="name_action">{{ name_action }}</c-slot>
-                {% endif %}
-            </c-n26.model-card>
-        </div>
-
-        <c-ui.card>
-            <c-slot name="header">
-                <span class="font-semibold">Notes</span>
-            </c-slot>
-            {{ notes }}
-        </c-ui.card>
-
-        {% if lore.strip %}
-            <c-ui.card>
-                <c-slot name="header">
-                    <span class="font-semibold">Lore</span>
-                </c-slot>
-                {{ lore }}
-            </c-ui.card>
-        {% endif %}
-
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         {% if picture.strip %}
             <c-ui.card>
                 <c-slot name="header">
@@ -128,23 +110,12 @@ sits and what its heading says.
             </c-ui.card>
         {% endif %}
 
-        {% if edits.strip %}
-            <c-ui.card>
-                <c-slot name="header">
-                    <span class="font-semibold">Subtypes &amp; Rules</span>
-                </c-slot>
-                {{ edits }}
-            </c-ui.card>
-        {% endif %}
-
-        {% if buying.strip %}
-            <c-ui.card>
-                <c-slot name="header">
-                    <span class="font-semibold">Buy from</span>
-                </c-slot>
-                {{ buying }}
-            </c-ui.card>
-        {% endif %}
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Notes</span>
+            </c-slot>
+            {{ notes }}
+        </c-ui.card>
 
         {% if skills.strip %}
             <c-ui.card>
@@ -154,14 +125,41 @@ sits and what its heading says.
                 {{ skills }}
             </c-ui.card>
         {% endif %}
-    </div>
 
-    {% if statline.strip %}
-        <c-ui.card>
-            <c-slot name="header">
-                <span class="font-semibold">Characteristics</span>
-            </c-slot>
-            {{ statline }}
-        </c-ui.card>
-    {% endif %}
-</div>
+        {% comment %}
+        Two boxes in one cell, so the short one and the long one together
+        stand level with Skills &amp; Powers beside them. The lower box grows
+        into whatever height the upper one leaves; where only one of the two
+        is drawn, that one grows instead.
+        {% endcomment %}
+        {% if statline.strip or edits.strip %}
+            <div class="flex flex-col gap-4">
+                {% if statline.strip %}
+                    <c-ui.card class="{% if not edits.strip %}grow{% endif %}">
+                        <c-slot name="header">
+                            <span class="font-semibold">Characteristics</span>
+                        </c-slot>
+                        {{ statline }}
+                    </c-ui.card>
+                {% endif %}
+
+                {% if edits.strip %}
+                    <c-ui.card class="grow">
+                        <c-slot name="header">
+                            <span class="font-semibold">Subtypes &amp; Rules</span>
+                        </c-slot>
+                        {{ edits }}
+                    </c-ui.card>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if lore.strip %}
+            <c-ui.card>
+                <c-slot name="header">
+                    <span class="font-semibold">Lore</span>
+                </c-slot>
+                {{ lore }}
+            </c-ui.card>
+        {% endif %}
+    </div>

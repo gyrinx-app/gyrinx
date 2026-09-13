@@ -209,7 +209,9 @@ jobs:
       # A pull request from a fork runs with a read-only token, so its own
       # run cannot report; the fan-out from main covers it with a write token.
       - name: Report on the pull request
-        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        # Reports when a step failed, but not when a newer push cancelled the
+        # run: a cancelled run has checked nothing and must not leave a result.
+        if: "!cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)"
         env:
           GH_TOKEN: ${{ github.token }}
           FETCH: ${{ steps.fetch.outcome }}

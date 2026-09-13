@@ -26,7 +26,9 @@ card's weapons must share a statline shape.
 
 A stored model's card is three tabs: the rules' card, then Lore and Notes —
 the two sections a player writes rather than earns, read off the structure
-and sanitised here. notes_href and lore_href say where their Edit goes;
+and sanitised here. tabs=False draws the rules' card alone, for a screen that
+already has a tab strip of its own directly under the card and does not want a
+second one inside it. notes_href and lore_href say where their Edit goes;
 without one the panel is read-only, which is what a reader who does not own
 the gang gets. status_href is where the status badge leads — the owner's Mark
 as dialog — and empty draws the badge as words and offers an Active model
@@ -40,6 +42,7 @@ on the card's face — a small control by the actions opens it.
     :card="None"
     mode="gang"
     :htmx="False"
+    :tabs="True"
     notes_href=""
     lore_href=""
     status_href=""
@@ -155,13 +158,14 @@ on the card's face — a small control by the actions opens it.
     {% comment %}
     A stored model gets the tab strip: the rules' card, then the two sections
     the player writes. A card with no id depicts nobody — a hire preview, a
-    picker option — and has nothing written, so it draws the body plain.
+    picker option — and has nothing written, so it draws the body plain, and
+    so does a card the caller has asked to draw without tabs.
 
     The strip and the panels are Alpine's; scriptless readers get every panel
     in a run instead (the layout's no-script rule reveals them), so nothing
     written is ever unreachable.
     {% endcomment %}
-    {% if card.id %}
+    {% if card.id and tabs %}
         <div class="n26-card-tabs">
             <c-ui.tabs variant="segmented" size="sm" :fill="True">
                 <c-ui.tabs.tab name="Card">

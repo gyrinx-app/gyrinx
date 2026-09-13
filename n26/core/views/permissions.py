@@ -200,7 +200,7 @@ def _any_gang_or_404(request, pk):
     return gang
 
 
-def _any_campaign_or_404(request, pk):
+def _any_campaign_or_404(request, pk, *, with_owner_badge=True):
     """The campaign, whoever arbitrates it — a table its players may read.
 
     Not owner-scoped: the address an arbitrator sends round shows the same
@@ -217,36 +217,52 @@ def _any_campaign_or_404(request, pk):
     Archived campaigns stay out, as archived rosters do: one its arbitrator
     has put away is not something a link should keep alive. A pk that is
     not a ULID is a bad URL rather than a server error.
+
+    Naming the arbitrator with their badge reads their profile and their
+    badge grants. The profile rides this fetch, a one-row join that costs
+    no query. ``with_owner_badge`` reads the grants with the campaign, one
+    prefetch query, so a page that names them draws nothing it has not
+    already read — the default, because nearly every screen under a
+    campaign names its arbitrator in the trail. A view that acts and
+    leaves, or draws a dialog that names nobody, passes ``False`` and pays
+    nothing; a page drawn after a fetch without it reads the grants alone.
     """
     from n26.core.models import Campaign
 
     try:
-        campaign = get_object_or_404(
-            Campaign.objects.select_related(
-                "owner", "campaign_type", "additions__built_ins"
-            ),
-            pk=pk,
-            archived=False,
+        campaigns = Campaign.objects.select_related(
+            "owner", "owner__profile", "campaign_type", "additions__built_ins"
         )
+        if with_owner_badge:
+            campaigns = campaigns.prefetch_related("owner__badge_grants")
+        campaign = get_object_or_404(campaigns, pk=pk, archived=False)
     except ValidationError:
         raise Http404("No such campaign") from None
     note_page_subject(request, campaign.owner)
     return campaign
 
 
-def _own_campaign_or_404(request, pk):
+def _own_campaign_or_404(request, pk, *, with_owner_badge=True):
     """The campaign, if the viewer is its arbitrator.
 
     Owner-scoped where the page itself is not: reading a campaign is one
     question and changing it is another, so the screens that set a campaign
     up ask for its arbitrator by name rather than gating a control on a
     page anybody may open.
+
+    The arbitrator's profile rides this fetch and ``with_owner_badge`` reads
+    their badge grants with it by default, as on ``_any_campaign_or_404``:
+    every screen an arbitrator opens names them in its trail. A view that
+    acts and leaves, or draws a dialog that names nobody, passes ``False``.
     """
     from n26.core.models import Campaign
 
     try:
+        campaigns = Campaign.objects.select_related("owner", "owner__profile")
+        if with_owner_badge:
+            campaigns = campaigns.prefetch_related("owner__badge_grants")
         return get_object_or_404(
-            Campaign.objects.select_related("owner"),
+            campaigns,
             pk=pk,
             owner=request.user,
             archived=False,

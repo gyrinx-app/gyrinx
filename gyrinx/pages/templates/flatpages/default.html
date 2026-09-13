@@ -65,6 +65,7 @@
             </div>
         </div>
         <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">
+            {% page_introduction flatpage %}
             {% page_contents flatpage %}
             {{ flatpage.content|add_heading_links }}
             {% comment %}Direct child pages, for narrow viewports without the sidebar{% endcomment %}

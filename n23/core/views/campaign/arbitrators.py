@@ -38,7 +38,13 @@ def campaign_arbitrators(request, id):
 
     :template:`core/campaign/campaign_arbitrators.html`
     """
-    campaign = get_campaign_admin_or_404(request, id)
+    # The page names the owner with their badge at the top of its list. A
+    # GET draws it; a POST redirects, so it fetches the campaign plain, and
+    # only an invalid form re-draws the page — the owner's badge data is
+    # read with the campaign again at that point.
+    campaign = get_campaign_admin_or_404(
+        request, id, with_owner_badge=request.method == "GET"
+    )
 
     if request.method == "POST":
         form = AddArbitratorForm(request.POST, campaign=campaign)
@@ -67,6 +73,7 @@ def campaign_arbitrators(request, id):
             return HttpResponseRedirect(
                 reverse("core:campaign-arbitrators", args=(campaign.id,))
             )
+        campaign = get_campaign_admin_or_404(request, id, with_owner_badge=True)
     else:
         form = AddArbitratorForm(campaign=campaign)
 
@@ -77,9 +84,11 @@ def campaign_arbitrators(request, id):
             "campaign": campaign,
             # The owner should never be in admins, but exclude defensively so
             # weird data can't render them twice or make them removable.
-            "admins": campaign.admins.exclude(id=campaign.owner_id).order_by(
-                "username"
-            ),
+            # Each name carries its badge, which reads the profile and grants.
+            "admins": campaign.admins.exclude(id=campaign.owner_id)
+            .select_related("profile")
+            .prefetch_related("badge_grants")
+            .order_by("username"),
             "form": form,
         },
     )

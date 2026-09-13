@@ -86,6 +86,45 @@ class TestTheModelsOwnPage:
         client.force_login(User.objects.create_user("someone-else"))
         assert client.get(edit_url(vex)).status_code == 404
 
+    def test_the_card_sits_above_the_tabs_and_lore_last(
+        self, client, tester, gang, vex
+    ):
+        """The card is the first thing under the heading on every one of
+        the model's screens, the tab strip under it; then the boxes,
+        short and often changed first, the story alone on the bottom
+        row."""
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+
+        card = body.index('id="n26-model-card-host"')
+        assert body.index("<h1") < card < body.index("This model")
+
+        def heading(name):
+            return body.index(f'<span class="font-semibold">{name}</span>')
+
+        assert (
+            heading("Picture")
+            < heading("Notes")
+            < heading("Characteristics")
+            < heading("Lore")
+        )
+
+    def test_the_notes_editor_is_short_and_what_is_written_is_not(
+        self, client, tester, gang, vex
+    ):
+        """A tall editor pushed everything under it below the fold. The
+        editor is capped and scrolls; the notes themselves have no limit."""
+        from n26.core.forms import NOTES_EDITOR_HEIGHT
+
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        assert f"&quot;height&quot;: {NOTES_EDITOR_HEIGHT}," in body
+
+        long = "<p>" + ("Owes Kaine a favour. " * 400) + "</p>"
+        client.post(edit_url(vex), {"act": "notes", "notes": long})
+        vex.refresh_from_db()
+        assert vex.notes == long
+
 
 class TestSavingNotes:
     """POST saves the notes; nothing about them touches the books."""
@@ -700,12 +739,9 @@ class TestTheQueryBudget:
         client.force_login(tester)
         # Two of these are flag readings — whether the reader is offered
         # the model's status, and whether they see staged content — each
-        # taken once for the page. Two more find the lists this model buys
-        # from, for the links into Equip: which of the collections it holds
-        # are somewhere to buy gear, and the standard Trading Post. Both
-        # are the page's, not the roster's, so the count below still holds
-        # however large the gang grows.
-        assert self.measure(client, edit_url(vex)) == 45
+        # taken once for the page rather than once per model, so the count
+        # below still holds however large the gang grows.
+        assert self.measure(client, edit_url(vex)) == 43
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

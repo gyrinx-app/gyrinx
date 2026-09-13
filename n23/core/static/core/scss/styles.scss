@@ -804,10 +804,30 @@ $width-em-sizes: (
 // (4.5:1) for normal text. $yellow itself is 2.2:1 on white, so each theme
 // gets its own value: #8a6000 is 5.59:1 on white, #f0b02a is 8.04:1 on the
 // dark body (#212529). Neither is $gy-state-injured, so a heading does not read
-// as an injured fighter. h3 and h4 use Bootstrap's secondary emphasis grey,
-// which is 13.5:1 light and 6.7:1 dark. Set the gold as a custom property on
-// the two theme roots rather than a bare :root — see the note on
-// --bs-secondary-color above.
+// as an injured fighter. h3 uses Bootstrap's secondary emphasis grey, which is
+// 13.5:1 light and 6.7:1 dark. Set the gold as a custom property on the two
+// theme roots rather than a bare :root — see the note on --bs-secondary-color
+// above.
+//
+// h4 and below take a second, dimmer grey of their own. Sharing h3's colour
+// left the two levels separated by one weight step and 3.5px, which is not
+// enough to see. Prominence now falls at every level — gold, near-black,
+// mid-grey — and keeps falling in both themes, which is why the two values are
+// not a lightened and darkened pair of each other: in light mode the headings
+// sit *below* body text in contrast (body 16:1, h3 13.5:1), and in dark mode
+// they sit below it too but from much lower down (body ~12:1, h3 6.7:1). A grey
+// dimmer than h3 therefore means 7.5:1 on white and 5.2:1 on the dark body.
+// Both clear WCAG AA (4.5:1) for normal text.
+//
+// These rules reach the .h1-.h6 classes as well as the elements, because
+// Bootstrap's _type.scss @extends each element selector onto its class — so
+// `h5 { … }` written here silently compiles to `h5, .h5`. A heading therefore
+// looks like the level it is drawn at, not the level it is marked up as. That
+// is what we want: the contents block's "Contents" and the child listing's
+// "In <page>:" are both <h2 class="h5">, chrome rather than authored prose,
+// and they read as the small, quiet headings they are drawn as. Giving h4 a
+// colour is what pulled them out of the gold, which they used to inherit from
+// the h2 rule only because the old h5 rule set no colour at all.
 //
 // The light branch also covers data-bs-theme="auto", which is what the page
 // carries until core/js/index.js resolves it to light or dark (and for good if
@@ -819,10 +839,12 @@ $width-em-sizes: (
 :root:not([data-bs-theme="dark"]),
 [data-bs-theme="light"] {
     --gy-flatpage-h2-color: #8a6000;
+    --gy-flatpage-h4-color: #4a5568;
 }
 
 [data-bs-theme="dark"] {
     --gy-flatpage-h2-color: #f0b02a;
+    --gy-flatpage-h4-color: #8c97a8;
 }
 
 .flatpage-content {
@@ -836,20 +858,29 @@ $width-em-sizes: (
         color: var(--bs-secondary-text-emphasis);
     }
 
-    h4 {
-        font-weight: $font-weight-semibold;
-        color: var(--bs-secondary-text-emphasis);
-    }
-
+    h4,
     h5,
     h6 {
         font-weight: $font-weight-semibold;
+        color: var(--gy-flatpage-h4-color);
     }
 
     // The heading anchor never underlines, so the heading colour is not
     // mistaken for a link. The link icon on hover is the affordance.
     a:has(> :is(h1, h2, h3, h4, h5, h6)) {
         text-decoration: none;
+    }
+}
+
+// The optional introduction: a standfirst above the contents block. A little
+// larger than body text so it reads as the page's opening, and its last child
+// drops its bottom margin so the gap below is the block's own, not the
+// paragraph's.
+.flatpage-introduction {
+    font-size: 1.05em;
+
+    > :last-child {
+        margin-bottom: 0;
     }
 }
 

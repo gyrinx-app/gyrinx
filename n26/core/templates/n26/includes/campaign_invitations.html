@@ -25,7 +25,14 @@ back on the home page.
                 <li class="flex flex-wrap items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
                     <div class="min-w-0 flex-1">
                         <p class="text-base font-semibold">{{ invitation.campaign.name }}</p>
-                        <p class="text-sm text-muted">from {{ invitation.campaign.owner.username|default:"an arbitrator" }}</p>
+                        <p class="text-sm text-muted">
+                            from
+                            {% if invitation.campaign.owner %}
+                                <c-n26.user-link :user="invitation.campaign.owner" tone="current" />
+                            {% else %}
+                                an arbitrator
+                            {% endif %}
+                        </p>
                         {% if invitation.message %}
                             <p class="mt-0.5 text-sm text-muted">“{{ invitation.message }}”</p>
                         {% endif %}
