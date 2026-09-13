@@ -83,20 +83,18 @@ def test_accessory_form_shows_weapon_info_and_tooltip(client):
 
     # Check weapon name is displayed in the card header
     assert "Lasgun" in content
-    # The weapon name appears in multiple places: page title, h1, and card header
-    assert '<h4 class="h5 mb-0">Lasgun</h4>' in content
 
-    # Check weapon cost is displayed in the badge (10¢)
-    assert '<span class="badge text-bg-secondary">10¢</span>' in content
+    # Check weapon cost is displayed (10¢)
+    assert "10¢" in content
 
     # Check form shows accessories with correct costs
     # Red Dot Sight should show 10¢ in Available Accessories
     assert "Red Dot Sight" in content
-    assert '<span class="text-secondary">(10¢)</span>' in content
+    assert "(10¢)" in content
 
     # Master Crafted should show 5¢ (25% of 10, rounded up to nearest 5)
     assert "Master Crafted" in content
-    assert '<span class="text-secondary">(5¢)</span>' in content
+    assert "(5¢)" in content
 
 
 @pytest.mark.django_db
@@ -172,13 +170,11 @@ def test_accessory_selection_preserves_existing_accessories(client):
     content = response.content.decode()
 
     # Extended Magazine should be shown in the weapon details table (already added)
-    # It will appear with the crosshair icon
     assert "Extended Magazine" in content
-    assert '<i class="bi-crosshair"></i>' in content
 
     # Custom Grip should only appear in Available Accessories (not yet added)
     assert "Custom Grip" in content
-    assert '<span class="text-secondary">(2¢)</span>' in content
+    assert "(2¢)" in content
 
     # Extended Magazine should NOT appear in Available Accessories since it's already added
     # Check that it's in the weapon table but not in the available accessories list

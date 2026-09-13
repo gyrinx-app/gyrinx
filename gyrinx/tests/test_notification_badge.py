@@ -47,9 +47,9 @@ def test_badge_rendered_in_navbar_when_unread(client, user):
     client.force_login(user)
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
-    # The red count pill is shown.
-    assert "badge rounded-pill text-bg-danger" in content
     assert 'href="/notifications/"' in content
+    assert 'aria-label="Inbox (1 unread)"' in content
+    assert "unread notifications" in content
 
 
 @pytest.mark.django_db
@@ -57,9 +57,8 @@ def test_badge_absent_when_zero(client, user):
     client.force_login(user)
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
-    # The inbox link is present, but not the red count pill.
     assert 'href="/notifications/"' in content
-    assert "badge rounded-pill text-bg-danger" not in content
+    assert 'aria-label="Inbox"' in content
 
 
 @pytest.mark.django_db

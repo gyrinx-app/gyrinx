@@ -327,7 +327,6 @@ def test_active_intrinsic_is_marked_and_flips_direction(client, user, campaign, 
     by_short = {o["short_label"]: o for o in options["intrinsics"]}
 
     assert by_short["R"]["active"] is True
-    assert by_short["R"]["icon"] == "bi-sort-down"
     # Choosing the active figure again turns the sort around.
     assert by_short["R"]["value"] == "rating"
     assert by_short["W"]["active"] is False

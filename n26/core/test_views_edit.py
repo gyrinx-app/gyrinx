@@ -80,7 +80,7 @@ class TestTheModelsOwnPage:
         client.force_login(tester)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert edit_url(vex) in body
-        assert ">Cards<" not in body
+        assert "Cards" not in body
 
     def test_a_stranger_gets_a_404(self, client, gang, vex):
         client.force_login(User.objects.create_user("someone-else"))
@@ -494,9 +494,6 @@ class TestKitActionsOnTheCard:
         assert f"{at}?remove={sword.pk}" in body
         assert f"{at}?reassign={sword.pk}" in body
         assert "More for Sword" in body
-        # One quiet chevron holds every act; the listing's red Sell button
-        # is not drawn on this card.
-        assert "bg-red-500" not in body
 
     def test_a_weapon_offers_add_accessory(self, client, tester, vex, gun):
         client.force_login(tester)

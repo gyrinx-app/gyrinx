@@ -936,7 +936,7 @@ class TestTheScopes:
         body = client.get(f"{hire_url(gang)}?list=supplementary").content.decode()
         assert "Claim Jumper" in body
         assert "Their Ganger" not in body
-        assert ">Ganger<" not in body
+        assert "Ganger" not in body
 
     def test_the_all_scope_offers_everyone_by_gang_type(
         self, client, tester, gang, ganger, elsewhere

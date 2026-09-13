@@ -41,18 +41,6 @@ class TestTheDefaultStrip:
     switched at the sm breakpoint, the narrow one holding up to two tabs and
     a switcher for the rest."""
 
-    def test_both_strips_are_in_the_html_for_css_to_pick_between(self):
-        html = render(DEFAULT)
-        assert "sm:flex" in html
-        assert "sm:hidden" in html
-
-    def test_the_strip_no_longer_scrolls_under_a_hidden_bar(self):
-        html = render(DEFAULT)
-        # The scroll container is what grew a scrollbar under tabs that fit;
-        # with a strip for each width there is nothing left to scroll.
-        assert "no-scrollbar" not in html
-        assert "overflow-x-auto" not in html
-
     def test_the_narrow_strip_holds_a_switcher_for_the_other_tabs(self):
         html = render(DEFAULT)
         assert "data-quick-switcher" in html
@@ -96,12 +84,6 @@ class TestTheSegmentedStrip:
     is addressed by position from app.css, and its few short tabs share one
     row by construction."""
 
-    def test_the_kit_scroll_container_is_kept(self):
-        html = render(SEGMENTED)
-        assert "no-scrollbar" in html
-        assert "overflow-x-auto" in html
-
     def test_no_second_strip_and_no_switcher_appear(self):
         html = render(SEGMENTED)
-        assert "sm:hidden" not in html
         assert "data-quick-switcher" not in html

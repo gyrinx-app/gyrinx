@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 from n23.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from n23.content.models.fighter import ContentFighter
@@ -240,7 +241,7 @@ def test_pack_detail_hides_buttons_for_anonymous(client, pack):
     response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Use in new List" not in response.content
-    assert b"bi-pencil" not in response.content
+    assert reverse("core:pack-edit", args=[pack.id]) not in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -278,7 +279,7 @@ def test_pack_detail_hides_edit_for_non_owner(client, group_user, pack, make_use
     client.force_login(other_user)
     response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
-    assert b"bi-pencil" not in response.content
+    assert reverse("core:pack-edit", args=[pack.id]) not in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -2273,7 +2274,10 @@ def test_pack_detail_shows_edit_button_for_editor(
     client.force_login(editor_user)
     response = client.get(f"/n23/pack/{pack_with_editor.id}")
     assert response.status_code == 200
-    assert b"bi-pencil" in response.content
+    assert (
+        reverse("core:pack-edit", args=[pack_with_editor.id])
+        in response.content.decode()
+    )
 
 
 @pytest.mark.django_db
@@ -2769,7 +2773,7 @@ def test_add_gear_category_grouped(client, group_user, pack):
     assert "Armour" in content
     assert "Vehicle Wargear" in content
     # Weapon categories should be excluded.
-    assert ">Pistols<" not in content
+    assert "Pistols" not in content
     # Groups should appear as optgroup labels.
     assert "Gear" in content
 

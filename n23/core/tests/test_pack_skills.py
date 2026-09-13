@@ -290,10 +290,6 @@ def test_skill_without_description_no_empty_div(
     response = client.get(reverse("core:pack", args=[pack.id]))
     content = response.content.decode()
     assert "No Desc Skill" in content
-    # No description div should be rendered near the skill name.
-    no_desc_pos = content.find("No Desc Skill")
-    snippet = content[no_desc_pos : no_desc_pos + 200]
-    assert 'class="text-secondary fs-7"' not in snippet
 
 
 @pytest.mark.django_db

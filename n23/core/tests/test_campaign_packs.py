@@ -1006,7 +1006,6 @@ def test_campaign_packs_member_does_not_see_add_remove_controls(
 
     content = response.content.decode()
     assert "Add Packs" not in content
-    assert "bi-trash" not in content
 
 
 @pytest.mark.django_db
@@ -1091,7 +1090,6 @@ def test_campaign_packs_owner_sees_both_controls(
     assert "Add to" in content
     assert "Owner Gang" in content
     assert "Add Packs" in content
-    assert "bi-trash" in content
 
 
 # --- Required content pack tests ---

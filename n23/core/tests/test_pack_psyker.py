@@ -157,8 +157,7 @@ def test_pack_detail_does_not_show_separate_disciplines_section(
     response = client.get(reverse("core:pack", args=[pack.id]))
     assert response.status_code == 200
     body = response.content.decode()
-    # Section header (h2) should not exist for disciplines.
-    assert ">Psyker Disciplines<" not in body
+    assert "Psyker Disciplines" not in body
 
 
 @pytest.mark.django_db
@@ -850,7 +849,7 @@ def test_fighter_card_psyker_link_text_is_edit(
     response = client.get(reverse("core:pack", args=[pack.id]))
     body = response.content.decode()
     # Card row label is "Psyker"; link text is "Edit".
-    assert "Default powers</a>" not in body  # old wording is gone
+    assert "Default powers" not in body
     pack_item = CustomContentPackItem.objects.get(
         content_type=ContentType.objects.get_for_model(ContentFighter),
         object_id=pack_psyker_fighter.pk,

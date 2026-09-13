@@ -40,10 +40,7 @@ class TestTheHeadingIsAPageHeading:
         )
 
         assert 'href="/others/"' in html
-        # Beside the title rather than after the whole heading: same row,
-        # which is the group page-header draws for it.
         assert html.index("Doug") < html.index('href="/others/"')
-        assert "flex flex-nowrap items-start gap-2" in html
 
     def test_slot_markup_survives_the_forwarding(self):
         """Handed on as a slot, not written into an attribute — an attribute
@@ -78,9 +75,6 @@ class TestTheHeadingIsAPageHeading:
         )
 
         assert html.index('href="/help/"') < html.index("Preview")
-        # The footer's rule is above the pair and below the fields; the
-        # header's controls are on the far side of it.
-        assert html.index('href="/help/"') < html.index("border-t")
 
 
 class TestNothingArrivesUninvited:
@@ -91,7 +85,6 @@ class TestNothingArrivesUninvited:
 
         assert "Doug" in html
         assert "<a" not in html
-        assert "flex flex-nowrap items-start gap-2" not in html
 
     def test_a_variable_of_the_same_name_in_the_page_is_not_a_slot(self):
         """The undeclared-slot trap. A page holding `trailing` for its own

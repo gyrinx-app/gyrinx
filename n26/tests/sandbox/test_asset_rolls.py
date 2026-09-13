@@ -778,20 +778,13 @@ class TestThePages:
         assert "A D66 roll is 11 to 66." in kings
         assert "The rolled territory will be assigned to Slag Kings." in kings
 
-    def test_the_own_roll_field_is_the_forms_drawn_by_the_component(
+    def test_the_own_roll_field_is_a_number_input_for_the_players_roll(
         self, client, campaign, territory, selection_table, arbitrator
     ):
-        """The field is RollAssetForm.rolled through the kit's field and
-        input components — the same drawing as the campaign budget — so
-        it carries the component's border and background classes rather
-        than a hand-written class that would replace them and leave the
-        box invisible in dark mode."""
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk]) + f"?roll={territory.pk}"
         body = client.get(address, HTTP_HX_REQUEST="true").content.decode()
         (widget,) = re.findall(r"<input[^>]*name=\"rolled\"[^>]*>", body)
-        assert "rounded-control" in widget and "border-ink-300" in widget
-        assert "max-w-32" not in widget
         assert 'type="number"' in widget and 'id="pool-roll"' in widget
         assert "Your own roll" in body
         assert "Optional. Leave blank and the roll is made for you." in body

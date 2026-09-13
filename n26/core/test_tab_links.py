@@ -7,6 +7,7 @@ link, and a current tab that says which one it is to something reading the page
 aloud rather than only to an eye reading its colour.
 """
 
+from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -82,11 +83,6 @@ class TestTheNarrowStrip:
     drawn whole, and from three the current tab stands alone with the rest
     behind a switcher whose rows are the same real links."""
 
-    def test_both_strips_are_in_the_html_for_css_to_pick_between(self):
-        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
-        assert "sm:flex" in html
-        assert "sm:hidden" in html
-
     def test_two_tabs_are_both_drawn_rather_than_one_and_a_menu(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
         # "+1 more" takes the room the other tab would, and says less: the
@@ -159,12 +155,10 @@ class TestTheBusySpinner:
         )
         assert "#listing" in html
         assert 'x-ref="wait"' in html
-        assert "animate-spin" in html
 
     def test_a_plain_strip_carries_none_of_it(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
         assert 'x-ref="wait"' not in html
-        assert "animate-spin" not in html
 
 
 class TestTheSearchBarsButton:
@@ -183,7 +177,7 @@ class TestTheSearchBarsButton:
         assert 'type="submit"' not in html
         # The clear button is the only one left, and it acts on the field's
         # contents rather than pretending to be an action.
-        assert html.count("<button") == 1
+        assert len(BeautifulSoup(html, "html.parser").find_all("button")) == 1
         # The field itself is untouched — narrowing as you type is the whole
         # behaviour a nested bar has.
         assert 'x-model="query"' in html

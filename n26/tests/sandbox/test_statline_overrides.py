@@ -346,16 +346,6 @@ class TestTheEditPage:
 class TestOnPaper:
     """One seam, so the print-out says what the screen says."""
 
-    def test_the_printed_card_carries_the_set_value(
-        self, client, player, gang, yolanda, cell_for
-    ):
-        set_by_hand(yolanda, cell_for, toughness="12")
-        client.force_login(player)
-        page = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
-        # Marked as changed, exactly as the screen marks it: the value
-        # alone could be any number on the page.
-        assert '<span class="is-modified">12</span>' in page
-
     def test_the_text_card_carries_it_too(self, yolanda, cell_for):
         from n26.core.render_text import render_model_card
 

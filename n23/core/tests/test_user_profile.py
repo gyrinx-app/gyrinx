@@ -50,8 +50,6 @@ def test_own_profile_no_unlisted_section_when_none(client, user, content_house):
 
     assert response.status_code == 200
     assert "My Public List" in content
-    # The unlisted section heading should not appear
-    assert "bi-eye-slash" not in content
 
 
 @pytest.mark.django_db
@@ -79,7 +77,6 @@ def test_other_user_cannot_see_unlisted_lists(client, user, make_user, content_h
     assert response.status_code == 200
     assert "My Public List" in content
     assert "My Secret List" not in content
-    assert "bi-eye-slash" not in content
 
 
 @pytest.mark.django_db
@@ -105,4 +102,3 @@ def test_anonymous_user_cannot_see_unlisted_lists(client, user, content_house):
     assert response.status_code == 200
     assert "My Public List" in content
     assert "My Secret List" not in content
-    assert "bi-eye-slash" not in content

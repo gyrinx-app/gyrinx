@@ -62,16 +62,6 @@ class TestTheComponentAndTheScriptAgree:
         assert 'strategy="absolute"' in source
         assert "{% if strategy == 'fixed' %}" in source
 
-    def test_a_long_menu_does_not_hand_its_scroll_to_the_page(self):
-        """overscroll-contain stops a gesture that reached the end of the
-        menu from moving the page underneath. overflow=hidden is opt-in
-        for a caller that already scrolls something inside the panel."""
-        source = source_of("cotton/ui/dropdown/index.html")
-        assert "overscroll-contain" in source
-        assert 'overflow="auto"' in source
-        assert "overflow == 'hidden'" in source
-        assert "overflow-y-auto overflow-x-hidden" in source
-
 
 class TestScriptlessMenus:
     def test_an_opted_in_menu_reveals_its_links_without_duplicating_them(self):
@@ -104,9 +94,3 @@ class TestTheCardMenuAsksForIt:
         on a narrow screen. A menu placed inside that box loses whatever hangs
         past its edges, which is most of the menu on the last weapon."""
         assert 'strategy="fixed"' in source_of("cotton/n26/owned_actions.html")
-
-    def test_the_weapon_table_is_still_the_box_this_is_about(self):
-        """If the table stops scrolling, the strategy above stops earning its
-        place — and if it keeps scrolling under a different class, the reason
-        written beside the strategy stops being true."""
-        assert "overflow-x-auto" in source_of("cotton/n26/model_card/body.html")

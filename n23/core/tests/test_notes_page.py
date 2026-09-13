@@ -147,8 +147,7 @@ def test_notes_page_no_edit_link_for_non_owner(client, user, make_user, make_lis
 
     response = client.get(reverse("core:list-notes", args=[lst.id]))
     content = response.content.decode()
-    # The Edit button should not be present for non-owners
-    assert "bi-pencil" not in content
+    assert reverse("core:list-edit", args=[lst.id]) not in content
 
 
 @pytest.mark.django_db

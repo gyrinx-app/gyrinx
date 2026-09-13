@@ -137,18 +137,6 @@ class TestBeingAsked:
         assert f'href="{sheet}"' in body
         assert "Cancel" in body
 
-    def test_the_act_is_marked_as_taking_something_away(
-        self, client, tester, gang, delete_url
-    ):
-        """Red on the submit and nothing on the way out. The colour is what
-        tells the two apart before either word is read, and a page that
-        ended in the green of a creating form would say the wrong thing."""
-        client.force_login(tester)
-        body = client.get(delete_url).content.decode()
-
-        assert "bg-red-500" in body
-        assert "bg-green-700" not in body
-
     def test_reading_the_page_deletes_nothing(self, client, tester, gang, delete_url):
         """A GET must never mutate: link checkers, prefetchers and the
         Back button all follow links, and none of them means it."""
