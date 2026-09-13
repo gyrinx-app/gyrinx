@@ -1962,6 +1962,31 @@ class TestAChoiceTheGangIsAskedThatHoldsNone:
         assert reverse("n26-choose", args=[gang.pk, line.key]) not in body
         assert ">Choose<" not in body
 
+    def test_a_dismissal_written_for_it_hides_nothing(
+        self, owner, asks_the_gang_nothing, client
+    ):
+        """No screen offers to dismiss or restore a choice that asks
+        nothing, so a row for one — left over from before the content
+        changed — must not hide it, or it would be hidden for good."""
+        from django.urls import reverse
+
+        from n26.core.models import DismissedOffer
+        from n26.core.views.choose import link_slots
+
+        gang = found_gang("The Forgotten", asks_the_gang_nothing, owner=owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet)
+        (line,) = sheet.choices
+        DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        client.force_login(owner)
+
+        for query in ("", "?dismissed=show"):
+            body = client.get(
+                reverse("n26-gang", args=[gang.pk]) + query
+            ).content.decode()
+            assert "Gang Legacy" in body
+            assert reverse("n26-restore-offer", args=[gang.pk, line.key]) not in body
+
 
 class TestARollTableInThePicker:
     """A player who rolled on the physical table finds their result by
