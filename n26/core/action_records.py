@@ -143,6 +143,51 @@ def _operation_snapshot(configured):
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
+def _target_snapshot(record, configured, terms):
+    """Exact player state a typed outcome will read when it writes."""
+    from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
+
+    if isinstance(configured, ApplyChanges):
+        values = []
+        for member in configured.changes.select_related(
+            "counter_change__counter", "remove_picks__slot_type"
+        ):
+            if member.counter_change_id:
+                assignment = _counter_assignment(
+                    record.gang,
+                    record.fighter,
+                    member.counter_change.counter,
+                    "fighter",
+                    record.action,
+                )
+                values.append(
+                    {
+                        "kind": "counter",
+                        "assignment": str(assignment.pk),
+                        "value": assignment.counter_value.value,
+                    }
+                )
+            else:
+                picks = Assignment.objects.filter(
+                    miniature_root=record.fighter,
+                    archived=False,
+                    pickable__slot_type=member.remove_picks.slot_type,
+                ).order_by("created", "pk")
+                values.append(
+                    {"kind": "picks", "assignments": [str(row.pk) for row in picks]}
+                )
+        return values
+    if isinstance(configured, AugmentCarriedItem):
+        from n26.core.augmentations import preview_augmentation
+
+        return preview_augmentation(record, configured, deepcopy(terms))
+    if isinstance(configured, ResolveAdvancement):
+        from n26.core.advancements import preview_advancement
+
+        return preview_advancement(record, configured, deepcopy(terms))
+    raise LibraryError(f"{type(configured).__name__} is not handled yet.")
+
+
 def start_action(op, fighter, action, request_key, allowance=None):
     _refuse_unless_owned(op, fighter)
     existing = ActionRecord.objects.filter(
@@ -153,10 +198,35 @@ def start_action(op, fighter, action, request_key, allowance=None):
             raise Refusal("That request key belongs to another action use.")
         return existing
 
+    rule = action.allowance_rule
     if allowance is not None:
         allowance = ActionAllowance.objects.select_for_update().get(pk=allowance.pk)
-        if allowance.fighter_id != fighter.pk or allowance.action_id != action.pk:
+        if (
+            rule is None
+            or allowance.fighter_id != fighter.pk
+            or allowance.action_id != action.pk
+            or allowance.recruitment_id != fighter.membership_id
+        ):
             raise Refusal("That allowance belongs to another action use.")
+        if allowance.records.filter(
+            state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED]
+        ).exists():
+            raise Refusal("That allowance is already being used.")
+    elif rule is not None:
+        allowance = (
+            ActionAllowance.objects.select_for_update()
+            .filter(action=action, fighter=fighter, recruitment=fighter.membership)
+            .exclude(
+                records__state__in=[
+                    ActionRecord.State.STARTED,
+                    ActionRecord.State.COMPLETED,
+                ]
+            )
+            .order_by("created", "pk")
+            .first()
+        )
+        if allowance is None:
+            raise Refusal("This fighter has no unused allowance for that action.")
     elif not _has_access(fighter, action):
         raise Refusal("That fighter can no longer use this action.")
 
@@ -196,19 +266,25 @@ def _locked(op, record):
     return locked
 
 
-def review_action(op, record, *, terms=None):
+def review_action(op, record, *, outcome, terms=None):
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer awaiting confirmation.")
     if record.allowance_id is None and not _has_access(record.fighter, record.action):
         raise Refusal("That fighter can no longer use this action.")
+    if not record.action.outcomes.filter(outcome=outcome).exists():
+        raise Refusal("That outcome is not available for this action.")
     quote = quote_action(op, record.fighter, record.action)
     record.revision += 1
-    record.terms = deepcopy(terms or {})
+    record.terms = {**deepcopy(terms or {}), "outcome": str(outcome.pk)}
+    configured = outcome.operation
+    if configured is None:
+        raise LibraryError(f"{outcome} has no operation.")
     record.review = {
         "price": quote.snapshot(),
         "content": _content_snapshot(record.action),
+        "target": _target_snapshot(record, configured, record.terms),
         "terms": record.terms,
     }
     record.save(update_fields=["revision", "terms", "review", "modified"])
@@ -234,14 +310,9 @@ def _plan_apply_changes(op, record, operation):
                 record.action,
             )
             before = assignment.counter_value.value
-            if configured.mode == configured.Mode.SET:
-                delta = configured.amount - before
-            elif configured.mode == configured.Mode.ADD:
-                delta = configured.amount
-            else:
-                delta = -min(before, configured.amount)
+            delta = _counter_change_delta(configured, before)
             meaningful = meaningful or delta != 0
-            planned.append(("counter", assignment, delta))
+            planned.append(("counter", assignment.pk, configured))
         else:
             picks = list(
                 Assignment.objects.filter(
@@ -258,12 +329,29 @@ def _plan_apply_changes(op, record, operation):
 
 
 def _apply_changes(op, record, planned):
-    for kind, target, delta in planned:
+    for kind, target, configured in planned:
         if kind == "counter":
-            op.tally(target, delta, action_record=record)
+            assignment = Assignment.objects.select_related("counter_value").get(
+                pk=target, gang_root=op.gang, archived=False
+            )
+            op.tally(
+                assignment,
+                _counter_change_delta(configured, assignment.counter_value.value),
+                action_record=record,
+            )
         else:
             for pick in target:
                 op.remove(pick, action_record=record, before_pick=pick)
+
+
+def _counter_change_delta(configured, before):
+    if configured.amount < 0:
+        raise LibraryError(f"{configured} has a negative counter amount.")
+    if configured.mode == configured.Mode.SET:
+        return configured.amount - before
+    if configured.mode == configured.Mode.ADD:
+        return configured.amount
+    return -min(before, configured.amount)
 
 
 def _prepare_outcome(op, record, configured):
@@ -323,8 +411,20 @@ def complete_action(op, record, *, revision, review, outcome):
         raise Refusal("Review this action again before confirming it.")
     if record.allowance_id is None and not _has_access(record.fighter, record.action):
         raise Refusal("That fighter can no longer use this action.")
-    if not record.action.outcomes.filter(outcome=outcome).exists():
+    if record.terms.get("outcome") != str(outcome.pk):
+        raise Refusal("Review this outcome again before confirming it.")
+    outcome_member = (
+        record.action.outcomes.select_related(
+            "outcome__augment_carried_item",
+            "outcome__resolve_advancement",
+            "outcome__apply_changes",
+        )
+        .filter(outcome_id=outcome.pk)
+        .first()
+    )
+    if outcome_member is None:
         raise Refusal("That outcome is not available for this action.")
+    outcome = outcome_member.outcome
     quote = quote_action(op, record.fighter, record.action)
     if not quote.matches(record.review.get("price", [])):
         raise Refusal("The price changed. Review this action again.")
@@ -333,6 +433,10 @@ def complete_action(op, record, *, revision, review, outcome):
     configured = outcome.operation
     if configured is None:
         raise LibraryError(f"{outcome} has no operation.")
+    if _target_snapshot(record, configured, record.terms) != record.review.get(
+        "target"
+    ):
+        raise Refusal("The fighter changed. Review this action again.")
     apply_outcome = _prepare_outcome(op, record, configured)
     _pay(op, record, quote)
     apply_outcome()

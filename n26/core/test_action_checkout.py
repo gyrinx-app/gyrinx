@@ -64,16 +64,16 @@ def configured_action(
     return action, outcome, access, held
 
 
-def start_and_review(user, gang, fighter, action):
+def start_and_review(user, gang, fighter, action, outcome):
     with operation(gang, actor=user) as op:
         record = op.start_action(fighter, action, uuid.uuid4())
     with operation(gang, actor=user) as op:
-        return op.review_action(record, terms={"screen": "confirm"})
+        return op.review_action(record, outcome=outcome, terms={"screen": "confirm"})
 
 
 def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
     action, outcome, _, held = configured_action(user, gang, fighter)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     assert [(line["resource"], line["amount"]) for line in record.review["price"]] == [
         ("credits", 20),
         ("counter", 3),
@@ -100,7 +100,7 @@ def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
 
 def test_insufficient_coalesced_counter_rolls_back_everything(user, gang, fighter):
     action, outcome, _, held = configured_action(user, gang, fighter, counter_value=2)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     with pytest.raises(Refusal, match="enough Glitches"):
         with operation(gang, actor=user) as op:
             op.complete_action(
@@ -120,7 +120,7 @@ def test_insufficient_coalesced_counter_rolls_back_everything(user, gang, fighte
 
 def test_changed_balance_requires_a_new_review(user, gang, fighter):
     action, outcome, _, held = configured_action(user, gang, fighter)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     with operation(gang, actor=user) as op:
         op.tally(held, 1)
     with pytest.raises(Refusal, match="price changed"):
@@ -135,7 +135,7 @@ def test_changed_balance_requires_a_new_review(user, gang, fighter):
 
 def test_duplicate_confirmation_returns_the_same_receipt(user, gang, fighter):
     action, outcome, _, _ = configured_action(user, gang, fighter)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     with operation(gang, actor=user) as op:
         first = op.complete_action(
             record,
@@ -152,7 +152,7 @@ def test_duplicate_confirmation_returns_the_same_receipt(user, gang, fighter):
 
 def test_unpaid_draft_rechecks_removed_access(user, gang, fighter):
     action, outcome, access, _ = configured_action(user, gang, fighter)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     with operation(gang, actor=user) as op:
         op.remove(access)
     with pytest.raises(Refusal, match="no longer use"):
@@ -167,6 +167,9 @@ def test_unpaid_draft_rechecks_removed_access(user, gang, fighter):
 
 def test_earned_allowance_survives_removed_access(user, gang, fighter):
     action, outcome, access, _ = configured_action(user, gang, fighter)
+    action.use_price.all().delete()
+    action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
+    action.save(update_fields=["recruitment_allowance_rule", "modified"])
     allowance = ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
@@ -177,7 +180,7 @@ def test_earned_allowance_survives_removed_access(user, gang, fighter):
         record = op.start_action(fighter, action, uuid.uuid4(), allowance=allowance)
         op.remove(access)
     with operation(gang, actor=user) as op:
-        record = op.review_action(record)
+        record = op.review_action(record, outcome=outcome)
     with operation(gang, actor=user) as op:
         completed = op.complete_action(
             record,
@@ -188,11 +191,41 @@ def test_earned_allowance_survives_removed_access(user, gang, fighter):
     assert completed.state == ActionRecord.State.COMPLETED
 
 
+def test_allowance_action_refuses_an_unearned_use(user, gang, fighter):
+    action, _, _, _ = configured_action(user, gang, fighter)
+    action.use_price.all().delete()
+    action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
+    action.save(update_fields=["recruitment_allowance_rule", "modified"])
+    with pytest.raises(Refusal, match="no unused allowance"):
+        with operation(gang, actor=user) as op:
+            op.start_action(fighter, action, uuid.uuid4())
+
+
+def test_confirmation_is_bound_to_the_reviewed_outcome(user, gang, fighter):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    other_operation = authoring.apply_changes(
+        authoring.counter_change(
+            outcome.apply_changes.changes.first().counter_change.counter, "add", 1
+        )
+    )
+    other = authoring.create_outcome("Add glitch", other_operation)
+    authoring.add_action_outcome(action, other)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    with pytest.raises(Refusal, match="Review this outcome"):
+        with operation(gang, actor=user) as op:
+            op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=other,
+            )
+
+
 def test_no_effect_is_refused_before_payment(user, gang, fighter):
     action, outcome, _, _ = configured_action(
         user, gang, fighter, counter_value=0, counter_price=False
     )
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     with pytest.raises(Refusal, match="would not change"):
         with operation(gang, actor=user) as op:
             op.complete_action(
@@ -219,7 +252,7 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
     )
     with operation(gang, actor=user) as op:
         held_pick = op.assign(pick, miniature=fighter)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     with operation(gang, actor=user) as op:
         op.complete_action(
             record,
@@ -233,7 +266,7 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
 
 def test_another_gang_cannot_complete_the_record(user, gang, fighter, gang_type):
     action, outcome, _, _ = configured_action(user, gang, fighter)
-    record = start_and_review(user, gang, fighter, action)
+    record = start_and_review(user, gang, fighter, action, outcome)
     other = Gang.objects.create(name="Outsiders", owner=user, gang_type=gang_type)
     with pytest.raises(Refusal, match="belong"):
         with operation(other, actor=user) as op:
@@ -243,3 +276,16 @@ def test_another_gang_cannot_complete_the_record(user, gang, fighter, gang_type)
                 review=record.review,
                 outcome=outcome,
             )
+
+
+def test_tally_ignores_a_counter_value_cached_before_the_lock(user, gang, fighter):
+    counter = Counter.objects.create(name="XP")
+    with operation(gang, actor=user) as op:
+        held = op.assign(counter, miniature=fighter)
+        op.tally(held, 2)
+    stale = held.counter_value
+    assert stale.value == 2
+    with operation(gang, actor=user) as op:
+        op.tally(held, 3)
+    with operation(gang, actor=user) as op:
+        assert op.tally(held, 4) == 9
