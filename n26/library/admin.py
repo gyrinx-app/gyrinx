@@ -270,19 +270,40 @@ class SlotAdmin(admin.ModelAdmin):
     list_select_related = ["pack", "slot_type", "picklist"]
 
 
+class InterstitialSlotForm(forms.ModelForm):
+    """The pack box may be left blank, meaning the interstitial's own
+    pack — what ``attach_interstitial`` does unless handed one. A pack
+    picked by hand is honoured as picked, the default pack included."""
+
+    class Meta:
+        model = InterstitialSlot
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        pack = self.fields["pack"]
+        pack.required = False
+        pack.empty_label = "Same as the interstitial"
+        if self.instance._state.adding:
+            # The model's default would pre-fill the box with the default
+            # pack, which reads as a choice; blank is the inheriting one.
+            self.initial["pack"] = None
+
+
+def inherit_pack(attachment):
+    """An attachment with no pack of its own takes its interstitial's."""
+    if attachment.pack_id is None:
+        attachment.pack_id = attachment.interstitial.pack_id
+    return attachment
+
+
 class InterstitialSlotFormSet(BaseInlineFormSet):
-    """A new attachment lands in its interstitial's pack unless its own
-    pack was set to something else — on the add page too, where no
-    initial can know the parent's pack before it is saved. The pack box
-    starts on the default pack, so a row left on it follows the parent,
-    as the authoring verb's does."""
+    """A new attachment left with a blank pack lands in its
+    interstitial's — on the add page too, where no initial can know the
+    parent's pack before it is saved."""
 
     def save_new(self, form, commit=True):
-        from n26.library.models.pack import default_pack_id
-
-        attachment = super().save_new(form, commit=False)
-        if attachment.pack_id == default_pack_id():
-            attachment.pack_id = self.instance.pack_id
+        attachment = inherit_pack(super().save_new(form, commit=False))
         if commit:
             attachment.save()
         return attachment
@@ -290,6 +311,7 @@ class InterstitialSlotFormSet(BaseInlineFormSet):
 
 class InterstitialSlotInline(admin.TabularInline):
     model = InterstitialSlot
+    form = InterstitialSlotForm
     formset = InterstitialSlotFormSet
     extra = 1
     # ``staged`` is here because the admin is where an attachment can be
@@ -297,14 +319,6 @@ class InterstitialSlotInline(admin.TabularInline):
     fields = ["slot", "position", "pack", "staged"]
     ordering = ["position"]
     autocomplete_fields = ["slot"]
-
-    def get_formset(self, request, obj=None, **kwargs):
-        """On the change page the pack box starts on the interstitial's
-        pack, so what the formset will do is what the author sees."""
-        formset = super().get_formset(request, obj, **kwargs)
-        if obj is not None:
-            formset.form.base_fields["pack"].initial = obj.pack_id
-        return formset
 
 
 @admin.register(Interstitial)
@@ -318,10 +332,16 @@ class InterstitialAdmin(admin.ModelAdmin):
 
 @admin.register(InterstitialSlot)
 class InterstitialSlotAdmin(admin.ModelAdmin):
-    list_display = ["interstitial", "slot", "position", "archived"]
-    list_filter = ["interstitial", "archived"]
+    form = InterstitialSlotForm
+    list_display = ["interstitial", "slot", "position", "pack", "staged", "archived"]
+    list_filter = ["interstitial", "staged", "archived"]
     search_fields = ["interstitial__name", "slot__name"]
-    list_select_related = ["interstitial", "slot"]
+    list_select_related = ["interstitial", "slot", "pack"]
+
+    def save_model(self, request, obj, form, change):
+        """The standalone page follows the same rule as the inline: a
+        blank pack is the interstitial's."""
+        super().save_model(request, inherit_pack(obj), form, change)
 
 
 @admin.register(Profile)
