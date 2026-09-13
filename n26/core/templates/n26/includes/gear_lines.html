@@ -11,7 +11,24 @@ so the two cannot drift apart.
     <ul class="flex flex-col gap-1">
         {% for line in lines %}
             <li class="flex items-center gap-2">
-                <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
+                <span class="min-w-0">
+                    {% include "n26/includes/assignable_name.html" %}
+                    {% for choice in line.choices %}
+                        <span class="block pl-2 text-sm">
+                            {{ choice.kind_label }}: {{ choice.chosen|default:"—" }}
+                            <span class="inline-flex items-center gap-0">
+                                <c-n26.model-card.mode when="edit">
+                                    {% if choice.href %}<c-ui.button href="{{ choice.href }}"
+             variant="ghost"
+             size="xs">Choose tier</c-ui.button>{% endif %}
+                                </c-n26.model-card.mode>
+                                <c-n26.model-card.mode when="gang edit">
+                                    <c-n26.choice-dismiss :choice="choice" />
+                                </c-n26.model-card.mode>
+                            </span>
+                        </span>
+                    {% endfor %}
+                </span>
                 <c-n26.owned-actions :sell="line.sell"
                                      :more="line.more"
                                      :htmx="htmx"
