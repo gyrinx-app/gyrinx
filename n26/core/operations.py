@@ -2666,6 +2666,12 @@ class Operation:
 
         return review_action(self, record, outcome=outcome, terms=terms)
 
+    def save_action_choices(self, record, *, outcome, terms):
+        """Persist incomplete typed choices so a draft resumes at the same step."""
+        from n26.core.action_records import save_action_choices
+
+        return save_action_choices(self, record, outcome=outcome, terms=terms)
+
     def complete_action(self, record, *, revision, review, outcome):
         """Verify and atomically pay for and apply a reviewed action use."""
         from n26.core.action_records import complete_action
