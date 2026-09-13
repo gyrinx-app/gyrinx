@@ -1,4 +1,4 @@
-"""Template access to the icon registry. See core/icons.py."""
+"""Template access to n26's icon library. See core/icons.py."""
 
 from django import template
 
@@ -7,25 +7,8 @@ from n26.core import icons
 register = template.Library()
 
 
-@register.filter
-def icon_paths(name):
-    """The subpaths for an icon name, for <c-n26.icon> to loop over."""
-    return icons.paths(name)
+@register.simple_tag
+def resolve_icon(name):
+    """Resolve a component name to validated inline SVG geometry."""
 
-
-@register.filter
-def is_local_icon(name):
-    """Whether this drawing is ours rather than Heroicons', for the gallery."""
-    return name in icons.LOCAL
-
-
-@register.filter
-def is_solid_icon(name):
-    """Whether this drawing is filled rather than stroked — the brand marks."""
-    return icons.is_solid(name)
-
-
-@register.filter
-def icon_viewbox(name):
-    """The canvas this drawing is stated on, for the <svg> that holds it."""
-    return icons.viewbox(name)
+    return icons.resolve(name)

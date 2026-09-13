@@ -857,15 +857,14 @@ GROUPS: list[Group] = [
                 slug="icon",
                 tag="c-n26.icon",
                 template="n26/icon.html",
-                summary="The whole icon set, from one named registry.",
+                summary="Lucide's icon library through one stable component.",
                 notes=(
-                    "The drawings live in the registry at n26/core/icons.py as path "
-                    "data alone — Heroicons v2 outline, 24x24, round caps, no fill — "
-                    "and this component supplies everything else. Brand marks break "
-                    "that uniformity, so the registry says which are solid fills and "
-                    "which keep a canvas of their own. There is no colour prop: an "
-                    "icon draws in currentColor. Stroke weight is a prop, weight being "
-                    "a function of rendered size rather than of the drawing."
+                    "Lucide supplies more than 1,700 consistent line drawings; search "
+                    "them below by canonical name. The package stays on the server "
+                    "and a page receives only the SVG bodies it actually renders. "
+                    "The approved brand marks are a closed filled set. There is no "
+                    "colour prop: every icon draws in currentColor. Stroke weight is "
+                    "a prop because weight follows rendered size, not the drawing."
                 ),
             ),
             Component(

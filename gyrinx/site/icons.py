@@ -48,13 +48,13 @@ class BannerIcon:
 #: mostly be inviting authors to pick a picture, which is how a warning ends up
 #: wearing a star.
 BANNER_ICONS: tuple[BannerIcon, ...] = (
-    BannerIcon("info", "Information", "bi-info-circle", "information-circle"),
-    BannerIcon("success", "Success", "bi-check-circle", "check-circle"),
-    BannerIcon("warning", "Warning", "bi-exclamation-triangle", "exclamation-triangle"),
+    BannerIcon("info", "Information", "bi-info-circle", "info"),
+    BannerIcon("success", "Success", "bi-check-circle", "circle-check"),
+    BannerIcon("warning", "Warning", "bi-exclamation-triangle", "triangle-alert"),
     BannerIcon("news", "News", "bi-bell", "bell"),
     BannerIcon("highlight", "Highlight", "bi-star", "star"),
     BannerIcon("thanks", "Thanks", "bi-heart", "heart"),
-    BannerIcon("maintenance", "Maintenance", "bi-gear", "cog-6-tooth"),
+    BannerIcon("maintenance", "Maintenance", "bi-gear", "settings"),
 )
 
 _BY_KEY: dict[str, BannerIcon] = {icon.key: icon for icon in BANNER_ICONS}

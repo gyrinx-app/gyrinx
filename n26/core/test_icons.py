@@ -1,40 +1,84 @@
-"""The icon registry's contract, where it is not simply path data.
+"""The Lucide resolver and the stable n26 icon component."""
 
-Everything in the set is a stroke on a 24 grid except the brand marks, and a
-mark drawn with the wrong canvas or the wrong paint is not a smaller logo —
-it is an empty box, or a clipped corner of one.
-"""
+from pathlib import Path
+
+import pytest
+from django.template import Context, Template
+from django_cotton.compiler_regex import CottonCompiler
 
 from n26.core import icons
 
 
-class TestTheCanvasAMarkIsDrawnOn:
-    """Heroicons all share the 24 grid; a logo comes on its owner's."""
+def render(source: str) -> str:
+    """Compile a Cotton call site before rendering it from a string."""
 
-    def test_a_drawing_says_nothing_and_gets_the_house_grid(self):
-        assert icons.viewbox("plus") == icons.DEFAULT_VIEWBOX == "0 0 24 24"
-
-    def test_a_mark_published_on_its_own_canvas_keeps_it(self):
-        assert icons.viewbox("patreon") == "0 0 1080 1080"
-
-    def test_a_name_the_registry_never_heard_of_still_answers(self):
-        """The lookup is total. A missing canvas would render an <svg>
-        with no viewBox at all, which draws the top-left 24 pixels of a
-        1080 drawing — an apparently blank icon rather than an error."""
-        assert icons.viewbox("nonsense") == "0 0 24 24"
+    return Template(CottonCompiler().process(source)).render(Context())
 
 
-class TestWhichMarksAreFilled:
-    """A logo is a shape. Stroked, it is a hollow outline of itself."""
+class TestTheLibrary:
+    def test_it_has_the_breadth_promised_by_the_design_library(self):
+        assert len(icons.names()) >= 1700
+        assert {"circle-check", "skull", "zoom-out"} <= set(icons.names())
 
-    def test_every_brand_mark_is_solid(self):
-        assert all(icons.is_solid(name) for name in ("github", "discord", "patreon"))
+    def test_every_installed_drawing_passes_the_inline_svg_contract(self):
+        assert all(icons.resolve(name).body for name in icons.names())
 
-    def test_a_line_drawing_is_not(self):
-        assert not icons.is_solid("pencil")
+    def test_svg_shapes_other_than_paths_survive(self):
+        assert "<rect" in str(icons.resolve("dice-6").body)
+        assert "<circle" in str(icons.resolve("circle").body)
 
-    def test_every_name_with_a_canvas_of_its_own_has_a_drawing(self):
-        """A viewBox for a name the set does not hold is a line nothing
-        reads, and it would keep on saying nothing after the drawing it
-        was written for was renamed."""
-        assert not set(icons.VIEWBOXES) - set(icons.ICONS)
+    @pytest.mark.parametrize("legacy, canonical", icons.ALIASES.items())
+    def test_legacy_names_resolve_to_their_lucide_replacement(self, legacy, canonical):
+        assert icons.resolve(legacy) == icons.resolve(canonical)
+
+    def test_an_unknown_name_fails_with_the_local_place_to_choose_one(self):
+        with pytest.raises(KeyError, match=r"/n26/design/c/icon/"):
+            icons.resolve("not-an-icon")
+
+
+class TestBrandMarks:
+    @pytest.mark.parametrize("name", ["github", "discord", "patreon"])
+    def test_the_approved_marks_are_filled(self, name):
+        icon = icons.resolve(name)
+        assert icon.solid
+        assert icon.brand
+
+    def test_patreon_keeps_its_published_canvas(self):
+        assert icons.resolve("patreon").viewbox == "0 0 1080 1080"
+
+
+class TestTheComponent:
+    def test_a_page_gets_only_the_drawing_it_asks_for(self):
+        html = render('<c-n26.icon name="plus" class="size-4" />')
+        assert str(icons.resolve("plus").body) in html
+        assert str(icons.resolve("skull").body) not in html
+        assert 'class="size-4"' in html
+
+    def test_arbitrary_attributes_reach_the_svg(self):
+        html = render('<c-n26.icon name="plus" data-purpose="test" x-show="open" />')
+        assert 'data-purpose="test"' in html
+        assert 'x-show="open"' in html
+
+    def test_a_label_names_a_meaningful_icon(self):
+        html = render('<c-n26.icon name="truck" label="Deliveries" />')
+        assert 'role="img"' in html
+        assert 'aria-label="Deliveries"' in html
+        assert "aria-hidden" not in html
+
+    def test_a_decorative_icon_is_hidden(self):
+        html = render('<c-n26.icon name="truck" />')
+        assert 'aria-hidden="true"' in html
+        assert 'role="img"' not in html
+
+    def test_literal_call_sites_use_canonical_lucide_names(self):
+        root = Path(__file__).parents[1]
+        legacy_names = set(icons.ALIASES)
+        offenders = []
+        for template in root.rglob("*.html"):
+            source = template.read_text()
+            offenders.extend(
+                (template, name)
+                for name in legacy_names
+                if f'<c-n26.icon name="{name}"' in source
+            )
+        assert not offenders

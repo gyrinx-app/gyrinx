@@ -56,12 +56,12 @@ class TestTheMarksBesideTheAction:
         assert 'aria-label="Gyrinx on Patreon"' in header
         assert 'aria-label="Gyrinx on Discord"' in header
 
-    def test_the_marks_are_the_registry_drawings(self, header):
-        assert icons.ICONS["patreon"][0] in header
-        assert icons.ICONS["discord"][0] in header
+    def test_the_marks_are_the_approved_drawings(self, header):
+        assert str(icons.resolve("patreon").body) in header
+        assert str(icons.resolve("discord").body) in header
 
     def test_patreon_is_drawn_on_its_own_canvas(self, header):
-        """The registry keeps the mark as published, on a 1080 grid. On
+        """The resolver keeps the mark as published, on a 1080 grid. On
         the 24 one the rest of the set uses, the page would show the
         top-left corner of it magnified past recognition."""
         assert 'viewBox="0 0 1080 1080"' in header

@@ -62,7 +62,7 @@ it, and x-cloak would hide it and then drop it in, shifting the page.
 
         {% if icon != "none" %}
             <c-n26.icon
-                name="{% if icon %}{{ icon }}{% elif tone == 'success' %}check-circle{% elif tone == 'warning' or tone == 'danger' %}exclamation-triangle{% else %}information-circle{% endif %}"
+                name="{% if icon %}{{ icon }}{% elif tone == 'success' %}circle-check{% elif tone == 'warning' or tone == 'danger' %}triangle-alert{% else %}info{% endif %}"
                 class="size-5 shrink-0" />
         {% endif %}
 
@@ -86,7 +86,7 @@ it, and x-cloak would hide it and then drop it in, shifting the page.
                     @click="shown = false{% if on_dismiss %}; {{ on_dismiss }}{% endif %}"
                     class="n26-announcement-dismiss focus-ring"
                     aria-label="Dismiss announcement">
-                <c-n26.icon name="x-mark" class="size-4" stroke_width="2" />
+                <c-n26.icon name="x" class="size-4" stroke_width="2" />
             </button>
         {% endif %}
     </div>

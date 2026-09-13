@@ -616,17 +616,39 @@ class TestProseInsideCVarsIsNotAPropList:
 
 
 class TestTheIconPage:
-    """The set draws itself from the registry, so a new drawing lands
-    here without the demo being touched — including the ones that do not
-    share the 24 grid the rest of the set is stated on."""
+    """The installed library is searchable without rendering it all at once."""
 
     def test_the_patreon_mark_is_drawn_on_the_canvas_it_ships_with(self, reader):
         from n26.core import icons
 
-        page = reader.get("/n26/design/c/icon/").content.decode()
+        page = reader.get("/n26/design/c/icon/?q=patreon").content.decode()
         assert "patreon" in page
-        assert icons.ICONS["patreon"][0] in page
+        assert str(icons.resolve("patreon").body) in page
         assert 'viewBox="0 0 1080 1080"' in page
+
+    def test_a_search_returns_a_lucide_icon_by_its_canonical_name(self, reader):
+        from n26.core import icons
+
+        page = reader.get("/n26/design/c/icon/?q=zoom-out").content.decode()
+        assert "zoom-out" in page
+        assert str(icons.resolve("zoom-out").body) in page
+        assert "1 of" in page
+
+    def test_a_later_page_of_the_library_is_available(self, reader):
+        from n26.core import icons
+        from n26.designsystem.views import ICON_PAGE_SIZE
+
+        expected = icons.names()[ICON_PAGE_SIZE]
+        page = reader.get("/n26/design/c/icon/?page=2").content.decode()
+        assert expected in page
+        assert "page=1" in page
+
+    def test_an_empty_search_explains_itself(self, reader):
+        page = reader.get(
+            "/n26/design/c/icon/?q=definitely-not-an-icon"
+        ).content.decode()
+        assert "No icons match" in page
+        assert "Clear search" in page
 
 
 class TestTheShellStillDraws:
