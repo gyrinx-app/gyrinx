@@ -377,6 +377,22 @@ class TestWhatArrived:
             sheet_slot(gang, "Archetype").key
         ]
 
+    def test_a_staged_attachment_keeps_its_screen_off_the_player_path(
+        self, owner, gang_type, archetype_slot, shown
+    ):
+        """An attachment on hold — the interstitial itself live — keeps
+        the screen off this slot for a reader who may not see staged
+        content, and shows it to one who may."""
+        revise(shown.attachments.get(), staged=True)
+        gang = _fresh_gang(owner, gang_type)
+        with operation(gang, actor=owner) as op:
+            op.found(gang_type)
+
+        assert asking(gang, op.written) == []
+        assert asking(gang, op.written, include_staged=True) == [
+            sheet_slot(gang, "Archetype").key
+        ]
+
     def test_purchases_and_clones_never_send_the_reader_here(self):
         """The seam opts in per act: the founding, hire and pick views
         call it, and the equip and cloning views do not."""
