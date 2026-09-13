@@ -708,6 +708,19 @@ def crowded_catalogue_context():
 OWNER = "tom"
 
 
+@dataclass(frozen=True)
+class SampleUser:
+    """Somebody the gallery names, with no account behind them.
+
+    <c-n26.user-link> reads a username off whoever it is handed and asks the
+    platform's badge registry which badge they hold; the registry reads a
+    profile, and finding none says they hold no badge. So a sample person is
+    a username and nothing else, and draws as a name with no mark after it.
+    """
+
+    username: str
+
+
 def nav_context():
     """The switchers a gang's screens draw, built as the real ones are built.
 
@@ -826,6 +839,9 @@ def context():
     return {
         "houses": HOUSES,
         "gang_owner": OWNER,
+        # Somebody for a demo to name who is not the reader: a fixed name,
+        # so the gallery reads the same whoever opens it.
+        "sample_user": SampleUser("kesh"),
         "campaign_sheet": campaign_sheet(),
         "sample_miniature": sample_miniature(),
         "sample_roster_summary": roster_summary(),
@@ -2378,7 +2394,7 @@ def campaign_sheet():
                 gang_id="gravebolt-kin",
                 name="Gravebolt Kin",
                 gang_type="Goliath (HoC)",
-                owner="marta",
+                owner=SampleUser("marta"),
                 rating=1180,
                 credits=95,
                 wealth=1275,
@@ -2418,7 +2434,7 @@ def campaign_sheet():
                 gang_id="pit-of-teeth",
                 name="Pit of Teeth",
                 gang_type="Cawdor (HoF)",
-                owner="ossian",
+                owner=SampleUser("ossian"),
                 rating=940,
                 credits=210,
                 wealth=1150,
@@ -2450,7 +2466,7 @@ def campaign_sheet():
                 gang_id="the-ashen-choir",
                 name="The Ashen Choir",
                 gang_type="Escher (HoB)",
-                owner=OWNER,
+                owner=SampleUser(OWNER),
                 rating=1037,
                 credits=160,
                 wealth=1197,
@@ -2570,10 +2586,14 @@ def campaign_sheet_context():
     from n26.core.navigation import Switcher, SwitcherItem
 
     now = timezone.now()
+    # The shell is the campaign as its arbitrator reads it, so the owner's
+    # own acts say "You", as the page says them, and everybody else is a
+    # person with the badge they hold after their name.
     acts = [
         Act(
             when=now - timedelta(minutes=minutes),
-            actor=actor,
+            actor="You" if actor == OWNER else actor,
+            actor_user=SampleUser(actor) if actor not in ("", OWNER) else None,
             spans=tuple(Span(text) for text in spans),
             category="campaign",
             gang_name=gang_name,
@@ -2592,9 +2612,9 @@ def campaign_sheet_context():
         "campaign_sheet": campaign_sheet(),
         "campaign_acts": acts,
         "campaign_players": [
-            {"username": "marta", "state": "accepted"},
-            {"username": "ossian", "state": "accepted"},
-            {"username": "vey", "state": "invited"},
+            {"user": SampleUser("marta"), "state": "accepted"},
+            {"user": SampleUser("ossian"), "state": "accepted"},
+            {"user": SampleUser("vey"), "state": "invited"},
         ],
         "campaign_battles": [
             {

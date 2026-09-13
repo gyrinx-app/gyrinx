@@ -66,10 +66,7 @@
                 {% for invitation in pending_invitations %}
                     <div class="list-group-item px-0">
                         <div class="d-flex align-items-start">
-                            <a href="{% url 'core:list' invitation.list.id %}"
-                               class="text-decoration-none text-body flex-grow-1">
-                                {% include "core/campaign/includes/list_row.html" with list=invitation.list %}
-                            </a>
+                            <div class="flex-grow-1">{% include "core/campaign/includes/list_row.html" with list=invitation.list %}</div>
                             <span class="badge text-bg-warning ms-2">Pending</span>
                         </div>
                     </div>

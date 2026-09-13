@@ -70,7 +70,10 @@ def campaigns(request):
     listed = (
         Campaign.objects.involving(request.user)
         .filter(archived=False)
-        .select_related("owner")
+        # A row names its arbitrator with the badge they hold, which reads
+        # their profile and their grants.
+        .select_related("owner", "owner__profile")
+        .prefetch_related("owner__badge_grants")
         .order_by("name", "pk")
     )
     found = search_queryset(listed, query, ["name"])
@@ -116,7 +119,7 @@ def campaign_rows(listed, user):
     rows = list(listed)
     for row in rows:
         arbitrated = row.owner_id == getattr(user, "id", None)
-        row.owner_name = "" if arbitrated else row.owner.username
+        row.arbitrator = None if arbitrated else row.owner
         row.action_label = "Edit" if arbitrated else ""
     return rows
 
@@ -192,15 +195,25 @@ def campaign(request, pk):
     from django.urls import reverse
 
     from n26.core.models import CampaignParticipant
-    from n26.core.render import render_campaign
+    from n26.core.render import load_owner_badges, render_campaign
     from n26.core.views.htmx import is_htmx
 
     accepted = CampaignParticipant.State.ACCEPTED
 
-    found = _any_campaign_or_404(request, pk)
+    # A roll dialog asked for over htmx is sent on its own and names nobody
+    # — not the arbitrator, not a gang's owner — so only the whole page
+    # reads their badge data with the campaign and the sheet.
+    asked_for_a_dialog = (
+        request.method == "GET"
+        and is_htmx(request)
+        and bool(request.GET.get("roll") or request.GET.get("starting"))
+    )
+    found = _any_campaign_or_404(request, pk, with_owner_badge=not asked_for_a_dialog)
     reading = getattr(request.user, "id", None)
     yours = found.owner_id == reading
-    sheet = render_campaign(found, viewer=request.user)
+    sheet = render_campaign(
+        found, viewer=request.user, with_owner_badges=not asked_for_a_dialog
+    )
     # The two roll questions the address may ask — ``?roll=`` for the pool,
     # ``?starting=`` for one gang — and only the arbitrator's to ask. Over
     # htmx the panel alone is sent, in its host, and the page underneath
@@ -219,6 +232,10 @@ def campaign(request, pk):
         )
         response["HX-Replace-Url"] = request.get_full_path()
         return response
+    if asked_for_a_dialog:
+        # Asked for a dialog that cannot be drawn — a stale or withdrawn
+        # question — so the whole page is served, and it names everybody.
+        load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
     _fill_addresses(sheet, found, yours=yours)
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
@@ -324,9 +341,14 @@ def _recent_acts(campaign, viewer):
     there are. Only the acts that will be drawn are built; the rest are
     counted rather than read, so a campaign played for a year opens as
     quickly as one set up this morning."""
-    from n26.core.history import campaign_history, campaign_history_size
+    from n26.core.history import (
+        campaign_history,
+        campaign_history_size,
+        load_actor_badges,
+    )
 
     recent = campaign_history(campaign, viewer=viewer, limit=LOG_ON_THE_PAGE)
+    load_actor_badges(recent)
     more = max(campaign_history_size(campaign) - len(recent), 0)
     return list(reversed(recent)), more
 
@@ -487,7 +509,8 @@ def roll_asset(request, pk):
     from n26.core.forms import RollAssetForm
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    # Acts and leaves, or draws a dialog that names nobody.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     asked = request.POST.get("type", "") or request.GET.get("type", "")
     asset_type = _asset_type_asked_for(found, asked)
     again = _campaign_page(found) + (f"?roll={asset_type.pk}" if asset_type else "")
@@ -549,7 +572,8 @@ def _roll_refused(request, campaign, form, again, question):
     if not is_htmx(request):
         messages.error(request, _first_error(form))
         return redirect(again)
-    sheet = render_campaign(campaign, viewer=request.user)
+    # A dialog names no gang's owner.
+    sheet = render_campaign(campaign, viewer=request.user, with_owner_badges=False)
     asked = question(sheet)
     if asked is None:
         # The dialog no longer has anything to offer — the table was
@@ -593,7 +617,8 @@ def roll_starting_asset(request, pk, gang_pk):
     from n26.core.operations import Refusal
     from n26.library.models import AssetTable
 
-    found = _own_campaign_or_404(request, pk)
+    # Acts and leaves, or draws a dialog that names nobody.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     # A key that is not a key at all is a bad link, not a server error.
     try:
         membership = (
@@ -679,11 +704,11 @@ def campaign_log(request, pk):
     page wants, and every act is built before the page is cut: acts fold
     what rode with them, so they cannot be counted or cut by row.
     """
-    from n26.core.history import campaign_history
+    from n26.core.history import campaign_history, load_actor_badges
     from n26.core.views.gangs import _pages
     from n26.core.views.history import by_day
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     acts = campaign_history(found, viewer=request.user)
     total = len(acts)
     # Newest first before paging, so page one is the latest screenful
@@ -691,6 +716,8 @@ def campaign_log(request, pk):
     page = Paginator(list(reversed(acts)), LOG_PER_PAGE).get_page(
         request.GET.get("page")
     )
+    # The badges of the people this page names, and no other page's.
+    load_actor_badges(page.object_list)
 
     return render(
         request,
@@ -841,8 +868,9 @@ def add_gang(request, pk):
     from n26.core.campaigns import over_budget
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal, operation
+    from n26.core.render import load_owner_badges
 
-    found = _any_campaign_or_404(request, pk)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
     if not arbitrating and not _plays_in(found, request.user):
         raise Http404("No such campaign")
@@ -876,21 +904,40 @@ def add_gang(request, pk):
                 return redirect("n26-campaign", pk=found.pk)
     else:
         form = BringGangForm(gangs=offering)
+    if request.method == "POST":
+        # Not added — the list did not offer the gang, or the operation
+        # refused it — so the page is drawn again, and its trail names the
+        # arbitrator with their badge. Their profile rode the fetch; the
+        # grants are read now, as a GET reads them with the campaign,
+        # rather than while the trail is drawn.
+        load_owner_badges(found.owner)
 
     # Drawn here rather than in the template, which cannot ask a gang what
     # it is worth without a query per row.
+    drawn = offering
+    if arbitrating:
+        # The arbitrator's rows name each gang's owner with their badge,
+        # which reads their profile and their grants: with the rows, never
+        # once per row.
+        drawn = offering.select_related("owner__profile").prefetch_related(
+            "owner__badge_grants"
+        )
     gangs = [
         {
             "pk": str(row.pk),
             "name": row.name,
             "owner": row.owner.username,
+            # The person behind the name the arbitrator's rows draw. Which
+            # badge follows it is the platform's to decide from the person,
+            # so the name alone will not do.
+            "owned_by": row.owner,
             "wealth": row.wealth,
             # The arbitrator's rows draw the owner, so a search that did not
             # reach it would find nothing for a name the reader can see.
             "search": f"{row.name} {row.owner.username}".lower(),
             "playing": row.playing_now,
         }
-        for row in offering
+        for row in drawn
     ]
     # Only where there is somebody to tell apart: a list of one person's
     # gangs is not narrowed by asking which person.
@@ -934,7 +981,8 @@ def remove_gang(request, pk, gang_pk):
 
     from n26.core.models import CampaignMembership
 
-    found = _any_campaign_or_404(request, pk)
+    # Acts and leaves; nothing here names anybody.
+    found = _any_campaign_or_404(request, pk, with_owner_badge=False)
     try:
         membership = get_object_or_404(
             CampaignMembership.objects.select_related("gang"),
@@ -1969,7 +2017,8 @@ def remove_table_entry(request, pk, table_pk, entry_pk):
     from n26.core.campaigns import campaign_operation
     from n26.library.models import AssetTableEntry
 
-    found = _own_campaign_or_404(request, pk)
+    # Acts and leaves; nothing here names anybody.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     table = _own_table_or_404(found, table_pk)
     if request.method == "POST":
         try:
@@ -2003,7 +2052,12 @@ def invitations_for(user):
             state=CampaignParticipant.State.INVITED,
             campaign__archived=False,
         )
-        .select_related("campaign", "campaign__owner", "invited_by")
+        # Each invitation names its arbitrator with the badge they hold,
+        # which reads their profile and their grants.
+        .select_related(
+            "campaign", "campaign__owner", "campaign__owner__profile", "invited_by"
+        )
+        .prefetch_related("campaign__owner__badge_grants")
         .order_by("campaign__name")
     )
 
@@ -2049,7 +2103,10 @@ def _players(campaign):
 
     return (
         CampaignParticipant.objects.filter(campaign=campaign)
-        .select_related("user")
+        # Each player is drawn with the badge they hold, which reads their
+        # profile and their grants.
+        .select_related("user", "user__profile")
+        .prefetch_related("user__badge_grants")
         .order_by("user__username")
     )
 
@@ -2070,7 +2127,8 @@ def add_player(request, pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    # The trail names the arbitrator with their badge; a POST redirects.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     query = request.GET.get("q", "").strip()
 
     if request.method == "POST":
@@ -2095,6 +2153,10 @@ def add_player(request, pk):
         people = list(
             User.objects.filter(username__icontains=query, is_active=True)
             .exclude(pk=found.owner_id)
+            # Each person found is named with the badge they hold, which
+            # reads their profile and their grants.
+            .select_related("profile")
+            .prefetch_related("badge_grants")
             .order_by("username")[:PEOPLE_FOUND]
         )
 
@@ -2122,12 +2184,15 @@ def remove_player(request, pk, user_pk):
     from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignParticipant
 
-    found = _own_campaign_or_404(request, pk)
-    player = get_object_or_404(
-        CampaignParticipant.objects.select_related("user"),
-        campaign=found,
-        user__pk=user_pk,
-    )
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    players = CampaignParticipant.objects.select_related("user")
+    if request.method != "POST":
+        # The question names the player with their badge, which reads
+        # their profile and their grants; the act names nobody.
+        players = players.select_related("user__profile").prefetch_related(
+            "user__badge_grants"
+        )
+    player = get_object_or_404(players, campaign=found, user__pk=user_pk)
 
     if request.method == "POST":
         name = player.user.username

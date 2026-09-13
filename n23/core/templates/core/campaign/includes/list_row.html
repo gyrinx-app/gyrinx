@@ -1,6 +1,6 @@
 {% load custom_tags color_tags %}
 <h6 class="mb-1">
-    <strong>{% list_with_theme list %}</strong>
+    <a href="{% url 'core:list' list.id %}" class="linked-body"><strong>{% list_with_theme list %}</strong></a>
     {% if list.content_house %}
         • {{ list.content_house_name }}{% house_icon list.content_house_cached %}
     {% endif %}
@@ -9,7 +9,11 @@
     {# Campaign-start stub still being cloned in the background (#1222): no fighters/cost #}
     {# yet, so show a "Joining…" placeholder in place of the rating/stash line. #}
     <p class="mb-0 text-secondary fs-7">
-        <i class="bi-person"></i> {{ list.owner.username }} •
+        {% if list.owner %}
+            <i class="bi-person" aria-hidden="true"></i>
+            <c-user-link :user="list.owner" class="linked-secondary" />
+            •
+        {% endif %}
         <span class="spinner-border spinner-border-sm align-middle"
               role="status"
               aria-hidden="true"></span>
@@ -17,7 +21,11 @@
     </p>
 {% else %}
     <p class="mb-0 text-secondary fs-7">
-        <i class="bi-person"></i> {{ list.owner.username }}
-        • R: {% credits list.rating_current %} Cr: {% credits list.credits_current %} St: {% credits list.stash_current %} W: {% credits list.wealth_current %}
+        {% if list.owner %}
+            <i class="bi-person" aria-hidden="true"></i>
+            <c-user-link :user="list.owner" class="linked-secondary" />
+            •
+        {% endif %}
+        R: {% credits list.rating_current %} Cr: {% credits list.credits_current %} St: {% credits list.stash_current %} W: {% credits list.wealth_current %}
     </p>
 {% endif %}

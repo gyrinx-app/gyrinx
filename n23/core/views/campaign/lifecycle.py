@@ -85,7 +85,10 @@ def start_campaign(request, id):
 
     # Pre-campaign gangs are linked via the `lists` M2M; the `campaign` FK on List is only
     # populated when clones are created at start, so it must not be used here (see #1886).
-    lists = campaign.lists.select_related("owner")
+    # The owner's badge reads their profile and grants.
+    lists = campaign.lists.select_related("owner", "owner__profile").prefetch_related(
+        "owner__badge_grants"
+    )
 
     return render(
         request,

@@ -19,10 +19,15 @@ from pathlib import Path
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import STAFF_BADGE, badge_by_slug
+from gyrinx.site.models import Availability, FeatureFlag
 from gyrinx.site.templatetags.badge_tags import badge_svg
+from n26.flags import CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
 
@@ -232,6 +237,418 @@ class TestTheOwnerOfAGang:
         body = client.get(f"/n26/gangs/{gang.pk}/").content.decode()
         sheet = body.split("</header>")[-1]
         assert sheet.count(FLAIR_WRAPPER) == 1
+
+
+class TestTheNamesOnACampaign:
+    """A campaign names its arbitrator, its players and every gang's owner,
+    and each name carries the badge that person holds — read once for the
+    whole page, not once per name."""
+
+    @pytest.fixture
+    def campaigns_open(self):
+        """The flag rows are seeded by a data migration, which does not run
+        under --nomigrations."""
+        return FeatureFlag.objects.create(
+            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+        )
+
+    @pytest.fixture
+    def table(self, supporter, campaign_type, campaigns_open):
+        """A campaign the supporter arbitrates."""
+        from n26.tests.sandbox.actions import found_campaign
+
+        return found_campaign("Dust Falls", campaign_type, owner=supporter, budget=1000)
+
+    @pytest.fixture
+    def player(self, gang_type, default_pack):
+        """Somebody entitled to the same badge, seated at a campaign's table
+        with a gang of their own."""
+        from n26.core.campaigns import campaign_operation
+        from n26.tests.sandbox.actions import found_gang, join_campaign
+
+        def _seat(campaign, name):
+            person = User.objects.create_user(name)
+            UserProfile.objects.create(
+                user=person,
+                patreon_status=PatreonStatus.ACTIVE,
+                patreon_tier="Guilder",
+                selected_badge="guilder",
+            )
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.invite(person)
+            with campaign_operation(campaign, actor=person) as act:
+                act.answer_invitation(person, accepted=True)
+            join_campaign(
+                found_gang(f"{name}'s gang", gang_type, owner=person), campaign
+            )
+            return person
+
+        return _seat
+
+    @staticmethod
+    def _queries(client, path):
+        """How many queries a page costs, once the session has settled — the
+        first request after signing in records the session, which is a
+        cost of signing in and not of the page. A path asking for a roll
+        dialog is asked for the way the page asks, over htmx."""
+        headers = {"HX-Request": "true"} if "?roll=" in path else {}
+        client.get(path, headers=headers)
+        with CaptureQueriesContext(connection) as context:
+            response = client.get(path, headers=headers)
+        assert response.status_code == 200
+        return len(context.captured_queries)
+
+    def test_each_player_is_marked_at_the_table_and_on_their_gang(
+        self, table, player, client
+    ):
+        """Below the bar, which names the reader. A player's name is drawn
+        three times — under their gang, in the players table, and in the
+        log for accepting their place (joining is the arbitrator's act, and
+        reads "You") — and the mark follows it each time."""
+        before = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
+        player(table, "vex")
+        player(table, "kesh")
+        after = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
+
+        mark = badge_svg(GUILDER).strip()
+        assert after.split("</header>")[-1].count(mark) == (
+            before.split("</header>")[-1].count(mark) + 6
+        )
+
+    def test_the_page_reads_the_badges_once_for_everybody(self, table, player, client):
+        player(table, "vex")
+        with_one = self._queries(client, f"/n26/campaigns/{table.pk}/")
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        with_more = self._queries(client, f"/n26/campaigns/{table.pk}/")
+        assert with_more == with_one
+
+    def test_a_campaign_row_marks_its_arbitrator(self, table, player, client):
+        """The list a player reads names whoever runs each campaign, and
+        the name carries their badge."""
+        person = player(table, "vex")
+        client.force_login(person)
+        body = client.get("/n26/campaigns/").content.decode()
+        rows = body.split("</header>")[-1]
+        assert "arbitrated by" in rows
+        assert badge_svg(GUILDER).strip() in rows
+
+    def test_the_list_reads_the_badges_once_for_every_campaign(
+        self, supporter, campaign_type, campaigns_open, player, client
+    ):
+        from n26.tests.sandbox.actions import found_campaign
+
+        campaigns = [
+            found_campaign(f"Campaign {index}", campaign_type, owner=supporter)
+            for index in range(4)
+        ]
+        person = player(campaigns[0], "vex")
+        client.force_login(person)
+        with_one = self._queries(client, "/n26/campaigns/")
+        for campaign in campaigns[1:]:
+            player(campaign, f"vex-in-{campaign.name[-1]}")
+        # Seat the same reader at the other three tables.
+        from n26.core.campaigns import campaign_operation
+
+        for campaign in campaigns[1:]:
+            with campaign_operation(campaign, actor=supporter) as act:
+                act.invite(person)
+            with campaign_operation(campaign, actor=person) as act:
+                act.answer_invitation(person, accepted=True)
+        with_more = self._queries(client, "/n26/campaigns/")
+        assert with_more == with_one
+
+    def test_a_dialog_that_cannot_be_drawn_serves_the_page_without_a_read_per_gang(
+        self, table, player, client
+    ):
+        """An htmx request for a roll dialog fetches the campaign and builds
+        the sheet without anybody's badge data, since a dialog names nobody.
+        When the question turns out stale and the whole page is served
+        instead, the people it names get their badge data read for the page,
+        not once per gang."""
+        player(table, "vex")
+        with_one = self._queries(
+            client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
+        )
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        with_more = self._queries(
+            client, f"/n26/campaigns/{table.pk}/?roll=nothing-of-the-kind"
+        )
+        assert with_more == with_one
+
+    def test_the_log_names_who_acted_with_their_badge(self, table, player, client):
+        """Somebody else's act is theirs by name, and the name carries the
+        badge they hold. The reader's own acts say "You", and a badge
+        after "You" would be the reader's own — the chrome shows that."""
+        player(table, "vex")
+
+        body = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
+        named = re.search(r"<span[^>]*font-medium[^>]*>vex<", body)
+        assert named
+        assert FLAIR_WRAPPER in body[named.end() : named.end() + 400]
+        assert not re.search(r"<span[^>]*font-medium[^>]*>patron<", body)
+
+    def test_the_log_page_reads_the_badges_once_for_everybody(
+        self, table, player, client
+    ):
+        player(table, "vex")
+        with_one = self._queries(client, f"/n26/campaigns/{table.pk}/log/")
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        with_more = self._queries(client, f"/n26/campaigns/{table.pk}/log/")
+        assert with_more == with_one
+
+    def test_the_players_screen_marks_players_and_people_found(
+        self, table, player, client
+    ):
+        """Both lists on the screen — the people already asked and the
+        people a search turns up — name each person with their badge."""
+        player(table, "vex")
+        UserProfile.objects.create(
+            user=User.objects.create_user("vexation"),
+            patreon_status=PatreonStatus.ACTIVE,
+            patreon_tier="Guilder",
+            selected_badge="guilder",
+        )
+
+        body = client.get(
+            f"/n26/campaigns/{table.pk}/players/add/?q=vex"
+        ).content.decode()
+        below_the_bar = body.split("</header>")[-1]
+        # The arbitrator in the trail, vex at the table, then vex and
+        # vexation among the people found.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 4
+
+    def test_the_players_screen_reads_the_arbitrators_badge_with_the_campaign(
+        self, table, supporter
+    ):
+        """The screen's trail names the arbitrator with their badge, so the
+        guard that fetches the campaign for it brings the profile and the
+        grants along: asking which badge they hold then reads nothing."""
+        from django.test import RequestFactory
+
+        from gyrinx.site.templatetags.badge_tags import badge_for
+        from n26.core.views.permissions import _own_campaign_or_404
+
+        request = RequestFactory().get("/")
+        request.user = supporter
+        found = _own_campaign_or_404(request, table.pk, with_owner_badge=True)
+
+        with CaptureQueriesContext(connection) as context:
+            assert badge_for(found.owner) == GUILDER
+        person_reads = [
+            q["sql"]
+            for q in context.captured_queries
+            if "core_userprofile" in q["sql"] or '"user_id" =' in q["sql"]
+        ]
+        assert not person_reads
+
+    def test_the_players_screen_reads_the_badges_once_for_everybody(
+        self, table, player, client
+    ):
+        player(table, "vex-1")
+        with_one = self._queries(
+            client, f"/n26/campaigns/{table.pk}/players/add/?q=vex"
+        )
+        for index in range(2, 5):
+            player(table, f"vex-{index}")
+        with_more = self._queries(
+            client, f"/n26/campaigns/{table.pk}/players/add/?q=vex"
+        )
+        assert with_more == with_one
+
+    def test_the_add_gang_screen_marks_each_gangs_owner(self, table, player, client):
+        """The arbitrator picks from every gang at the table, each named
+        with whose it is, and the name carries the owner's badge. A player
+        picking from their own gangs is told nobody's name."""
+        player(table, "vex")
+        person = player(table, "kesh")
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+
+        body = client.get(address).content.decode()
+        below_the_bar = body.split("</header>")[-1]
+        # The arbitrator in the trail, then vex and kesh on their gangs.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 3
+
+        client.force_login(person)
+        body = client.get(address).content.decode()
+        below_the_bar = body.split("</header>")[-1]
+        assert "kesh&#x27;s gang" in below_the_bar
+        # The arbitrator in the trail alone.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 1
+
+    def test_the_add_gang_screen_reads_the_badges_once_for_everybody(
+        self, table, player, client
+    ):
+        player(table, "vex")
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+        with_one = self._queries(client, address)
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        with_more = self._queries(client, address)
+        assert with_more == with_one
+
+    def test_an_add_gang_post_that_falls_through_costs_what_a_get_costs(
+        self, table, player, client
+    ):
+        """A POST naming a gang the list did not offer draws the page
+        again, which names the arbitrator in its trail and each gang's
+        owner on its rows. Their badge data is read for the page as a GET
+        reads it, not looked up for the names: the redraw costs the same
+        queries as the GET, however many players there are."""
+
+        def redraw(path):
+            client.get(path)
+            with CaptureQueriesContext(connection) as context:
+                response = client.post(path, {"gang": "nothing-of-the-kind"})
+            assert response.status_code == 200
+            assert "That gang is not on this list." in response.content.decode()
+            return len(context.captured_queries)
+
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+        player(table, "vex")
+        on_get = self._queries(client, address)
+        with_one = redraw(address)
+        assert with_one == on_get
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        with_more = redraw(address)
+        assert with_more == with_one
+
+    def test_every_screen_under_a_campaign_reads_the_arbitrators_badge_with_it(
+        self, table, supporter, player, client
+    ):
+        """Every screen under a campaign names its arbitrator in the trail.
+        Each reads their badge grants with the campaign, for a set of people
+        ahead of drawing anything, and never for one name while the trail
+        is drawn. The only reads of one person's grants on any of them are
+        the bar's, which names the reader and reads their own — a fact
+        about the account, the same on every page, so a page outside any
+        campaign says what they are."""
+        from n26.core.models import Gang
+        from n26.tests.sandbox.actions import (
+            add_asset,
+            add_campaign_asset_type,
+            assign_asset,
+            create_campaign_asset,
+            create_campaign_table,
+        )
+
+        person = player(table, "vex")
+        gang = Gang.objects.get(owner=person)
+        racket = add_campaign_asset_type(table, "Racket")
+        unheld = add_asset(table, create_campaign_asset(table, racket, "Protection"))
+        held = add_asset(table, create_campaign_asset(table, racket, "Smuggling"))
+        assign_asset(held, gang)
+        rackets = create_campaign_table(table, racket, "Rackets", dice="d6")
+        screens = [
+            reverse("n26-edit-campaign", args=[table.pk]),
+            reverse("n26-archive-campaign", args=[table.pk]),
+            reverse("n26-campaign-add-gang", args=[table.pk]),
+            reverse("n26-campaign-add-player", args=[table.pk]),
+            reverse("n26-campaign-remove-player", args=[table.pk, person.pk]),
+            reverse("n26-campaign-add-battle", args=[table.pk]),
+            reverse("n26-campaign-add-asset", args=[table.pk]),
+            reverse("n26-campaign-asset-assign", args=[table.pk, unheld.pk]),
+            reverse("n26-campaign-asset-unassign", args=[table.pk, held.pk]),
+            reverse("n26-campaign-asset-remove", args=[table.pk, unheld.pk]),
+            reverse("n26-campaign-asset-transfer", args=[table.pk, held.pk]),
+            reverse("n26-campaign-add-asset-type", args=[table.pk]),
+            reverse("n26-campaign-new-asset", args=[table.pk]),
+            reverse("n26-campaign-add-counter", args=[table.pk]),
+            reverse("n26-campaign-add-label", args=[table.pk]),
+            reverse("n26-campaign-tables", args=[table.pk]),
+            reverse("n26-campaign-new-table", args=[table.pk]),
+            reverse("n26-campaign-table", args=[table.pk, rackets.pk]),
+        ]
+
+        def grants_read(path):
+            with CaptureQueriesContext(connection) as context:
+                response = client.get(path)
+            assert response.status_code == 200, path
+            grants = [
+                q["sql"]
+                for q in context.captured_queries
+                if 'FROM "accounts_badgegrant"' in q["sql"]
+            ]
+            for_one = [sql for sql in grants if '"user_id" = ' in sql]
+            for_the_page = [sql for sql in grants if '"user_id" IN (' in sql]
+            return for_one, for_the_page
+
+        own = f'"accounts_badgegrant"."user_id" = {supporter.pk}'
+        own_reads, _ = grants_read("/n26/")
+        assert own_reads and all(own in sql for sql in own_reads)
+        for screen in screens:
+            for_one, for_the_page = grants_read(screen)
+            assert for_the_page, screen
+            assert len(for_one) == len(own_reads), (screen, for_one)
+            assert all(own in sql for sql in for_one), (screen, for_one)
+
+    def test_the_remove_player_question_names_them_with_their_badge(
+        self, table, player, client
+    ):
+        """The question says who is being taken out, and the name carries
+        their badge — read with the player, not looked up for the name, so
+        the page costs the same whether or not they hold one."""
+        from n26.core.campaigns import campaign_operation
+
+        badged = player(table, "vex")
+        plain = User.objects.create_user("kesh")
+        with campaign_operation(table, actor=table.owner) as act:
+            act.invite(plain)
+
+        def remove(person):
+            return reverse("n26-campaign-remove-player", args=[table.pk, person.pk])
+
+        body = client.get(remove(badged)).content.decode()
+        question = body[body.index("Their gangs stay where they are") :]
+        assert "vex" in question
+        assert badge_svg(GUILDER).strip() in question
+        badged_queries = self._queries(client, remove(badged))
+        plain_queries = self._queries(client, remove(plain))
+        assert badged_queries == plain_queries
+
+    def test_an_invitation_names_its_arbitrator_with_their_badge(self, table, client):
+        """The campaigns list opens with the invitations still waiting, each
+        saying who asked — through the same component, so the badge follows."""
+        from n26.core.campaigns import campaign_operation
+
+        person = User.objects.create_user("vex")
+        with campaign_operation(table, actor=table.owner) as act:
+            act.invite(person)
+        client.force_login(person)
+
+        body = client.get("/n26/campaigns/").content.decode()
+        invitations = body[body.index(">Invitations<") :]
+        assert re.search(r"from\s*<span[^>]*>patron<", invitations)
+        assert badge_svg(GUILDER).strip() in invitations
+
+    def test_the_list_reads_the_badges_once_for_every_invitation(
+        self, supporter, campaign_type, campaigns_open, client
+    ):
+        from n26.core.campaigns import campaign_operation
+        from n26.tests.sandbox.actions import found_campaign
+
+        campaigns = [
+            found_campaign(f"Campaign {index}", campaign_type, owner=supporter)
+            for index in range(4)
+        ]
+        person = User.objects.create_user("vex")
+        with campaign_operation(campaigns[0], actor=supporter) as act:
+            act.invite(person)
+        client.force_login(person)
+        with_one = self._queries(client, "/n26/campaigns/")
+        for campaign in campaigns[1:]:
+            with campaign_operation(campaign, actor=supporter) as act:
+                act.invite(person)
+        with_more = self._queries(client, "/n26/campaigns/")
+        assert with_more == with_one
 
 
 class TestNoPageDecidesForItself:

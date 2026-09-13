@@ -10,7 +10,11 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
 from n26.core.campaigns import campaign_operation
-from n26.core.history import campaign_history, campaign_history_size
+from n26.core.history import (
+    campaign_history,
+    campaign_history_size,
+    load_actor_badges,
+)
 from n26.core.models import Campaign, CampaignEvent
 from n26.library.authoring import create_campaign_type, create_pack
 
@@ -302,6 +306,40 @@ class TestReadingOnlyPartOfTheLog:
         fetches = [q["sql"] for q in queries.captured_queries if "SELECT" in q["sql"]]
         assert fetches
         assert all("LIMIT 5" in fetch for fetch in fetches), fetches
+
+    def test_a_page_brings_its_actors_profiles_and_the_whole_log_does_not(
+        self, campaign, arbitrator
+    ):
+        """Naming an actor with their badge reads their profile and their
+        badge grants. A page — a bounded read — brings the profile with the
+        acts, so reading the badges for it costs the grants alone. The
+        whole log is read before it is paged, so its rows carry the actor
+        and nothing of theirs: a join there would widen every act's row for
+        the page's worth drawn. Reading the badges for the page cut from it
+        costs the profile as well as the grants, and nothing per act."""
+        for number in range(3):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.set_budget(1001 + number)
+
+        with CaptureQueriesContext(connection) as page:
+            recent = campaign_history(campaign, limit=2)
+        assert any("core_userprofile" in q["sql"] for q in page.captured_queries)
+        with CaptureQueriesContext(connection) as badges:
+            load_actor_badges(recent)
+        assert [
+            ("core_userprofile" in q["sql"], "accounts_badgegrant" in q["sql"])
+            for q in badges.captured_queries
+        ] == [(False, True)]
+
+        with CaptureQueriesContext(connection) as whole:
+            acts = campaign_history(campaign)
+        assert not any("core_userprofile" in q["sql"] for q in whole.captured_queries)
+        with CaptureQueriesContext(connection) as badges:
+            load_actor_badges(acts)
+        assert [
+            ("core_userprofile" in q["sql"], "accounts_badgegrant" in q["sql"])
+            for q in badges.captured_queries
+        ] == [(True, False), (False, True)]
 
 
 class TestALongRename:

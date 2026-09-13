@@ -35,7 +35,8 @@ the act.
         </c-slot>
         {% csrf_token %}
         <c-ui.alert variant="warning" title="Their gangs stay where they are">
-            {{ player.user.username }} stops being a player in
+            <c-n26.user-link :user="player.user" tone="current" />
+            stops being a player in
             {{ campaign.name }}. Any gang of theirs already playing keeps playing —
             a gang is in a campaign on its own account, and taking somebody off
             this list does not take their gangs out. They can be asked again.

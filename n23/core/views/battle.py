@@ -79,9 +79,19 @@ class BattleDetailView(generic.DetailView):
     def get_object(self):
         """Retrieve the Battle by its id."""
         battle = get_object_or_404(
-            Battle.objects.select_related("campaign", "owner").prefetch_related(
+            # The page names the battle's owner and, in the trail, the
+            # campaign's, each with their badge, which reads the profile and
+            # the grants.
+            Battle.objects.select_related(
+                "campaign",
+                "campaign__owner",
+                "campaign__owner__profile",
+                "owner",
+                "owner__profile",
+            ).prefetch_related(
                 "winners",
-                "notes__owner",
+                "owner__badge_grants",
+                "campaign__owner__badge_grants",
             ),
             id=self.kwargs["id"],
         )
@@ -120,10 +130,20 @@ class BattleDetailView(generic.DetailView):
         context["show_no_result_note"] = ended and not battle.result_recorded
 
         # Get all notes ordered by creation date
-        context["notes"] = battle.notes.select_related("owner").order_by("created")
+        # Each note names its author with their badge.
+        context["notes"] = (
+            battle.notes.select_related("owner", "owner__profile")
+            .prefetch_related("owner__badge_grants")
+            .order_by("created")
+        )
 
         # Get associated campaign actions with related data
-        context["actions"] = battle.get_actions().select_related("user", "list")
+        # The author's badge reads their profile and grants.
+        context["actions"] = (
+            battle.get_actions()
+            .select_related("user", "user__profile", "list")
+            .prefetch_related("user__badge_grants")
+        )
 
         # Where the battle has got to, as ordered steps. Read-only.
         context["timeline"] = battle_timeline(battle)

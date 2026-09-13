@@ -215,9 +215,14 @@ class CampaignActionList(generic.ListView):
         self.campaign = get_object_or_404(Campaign, id=self.kwargs["id"])
 
         # Start with all campaign actions with list and battle relationships
-        actions = self.campaign.actions.select_related(
-            "user", "list", "battle", "template_campaign"
-        ).order_by("-created")
+        # The author's badge reads their profile and grants.
+        actions = (
+            self.campaign.actions.select_related(
+                "user", "user__profile", "list", "battle", "template_campaign"
+            )
+            .prefetch_related("user__badge_grants")
+            .order_by("-created")
+        )
 
         # Apply text search filter if provided
         search_query = self.request.GET.get("q", "").strip()

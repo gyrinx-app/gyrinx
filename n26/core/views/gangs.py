@@ -68,7 +68,8 @@ def dashboard(request):
         campaign_rows(
             Campaign.objects.involving(request.user)
             .filter(archived=False)
-            .select_related("owner")
+            .select_related("owner", "owner__profile")
+            .prefetch_related("owner__badge_grants")
             .order_by("name", "pk"),
             request.user,
         )

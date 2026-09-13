@@ -1,5 +1,6 @@
 """Campaign list and detail views."""
 
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import Count, Max, Q
 from django.db.models.functions import Coalesce, Lower
@@ -9,7 +10,7 @@ from django.utils.http import urlencode
 from django.views import generic
 
 from gyrinx.querysets import search_queryset
-from n23.core.models.campaign import Campaign, CampaignAction, CampaignAsset
+from n23.core.models.campaign import Campaign, CampaignAsset
 from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import CapturedFighter, List
 
@@ -162,7 +163,7 @@ class CampaignDetailView(generic.DetailView):
 
     def get_object(self):
         """
-        Retrieve the :model:`core.Campaign` by its `id` with prefetched actions and lists.
+        Retrieve the :model:`core.Campaign` by its `id` with prefetched lists and admins.
         """
         return get_object_or_404(
             Campaign.objects.select_related(
@@ -172,13 +173,21 @@ class CampaignDetailView(generic.DetailView):
             ).prefetch_related(
                 "owner__badge_grants",
                 "packs",
-                "lists",
-                "admins",
+                # Every name on the page carries its badge, which reads the
+                # profile and the grants: prefetched here for the gang owners
+                # and the arbitrators, or it is two queries per name. The
+                # action authors ride the recent actions, read in the context.
                 models.Prefetch(
-                    "actions",
-                    queryset=CampaignAction.objects.select_related(
-                        "user", "list", "template_campaign"
-                    ).order_by("-created"),
+                    "lists",
+                    queryset=List.objects.select_related(
+                        "owner", "owner__profile"
+                    ).prefetch_related("owner__badge_grants"),
+                ),
+                models.Prefetch(
+                    "admins",
+                    queryset=get_user_model()
+                    .objects.select_related("profile")
+                    .prefetch_related("badge_grants"),
                 ),
             ),
             id=self.kwargs["id"],
@@ -188,6 +197,23 @@ class CampaignDetailView(generic.DetailView):
         context = super().get_context_data(**kwargs)
         campaign = self.object
         user = self.request.user
+
+        # The page shows the five most recent actions, each naming its author
+        # with their badge and linking its gang and battle; the rest are
+        # counted, not read — a campaign played for a year has thousands.
+        recent_actions = list(
+            campaign.actions.select_related(
+                "user", "user__profile", "list", "battle", "template_campaign"
+            )
+            .prefetch_related("user__badge_grants")
+            .order_by("-created")[:5]
+        )
+        context["recent_actions"] = recent_actions
+        # Fewer than five is the whole log, already counted; only a log the
+        # page had to cut is worth a query to count.
+        context["actions_count"] = (
+            len(recent_actions) if len(recent_actions) < 5 else campaign.actions.count()
+        )
 
         # Are any member gangs still being cloned in the background (#1222)? Computed from
         # the prefetched lists (no extra query) so the page can poll for completion.
@@ -274,7 +300,15 @@ class CampaignDetailView(generic.DetailView):
             CampaignInvitation.objects.filter(
                 campaign=campaign, status=CampaignInvitation.PENDING
             )
-            .select_related("list", "list__owner")
+            # Each invited gang's row draws its house and names its owner
+            # with their badge, which reads the profile and the grants.
+            .select_related(
+                "list",
+                "list__owner",
+                "list__owner__profile",
+                "list__content_house",
+            )
+            .prefetch_related("list__owner__badge_grants")
             .order_by("-created")
         )
 

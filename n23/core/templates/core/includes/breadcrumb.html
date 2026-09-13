@@ -2,12 +2,11 @@
 {# Required params: type (str), owner (User object), name (str) #}
 {# Optional params: type_url (str), campaign (Campaign object), print (bool), #}
 {#   parent (str) + parent_url (str) — an intermediate crumb before name #}
-{% load badge_tags %}
 <div class="fs-7 text-secondary">
     {% if print %}
         {{ owner }}
     {% else %}
-        <a class="linked-secondary" href="{% url 'core:user' owner.username %}">{{ owner }}</a>{% user_badge owner %}
+        <c-user-link :user="owner" class="linked-secondary" />
     {% endif %}
     <span class="mx-1">/</span>
     {% if print or not type_url %}

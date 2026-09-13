@@ -1330,6 +1330,34 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Page patterns</h2>
+            <h3 class="h6 caps-label mb-2">User link</h3>
+            <p class="text-secondary mb-2">
+                A username is a link to the user's page with the badge they hold after it, drawn by
+                <code>&lt;c-user-link&gt;</code> so the badge is never left off. Pass the user with the
+                colon (<code>:user="list.owner"</code>) — a stringified user has no username to build the
+                link from, and <code>scripts/check_cotton.py</code> fails the call site. <code>class</code>
+                picks the link style: <code>linked</code> (default), <code>linked-body</code> or
+                <code>linked-secondary</code>. The badge is dropped when the ambient <code>print</code> flag
+                is set. A view drawing many names must
+                <code>select_related("…__profile").prefetch_related("…__badge_grants")</code>, or each
+                name costs two queries. Never place it inside another link; link the row's name instead. An
+                icon beside the name is decoration: give it <code>aria-hidden="true"</code>.
+            </p>
+            <c-box class="mb-4">
+                <div class="vstack gap-1">
+                    <div>
+                        <c-user-link :user="ds_user" />
+                    </div>
+                    <div>
+                        Arbitrated by
+                        <c-user-link :user="ds_user" class="linked-body" />
+                    </div>
+                    <div class="text-secondary fs-7">
+                        <i class="bi-person" aria-hidden="true"></i>
+                        <c-user-link :user="ds_user" class="linked-secondary" />
+                    </div>
+                </div>
+            </c-box>
             <h3 class="h6 caps-label mb-2">Breadcrumb</h3>
             <p class="text-secondary mb-2">
                 Sits above the page title on entity detail pages. Compose it from crumbs — any number, in any
