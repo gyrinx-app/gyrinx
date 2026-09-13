@@ -8,11 +8,35 @@ from pathlib import Path
 
 from django import forms
 from django.conf import settings
-from django.http import Http404, HttpResponse
+from django.contrib.auth import login
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils.safestring import mark_safe
+from django.views.decorators.http import require_GET
+
+from gyrinx.debug_login import ensure_debug_agent_user
+from gyrinx.http import safe_redirect
 
 TEST_PLANS_DIR = Path(settings.BASE_DIR) / ".claude" / "test-plans"
+
+
+@require_GET
+def debug_agent_login(request):
+    """Create a dedicated agent user and start its local debug session."""
+    if not settings.DEBUG:
+        raise Http404("Debug views are only available in development")
+
+    try:
+        user = ensure_debug_agent_user(request.GET.get("user", "agent"))
+    except ValueError as error:
+        return HttpResponseBadRequest(str(error))
+
+    login(
+        request,
+        user,
+        backend="django.contrib.auth.backends.ModelBackend",
+    )
+    return safe_redirect(request, request.GET.get("next"), fallback_url="/")
 
 
 def get_available_plans():

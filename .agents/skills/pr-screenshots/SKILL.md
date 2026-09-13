@@ -37,6 +37,20 @@ The helper uses the worktree's `DJANGO_PORT` and mints a local staff session for
 `agent` by default. `screenshots/` is gitignored: it is staging, not the durable
 home of the review evidence.
 
+### Local CLI handoff
+
+Screenshots do not render in a local CLI terminal. After capturing them, give the
+user a clickable Markdown link to their **parent directory using its full absolute
+path**, for example:
+
+```markdown
+[Open the screenshot folder](/absolute/path/to/worktree/screenshots/task/)
+```
+
+`scripts/screenshot.py` prints `Screenshot folder: <absolute path>` after a run;
+use that exact directory in the link. Link the folder rather than listing several
+individual files so the user can browse the whole capture set.
+
 ## Attach to the PR
 
 GitHub CLI 2.99 or newer uploads local images and rewrites matching Markdown image
