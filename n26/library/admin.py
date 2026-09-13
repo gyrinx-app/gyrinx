@@ -292,7 +292,9 @@ class InterstitialSlotInline(admin.TabularInline):
     model = InterstitialSlot
     formset = InterstitialSlotFormSet
     extra = 1
-    fields = ["slot", "position", "pack"]
+    # ``staged`` is here because the admin is where an attachment can be
+    # held back: the authoring page that attaches a slot has no switch.
+    fields = ["slot", "position", "pack", "staged"]
     ordering = ["position"]
     autocomplete_fields = ["slot"]
 

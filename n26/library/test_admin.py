@@ -160,7 +160,57 @@ def test_an_attachment_added_with_its_interstitial_joins_its_pack(
     assert response.status_code == 302, response.content.decode()[:2000]
     made = Interstitial.objects.get(name="Outcast archetype")
     assert made.pack == homebrew
-    assert InterstitialSlot.objects.get(interstitial=made).pack == homebrew
+    attachment = InterstitialSlot.objects.get(interstitial=made)
+    assert attachment.pack == homebrew
+    assert attachment.staged is False
+
+
+def test_an_attachment_can_be_held_back_from_the_admin(
+    admin_client, default_pack, homebrew
+):
+    """The admin is where an attachment is staged, so the inline offers
+    the switch, and a row ticked there lands staged — in the parent's
+    pack still."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import Interstitial, InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+
+    response = admin_client.post(
+        "/admin/library/interstitial/add/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "0",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": str(default_pack.pk),
+            "attachments-0-staged": "on",
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    attachment = InterstitialSlot.objects.get(
+        interstitial=Interstitial.objects.get(name="Outcast archetype")
+    )
+    assert attachment.staged is True
+    assert attachment.pack == homebrew
+    assert list(slot.interstitials(include_staged=False)) == []
 
 
 def test_a_slot_type_of_choice_is_inspectable_by_its_own_name(
