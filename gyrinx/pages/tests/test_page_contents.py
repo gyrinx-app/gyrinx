@@ -1,4 +1,4 @@
-"""Tests for flat page headings, the contents block and the child listing (#2540)."""
+"""Tests for flat page headings, the contents block, the introduction and the child listing (#2540)."""
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -301,3 +301,115 @@ def test_flat_page_change_page_saves_show_contents(site, admin_user):
     assert response.status_code == 302, response.content.decode()[:2000]
     assert FlatPageOptions.objects.get(page=page).show_contents is True
     assert "flatpage-contents" in Client().get(page.url).content.decode()
+
+
+# --- page_introduction tag ----------------------------------------------------
+
+
+def render_introduction(page):
+    template = Template("{% load pages %}{% page_introduction flatpage %}")
+    return template.render(Context({"flatpage": page}))
+
+
+@pytest.mark.django_db
+def test_page_introduction_renders_nothing_without_options(site):
+    page = make_page(site, "/guide/", "Guide", CONTENT)
+
+    assert render_introduction(page).strip() == ""
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("blank", ["", "   ", "\n\t "])
+def test_page_introduction_renders_nothing_when_blank(site, blank):
+    page = make_page(site, "/guide/", "Guide", CONTENT)
+    FlatPageOptions.objects.create(page=page, introduction=blank)
+
+    assert render_introduction(page).strip() == ""
+
+
+@pytest.mark.django_db
+def test_page_introduction_renders_its_html_unescaped(site):
+    page = make_page(site, "/guide/", "Guide", CONTENT)
+    FlatPageOptions.objects.create(
+        page=page, introduction="<p>Read this <em>first</em>.</p>"
+    )
+
+    html = render_introduction(page)
+
+    assert 'class="flatpage-introduction' in html
+    assert "<p>Read this <em>first</em>.</p>" in html
+    assert "&lt;em&gt;" not in html
+
+
+@pytest.mark.django_db
+def test_flat_page_view_puts_the_introduction_above_the_contents_and_body(site):
+    page = make_page(site, "/guide/", "Guide", CONTENT)
+    FlatPageOptions.objects.create(
+        page=page, introduction="<p>Read this first.</p>", show_contents=True
+    )
+
+    html = Client().get(page.url).content.decode()
+
+    assert html.index("flatpage-introduction") < html.index("flatpage-contents")
+    assert html.index("flatpage-contents") < html.index('id="intro"')
+
+
+@pytest.mark.django_db
+def test_flat_page_view_shows_the_introduction_with_contents_off(site):
+    page = make_page(site, "/guide/", "Guide", CONTENT)
+    FlatPageOptions.objects.create(
+        page=page, introduction="<p>Read this first.</p>", show_contents=False
+    )
+
+    html = Client().get(page.url).content.decode()
+
+    assert "flatpage-introduction" in html
+    assert "flatpage-contents" not in html
+
+
+@pytest.mark.django_db
+def test_flat_page_change_page_renders_the_introduction_editor(site, admin_user):
+    page = make_page(site, "/guide/", "Guide")
+    client = Client()
+    client.force_login(admin_user)
+
+    html = client.get(f"/admin/flatpages/flatpage/{page.pk}/change/").content.decode()
+
+    assert 'name="options-0-introduction"' in html
+    # Read the help text off the field so a copy edit cannot break this test.
+    assert FlatPageOptions._meta.get_field("introduction").help_text in html
+    # The same rich-text editor as the page content, not a bare textarea.
+    assert "tinymce" in html.lower()
+
+
+@pytest.mark.django_db
+def test_flat_page_change_page_saves_the_introduction(site, admin_user):
+    page = make_page(site, "/guide/", "Guide", CONTENT)
+    client = Client()
+    client.force_login(admin_user)
+
+    data = {
+        "url": page.url,
+        "title": page.title,
+        "content": page.content,
+        "sites": [str(site.pk)],
+        "template_name": "",
+        "options-TOTAL_FORMS": "1",
+        "options-INITIAL_FORMS": "0",
+        "options-MIN_NUM_FORMS": "0",
+        "options-MAX_NUM_FORMS": "1",
+        "options-0-page": str(page.pk),
+        "options-0-introduction": "<p>Read this first.</p>",
+        "flatpagevisibility_set-TOTAL_FORMS": "0",
+        "flatpagevisibility_set-INITIAL_FORMS": "0",
+        "flatpagevisibility_set-MIN_NUM_FORMS": "0",
+        "flatpagevisibility_set-MAX_NUM_FORMS": "1000",
+    }
+    response = client.post(f"/admin/flatpages/flatpage/{page.pk}/change/", data)
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    options = FlatPageOptions.objects.get(page=page)
+    assert options.introduction == "<p>Read this first.</p>"
+    # Saved without ticking Show contents: the two options are independent.
+    assert options.show_contents is False
+    assert "Read this first." in Client().get(page.url).content.decode()

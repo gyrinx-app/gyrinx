@@ -38,6 +38,12 @@ class FlatPageOptions(Base):
     page = models.OneToOneField(
         FlatPage, on_delete=models.CASCADE, related_name="options"
     )
+    introduction = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Introduction",
+        help_text="Shown at the top of the page, above the contents list and the page content. Optional.",
+    )
     show_contents = models.BooleanField(
         default=False,
         verbose_name="Show contents",
