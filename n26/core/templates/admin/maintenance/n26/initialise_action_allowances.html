@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% block title %}{{ title }} | {{ site_title|default:_("Django site admin") }}{% endblock title %}
+{% block content %}
+    <p><a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a></p>
+    <h1>{{ title }}</h1>
+    <p>
+        Grants the unused action allowances that existing fighters earned after
+        their original starting counter value. It uses each fighter’s current
+        authored rank table and action access.
+    </p>
+    <p>
+        A counter without an original opening or matching materialised starting
+        value is reported and skipped. Conflicting rank tables prevent the run.
+        Running the operation again does not duplicate allowances.
+    </p>
+    <h2>Dry run</h2>
+    <ul>
+        {% for line in plan.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+    {% if plan.problems %}
+        <h2>Problems to resolve</h2>
+        <ul>{% for line in plan.problems %}<li>{{ line }}</li>{% endfor %}</ul>
+    {% elif not plan.nothing_here %}
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="button default">Initialise earned allowances</button>
+        </form>
+    {% else %}
+        <h2>Nothing to initialise</h2>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <ul>
+            {% for run in recent %}
+                <li><a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a> — {{ run.get_status_display }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endblock content %}
