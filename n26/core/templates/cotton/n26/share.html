@@ -18,7 +18,7 @@ browser has already made absolute — so a path is enough here, and the
 button shares the same address it would navigate to.
 
   url — the page to share. A path is fine.
-  message — said once the address is on the clipboard. Default "Link copied."
+  message — shown once the address is on the clipboard. Default "Link copied."
   size, variant — passed to <c-ui.button>. Default sm / default.
 {% endcomment %}
 <c-vars
@@ -33,7 +33,7 @@ button shares the same address it would navigate to.
       x-data="{
           copied: false,
           timer: null,
-          said() {
+          showCopiedMessage() {
               this.copied = true;
               clearTimeout(this.timer);
               this.timer = setTimeout(() => { this.copied = false; }, 4000);
@@ -41,7 +41,7 @@ button shares the same address it would navigate to.
           share(url) {
               const copy = () => {
                   if (!navigator.clipboard) { window.location.assign(url); return; }
-                  navigator.clipboard.writeText(url).then(() => this.said(), () => window.location.assign(url));
+                  navigator.clipboard.writeText(url).then(() => this.showCopiedMessage(), () => window.location.assign(url));
               };
               if (navigator.share && (!navigator.canShare || navigator.canShare({ url }))) {
                   navigator.share({ url }).catch((err) => { if (err.name !== 'AbortError') copy(); });
