@@ -2,9 +2,8 @@
 {% load navigation %}
 {% load static %}
 {% comment %}
-Editing a standing gang, in two tabs the URL picks (?tab=notes): General —
-the create form's shape over a gang that exists — and Notes and Lore, each
-its own form so one save cannot throw the other box's words away. htmx
+Editing a standing gang, in tabs the URL picks (?tab=notes). Notes and Lore
+each have their own form so one save cannot discard the other's text. htmx
 saves without rebuilding the page; TinyMCE stays, because swapping the
 editor out would throw its undo history away. A tab is a link, so the
 choice survives a reload and works with no script. The one difference of
@@ -35,7 +34,7 @@ reads the config after that listener has run.
 {% endblock %}
 {% block content %}
     {% url 'n26-edit-gang' gang.pk as edit_url %}
-    {% if tab == "notes" %}
+    {% if tab != "general" %}
         {% comment %}
         Two forms, not one wrapping page: a form inside a form is not
         markup, and each box has to post without the other. The column
@@ -56,60 +55,86 @@ reads the config after that listener has run.
                 </c-slot>
             </c-n26.page-header>
             <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
-            <form method="post"
-                  action="{{ edit_url }}"
-                  hx-post="{{ edit_url }}"
-                  hx-swap="none">
-                {% csrf_token %}
-                <input type="hidden" name="act" value="notes">
-                <c-n26.form-section title="Notes">
-                    {% comment %}
-                    The editor wraps itself in the field — label, description
-                    and errors ride the component, and a second wrapper would
-                    draw the frame twice.
-                    {% endcomment %}
-                    <c-n26.rich-text :field="notes_form.notes"
-                                     label="Notes"
-                                     description="{{ notes_form.notes.help_text }}" />
-                    <div class="flex justify-end">
-                        <c-ui.button type="submit" variant="success" size="sm">
-                            Save notes
-                        </c-ui.button>
-                    </div>
+            {% if tab == "dismissed" %}
+                <c-n26.form-section title="Dismissed choices">
+                    {% if dismissed_choices %}
+                        <ul class="space-y-1">
+                            {% for choice in dismissed_choices %}
+                                <li class="flex items-center justify-between gap-2 py-2">
+                                    <span class="text-sm">{{ choice.kind_label }}</span>
+                                    <form method="post" action="{{ choice.restore_href }}" class="shrink-0">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="back" value="{{ edit_url }}?tab=dismissed">
+                                        <c-ui.button type="submit"
+                                                     variant="ghost"
+                                                     size="xs"
+                                                     aria-label="Restore {{ choice.kind_label }}">
+                                            Restore
+                                        </c-ui.button>
+                                    </form>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-sm text-muted">No dismissed gang choices.</p>
+                    {% endif %}
                 </c-n26.form-section>
-            </form>
-            <form method="post"
-                  action="{{ edit_url }}"
-                  hx-post="{{ edit_url }}"
-                  hx-swap="none">
-                {% csrf_token %}
-                <input type="hidden" name="act" value="lore">
-                <c-n26.form-section title="Lore">
-                    <c-n26.rich-text :field="lore_form.lore"
-                                     label="Lore"
-                                     description="{{ lore_form.lore.help_text }}" />
-                    <div class="flex justify-end">
-                        <c-ui.button type="submit" variant="success" size="sm">
-                            Save lore
-                        </c-ui.button>
-                    </div>
+            {% else %}
+                <form method="post"
+                      action="{{ edit_url }}"
+                      hx-post="{{ edit_url }}"
+                      hx-swap="none">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="notes">
+                    <c-n26.form-section title="Notes">
+                        {% comment %}
+                        The editor wraps itself in the field — label, description
+                        and errors ride the component, and a second wrapper would
+                        draw the frame twice.
+                        {% endcomment %}
+                        <c-n26.rich-text :field="notes_form.notes"
+                                         label="Notes"
+                                         description="{{ notes_form.notes.help_text }}" />
+                        <div class="flex justify-end">
+                            <c-ui.button type="submit" variant="success" size="sm">
+                                Save notes
+                            </c-ui.button>
+                        </div>
+                    </c-n26.form-section>
+                </form>
+                <form method="post"
+                      action="{{ edit_url }}"
+                      hx-post="{{ edit_url }}"
+                      hx-swap="none">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="lore">
+                    <c-n26.form-section title="Lore">
+                        <c-n26.rich-text :field="lore_form.lore"
+                                         label="Lore"
+                                         description="{{ lore_form.lore.help_text }}" />
+                        <div class="flex justify-end">
+                            <c-ui.button type="submit" variant="success" size="sm">
+                                Save lore
+                            </c-ui.button>
+                        </div>
+                    </c-n26.form-section>
+                </form>
+                {% comment %}
+                The picture is its own act — a form inside a form is not markup.
+                {% endcomment %}
+                <c-n26.form-section title="Picture">
+                    <c-n26.picture-box action="{{ edit_url }}"
+                                       id="gang-image"
+                                       crop="{{ picture_shape }}"
+                                       max="{{ picture_max }}"
+                                       image_url="{{ picture_url }}"
+                                       alt="A picture of {{ gang.name }}"
+                                       img_class="w-full max-w-md">
+                        Shown on the notes and lore pages and against the gang.
+                        Picking a file opens the crop, and using it saves.
+                    </c-n26.picture-box>
                 </c-n26.form-section>
-            </form>
-            {% comment %}
-            The picture is its own act — a form inside a form is not markup.
-            {% endcomment %}
-            <c-n26.form-section title="Picture">
-                <c-n26.picture-box action="{{ edit_url }}"
-                                   id="gang-image"
-                                   crop="{{ picture_shape }}"
-                                   max="{{ picture_max }}"
-                                   image_url="{{ picture_url }}"
-                                   alt="A picture of {{ gang.name }}"
-                                   img_class="w-full max-w-md">
-                    Shown on the notes and lore pages and against the gang.
-                    Picking a file opens the crop, and using it saves.
-                </c-n26.picture-box>
-            </c-n26.form-section>
+            {% endif %}
         </div>
     {% else %}
         <c-n26.form-page action="{{ edit_url }}"

@@ -956,6 +956,10 @@ def edit_body(client, miniature, **query):
     return client.get(url, query).content.decode()
 
 
+def dismissed_tab(gang):
+    return reverse("n26-edit-gang", args=[gang.pk]) + "?tab=dismissed"
+
+
 def dismissed_keys(gang):
     return set(gang.dismissed_offers.values_list("slot_key", flat=True))
 
@@ -1160,7 +1164,86 @@ class TestDismissalAddressesThatShouldNotResolve:
 
 
 class TestShowingDismissedOffers:
-    """Restore model choices from the Edit page, gang choices on the sheet."""
+    """Restore choices from the model's or gang's Edit page."""
+
+    def test_the_empty_tab_is_linked_from_every_gang_edit_screen(
+        self, client, owner, gang
+    ):
+        from bs4 import BeautifulSoup
+
+        client.force_login(owner)
+        at = reverse("n26-edit-gang", args=[gang.pk])
+        for url in (
+            at,
+            f"{at}?tab=notes",
+            reverse("n26-gang-trade-points", args=[gang.pk]),
+        ):
+            response = client.get(url)
+            assert response.status_code == 200
+            assert dismissed_tab(gang) in response.content.decode()
+        response = client.get(dismissed_tab(gang))
+        page = BeautifulSoup(response.content, "html.parser")
+        assert page.find("a", href=dismissed_tab(gang))["aria-current"] == "page"
+        assert "No dismissed gang choices." in page.get_text()
+        assert page.find("input", attrs={"name": "name"}) is None
+        assert page.find("textarea") is None
+        assert "Save changes" not in page.get_text()
+
+    def test_restoring_the_last_gang_choice_returns_to_the_empty_tab(
+        self, client, owner, gang, crew
+    ):
+        from bs4 import BeautifulSoup
+
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(dismiss_url(gang, line))
+        page = BeautifulSoup(client.get(dismissed_tab(gang)).content, "html.parser")
+        form = page.find("form", action=restore_url(gang, line))
+        assert form["method"] == "post"
+        assert form.find_parent("form") is None
+        assert form.find("button")["aria-label"] == "Restore Affiliation"
+        assert "bg-transparent" in form.find("button")["class"]
+        data = {
+            field["name"]: field.get("value", "") for field in form.find_all("input")
+        }
+        assert data["csrfmiddlewaretoken"]
+        assert data["back"] == dismissed_tab(gang)
+        assert client.get(form["action"]).status_code == 405
+        response = client.post(form["action"], data, follow=True)
+        assert response.redirect_chain == [(dismissed_tab(gang), 302)]
+        assert "No dismissed gang choices." in response.content.decode()
+        assert not dismissed_keys(gang)
+        assert line.href in sheet_body(client, gang)
+
+    def test_the_dismissed_tab_is_owner_only(self, client, gang, django_user_model):
+        assert client.get(dismissed_tab(gang)).status_code == 302
+        client.force_login(django_user_model.objects.create_user("reader"))
+        assert client.get(dismissed_tab(gang)).status_code == 404
+
+    def test_resolved_and_missing_choices_are_not_listed(
+        self, client, owner, gang, crew, affiliations
+    ):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(
+            line.href, {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"}
+        )
+        for key in (line.key, "nobody:nothing:none"):
+            DismissedOffer.objects.create(gang=gang, slot_key=key)
+        response = client.get(dismissed_tab(gang))
+        assert "No dismissed gang choices." in response.content.decode()
+        assert restore_url(gang, line) not in response.content.decode()
+
+    def test_an_external_restore_return_address_falls_back_to_the_tab(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        line = sheet_slots(gang)["Affiliation"]
+        client.post(dismiss_url(gang, line))
+        response = client.post(
+            restore_url(gang, line), {"back": "https://elsewhere.example/"}
+        )
+        assert response["Location"] == dismissed_tab(gang)
 
     def test_an_empty_picklist_can_be_dismissed_and_restored(
         self, client, owner, gang, crew
@@ -1314,33 +1397,36 @@ class TestShowingDismissedOffers:
             ).find(id="n26-dismissed-choices")
             assert bool(full_page_box.find(recursive=False)) == (state == "dismissed")
 
-    def test_the_sheet_offers_to_show_what_was_dismissed(
-        self, client, owner, gang, crew
+    @pytest.mark.parametrize("query", ({}, {"dismissed": "show"}))
+    def test_the_sheet_never_shows_dismissed_choices_or_restore_controls(
+        self, client, owner, gang, crew, query
     ):
+        from bs4 import BeautifulSoup
+
         client.force_login(owner)
         assert "Dismissed choices" not in sheet_body(client, gang)
         slots = sheet_slots(gang)
         for label in ("Affiliation", "Sorrow: Archetype"):
             client.post(dismiss_url(gang, slots[label]))
-        body = sheet_body(client, gang)
-        assert "Dismissed choices" in body
-        assert "?dismissed=show" in body
+        body = sheet_body(client, gang, **query)
+        page = BeautifulSoup(body, "html.parser")
+        assert not any(
+            "Dismissed choices" in term.get_text() for term in page.find_all("dt")
+        )
+        assert "?dismissed=show" not in body
         # Neither offer is drawn, and neither Restore is.
         assert restore_url(gang, slots["Affiliation"]) not in body
         assert slots["Affiliation"].href not in body
 
-    def test_shown_each_reads_as_dismissed_with_a_way_back(
-        self, client, owner, gang, crew
-    ):
+    def test_the_dismissed_tab_lists_only_gang_choices(self, client, owner, gang, crew):
         client.force_login(owner)
         slots = sheet_slots(gang)
         client.post(dismiss_url(gang, slots["Affiliation"]))
         client.post(dismiss_url(gang, slots["Sorrow: Archetype"]))
-        body = sheet_body(client, gang, dismissed="show")
+        body = client.get(dismissed_tab(gang)).content.decode()
         assert restore_url(gang, slots["Affiliation"]) in body
         assert restore_url(gang, slots["Sorrow: Archetype"]) not in body
         assert "Dismissed" in body
-        assert "Hide" in body
         # Shown is not restored: the Choose stays away.
         assert slots["Affiliation"].href not in body
         assert dismiss_url(gang, slots["Affiliation"]) not in body
@@ -1369,7 +1455,7 @@ class TestShowingDismissedOffers:
         assert dismissed_keys(gang) == set()
         assert line.href in edit_body(client, crew["leader"])
 
-    def test_restoring_from_the_sheet_keeps_the_rest_showing(
+    def test_restoring_without_a_return_address_keeps_the_tab_open(
         self, client, owner, gang, crew
     ):
         client.force_login(owner)
@@ -1377,32 +1463,38 @@ class TestShowingDismissedOffers:
         client.post(dismiss_url(gang, slots["Affiliation"]))
         client.post(dismiss_url(gang, slots["Favoured set"]))
         response = client.post(restore_url(gang, slots["Affiliation"]))
-        assert response["Location"].endswith("?dismissed=show")
+        assert response["Location"] == dismissed_tab(gang)
         body = client.get(response["Location"]).content.decode()
-        assert slots["Affiliation"].href in body
+        assert slots["Affiliation"].href not in body
+        assert slots["Affiliation"].href in sheet_body(client, gang)
         assert restore_url(gang, slots["Favoured set"]) in body
 
-    def test_dismissing_from_the_shown_sheet_lands_back_on_it(
+    def test_dismissing_from_a_legacy_show_url_returns_to_the_clean_sheet(
         self, client, owner, gang, crew
     ):
-        """The X on a still-open offer, clicked while the dismissed ones
-        are showing, comes back to the sheet as it stood."""
+        from bs4 import BeautifulSoup
+
         client.force_login(owner)
         slots = sheet_slots(gang)
         client.post(dismiss_url(gang, slots["Affiliation"]))
         body = sheet_body(client, gang, dismissed="show")
         sheet = reverse("n26-gang", args=[gang.pk])
-        assert f'name="back" value="{sheet}?dismissed=show"' in body
+        form = BeautifulSoup(body, "html.parser").find(
+            "form", action=dismiss_url(gang, slots["Favoured set"])
+        )
+        data = {
+            field["name"]: field.get("value", "") for field in form.find_all("input")
+        }
+        assert data["back"] == sheet
         response = client.post(
             dismiss_url(gang, slots["Favoured set"]),
-            {"back": f"{sheet}?dismissed=show"},
+            data,
             follow=True,
         )
-        assert response.redirect_chain == [(f"{sheet}?dismissed=show", 302)]
+        assert response.redirect_chain == [(sheet, 302)]
         landed = response.content.decode()
-        # Still showing: both dismissed offers, each with its way back.
-        assert restore_url(gang, slots["Affiliation"]) in landed
-        assert restore_url(gang, slots["Favoured set"]) in landed
+        assert restore_url(gang, slots["Affiliation"]) not in landed
+        assert restore_url(gang, slots["Favoured set"]) not in landed
 
     def test_a_pick_landing_on_a_dismissed_offer_takes_the_dismissal_off(
         self, client, owner, gang, crew, affiliations
@@ -1622,7 +1714,7 @@ class TestShowingDismissedOffers:
 
     @pytest.mark.parametrize("screen", ("edit", "gang"))
     @pytest.mark.parametrize("htmx", (False, True))
-    def test_equipment_dialogs_keep_dismissed_offers_shown(
+    def test_equipment_dialogs_keep_dismissed_choices_on_their_edit_pages(
         self, client, owner, gang, crew, screen, htmx
     ):
         from urllib.parse import parse_qs, urlsplit
@@ -1648,20 +1740,24 @@ class TestShowingDismissedOffers:
             if screen == "edit"
             else reverse("n26-gang", args=[gang.pk])
         )
-        shown = f"{here}?dismissed=show"
+        shown = f"{here}?dismissed=show" if screen == "edit" else here
         page = BeautifulSoup(client.get(shown).content, "html.parser")
         sell = next(
             link["href"]
             for link in page.find_all("a", href=True)
             if parse_qs(urlsplit(link["href"]).query).get("sell") == [str(bought.pk)]
         )
-        assert parse_qs(urlsplit(sell).query)["dismissed"] == ["show"]
+        assert parse_qs(urlsplit(sell).query).get("dismissed", []) == (
+            ["show"] if screen == "edit" else []
+        )
 
         headers = {"HX-Request": "true"} if htmx else {}
         response = client.get(sell, headers=headers)
         assert response.status_code == 200
         if not htmx:
-            assert restore_url(gang, line) in response.content.decode()
+            assert (restore_url(gang, line) in response.content.decode()) == (
+                screen == "edit"
+            )
         page = BeautifulSoup(response.content, "html.parser")
         form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
         assert form is not None
@@ -1669,12 +1765,19 @@ class TestShowingDismissedOffers:
             field["name"]: field.get("value", "")
             for field in form.find_all("input", type="hidden")
         }
-        assert data["dismissed"] == "show"
+        assert data.get("dismissed", "") == ("show" if screen == "edit" else "")
         assert not form.has_attr("hx-post")
         response = client.post(form["action"], data)
         assert response.status_code == 302
         assert response.url == shown
-        assert restore_url(gang, line) in client.get(response.url).content.decode()
+        assert (
+            restore_url(gang, line) in client.get(response.url).content.decode()
+        ) == (screen == "edit")
+        if screen == "gang":
+            assert (
+                restore_url(gang, line)
+                in client.get(dismissed_tab(gang)).content.decode()
+            )
         assert dismissed_keys(gang) == {line.key}
         gang.refresh_from_db()
         assert_reconciled(gang)
@@ -1702,6 +1805,31 @@ class TestShowingDismissedOffers:
 
 
 class TestWhatItCosts:
+    def test_the_dismissed_tab_does_not_load_fighters_or_grow_with_the_roster(
+        self, client, owner, gang, crew, profiles
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(owner)
+
+        def queries():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(dismissed_tab(gang))
+            assert response.status_code == 200
+            return [query["sql"] for query in captured]
+
+        queries()
+        before = queries()
+        for name in ("Ash", "Kite"):
+            hire_with_option(gang, profiles["leader"], name)
+        for label, line in sheet_slots(gang).items():
+            if label in {"Affiliation", "Favoured set", "Ash: Archetype"}:
+                DismissedOffer.objects.create(gang=gang, slot_key=line.key)
+        after = queries()
+        assert len(after) == len(before)
+        assert not any('FROM "n26_miniature"' in sql for sql in after)
+
     def test_the_sheet_pays_one_query_however_many_are_dismissed(
         self, client, owner, gang, crew, profiles, django_assert_num_queries
     ):

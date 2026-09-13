@@ -255,12 +255,7 @@ def gang_sheet(request, pk):
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
-    from n26.core.views.choose import (
-        dismissed_toggle,
-        link_slots,
-        settle_dismissed,
-        showing_dismissed,
-    )
+    from n26.core.views.choose import link_slots, settle_dismissed
     from n26.core.views.htmx import is_htmx
     from n26.core.views.owned import link_counters, link_stash_actions, owned_dialog
     from n26.core.views.skills import link_skills
@@ -317,30 +312,21 @@ def gang_sheet(request, pk):
     link_campaign(sheet.campaign, request.user)
     link_owners(sheet)
     # The offers the owner has dismissed come off every card and the
-    # gang's own strip, whoever is reading: one query. The owner may ask
-    # to see the gang's own choices here. Dismissed model choices are
-    # restored from the model's Edit page, never from a model card.
-    showing = yours and showing_dismissed(request.get_full_path())
-    shown_at = dismissed_toggle(at, not showing)
+    # gang's own strip, whoever is reading: one query. Restore controls
+    # belong on the gang's or model's Edit page.
     settle_dismissed(
         gang,
-        sheet,
-        at=at if yours else "",
-        showing=showing,
-        hide_only=(*sheet.models, *sheet.dead),
+        hide_only=(sheet, *sheet.models, *sheet.dead),
     )
     if yours:
-        # A settled choice lands on the gang; a dismissal or a restore
-        # lands on this sheet as it stood, still showing the dismissed
-        # offers if it was.
         link_slots(
             gang,
             sheet,
             *sheet.models,
-            dismiss_back=shown_at,
+            dismiss_back=at,
         )
         link_skills(*sheet.models)
-        link_stash_actions(sheet, shown_at, refunds=not gang.credits_unlimited)
+        link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
         if sheet.campaign:
             # The campaign's counters only. A model's counter is moved on
             # the model's own page; a campaign counter is drawn here and
@@ -365,7 +351,7 @@ def gang_sheet(request, pk):
         and not ransoming
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
-        host = EquipHost.stash(gang, card, at=shown_at)
+        host = EquipHost.stash(gang, card, at=at)
         dialog = owned_dialog(request, host)
     return render(
         request,
@@ -1208,7 +1194,9 @@ def edit_gang(request, pk):
 
     gang = _own_gang_or_404(request, pk)
     at = reverse("n26-edit-gang", args=[gang.pk])
-    tab = "notes" if request.GET.get("tab") == "notes" else "general"
+    tab = request.GET.get("tab", "general")
+    if tab not in {"general", "notes", "dismissed"}:
+        tab = "general"
     if request.method == "POST" and request.POST.get("act") == "picture":
         form = PictureForm(request.POST, request.FILES, ratio=LANDSCAPE)
         if form.is_valid():
@@ -1294,7 +1282,7 @@ def edit_gang(request, pk):
                 )
                 messages.success(request, f"Saved {gang.name}.")
                 return redirect("n26-gang", pk=gang.pk)
-    elif tab == "notes":
+    elif tab in {"notes", "dismissed"}:
         form = None
     else:
         form = EditGangForm(
@@ -1329,6 +1317,9 @@ def edit_gang(request, pk):
             "picture_max": MAX_PX,
             "picture_url": gang.image.url if gang.image else "",
             "edit_tabs": _edit_tabs(gang, tab),
+            "dismissed_choices": (
+                _dismissed_gang_choices(gang) if tab == "dismissed" else []
+            ),
         },
     )
 
@@ -1383,6 +1374,28 @@ def _the_trading_post():
     ).first()
 
 
+def _dismissed_gang_choices(gang):
+    """The gang's live dismissed choices, without loading its models or stash."""
+    from n26.core.card import (
+        build_gang_cards,
+        build_modifier_index,
+        carriers,
+        held_assets,
+    )
+    from n26.core.effects import compute
+    from n26.core.models import DismissedOffer
+    from n26.core.render import GANG_SLOT_HOST, choice_lines, hide_dismissed_choices
+
+    card = build_gang_cards([gang], {gang.pk: held_assets(gang)})[gang.pk]
+    computed = compute(card, build_modifier_index(carriers(card)))
+    choices = choice_lines(computed, host=GANG_SLOT_HOST)
+    dismissed = []
+    hide_dismissed_choices(DismissedOffer.keys_for(gang), choices, removed=dismissed)
+    for line in dismissed:
+        line.restore_href = reverse("n26-restore-offer", args=[gang.pk, line.key])
+    return dismissed
+
+
 def _edit_tabs(gang, current):
     """The strip every screen that edits a gang's own facts carries.
 
@@ -1404,6 +1417,11 @@ def _edit_tabs(gang, current):
             "label": "Trade Points",
             "href": reverse("n26-gang-trade-points", args=[gang.pk]),
             "current": current == "trade-points",
+        },
+        {
+            "label": "Dismissed choices",
+            "href": f"{at}?tab=dismissed",
+            "current": current == "dismissed",
         },
     ]
 
