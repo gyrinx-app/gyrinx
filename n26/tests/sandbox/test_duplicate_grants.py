@@ -189,9 +189,10 @@ class TestACopySomebodyCountedOn:
         strip_provenance(gang)
         member = profile.built_ins.members.get(counter__isnull=False)
         duplicate = caught_up_copy(gang, fighter, member, fighter.membership, counter)
-        CounterValue.objects.update_or_create(
-            assignment=duplicate, defaults={"value": value}
-        )
+        CounterValue.objects.filter(assignment=duplicate).delete()
+        duplicate.ledger_events.filter(counter_before__isnull=False).delete()
+        with operation(gang, actor=gang.owner) as op:
+            op.open_counter(duplicate, value)
         return fighter, counter, duplicate
 
     def test_the_number_moves_to_the_copy_that_stays(
@@ -222,9 +223,8 @@ class TestACopySomebodyCountedOn:
         standing = Assignment.objects.exclude(pk=duplicate.pk).get(
             counter=counter, miniature_root=fighter, archived=False
         )
-        CounterValue.objects.update_or_create(
-            assignment=standing, defaults={"value": 9}
-        )
+        with operation(gang, actor=gang.owner) as op:
+            op.tally(standing, 9)
 
         de_duplicate(gang.pk)
 
