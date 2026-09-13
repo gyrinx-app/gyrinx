@@ -8,7 +8,7 @@ Expects `campaign` in context.{% endcomment %}
                 <a href="{% url 'core:campaign' campaign.id %}" class="linked">{{ campaign.name }}</a>
             </h2>
             <div>
-                <i class="bi-person"></i>
+                <i class="bi-person" aria-hidden="true"></i>
                 <c-user-link :user="campaign.owner" />
             </div>
             {% if campaign.template %}

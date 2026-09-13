@@ -335,7 +335,7 @@ drawn by `c-user-link` (`gyrinx/templates/cotton/user_link.html`):
 ```html
 <c-user-link :user="list.owner" />
 <c-user-link :user="campaign.owner" class="linked-body" />
-<span class="text-secondary fs-7"><i class="bi-person"></i> <c-user-link :user="list.owner" class="linked-secondary" /></span>
+<span class="text-secondary fs-7"><i class="bi-person" aria-hidden="true"></i> <c-user-link :user="list.owner" class="linked-secondary" /></span>
 ```
 
 - Pass the user with the colon. `user="{{ list.owner }}"` stringifies it, the
@@ -352,6 +352,8 @@ drawn by `c-user-link` (`gyrinx/templates/cotton/user_link.html`):
   are the pattern.
 - Never place it inside another link (a row wrapped in an `<a>`); link the
   row's name instead.
+- An icon beside the name (the person icon in metadata rows) is decoration:
+  give it `aria-hidden="true"`.
 
 ### Campaign info columns
 

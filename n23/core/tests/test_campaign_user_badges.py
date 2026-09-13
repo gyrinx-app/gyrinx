@@ -13,6 +13,7 @@ from django.urls import reverse
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import badge_by_slug
+from n23.core.models.battle import Battle
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import List
@@ -93,13 +94,14 @@ def _marks(client, url):
     return response.content.decode().count(MARK)
 
 
-def _queries(client, url):
+def _queries(client, url, post=None):
     """How many queries a page costs, once the session has settled — the
     first request after signing in records the session, which is a cost of
-    signing in and not of the page."""
+    signing in and not of the page. With ``post``, the cost of that form
+    being submitted and the page re-drawn."""
     client.get(url)
     with CaptureQueriesContext(connection) as context:
-        response = client.get(url)
+        response = client.post(url, post) if post is not None else client.get(url)
     assert response.status_code == 200
     return len(context.captured_queries)
 
@@ -175,6 +177,62 @@ def test_the_arbitrators_page_reads_the_owners_badge_with_the_campaign(
     assert _queries(
         client, reverse("core:campaign-arbitrators", args=[badged.id])
     ) == _queries(client, reverse("core:campaign-arbitrators", args=[plain.id]))
+
+
+@pytest.mark.django_db
+def test_the_arbitrators_page_reads_the_owners_badge_when_it_refuses_a_name(
+    viewer, client, make_user, make_campaign, make_table
+):
+    """A name nobody has is refused and the page drawn again, owner and
+    all — with the owner's badge data read alongside, as on a plain visit."""
+    badged = make_table("Badged")
+    plain = make_campaign(
+        "Plain", owner=make_user("plain-owner", "password"), public=True
+    )
+    for campaign in (badged, plain):
+        campaign.admins.add(viewer)
+    refused = {"username": "nobody-by-that-name"}
+
+    assert _queries(
+        client, reverse("core:campaign-arbitrators", args=[badged.id]), post=refused
+    ) == _queries(
+        client, reverse("core:campaign-arbitrators", args=[plain.id]), post=refused
+    )
+
+
+@pytest.mark.django_db
+def test_the_campaign_page_reads_the_actions_battles_with_the_actions(
+    owner, viewer, client, make_table
+):
+    """An action logged from a battle links the battle by name, and the
+    battle comes with the action rather than one query per action. Held
+    over the actions of one battle: the recent-battles block has a cost per
+    battle of its own, and it is the actions' reading of the battle that is
+    under test."""
+
+    def fought(campaign, actions):
+        battle = Battle.objects.create(
+            campaign=campaign, mission="Mission", owner=owner
+        )
+        for index in range(actions):
+            CampaignAction.objects.create(
+                campaign=campaign,
+                user=owner,
+                battle=battle,
+                description=f"Round {index} recorded",
+            )
+        return campaign
+
+    small = fought(make_table("Small"), 1)
+    large = fought(make_table("Large"), 4)
+
+    assert (
+        "Mission"
+        in client.get(reverse("core:campaign", args=[small.id])).content.decode()
+    )
+    assert _queries(client, reverse("core:campaign", args=[large.id])) == _queries(
+        client, reverse("core:campaign", args=[small.id])
+    )
 
 
 @pytest.mark.django_db

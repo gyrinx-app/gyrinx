@@ -9,7 +9,7 @@ Expects `list` in context.{% endcomment %}
             </h2>
             {% if list.owner_cached %}
                 <div>
-                    <i class="bi-person"></i>
+                    <i class="bi-person" aria-hidden="true"></i>
                     <c-user-link :user="list.owner_cached" />
                 </div>
             {% endif %}

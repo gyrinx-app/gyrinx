@@ -2106,6 +2106,10 @@ def add_player(request, pk):
         people = list(
             User.objects.filter(username__icontains=query, is_active=True)
             .exclude(pk=found.owner_id)
+            # Each person found is named with the badge they hold, which
+            # reads their profile and their grants.
+            .select_related("profile")
+            .prefetch_related("badge_grants")
             .order_by("username")[:PEOPLE_FOUND]
         )
 

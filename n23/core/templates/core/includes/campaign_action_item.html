@@ -10,7 +10,7 @@
 <div class="list-group-item px-0">
     <small class="text-secondary hstack w-100 justify-content-between">
         <div class="flex-grow-1">
-            <strong><i class="bi-person"></i>
+            <strong><i class="bi-person" aria-hidden="true"></i>
                 {% if action.user %}<c-user-link :user="action.user" class="linked-secondary" />{% endif %}
             </strong>
             {% if action.list and show_list_link|default:True %}

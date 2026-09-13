@@ -192,7 +192,7 @@ class CampaignDetailView(generic.DetailView):
                 models.Prefetch(
                     "actions",
                     queryset=CampaignAction.objects.select_related(
-                        "user", "user__profile", "list", "template_campaign"
+                        "user", "user__profile", "list", "battle", "template_campaign"
                     )
                     .prefetch_related("user__badge_grants")
                     .order_by("-created"),

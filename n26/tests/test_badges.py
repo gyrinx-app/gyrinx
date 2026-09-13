@@ -299,8 +299,9 @@ class TestTheNamesOnACampaign:
         self, table, player, client
     ):
         """Below the bar, which names the reader. A player's name is drawn
-        twice — in the players table and under their gang — and the mark
-        follows it both times."""
+        three times — under their gang, in the players table, and in the
+        log for accepting their place (joining is the arbitrator's act, and
+        reads "You") — and the mark follows it each time."""
         before = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
         player(table, "vex")
         player(table, "kesh")
@@ -308,7 +309,7 @@ class TestTheNamesOnACampaign:
 
         mark = badge_svg(GUILDER).strip()
         assert after.split("</header>")[-1].count(mark) == (
-            before.split("</header>")[-1].count(mark) + 4
+            before.split("</header>")[-1].count(mark) + 6
         )
 
     def test_the_page_reads_the_badges_once_for_everybody(self, table, player, client):
@@ -352,6 +353,63 @@ class TestTheNamesOnACampaign:
             with campaign_operation(campaign, actor=person) as act:
                 act.answer_invitation(person, accepted=True)
         assert self._queries(client, "/n26/campaigns/") == with_one
+
+    def test_the_log_names_who_acted_with_their_badge(self, table, player, client):
+        """Somebody else's act is theirs by name, and the name carries the
+        badge they hold. The reader's own acts say "You", and a badge
+        after "You" would be the reader's own — the chrome shows that."""
+        player(table, "vex")
+
+        body = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
+        named = re.search(r"<span[^>]*font-medium[^>]*>vex<", body)
+        assert named
+        assert FLAIR_WRAPPER in body[named.end() : named.end() + 400]
+        assert not re.search(r"<span[^>]*font-medium[^>]*>patron<", body)
+
+    def test_the_log_page_reads_the_badges_once_for_everybody(
+        self, table, player, client
+    ):
+        player(table, "vex")
+        with_one = self._queries(client, f"/n26/campaigns/{table.pk}/log/")
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        assert self._queries(client, f"/n26/campaigns/{table.pk}/log/") == with_one
+
+    def test_the_players_screen_marks_players_and_people_found(
+        self, table, player, client
+    ):
+        """Both lists on the screen — the people already asked and the
+        people a search turns up — name each person with their badge."""
+        player(table, "vex")
+        UserProfile.objects.create(
+            user=User.objects.create_user("vexation"),
+            patreon_status=PatreonStatus.ACTIVE,
+            patreon_tier="Guilder",
+            selected_badge="guilder",
+        )
+
+        body = client.get(
+            f"/n26/campaigns/{table.pk}/players/add/?q=vex"
+        ).content.decode()
+        below_the_bar = body.split("</header>")[-1]
+        # The arbitrator in the trail, vex at the table, then vex and
+        # vexation among the people found.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 4
+
+    def test_the_players_screen_reads_the_badges_once_for_everybody(
+        self, table, player, client
+    ):
+        player(table, "vex-1")
+        with_one = self._queries(
+            client, f"/n26/campaigns/{table.pk}/players/add/?q=vex"
+        )
+        for index in range(2, 5):
+            player(table, f"vex-{index}")
+        assert (
+            self._queries(client, f"/n26/campaigns/{table.pk}/players/add/?q=vex")
+            == with_one
+        )
 
     def test_an_invitation_names_its_arbitrator_with_their_badge(self, table, client):
         """The campaigns list opens with the invitations still waiting, each

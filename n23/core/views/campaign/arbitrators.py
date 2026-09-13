@@ -38,9 +38,10 @@ def campaign_arbitrators(request, id):
 
     :template:`core/campaign/campaign_arbitrators.html`
     """
-    # The page names the owner with their badge at the top of its list; a
-    # POST redirects, and only re-draws the page for an invalid form, so it
-    # is not worth the grants query up front.
+    # The page names the owner with their badge at the top of its list. A
+    # GET draws it; a POST redirects, so it fetches the campaign plain, and
+    # only an invalid form re-draws the page — the owner's badge data is
+    # read with the campaign again at that point.
     campaign = get_campaign_admin_or_404(
         request, id, with_owner_badge=request.method == "GET"
     )
@@ -72,6 +73,7 @@ def campaign_arbitrators(request, id):
             return HttpResponseRedirect(
                 reverse("core:campaign-arbitrators", args=(campaign.id,))
             )
+        campaign = get_campaign_admin_or_404(request, id, with_owner_badge=True)
     else:
         form = AddArbitratorForm(campaign=campaign)
 

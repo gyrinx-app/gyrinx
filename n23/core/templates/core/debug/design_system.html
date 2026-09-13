@@ -1340,7 +1340,8 @@
                 <code>linked-secondary</code>. The badge is dropped when the ambient <code>print</code> flag
                 is set. A view drawing many names must
                 <code>select_related("…__profile").prefetch_related("…__badge_grants")</code>, or each
-                name costs two queries. Never place it inside another link; link the row's name instead.
+                name costs two queries. Never place it inside another link; link the row's name instead. An
+                icon beside the name is decoration: give it <code>aria-hidden="true"</code>.
             </p>
             <c-box class="mb-4">
                 <div class="vstack gap-1">
@@ -1352,7 +1353,7 @@
                         <c-user-link :user="ds_user" class="linked-body" />
                     </div>
                     <div class="text-secondary fs-7">
-                        <i class="bi-person"></i>
+                        <i class="bi-person" aria-hidden="true"></i>
                         <c-user-link :user="ds_user" class="linked-secondary" />
                     </div>
                 </div>

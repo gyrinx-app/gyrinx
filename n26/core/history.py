@@ -111,6 +111,11 @@ class Act:
     trade_points: int = 0
     rating: int = 0
     note: str = ""
+    #: The person ``actor`` names, for a page that draws the name with the
+    #: badge they hold. None where nobody did it, and None where the actor
+    #: is the reader — ``actor`` says "You" then, and a badge after "You"
+    #: would be the reader's own, which the chrome already shows.
+    actor_user: object | None = None
     subs: list[Sub] = field(default_factory=list)
     category: str = "kit"
     miniature_pk: str = ""
@@ -612,6 +617,7 @@ def _clean_house_as_one(standing, viewer, alive):
     return Act(
         when=first.created,
         actor=_actor(first, viewer),
+        actor_user=_actor_user(first, viewer),
         spans=(
             Span("cleaned house — "),
             Span(f"{len(subs)} {models} back from Recovery"),
@@ -632,6 +638,7 @@ def _edits_as_one(standing, viewer, alive):
     return Act(
         when=first.created,
         actor=_actor(first, viewer),
+        actor_user=_actor_user(first, viewer),
         spans=(Span(f"{verb} what "), _model_span(model, alive), Span(" is")),
         subs=subs,
         category="model",
@@ -659,6 +666,7 @@ def _one_act(e, row, viewer, alive):
     return Act(
         when=e.created,
         actor=actor,
+        actor_user=_actor_user(e, viewer) if actor else None,
         spans=spans,
         credits=-e.credits_delta,
         trade_points=-e.trade_points_delta,
@@ -1058,6 +1066,16 @@ def _actor(e, viewer):
     return e.actor.username
 
 
+def _actor_user(e, viewer):
+    """The person ``_actor`` names, or None where it names nobody or the
+    reader."""
+    if e.actor is None:
+        return None
+    if viewer is not None and e.actor_id == getattr(viewer, "id", None):
+        return None
+    return e.actor
+
+
 def _name(row):
     thing = row.assignable if row else None
     return str(thing) if thing is not None else "something"
@@ -1154,7 +1172,11 @@ def campaign_history_size(campaign):
 
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
-    events = campaign.events.select_related("actor", "battle", "about_user")
+    # The actor is named with the badge they hold, which reads their
+    # profile and their grants.
+    events = campaign.events.select_related(
+        "actor", "actor__profile", "battle", "about_user"
+    ).prefetch_related("actor__badge_grants")
     # Newest first while the database is doing the cutting, so a limit takes
     # the recent end; the caller sorts the merged result back into order.
     events = (
@@ -1191,11 +1213,13 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         .select_related(
             "miniature",
             "actor",
+            "actor__profile",
             "gang",
             "campaign",
             "campaign_asset__asset__asset_type",
             "counterpart",
         )
+        .prefetch_related("actor__badge_grants")
     )
     events = (
         events.order_by("-created", "-id")[:limit]
@@ -1290,6 +1314,7 @@ def _one_campaign_act(e, viewer):
     return Act(
         when=e.created,
         actor=_actor(e, viewer),
+        actor_user=_actor_user(e, viewer),
         spans=spans,
         category=category,
     )

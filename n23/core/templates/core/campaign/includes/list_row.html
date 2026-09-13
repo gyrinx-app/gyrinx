@@ -10,7 +10,7 @@
     {# yet, so show a "Joining…" placeholder in place of the rating/stash line. #}
     <p class="mb-0 text-secondary fs-7">
         {% if list.owner %}
-            <i class="bi-person"></i>
+            <i class="bi-person" aria-hidden="true"></i>
             <c-user-link :user="list.owner" class="linked-secondary" />
             •
         {% endif %}
@@ -22,7 +22,7 @@
 {% else %}
     <p class="mb-0 text-secondary fs-7">
         {% if list.owner %}
-            <i class="bi-person"></i>
+            <i class="bi-person" aria-hidden="true"></i>
             <c-user-link :user="list.owner" class="linked-secondary" />
             •
         {% endif %}
