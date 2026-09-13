@@ -58,7 +58,7 @@ def _skill_offer(pickable):
     return found[0] if found else None
 
 
-def _stat_gainable(fighter, pickable):
+def _stat_gainable(fighter, pickable, *, evaluation=None):
     from n26.core.render import build_model_card
     from n26.library.models import ChangesStat
 
@@ -69,7 +69,7 @@ def _stat_gainable(fighter, pickable):
     ]
     if not changes:
         return None
-    card, computed = _computed(fighter)
+    card, computed = evaluation or _computed(fighter)
     cells = build_model_card(fighter, card=card, computed=computed).statline.cells
     values = {cell.full_name: cell.value for cell in cells}
     for change in changes:
@@ -91,20 +91,22 @@ def _stat_gainable(fighter, pickable):
     return False
 
 
-def _listed_skills(record, offer):
+def _listed_skills(record, offer, *, computed=None, owned=None):
     from n26.core.browse import offered_by, usability_for
     from n26.library.models import Skill
 
-    _, computed = _computed(record.fighter)
+    if computed is None:
+        _, computed = _computed(record.fighter)
     question = SimpleNamespace(slot=None, offer=offer, kind_label=offer.kind_label)
     listed = offered_by(question, computed)
     rows = listed.all_lines() if hasattr(listed, "all_lines") else listed
     fighter = usability_for(computed)
-    owned = set(
-        Assignment.objects.filter(
-            miniature_root=record.fighter, archived=False, skill__isnull=False
-        ).values_list("skill_id", flat=True)
-    )
+    if owned is None:
+        owned = set(
+            Assignment.objects.filter(
+                miniature_root=record.fighter, archived=False, skill__isnull=False
+            ).values_list("skill_id", flat=True)
+        )
     return [
         getattr(row, "thing", row)
         for row in rows
@@ -114,12 +116,16 @@ def _listed_skills(record, offer):
     ]
 
 
-def _gainable(record, pickable):
-    stat = _stat_gainable(record.fighter, pickable)
+def _gainable(record, pickable, *, evaluation=None, skills_for=None):
+    stat = _stat_gainable(record.fighter, pickable, evaluation=evaluation)
     if stat is not None:
         return stat
     offer = _skill_offer(pickable)
-    return bool(_listed_skills(record, offer)) if offer else True
+    return (
+        bool(skills_for(offer) if skills_for else _listed_skills(record, offer))
+        if offer
+        else True
+    )
 
 
 def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=None):
@@ -157,16 +163,44 @@ def advancement_options(record, configured):
         raise Refusal("Roll 2D6 for this advancement first.") from error
     if not selection.roll_event_id:
         raise Refusal("Roll 2D6 for this advancement first.")
-    members = list(configured.slot.picklist.members.select_related("pickable"))
+    members = list(
+        configured.slot.picklist.members.select_related("pickable").prefetch_related(
+            "pickable__modifiers__offers_choice",
+            "pickable__modifiers__changes_stat",
+        )
+    )
     landed = configured.slot.picklist.landing(selection.roll_event.roll, members)
-    gainable = [member for member in landed if _gainable(record, member.pickable)]
-    offered = gainable or members
+    evaluation = _computed(record.fighter)
+    owned = set(
+        Assignment.objects.filter(
+            miniature_root=record.fighter, archived=False, skill__isnull=False
+        ).values_list("skill_id", flat=True)
+    )
+    skill_cache = {}
+
+    def skills_for(offer):
+        if offer.pk not in skill_cache:
+            skill_cache[offer.pk] = _listed_skills(
+                record, offer, computed=evaluation[1], owned=owned
+            )
+        return skill_cache[offer.pk]
+
+    def gainable(member):
+        return _gainable(
+            record,
+            member.pickable,
+            evaluation=evaluation,
+            skills_for=skills_for,
+        )
+
+    gainable_members = [member for member in landed if gainable(member)]
+    offered = gainable_members or members
     return tuple(
         AdvancementOption(
             str(member.pickable_id),
             str(member.pickable),
             member.pickable.rating_contribution,
-            _gainable(record, member.pickable),
+            gainable(member),
             _skill_offer(member.pickable) is not None,
             (
                 _skill_offer(member.pickable).mode
