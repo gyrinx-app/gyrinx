@@ -118,6 +118,39 @@ class TestThePage:
         client.force_login(User.objects.create_user("someone-else"))
         assert client.get(options_url(vex)).status_code == 404
 
+    def test_the_models_card_sits_above_the_tabs(self, client, tester, gang, vex):
+        """The card the Edit face draws, in the same place, so what an
+        option changes is in view. This page holds no host a partial
+        update could land in, so the card's acts are plain links that
+        open over the model's own page."""
+        client.force_login(tester)
+        response = client.get(options_url(vex))
+        body = response.content.decode()
+
+        card = body.index('id="n26-model-card-host"')
+        assert body.index("<h1") < card < body.index("This model")
+        assert response.context["card"].name == "Vex"
+        assert "hx-post" not in body[card : body.index("This model")]
+        assert 'id="n26-dialog-host"' not in body
+
+    def test_every_act_on_the_card_lands_on_the_edit_face(
+        self, client, tester, gang, vex
+    ):
+        """This page holds no host for a card's acts, so a counter moved
+        or a choice settled from here lands the reader on the model's
+        own page, as the kit acts and the status badge already do."""
+        from n26.library.authoring import create_counter
+
+        with operation(gang, actor=tester) as op:
+            op.assign(create_counter("XP"), miniature=vex)
+        client.force_login(tester)
+        body = client.get(options_url(vex)).content.decode()
+        card = body[body.index('id="n26-model-card-host"') : body.index("This model")]
+
+        edit = reverse("n26-edit-fighter", args=[vex.pk])
+        assert f'name="back" value="{edit}"' in card
+        assert f'value="{options_url(vex)}"' not in card
+
 
 class TestSaving:
     def test_a_new_choice_charges_the_difference_and_lands_back_here(
