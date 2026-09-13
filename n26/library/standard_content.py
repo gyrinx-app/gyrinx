@@ -1605,6 +1605,7 @@ FIGHTER_ADVANCEMENTS = (
 
 
 def _create_fighter_actions():
+    _create_model_characteristics()
     _create_skills()
     _create_skills_collection()
     from n26.library import authoring
@@ -1622,6 +1623,7 @@ def _create_fighter_actions():
         Skill,
         Slot,
         SlotType,
+        Stat,
     )
 
     def named(model, name, **defaults):
@@ -1655,6 +1657,18 @@ def _create_fighter_actions():
         )
         modifier_name = f"Advancement: {name}"
         if (
+            name in {full for _, full, _, _ in MODEL_CHARACTERISTICS}
+            and not Modifier.objects.filter(name=modifier_name).exists()
+        ):
+            authoring.modifier(
+                modifier_name,
+                authoring.targets_model(),
+                authoring.ef_changes_stat(
+                    Stat.objects.get(full_name=name), mode="improve", amount=1
+                ),
+                attach_to=pick,
+            )
+        elif (
             name.startswith(("Random", "Select"))
             and "skill" in name.lower()
             and not Modifier.objects.filter(name=modifier_name).exists()
@@ -1687,12 +1701,33 @@ def _create_fighter_actions():
             "picklist": table,
             "min_picks": 1,
             "max_picks": 1,
+            "hidden": True,
         },
+    )
+    slot.slot_type = advancement_type
+    slot.picklist = table
+    slot.min_picks = 1
+    slot.max_picks = 1
+    slot.hidden = True
+    slot.save(
+        update_fields=[
+            "slot_type",
+            "picklist",
+            "min_picks",
+            "max_picks",
+            "hidden",
+            "modified",
+        ]
     )
     ranks = named(RankTable, "Standard fighter ranks", counter=xp)
     for threshold in FIGHTER_RANK_THRESHOLDS:
         RankThreshold.objects.get_or_create(rank_table=ranks, threshold=threshold)
     augment_type = named(SlotType, "Augmentation")
+    glitch_type = named(
+        SlotType,
+        "Spyrer Hunting Rig Glitch",
+        plural_name="Spyrer Hunting Rig Glitches",
+    )
     advance_outcome = Outcome.objects.filter(name="Advancement").first()
     if advance_outcome is None:
         advance_outcome = authoring.create_outcome(
@@ -1709,9 +1744,14 @@ def _create_fighter_actions():
             "Clear glitches",
             authoring.apply_changes(
                 authoring.counter_change(glitches, "set", 0),
-                authoring.remove_picks(augment_type),
+                authoring.remove_picks(glitch_type),
             ),
         )
+    else:
+        for member in clear.apply_changes.changes.select_related("remove_picks"):
+            if member.remove_picks_id:
+                member.remove_picks.slot_type = glitch_type
+                member.remove_picks.save(update_fields=["slot_type", "modified"])
     definitions = (
         (
             "Suit Evolution",
