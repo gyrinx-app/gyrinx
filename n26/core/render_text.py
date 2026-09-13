@@ -73,7 +73,9 @@ def render_model_card(card, indent=""):
                 label += _profile_suffix(weapon.own_line)
             lines.append(f"{indent}    {label}")
             for accessory in weapon.accessories:
-                lines.append(f"{indent}      + {accessory.name}")
+                lines.append(
+                    f"{indent}      + {accessory.name}{accessory.brought_mark}"
+                )
             for profile in weapon.named_profiles:
                 lines.append(
                     f"{indent}      - {profile.name}{_profile_suffix(profile)}"

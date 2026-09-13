@@ -51,7 +51,7 @@ want.
                 combi-weapon has an unnamed profile with no characteristics of
                 its own.
                     {% endcomment %}
-                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }}{{ weapon.slot_mark }}{% if weapon.accessories or weapon.choices %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last or weapon.choices %}; {% endif %}{% endfor %}{% for choice in weapon.choices %}{{ choice.kind_label }}: {{ choice.chosen|default:"—" }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>{% endif %}</td>
+                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }}{{ weapon.slot_mark }}{% if weapon.accessories or weapon.choices %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{{ accessory.brought_mark }}{% if not forloop.last or weapon.choices %}; {% endif %}{% endfor %}{% for choice in weapon.choices %}{{ choice.kind_label }}: {{ choice.chosen|default:"—" }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>{% endif %}</td>
                     {% if stats %}
                         {% for cell in stats %}
                             <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>

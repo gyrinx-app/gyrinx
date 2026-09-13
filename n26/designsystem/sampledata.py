@@ -1515,7 +1515,7 @@ def model_card():
             # Kit that brought a pet onto the roster. The specimen carries
             # the pet's name, drawn after the kit's; the pet's own card is
             # model_card_pet().
-            AssignableLine(name="Phyrr Cat (pet) (120¢)", brought_in="Fang"),
+            AssignableLine(name="Phyrr Cat (pet) (120¢)", brought_in=("Fang",)),
         ],
         # Gear whose category asks for a heading of its own. Bought and
         # priced like the rest, and held apart because it reads as what
@@ -1963,7 +1963,7 @@ STASH = [
     # Kit that brought a pet onto the roster: the pet is a model on the
     # gang sheet, and its collar here names it.
     StashLine(
-        name="Cyber-mastiff (pet)", rating=100, kind="wargear", brought_in="Rust"
+        name="Cyber-mastiff (pet)", rating=100, kind="wargear", brought_in=("Rust",)
     ),
     # Nobody bought this one: a modifier put it there, and it carries the mark a
     # granted skill carries on a card.

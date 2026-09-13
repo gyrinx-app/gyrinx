@@ -133,10 +133,11 @@ OWNED_BY = "Owned by"
 IN_THE_STASH = "In the stash"
 
 
-def brought_mark(name):
-    """The pet's name in brackets after the kit that brought it —
-    " (Fang)" — or nothing where the kit brought no named model."""
-    return f" ({name})" if name else ""
+def brought_mark(names):
+    """The pets' names in brackets after the kit that brought them —
+    " (Fang)", " (Fang, Rex)" for kit that brought two — or nothing
+    where the kit brought no named model."""
+    return f" ({', '.join(names)})" if names else ""
 
 
 @dataclass(frozen=True)
@@ -161,14 +162,14 @@ class AssignableLine(SlotMarked):
     name (``count_mark``), and the line names no assignment: a control
     acting on one of three could not say which.
 
-    ``brought_in`` is the name of the model this kit brought onto the
-    roster — a pet's, as its owner named it — written after the name
-    in brackets (``brought_mark``), so the line reads "Phyrr Cat
-    (Fang)". Empty for kit that brought nothing, for a pet its owner
-    has not named yet, and for one that has died: the line is what the
-    model carries, and a dead pet is not that any more. A renderer
-    writes the marks in one order everywhere: the name, the slot mark,
-    the pet, then the count.
+    ``brought_in`` names the models this kit brought onto the roster —
+    a pet, as its owner named it; two where the kit carries two such
+    effects — written after the name in brackets (``brought_mark``), so
+    the line reads "Phyrr Cat (Fang)". Empty for kit that brought
+    nothing; a pet its owner has not named yet, or one that has died,
+    is left out of it: the line is what the model carries, and a dead
+    pet is not that any more. A renderer writes the marks in one order
+    everywhere: the name, the slot mark, the pets, then the count.
     """
 
     name: str
@@ -188,7 +189,7 @@ class AssignableLine(SlotMarked):
     #: Weapon slots this takes on a card; 1 for everything that is not a
     #: weapon, which is what these lines are — see :class:`SlotMarked`.
     slots: int = 1
-    brought_in: str = ""
+    brought_in: tuple[str, ...] = ()
 
     @property
     def count_mark(self):
@@ -197,7 +198,7 @@ class AssignableLine(SlotMarked):
 
     @property
     def brought_mark(self):
-        """The pet's name in brackets, where this kit brought one."""
+        """The pets' names in brackets, where this kit brought any."""
         return brought_mark(self.brought_in)
 
 
@@ -1065,10 +1066,10 @@ class StashLine(SlotMarked):
     #: weapon, 1 for anything else — so the stash marks a two-slot
     #: weapon the way a card does.
     slots: int = 1
-    #: The name of the model this kit brought onto the roster, as
-    #: ``AssignableLine.brought_in`` carries it: a pet bought into the
+    #: The names of the models this kit brought onto the roster, as
+    #: ``AssignableLine.brought_in`` carries them: a pet bought into the
     #: stash is on the roster, with its collar here.
-    brought_in: str = ""
+    brought_in: tuple[str, ...] = ()
 
     @property
     def count_mark(self):
@@ -1077,7 +1078,7 @@ class StashLine(SlotMarked):
 
     @property
     def brought_mark(self):
-        """The pet's name in brackets, where this kit brought one."""
+        """The pets' names in brackets, where this kit brought any."""
         return brought_mark(self.brought_in)
 
 
@@ -2012,16 +2013,18 @@ def brought_in_by(members):
     """What each purchase on the roster brought in, by the purchase.
 
     A map from the pk of the assignment that caused a model's membership
-    — the collar — to the name of the model it brought, as its owner
-    named it; what a kit line writes after its name (``brought_mark``).
-    Built once from the roster, whose members arrive with the cause
-    already joined, so a whole gang's worth costs no query.
+    — the collar — to the names of the models it brought, as their owner
+    named them; what a kit line writes after its name (``brought_mark``).
+    A list, because one piece of kit may carry several model-adding
+    effects and every model they hire names the same purchase. Built
+    once from the roster, whose members arrive with the cause already
+    joined, so a whole gang's worth costs no query.
 
     Every collar on the roster is in the map, because being in it is
     what keeps a line from stacking: two collars are two pets, whatever
-    the pets are called. The *name* is empty for a pet its owner has
-    not named yet — its name is still its profile's, and "Phyrr Cat
-    (Phyrr Cat)" says nothing the bare line does not — and for a dead
+    the pets are called. A pet its owner has not named yet is left out
+    of the names — its name is still its profile's, and "Phyrr Cat
+    (Phyrr Cat)" says nothing the bare line does not — and so is a dead
     one, since the line is what the model carries and a dead pet is not
     that any more. Keyed by the pk written as a string, and read the
     same way, so a node's key and a membership's cause agree however
@@ -2032,28 +2035,23 @@ def brought_in_by(members):
         membership = member.membership
         if membership is None or membership.caused_by_id is None:
             continue
+        names = brought.setdefault(str(membership.caused_by_id), [])
         profile = membership.profile
         unnamed = profile is not None and member.name == str(profile)
-        brought[str(membership.caused_by_id)] = (
-            "" if unnamed or member.status == Status.DEAD else member.name
-        )
+        if not unnamed and member.status != Status.DEAD:
+            names.append(member.name)
     return brought
 
 
 def _brought_in_of(node, brought_in):
-    """The name of the model this line's kit brought, off the map
+    """The names of the models this line's kit brought, off the map
     :func:`brought_in_by` builds — or nothing. The whole of the line is
     asked, since the purchase a pet names may be a hidden part riding
     under the visible kit."""
     if not brought_in:
-        return ""
-    return next(
-        (
-            brought_in[key]
-            for each in node.walk()
-            if (key := str(each.key)) in brought_in
-        ),
-        "",
+        return ()
+    return tuple(
+        name for each in node.walk() for name in brought_in.get(str(each.key), ())
     )
 
 
@@ -2087,14 +2085,23 @@ def _brings(computed):
 
 
 def _brings_a_model(computed):
-    """Whether anything on this card brings a model onto the roster.
+    """Whether this model's own kit brings a model onto the roster.
 
-    Narrower than :func:`_brings`: a stored effect may move a counter or
-    set a status instead, and a card carrying one of those has no pet
-    to look up.
+    Narrower than :func:`_brings` twice over: a stored effect may move
+    a counter or set a status instead, and a card carrying one of those
+    has no pet to look up; and what the gang holds rides every member's
+    card — as a broadcast row or as a guest — without being any
+    member's own, the same distinction ``effects.compute`` draws when
+    it notes a stored effect, so a gang-held collar's pet is nobody's
+    to look up either.
     """
-    return bool(computed) and any(
-        isinstance(step.modifier.effect, OpAddsMiniature) for step in computed.plan
+    if not computed:
+        return False
+    return any(
+        isinstance(step.modifier.effect, OpAddsMiniature)
+        and not step.echoed
+        and not (step.node is not None and step.node.broadcast)
+        for step in computed.plan
     )
 
 
@@ -2316,9 +2323,10 @@ def card_to_model_card(
         ]
 
     def weapon_line(node, children):
-        # Neither the weapon's line nor an accessory's names what it
-        # brought: the kit that brings a model is wargear, drawn in the
-        # Gear row and the category rows, and only those lines ask.
+        # An accessory's line names what it brought, as a gear line
+        # does. The weapon's own line does not: the kit that brings a
+        # model is wargear or a fitting, and a weapon's name is drawn
+        # in too many places for a mark nothing in the library needs.
         profiles = []
         # A weapon's children are its profiles and, now, its accessories.
         profile_nodes = [child for child in children if child.is_weapon_profile]
@@ -2360,6 +2368,7 @@ def card_to_model_card(
                     id=(
                         str(child.assignment.pk) if child.assignment is not None else ""
                     ),
+                    brought_in=brought_in_of(child),
                 )
                 for child in node.children
                 if not child.is_weapon_profile
