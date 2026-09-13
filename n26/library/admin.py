@@ -1,6 +1,5 @@
 from django import forms
 from django.contrib import admin
-from django.forms.models import BaseInlineFormSet
 
 from n26.library import artwork
 from n26.library.models import (
@@ -273,7 +272,12 @@ class SlotAdmin(admin.ModelAdmin):
 class InterstitialSlotForm(forms.ModelForm):
     """The pack box may be left blank, meaning the interstitial's own
     pack — what ``attach_interstitial`` does unless handed one. A pack
-    picked by hand is honoured as picked, the default pack included."""
+    picked by hand is honoured as picked, the default pack included.
+
+    The blank is filled in ``save``, so every path through this form —
+    a new inline row, an existing one cleared, the standalone page —
+    shares the one rule.
+    """
 
     class Meta:
         model = InterstitialSlot
@@ -289,30 +293,15 @@ class InterstitialSlotForm(forms.ModelForm):
             # pack, which reads as a choice; blank is the inheriting one.
             self.initial["pack"] = None
 
-
-def inherit_pack(attachment):
-    """An attachment with no pack of its own takes its interstitial's."""
-    if attachment.pack_id is None:
-        attachment.pack_id = attachment.interstitial.pack_id
-    return attachment
-
-
-class InterstitialSlotFormSet(BaseInlineFormSet):
-    """A new attachment left with a blank pack lands in its
-    interstitial's — on the add page too, where no initial can know the
-    parent's pack before it is saved."""
-
-    def save_new(self, form, commit=True):
-        attachment = inherit_pack(super().save_new(form, commit=False))
-        if commit:
-            attachment.save()
-        return attachment
+    def save(self, commit=True):
+        if self.instance.pack_id is None:
+            self.instance.pack_id = self.instance.interstitial.pack_id
+        return super().save(commit=commit)
 
 
 class InterstitialSlotInline(admin.TabularInline):
     model = InterstitialSlot
     form = InterstitialSlotForm
-    formset = InterstitialSlotFormSet
     extra = 1
     # ``staged`` is here because the admin is where an attachment can be
     # held back: the authoring page that attaches a slot has no switch.
@@ -337,11 +326,6 @@ class InterstitialSlotAdmin(admin.ModelAdmin):
     list_filter = ["interstitial", "staged", "archived"]
     search_fields = ["interstitial__name", "slot__name"]
     list_select_related = ["interstitial", "slot", "pack"]
-
-    def save_model(self, request, obj, form, change):
-        """The standalone page follows the same rule as the inline: a
-        blank pack is the interstitial's."""
-        super().save_model(request, inherit_pack(obj), form, change)
 
 
 @admin.register(Profile)
