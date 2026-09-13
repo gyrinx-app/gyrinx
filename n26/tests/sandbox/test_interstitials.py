@@ -420,9 +420,12 @@ class TestWhatArrived:
         for name, view in (
             ("gangs", "create_gang"),
             ("hire", "hire_fighter"),
-            ("choose", "choose"),
+            # The pick view hands where a settled click lands to a helper
+            # of its own, and that is where its call lives.
+            ("choose", "_landing"),
         ):
             assert "onward(" in inspect.getsource(getattr(module(name), view)), view
+        assert "_landing(" in inspect.getsource(module("choose").choose)
         for name in ("equip", "cloning", "options", "owned"):
             assert "onward(" not in inspect.getsource(module(name)), name
 
@@ -612,6 +615,53 @@ class TestPickingOnTheScreen:
         path, asks, back = asks_in(response["Location"])
         assert path == reverse("n26-next", args=[gang.pk])
         assert asks == [key, sheet_slot(gang, "Brawler's creed").key]
+        assert back == reverse("n26-gang", args=[gang.pk])
+
+    def test_a_worked_at_choice_stays_the_way_on_until_it_is_full(
+        self, client, owner, gang_type, legacy, picklist, archetypes
+    ):
+        """From the arrival screen, a choice of several: what an early pick
+        brings gets a screen whose Continue leads back to the picker for
+        the rest, and only the pick that fills the choice hands what it
+        brought on to the screen the reader came from."""
+        several = create_slot(
+            "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
+        )
+        add_built_in(gang_type, several)
+        create_interstitial("Paths", slots=[several])
+        for name in ("Brawler", "Gunslinger"):
+            brought = create_slot(
+                f"{name}'s creed", legacy, picklist, assigned_to="gang"
+            )
+            modifier(
+                f"{name}: asks a creed",
+                targets_gang(),
+                ef_adds(brought),
+                carried_by=archetypes[name],
+            )
+            create_interstitial(f"{name}'s creed", slots=[brought])
+        gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
+        client.force_login(owner)
+        key = sheet_slot(gang, "Paths").key
+        arrival = screen_url(gang, [key])
+        picker = with_query(
+            reverse("n26-choose", args=[gang.pk, key]), **{"return": arrival}
+        )
+
+        first = client.post(
+            picker, {"thing": pick_key(archetypes["Brawler"]), "return": arrival}
+        )
+        path, asks, back = asks_in(first["Location"])
+        assert path == reverse("n26-next", args=[gang.pk])
+        assert asks == [sheet_slot(gang, "Brawler's creed").key]
+        assert back == picker
+
+        second = client.post(
+            picker, {"thing": pick_key(archetypes["Gunslinger"]), "return": arrival}
+        )
+        path, asks, back = asks_in(second["Location"])
+        assert path == reverse("n26-next", args=[gang.pk])
+        assert asks == [key, sheet_slot(gang, "Gunslinger's creed").key]
         assert back == reverse("n26-gang", args=[gang.pk])
 
     def test_a_pick_that_brings_another_screen_joins_the_address(
@@ -946,6 +996,23 @@ class TestTheAddress:
         body = page(client, screen_url(gang, ["not-a-fighter:x:y", good]))
 
         assert "Hunter's path" in body and kal.name in body
+
+    def test_a_carrier_spelled_as_a_uuid_is_the_same_question(
+        self, client, owner, gang, hunter
+    ):
+        """A ULID has a UUID spelling too, and an address using it names
+        the same row: the question draws, under the address as given."""
+        kal = hire(gang, hunter, "Kal", paid=100)
+        key = sheet_slot(gang, "Hunter's path").key
+        where, anchor, offer = key.split(":")
+        assert where == str(kal.pk)
+        spelled = f"{kal.pk.to_uuid()}:{anchor}:{offer}"
+        client.force_login(owner)
+
+        body = page(client, screen_url(gang, [spelled]))
+
+        assert "Hunter's path" in body and "Kal" in body
+        assert f'name="ask" value="{spelled}"' in body
 
     def test_a_post_naming_a_question_no_screen_draws_settles_nothing(
         self, client, owner, gang, person_type, gang_type, legacy, picklist, archetypes

@@ -133,6 +133,30 @@ def find_slot(gang, key):
     raise Http404("No such choice")
 
 
+def _landing(request, gang, key, offer, op, here, back):
+    """Where a settled click goes, by way of the screen for whatever the
+    pick itself brought, where any of it asks for one.
+
+    A choice of one leaves for ``back``; where the reader came from the
+    screen for what arrived, what this pick brought joins it rather
+    than opening a second. A choice worked at a pick at a time comes
+    back to itself, and stays the way on until it is full: a screen for
+    what an early pick brought leads back to the picker for the rest,
+    and only the pick that fills the choice hands on to where the
+    reader came from.
+    """
+    if not offer.takes_several:
+        return onward(request, gang, op, back, via=back)
+
+    def once_full():
+        # Whether this pick filled the choice, as the card reads it now.
+        # Asked only once the pick has brought a screen: a derivation,
+        # and a click that brought nothing must not pay for it.
+        return back if find_slot(gang, key).slot.is_full else ""
+
+    return onward(request, gang, op, here, via=once_full)
+
+
 def find_slots(gang, keys):
     """The slots these addresses name, on the cards they were drawn on —
     ``{key: _Found}`` for the ones still there, from one derivation of
@@ -152,8 +176,23 @@ def find_slots(gang, keys):
     for key in keys:
         where, _, rest = key.partition(":")
         anchor_pk, _, offer_pk = rest.partition(":")
-        if where and anchor_pk and offer_pk:
-            wanted.setdefault(where, {})[(anchor_pk, offer_pk)] = key
+        if not (where and anchor_pk and offer_pk):
+            continue
+        if where != GANG_SLOT_HOST:
+            try:
+                # The carrier as the cards spell it. A ULID has a UUID
+                # spelling too, and the query below takes either; what
+                # it finds is keyed by the canonical one, so the lookup
+                # must be as well. The address itself keeps the
+                # reader's spelling. The anchor and the offer are
+                # matched exactly, as ``find_slot`` matches them.
+                where = str(Miniature._meta.pk.to_python(where))
+            except ValidationError:
+                # A pk that is not a ULID at all is only ever a bad link,
+                # and one bad link must not take the well-formed ones
+                # with it.
+                continue
+        wanted.setdefault(where, {})[(anchor_pk, offer_pk)] = key
     if not wanted:
         return {}
 
@@ -163,17 +202,7 @@ def find_slots(gang, keys):
     computed = {}
     if GANG_SLOT_HOST in wanted:
         computed[GANG_SLOT_HOST] = (compute_gang(gang_card, index), None)
-    named = []
-    for where in wanted:
-        if where == GANG_SLOT_HOST:
-            continue
-        try:
-            Miniature._meta.pk.to_python(where)
-        except ValidationError:
-            # A pk that is not a ULID at all is only ever a bad link, and
-            # one bad link must not take the well-formed ones with it.
-            continue
-        named.append(where)
+    named = [where for where in wanted if where != GANG_SLOT_HOST]
     if named:
         miniatures = Miniature.objects.filter(
             pk__in=named, membership__gang=gang, membership__archived=False
@@ -449,14 +478,7 @@ def choose(request, pk, slot):
             found,
             offer,
             here=here,
-            # A worked-at choice comes back to itself; a settled one
-            # leaves. Either way by way of the screen for whatever the
-            # pick itself brought, where any of it asks for one — and
-            # where the reader came from that screen, what the pick
-            # brought joins it rather than opening a second.
-            land=lambda op: onward(
-                request, gang, op, here if offer.takes_several else back, via=back
-            ),
+            land=lambda op: _landing(request, gang, slot, offer, op, here, back),
         )
 
     from n26.core.render import lift_landing
