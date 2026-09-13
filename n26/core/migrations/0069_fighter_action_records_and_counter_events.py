@@ -32,6 +32,12 @@ def checkpoint_counter_values(apps, schema_editor):
             )
         )
     LedgerEvent.objects.using(alias).bulk_create(events, batch_size=500)
+    # PostgreSQL defers the new foreign-key checks until this migration's
+    # transaction ends. Django still has schema-editor index statements to
+    # execute before then, and PostgreSQL refuses that DDL while constraint
+    # triggers are pending for this table. Validate the inserted rows now so
+    # the migration remains one atomic unit.
+    schema_editor.connection.check_constraints()
 
 
 def remove_counter_checkpoints(apps, schema_editor):
@@ -39,6 +45,7 @@ def remove_counter_checkpoints(apps, schema_editor):
     LedgerEvent.objects.using(schema_editor.connection.alias).filter(
         kind="counter_checkpointed"
     ).delete()
+    schema_editor.connection.check_constraints()
 
 
 class Migration(migrations.Migration):
