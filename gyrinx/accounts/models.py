@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -323,32 +325,21 @@ class UserProfile(Base):
         return [b for b in PATREON_BADGES if b.rank <= rank]
 
     @cached_property
-    def _granted_badge_ids(self) -> set:
-        """Row ids of the badges granted to this person or to everybody.
+    def _own_badge_grant_ids(self) -> set[uuid.UUID]:
+        """Ids of the badges granted to this person by name.
 
-        The grants naming this person are the only part of the badge machinery
-        that reads the database per user, so the read is cached on the instance:
-        ``available_badges`` is evaluated more than once while working out
-        ``display_badge``, and every page that draws a username does that. Call
-        sites rendering many users should still ``prefetch_related`` the grants,
-        or each user costs a query.
+        The one part of working out a badge that reaches the database per user,
+        so it is cached on the instance: ``available_badges`` is read twice on
+        the way to ``display_badge`` — once directly, once through
+        ``eligible_badge_slugs`` — and every page that draws a username does
+        that. Call sites rendering many users should still ``prefetch_related``
+        the grants, or each user costs a query.
 
-        Cached for the life of the instance, alongside ``display_badge``. Code
-        that grants or revokes a badge and then re-reads either on the *same*
-        profile object must drop both caches — see ``forget_badges``.
+        Cached for the life of the instance, alongside ``display_badge``.
+        Granting or revoking a badge and then drawing it again means reloading
+        the profile, which is what every write path here already does.
         """
-        held = {grant.badge_id for grant in self.user.badge_grants.all()}
-        held.update(everyone_badge_ids())
-        return held
-
-    def forget_badges(self) -> None:
-        """Drop this instance's cached badge reads.
-
-        For the rare caller that changes what somebody holds and then draws
-        their badge again without reloading the profile.
-        """
-        self.__dict__.pop("_granted_badge_ids", None)
-        self.__dict__.pop("display_badge", None)
+        return {grant.badge_id for grant in self.user.badge_grants.all()}
 
     @property
     def granted_badges(self) -> list[BadgeDef]:
@@ -357,13 +348,12 @@ class UserProfile(Base):
         Two sources, both read from the cached badge table rather than the
         database: the grants naming this person, and the grants naming
         everybody. Grants are looked up by ``badge_id`` so this needs no join.
+        The grants naming everybody are read here rather than cached with the
+        rest, so retiring a badge still takes effect on the shared cache's terms.
         """
         badges = granted_badges_by_id()
-        return [
-            badges[badge_id]
-            for badge_id in self._granted_badge_ids
-            if badge_id in badges
-        ]
+        held = self._own_badge_grant_ids | set(everyone_badge_ids())
+        return [badges[badge_id] for badge_id in held if badge_id in badges]
 
     @property
     def available_badges(self) -> list[BadgeDef]:
