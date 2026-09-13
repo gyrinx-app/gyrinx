@@ -211,7 +211,7 @@ Create the slot before you start. You will create an interstitial and attach it 
 1. Create an **interstitial**. **Name** is what you call it in the library; players never see it. **Title** is the heading on the screen — leave it blank to use the name. **Description** is the text under the heading.
 2. Leave **Skippable** off if the player must make the choice before carrying on. Turn it on if they can leave it and make it later on the gang sheet.
 3. Set **Position** to order this screen against others shown at the same time. Ties fall back to the name.
-4. Use **Attach a slot** on the interstitial's page, once for each slot that should show it. One interstitial can be attached to several slots, and one slot can show several interstitials.
+4. Use **Attach a slot** on the interstitial's page, once for each slot the screen is shown for. One interstitial can be attached to several slots, and one slot can show several interstitials.
 5. Open **Staged content** from the library index and use **Put live**. A new interstitial is staged. Attachments have no staging control and are live at once.
 
 The screen only appears when the slot is added. A gang that already holds the slot will not see it, so attach the interstitial before those gangs are founded or those models hired.
