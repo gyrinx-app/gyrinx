@@ -486,7 +486,35 @@ def _option_parts(parts):
 #: A kind's own parts: the things only that kind has, added to one of
 #: its rows over time. At most one section per kind, and a post naming
 #: no section is for this one.
+def _describe_action_outcome(member):
+    return str(member.outcome), []
+
+
+def _describe_rank_threshold(member):
+    return str(member.threshold), ["XP"]
+
+
 DETAIL_KINDS = {
+    "action": {
+        "verb": "add_action_outcome",
+        "parts": "outcomes",
+        "statline": False,
+        "describe": _describe_action_outcome,
+        "parts_hint": lambda parts: parts.select_related("outcome"),
+        "parts_label": "outcomes",
+        "part_name": "outcome",
+        "nothing_yet": "No outcomes yet. Add at least one result before using this action.",
+    },
+    "rank-table": {
+        "verb": "add_rank_threshold",
+        "parts": "thresholds",
+        "statline": False,
+        "describe": _describe_rank_threshold,
+        "parts_hint": lambda parts: parts,
+        "parts_label": "thresholds",
+        "part_name": "threshold",
+        "nothing_yet": "No thresholds yet. Add the XP values that earn advancements.",
+    },
     "weapon": {
         "verb": "add_weapon_profile",
         "parts": "profiles",

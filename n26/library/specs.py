@@ -372,6 +372,8 @@ def _build_registry():
     from n26.library.income import INCOME_HELP
     from n26.library.models import (
         Action,
+        ActionOutcome,
+        ActionPriceComponent,
         AddsAssignable,
         Affiliation,
         AllowsAtMost,
@@ -409,6 +411,7 @@ def _build_registry():
         OpSetsStatus,
         Option,
         OptionGroup,
+        Outcome,
         Pickable,
         Picklist,
         PicklistMember,
@@ -417,6 +420,7 @@ def _build_registry():
         Profile,
         ProfileType,
         RankTable,
+        RankThreshold,
         RequiresCompanions,
         Rule,
         Section,
@@ -1108,6 +1112,34 @@ def _build_registry():
                     source=(Action, "library_author_help"), long=True
                 ),
             },
+        ),
+        Spec(
+            authoring.add_action_outcome,
+            {
+                "outcome": One(model=Outcome, source=(ActionOutcome, "outcome")),
+                "position": Int(source=(ActionOutcome, "position")),
+            },
+            model=ActionOutcome,
+        ),
+        Spec(
+            authoring.add_action_price_component,
+            {
+                "resource": Choice(source=(ActionPriceComponent, "resource")),
+                "payer": Choice(source=(ActionPriceComponent, "payer")),
+                "counter": One(
+                    model=Counter,
+                    source=(ActionPriceComponent, "counter"),
+                    optional=True,
+                ),
+                "amount": Int(source=(ActionPriceComponent, "amount")),
+                "position": Int(source=(ActionPriceComponent, "position")),
+            },
+            model=ActionPriceComponent,
+        ),
+        Spec(
+            authoring.add_rank_threshold,
+            {"threshold": Int(source=(RankThreshold, "threshold"))},
+            model=RankThreshold,
         ),
         Spec(
             authoring.create_pickable,
