@@ -52,7 +52,7 @@ def render_model_card(card, indent=""):
             # "added nothing here" — never "this was free". Kit that came
             # with the hire reads zero while being worth plenty, so the
             # number is simply left off rather than claimed.
-            label = weapon.name + weapon.slot_mark
+            label = weapon.name + weapon.slot_mark + weapon.brought_mark
             if weapon.total_rating:
                 total = f"{weapon.total_rating}cr"
                 if weapon.extras_rating:
@@ -84,16 +84,17 @@ def render_model_card(card, indent=""):
                 chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
                 lines.append(f"{indent}      {choice.kind_label}: {chosen}")
     # A line standing for several of one thing is written once with its
-    # count, as every other card writes it.
-    if card.skills:
-        names = ", ".join(line.name + line.count_mark for line in card.skills)
-        lines.append(f"{indent}  Skills: {names}")
-    if card.rules:
-        names = ", ".join(line.name + line.count_mark for line in card.rules)
-        lines.append(f"{indent}  Rules: {names}")
-    if card.powers:
-        names = ", ".join(line.name + line.count_mark for line in card.powers)
-        lines.append(f"{indent}  Powers: {names}")
+    # count, as every other card writes it; one that brought a pet
+    # names it before the count. Every named row is an assignable, and
+    # any assignable may bring a model.
+    for heading, row in (
+        ("Skills", card.skills),
+        ("Rules", card.rules),
+        ("Powers", card.powers),
+    ):
+        if row:
+            names = ", ".join(_line_words(line) for line in row)
+            lines.append(f"{indent}  {heading}: {names}")
     for choice in card.row_questions:
         # Drawn like any other assignable's row; a real UI hangs the picker
         # link here. The provenance is deliberately not shown.
@@ -101,17 +102,11 @@ def render_model_card(card, indent=""):
         if choice.is_resolved and not choice.is_full:
             chosen = f"{chosen} (add)"
         lines.append(f"{indent}  {choice.kind_label}: {chosen}")
-    # Kit that brought a pet names it after the name and before the
-    # count, as every other card writes it.
     if card.equipment:
-        names = ", ".join(
-            line.name + line.brought_mark + line.count_mark for line in card.equipment
-        )
+        names = ", ".join(_line_words(line) for line in card.equipment)
         lines.append(f"{indent}  Equipment: {names}")
     for group in card.gear_groups:
-        names = ", ".join(
-            line.name + line.brought_mark + line.count_mark for line in group.lines
-        )
+        names = ", ".join(_line_words(line) for line in group.lines)
         lines.append(f"{indent}  {group.name}: {names}")
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
@@ -122,6 +117,13 @@ def render_model_card(card, indent=""):
     for remark in card.remarks:
         lines.append(f"{indent}  ({remark.text})")
     return lines
+
+
+def _line_words(line):
+    """One assignable in a comma-separated run, with its marks in the
+    order every card writes them: the name, the pets it brought, then
+    how many it stands for."""
+    return line.name + line.brought_mark + line.count_mark
 
 
 def _profile_suffix(profile):

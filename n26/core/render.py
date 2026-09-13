@@ -417,6 +417,18 @@ class WeaponLine(SlotMarked):
     #: card's own rows. Each holds one pick at most: an item is at one
     #: level.
     choices: list[ChoiceLine] = field(default_factory=list)
+    #: The models this weapon brought onto the roster, as their owner
+    #: named them — what ``AssignableLine.brought_in`` is for a gear
+    #: line. A weapon carries modifiers as any assignable does, so one
+    #: may bring a model; what its fittings brought is on their own
+    #: lines, not here. Drawn after the slot mark (``brought_mark``),
+    #: wherever the name is.
+    brought_in: tuple[str, ...] = ()
+
+    @property
+    def brought_mark(self):
+        """The pets' names in brackets, where this weapon brought any."""
+        return brought_mark(self.brought_in)
 
     @property
     def extras_rating(self):
@@ -2323,13 +2335,24 @@ def card_to_model_card(
         ]
 
     def weapon_line(node, children):
-        # An accessory's line names what it brought, as a gear line
-        # does. The weapon's own line does not: the kit that brings a
-        # model is wargear or a fitting, and a weapon's name is drawn
-        # in too many places for a mark nothing in the library needs.
         profiles = []
         # A weapon's children are its profiles and, now, its accessories.
         profile_nodes = [child for child in children if child.is_weapon_profile]
+        accessory_nodes = [
+            child for child in node.children if not child.is_weapon_profile
+        ]
+        # What the weapon brought is asked of the whole of its line, as
+        # a gear line asks — the purchase a pet names may be a mode or a
+        # hidden part under the weapon — except what a fitting's own
+        # line says: a fitting names its own pet, so the weapon does not
+        # name it twice.
+        claimed = {str(each.key) for child in accessory_nodes for each in child.walk()}
+        brought = tuple(
+            name
+            for each in node.walk()
+            if str(each.key) not in claimed
+            for name in brought_in.get(str(each.key), ())
+        )
         for child in profile_nodes:
             weapon_state = computed.weapon(child) if computed else None
             profiles.append(
@@ -2370,10 +2393,10 @@ def card_to_model_card(
                     ),
                     brought_in=brought_in_of(child),
                 )
-                for child in node.children
-                if not child.is_weapon_profile
+                for child in accessory_nodes
             ],
             provenance=provenance_of(node),
+            brought_in=brought,
         )
 
     # What the model owns, and then what a modifier handed it. A granted

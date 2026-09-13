@@ -28,6 +28,7 @@ from n26.tests.sandbox.actions import (
     assign,
     attach,
     create_counter,
+    create_rule,
     create_wargear,
     create_weapon,
     create_weapon_accessory,
@@ -832,3 +833,125 @@ class TestAnAccessoryThatBringsAModel:
             reverse("n26-edit-fighter", args=[yolanda.pk])
         ).content.decode()
         assert 'aria-label="More for Leash mount (Fang)"' in page
+
+
+class TestAWeaponThatBringsAModel:
+    """A weapon carries modifiers as any assignable does, so one may
+    bring a model. Its line names the pet after the slot mark wherever
+    the weapon's name is drawn — the sheet, the menu's label, the print
+    card, the print picker and the text card — while a fitting that
+    brought one still names its own."""
+
+    @pytest.fixture
+    def lash(self, mastiff_profile):
+        lash = create_weapon("Beast lash", price=60, profiles=[("", 0)], slots=2)
+        modifier(
+            "The lash brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=lash,
+        )
+        return lash
+
+    @pytest.fixture
+    def armed(self, gang, yolanda, lash):
+        held = give_weapon(yolanda, lash, paid=60)
+        rename(gang, pet_of(gang), "Fang")
+        return held
+
+    def test_the_weapon_line_names_the_pet_after_its_mark(self, gang, armed):
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        assert (weapon.name, weapon.slot_mark, weapon.brought_in) == (
+            "Beast lash",
+            "*",
+            ("Fang",),
+        )
+        assert weapon.brought_mark == " (Fang)"
+        assert "    Beast lash* (Fang) — 60cr" in gang_to_text(gang)
+
+    def test_every_page_that_draws_the_weapons_name_draws_the_pet(
+        self, client, gang, yolanda, armed
+    ):
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Beast lash* (Fang)" in body
+        paper = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+        assert "Beast lash* (Fang)" in paper
+        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
+        assert "Beast lash* (Fang)" in setup
+        page = client.get(
+            reverse("n26-edit-fighter", args=[yolanda.pk])
+        ).content.decode()
+        assert 'aria-label="More for Beast lash* (Fang)"' in page
+
+    def test_the_line_reads_bare_until_the_pet_is_named(self, gang, yolanda, lash):
+        give_weapon(yolanda, lash, paid=60)
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        assert weapon.brought_in == ()
+        assert "Beast lash*" in gang_to_text(gang)
+        assert "Beast lash* (" not in gang_to_text(gang)
+
+    def test_a_fitting_names_its_own_pet_and_the_weapon_does_not(
+        self, gang, yolanda, armed, make_profile
+    ):
+        leash = create_weapon_accessory("Leash mount", price=100)
+        modifier(
+            "The leash mount brings a rat",
+            targets_model(),
+            op_adds_model(make_profile("Giant rat", price=25)),
+            carried_by=leash,
+        )
+        attach(armed, leash, paid=100)
+        rename(
+            gang, Miniature.objects.get(membership__gang=gang, name="Giant rat"), "Rex"
+        )
+
+        (weapon,) = card_of(render_gang(gang), "Yolanda").weapons
+        (accessory,) = weapon.accessories
+        assert (weapon.brought_in, accessory.brought_in) == (("Fang",), ("Rex",))
+        text = gang_to_text(gang)
+        assert "Beast lash* (Fang)" in text
+        assert "+ Leash mount (Rex)" in text
+
+    def test_a_lone_card_finds_the_pet_in_one_query(self, gang, yolanda, armed):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        owner = Miniature.objects.select_related("membership").get(pk=yolanda.pk)
+        own = build_card(owner, with_statlines=True)
+        computed = compute(own, build_modifier_index(carriers(own)))
+
+        with CaptureQueriesContext(connection) as alone:
+            (weapon,) = build_model_card(owner, card=own, computed=computed).weapons
+        assert weapon.brought_in == ("Fang",)
+        assert len(alone.captured_queries) == 1
+
+
+class TestARuleThatBringsAModel:
+    """A rule is an assignable too, so one may bring a model, and the
+    Rules row names the pet as the screen draws it — the text card says
+    the same words as the sheet."""
+
+    def test_the_text_card_names_the_pet_as_the_sheet_does(
+        self, client, gang, yolanda, mastiff_profile
+    ):
+        handler = create_rule("Beast handler")
+        modifier(
+            "A beast handler keeps a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=handler,
+        )
+        assign(handler, miniature=yolanda)
+        rename(gang, pet_of(gang), "Fang")
+
+        (rule,) = card_of(render_gang(gang), "Yolanda").rules
+        assert (rule.name, rule.brought_in) == ("Beast handler", ("Fang",))
+        assert "  Rules: Beast handler (Fang)" in gang_to_text(gang)
+
+        client.force_login(gang.owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Beast handler (Fang)" in body
