@@ -42,6 +42,39 @@ def check_entry(entry):
     return problems
 
 
+def check_counter_value(counter_value):
+    """Structured counter events must form one chain ending at the value."""
+    events = list(
+        counter_value.assignment.ledger_events.filter(
+            counter_before__isnull=False
+        ).order_by("created", "pk")
+    )
+    if not events:
+        return [f"{counter_value.assignment.assignable}: no counter opening event"]
+
+    problems = []
+    previous = None
+    for event in events:
+        if event.counter_before + event.counter_delta != event.counter_after:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} does not add up"
+            )
+        if previous is not None and event.counter_before != previous:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} starts at {event.counter_before}, after {previous}"
+            )
+        previous = event.counter_after
+
+    if previous != counter_value.value:
+        problems.append(
+            f"{counter_value.assignment.assignable}: value pinned "
+            f"{counter_value.value}, events end at {previous}"
+        )
+    return problems
+
+
 def sum_rating(**root):
     """Sum rating over live assignments under a root.
 
@@ -292,6 +325,12 @@ def check_gang(gang):
         *_ENTRY_RELATED
     ):
         problems += check_entry(entry)
+    from n26.core.models import CounterValue
+
+    for counter_value in CounterValue.objects.filter(
+        assignment__gang_root=gang
+    ).select_related("assignment", "assignment__counter"):
+        problems += check_counter_value(counter_value)
     stash = getattr(gang, "stash", None)
     if stash is not None:
         stash_sum = sum_rating(stash_root=stash)
