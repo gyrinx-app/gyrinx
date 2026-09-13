@@ -207,6 +207,57 @@ def test_a_pack_picked_by_hand_for_an_attachment_is_honoured(
     assert InterstitialSlot.objects.get(interstitial=made).pack == default_pack
 
 
+def test_clearing_the_pack_on_an_existing_attachment_inherits_it(
+    admin_client, default_pack, homebrew
+):
+    """An existing row cleared to blank on the change page follows the
+    same rule as a new one, rather than failing on a missing pack."""
+    from n26.library.authoring import (
+        attach_interstitial,
+        create_interstitial,
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+    from n26.library.models import InterstitialSlot
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "Houses", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    slot = create_slot("House legacy", legacy, houses)
+    shown = create_interstitial("Outcast archetype", pack=homebrew)
+    attachment = attach_interstitial(shown, slot, pack=default_pack)
+
+    response = admin_client.post(
+        f"/admin/library/interstitial/{shown.pk}/change/",
+        {
+            "name": "Outcast archetype",
+            "title": "",
+            "description": "",
+            "position": "0",
+            "pack": str(homebrew.pk),
+            "attachments-TOTAL_FORMS": "1",
+            "attachments-INITIAL_FORMS": "1",
+            "attachments-MIN_NUM_FORMS": "0",
+            "attachments-MAX_NUM_FORMS": "1000",
+            "attachments-0-id": str(attachment.pk),
+            "attachments-0-interstitial": str(shown.pk),
+            "attachments-0-slot": str(slot.pk),
+            "attachments-0-position": "0",
+            "attachments-0-pack": "",
+            # The pack has a callable default, so the change page carries
+            # its initial in a hidden input the browser posts back; a
+            # change is read against that, not against the row.
+            "initial-attachments-0-pack": str(default_pack.pk),
+        },
+    )
+
+    assert response.status_code == 302, response.content.decode()[:2000]
+    assert InterstitialSlot.objects.get(pk=attachment.pk).pack == homebrew
+
+
 def test_the_standalone_attachment_page_inherits_the_pack_too(
     admin_client, default_pack, homebrew
 ):
