@@ -1,6 +1,7 @@
 """Transactional lifecycle for fighter action records."""
 
 from copy import deepcopy
+from dataclasses import dataclass
 from uuid import uuid4
 
 from django.db.models import Q
@@ -9,6 +10,107 @@ from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
 from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import LibraryError, Refusal
+
+
+@dataclass(frozen=True)
+class CounterMovement:
+    assignment_id: str
+    name: str
+    before: int
+    after: int
+    payment: bool
+
+    @property
+    def delta(self):
+        return self.after - self.before
+
+
+@dataclass(frozen=True)
+class PickMovement:
+    before_assignment_id: str | None
+    after_assignment_id: str | None
+
+
+@dataclass(frozen=True)
+class ActionChanges:
+    credits_paid: int
+    rating_delta: int
+    counters: tuple[CounterMovement, ...]
+    picks: tuple[PickMovement, ...]
+
+
+def action_changes(record):
+    """Fold one action's linked ledger rows into receipt-ready facts."""
+    events = list(
+        record.ledger_events.select_related(
+            "assignment__counter", "before_pick", "after_pick"
+        ).order_by("created", "pk")
+    )
+    counter_groups = {}
+    for event in events:
+        if event.counter_before is None or event.assignment_id is None:
+            continue
+        key = (event.assignment_id, event.payment_id is not None)
+        group = counter_groups.get(key)
+        if group is None:
+            counter_groups[key] = [event, event]
+        else:
+            group[1] = event
+    counters = tuple(
+        CounterMovement(
+            assignment_id=str(first.assignment_id),
+            name=str(first.assignment.counter),
+            before=first.counter_before,
+            after=last.counter_after,
+            payment=payment,
+        )
+        for (_, payment), (first, last) in counter_groups.items()
+    )
+    amended_before = {
+        event.before_pick_id
+        for event in events
+        if event.kind == LedgerEvent.Kind.AMENDED and event.before_pick_id
+    }
+    pick_events = [
+        event
+        for event in events
+        if (
+            event.kind == LedgerEvent.Kind.AMENDED
+            and (event.before_pick_id or event.after_pick_id)
+        )
+        or (
+            event.kind == LedgerEvent.Kind.REMOVED
+            and event.before_pick_id
+            and event.before_pick_id not in amended_before
+        )
+    ]
+    picks = tuple(
+        PickMovement(
+            before_assignment_id=(
+                str(event.before_pick_id) if event.before_pick_id else None
+            ),
+            after_assignment_id=(
+                str(event.after_pick_id) if event.after_pick_id else None
+            ),
+        )
+        for event in pick_events
+    )
+    return ActionChanges(
+        credits_paid=sum(
+            event.credits_delta for event in events if event.payment_id is not None
+        ),
+        rating_delta=sum(
+            event.rating_delta
+            for event in events
+            if event.kind
+            in {
+                LedgerEvent.Kind.ACTION_USE_COMPLETED,
+                LedgerEvent.Kind.ACTION_USE_CORRECTED,
+            }
+        ),
+        counters=counters,
+        picks=picks,
+    )
 
 
 def _refuse_unless_owned(op, fighter):
@@ -450,14 +552,17 @@ def complete_action(op, record, *, revision, review, outcome):
     ):
         raise Refusal("The fighter changed. Review this action again.")
     apply_outcome = _prepare_outcome(op, record, configured)
+    rating_before = record.fighter.recompute_rating()
     _pay(op, record, quote)
     apply_outcome()
+    rating_after = record.fighter.recompute_rating()
     record.outcome = outcome
     record.state = ActionRecord.State.COMPLETED
     record.completed_event = op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_COMPLETED,
         action_record=record,
+        rating_delta=rating_after - rating_before,
         note=str(outcome),
     )
     record.save(
@@ -530,6 +635,7 @@ def correct_action(op, record, *, revision, review, terms):
         raise Refusal("The fighter changed. Review this correction again.")
     from n26.library.models import AugmentCarriedItem, ResolveAdvancement
 
+    rating_before = record.fighter.recompute_rating()
     if isinstance(configured, AugmentCarriedItem):
         from n26.core.augmentations import correct_augmentation
 
@@ -540,6 +646,14 @@ def correct_action(op, record, *, revision, review, terms):
         result = correct_advancement(op, record, configured, proposed)
     else:
         raise Refusal("That action result cannot be corrected here.")
+    rating_after = record.fighter.recompute_rating()
+    op.event(
+        record.fighter,
+        LedgerEvent.Kind.ACTION_USE_CORRECTED,
+        action_record=record,
+        rating_delta=rating_after - rating_before,
+        note=str(record.outcome),
+    )
     record.terms = proposed
     record.review = {"correction_completed": True, "revision": record.revision}
     record.save(update_fields=["terms", "review", "modified"])
