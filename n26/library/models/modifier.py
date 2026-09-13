@@ -1380,6 +1380,7 @@ class OffersChoice(models.Model):
         from_section=None,
         label="",
         will_be_assigned_to=WillBeAssignedTo.BEARER,
+        mode=Mode.SELECT,
     ):
         from django.contrib.contenttypes.models import ContentType
 
@@ -1388,6 +1389,7 @@ class OffersChoice(models.Model):
             from_section=from_section,
             label=label,
             will_be_assigned_to=will_be_assigned_to,
+            mode=mode,
         )
 
     @property

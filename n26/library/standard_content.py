@@ -1560,9 +1560,231 @@ def _check_lasting_effect_tables():
     return present, len(names) + members + len(names)
 
 
+FIGHTER_RANK_THRESHOLDS = (
+    4,
+    7,
+    10,
+    13,
+    19,
+    25,
+    31,
+    37,
+    49,
+    61,
+    73,
+    85,
+    97,
+    109,
+    121,
+    133,
+    157,
+    181,
+    205,
+    229,
+)
+FIGHTER_ADVANCEMENTS = (
+    ("Leadership", 2, 5),
+    ("Intelligence", 2, 5),
+    ("Random Primary skill", 2, 5),
+    ("Cool", 3, 5),
+    ("Willpower", 3, 5),
+    ("Select Primary skill", 5, 10),
+    ("Random Secondary skill", 5, 10),
+    ("Initiative", 6, 10),
+    ("Movement", 6, 10),
+    ("Select Secondary skill", 7, 15),
+    ("Weapon Skill", 9, 15),
+    ("Ballistic Skill", 9, 15),
+    ("Strength", 10, 20),
+    ("Toughness", 10, 20),
+    ("Wounds", 11, 20),
+    ("Attacks", 11, 20),
+    ("Save", 11, 20),
+    ("Select any skill", 12, 30),
+)
+
+
+def _create_fighter_actions():
+    _create_skills()
+    _create_skills_collection()
+    from n26.library import authoring
+    from n26.library.models import (
+        Action,
+        CollectionSection,
+        Counter,
+        Modifier,
+        Outcome,
+        Pickable,
+        Picklist,
+        PicklistMember,
+        RankTable,
+        RankThreshold,
+        Skill,
+        Slot,
+        SlotType,
+    )
+
+    def named(model, name, **defaults):
+        lookup = {"name__iexact": name}
+        if any(field.name == "qualifier" for field in model._meta.fields):
+            lookup["qualifier"] = ""
+        found = model.objects.filter(**lookup).first()
+        return found or model.objects.create(name=name, **defaults)
+
+    xp = named(Counter, XP_COUNTER)
+    kills = named(Counter, "Kill Count")
+    glitches = named(Counter, "Glitch count")
+    advancement_type = named(SlotType, "Advancement")
+    table, _ = Picklist.objects.get_or_create(
+        name="Fighter advancement table",
+        slot_type=advancement_type,
+        defaults={"dice": "2d6", "roll_selects": "threshold"},
+    )
+    table.dice, table.roll_selects = "2d6", "threshold"
+    table.save(update_fields=["dice", "roll_selects", "modified"])
+    for position, (name, roll, rating) in enumerate(FIGHTER_ADVANCEMENTS):
+        pick = named(
+            Pickable, name, slot_type=advancement_type, rating_contribution=rating
+        )
+        pick.rating_contribution = rating
+        pick.save(update_fields=["rating_contribution", "modified"])
+        PicklistMember.objects.update_or_create(
+            picklist=table,
+            pickable=pick,
+            defaults={"position": position, "roll_low": roll, "roll_high": roll},
+        )
+        modifier_name = f"Advancement: {name}"
+        if (
+            name.startswith(("Random", "Select"))
+            and "skill" in name.lower()
+            and not Modifier.objects.filter(name=modifier_name).exists()
+        ):
+            access = (
+                "Primary"
+                if "Primary" in name
+                else "Secondary"
+                if "Secondary" in name
+                else None
+            )
+            section = (
+                CollectionSection.objects.filter(name=access).first()
+                if access
+                else None
+            )
+            effect = authoring.ef_offers_choice(
+                Skill,
+                from_section=section,
+                label=name,
+                mode="random" if name.startswith("Random") else "select",
+            )
+            authoring.modifier(
+                modifier_name, authoring.targets_model(), effect, attach_to=pick
+            )
+    slot, _ = Slot.objects.get_or_create(
+        name="Advancement",
+        defaults={
+            "slot_type": advancement_type,
+            "picklist": table,
+            "min_picks": 1,
+            "max_picks": 1,
+        },
+    )
+    ranks = named(RankTable, "Standard fighter ranks", counter=xp)
+    for threshold in FIGHTER_RANK_THRESHOLDS:
+        RankThreshold.objects.get_or_create(rank_table=ranks, threshold=threshold)
+    augment_type = named(SlotType, "Augmentation")
+    advance_outcome = Outcome.objects.filter(name="Advancement").first()
+    if advance_outcome is None:
+        advance_outcome = authoring.create_outcome(
+            "Advancement", authoring.resolve_advancement(slot)
+        )
+    augment_outcome = Outcome.objects.filter(name="Hunting Rig Augmentation").first()
+    if augment_outcome is None:
+        augment_outcome = authoring.create_outcome(
+            "Hunting Rig Augmentation", authoring.augment_carried_item(augment_type)
+        )
+    clear = Outcome.objects.filter(name="Clear glitches").first()
+    if clear is None:
+        clear = authoring.create_outcome(
+            "Clear glitches",
+            authoring.apply_changes(
+                authoring.counter_change(glitches, "set", 0),
+                authoring.remove_picks(augment_type),
+            ),
+        )
+    definitions = (
+        (
+            "Suit Evolution",
+            "post_cycle",
+            [augment_outcome, clear],
+            None,
+            [
+                {
+                    "resource": "counter",
+                    "payer": "fighter",
+                    "counter": kills,
+                    "amount": 4,
+                }
+            ],
+        ),
+        (
+            "Suit Maintenance",
+            "post_cycle",
+            [clear],
+            None,
+            [{"resource": "credits", "payer": "gang", "amount": 100}],
+        ),
+        (
+            "Recruitment augmentation",
+            "recruitment",
+            [augment_outcome],
+            "recruitment",
+            [],
+        ),
+        ("Advancement", "post_cycle", [advance_outcome], "rank", []),
+    )
+    for name, timing, outcomes, rule, price in definitions:
+        if not Action.objects.filter(name=name).exists():
+            rule = (
+                authoring.recruitment_allowance_rule()
+                if rule == "recruitment"
+                else (authoring.rank_allowance_rule(xp) if rule == "rank" else None)
+            )
+            authoring.create_action(
+                name, timing, outcomes=outcomes, allowance_rule=rule, use_price=price
+            )
+
+
+def _check_fighter_actions():
+    from n26.library.models import Action, PicklistMember, RankThreshold
+
+    present = Action.objects.filter(
+        name__in=(
+            "Suit Evolution",
+            "Suit Maintenance",
+            "Recruitment augmentation",
+            "Advancement",
+        )
+    ).count()
+    present += PicklistMember.objects.filter(
+        picklist__name="Fighter advancement table"
+    ).count()
+    present += RankThreshold.objects.filter(
+        rank_table__name="Standard fighter ranks"
+    ).count()
+    return present, 4 + len(FIGHTER_ADVANCEMENTS) + len(FIGHTER_RANK_THRESHOLDS)
+
+
 STANDARD_CONTENT = {
     item.key: item
     for item in [
+        StandardContent(
+            key="fighter-actions",
+            name="Fighter actions and advancement table",
+            help="The four standard fighter actions, advancement results and XP rank thresholds.",
+            check=_check_fighter_actions,
+            create=_create_fighter_actions,
+        ),
         StandardContent(
             key="model-characteristics",
             name="Model characteristics",
