@@ -1,5 +1,34 @@
 # Recipes
 
+## Bind the standard fighter actions
+
+First create **Fighter actions and advancement table** under Foundations. This
+creates the reusable actions, outcomes, advancement slot and table, and the
+standard XP rank table. It does not guess which house rules or profiles use
+them.
+
+For the campaign-wide progression rule, add three **Adds assignable** modifiers
+that reach every model: **Advancement**, **Standard fighter ranks**, and the
+**Advancement** slot. The slot supplies the recorded 2D6 question, the rank
+table supplies the XP thresholds, and the action supplies the earned use.
+
+On the Spyrer progression rule, add bearer-scoped **Adds assignable** modifiers
+for **Suit Evolution** and **Suit Maintenance**. On the Hunt Master profile, add
+a bearer-scoped **Adds assignable** modifier for **Recruitment augmentation**.
+These links use the normal assignment and modifier pipeline, so removing a rule
+removes access while previously earned allowances remain in the fighter's
+history.
+
+If a profile should always carry these definitions without a computed rule,
+open its built-in set and add the same Action, RankTable, or Slot as a default
+member. Use one route for each definition; duplicate routes are collapsed for
+access but make the authored source harder to explain.
+
+The five skill advancement results are already configured. Primary and
+Secondary results point at those exact Skills & Powers sections. Random results
+record a D6 choice; select results let the player pick. The any-skill result
+leaves the section blank deliberately.
+
 How to build specific rulebook setups out of the library's pieces. Each
 recipe is a set of steps to follow in the authoring pages — the things to
 create, and how to join them. A recipe is added once the way to author
