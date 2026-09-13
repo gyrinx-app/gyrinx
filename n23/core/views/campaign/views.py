@@ -10,7 +10,7 @@ from django.utils.http import urlencode
 from django.views import generic
 
 from gyrinx.querysets import search_queryset
-from n23.core.models.campaign import Campaign, CampaignAction, CampaignAsset
+from n23.core.models.campaign import Campaign, CampaignAsset
 from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import CapturedFighter, List
 
@@ -163,7 +163,7 @@ class CampaignDetailView(generic.DetailView):
 
     def get_object(self):
         """
-        Retrieve the :model:`core.Campaign` by its `id` with prefetched actions and lists.
+        Retrieve the :model:`core.Campaign` by its `id` with prefetched lists and admins.
         """
         return get_object_or_404(
             Campaign.objects.select_related(
@@ -174,9 +174,9 @@ class CampaignDetailView(generic.DetailView):
                 "owner__badge_grants",
                 "packs",
                 # Every name on the page carries its badge, which reads the
-                # profile and the grants: prefetched here for the gang owners,
-                # the arbitrators and the action authors, or it is two queries
-                # per name.
+                # profile and the grants: prefetched here for the gang owners
+                # and the arbitrators, or it is two queries per name. The
+                # action authors ride the recent actions, read in the context.
                 models.Prefetch(
                     "lists",
                     queryset=List.objects.select_related(
@@ -189,14 +189,6 @@ class CampaignDetailView(generic.DetailView):
                     .objects.select_related("profile")
                     .prefetch_related("badge_grants"),
                 ),
-                models.Prefetch(
-                    "actions",
-                    queryset=CampaignAction.objects.select_related(
-                        "user", "user__profile", "list", "battle", "template_campaign"
-                    )
-                    .prefetch_related("user__badge_grants")
-                    .order_by("-created"),
-                ),
             ),
             id=self.kwargs["id"],
         )
@@ -205,6 +197,18 @@ class CampaignDetailView(generic.DetailView):
         context = super().get_context_data(**kwargs)
         campaign = self.object
         user = self.request.user
+
+        # The page shows the five most recent actions, each naming its author
+        # with their badge and linking its gang and battle; the rest are
+        # counted, not read — a campaign played for a year has thousands.
+        context["recent_actions"] = list(
+            campaign.actions.select_related(
+                "user", "user__profile", "list", "battle", "template_campaign"
+            )
+            .prefetch_related("user__badge_grants")
+            .order_by("-created")[:5]
+        )
+        context["actions_count"] = campaign.actions.count()
 
         # Are any member gangs still being cloned in the background (#1222)? Computed from
         # the prefetched lists (no extra query) so the page can poll for completion.
