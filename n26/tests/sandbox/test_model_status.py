@@ -422,7 +422,7 @@ class TestThePage:
         assert page.index("Nix") < heading
         assert "Krago" in page[heading:]
 
-    def test_clean_house_is_offered_in_the_actions_square(
+    def test_clean_house_is_offered_in_the_activities_square(
         self, client, owner, gang, krago
     ):
         """Clean House sits in the Actions square while anyone is In
@@ -444,7 +444,7 @@ class TestThePage:
         assert "back from Recovery" in reply.content.decode()
         assert fresh(krago).status == Status.ACTIVE
 
-    def test_a_ransom_is_named_in_the_actions_square(
+    def test_a_ransom_is_named_in_the_activities_square(
         self, client, owner, gang, krago, sheet
     ):
         """A model held for ransom is named there with the way to settle
@@ -461,13 +461,13 @@ class TestThePage:
         self, client, owner, gang, krago, sheet
     ):
         """A reader with something to do is not told there is nothing."""
-        from n26.core.models import Action
+        from n26.core.models import Activity
 
         client.force_login(owner)
         # A gang founded a moment ago still has that action open, and an
         # open action says so on its own; this is about the other half.
         with operation(gang, actor=owner) as op:
-            op.close_action(gang.open_action(Action.Kind.FOUNDING))
+            op.close_activity(gang.open_activity(Activity.Kind.FOUNDING))
         assert "No action is open." in client.get(sheet).content.decode()
         with operation(gang, actor=owner) as op:
             op.set_status(krago, Status.RECOVERY)

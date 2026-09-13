@@ -54,7 +54,7 @@ def may_mark_status(gang, user):
     still carries a status and a result from a table still sets it; there
     is simply no control saying so.
     """
-    return may_see_actions_square(gang, user)
+    return may_see_activities_square(gang, user)
 
 
 def status_href(gang, miniature, user=None, *, back="", ransom=True):
@@ -128,10 +128,10 @@ def may_see_founding(gang, user):
     a purchase records no founding action. The two gates lift together,
     by opening the flag.
     """
-    return may_see_actions_square(gang, user)
+    return may_see_activities_square(gang, user)
 
 
-def may_see_actions_square(gang, user):
+def may_see_activities_square(gang, user):
     """Whether the gang page draws its Actions square for this reader.
 
     The square is shown to the gang's owner where the ``founding`` flag

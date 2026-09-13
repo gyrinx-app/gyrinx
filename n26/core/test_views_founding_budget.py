@@ -18,7 +18,7 @@ from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
 from django.urls import reverse
 
-from n26.core.models import Action, Assignment, Gang
+from n26.core.models import Activity, Assignment, Gang
 from n26.core.operations import operation
 from n26.library.authoring import (
     create_collection,
@@ -29,7 +29,7 @@ from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
-FOUNDING = Action.Kind.FOUNDING
+FOUNDING = Activity.Kind.FOUNDING
 
 #: The colour <c-n26.founding-mark> paints itself. One component draws the
 #: mark, so finding this on a page is finding the mark; change it there and
@@ -44,7 +44,7 @@ SPEND = 'SUM("n26_ledgerevent"."trade_points_delta")'
 #: narrowed to the one still open. The model's founding spend narrows on the
 #: buyer instead and never mentions this, so counting these tells a page
 #: asking the visit twice from a page asking it once.
-VISIT_SPEND = '"n26_action"."closed_id" IS NULL'
+VISIT_SPEND = '"n26_activity"."closed_id" IS NULL'
 
 #: The Venator entries these tests hire, as ``(entry, the subtype naming
 #: its rank)``. A Hunter is a Specialist, which is how the gang list
@@ -210,7 +210,7 @@ class TestWhatTheListCounts:
 
         entry = bought(gang, "Flak plate").ledger_entry
         assert entry.trade_points == 3
-        assert entry.action == gang.open_action(FOUNDING)
+        assert entry.activity == gang.open_activity(FOUNDING)
 
     def test_a_model_with_no_allowance_spends_none_on_the_same_line(
         self, client, gang, ganger, legacy_list
@@ -221,13 +221,13 @@ class TestWhatTheListCounts:
 
         entry = bought(gang, "Flak plate").ledger_entry
         assert entry.trade_points == 0
-        assert entry.action is None
+        assert entry.activity is None
 
     def test_nor_does_anybody_once_the_action_is_complete(
         self, client, gang, tester, leader, legacy_list
     ):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         client.post(
             equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
@@ -235,7 +235,7 @@ class TestWhatTheListCounts:
 
         entry = bought(gang, "Flak plate").ledger_entry
         assert entry.trade_points == 0
-        assert entry.action is None
+        assert entry.activity is None
 
     def test_an_exclusive_line_is_offered_and_counts_nothing(
         self, client, gang, leader, legacy_list
@@ -287,7 +287,7 @@ class TestWhichActionAPurchaseCountsAgainst:
         client.post(equip_url(leader, post), {"thing": key_of(wargear("Mesh armour"))})
 
         entry = bought(gang, "Mesh armour").ledger_entry
-        assert entry.action == gang.open_action(FOUNDING)
+        assert entry.activity == gang.open_activity(FOUNDING)
         gang.refresh_from_db()
         assert gang.trade_points_left == 6
 
@@ -300,7 +300,7 @@ class TestWhichActionAPurchaseCountsAgainst:
         client.post(equip_url(ganger, post), {"thing": key_of(wargear("Mesh armour"))})
 
         entry = bought(gang, "Mesh armour").ledger_entry
-        assert entry.action == gang.open_visit
+        assert entry.activity == gang.open_visit
         gang.refresh_from_db()
         assert gang.trade_points_left == 5
 
@@ -340,9 +340,9 @@ class TestWhatTheScreenSays:
             equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
         )
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
         with operation(gang, actor=tester) as op:
-            op.open_action(FOUNDING)
+            op.open_activity(FOUNDING)
 
         budget = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
         assert (budget.granted, budget.spent, budget.remaining) == (5, 3, 2)
@@ -367,7 +367,7 @@ class TestWhatTheScreenSays:
         self, client, gang, tester, leader, legacy_list
     ):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         response = client.get(equip_url(leader, legacy_list))
 
@@ -491,7 +491,7 @@ class TestAnOwnerTheBudgetsDoNotReachYet:
 
         entry = bought(gang, "Flak plate").ledger_entry
         assert entry.trade_points == 0
-        assert entry.action is None
+        assert entry.activity is None
         assert entry.spent_by is None
 
 
@@ -583,7 +583,7 @@ class TestTheWayIntoAVisitFromTheRail:
         self, client, gang, tester, ganger, post
     ):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
         client.force_login(tester)
 
         response = client.get(equip_url(ganger, post))
@@ -672,7 +672,7 @@ class TestGoingPastIt:
             )
         ]
         assert len(entries) == 2
-        assert {entry.action for entry in entries} == {gang.open_action(FOUNDING)}
+        assert {entry.activity for entry in entries} == {gang.open_activity(FOUNDING)}
 
 
 class TestTheQueryBudget:
@@ -689,7 +689,7 @@ class TestTheQueryBudget:
     #: the statement rather than on the table's name, because a fighter's
     #: own row carries a subquery over the same table saying what the
     #: gang's open visit brought.
-    ACTIONS = 'SELECT "n26_action"."id"'
+    ACTIVITIES = 'SELECT "n26_activity"."id"'
     #: The standard counter, so a homebrew one of the same name is not
     #: mistaken for it. Named by its pack's slug, which is the join that
     #: tells it from the counters a card's modifiers bring along.
@@ -699,7 +699,7 @@ class TestTheQueryBudget:
         return queries_for(client, url)
 
     def reads_actions(self, asked):
-        return [sql for sql in asked if sql.startswith(self.ACTIONS)]
+        return [sql for sql in asked if sql.startswith(self.ACTIVITIES)]
 
     def reads_counter(self, asked):
         return [
@@ -755,7 +755,7 @@ class TestTheQueryBudget:
         it has open — and with none open there is nothing to have spent
         against."""
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
         client.force_login(tester)
 
         asked = self.asked(client, equip_url(leader, legacy_list))
@@ -943,7 +943,7 @@ class TestAGangFoundedWithNoBudget:
 
         response = client.post(reverse("n26-refund-fighter", args=[leader.pk]))
 
-        assert trade_points_spent_for(gang.open_action(FOUNDING)) == 0
+        assert trade_points_spent_for(gang.open_activity(FOUNDING)) == 0
         # The last of them: the purchase this undoes left one of its own,
         # and nothing has drawn a page to read them off since.
         said = [str(message) for message in get_messages(response.wsgi_request)]
@@ -961,7 +961,7 @@ class TestAGangFoundedWithNoBudget:
             reverse("n26-refund-fighter", args=[leader.pk]), {"kit": "stash"}
         )
 
-        assert trade_points_spent_for(gang.open_action(FOUNDING)) == 3
+        assert trade_points_spent_for(gang.open_activity(FOUNDING)) == 3
         said = [str(message) for message in get_messages(response.wsgi_request)]
         assert said[-1] == "Deleted Rasp. Their kit is in the stash (1 line)."
 
@@ -972,4 +972,4 @@ class TestAGangFoundedWithNoBudget:
 
         client.post(reverse("n26-delete-fighter", args=[leader.pk]))
 
-        assert trade_points_spent_for(gang.open_action(FOUNDING)) == 3
+        assert trade_points_spent_for(gang.open_activity(FOUNDING)) == 3

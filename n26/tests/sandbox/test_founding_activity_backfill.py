@@ -18,7 +18,7 @@ import pytest
 from django.contrib.auth.models import User
 
 from gyrinx.maintenance.models import Backfill
-from n26.core.models import Action, Gang, LedgerEvent
+from n26.core.models import Activity, Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.maintenance import (
@@ -30,7 +30,7 @@ from n26.tests.sandbox.actions import found_gang
 
 pytestmark = pytest.mark.django_db
 
-FOUNDING = Action.Kind.FOUNDING
+FOUNDING = Activity.Kind.FOUNDING
 
 
 @pytest.fixture
@@ -52,13 +52,13 @@ def old_gang(gang_type, player, person_type, default_pack):
     """A gang as one founded before the action existed: no action row,
     and no event saying one was ever started."""
 
-    def _found(name="Before The Action", **kwargs):
+    def _found(name="Before The Activity", **kwargs):
         gang = found_gang(name, gang_type, owner=player, budget=1000, **kwargs)
         LedgerEvent.objects.filter(
             gang=gang,
             kind__in=[LedgerEvent.Kind.ACTION_OPENED, LedgerEvent.Kind.ACTION_CLOSED],
         ).delete()
-        assert not Action.objects.filter(gang=gang).exists()
+        assert not Activity.objects.filter(gang=gang).exists()
         return gang
 
     return _found
@@ -93,11 +93,11 @@ class TestWhichGangsQualify:
     def test_a_gang_that_completed_its_founding_does_not(self, old_gang, player):
         gang = old_gang()
         with operation(gang, actor=player) as op:
-            op.open_action(FOUNDING)
+            op.open_activity(FOUNDING)
         with operation(gang, actor=player) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
-        assert gang.open_action(FOUNDING) is None
+        assert gang.open_activity(FOUNDING) is None
         assert not gangs_without_a_founding_action().exists()
 
     def test_an_archived_gang_does_not(self, old_gang):
@@ -118,7 +118,7 @@ class TestOpeningTheAction:
         run(record)
 
         for gang in (first, second):
-            action = gang.open_action(FOUNDING)
+            action = gang.open_activity(FOUNDING)
             assert action is not None
             assert action.trade_points is None
             assert action.opened.kind == LedgerEvent.Kind.ACTION_OPENED
@@ -137,7 +137,7 @@ class TestOpeningTheAction:
 
         run(record)
 
-        assert gang.open_action(FOUNDING).opened.actor_id is None
+        assert gang.open_activity(FOUNDING).opened.actor_id is None
 
     def test_the_gang_history_says_the_action_was_started(self, old_gang, record):
         from n26.core.history import build
@@ -172,12 +172,12 @@ class TestOpeningTheAction:
     ):
         gang = old_gang()
         with operation(gang, actor=player) as op:
-            already = op.open_action(FOUNDING)
+            already = op.open_activity(FOUNDING)
 
         run(record)
 
-        assert gang.open_action(FOUNDING).pk == already.pk
-        assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 1
+        assert gang.open_activity(FOUNDING).pk == already.pk
+        assert Activity.objects.filter(gang=gang, kind=FOUNDING).count() == 1
         assert opened_events(gang) == 1
 
     def test_a_completed_founding_is_not_opened_again(self, old_gang, player, record):
@@ -185,14 +185,14 @@ class TestOpeningTheAction:
         backfill that reopened it would put them back at the start."""
         gang = old_gang()
         with operation(gang, actor=player) as op:
-            op.open_action(FOUNDING)
+            op.open_activity(FOUNDING)
         with operation(gang, actor=player) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         run(record)
 
-        assert gang.open_action(FOUNDING) is None
-        assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 1
+        assert gang.open_activity(FOUNDING) is None
+        assert Activity.objects.filter(gang=gang, kind=FOUNDING).count() == 1
 
     def test_a_gang_that_gained_one_at_the_last_moment_is_counted(
         self, old_gang, record, monkeypatch
@@ -207,9 +207,9 @@ class TestOpeningTheAction:
 
         slipped_in = old_gang("Slipped In")
         plain = old_gang("Straightforward")
-        really_open = GangOperation.open_action
+        really_open = GangOperation.open_activity
 
-        def open_action(self, kind, trade_points=None):
+        def open_activity(self, kind, trade_points=None):
             if self.gang.pk == slipped_in.pk:
                 raise Refusal(
                     "Complete the open Found and equip gang action before "
@@ -217,7 +217,7 @@ class TestOpeningTheAction:
                 )
             return really_open(self, kind, trade_points)
 
-        monkeypatch.setattr(GangOperation, "open_action", open_action)
+        monkeypatch.setattr(GangOperation, "open_activity", open_activity)
 
         run(record)
 
@@ -225,7 +225,7 @@ class TestOpeningTheAction:
         assert record.summary["failures"] == {}
         assert record.summary["totals"]["already_had_one"] == 1
         assert record.summary["totals"]["opened"] == 1
-        assert plain.open_action(FOUNDING) is not None
+        assert plain.open_activity(FOUNDING) is not None
 
     def test_an_archived_gang_is_left_alone(self, old_gang, record):
         gang = old_gang()
@@ -233,7 +233,7 @@ class TestOpeningTheAction:
 
         run(record)
 
-        assert not Action.objects.filter(gang=gang).exists()
+        assert not Activity.objects.filter(gang=gang).exists()
         assert opened_events(gang) == 0
 
 
@@ -288,7 +288,7 @@ class TestRunningItTwice:
 
         run(again)
 
-        assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 1
+        assert Activity.objects.filter(gang=gang, kind=FOUNDING).count() == 1
         assert opened_events(gang) == 1
         assert again.status == Backfill.Status.DONE
         assert again.summary["totals"]["already_had_one"] == 1
@@ -310,7 +310,7 @@ class TestRunningItTwice:
 
         record.refresh_from_db()
         assert record.status == Backfill.Status.DONE
-        assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 1
+        assert Activity.objects.filter(gang=gang, kind=FOUNDING).count() == 1
         assert opened_events(gang) == 1
 
 

@@ -19,7 +19,7 @@ from n26.core.views.permissions import (
     _own_gang_or_404,
     link_campaign,
     may_mark_status,
-    may_see_actions_square,
+    may_see_activities_square,
     may_see_founding,
     trade_points_href,
 )
@@ -251,7 +251,7 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
-    from n26.core.actions import actions_square, founding_blocks_visit
+    from n26.core.activities import activities_square, founding_blocks_visit
     from n26.core.card import build_gang_card
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
@@ -372,8 +372,8 @@ def gang_sheet(request, pk):
             # actions, and the last stretch of the gang's story with the
             # records it names. What a visit has left is already on the
             # sheet.
-            "actions_square": (
-                actions_square(
+            "activities_square": (
+                activities_square(
                     gang,
                     sheet,
                     founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
@@ -1454,7 +1454,7 @@ def gang_trade_points(request, pk):
     asks whether that was meant, and then does it.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.actions import visit_card
+    from n26.core.activities import visit_card
     from n26.core.operations import Refusal, operation
     from n26.core.render import roster
     from n26.core.trading import as_offer, minted, receipt_for, visitors
@@ -1596,7 +1596,7 @@ def gang_founding_action(request, pk):
     a state read before the line is taken can already be stale by the
     time the second click writes. Starting a second while one is open is
     refused there too
-    (``n26.core.operations.Operation.open_action``). The card offers the
+    (``n26.core.operations.Operation.open_activity``). The card offers the
     one control the state allows, so a post that lands the wrong way
     round is a stale page rather than an intention.
 
@@ -1608,27 +1608,27 @@ def gang_founding_action(request, pk):
     back rather than a server error.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.models import Action
+    from n26.core.models import Activity
     from n26.core.operations import Refusal, operation
 
     gang = _own_gang_or_404(request, pk)
     # The square that posts here is drawn for the owners the founding
     # flag admits, so the address is theirs alone too.
-    if not may_see_actions_square(gang, request.user):
+    if not may_see_activities_square(gang, request.user):
         raise Http404
     at = reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":
         return redirect(at)
 
-    kind = Action.Kind.FOUNDING
+    kind = Activity.Kind.FOUNDING
     label = kind.label
     act = request.POST.get("act")
 
     if act == "finish":
         try:
             with operation(gang, actor=request.user) as op:
-                open_now = gang.open_action(kind)
-                closed = op.close_action(open_now) if open_now is not None else None
+                open_now = gang.open_activity(kind)
+                closed = op.close_activity(open_now) if open_now is not None else None
         except Refusal as refused:
             messages.error(request, str(refused))
             return redirect(at)
@@ -1642,7 +1642,7 @@ def gang_founding_action(request, pk):
     if act == "start":
         try:
             with operation(gang, actor=request.user) as op:
-                op.open_action(kind)
+                op.open_activity(kind)
         except Refusal as refused:
             messages.error(request, str(refused))
             return redirect(at)

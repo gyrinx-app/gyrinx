@@ -1,9 +1,9 @@
 {% comment %}
-<c-n26.action-card> — one open action, and the button that ends it.
+<c-n26.activity-card> — one open action, and the button that ends it.
 
-    <c-n26.action-card :card="visit_card">
+    <c-n26.activity-card :card="visit_card">
         <c-slot name="body">…anything between the tally and the button…</c-slot>
-    </c-n26.action-card>
+    </c-n26.activity-card>
 
 Boxed, it is a card of its own — a card rather than a section because it comes
 and goes with the action, where a heading would read as a standing fact about
@@ -20,7 +20,7 @@ because following one must never start or end an action.
 The founding mark, the sentence under the title and the tally are all read off
 the card, so a caller cannot draw one action's identity onto another.
 
-  :card — a n26.core.actions.ActionCard.
+  :card — a n26.core.activities.ActivityCard.
   :boxed — False draws the contents with no card and a plainer title.
   body — drawn between the tally and the button, for what one action has that
     the others do not.
@@ -38,7 +38,7 @@ the card, so a caller cannot draw one action's identity onto another.
             </h2>
             {% if card.about %}<p class="mt-1 text-sm text-muted">{{ card.about }}</p>{% endif %}
         </c-slot>
-        <c-n26.action-card.body :card="card">{{ body }}</c-n26.action-card.body>
+        <c-n26.activity-card.body :card="card">{{ body }}</c-n26.activity-card.body>
     </c-ui.card>
 {% else %}
     {% comment %}
@@ -57,6 +57,6 @@ the card, so a caller cannot draw one action's identity onto another.
             <c-ui.badge color="ink" size="sm">Current action</c-ui.badge>
         </div>
         {% if card.about %}<p class="mb-2 text-xs text-muted">{{ card.about }}</p>{% endif %}
-        <c-n26.action-card.body :card="card" button_size="xs" help_size="xs">{{ body }}</c-n26.action-card.body>
+        <c-n26.activity-card.body :card="card" button_size="xs" help_size="xs">{{ body }}</c-n26.activity-card.body>
     </div>
 {% endif %}

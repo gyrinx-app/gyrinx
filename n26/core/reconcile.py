@@ -97,18 +97,18 @@ def total_spent(gang):
     )
 
 
-def trade_points_spent_for(action):
-    """Every Trade Point that counted against one action.
+def trade_points_spent_for(activity):
+    """Every Trade Point that counted against one activity.
 
-    A purchase records the action it counted against on its ledger entry,
+    A purchase records the activity it counted against on its ledger entry,
     so this is a sum over what points at that row — no window, no
-    ordering, and an exact figure for an action long since closed.
+    ordering, and an exact figure for an activity long since closed.
 
     Summed from the events rather than from the entries because a refund
     settles its entry to zero and appends the returning event: reading
     the log keeps the two acts in the order they happened. The refund's
     event sits on the assignment the purchase made, so it lands on the
-    action the purchase counted against however long afterwards the
+    activity the purchase counted against however long afterwards the
     owner gets round to handing the thing back.
 
     One query.
@@ -116,15 +116,15 @@ def trade_points_spent_for(action):
     from n26.core.models import LedgerEvent
 
     return (
-        LedgerEvent.objects.filter(assignment__ledger_entry__action=action).aggregate(
-            total=Sum("trade_points_delta")
-        )["total"]
+        LedgerEvent.objects.filter(
+            assignment__ledger_entry__activity=activity
+        ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )
 
 
-def trade_points_spent_by(action, miniature):
-    """Every Trade Point one model spent against one action.
+def trade_points_spent_by(activity, miniature):
+    """Every Trade Point one model spent against one activity.
 
     The same sum as :func:`trade_points_spent_for`, narrowed to whoever
     spent it: a founding allowance is the model's own, so what one has
@@ -144,15 +144,15 @@ def trade_points_spent_by(action, miniature):
 
     return (
         LedgerEvent.objects.filter(
-            assignment__ledger_entry__action=action,
+            assignment__ledger_entry__activity=activity,
             assignment__ledger_entry__spent_by=miniature,
         ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )
 
 
-def trade_points_spent_by_model(action):
-    """What every model has spent against one action, keyed by model id.
+def trade_points_spent_by_model(activity):
+    """What every model has spent against one activity, keyed by model id.
 
     The same sum as :func:`trade_points_spent_by`, asked once for the
     whole roster rather than once per model: a screen drawing a line for
@@ -169,7 +169,7 @@ def trade_points_spent_by_model(action):
     buyer = "assignment__ledger_entry__spent_by"
     spends = (
         LedgerEvent.objects.filter(
-            assignment__ledger_entry__action=action,
+            assignment__ledger_entry__activity=activity,
             **{f"{buyer}__isnull": False},
         )
         .values(buyer)
@@ -179,11 +179,11 @@ def trade_points_spent_by_model(action):
 
 
 def trade_points_spent_by_kind(gang, kind, miniature):
-    """Every Trade Point one model spent against any action of this kind.
+    """Every Trade Point one model spent against any activity of this kind.
 
     The same sum as :func:`trade_points_spent_by`, widened from one
-    action to every action of that kind the gang has opened. A founding
-    allowance is one allowance however many times the action is opened:
+    activity to every activity of that kind the gang has opened. A founding
+    allowance is one allowance however many times the activity is opened:
     completing it and starting again does not hand the figure back.
 
     Visit spend stays on :func:`trade_points_spent` — a visit that closed
@@ -196,8 +196,8 @@ def trade_points_spent_by_kind(gang, kind, miniature):
 
     return (
         LedgerEvent.objects.filter(
-            assignment__ledger_entry__action__gang=gang,
-            assignment__ledger_entry__action__kind=kind,
+            assignment__ledger_entry__activity__gang=gang,
+            assignment__ledger_entry__activity__kind=kind,
             assignment__ledger_entry__spent_by=miniature,
         ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
@@ -205,7 +205,7 @@ def trade_points_spent_by_kind(gang, kind, miniature):
 
 
 def trade_points_spent_by_model_for_kind(gang, kind):
-    """What every model has spent against any action of this kind.
+    """What every model has spent against any activity of this kind.
 
     The same sum as :func:`trade_points_spent_by_kind`, asked once for
     the whole roster rather than once per model.
@@ -220,8 +220,8 @@ def trade_points_spent_by_model_for_kind(gang, kind):
     buyer = "assignment__ledger_entry__spent_by"
     spends = (
         LedgerEvent.objects.filter(
-            assignment__ledger_entry__action__gang=gang,
-            assignment__ledger_entry__action__kind=kind,
+            assignment__ledger_entry__activity__gang=gang,
+            assignment__ledger_entry__activity__kind=kind,
             **{f"{buyer}__isnull": False},
         )
         .values(buyer)
@@ -231,7 +231,7 @@ def trade_points_spent_by_model_for_kind(gang, kind):
 
 
 def trade_points_spent(gang):
-    """What the gang's open Visit Trading Post action has spent.
+    """What the gang's open Visit Trading Post activity has spent.
 
     ``trade_points_spent_for`` by another route: the visit is asked for
     as a join rather than named, so a screen wanting the figure needs no
@@ -250,20 +250,20 @@ def trade_points_spent(gang):
     for this one.
 
     Events about no assignment are outside this by construction: the
-    two an action writes are among them, and none of them moves Trade
+    two an activity writes are among them, and none of them moves Trade
     Points.
 
     One query. Every screen showing what a gang has left asks this, and
     a gang's page is a fixed number of queries by invariant rather than
     by hope.
     """
-    from n26.core.models import Action, LedgerEvent
+    from n26.core.models import Activity, LedgerEvent
 
     return (
         LedgerEvent.objects.filter(
             gang=gang,
-            assignment__ledger_entry__action__kind=Action.Kind.TRADING_POST_VISIT,
-            assignment__ledger_entry__action__closed__isnull=True,
+            assignment__ledger_entry__activity__kind=Activity.Kind.TRADING_POST_VISIT,
+            assignment__ledger_entry__activity__closed__isnull=True,
         ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )

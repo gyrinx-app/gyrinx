@@ -14,13 +14,13 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from n26.core import history
-from n26.core.models import Action, Gang, LedgerEvent
+from n26.core.models import Activity, Gang, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
-FOUNDING = Action.Kind.FOUNDING
+FOUNDING = Activity.Kind.FOUNDING
 
 #: The colour <c-n26.founding-mark> paints itself. One component draws the
 #: mark, so finding this on a page is finding the mark; change it there and
@@ -77,13 +77,13 @@ class TestFoundingOpensOne:
     done."""
 
     def test_founding_a_gang_opens_the_action(self, gang):
-        open_now = gang.open_action(FOUNDING)
+        open_now = gang.open_activity(FOUNDING)
         assert open_now is not None
         assert open_now.kind == FOUNDING
         assert open_now.is_open
 
     def test_the_opening_event_is_what_the_row_points_at(self, gang):
-        open_now = gang.open_action(FOUNDING)
+        open_now = gang.open_activity(FOUNDING)
         assert open_now.opened.kind == LedgerEvent.Kind.ACTION_OPENED
         assert open_now.opened.gang_id == gang.pk
         assert open_now.opened.note == FOUNDING
@@ -91,7 +91,7 @@ class TestFoundingOpensOne:
     def test_it_brings_no_trade_points(self, gang):
         """Founding hands out nothing of its own — a visit is the kind
         that does."""
-        assert gang.open_action(FOUNDING).trade_points is None
+        assert gang.open_activity(FOUNDING).trade_points is None
 
     def test_a_gang_type_corrected_keeps_the_action_it_has(
         self, gang, tester, gang_type
@@ -101,14 +101,14 @@ class TestFoundingOpensOne:
         with operation(gang, actor=tester) as op:
             op.found(gang_type)
 
-        assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 1
+        assert Activity.objects.filter(gang=gang, kind=FOUNDING).count() == 1
 
 
 class TestOneAtATime:
     def test_a_second_open_of_the_same_kind_is_refused(self, gang, tester):
         with pytest.raises(Refusal) as refused:
             with operation(gang, actor=tester) as op:
-                op.open_action(FOUNDING)
+                op.open_activity(FOUNDING)
 
         assert "Found and equip gang" in str(refused.value)
 
@@ -118,47 +118,47 @@ class TestOneAtATime:
         before = LedgerEvent.objects.filter(gang=gang).count()
         with pytest.raises(Refusal):
             with operation(gang, actor=tester) as op:
-                op.open_action(FOUNDING)
+                op.open_activity(FOUNDING)
 
         assert LedgerEvent.objects.filter(gang=gang).count() == before
 
     def test_the_database_holds_the_same_line(self, gang):
         """The refusal is a sentence for the player; the constraint is what
         makes two open actions impossible however they were written."""
-        open_now = gang.open_action(FOUNDING)
+        open_now = gang.open_activity(FOUNDING)
         with pytest.raises(IntegrityError), transaction.atomic():
-            Action.objects.create(gang=gang, kind=FOUNDING, opened=open_now.opened)
+            Activity.objects.create(gang=gang, kind=FOUNDING, opened=open_now.opened)
 
     def test_another_kind_may_be_open_beside_it(self, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.open_action(Action.Kind.TRADING_POST_VISIT, trade_points=3)
+            op.open_activity(Activity.Kind.TRADING_POST_VISIT, trade_points=3)
 
-        assert gang.open_action(FOUNDING) is not None
-        assert gang.open_action(Action.Kind.TRADING_POST_VISIT).trade_points == 3
+        assert gang.open_activity(FOUNDING) is not None
+        assert gang.open_activity(Activity.Kind.TRADING_POST_VISIT).trade_points == 3
 
 
 class TestClosingAndStartingAgain:
     def test_closing_names_the_event_that_closed_it(self, gang, tester):
-        open_now = gang.open_action(FOUNDING)
+        open_now = gang.open_activity(FOUNDING)
         with operation(gang, actor=tester) as op:
-            op.close_action(open_now)
+            op.close_activity(open_now)
 
         open_now.refresh_from_db()
         assert open_now.closed.kind == LedgerEvent.Kind.ACTION_CLOSED
         assert not open_now.is_open
-        assert gang.open_action(FOUNDING) is None
+        assert gang.open_activity(FOUNDING) is None
 
     def test_closing_one_already_closed_writes_nothing(self, gang, tester):
         """Two clicks on one button arrive together often enough. The
         second holds a copy read before the gang's line was taken and
         still says open, so the act reads the row again and stands down."""
-        stale = gang.open_action(FOUNDING)
+        stale = gang.open_activity(FOUNDING)
         with operation(gang, actor=tester) as op:
-            op.close_action(stale)
+            op.close_activity(stale)
         before = LedgerEvent.objects.filter(gang=gang).count()
 
         with operation(gang, actor=tester) as op:
-            assert op.close_action(stale) is None
+            assert op.close_activity(stale) is None
 
         assert LedgerEvent.objects.filter(gang=gang).count() == before
 
@@ -178,15 +178,15 @@ class TestClosingAndStartingAgain:
         )
         with operation(theirs, actor=tester) as op:
             op.found(gang_type)
-        open_now = theirs.open_action(FOUNDING)
+        open_now = theirs.open_activity(FOUNDING)
         before = LedgerEvent.objects.filter(gang=theirs).count()
 
         with operation(gang, actor=tester) as op:
-            assert op.close_action(open_now) is None
+            assert op.close_activity(open_now) is None
 
         open_now.refresh_from_db()
         assert open_now.is_open
-        assert theirs.open_action(FOUNDING) is not None
+        assert theirs.open_activity(FOUNDING) is not None
         assert LedgerEvent.objects.filter(gang=theirs).count() == before
         assert not LedgerEvent.objects.filter(
             gang=gang, kind=LedgerEvent.Kind.ACTION_CLOSED
@@ -194,18 +194,18 @@ class TestClosingAndStartingAgain:
 
     def test_a_closed_action_may_be_started_again(self, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
         with operation(gang, actor=tester) as op:
-            op.open_action(FOUNDING)
+            op.open_activity(FOUNDING)
 
-        assert gang.open_action(FOUNDING) is not None
-        assert Action.objects.filter(gang=gang, kind=FOUNDING).count() == 2
+        assert gang.open_activity(FOUNDING) is not None
+        assert Activity.objects.filter(gang=gang, kind=FOUNDING).count() == 2
 
 
 class TestTheHistoryReadsIt:
     def test_both_events_reach_the_history_as_sentences(self, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         lines = told(gang)
         assert "started the Found and equip gang action" in lines
@@ -222,7 +222,7 @@ class TestTheHistoryReadsIt:
 
     def test_it_moves_no_money(self, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         marks = [LedgerEvent.Kind.ACTION_OPENED, LedgerEvent.Kind.ACTION_CLOSED]
         events = list(LedgerEvent.objects.filter(gang=gang, kind__in=marks))
@@ -245,9 +245,9 @@ class TestTheLedgerIsUnaffected:
         from n26.core.reconcile import check_entry
 
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
         with operation(gang, actor=tester) as op:
-            op.open_action(FOUNDING)
+            op.open_activity(FOUNDING)
 
         entries = list(LedgerEntry.objects.filter(assignment__gang_root=gang))
         assert entries
@@ -255,7 +255,7 @@ class TestTheLedgerIsUnaffected:
 
     def test_the_gang_still_has_every_credit_it_was_founded_with(self, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         gang.refresh_from_db()
         assert gang.credits == 1000
@@ -269,7 +269,7 @@ class TestTheSquareOnTheGangPage:
     def signed_in(self, client, tester):
         client.force_login(tester)
 
-    def test_an_open_action_is_drawn_with_a_way_to_complete_it(self, client, gang):
+    def test_an_open_activity_is_drawn_with_a_way_to_complete_it(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
         assert "Found and equip gang" in body
         assert "Complete action" in body
@@ -297,14 +297,14 @@ class TestTheSquareOnTheGangPage:
         """Nobody sets out to open an action; they set out to equip the
         gang. The mark ties the control to the figures it brings."""
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
         label = body.index("Equip the gang using founding Trade Points")
 
         assert MARK in body[body.rindex("<button", 0, label) : label]
 
-    def test_the_open_action_is_badged_as_the_current_one(self, client, gang):
+    def test_the_open_activity_is_badged_as_the_current_one(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
         assert "Current action" in body
 
@@ -324,7 +324,7 @@ class TestTheSquareOnTheGangPage:
         self, client, gang, tester
     ):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
         assert "No action is open." in body
@@ -335,7 +335,7 @@ class TestTheSquareOnTheGangPage:
         """A link is followed by anything that follows links, and a reload
         would start the action again."""
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
         start = body.index("Equip the gang using founding Trade Points")
@@ -352,7 +352,7 @@ class TestTheSquareOnTheGangPage:
         """The start control is a plain form in the square's body. One
         form, one act."""
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
         form = self.plain_start_form(body, "No action is open.")
@@ -365,7 +365,7 @@ class TestTheSquareOnTheGangPage:
         open, whatever else the gang has going on. A visit is not the
         founding action."""
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
         with operation(gang, actor=tester) as op:
             op.visit_trading_post(brought=3)
 
@@ -424,7 +424,7 @@ class TestTheSquareOnTheGangPage:
         assert "No action is open." not in body
         assert 'value="start"' not in body
         assert "Nothing in the stash" in body
-        assert gang.open_action(FOUNDING) is not None
+        assert gang.open_activity(FOUNDING) is not None
 
     def test_the_stash_card_cannot_start_a_visit_beside_it(self, client, gang):
         """A gang holds one action of each kind. The stash card's way into
@@ -459,7 +459,7 @@ class TestTheSquareOnTheGangPage:
         self, client, gang, tester
     ):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
         label = body.index("Set up Trading Post visit")
@@ -539,7 +539,7 @@ class TestTheStoryUnderIt:
 
     def test_the_newest_act_is_at_the_top(self, client, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
         square = body[: body.index("Nothing in the stash")]
@@ -552,7 +552,7 @@ class TestTheStoryUnderIt:
     ):
         """A snapshot, not the history page: the square would push the
         roster off the screen if it grew with the gang."""
-        from n26.core.actions import SNAPSHOT
+        from n26.core.activities import SNAPSHOT
 
         profile = make_profile("Ganger", price=10)
         make_statline(profile)
@@ -606,14 +606,14 @@ class TestWhatTheSquareCosts:
         not counted here — a gang holds what it read about its own open
         actions, and one already asked would hide a read this makes.
         """
-        from n26.core.actions import actions_square
+        from n26.core.activities import activities_square
         from n26.core.render import render_gang
 
         sheet_of = render_gang(Gang.objects.get(pk=gang.pk))
         fresh = Gang.objects.get(pk=gang.pk)
 
         with django_assert_num_queries(3):
-            actions_square(
+            activities_square(
                 fresh,
                 sheet_of,
                 founding_at=act_page(fresh),
@@ -659,7 +659,7 @@ class TestTheActsBehindIt:
     def test_completing_it_closes_the_action(self, client, gang):
         answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
 
-        assert gang.open_action(FOUNDING) is None
+        assert gang.open_activity(FOUNDING) is None
         lines = [str(m) for m in answer.context["messages"]]
         assert "Completed the Found and equip gang action." in lines
 
@@ -683,27 +683,27 @@ class TestTheActsBehindIt:
 
         assert answer.status_code == 200
         assert answer.redirect_chain == [(sheet(gang), 302)]
-        assert gang.open_action(FOUNDING) is not None
+        assert gang.open_activity(FOUNDING) is not None
         lines = [str(m) for m in answer.context["messages"]]
         assert any("Not enough credits" in line for line in lines)
 
     def test_starting_one_opens_it_again(self, client, gang, tester):
         with operation(gang, actor=tester) as op:
-            op.close_action(gang.open_action(FOUNDING))
+            op.close_activity(gang.open_activity(FOUNDING))
 
         answer = client.post(act_page(gang), {"act": "start"}, follow=True)
 
-        assert gang.open_action(FOUNDING) is not None
+        assert gang.open_activity(FOUNDING) is not None
         lines = [str(m) for m in answer.context["messages"]]
         assert "Started the Found and equip gang action." in lines
 
     def test_starting_one_while_one_is_open_is_told_no(self, client, gang):
         """The card offers the other control, so this is a stale page
         rather than an intention — and it changes nothing."""
-        opened = gang.open_action(FOUNDING)
+        opened = gang.open_activity(FOUNDING)
         answer = client.post(act_page(gang), {"act": "start"}, follow=True)
 
-        assert gang.open_action(FOUNDING).pk == opened.pk
+        assert gang.open_activity(FOUNDING).pk == opened.pk
         lines = [str(m) for m in answer.context["messages"]]
         assert any("Complete the open" in line for line in lines)
 
@@ -720,7 +720,7 @@ class TestTheActsBehindIt:
 
         assert answer.status_code == 302
         assert answer["Location"] == sheet(gang)
-        assert gang.open_action(FOUNDING) is not None
+        assert gang.open_activity(FOUNDING) is not None
 
     def test_somebody_elses_gang_is_not_theirs_to_act_on(self, client, gang):
         client.force_login(User.objects.create_user("stranger"))
@@ -734,7 +734,7 @@ class TestTheActsBehindIt:
         gang.save(update_fields=["owner"])
         client.force_login(plain)
         assert client.post(act_page(gang), {"act": "finish"}).status_code == 404
-        assert gang.open_action(FOUNDING) is not None
+        assert gang.open_activity(FOUNDING) is not None
 
     def test_signing_in_is_required(self, client, gang):
         client.logout()

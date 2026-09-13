@@ -26,7 +26,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.template.defaultfilters import pluralize
 
-from n26.core.actions import founding_blocks_visit
+from n26.core.activities import founding_blocks_visit
 from n26.core.confirm import CONFIRM_FIELD, Confirmation
 from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
@@ -234,7 +234,7 @@ def _counted_against(gang, line, budget=None):
     """
     if not line.charges_trade_points:
         return None
-    return budget.action if budget is not None else gang.open_visit
+    return budget.activity if budget is not None else gang.open_visit
 
 
 def _overspend(request, gang, line, asked, back, budget=None, holder=""):
@@ -258,7 +258,7 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
     if not asked or request.POST.get(CONFIRM_FIELD):
         return None
     visit = None if budget is not None else gang.open_visit
-    open_action = budget is not None or visit is not None
+    open_activity = budget is not None or visit is not None
     if budget is not None:
         brought, spent = budget.granted, budget.spent
     elif visit is not None:
@@ -303,7 +303,7 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
             Fact(
                 "Available",
                 str(brought),
-                sub="" if open_action else "no action open",
+                sub="" if open_activity else "no action open",
             ),
             Fact("Spent", str(spent)),
             Fact("Remaining", str(left), ruled=True, strong=True),
@@ -777,7 +777,7 @@ def _buy_clicked(
                 holder,
                 line=line,
                 option=[option.default_set for option in picks],
-                action=_counted_against(gang, line, budget),
+                activity=_counted_against(gang, line, budget),
                 **charge,
             )
             # Onto the gun, not onto its holder: a profile belongs to
@@ -788,7 +788,7 @@ def _buy_clicked(
                 op.buy(
                     bought,
                     line=part,
-                    action=_counted_against(gang, part, budget),
+                    activity=_counted_against(gang, part, budget),
                     **_charge(part, part_paid),
                 )
     except Refusal as refusal:

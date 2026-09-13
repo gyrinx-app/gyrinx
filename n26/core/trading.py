@@ -1,10 +1,10 @@
-"""The Visit Trading Post action — who performs it, and what it adds.
+"""The Visit Trading Post activity — who performs it, and what it adds.
 
 A gang's Trade Points are not a standing figure. They arrive when a
-fighter performs the action, are spent at the post, and what is left is
-lost when the action is done; the rules also shut the post entirely to a
+fighter performs the activity, are spent at the post, and what is left is
+lost when the activity is done; the rules also shut the post entirely to a
 gang where nobody performed it. The edition keeps that as an
-``n26.core.models.Action`` row, open from the click that started the
+``n26.core.models.Activity`` row, open from the click that started the
 visit to the click that ended it, carrying what the visit brought. What
 it has spent is the purchases pointing back at it
 (``n26.core.reconcile.trade_points_spent``), so the story of a visit
@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Visitor:
-    """One model who could perform the action, and what they would add.
+    """One model who could perform the activity, and what they would add.
 
     ``rank`` is what the card says raised the figure — the subtype's own
     name, where one thing raised it. Where several did, it is the figure
@@ -114,7 +114,7 @@ def visitors(gang, going=None, members=None):
     the roster twice is a query for an answer already in hand.
 
     A model holding both ranks adds the better of the two, because the
-    same fighter cannot perform the action twice. That is content, not
+    same fighter cannot perform the activity twice. That is content, not
     arithmetic here: the modifier on the lesser rank is scoped away from
     models holding the better one, so the two never add up.
     """
@@ -196,7 +196,7 @@ def _adds_each(trade_points):
 
 @dataclass(frozen=True)
 class Contributor:
-    """One fighter who performed the action, as the receipt names them.
+    """One fighter who performed the activity, as the receipt names them.
 
     ``rank`` is what the visit recorded against them — the name of what
     raised their figure at the time, so a fighter who has since lost the
@@ -217,10 +217,10 @@ class Contributor:
 
 @dataclass(frozen=True)
 class Receipt:
-    """An open Visit Trading Post action, as the figures it is read by.
+    """An open Visit Trading Post activity, as the figures it is read by.
 
     Built for the screen rather than stored: what a visit added is the
-    figure on the action, what it has spent is the ledger's answer, and
+    figure on the activity, what it has spent is the ledger's answer, and
     who went is the events the opening act wrote. Nothing here is a
     second copy of any of them.
     """
@@ -282,7 +282,7 @@ def _still_here(miniature):
 def receipt_for(gang):
     """The open visit's figures, or None where the post is shut.
 
-    Read off the action the gang has open: what it brought is on the row,
+    Read off the activity the gang has open: what it brought is on the row,
     and who performed it is the batch the opening event stamped on
     everything that act wrote.
 

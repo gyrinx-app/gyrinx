@@ -5,7 +5,7 @@ The Visit Trading Post action — the one open, and starting another.
 
 Two posts, no query string. The card is the open visit, read as a receipt: what
 it added, what has gone, what is left, and who performed the action. It is
-<c-n26.action-card>, the same shape every action is drawn in; its button
+<c-n26.activity-card>, the same shape every action is drawn in; its button
 finishes the visit, which shuts the post and loses the remainder — the book's
 rule, so the button says so rather than asking again.
 
@@ -56,7 +56,7 @@ takes a typed figure over the ticks.
         {% endcomment %}
         {% include "n26/includes/messages.html" %}
         {% if visit_card %}
-            <c-n26.action-card :card="visit_card">
+            <c-n26.activity-card :card="visit_card">
                 {% comment %}
                 Every fighter, not only those who performed the action:
                 what a visit added is the gang's, and it is spent on
@@ -84,7 +84,7 @@ takes a typed figure over the ticks.
                         </div>
                     </c-slot>
                 {% endif %}
-            </c-n26.action-card>
+            </c-n26.activity-card>
         {% endif %}
         <form method="post"
               action="{{ action }}"

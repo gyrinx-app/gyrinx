@@ -320,9 +320,9 @@ def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
     with operation(gang, actor=actor or gang.owner) as op:
         # Under the gang's own line, as the equip screen reads it: which
         # visit is open can have changed since the page decided what to ask.
-        if line is not None and kwargs.get("action") is None:
+        if line is not None and kwargs.get("activity") is None:
             if getattr(line, "charges_trade_points", False):
-                kwargs["action"] = gang.open_visit
+                kwargs["activity"] = gang.open_visit
         return op.buy(miniature, line, thing=thing, entry=entry, **kwargs)
 
 
@@ -344,7 +344,7 @@ def start_action(gang, kind, trade_points=None, actor=None):
     from n26.core.operations import operation
 
     with operation(gang, actor=actor or gang.owner) as op:
-        return op.open_action(kind, trade_points=trade_points)
+        return op.open_activity(kind, trade_points=trade_points)
 
 
 def complete_action(gang, kind, actor=None):
@@ -352,7 +352,7 @@ def complete_action(gang, kind, actor=None):
     from n26.core.operations import operation
 
     with operation(gang, actor=actor or gang.owner) as op:
-        return op.close_action(gang.open_action(kind))
+        return op.close_activity(gang.open_activity(kind))
 
 
 def leave_trading_post(gang, actor=None):

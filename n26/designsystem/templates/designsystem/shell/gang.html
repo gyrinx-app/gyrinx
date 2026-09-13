@@ -99,8 +99,8 @@ a page and its chrome is not visible in either one alone.
         own component page: whether it reads as one of the grid's squares
         depends on the stash and the cards beside it.
         {% endcomment %}
-        <c-slot name="actions_square">
-            <c-n26.actions-square :square="sample_square_both" />
+        <c-slot name="activities_square">
+            <c-n26.activities-square :square="sample_square_both" />
         </c-slot>
         <c-slot name="stash_actions">
             <c-n26.action-link href="{% url 'designsystem:shell_shop' %}">Equip</c-n26.action-link>

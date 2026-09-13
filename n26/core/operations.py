@@ -167,7 +167,7 @@ def trade_points_refund_of(assignment):
     """The Trade Points refunding this would give back.
 
     The other half of :func:`refund_of`, over the same assignments. A
-    purchase made while the gang's Found and equip gang action was open
+    purchase made while the gang's Found and equip gang activity was open
     came off the buyer's founding allowance, and undoing it puts them
     back.
 
@@ -371,7 +371,7 @@ class Operation:
         rating=None,
         reason=None,
         bought_from=None,
-        action=None,
+        activity=None,
         spent_by=None,
         note="",
         removes=False,
@@ -398,8 +398,8 @@ class Operation:
         of a built-in: which set membership this copy came from, and for
         which carrier. Only ``reconcile_defaults`` sets them.
 
-        ``action`` is the open action this counted against, where the
-        surface that bought it says one applies. What an action has
+        ``activity`` is the open activity this counted against, where the
+        surface that bought it says one applies. What an activity has
         spent is the sum over what points at it. ``spent_by`` is whose
         Trade Points those were, where the allowance was one model's own
         rather than the gang's.
@@ -445,7 +445,7 @@ class Operation:
             rating_contribution=rating,
             reason=reason,
             bought_from=bought_from,
-            action=action,
+            activity=activity,
             spent_by=spent_by,
             note=note,
         )
@@ -788,17 +788,17 @@ class Operation:
         recorded. Decided on what stands under the gang's own line,
         which the operation took before any of this ran.
         """
-        already = self.gang.open_action(kind)
+        already = self.gang.open_activity(kind)
         if already is not None:
             raise Refusal(
-                f"Complete the open {already.get_kind_display()} action "
+                f"Complete the open {already.get_kind_display()} activity "
                 "before starting another."
             )
 
-    def open_action(self, kind, trade_points=None):
-        """Start one of this gang's actions, and say so in its history.
+    def open_activity(self, kind, trade_points=None):
+        """Start one of this gang's activities, and say so in its history.
 
-        An action is a thing performed over several clicks — founding and
+        An activity is a thing performed over several clicks — founding and
         equipping the gang, a trip to the trading post — so it is opened
         here and closed later. The event written first is what the row
         points at: the act is the record, and the row is the state that
@@ -809,8 +809,8 @@ class Operation:
         the event's note as well as the row, so the history can say what
         the gang set out with without reading a second table.
         """
-        from n26.core.models import Action
-        from n26.core.models.action import note_for
+        from n26.core.models import Activity
+        from n26.core.models.activity import note_for
 
         gang = self.gang
         self._refuse_if_open(kind)
@@ -819,14 +819,14 @@ class Operation:
             LedgerEvent.Kind.ACTION_OPENED,
             note=note_for(kind, trade_points),
         )
-        action = Action.objects.create(
+        activity = Activity.objects.create(
             gang=gang, kind=kind, opened=opened, trade_points=trade_points
         )
-        gang.forget_open_actions()
-        return action
+        gang.forget_open_activities()
+        return activity
 
-    def close_action(self, action):
-        """Finish an action, and say so in its history.
+    def close_activity(self, activity):
+        """Finish an activity, and say so in its history.
 
         What it did stays where it was written — the log between the two
         events — so closing changes nothing but the state: from here the
@@ -842,19 +842,19 @@ class Operation:
         clicks on one button arrive together often enough, and closing
         an act twice would write it a second ending and orphan the
         first. The read is scoped to this operation's gang as well as to
-        the row, so an action belonging to another gang is not closed
+        the row, so an activity belonging to another gang is not closed
         here and its ending is not written into this gang's history.
 
         Either miss — already closed, or not this gang's — does nothing
         and returns None, so the caller can say so rather than report an
         act that did not happen.
         """
-        from n26.core.models import Action
-        from n26.core.models.action import note_for
+        from n26.core.models import Activity
+        from n26.core.models.activity import note_for
         from n26.core.reconcile import trade_points_spent_for
 
-        fresh = Action.objects.filter(
-            pk=action.pk, gang=self.gang, closed__isnull=True
+        fresh = Activity.objects.filter(
+            pk=activity.pk, gang=self.gang, closed__isnull=True
         ).first()
         if fresh is None:
             return None
@@ -868,11 +868,11 @@ class Operation:
         )
         fresh.closed = closed
         fresh.save(update_fields=["closed", "modified"])
-        self.gang.forget_open_actions()
+        self.gang.forget_open_activities()
         return fresh
 
     def visit_trading_post(self, visitors=(), brought=None):
-        """Open a Visit Trading Post action, performed by these fighters.
+        """Open a Visit Trading Post activity, performed by these fighters.
 
         What they add between them becomes what the gang has to spend;
         two ranks add Trade Points and the rest add none, which is
@@ -886,9 +886,9 @@ class Operation:
         different row with a figure of its own.
 
         Each fighter's own event says they went, in the same batch as
-        the one that opened the action, so a receipt can name them and
+        the one that opened the activity, so a receipt can name them and
         the gang's history can say what each model did with their
-        action.
+        activity.
 
         ``brought`` overrides what they add up to. The operation takes
         what it is given, the way a purchase does: a territory that adds
@@ -896,10 +896,10 @@ class Operation:
         different number, and neither is something this should have to
         know about.
         """
-        from n26.core.models import Action
+        from n26.core.models import Activity
         from n26.core.trading import minted
 
-        kind = Action.Kind.TRADING_POST_VISIT
+        kind = Activity.Kind.TRADING_POST_VISIT
         # Refused before the boundary is written: a second visit opened
         # over an open one would lose what the first still had, and
         # leave every purchase between them unable to say which of the
@@ -907,7 +907,7 @@ class Operation:
         self._refuse_if_open(kind)
         going = [visitor for visitor in visitors if visitor.visiting]
         amount = minted(going) if brought is None else brought
-        self.open_action(kind, trade_points=amount)
+        self.open_activity(kind, trade_points=amount)
         for visitor in going:
             self.event(
                 visitor.miniature,
@@ -921,7 +921,7 @@ class Operation:
 
         The post shuts with it. In the book a gang with no visit open
         may not buy from the Trading Post at all; here that is said
-        rather than enforced — a purchase with no action open records
+        rather than enforced — a purchase with no activity open records
         its Trade Points against none, once the owner has said they
         meant it. The shut state is its own state all the same, because
         "no visit" and "a visit that has spent everything" are different
@@ -932,12 +932,12 @@ class Operation:
         ran, so two clicks on one button end the visit once: the second
         finds it closed rather than writing the gang a second ending.
         """
-        from n26.core.models import Action
+        from n26.core.models import Activity
 
-        open_now = self.gang.open_action(Action.Kind.TRADING_POST_VISIT)
+        open_now = self.gang.open_activity(Activity.Kind.TRADING_POST_VISIT)
         if open_now is None:
             return self.gang
-        self.close_action(open_now)
+        self.close_activity(open_now)
         return self.gang
 
     def edit_notes(self, miniature, notes):
@@ -1604,7 +1604,7 @@ class Operation:
         caused by it and its gang-wide modifiers have a carrier that
         every member's card can find.
         """
-        from n26.core.models import Action, Stash
+        from n26.core.models import Activity, Stash
 
         founding = self.assign(gang_type, gang=self.gang, paid=0, **kwargs)
         self.gang.founding = founding
@@ -1613,9 +1613,9 @@ class Operation:
         # Founding and equipping the gang is an act the owner performs over
         # many clicks, so it opens here and the owner closes it when they
         # are done. A gang founded again — its type corrected where the
-        # founding assignment had gone — keeps the action it already has.
-        if self.gang.open_action(Action.Kind.FOUNDING) is None:
-            self.open_action(Action.Kind.FOUNDING)
+        # founding assignment had gone — keeps the activity it already has.
+        if self.gang.open_activity(Activity.Kind.FOUNDING) is None:
+            self.open_activity(Activity.Kind.FOUNDING)
         self._record_options(founding, taken)
         self.reconcile_defaults(founding, gang=self.gang)
         return founding
@@ -2347,7 +2347,7 @@ class Operation:
         entry=None,
         paid=None,
         trade_points=None,
-        action=None,
+        activity=None,
         option=None,
         **kwargs,
     ):
@@ -2370,7 +2370,7 @@ class Operation:
         The get-out is unchanged: pass ``thing`` with no line and any
         price you like — off-list, hand-set, the owner's call.
 
-        ``action`` is the open action this counts against, decided by the
+        ``activity`` is the open activity this counts against, decided by the
         surface: a trip to the trading post, founding and equipping the
         gang. None where none is open, which is a purchase that counts
         against nothing — allowed, once the owner has said they meant it.
@@ -2433,11 +2433,11 @@ class Operation:
             paid=paid,
             trade_points=trade_points,
             bought_from=entry,
-            action=action,
-            # Recorded only where something counted it: with no action
+            activity=activity,
+            # Recorded only where something counted it: with no activity
             # open the purchase counts against nothing, and naming a
             # buyer would claim an allowance nobody spent.
-            spent_by=buyer if action is not None else None,
+            spent_by=buyer if activity is not None else None,
             **host,
             **kwargs,
         )
@@ -2644,11 +2644,11 @@ class Operation:
         for miniature in self._miniatures.values():
             miniature.repin_rating()
         if self.gang is not None:
-            # What the gang read about its own open actions is dropped
+            # What the gang read about its own open activities is dropped
             # here as well as at each writer: the instance goes on being
             # used after the operation closes, and an act that opened or
             # closed one must not leave it answering from before.
-            self.gang.forget_open_actions()
+            self.gang.forget_open_activities()
             stash = getattr(self.gang, "stash", None)
             if stash is not None:
                 stash.repin_rating()
@@ -2808,10 +2808,10 @@ def clone_gang(source, *, name, owner, actor=None):
 
     The source is locked while its plan is read.  A clone carries current
     possessions and current cash, not the source's past acts, campaign, or an
-    open Visit Trading Post action.
+    open Visit Trading Post activity.
     """
     from n26.core.cloning import clone_event_note, plan_gang_clone
-    from n26.core.models import Action, Gang, Stash
+    from n26.core.models import Activity, Gang, Stash
 
     with transaction.atomic():
         source = (
@@ -2843,7 +2843,7 @@ def clone_gang(source, *, name, owner, actor=None):
             clone.founding = result.assignments.get(source.founding_id)
             clone.save(update_fields=["founding", "modified"])
             op.event(None, LedgerEvent.Kind.CLONED, note=clone_event_note(source.name))
-            op.open_action(Action.Kind.FOUNDING)
+            op.open_activity(Activity.Kind.FOUNDING)
         return clone
 
 
@@ -2863,6 +2863,6 @@ def operation(gang, actor=None, batch=None, also=()):
             # already be stale — two clicks on one button arrive
             # together often enough. What is decided in here is decided
             # on what stands under that line.
-            gang.forget_open_actions()
+            gang.forget_open_activities()
         yield op
         op.settle()

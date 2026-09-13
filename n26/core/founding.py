@@ -9,17 +9,17 @@ the whole of it — an equipment list counts Trade Points here where
 nowhere else does.
 
 The allowance belongs to the model, not to the gang, and it stands while
-the gang's Found and equip gang action is open. So it is kept the way
+the gang's Found and equip gang activity is open. So it is kept the way
 everything else in this edition is kept: what a model may spend is a
 counter reading off its computed card, which content raises and no
 column stores, and what it has spent is the ledger's answer — every
-purchase that recorded a Found and equip gang action of this gang, on
-that model. A refund returns to the same action because its event sits
+purchase that recorded a Found and equip gang activity of this gang, on
+that model. A refund returns to the same activity because its event sits
 on the assignment the purchase made; a sale returns nothing, as it
 never returns Trade Points.
 
-Closing the action and starting it again does not hand the figure back:
-spend is counted across every founding action the gang has opened, so
+Closing the activity and starting it again does not hand the figure back:
+spend is counted across every founding activity the gang has opened, so
 what was bought the first time still sits on the allowance. A model
 hired after the first founding closed has spent nothing yet, and meets
 its figure whole.
@@ -84,12 +84,12 @@ class FoundingBudget:
     what its card says, what it has spent is what the ledger says, and
     neither is a second copy of anything.
 
-    ``action`` is the gang's open Found and equip gang action — the row
+    ``activity`` is the gang's open Found and equip gang activity — the row
     a purchase on this screen records. What has gone is every founding
-    action's spend, not only this one's.
+    activity's spend, not only this one's.
     """
 
-    action: object
+    activity: object
     granted: int
     spent: int
 
@@ -119,35 +119,35 @@ def budget_for(gang, miniature, computed):
     """This model's founding budget, or None where it has none.
 
     None covers both halves of "none": a model whose card raises the
-    counter by nothing, and a gang whose founding action is complete. The
+    counter by nothing, and a gang whose founding activity is complete. The
     first is settled without a query, so a screen for a model with no
     allowance asks exactly what it did before this existed.
 
     Three queries where there is one: the standard counter, so a
-    homebrew one of the same name is not mistaken for it; which actions
+    homebrew one of the same name is not mistaken for it; which activities
     the gang has open — held on the gang, so a purchase on the same
     request reads it again for free — and what this model has already
-    spent under every founding action.
+    spent under every founding activity.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
     from n26.core.reconcile import trade_points_spent_by_kind
 
     granted = budget_granted(computed)
     if granted <= 0:
         return None
-    action = gang.open_action(Action.Kind.FOUNDING)
-    if action is None:
+    activity = gang.open_activity(Activity.Kind.FOUNDING)
+    if activity is None:
         return None
     return FoundingBudget(
-        action=action,
+        activity=activity,
         granted=granted,
-        spent=trade_points_spent_by_kind(gang, Action.Kind.FOUNDING, miniature),
+        spent=trade_points_spent_by_kind(gang, Activity.Kind.FOUNDING, miniature),
     )
 
 
 def budgets_by_model(gang, computed):
-    """Every model's founding budget under the open action, and nothing
-    at all where no founding action is open or nobody on the roster has
+    """Every model's founding budget under the open activity, and nothing
+    at all where no founding activity is open or nobody on the roster has
     an allowance.
 
     ``computed`` is each member's fold, keyed by model id, off the card
@@ -159,11 +159,11 @@ def budgets_by_model(gang, computed):
 
     A fixed cost for the whole roster rather than a query a fighter: the
     standard counter is asked for once, and what has gone is one sum
-    grouped by whoever spent it, across every founding action the gang
+    grouped by whoever spent it, across every founding activity the gang
     has opened. A gang whose books grant no such allowance pays for
     neither — nothing on any of its cards names the counter.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
     from n26.core.reconcile import trade_points_spent_by_model_for_kind
     from n26.library.standard_content import founding_budget_counter
 
@@ -174,8 +174,8 @@ def budgets_by_model(gang, computed):
     }
     if not named:
         return {}
-    action = gang.open_action(Action.Kind.FOUNDING)
-    if action is None:
+    activity = gang.open_activity(Activity.Kind.FOUNDING)
+    if activity is None:
         return {}
     standard = founding_budget_counter()
     if standard is None:
@@ -183,7 +183,7 @@ def budgets_by_model(gang, computed):
     spent = {
         str(model_id): total
         for model_id, total in trade_points_spent_by_model_for_kind(
-            gang, Action.Kind.FOUNDING
+            gang, Activity.Kind.FOUNDING
         ).items()
     }
     budgets = {}
@@ -192,6 +192,6 @@ def budgets_by_model(gang, computed):
         if granted <= 0:
             continue
         budgets[str(model_id)] = FoundingBudget(
-            action=action, granted=granted, spent=spent.get(str(model_id), 0)
+            activity=activity, granted=granted, spent=spent.get(str(model_id), 0)
         )
     return budgets

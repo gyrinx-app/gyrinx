@@ -437,8 +437,8 @@ class TestAStandingGrantNamesTheFighter:
         assert act.actor == ""
         assert "".join(s.text for s in act.spans) == "Krago gained Out Cold"
 
-    def test_the_actions_square_says_the_same(self, gang, krago, injuries):
-        from n26.core.actions import history_lines
+    def test_the_activities_square_says_the_same(self, gang, krago, injuries):
+        from n26.core.activities import history_lines
 
         pick(
             krago,
