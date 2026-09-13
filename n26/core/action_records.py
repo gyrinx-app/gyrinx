@@ -401,6 +401,26 @@ def review_action(op, record, *, outcome, terms=None):
     return record
 
 
+def save_action_choices(op, record, *, outcome, terms):
+    """Save an explicit draft step without running its typed preview."""
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if record.state != ActionRecord.State.STARTED:
+        raise Refusal("That action use is no longer being selected.")
+    if record.allowance_id is None and not _has_access(record.fighter, record.action):
+        raise Refusal("That fighter can no longer use this action.")
+    if not record.action.outcomes.filter(outcome=outcome).exists():
+        raise Refusal("That outcome is not available for this action.")
+    supplied = deepcopy(terms)
+    supplied.pop("outcome", None)
+    record.terms = {**record.terms, **supplied, "outcome": str(outcome.pk)}
+    record.outcome = outcome
+    record.revision += 1
+    record.review = {}
+    record.save(update_fields=["outcome", "terms", "revision", "review", "modified"])
+    return record
+
+
 def _plan_apply_changes(op, record, operation):
     changes = list(
         operation.changes.select_related(
