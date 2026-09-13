@@ -493,6 +493,34 @@ class TestTheNamesOnACampaign:
         with_more = self._queries(client, address)
         assert with_more == with_one
 
+    def test_an_add_gang_post_that_falls_through_costs_what_a_get_costs(
+        self, table, player, client
+    ):
+        """A POST naming a gang the list did not offer draws the page
+        again, which names the arbitrator in its trail and each gang's
+        owner on its rows. Their badge data is read for the page as a GET
+        reads it, not looked up for the names: the redraw costs the same
+        queries as the GET, however many players there are."""
+
+        def redraw(path):
+            client.get(path)
+            with CaptureQueriesContext(connection) as context:
+                response = client.post(path, {"gang": "nothing-of-the-kind"})
+            assert response.status_code == 200
+            assert "That gang is not on this list." in response.content.decode()
+            return len(context.captured_queries)
+
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+        player(table, "vex")
+        on_get = self._queries(client, address)
+        with_one = redraw(address)
+        assert with_one == on_get
+        player(table, "kesh")
+        player(table, "ash")
+        player(table, "nyx")
+        with_more = redraw(address)
+        assert with_more == with_one
+
     def test_the_remove_player_question_names_them_with_their_badge(
         self, table, player, client
     ):

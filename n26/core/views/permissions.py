@@ -218,21 +218,22 @@ def _any_campaign_or_404(request, pk, *, with_owner_badge=False):
     has put away is not something a link should keep alive. A pk that is
     not a ULID is a bad URL rather than a server error.
 
-    ``with_owner_badge`` loads what naming the arbitrator with their badge
-    reads — the profile, joined, and the badge grants, one prefetch query.
-    For the pages that draw the campaign; the views that act on it and
-    redirect would pay the grants query for nothing.
+    Naming the arbitrator with their badge reads their profile and their
+    badge grants. The profile rides this fetch, a one-row join that costs
+    no query, so a page that names them after a fetch without
+    ``with_owner_badge`` — one drawn again after a POST that did not act —
+    reads the grants alone. ``with_owner_badge`` reads the grants with the
+    campaign, one prefetch query, for the pages that draw them; the views
+    that act and redirect would pay it for nothing.
     """
     from n26.core.models import Campaign
 
     try:
         campaigns = Campaign.objects.select_related(
-            "owner", "campaign_type", "additions__built_ins"
+            "owner", "owner__profile", "campaign_type", "additions__built_ins"
         )
         if with_owner_badge:
-            campaigns = campaigns.select_related("owner__profile").prefetch_related(
-                "owner__badge_grants"
-            )
+            campaigns = campaigns.prefetch_related("owner__badge_grants")
         campaign = get_object_or_404(campaigns, pk=pk, archived=False)
     except ValidationError:
         raise Http404("No such campaign") from None
@@ -248,19 +249,17 @@ def _own_campaign_or_404(request, pk, *, with_owner_badge=False):
     up ask for its arbitrator by name rather than gating a control on a
     page anybody may open.
 
-    ``with_owner_badge`` loads what naming the arbitrator with their badge
-    reads — the profile, joined, and the badge grants, one prefetch query —
-    for a page that draws them; a view that acts and redirects would pay the
-    grants query for nothing.
+    The arbitrator's profile rides this fetch and ``with_owner_badge`` reads
+    their badge grants with it, as on ``_any_campaign_or_404``: a page that
+    names them with their badge after a fetch without the flag reads the
+    grants alone, and a view that acts and redirects reads nothing.
     """
     from n26.core.models import Campaign
 
     try:
-        campaigns = Campaign.objects.select_related("owner")
+        campaigns = Campaign.objects.select_related("owner", "owner__profile")
         if with_owner_badge:
-            campaigns = campaigns.select_related("owner__profile").prefetch_related(
-                "owner__badge_grants"
-            )
+            campaigns = campaigns.prefetch_related("owner__badge_grants")
         return get_object_or_404(
             campaigns,
             pk=pk,

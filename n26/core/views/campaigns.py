@@ -866,6 +866,7 @@ def add_gang(request, pk):
     from n26.core.campaigns import over_budget
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal, operation
+    from n26.core.render import load_owner_badges
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
@@ -901,6 +902,13 @@ def add_gang(request, pk):
                 return redirect("n26-campaign", pk=found.pk)
     else:
         form = BringGangForm(gangs=offering)
+    if request.method == "POST":
+        # Not added — the list did not offer the gang, or the operation
+        # refused it — so the page is drawn again, and its trail names the
+        # arbitrator with their badge. Their profile rode the fetch; the
+        # grants are read now, as a GET reads them with the campaign,
+        # rather than while the trail is drawn.
+        load_owner_badges(found.owner)
 
     # Drawn here rather than in the template, which cannot ask a gang what
     # it is worth without a query per row.

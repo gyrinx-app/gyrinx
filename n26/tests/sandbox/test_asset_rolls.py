@@ -1207,16 +1207,18 @@ class TestThePages:
         dialog a refused roll comes back in is built the same way."""
 
         def badge_reads(captured):
-            """Every read of a profile or of badge grants, less the one the
-            platform makes of the reader's own profile for their time zone
-            on a request whose session has none: the request's, not the
-            dialog's. A badge drawn lazily for the arbitrator would be a
-            second read of the same row, and for a gang's owner a read of
-            another's."""
+            """Every read of profiles or of badge grants on their own — the
+            arbitrator's profile riding the campaign's fetch as a join is
+            not one — less the one the platform makes of the reader's own
+            profile for their time zone on a request whose session has
+            none: the request's, not the dialog's. A badge drawn lazily for
+            the arbitrator would be a read of their grants, and for a
+            gang's owner a read of another's profile."""
             reads = [
                 q["sql"]
                 for q in captured.captured_queries
-                if "core_userprofile" in q["sql"] or "accounts_badgegrant" in q["sql"]
+                if 'FROM "core_userprofile"' in q["sql"]
+                or 'FROM "accounts_badgegrant"' in q["sql"]
             ]
             own = f'"core_userprofile"."user_id" = {arbitrator.pk} LIMIT'
             for index, sql in enumerate(reads):
