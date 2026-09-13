@@ -1722,7 +1722,9 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.statline.edit",
                         "n26/statline/edit.html",
-                        "The same strip as boxes to type in, for the authoring pages.",
+                        "The same strip as boxes to type in, for the authoring "
+                        'pages. layout="wrap" breaks it onto as many lines as '
+                        "it needs, for a column too narrow to scroll in.",
                     ),
                 ),
             ),
@@ -2602,12 +2604,13 @@ GROUPS: list[Group] = [
                     "one place. The card — in edit mode, the same card, structure "
                     "and renderer the gang sheet draws — fills the header's card "
                     "slot, above the tab strip, where the other two faces draw "
-                    "it too. Under the strip, a grid that is one column on a "
-                    "phone: Picture, Notes, Skills & Powers, Subtypes & Rules, "
-                    "Buy from; then the characteristics an owner sets by hand, "
-                    "full width and in the same columns the card's own strip "
-                    "draws, since what is set shows there marked as changed; "
-                    "then Lore alone on the bottom row. Each form arrives as a "
+                    "it too, half the width from xl up and with its own Card, "
+                    "Lore and Notes tabs left off, so the only strip on screen "
+                    "is the screen's own. Under the strip, a grid that is one "
+                    "column on a phone and two above it, nothing spanning both: "
+                    "Picture and Notes, then Skills & Powers beside a cell "
+                    "holding Characteristics over Subtypes & Rules, then Lore. "
+                    "Each form arrives as a "
                     "slot, fields and submit together, because saving is the "
                     "page's business and the gallery has no database to save "
                     "to. Save is the page's only filled commit, which is why the "

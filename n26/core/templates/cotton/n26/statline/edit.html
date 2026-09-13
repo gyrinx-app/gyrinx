@@ -2,12 +2,19 @@
 <c-n26.statline.edit> — a set of characteristics as boxes to type in.
 
     <c-n26.statline.edit :cells="statline_cells" />
+    <c-n26.statline.edit :cells="statline_cells" layout="wrap" />
 
 The writing half of <c-n26.statline>, drawing the same header from the same
 component so column order, group dividers and tints stay the content's decision;
 only the row beneath differs, inputs for values. Separate from the display
 component rather than a mode on it: a gang sheet draws hundreds of statlines and
 none of them carries a form.
+
+Two layouts. `strip` is the printed row, one box a column, scrolling sideways
+where thirteen characteristics do not fit. `wrap` breaks onto as many lines as
+it needs, each box under its own heading, for a column too narrow to scroll in
+without losing sight of the rest of the form. Where the groups part, the box
+after the break keeps the rule down its left.
 
 Takes EditableStatCells, not a Django form. Pairing a statline type with a bound
 form is display logic and belongs in Python, and the gallery has to render these
@@ -20,40 +27,71 @@ which writes its own class attribute: a class from the call site would land as a
 second attribute and the browser keeps only the first, losing either the
 centring and narrow width or the rest of the styling.
 
-Errors sit under the table, one line each — a characteristic cell is a few
+Errors sit under the boxes, one line each — a characteristic cell is a few
 characters wide with nowhere to put a sentence — each saying which
 characteristic it is about, with the box marked so the two can be matched by
 eye.
 
   :cells — a list of n26.render.EditableStatCell.
+  layout — strip (default) or wrap.
 {% endcomment %}
-<c-vars :cells="None" class="" />
+<c-vars :cells="None" layout="strip" class="" />
 
+{% comment %}
+One class for every box, so a characteristic looks the same typed into
+whichever layout is drawn.
+{% endcomment %}
+{% with box_class="w-12 rounded-control border bg-[var(--color-input-bg)] px-1 py-1.5 text-center text-sm tabular-nums text-ink-900 shadow-[var(--shadow-input)] focus-ring placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500" %}
 <div class="{{ class }}">
-    <div class="overflow-x-auto">
-        <table class="w-full border-collapse text-sm">
-            <thead class="border-b border-box-border">
-                <tr><c-n26.statline.header :cells="cells" /></tr>
-            </thead>
-            <tbody>
-                <tr>
-                    {% for cell in cells %}
-                        <td class="px-2 py-1.5 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">
-                            <input type="text"
-                                   name="{{ cell.name }}"
-                                   id="id_{{ cell.name }}"
-                                   value="{{ cell.value }}"
-                                   placeholder="{{ cell.placeholder }}"
-                                   aria-label="{{ cell.full_name }}"
-                                   {% if cell.error %}aria-invalid="true"{% endif %}
-                                   class="w-12 rounded-control border bg-[var(--color-input-bg)] px-1 py-1.5 text-center text-sm tabular-nums text-ink-900 shadow-[var(--shadow-input)] focus-ring placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500 {% if cell.error %}border-red-500 ring-2 ring-red-500{% else %}border-ink-300 dark:border-ink-700{% endif %}">
-                        </td>
-                    {% endfor %}
-                </tr>
-            </tbody>
-        </table>
-    </div>
+    {% if layout == "wrap" %}
+        {% comment %}
+        Heading and box together in one block, because a wrapped line
+        cannot keep a separate header row above the value it names.
+        {% endcomment %}
+        <div class="flex flex-wrap gap-x-1 gap-y-2">
+            {% for cell in cells %}
+                <div class="flex flex-col items-center gap-1 rounded-control px-1 py-0.5 {% if cell.first_of_group and not forloop.first %}ml-1 border-l border-box-border pl-2{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">
+                    <label for="id_{{ cell.name }}"
+                           title="{{ cell.full_name }}"
+                           class="text-xs font-semibold text-ink-900 dark:text-ink-100">{{ cell.short_name }}</label>
+                    <input type="text"
+                           name="{{ cell.name }}"
+                           id="id_{{ cell.name }}"
+                           value="{{ cell.value }}"
+                           placeholder="{{ cell.placeholder }}"
+                           aria-label="{{ cell.full_name }}"
+                           {% if cell.error %}aria-invalid="true"{% endif %}
+                           class="{{ box_class }} {% if cell.error %}border-red-500 ring-2 ring-red-500{% else %}border-ink-300 dark:border-ink-700{% endif %}">
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+                <thead class="border-b border-box-border">
+                    <tr><c-n26.statline.header :cells="cells" /></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for cell in cells %}
+                            <td class="px-2 py-1.5 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">
+                                <input type="text"
+                                       name="{{ cell.name }}"
+                                       id="id_{{ cell.name }}"
+                                       value="{{ cell.value }}"
+                                       placeholder="{{ cell.placeholder }}"
+                                       aria-label="{{ cell.full_name }}"
+                                       {% if cell.error %}aria-invalid="true"{% endif %}
+                                       class="{{ box_class }} {% if cell.error %}border-red-500 ring-2 ring-red-500{% else %}border-ink-300 dark:border-ink-700{% endif %}">
+                            </td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
     {% for cell in cells %}
         {% if cell.error %}<c-ui.error message="{{ cell.error }}" />{% endif %}
     {% endfor %}
 </div>
+{% endwith %}
