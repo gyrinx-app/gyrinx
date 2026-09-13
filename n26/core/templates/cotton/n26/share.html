@@ -23,6 +23,15 @@ icon carrying it, the word "Share" only from the sm breakpoint up. The name is
 on the control either way, so a reader who cannot see the icon hears it at
 every width.
 
+The two overrides on it are measurements, not taste. It sits on the breadcrumb
+row, so it has to stand exactly as tall as a line of trail text — 20px — or it
+becomes the tallest thing in the row and drags the heading and everything under
+it down the page. A button's own padding puts it at 29px, and wrapping the
+contents in an inline-level box adds a line box's leading on top of that. So
+the contents are laid out by the button itself, and the vertical padding is cut
+to the one pixel that brings 16px of line plus 2px of border up to 20. Change
+the size prop and these want re-measuring.
+
   url — the page to share. A path is fine.
   message — shown once the address is on the clipboard. Default "Link copied."
   size, variant — passed to <c-ui.button>. Default xs / ghost.
@@ -67,11 +76,12 @@ every width.
               }
           }
       }">
-    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" aria-label="Share" @click="clicked($event)">
-        <span class="inline-flex items-center gap-1.5">
-            <c-n26.icon name="share" class="size-3.5" />
-            <span class="hidden sm:inline">Share</span>
-        </span>
+    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}"
+                 aria-label="Share"
+                 class="!inline-flex min-h-5 items-center gap-1.5 !py-px"
+                 @click="clicked($event)">
+        <c-n26.icon name="share" class="size-3.5" />
+        <span class="hidden sm:inline">Share</span>
     </c-ui.button>
     <span x-cloak x-show="copied" role="status" class="text-xs text-muted">{{ message }}</span>
 </span>

@@ -23,6 +23,13 @@
     written here, `variant="secondary"` would give a solid button with p-0 —
     pass the padding back if you ever want one.
 
+    `border-0` is load-bearing, not decoration: .btn sets a 1px transparent
+    border, so without it the control stands 2px taller than a line of text and
+    drags down whatever shares its row. Put this beside body text and it must
+    measure the same as that text. The other half of that is the caller's — the
+    wrapper is inline-level, so a block parent reserves a line box taller than
+    the control; give the wrapper d-flex where the height has to match.
+
     PROPS
       url      The page to share. A path is fine: the handler resolves it
                against the document, as the link itself does.
@@ -32,4 +39,4 @@
                ghost classes above rather than replacing them.
 
     Everything else flows through {{ attrs }} to the <c-btn>.
-{% endcomment %}<c-vars url="" message="Link copied." variant="link" size="sm" class="" /><span class="d-inline-flex align-items-center column-gap-2"><c-btn variant="{{ variant }}" size="{{ size }}" class="p-0 fs-7 linked-secondary align-baseline{% if class %} {{ class }}{% endif %}" href="{{ url }}" data-share-url="{{ url }}" aria-label="Share" :attrs="attrs"><i class="bi-share" aria-hidden="true"></i><span class="d-none d-sm-inline ms-1">Share</span></c-btn><span class="d-none fs-7 text-secondary" role="status" data-share-message>{{ message }}</span></span>
+{% endcomment %}<c-vars url="" message="Link copied." variant="link" size="sm" class="" /><span class="d-inline-flex align-items-center column-gap-2"><c-btn variant="{{ variant }}" size="{{ size }}" class="p-0 border-0 fs-7 linked-secondary{% if class %} {{ class }}{% endif %}" href="{{ url }}" data-share-url="{{ url }}" aria-label="Share" :attrs="attrs"><i class="bi-share" aria-hidden="true"></i><span class="d-none d-sm-inline ms-1">Share</span></c-btn><span class="d-none fs-7 text-secondary" role="status" data-share-message>{{ message }}</span></span>

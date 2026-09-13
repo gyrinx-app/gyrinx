@@ -47,7 +47,7 @@
             {% endif %}
         </div>
         {% if share_url and not print %}
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 d-flex">
                 <c-share url="{{ share_url }}"
                          message="{% if list.public %}Link copied.{% else %}Link copied. This gang is unlisted, so only people with the link can open it.{% endif %}" />
             </div>
