@@ -45,8 +45,9 @@ def _asks(query):
     return seen[:MAX_ASKS]
 
 
-def _question(request, gang, key, found, *, here, include_staged):
-    """One arriving slot as the screen draws it."""
+def _question(request, gang, key, found, *, here, include_staged, under=""):
+    """One arriving slot as the screen draws it. ``under`` is which block
+    draws it, for a page that draws it under several."""
     from n26.core.render import ArrivalQuestion, build_choice_offer
 
     slot = found.slot
@@ -70,6 +71,7 @@ def _question(request, gang, key, found, *, here, include_staged):
         settled=slot.is_resolved or slot.min_picks == 0 or offer.is_empty,
         offer=offer,
         roll_href=roll_href,
+        under=under,
     )
 
 
@@ -158,10 +160,10 @@ def gang_next(request, pk):
         for key in keys:
             asked_by[key] = asked_by.get(key, 0) + 1
     blocks = []
-    for interstitial, keys in sorted(
-        grouped.values(),
-        key=lambda pair: (pair[0].position, pair[0].name.lower()),
-    ):
+    ordered = sorted(
+        grouped.values(), key=lambda pair: (pair[0].position, pair[0].name.lower())
+    )
+    for order, (interstitial, keys) in enumerate(ordered, 1):
         blocks.append(
             ArrivalBlock(
                 heading=interstitial.heading,
@@ -174,6 +176,9 @@ def gang_next(request, pk):
                         located[key],
                         here=here,
                         include_staged=shown,
+                        # A slot under two screens is asked under each,
+                        # and the two drawings need headings of their own.
+                        under=str(order),
                     )
                     for key in keys
                 ),

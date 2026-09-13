@@ -691,8 +691,8 @@ class TestTheArrivalBlockPage:
         assert "Founded The Forgotten." in body
         assert "Choose Archetype and Hunter's path to continue." in unescape(body)
         # Each picker is named by the heading that asks its question.
-        assert 'id="ask-gang-1-1"' in body
-        assert 'aria-labelledby="ask-gang-1-1' in body
+        assert 'id="ask-1-gang-1-1"' in body
+        assert 'aria-labelledby="ask-1-gang-1-1' in body
         assert "nterstitial" not in body
 
     def test_the_shells_forms_post_nowhere(self, reader):
