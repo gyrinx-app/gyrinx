@@ -6,17 +6,21 @@ other kit menus on the card do.
 
 A name with nothing to click is the bare name, so a gang sheet and a
 print card keep the cell's own text baseline.
+
+The asterisk after a two-slot weapon's name is the book's own mark
+(WeaponLine.slot_mark), drawn wherever the name is — the menu's label
+included, so a screen reader hears the same name a sighted reader sees.
 {% endcomment %}
 {% if weapon.sell or weapon.more or weapon.accessorise %}
     <span class="flex items-center gap-2">
-        <span class="min-w-0">{{ weapon.name }}</span>
+        <span class="min-w-0">{{ weapon.name }}{{ weapon.slot_mark }}</span>
         <c-n26.owned-actions :sell="weapon.sell"
                              :more="weapon.more"
                              :add="weapon.accessorise"
                              :htmx="htmx"
                              layout="menu"
-                             label="{{ weapon.name }}" />
+                             label="{{ weapon.name }}{{ weapon.slot_mark }}" />
     </span>
 {% else %}
-    {{ weapon.name }}
+    {{ weapon.name }}{{ weapon.slot_mark }}
 {% endif %}

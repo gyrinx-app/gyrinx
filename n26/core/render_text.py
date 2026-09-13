@@ -50,7 +50,7 @@ def render_model_card(card, indent=""):
             # "added nothing here" — never "this was free". Kit that came
             # with the hire reads zero while being worth plenty, so the
             # number is simply left off rather than claimed.
-            label = weapon.name
+            label = weapon.name + weapon.slot_mark
             if weapon.total_rating:
                 total = f"{weapon.total_rating}cr"
                 if weapon.extras_rating:
@@ -157,7 +157,7 @@ def render_gang_sheet(sheet):
         for line in sheet.stash:
             # The rating is one item's, however many the line stands for.
             rating = f" — {line.rating}cr" if line.rating else ""
-            lines.append(f"  {line.name}{line.count_mark}{rating}")
+            lines.append(f"  {line.name}{line.slot_mark}{line.count_mark}{rating}")
     for note in sheet.remarks:
         lines.append(f"({note.text})")
     lines.append("")

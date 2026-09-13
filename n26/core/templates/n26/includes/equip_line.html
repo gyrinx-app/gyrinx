@@ -24,7 +24,7 @@ The number the row arrived quoting is kept beside it, so a changed box can say
 by how much. The delta grows leftwards out of the price column, which leaves
 every input in the list on the same column however many rows have one.
 {% endcomment %}
-<c-n26.collection-picker.item name="{{ row.name }}"
+<c-n26.collection-picker.item name="{{ row.marked_name }}"
                               :price="row.price"
                               :trade_points="row.trade_points"
                               :exclusive="row.is_exclusive"
@@ -34,7 +34,7 @@ every input in the list on the same column however many rows have one.
                               :redrawn="redrawn"
                               state="quoted: {{ row.price }}, price: {{ row.price }}">
     <c-slot name="price_control">
-        {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.name %}
+        {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.marked_name %}
     </c-slot>
     {% comment %}
     Both kinds of extra row go in the one slot: the choices buying this asks

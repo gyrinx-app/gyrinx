@@ -22,14 +22,14 @@ sheets therefore remain compact.
                 {% for line in lines %}
                     <li class="flex min-h-7 items-center gap-2">
                         <span class="min-w-0 flex-1">
-                            {{ line.name }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
+                            {{ line.name }}{{ line.slot_mark }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
                         </span>
                         <c-ui.dropdown align="end" min_width="10rem">
                             <c-slot name="trigger">
                                 <c-ui.button size="sm"
                                              class="px-1.5!"
-                                             aria-label="Actions for {{ line.name }}"
-                                             title="Actions for {{ line.name }}"
+                                             aria-label="Actions for {{ line.name }}{{ line.slot_mark }}"
+                                             title="Actions for {{ line.name }}{{ line.slot_mark }}"
                                              aria-haspopup="menu"
                                              ::aria-expanded="dropdownMenu">
                                     <span class="n26-icon-only">
