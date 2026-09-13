@@ -98,7 +98,10 @@ class Command(BaseCommand):
             raise CommandError(
                 "A branch may add one migration leaf per app.\n"
                 + "\n".join(failures)
-                + "\n\nA migration written on a tree with several leaves must depend on all of "
-                "them; `manage makemigrations` does this itself. Regenerate the newer migration, "
-                "or add the missing leaf to its dependencies."
+                + f"\n\nCheck first that {options['base']} is up to date: this compares against "
+                "the ref you have, and a fetch does not happen here. If one of the migrations "
+                "named above is already on main, the ref is behind. Fetch it and run this again.\n\n"
+                "Otherwise, a migration written on a tree with several leaves must depend on all "
+                "of them, which `manage makemigrations` does itself. Regenerate the newer "
+                "migration, or add the missing leaf to its dependencies."
             )
