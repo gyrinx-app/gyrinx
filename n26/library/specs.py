@@ -711,6 +711,7 @@ def _build_registry():
                     source=(OffersChoice, "from_section"),
                 ),
                 "label": Text(source=(OffersChoice, "label")),
+                "mode": Choice(source=(OffersChoice, "mode")),
                 "will_be_assigned_to": Choice(
                     source=(OffersChoice, "will_be_assigned_to")
                 ),

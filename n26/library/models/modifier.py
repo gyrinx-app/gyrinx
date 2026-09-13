@@ -1274,6 +1274,20 @@ class OffersChoice(models.Model):
 
     is_stored = False
 
+    class Mode(models.TextChoices):
+        SELECT = "select", "select"
+        RANDOM = "random", "random"
+
+    mode = models.CharField(
+        max_length=20,
+        choices=Mode,
+        default=Mode.SELECT,
+        help_text=(
+            "How the choice is resolved. Select lets the player choose; random "
+            "records a roll against the chosen collection section."
+        ),
+    )
+
     of_kind = models.ForeignKey(
         "contenttypes.ContentType",
         on_delete=models.PROTECT,
