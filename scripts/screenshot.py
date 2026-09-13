@@ -37,7 +37,10 @@ from asgiref.sync import sync_to_async  # noqa: E402
 from django.test import Client  # noqa: E402
 from django.urls import reverse  # noqa: E402
 
-from gyrinx.debug_login import ensure_debug_agent_user  # noqa: E402
+from gyrinx.debug_login import (  # noqa: E402
+    ensure_debug_agent_user,
+    validate_agent_username,
+)
 
 try:
     from playwright.async_api import async_playwright
@@ -390,7 +393,10 @@ def main():
         help="Capture only the viewport (not full page)",
     )
     parser.add_argument(
-        "--username", type=str, default="agent", help="Username to authenticate as"
+        "--username",
+        type=str,
+        default="agent",
+        help="Dedicated user: agent or agent-<purpose> (default: agent)",
     )
     parser.add_argument(
         "--check",
@@ -424,6 +430,11 @@ def main():
     if not args.url_name:
         parser.error("url_name is required unless using --check")
 
+    try:
+        validate_agent_username(args.username)
+    except ValueError as error:
+        parser.error(str(error))
+
     # Determine label
     label = args.label
     if args.before:
@@ -456,19 +467,22 @@ def main():
         sys.exit(1)
 
     # Run async capture
-    success = asyncio.run(
-        capture_screenshots(
-            url_name=args.url_name,
-            url_args=args.args,
-            label=label,
-            viewports=viewports,
-            theme=args.theme,
-            output_dir=args.output_dir,
-            full_page=not args.no_full_page,
-            selector=args.selector,
-            username=args.username,
+    try:
+        success = asyncio.run(
+            capture_screenshots(
+                url_name=args.url_name,
+                url_args=args.args,
+                label=label,
+                viewports=viewports,
+                theme=args.theme,
+                output_dir=args.output_dir,
+                full_page=not args.no_full_page,
+                selector=args.selector,
+                username=args.username,
+            )
         )
-    )
+    except ValueError as error:
+        parser.error(str(error))
 
     if not success:
         sys.exit(1)

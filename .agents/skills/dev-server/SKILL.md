@@ -191,6 +191,9 @@ accounts use the form `agent-<purpose>`:
 manage agent_login_url '/n26/gangs/?state=draft' --username agent-campaign
 ```
 
+If a name already belongs to an account that was not provisioned for agent use,
+the command refuses to change it. Choose a purpose-specific variant instead.
+
 Every agent account uses password `password`, is staff, and is not a superuser.
 Never inspect, guess, set, or reset a pre-existing user's password, especially a
 superuser's. Never use a person's account for agent-created local data.

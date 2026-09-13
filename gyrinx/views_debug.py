@@ -14,7 +14,10 @@ from django.shortcuts import render
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_GET
 
-from gyrinx.debug_login import ensure_debug_agent_user
+from gyrinx.debug_login import (
+    DEBUG_AGENT_LOGIN_ERROR,
+    ensure_debug_agent_user,
+)
 from gyrinx.http import safe_redirect
 
 TEST_PLANS_DIR = Path(settings.BASE_DIR) / ".claude" / "test-plans"
@@ -28,8 +31,11 @@ def debug_agent_login(request):
 
     try:
         user = ensure_debug_agent_user(request.GET.get("user", "agent"))
-    except ValueError as error:
-        return HttpResponseBadRequest(str(error))
+    except ValueError:
+        return HttpResponseBadRequest(
+            DEBUG_AGENT_LOGIN_ERROR,
+            content_type="text/plain; charset=utf-8",
+        )
 
     login(
         request,

@@ -240,6 +240,8 @@ Local agent-user rules are strict:
 
 - Use `agent` by default. Use `agent-<purpose>` only when a task needs a separate
   owner or dataset: `manage agent_login_url /path --username agent-campaign`.
+- If that name already belongs to an account not provisioned for agent use, the
+  command refuses to change it. Choose a purpose-specific variant instead.
 - Every dedicated agent user has password `password`, is staff, and is not a
   superuser. The command and login endpoint enforce this.
 - Never inspect, guess, set, or reset a pre-existing user's password, especially

@@ -9,7 +9,15 @@ from django.core.management.base import CommandError
 from django.test import override_settings
 from django.urls import reverse
 
+from gyrinx.debug_login import (
+    DEBUG_AGENT_LOGIN_ERROR,
+)
+
 _debug_settings = {"DEBUG": True, "INTERNAL_IPS": []}
+
+
+def _login_params(username="agent", target="/"):
+    return {"user": username, "next": target}
 
 
 @override_settings(**_debug_settings)
@@ -17,7 +25,7 @@ _debug_settings = {"DEBUG": True, "INTERNAL_IPS": []}
 def test_agent_login_link_creates_staff_session(client):
     response = client.get(
         reverse("debug_agent_login"),
-        {"user": "agent-campaign", "next": "/n26/"},
+        _login_params("agent-campaign", "/n26/"),
     )
 
     user = get_user_model().objects.get(username="agent-campaign")
@@ -34,24 +42,51 @@ def test_agent_login_link_creates_staff_session(client):
 
 @override_settings(**_debug_settings)
 @pytest.mark.django_db
-def test_agent_login_rejects_non_agent_username_without_touching_superuser(client):
+def test_agent_login_refuses_existing_allowed_superuser_without_changing_it(client):
     superuser = get_user_model().objects.create_superuser(
-        username="admin",
-        email="admin@localhost",
+        username="agent-admin",
+        email="owner@example.com",
         password="keep-this-password",
     )
 
-    response = client.get(reverse("debug_agent_login"), {"user": "admin"})
+    response = client.get(
+        reverse("debug_agent_login"),
+        _login_params("agent-admin"),
+    )
 
     superuser.refresh_from_db()
     assert response.status_code == 400
     assert superuser.check_password("keep-this-password") is True
+    assert superuser.email == "owner@example.com"
+    assert superuser.is_superuser is True
+
+
+@override_settings(**_debug_settings)
+@pytest.mark.django_db
+def test_agent_login_rejects_overlong_username(client):
+    username = f"agent-{'a' * 150}"
+
+    response = client.get(reverse("debug_agent_login"), {"user": username})
+
+    assert response.status_code == 400
+    assert response.headers["Content-Type"] == "text/plain; charset=utf-8"
+    assert response.content.decode() == DEBUG_AGENT_LOGIN_ERROR
+    assert get_user_model().objects.filter(username=username).exists() is False
+
+
+@override_settings(**_debug_settings)
+@pytest.mark.django_db
+def test_agent_login_rejects_invalid_username(client):
+    response = client.get(reverse("debug_agent_login"), {"user": "reviewer"})
+
+    assert response.status_code == 400
+    assert response.content.decode() == DEBUG_AGENT_LOGIN_ERROR
 
 
 @override_settings(DEBUG=False)
 @pytest.mark.django_db
 def test_agent_login_404s_without_debug(client):
-    response = client.get(reverse("debug_agent_login"), {"user": "agent"})
+    response = client.get(reverse("debug_agent_login"), _login_params())
 
     assert response.status_code == 404
     assert get_user_model().objects.filter(username="agent").exists() is False
@@ -62,7 +97,7 @@ def test_agent_login_404s_without_debug(client):
 def test_agent_login_rejects_external_redirect(client):
     response = client.get(
         reverse("debug_agent_login"),
-        {"user": "agent", "next": "https://example.com/not-local"},
+        _login_params("agent", "https://example.com/not-local"),
     )
 
     assert response.status_code == 302

@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import pytest
 from django.conf import settings
@@ -19,6 +20,20 @@ def test_server_url_defaults_to_port_8000(monkeypatch):
     monkeypatch.delenv("DJANGO_PORT", raising=False)
 
     assert screenshot.get_server_url() == "http://localhost:8000"
+
+
+def test_main_rejects_non_agent_username_without_traceback(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["screenshot.py", "core:campaign", "--username", "reviewer"],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        screenshot.main()
+
+    assert error.value.code == 2
+    assert "'agent' or 'agent-<purpose>'" in capsys.readouterr().err
 
 
 def test_capture_uses_requested_username_and_reports_folder(
