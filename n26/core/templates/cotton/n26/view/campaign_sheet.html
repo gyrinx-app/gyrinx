@@ -43,6 +43,8 @@ only where the address is filled.
   arbitrator — the arbitrator's name as markup, for a badge after it. Left
     empty, the sheet's own `arbitrator` is drawn as text.
   breadcrumb, trailing — passed to <c-n26.page-header>.
+  share — <c-n26.share> for this campaign, at the far end of the breadcrumb
+    row, where the gang sheet puts its own.
   actions — the page's controls, beside the facts strip: Edit and the overflow.
   gangs_actions, assets_actions, players_actions, battles_actions — the
     controls of each section, at the far end of its heading, drawn after the
@@ -63,6 +65,7 @@ only where the address is filled.
     arbitrator=""
     breadcrumb=""
     trailing=""
+    share=""
     actions=""
     gangs_actions=""
     assets_actions=""
@@ -81,6 +84,7 @@ only where the address is filled.
     <div class="flex flex-col gap-4">
         <c-n26.page-header title="{{ sheet.name }}">
             {% if breadcrumb.strip %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
+            {% if share.strip %}<c-slot name="breadcrumb_actions">{{ share }}</c-slot>{% endif %}
             {% if trailing.strip %}<c-slot name="trailing">{{ trailing }}</c-slot>{% endif %}
             {% comment %}
             The type where the gang sheet puts the gang's, then who runs the

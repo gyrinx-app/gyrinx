@@ -18,16 +18,21 @@ The address handed to the share sheet is the link's own href, which the
 browser has already made absolute — so a path is enough here, and the
 button shares the same address it would navigate to.
 
+The button is the quietest thing on the page it sits on: a ghost at xs, the
+icon carrying it, the word "Share" only from the sm breakpoint up. The name is
+on the control either way, so a reader who cannot see the icon hears it at
+every width.
+
   url — the page to share. A path is fine.
   message — shown once the address is on the clipboard. Default "Link copied."
-  size, variant — passed to <c-ui.button>. Default sm / default.
+  size, variant — passed to <c-ui.button>. Default xs / ghost.
   class — extra classes on the wrapper that holds the button and its message.
 {% endcomment %}
 <c-vars
     url=""
     message="Link copied."
-    size="sm"
-    variant="default"
+    size="xs"
+    variant="ghost"
     class=""
 />
 
@@ -62,11 +67,11 @@ button shares the same address it would navigate to.
               }
           }
       }">
-    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" @click="clicked($event)">
+    <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}" aria-label="Share" @click="clicked($event)">
         <span class="inline-flex items-center gap-1.5">
-            <c-n26.icon name="share" class="size-4" />
-            Share
+            <c-n26.icon name="share" class="size-3.5" />
+            <span class="hidden sm:inline">Share</span>
         </span>
     </c-ui.button>
-    <span x-cloak x-show="copied" role="status" class="text-sm text-muted">{{ message }}</span>
+    <span x-cloak x-show="copied" role="status" class="text-xs text-muted">{{ message }}</span>
 </span>

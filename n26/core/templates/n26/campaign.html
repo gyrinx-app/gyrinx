@@ -60,15 +60,19 @@ reader's other campaigns — the same pattern a gang's screens use.
         rows the bar offers, off the same memo. Named differently from the
         bar's, because two controls announced identically tell a reader who
         cannot see where they sit nothing about either.
+
+        The test for who gets one sits outside the slot rather than inside it:
+        a slot holding only whitespace is still content, and the header would
+        draw a wrapper beside the name for a reader who gets no switcher.
         {% endcomment %}
-        <c-slot name="trailing">
-            <div class="flex items-center gap-2">
-                {% if yours %}
-                    {% campaign_switcher campaign named=False menu_label="Your other campaigns" as heading_campaigns_ %}
-                    <c-n26.quick-switcher.of :switcher="heading_campaigns_" hotkey="r" />
-                {% endif %}
-                <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" />
-            </div>
+        {% if yours %}
+            <c-slot name="trailing">
+                {% campaign_switcher campaign named=False menu_label="Your other campaigns" as heading_campaigns_ %}
+                <c-n26.quick-switcher.of :switcher="heading_campaigns_" hotkey="r" />
+            </c-slot>
+        {% endif %}
+        <c-slot name="share">
+            <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" />
         </c-slot>
         {% if yours %}
             {% comment %}

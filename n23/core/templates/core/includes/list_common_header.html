@@ -2,13 +2,22 @@
 <div class="{% if link_list %}mb-3 pb-4 border-bottom{% else %}mb-2{% endif %} break-inside-avoid">
     {# Breadcrumbs get their own full-width row so they're not squished by the stats block. #}
     {% url 'core:lists' as lists_url %}
-    {% if list.is_campaign_mode %}
-        <c-breadcrumb>
-            <c-breadcrumb.user :user="list.owner_cached" />
-            <c-breadcrumb.item href="{{ lists_url|add:'?type=gang' }}">
-                Campaign Gang
-            </c-breadcrumb.item>
-            {% comment %}
+    {% comment %}
+        The share control rides the breadcrumb row, at the far end: it acts on
+        the page rather than on anything in it, and the trail is the one row up
+        here with room to spare at every width. Only the gang page sets
+        share_url, so every other page including this header draws no control
+        and the row is the trail alone.
+    {% endcomment %}
+    <div class="d-flex align-items-start justify-content-between column-gap-2">
+        <div class="flex-grow-1">
+            {% if list.is_campaign_mode %}
+                <c-breadcrumb>
+                    <c-breadcrumb.user :user="list.owner_cached" />
+                    <c-breadcrumb.item href="{{ lists_url|add:'?type=gang' }}">
+                        Campaign Gang
+                    </c-breadcrumb.item>
+                    {% comment %}
                 A list can be in campaign mode with no campaign attached (the campaign was
                 deleted, or the mode was set directly). Reversing core:campaign with a null
                 id raises NoReverseMatch and 500s the whole page, so the crumb is guarded —
@@ -17,25 +26,33 @@
                 Written as a comment BLOCK, not the hash form: Django's hash comment is
                 single-line only, so a multi-line one is not a comment at all and renders
                 as literal text into the page.
-            {% endcomment %}
-            {% if list.campaign %}
-                <c-breadcrumb.item href="{% url 'core:campaign' list.campaign.id %}">{{ list.campaign.name }}</c-breadcrumb.item>
+                    {% endcomment %}
+                    {% if list.campaign %}
+                        <c-breadcrumb.item href="{% url 'core:campaign' list.campaign.id %}">{{ list.campaign.name }}</c-breadcrumb.item>
+                    {% endif %}
+                    <c-breadcrumb.item>
+                        {{ list.name }}
+                    </c-breadcrumb.item>
+                </c-breadcrumb>
+            {% else %}
+                <c-breadcrumb>
+                    <c-breadcrumb.user :user="list.owner_cached" />
+                    <c-breadcrumb.item href="{{ lists_url }}">
+                        List
+                    </c-breadcrumb.item>
+                    <c-breadcrumb.item>
+                        {{ list.name }}
+                    </c-breadcrumb.item>
+                </c-breadcrumb>
             {% endif %}
-            <c-breadcrumb.item>
-                {{ list.name }}
-            </c-breadcrumb.item>
-        </c-breadcrumb>
-    {% else %}
-        <c-breadcrumb>
-            <c-breadcrumb.user :user="list.owner_cached" />
-            <c-breadcrumb.item href="{{ lists_url }}">
-                List
-            </c-breadcrumb.item>
-            <c-breadcrumb.item>
-                {{ list.name }}
-            </c-breadcrumb.item>
-        </c-breadcrumb>
-    {% endif %}
+        </div>
+        {% if share_url and not print %}
+            <div class="flex-shrink-0">
+                <c-share url="{{ share_url }}"
+                         message="{% if list.public %}Link copied.{% else %}Link copied. This gang is unlisted, so only people with the link can open it.{% endif %}" />
+            </div>
+        {% endif %}
+    </div>
     <div class="d-flex flex-column flex-xl-row gap-2 column-gap-xl-3 align-items-xl-center">
         <div class="d-flex align-items-center column-gap-2">
             <h2 class="mb-0 h2">

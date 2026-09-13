@@ -16,14 +16,20 @@
     The message sits in the same wrapper as the button, which is how the handler
     finds it — no ids, so several of these can share a page.
 
+    THE BUTTON IS A GHOST, and the template says so rather than the call sites:
+    a borderless link at fs-7 carrying the icon, with the word "Share" only
+    from the sm breakpoint up. `aria-label` names it at every width, so the
+    icon-only form on a phone is still announced. Because the ghost classes are
+    written here, `variant="secondary"` would give a solid button with p-0 —
+    pass the padding back if you ever want one.
+
     PROPS
       url      The page to share. A path is fine: the handler resolves it
                against the document, as the link itself does.
       message  Shown once the address is on the clipboard. Default "Link copied."
       variant, size, class
-               Passed to <c-btn>. Default secondary / sm. variant="link" with
-               class="p-0 linked-secondary" makes it read as one of the icon
-               links in a meta row.
+               Passed to <c-btn>. Default link / sm. `class` is added to the
+               ghost classes above rather than replacing them.
 
     Everything else flows through {{ attrs }} to the <c-btn>.
-{% endcomment %}<c-vars url="" message="Link copied." variant="secondary" size="sm" class="" /><span class="d-inline-flex align-items-center column-gap-2"><c-btn variant="{{ variant }}" size="{{ size }}" class="{{ class }}" href="{{ url }}" data-share-url="{{ url }}" :attrs="attrs"><i class="bi-share" aria-hidden="true"></i> Share</c-btn><span class="d-none fs-7 text-secondary" role="status" data-share-message>{{ message }}</span></span>
+{% endcomment %}<c-vars url="" message="Link copied." variant="link" size="sm" class="" /><span class="d-inline-flex align-items-center column-gap-2"><c-btn variant="{{ variant }}" size="{{ size }}" class="p-0 fs-7 linked-secondary align-baseline{% if class %} {{ class }}{% endif %}" href="{{ url }}" data-share-url="{{ url }}" aria-label="Share" :attrs="attrs"><i class="bi-share" aria-hidden="true"></i><span class="d-none d-sm-inline ms-1">Share</span></c-btn><span class="d-none fs-7 text-secondary" role="status" data-share-message>{{ message }}</span></span>
