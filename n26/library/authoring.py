@@ -1128,7 +1128,15 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
                 interstitial=interstitial, slot=slot, position=position, **kwargs
             )
     except IntegrityError:
-        raise ValidationError(already) from None
+        # The savepoint has rolled back. Only a pair that now exists is
+        # the duplicate the sentence describes; anything else the
+        # database refused — a slot deleted under the form — is its own
+        # failure and is raised as it came.
+        if InterstitialSlot.objects.filter(
+            interstitial=interstitial, slot=slot
+        ).exists():
+            raise ValidationError(already) from None
+        raise
 
 
 def detach_interstitial(attachment):

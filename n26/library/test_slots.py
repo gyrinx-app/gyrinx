@@ -609,6 +609,33 @@ class TestAnInterstitialOnASlot:
 
         assert list(house_legacy.interstitials()) == [first, later]
 
+    def test_a_staged_attachment_keeps_its_screen_off_the_slot_for_a_player(
+        self, house_legacy
+    ):
+        """An attachment on hold keeps the screen off this slot the way a
+        staged line keeps a pickable off its list; an author still sees
+        it, as on every authoring surface."""
+        held = create_interstitial("Held screen")
+        revise(attach_interstitial(held, house_legacy), staged=True)
+        drafted = create_interstitial("Drafted screen", slots=[house_legacy])
+        revise(drafted, staged=True)
+        live = create_interstitial("Live screen", slots=[house_legacy])
+
+        assert set(house_legacy.interstitials()) == {held, drafted, live}
+        assert list(house_legacy.interstitials(include_staged=False)) == [live]
+
+    def test_a_refusal_that_is_not_the_duplicate_is_raised_as_it_came(
+        self, house_legacy
+    ):
+        """Only a pair that now exists is the duplicate the refusal
+        describes; any other refusal from the database — here a row
+        with no pack at all — is its own, and is not called that."""
+        shown = create_interstitial("Outcast archetype")
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            attach_interstitial(shown, house_legacy, pack=None)
+        assert not shown.attachments.exists()
+
     def test_a_player_path_reads_archived_ones_too(self, house_legacy, homebrew):
         """Archiving is a pack owner's soft delete: a gang already holding
         the slot goes on being shown the screen, so the player-side read
@@ -659,9 +686,22 @@ class TestAnInterstitialOnASlot:
 
         shown = create_interstitial("Outcast archetype")
         InterstitialSlot.objects.create(interstitial=shown, slot=house_legacy)
-        nothing_yet = mock.Mock(return_value=mock.Mock(exists=lambda: False))
+        # The check in front of the constraint is told nothing is there
+        # yet — the other attachment landing between check and write —
+        # and every later question is answered by the database.
+        real = InterstitialSlot.objects.filter
+        asked = []
+
+        def first_nothing_then_real(*args, **kwargs):
+            asked.append(1)
+            if len(asked) == 1:
+                return mock.Mock(exists=lambda: False)
+            return real(*args, **kwargs)
+
         with transaction.atomic():
-            with mock.patch.object(InterstitialSlot.objects, "filter", nothing_yet):
+            with mock.patch.object(
+                InterstitialSlot.objects, "filter", first_nothing_then_real
+            ):
                 with pytest.raises(ValidationError, match="already attached"):
                     attach_interstitial(shown, house_legacy, position=1)
             # Still inside the outer transaction, and it still answers.

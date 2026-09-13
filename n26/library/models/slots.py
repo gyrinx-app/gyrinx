@@ -671,7 +671,7 @@ class Slot(Content, Assignable):
         """What the card calls this choice."""
         return self.label or self.name
 
-    def interstitials(self, *, include_archived=False):
+    def interstitials(self, *, include_archived=False, include_staged=True):
         """The interstitials this slot carries — the screens shown when it
         arrives — in their own order: an interstitial's ``position`` is
         its place among the screens shown together.
@@ -684,8 +684,11 @@ class Slot(Content, Assignable):
         A player path passes ``include_archived=True``: archiving is a
         pack owner's soft delete and never retracts content from a gang
         already holding the slot, so the screen goes on showing there.
-        Staged ones are included either way; a player path narrows them
-        by whether the reader may see staged content.
+        Staged ones are included by default, as on every authoring
+        surface; ``include_staged=False`` leaves out a staged interstitial
+        and a staged attachment alike — an attachment on hold keeps its
+        screen off this slot the way a staged line keeps a pickable off
+        its list — for a reader who may not see staged content.
         ``n26.core.arrivals.interstitials_on`` reads many slots at once
         on the player's terms; a change to those terms is made in both.
         """
@@ -698,9 +701,13 @@ class Slot(Content, Assignable):
                 "attachments__archived": False,
                 "attachments__pack__archived": False,
             }
+        if not include_staged:
+            carried |= {"attachments__staged": False}
         found = Interstitial.objects.filter(**carried)
         if not include_archived:
             found = found.unarchived()
+        if not include_staged:
+            found = found.live()
         return found.order_by("position", "name")
 
     def clean(self):
