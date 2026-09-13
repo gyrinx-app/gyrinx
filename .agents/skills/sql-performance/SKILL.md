@@ -27,6 +27,11 @@ compact default output covers response status, stability, elapsed and CPU time, 
 files, queued tasks, alerts, and the resolved view. It also works for JSON and HTML fragments because it reads the
 toolbar data inside the request process instead of scraping the injected interface.
 
+Management commands use the eager development task backend. If the inspected GET enqueues a background task, the
+command runs that task inline, so its SQL and timing include the task and it may produce the task's side effects. Use
+the browser toolbar for those pages: the development runserver uses worker mode, matching production's asynchronous
+request boundary.
+
 Add only the detail needed for the current question:
 
 ```bash
