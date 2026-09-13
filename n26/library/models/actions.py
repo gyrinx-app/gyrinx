@@ -68,6 +68,8 @@ class RankThreshold(Content):
 class RecruitmentAllowanceRule(Content):
     """Earn one use of an action when recruitment completes."""
 
+    family = Family.FOUNDATION
+
     quantity = models.PositiveSmallIntegerField(default=1, editable=False)
 
     class Meta:
@@ -82,6 +84,8 @@ class RecruitmentAllowanceRule(Content):
 
 class RankAllowanceRule(Content):
     """Earn uses when an increase crosses thresholds in the effective rank table."""
+
+    family = Family.FOUNDATION
 
     counter = models.ForeignKey(
         "library.Counter", on_delete=models.PROTECT, related_name="rank_allowance_rules"
@@ -154,6 +158,8 @@ class Action(Content, Assignable, UsableBy):
 
 class Outcome(Content):
     """A named result an action may produce, with one typed operation."""
+
+    family = Family.FOUNDATION
 
     name = models.CharField(max_length=200)
     augment_carried_item = models.OneToOneField(
@@ -267,6 +273,8 @@ class ActionPriceComponent(Content):
 class AugmentCarriedItem(Content):
     """Replace the current tier on one carried item with its next tier."""
 
+    family = Family.FOUNDATION
+
     slot_type = models.ForeignKey(
         "library.SlotType",
         on_delete=models.PROTECT,
@@ -277,6 +285,8 @@ class AugmentCarriedItem(Content):
 class ResolveAdvancement(Content):
     """Roll on and resolve one advancement slot."""
 
+    family = Family.FOUNDATION
+
     slot = models.ForeignKey(
         "library.Slot", on_delete=models.PROTECT, related_name="advancement_outcomes"
     )
@@ -285,9 +295,13 @@ class ResolveAdvancement(Content):
 class ApplyChanges(Content):
     """Apply each configured change in order as one outcome."""
 
+    family = Family.FOUNDATION
+
 
 class CounterChange(Content):
     """Set, add to or subtract from one fighter counter."""
+
+    family = Family.FOUNDATION
 
     class Mode(models.TextChoices):
         SET = "set", "set"
@@ -303,6 +317,8 @@ class CounterChange(Content):
 
 class RemovePicks(Content):
     """Remove every live pick of one slot type held by the fighter."""
+
+    family = Family.FOUNDATION
 
     slot_type = models.ForeignKey(
         "library.SlotType", on_delete=models.PROTECT, related_name="remove_pick_changes"

@@ -61,6 +61,14 @@ LEAF_KINDS = {
     "counter": "create_counter",
     "action": "create_action",
     "rank-table": "create_rank_table",
+    "outcome": "create_outcome",
+    "augment-carried-item": "augment_carried_item",
+    "resolve-advancement": "resolve_advancement",
+    "apply-changes": "apply_changes",
+    "counter-change": "counter_change",
+    "remove-picks": "remove_picks",
+    "recruitment-allowance-rule": "recruitment_allowance_rule",
+    "rank-allowance-rule": "rank_allowance_rule",
     "hidden": "create_hidden",
     "asset": "create_asset",
     "asset-table": "create_asset_table",
@@ -494,6 +502,15 @@ def _describe_rank_threshold(member):
     return str(member.threshold), ["XP"]
 
 
+def _describe_action_price(component):
+    balance = component.counter.name if component.counter_id else "credits"
+    return f"{component.amount} {balance}", [component.get_payer_display()]
+
+
+def _describe_apply_change(member):
+    return str(member.change), []
+
+
 DETAIL_KINDS = {
     "action": {
         "verb": "add_action_outcome",
@@ -514,6 +531,18 @@ DETAIL_KINDS = {
         "parts_label": "thresholds",
         "part_name": "threshold",
         "nothing_yet": "No thresholds yet. Add the XP values that earn advancements.",
+    },
+    "apply-changes": {
+        "verb": "add_apply_change",
+        "parts": "changes",
+        "statline": False,
+        "describe": _describe_apply_change,
+        "parts_hint": lambda parts: parts.select_related(
+            "counter_change", "remove_picks"
+        ),
+        "parts_label": "changes",
+        "part_name": "change",
+        "nothing_yet": "No changes yet. Add at least one mutation for this outcome.",
     },
     "weapon": {
         "verb": "add_weapon_profile",
@@ -855,6 +884,19 @@ OPTION_SETS_PART = {
 }
 
 
+ACTION_PRICE_PART = {
+    "act": "price",
+    "verb": "add_action_price_component",
+    "parts": "use_price",
+    "statline": False,
+    "describe": _describe_action_price,
+    "parts_hint": lambda parts: parts.select_related("counter"),
+    "parts_label": "use price",
+    "part_name": "price component",
+    "nothing_yet": "No use price. Using this action does not spend a balance.",
+}
+
+
 def _carries_modifiers(kind):
     """Whether this kind's rows can carry modifiers — true for every
     assignable (the mixin's M2M is the tell), never for the foundation
@@ -901,6 +943,8 @@ def _part_sections(kind):
     sections = []
     if kind in DETAIL_KINDS:
         sections.append(DETAIL_KINDS[kind])
+    if kind == "action":
+        sections.append(ACTION_PRICE_PART)
     if _carries_built_ins(kind):
         sections.append(BUILT_INS_PART)
     if _offers_options(kind):

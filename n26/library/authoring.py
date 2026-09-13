@@ -996,7 +996,14 @@ def add_action_price_component(
     return component
 
 
-def create_outcome(name, operation, **kwargs):
+def create_outcome(
+    name,
+    operation=None,
+    augment_carried_item=None,
+    resolve_advancement=None,
+    apply_changes=None,
+    **kwargs,
+):
     """A reusable named result with one typed operation configuration."""
     from n26.library.models import Outcome
 
@@ -1005,10 +1012,19 @@ def create_outcome(name, operation, **kwargs):
         "ResolveAdvancement": "resolve_advancement",
         "ApplyChanges": "apply_changes",
     }
-    field = fields.get(type(operation).__name__)
-    if field is None:
-        raise ValueError(f"{type(operation).__name__} is not an outcome operation")
-    return Outcome.objects.create(name=name, **{field: operation}, **kwargs)
+    configured = {
+        "augment_carried_item": augment_carried_item,
+        "resolve_advancement": resolve_advancement,
+        "apply_changes": apply_changes,
+    }
+    if operation is not None:
+        field = fields.get(type(operation).__name__)
+        if field is None:
+            raise ValueError(f"{type(operation).__name__} is not an outcome operation")
+        configured[field] = operation
+    if sum(value is not None for value in configured.values()) != 1:
+        raise ValidationError("An outcome needs exactly one operation.")
+    return Outcome.objects.create(name=name, **configured, **kwargs)
 
 
 def augment_carried_item(slot_type, **kwargs):
@@ -1035,6 +1051,18 @@ def apply_changes(*changes, **kwargs):
             apply_changes=result, position=position, **{field: change}, **kwargs
         )
     return result
+
+
+def add_apply_change(apply_changes, change, position=None, **kwargs):
+    """Add one typed mutation to an apply-changes operation."""
+    from n26.library.models import ApplyChange, CounterChange
+
+    if position is None:
+        position = apply_changes.changes.count()
+    field = "counter_change" if isinstance(change, CounterChange) else "remove_picks"
+    return ApplyChange.objects.create(
+        apply_changes=apply_changes, position=position, **{field: change}, **kwargs
+    )
 
 
 def counter_change(counter, mode, amount=0, **kwargs):

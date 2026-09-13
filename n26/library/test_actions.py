@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 from n26.core.access import actions_for, rank_tables_for
 from n26.core.render import build_model_card
 from n26.library import authoring
+from n26.library.forms import generate_form
 from n26.library.models import (
     Action,
     ActionPriceComponent,
@@ -19,6 +20,7 @@ from n26.library.models import (
     Slot,
     SlotType,
 )
+from n26.library.specs import specs
 from n26.tests.sandbox.actions import (
     adds,
     assign,
@@ -230,3 +232,77 @@ def test_action_foundations_have_authoring_pages(admin_client, path, heading):
     response = admin_client.get(path)
     assert response.status_code == 200
     assert heading in response.content.decode()
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "outcome",
+        "augment-carried-item",
+        "resolve-advancement",
+        "apply-changes",
+        "counter-change",
+        "remove-picks",
+        "recruitment-allowance-rule",
+        "rank-allowance-rule",
+    ],
+)
+def test_typed_action_configurations_have_authoring_pages(admin_client, kind):
+    assert admin_client.get(f"/n26/authoring/{kind}/").status_code == 200
+
+
+def test_authoring_forms_build_an_outcome_and_attach_it_to_an_action():
+    slot_type = SlotType.objects.create(name="Augmentation")
+    operation_form = generate_form(specs()["augment_carried_item"])(
+        {"slot_type": str(slot_type.pk)}
+    )
+    assert operation_form.is_valid(), operation_form.errors
+    operation = operation_form.compile()
+
+    outcome_form = generate_form(specs()["create_outcome"])(
+        {"name": "Hunting Rig Augmentation", "augment_carried_item": str(operation.pk)}
+    )
+    assert outcome_form.is_valid(), outcome_form.errors
+    outcome = outcome_form.compile()
+
+    action = Action.objects.create(name="Suit evolution", timing="post_cycle")
+    member_form = generate_form(specs()["add_action_outcome"])(
+        {"outcome": str(outcome.pk), "position": 0}, carrier=action
+    )
+    assert member_form.is_valid(), member_form.errors
+    member = specs()["add_action_outcome"].verb(action, **member_form.verb_data())
+    assert member.outcome == outcome
+
+
+def test_authoring_forms_build_prices_allowances_and_ladder_levels():
+    kill_count = Counter.objects.create(name="Kill Count")
+    action = Action.objects.create(name="Suit evolution", timing="post_cycle")
+    price_form = generate_form(specs()["add_action_price_component"])(
+        {
+            "resource": "counter",
+            "payer": "fighter",
+            "counter": str(kill_count.pk),
+            "amount": 4,
+            "position": 0,
+        },
+        carrier=action,
+    )
+    assert price_form.is_valid(), price_form.errors
+    price = specs()["add_action_price_component"].verb(action, **price_form.verb_data())
+    assert price.counter == kill_count
+
+    allowance_form = generate_form(specs()["rank_allowance_rule"])(
+        {"counter": str(kill_count.pk)}
+    )
+    assert allowance_form.is_valid(), allowance_form.errors
+    assert allowance_form.compile().counter == kill_count
+
+    slot_type = SlotType.objects.create(name="Augmentation")
+    picklist = Picklist.objects.create(name="Rig tiers", slot_type=slot_type)
+    pickable = Pickable.objects.create(name="Tier 1", slot_type=slot_type)
+    member_form = generate_form(specs()["add_picklist_member"])(
+        {"pickable": str(pickable.pk), "position": 0, "level": 1}, carrier=picklist
+    )
+    assert member_form.is_valid(), member_form.errors
+    member = specs()["add_picklist_member"].verb(picklist, **member_form.verb_data())
+    assert member.level == 1
