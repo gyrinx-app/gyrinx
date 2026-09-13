@@ -425,12 +425,36 @@ def _validate_draft_definition(record):
         raise Refusal("That allowance belongs to another action use.")
 
 
+def _validate_recorded_outcome(record, outcome):
+    from n26.library.models import ResolveAdvancement
+
+    selection = (
+        AdvancementSelection.objects.filter(
+            action_record=record, roll_event__isnull=False
+        )
+        .select_related("slot_assignment")
+        .first()
+    )
+    if selection is None:
+        return
+    configured = outcome.operation
+    if (
+        (record.outcome_id is not None and record.outcome_id != outcome.pk)
+        or not isinstance(configured, ResolveAdvancement)
+        or configured.slot_id != selection.slot_assignment.slot_id
+    ):
+        raise Refusal(
+            "You cannot change the outcome after recording its advancement roll."
+        )
+
+
 def review_action(op, record, *, outcome, terms=None):
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer awaiting confirmation.")
     _validate_draft_definition(record)
+    _validate_recorded_outcome(record, outcome)
     if not record.action.outcomes.filter(outcome=outcome).exists():
         raise Refusal("That outcome is not available for this action.")
     quote = quote_action(op, record.fighter, record.action)
@@ -459,6 +483,7 @@ def save_action_choices(op, record, *, outcome, terms):
     if not record.action.outcomes.filter(outcome=outcome).exists():
         raise Refusal("That outcome is not available for this action.")
     supplied = deepcopy(terms)
+    _validate_recorded_outcome(record, outcome)
     supplied.pop("outcome", None)
     previous = record.terms if record.outcome_id == outcome.pk else {}
     record.terms = {**previous, **supplied, "outcome": str(outcome.pk)}
