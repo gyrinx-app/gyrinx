@@ -397,6 +397,8 @@ def _build_registry():
         HasTraits,
         Hidden,
         InCategories,
+        Interstitial,
+        InterstitialSlot,
         IsOneOf,
         IsProfile,
         IsProfileType,
@@ -1165,6 +1167,29 @@ def _build_registry():
                     source=(Slot, "library_author_help"), long=True
                 ),
             },
+        ),
+        # An interstitial and its attachments: the screen, and the slots
+        # whose arrival shows it. Attached from the interstitial's own
+        # page, so the picker offers every slot in the library.
+        Spec(
+            authoring.create_interstitial,
+            {
+                "name": Text(source=(Interstitial, "name")),
+                "title": Text(source=(Interstitial, "title")),
+                "description": Text(source=(Interstitial, "description"), long=True),
+                "skippable": Bool(source=(Interstitial, "skippable")),
+                "position": Int(source=(Interstitial, "position")),
+            },
+        ),
+        Spec(
+            authoring.attach_interstitial,
+            {
+                "slot": One(model=Slot, source=(InterstitialSlot, "slot")),
+                "position": Int(source=(InterstitialSlot, "position")),
+            },
+            model=InterstitialSlot,
+            # A part of the interstitial, written into its pack.
+            joins_carrier_pack=True,
         ),
         Spec(
             authoring.create_section,

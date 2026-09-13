@@ -66,6 +66,7 @@ LEAF_KINDS = {
     "pickable": "create_pickable",
     "picklist": "create_picklist",
     "slot": "create_slot",
+    "interstitial": "create_interstitial",
     "wargear": "create_wargear",
     "weapon": "create_weapon",
     "weapon-accessory": "create_weapon_accessory",
@@ -330,6 +331,13 @@ def _describe_picklist_member(member):
     # The band leads on a roll table, as the book prints it.
     label = f"{member.band} — {member.label}" if member.band else member.label
     return label, notes
+
+
+def _describe_interstitial_attachment(attachment):
+    """One slot an interstitial is attached to: the slot as an author
+    reads it, and what the choice says about itself. Its place in the
+    order is not said: the rows are printed in it."""
+    return _label_for(attachment.slot), _describe_slot(attachment.slot)
 
 
 def _roll_table_summary(picklist):
@@ -644,6 +652,32 @@ DETAIL_KINDS = {
         # pickable itself, every other list offering it — cannot be read
         # off the row.
         "removes": "authoring-picklist-member-remove",
+    },
+    "interstitial": {
+        "verb": "attach_interstitial",
+        "parts": "attachments",
+        "statline": False,
+        "describe": _describe_interstitial_attachment,
+        "parts_hint": lambda parts: parts.select_related(
+            "slot__slot_type", "slot__picklist"
+        ),
+        # The row is the attachment, but the name on it is the slot's,
+        # and the slot's page is where the choice itself is written.
+        "opens": lambda attachment: reverse(
+            "authoring-detail", args=["slot", attachment.slot_id]
+        ),
+        "parts_label": "slots",
+        "part_name": "slot",
+        "add_title": "Attach a slot",
+        "submit_label": "Attach slot",
+        "parts_description": (
+            "The slots this screen is shown for, in the order the screen "
+            "lists them. Removing one changes only what is shown when that "
+            "slot next arrives: the slot and the interstitial both stay in "
+            "the library."
+        ),
+        "nothing_yet": "No slots yet. Attach one and this screen is shown when it arrives.",
+        "removes": "authoring-interstitial-detach",
     },
 }
 
@@ -1312,6 +1346,39 @@ def _describe_slot(slot):
     return [slot.slot_type.name, *_slot_notes(slot)]
 
 
+def _interstitial_notes(interstitial):
+    """Whether the reader may carry on without picking. Said on the
+    slot's page too, where the interstitials it carries are listed."""
+    return ["skippable" if interstitial.skippable else "cannot be skipped"]
+
+
+def _describe_interstitial(interstitial):
+    """Whether it can be skipped, and how many slots show it.
+
+    Attached to none is the state worth seeing: an interstitial no slot
+    carries is never shown to anyone.
+    """
+    # The listing draws archived rows too. An archived interstitial, or
+    # one in an archived pack, is shown nowhere whatever is attached to
+    # it — the same terms ``Slot.interstitials`` reads by.
+    if interstitial.archived or interstitial.pack.archived:
+        return [*_interstitial_notes(interstitial), "shown nowhere"]
+    # Read with ``.all()`` so a listing that prefetched the attachments
+    # counts without a query per row; an archived attachment, or one in
+    # an archived pack, shows the screen nowhere, so it is not counted.
+    attached = sum(
+        1
+        for a in interstitial.attachments.all()
+        if not a.archived and not a.pack.archived
+    )
+    return [
+        *_interstitial_notes(interstitial),
+        f"on {attached} slot{'' if attached == 1 else 's'}"
+        if attached
+        else "on no slot yet",
+    ]
+
+
 LEAF_DESCRIBE = {
     "skill": _describe_skill,
     "profile": _describe_profile,
@@ -1321,6 +1388,7 @@ LEAF_DESCRIBE = {
     "pickable": _describe_pickable,
     "picklist": _describe_picklist,
     "slot": _describe_slot,
+    "interstitial": _describe_interstitial,
 }
 
 
@@ -1343,6 +1411,48 @@ def _profile_listing(rows):
     )
 
 
+def _interstitial_listing(rows):
+    """What ``_describe_interstitial`` walks, loaded for the whole listing
+    at once: the interstitial's own pack, and the attachments each with
+    theirs, since the count reads whether either is archived."""
+    from django.db.models import Prefetch
+
+    from n26.library.models import InterstitialSlot
+
+    return rows.select_related("pack").prefetch_related(
+        Prefetch(
+            "attachments", queryset=InterstitialSlot.objects.select_related("pack")
+        )
+    )
+
+
+def _interstitial_staged_loading(rows):
+    """What ``_describe_interstitial`` walks, loaded onto rows already
+    read — the staged page holds a list, not a queryset — in two
+    queries for the lot: each row's pack, and the attachments with
+    theirs."""
+    from django.db.models import Prefetch, prefetch_related_objects
+
+    from n26.library.models import InterstitialSlot
+
+    rows = list(rows)
+    prefetch_related_objects(
+        rows,
+        "pack",
+        Prefetch(
+            "attachments", queryset=InterstitialSlot.objects.select_related("pack")
+        ),
+    )
+    return rows
+
+
+#: What the staged-content page loads with a kind's rows before
+#: describing them. Kept apart from ``LEAF_LISTING_HINTS``: those also
+#: narrow (a campaign's own campaign type is left off its listing), and
+#: the staged page must show every staged row.
+STAGED_LISTING_HINTS = {"interstitial": _interstitial_staged_loading}
+
+
 #: Kinds whose describer — or whose own name — reads beyond the row.
 LEAF_LISTING_HINTS = {
     "profile": _profile_listing,
@@ -1359,6 +1469,7 @@ LEAF_LISTING_HINTS = {
         "members"
     ),
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
+    "interstitial": _interstitial_listing,
     # A campaign type says its asset types and counts the assets under
     # them. A campaign's own campaign type — the one its arbitrator adds
     # to — is left out: it is the campaign's machinery, not a type anybody
@@ -1834,7 +1945,8 @@ def create(request, kind):
                 named = spec.identity
                 form.add_error(
                     named,
-                    f"A {model._meta.verbose_name} named "
+                    f"{_article_for(model._meta.verbose_name).capitalize()} "
+                    f"{model._meta.verbose_name} named "
                     f"“{form.cleaned_data[named]}” already exists in this pack.",
                 )
             else:
@@ -2067,6 +2179,24 @@ DETAIL_RELATED = {
         "nothing_yet": ("No slot draws on this picklist yet, so nothing offers it."),
         "rows": lambda picklist: picklist.slots.select_related("picklist"),
         "notes": _slot_terms,
+    },
+    # A slot's page says which screens its arrival shows. Read-only: an
+    # interstitial is attached from its own page, where the slots it is
+    # attached to are ordered.
+    "slot": {
+        "kind": "interstitial",
+        "title": "Shown when this slot arrives",
+        "description": (
+            "Every interstitial attached to this slot. A founding, a hire or "
+            "a pick that brings the slot shows these first. Attach or remove "
+            "one on the interstitial's own page."
+        ),
+        "nothing_yet": (
+            "No interstitial is attached to this slot yet, so it arrives "
+            "without a screen of its own."
+        ),
+        "rows": lambda slot: slot.interstitials(),
+        "notes": _interstitial_notes,
     },
 }
 
@@ -2647,6 +2777,9 @@ def staged(request):
     for model, rows in staged_rows():
         kind = slugs.get(model)
         describe = LEAF_DESCRIBE.get(kind, _describe_row)
+        hint = STAGED_LISTING_HINTS.get(kind)
+        if hint is not None:
+            rows = hint(rows)
         total += len(rows)
         groups.append(
             {
@@ -4625,6 +4758,46 @@ def picklist_member_remove(request, pk):
             "thing": member,
             "label": member.label,
             "picklist": picklist,
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
+def interstitial_detach(request, pk):
+    """The question asked before an interstitial stops showing for one
+    slot.
+
+    What goes is the *attachment*. The interstitial stays in the library
+    and on every other slot it is attached to, and the slot arrives as
+    it did before — worth saying before anything happens, because a
+    control beside a slot's name reads as one that deletes slots.
+    """
+    from n26.library import authoring
+    from n26.library.models import InterstitialSlot
+
+    attachment = get_object_or_404(
+        InterstitialSlot.objects.select_related("interstitial", "slot"), pk=pk
+    )
+    interstitial = attachment.interstitial
+    back = reverse("authoring-detail", args=["interstitial", interstitial.pk])
+
+    if request.method == "POST":
+        slot_label = _label_for(attachment.slot)
+        with transaction.atomic():
+            authoring.detach_interstitial(attachment)
+        messages.success(
+            request, f"{interstitial} is no longer shown when {slot_label} arrives."
+        )
+        return redirect(back)
+
+    return render(
+        request,
+        "authoring/interstitial_detach.html",
+        {
+            "thing": attachment,
+            "label": _label_for(attachment.slot),
+            "interstitial": interstitial,
             "back": back,
         },
     )

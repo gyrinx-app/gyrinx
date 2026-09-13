@@ -14,15 +14,19 @@ from n26.library.authoring import (
     add_built_in,
     add_default_member,
     add_picklist_member,
+    attach_interstitial,
     create_default_set,
+    create_interstitial,
     create_pickable,
     create_picklist,
     create_rule,
     create_slot,
     create_slot_type,
     create_wargear,
+    detach_interstitial,
+    revise,
 )
-from n26.library.models import DefaultAssignment, Slot
+from n26.library.models import DefaultAssignment, Interstitial, Slot
 
 pytestmark = pytest.mark.django_db
 
@@ -515,3 +519,247 @@ class TestWhatEachDieCanRoll:
         from n26.library.models import Dice
 
         assert Dice.rolls("") == ()
+
+
+class TestAnInterstitialOnASlot:
+    """An interstitial is a screen attached to slots. Its own contract:
+    one per pack by name, attached to a slot once, and read back off
+    the slot in the order it was attached."""
+
+    @pytest.fixture
+    def house_legacy(self, legacy, legacies):
+        return create_slot("House legacy", legacy, legacies, label="Gang Legacy")
+
+    @pytest.fixture
+    def archetype(self, legacy, legacies):
+        return create_slot("Archetype", legacy, legacies)
+
+    def test_two_interstitials_of_one_name_are_refused(self, default_pack):
+        create_interstitial("Outcast archetype")
+        with pytest.raises(IntegrityError), transaction.atomic():
+            create_interstitial("outcast archetype")
+
+    def test_the_heading_is_the_title_where_there_is_one(self, default_pack):
+        shown = create_interstitial("Outcast archetype", title="Choose an archetype")
+        assert shown.heading == "Choose an archetype"
+
+    def test_the_name_stands_in_where_there_is_not(self, default_pack):
+        assert create_interstitial("Outcast archetype").heading == "Outcast archetype"
+
+    def test_it_cannot_be_skipped_unless_an_author_says_so(self, default_pack):
+        assert create_interstitial("Outcast archetype").skippable is False
+
+    def test_it_is_attached_to_a_slot_once(self, house_legacy):
+        shown = create_interstitial("Outcast archetype", slots=[house_legacy])
+        with pytest.raises(ValidationError, match="already attached to House legacy"):
+            attach_interstitial(shown, house_legacy)
+
+    def test_the_database_refuses_a_second_attachment_too(self, house_legacy):
+        """An importer writing rows straight through the ORM is caught by
+        the constraint the verb's sentence stands in front of."""
+        from n26.library.models import InterstitialSlot
+
+        shown = create_interstitial("Outcast archetype", slots=[house_legacy])
+        with pytest.raises(IntegrityError), transaction.atomic():
+            InterstitialSlot.objects.create(interstitial=shown, slot=house_legacy)
+
+    def test_each_attachment_lands_after_the_last_unless_placed(
+        self, house_legacy, archetype
+    ):
+        shown = create_interstitial("Outcast archetype")
+        first = attach_interstitial(shown, house_legacy)
+        second = attach_interstitial(shown, archetype)
+        placed = attach_interstitial(
+            shown, create_slot("Third", archetype.slot_type, archetype.picklist), 7
+        )
+        assert (first.position, second.position, placed.position) == (0, 1, 7)
+
+    def test_a_default_position_lands_after_the_last_whatever_it_was_numbered(
+        self, house_legacy, archetype
+    ):
+        shown = create_interstitial("Outcast archetype")
+        attach_interstitial(shown, house_legacy, position=7)
+        later = attach_interstitial(shown, archetype)
+
+        assert later.position == 8
+        assert [a.slot for a in shown.attachments.all()] == [house_legacy, archetype]
+
+    def test_an_archived_attachment_still_counts_for_the_next_position(
+        self, house_legacy, archetype
+    ):
+        shown = create_interstitial("Outcast archetype")
+        revise(attach_interstitial(shown, house_legacy, position=3), archived=True)
+
+        assert attach_interstitial(shown, archetype).position == 4
+
+    def test_an_attachment_reads_as_both_of_its_ends(self, house_legacy):
+        shown = create_interstitial("Outcast archetype")
+        assert str(attach_interstitial(shown, house_legacy)) == (
+            "Outcast archetype on House legacy"
+        )
+
+    def test_a_slot_reads_its_interstitials_in_their_own_order(self, house_legacy):
+        """An interstitial's position is its place among the screens
+        shown together; the attachment's position orders the slots
+        under one interstitial, and says nothing here."""
+        later = create_interstitial("Shown later", position=5)
+        first = create_interstitial("Shown first", position=0)
+        attach_interstitial(later, house_legacy, position=0)
+        attach_interstitial(first, house_legacy, position=1)
+
+        assert list(house_legacy.interstitials()) == [first, later]
+
+    def test_a_staged_attachment_keeps_its_screen_off_the_slot_for_a_player(
+        self, house_legacy
+    ):
+        """An attachment on hold keeps the screen off this slot the way a
+        staged line keeps a pickable off its list; an author still sees
+        it, as on every authoring surface."""
+        held = create_interstitial("Held screen")
+        revise(attach_interstitial(held, house_legacy), staged=True)
+        drafted = create_interstitial("Drafted screen", slots=[house_legacy])
+        revise(drafted, staged=True)
+        live = create_interstitial("Live screen", slots=[house_legacy])
+
+        assert set(house_legacy.interstitials()) == {held, drafted, live}
+        assert list(house_legacy.interstitials(include_staged=False)) == [live]
+
+    def test_a_refusal_that_is_not_the_duplicate_is_raised_as_it_came(
+        self, house_legacy
+    ):
+        """Only a pair that now exists is the duplicate the refusal
+        describes; any other refusal from the database — here a row
+        with no pack at all — is its own, and is not called that."""
+        shown = create_interstitial("Outcast archetype")
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            attach_interstitial(shown, house_legacy, pack=None)
+        assert not shown.attachments.exists()
+
+    def test_a_player_path_reads_archived_ones_too(self, house_legacy, homebrew):
+        """Archiving is a pack owner's soft delete: a gang already holding
+        the slot goes on being shown the screen, so the player-side read
+        keeps what the authoring read leaves out."""
+        packed = create_interstitial("Packed away", slots=[house_legacy], pack=homebrew)
+        withdrawn = create_interstitial("Withdrawn", slots=[house_legacy])
+        revise(homebrew, archived=True)
+        revise(withdrawn, archived=True)
+
+        assert list(house_legacy.interstitials()) == []
+        assert set(house_legacy.interstitials(include_archived=True)) == {
+            packed,
+            withdrawn,
+        }
+
+    def test_an_archived_interstitial_is_not_read_off_the_slot(self, house_legacy):
+        shown = create_interstitial("Outcast archetype", slots=[house_legacy])
+        revise(shown, archived=True)
+
+        assert list(house_legacy.interstitials()) == []
+
+    def test_an_attachment_in_an_archived_pack_is_not_read_off_the_slot(
+        self, house_legacy, homebrew
+    ):
+        shown = create_interstitial("Outcast archetype")
+        attach_interstitial(shown, house_legacy, pack=homebrew)
+        revise(homebrew, archived=True)
+
+        assert list(house_legacy.interstitials()) == []
+
+    def test_an_attachment_lands_in_its_interstitials_pack(
+        self, house_legacy, homebrew
+    ):
+        shown = create_interstitial("Outcast archetype", pack=homebrew)
+
+        assert attach_interstitial(shown, house_legacy).pack == homebrew
+
+    def test_a_refused_attachment_leaves_the_transaction_around_it_usable(
+        self, house_legacy
+    ):
+        """The constraint stands behind the check, for two attachments
+        made at once; it refuses inside a savepoint of its own, so a
+        page that made the attempt inside a transaction can still say
+        so rather than finding its transaction aborted."""
+        from unittest import mock
+
+        from n26.library.models import InterstitialSlot
+
+        shown = create_interstitial("Outcast archetype")
+        InterstitialSlot.objects.create(interstitial=shown, slot=house_legacy)
+        # The check in front of the constraint is told nothing is there
+        # yet — the other attachment landing between check and write —
+        # and every later question is answered by the database.
+        real = InterstitialSlot.objects.filter
+        asked = []
+
+        def first_nothing_then_real(*args, **kwargs):
+            asked.append(1)
+            if len(asked) == 1:
+                return mock.Mock(exists=lambda: False)
+            return real(*args, **kwargs)
+
+        with transaction.atomic():
+            with mock.patch.object(
+                InterstitialSlot.objects, "filter", first_nothing_then_real
+            ):
+                with pytest.raises(ValidationError, match="already attached"):
+                    attach_interstitial(shown, house_legacy, position=1)
+            # Still inside the outer transaction, and it still answers.
+            assert InterstitialSlot.objects.count() == 1
+
+    def test_an_archived_attachment_is_not_read_off_the_slot(self, house_legacy):
+        shown = create_interstitial("Outcast archetype")
+        attachment = attach_interstitial(shown, house_legacy)
+        revise(attachment, archived=True)
+
+        assert list(house_legacy.interstitials()) == []
+        # Withdrawn from this slot only: the interstitial itself stands.
+        assert Interstitial.objects.filter(pk=shown.pk).exists()
+
+    def test_detaching_leaves_the_slot_and_the_interstitial_standing(
+        self, house_legacy
+    ):
+        shown = create_interstitial("Outcast archetype")
+        detach_interstitial(attach_interstitial(shown, house_legacy))
+
+        assert list(house_legacy.interstitials()) == []
+        assert Interstitial.objects.filter(pk=shown.pk).exists()
+        assert Slot.objects.filter(pk=house_legacy.pk).exists()
+
+    def test_a_slot_carrying_an_interstitial_cannot_be_deleted_under_it(
+        self, house_legacy
+    ):
+        """The attachment protects the slot the way a picklist member
+        protects its pickable: the screen has to be detached first."""
+        from django.db.models import ProtectedError
+
+        create_interstitial("Outcast archetype", slots=[house_legacy])
+        with pytest.raises(ProtectedError), transaction.atomic():
+            house_legacy.delete()
+
+    def test_the_deletion_plan_sends_the_author_to_the_interstitials_page(
+        self, house_legacy
+    ):
+        """An attachment has no page of its own, so the refusal names the
+        act that clears it rather than a row nobody can open."""
+        from n26.library.deletion import plan_deletion
+
+        create_interstitial("Outcast archetype", slots=[house_legacy])
+        plan = plan_deletion([house_legacy])
+
+        assert not plan.ok
+        assert any(
+            "“Outcast archetype” is shown when House legacy arrives; stop showing it there first"
+            in words
+            for words in plan.refusals
+        ), plan.refusals
+
+    def test_deleting_the_interstitial_too_frees_the_slot(self, house_legacy):
+        """Whichever order the two are named in: the attachment goes with
+        the interstitial, and the slot is free once it has."""
+        from n26.library.deletion import plan_deletion
+
+        shown = create_interstitial("Outcast archetype", slots=[house_legacy])
+
+        assert plan_deletion([shown, house_legacy]).ok
+        assert plan_deletion([house_legacy, shown]).ok

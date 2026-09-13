@@ -671,6 +671,45 @@ class Slot(Content, Assignable):
         """What the card calls this choice."""
         return self.label or self.name
 
+    def interstitials(self, *, include_archived=False, include_staged=True):
+        """The interstitials this slot carries — the screens shown when it
+        arrives — in their own order: an interstitial's ``position`` is
+        its place among the screens shown together.
+
+        Two readers, on two terms. An authoring or discovery surface —
+        the slot's page, the listing, a count — takes the default and
+        sees only live ones: an archived interstitial, or one in an
+        archived pack, is withdrawn from every slot at once, and an
+        archived attachment, or one in an archived pack, from this one.
+        A player path passes ``include_archived=True``: archiving is a
+        pack owner's soft delete and never retracts content from a gang
+        already holding the slot, so the screen goes on showing there.
+        Staged ones are included by default, as on every authoring
+        surface; ``include_staged=False`` leaves out a staged interstitial
+        and a staged attachment alike — an attachment on hold keeps its
+        screen off this slot the way a staged line keeps a pickable off
+        its list — for a reader who may not see staged content.
+        ``n26.core.arrivals.interstitials_on`` reads many slots at once
+        on the player's terms; a change to those terms is made in both.
+        """
+        # One filter call, so every condition on the attachment reads
+        # the same join; a second call would join the attachments again
+        # and match a live attachment against an archived one's pack.
+        carried = {"attachments__slot": self}
+        if not include_archived:
+            carried |= {
+                "attachments__archived": False,
+                "attachments__pack__archived": False,
+            }
+        if not include_staged:
+            carried |= {"attachments__staged": False}
+        found = Interstitial.objects.filter(**carried)
+        if not include_archived:
+            found = found.unarchived()
+        if not include_staged:
+            found = found.live()
+        return found.order_by("position", "name")
+
     def clean(self):
         super().clean()
         if self.slot_type_id and self.picklist_id:
@@ -684,3 +723,116 @@ class Slot(Content, Assignable):
                         )
                     }
                 )
+
+
+class Interstitial(Content):
+    """A screen shown when a slot arrives: what the choice is, and why it
+    matters.
+
+    Attached to one or more slots. When a founding, a hire or a pick
+    puts one of those slots on a gang or a model, the reader is shown
+    this — heading, description and the picker for the slot — before
+    landing where they were going. A slot with nothing attached
+    arrives as it always has, so nothing changes until an author
+    attaches one. Only founding, hiring and picking show it; a purchase
+    and a clone never do.
+
+    Not an assignable: nothing holds an interstitial. The word is an
+    author's: no player sees it.
+    """
+
+    # Filed with the rest of the choice machinery, which is where an
+    # author looks for it.
+    family = Family.CHOICE
+
+    name = models.CharField(
+        max_length=200,
+        help_text='What an author calls this, e.g. "Outcast archetype".',
+    )
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="The heading the screen shows. Blank uses the name.",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "What the screen says under the heading: what the choice is "
+            "and why it matters. Use your own words, not the book's."
+        ),
+    )
+    skippable = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether the reader may skip this screen. Unticked, the screen "
+            "does not offer Continue until every choice still on it is made."
+        ),
+    )
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text="Order among several shown on one screen. Ties fall back to name.",
+    )
+
+    class Meta:
+        verbose_name = "interstitial"
+        verbose_name_plural = "interstitials"
+        ordering = ["position", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                "pack", Lower("name"), name="interstitial_unique_per_pack"
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def heading(self):
+        """What the screen calls it."""
+        return self.title or self.name
+
+
+class InterstitialSlot(Content):
+    """One interstitial attached to one slot.
+
+    The slot is what arrives; the interstitial is what the reader is
+    shown when it does. One interstitial may be attached to several
+    slots, and one slot may carry several interstitials, each in its
+    place.
+    """
+
+    interstitial = models.ForeignKey(
+        Interstitial,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    slot = models.ForeignKey(
+        Slot,
+        on_delete=models.PROTECT,
+        related_name="interstitial_attachments",
+        help_text=(
+            "The slot this is shown for. The screen appears when that slot "
+            "arrives on a gang or a model."
+        ),
+    )
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text="Where it sits among the slots this is attached to. Ties fall back to the slot's name.",
+    )
+
+    class Meta:
+        verbose_name = "interstitial attachment"
+        verbose_name_plural = "interstitial attachments"
+        ordering = ["interstitial", "position", "slot__name"]
+        constraints = [
+            models.UniqueConstraint(
+                "interstitial", "slot", name="interstitial_attached_once"
+            ),
+        ]
+
+    def __str__(self):
+        # Both ends, so two attachments on one slot — or of one screen —
+        # read apart on a page listing attachments alone.
+        return f"{self.interstitial} on {self.slot}"

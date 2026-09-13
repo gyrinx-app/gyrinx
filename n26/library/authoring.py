@@ -1061,6 +1061,94 @@ def create_slot(
     )
 
 
+def create_interstitial(
+    name,
+    title="",
+    description="",
+    skippable=False,
+    position=0,
+    slots=(),
+    **kwargs,
+):
+    """A screen shown when a slot arrives: what the choice is and why
+    it matters.
+
+    ``slots`` attaches it to those slots, in order. A founding, a hire
+    or a pick that brings one of them shows this screen before the
+    reader lands where they were going; nothing else does, and a slot
+    with nothing attached arrives as it always has.
+    """
+    from n26.library.models import Interstitial
+
+    interstitial = Interstitial.objects.create(
+        name=name,
+        title=title,
+        description=description,
+        skippable=skippable,
+        position=position,
+        **kwargs,
+    )
+    for slot in slots:
+        attach_interstitial(interstitial, slot, **kwargs)
+    return interstitial
+
+
+def attach_interstitial(interstitial, slot, position=None, **kwargs):
+    """Show this interstitial when this slot arrives, after the slots it
+    is already attached to unless placed.
+
+    Refused where it is already attached to that slot: a second
+    attachment would show the same screen twice. Two attachments made
+    at once are refused the same way, by the constraint behind the
+    check.
+
+    The attachment lands in the interstitial's pack unless told
+    otherwise: it is a part of the interstitial, and a screen in a
+    pack of its own is shown for the slots that pack attaches it to.
+    """
+    from django.db import IntegrityError, transaction
+
+    from n26.library.models import InterstitialSlot
+
+    already = f"{interstitial} is already attached to {slot}."
+    if InterstitialSlot.objects.filter(interstitial=interstitial, slot=slot).exists():
+        raise ValidationError(already)
+    if position is None:
+        # After the last, whatever it was numbered — archived attachments
+        # included, so adding one never reorders what is already there.
+        from django.db.models import Max
+
+        last = interstitial.attachments.aggregate(last=Max("position"))["last"]
+        position = 0 if last is None else last + 1
+    if "pack" not in kwargs and "pack_id" not in kwargs:
+        kwargs["pack_id"] = interstitial.pack_id
+    try:
+        with transaction.atomic():
+            return InterstitialSlot.objects.create(
+                interstitial=interstitial, slot=slot, position=position, **kwargs
+            )
+    except IntegrityError:
+        # The savepoint has rolled back. Only a pair that now exists is
+        # the duplicate the sentence describes; anything else the
+        # database refused — a slot deleted under the form — is its own
+        # failure and is raised as it came.
+        if InterstitialSlot.objects.filter(
+            interstitial=interstitial, slot=slot
+        ).exists():
+            raise ValidationError(already) from None
+        raise
+
+
+def detach_interstitial(attachment):
+    """Stop showing one interstitial when one slot arrives.
+
+    The interstitial stays in the library and on every other slot it is
+    attached to; the slot arrives as it did before anything was
+    attached.
+    """
+    attachment.delete()
+
+
 def create_trait(name, annotation="", qualifier="", library_author_help="", **kwargs):
     from n26.library.models import Trait
 
