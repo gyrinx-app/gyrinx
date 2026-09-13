@@ -509,7 +509,8 @@ def roll_asset(request, pk):
     from n26.core.forms import RollAssetForm
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk)
+    # Acts and leaves, or draws a dialog that names nobody.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     asked = request.POST.get("type", "") or request.GET.get("type", "")
     asset_type = _asset_type_asked_for(found, asked)
     again = _campaign_page(found) + (f"?roll={asset_type.pk}" if asset_type else "")
@@ -616,7 +617,8 @@ def roll_starting_asset(request, pk, gang_pk):
     from n26.core.operations import Refusal
     from n26.library.models import AssetTable
 
-    found = _own_campaign_or_404(request, pk)
+    # Acts and leaves, or draws a dialog that names nobody.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     # A key that is not a key at all is a bad link, not a server error.
     try:
         membership = (
@@ -979,7 +981,8 @@ def remove_gang(request, pk, gang_pk):
 
     from n26.core.models import CampaignMembership
 
-    found = _any_campaign_or_404(request, pk)
+    # Acts and leaves; nothing here names anybody.
+    found = _any_campaign_or_404(request, pk, with_owner_badge=False)
     try:
         membership = get_object_or_404(
             CampaignMembership.objects.select_related("gang"),
@@ -2014,7 +2017,8 @@ def remove_table_entry(request, pk, table_pk, entry_pk):
     from n26.core.campaigns import campaign_operation
     from n26.library.models import AssetTableEntry
 
-    found = _own_campaign_or_404(request, pk)
+    # Acts and leaves; nothing here names anybody.
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
     table = _own_table_or_404(found, table_pk)
     if request.method == "POST":
         try:

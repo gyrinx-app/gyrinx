@@ -521,6 +521,75 @@ class TestTheNamesOnACampaign:
         with_more = redraw(address)
         assert with_more == with_one
 
+    def test_every_screen_under_a_campaign_reads_the_arbitrators_badge_with_it(
+        self, table, supporter, player, client
+    ):
+        """Every screen under a campaign names its arbitrator in the trail.
+        Each reads their badge grants with the campaign, for a set of people
+        ahead of drawing anything, and never for one name while the trail
+        is drawn. The only reads of one person's grants on any of them are
+        the bar's, which names the reader and reads their own — a fact
+        about the account, the same on every page, so a page outside any
+        campaign says what they are."""
+        from n26.core.models import Gang
+        from n26.tests.sandbox.actions import (
+            add_asset,
+            add_campaign_asset_type,
+            assign_asset,
+            create_campaign_asset,
+            create_campaign_table,
+        )
+
+        person = player(table, "vex")
+        gang = Gang.objects.get(owner=person)
+        racket = add_campaign_asset_type(table, "Racket")
+        unheld = add_asset(table, create_campaign_asset(table, racket, "Protection"))
+        held = add_asset(table, create_campaign_asset(table, racket, "Smuggling"))
+        assign_asset(held, gang)
+        rackets = create_campaign_table(table, racket, "Rackets", dice="d6")
+        screens = [
+            reverse("n26-edit-campaign", args=[table.pk]),
+            reverse("n26-archive-campaign", args=[table.pk]),
+            reverse("n26-campaign-add-gang", args=[table.pk]),
+            reverse("n26-campaign-add-player", args=[table.pk]),
+            reverse("n26-campaign-remove-player", args=[table.pk, person.pk]),
+            reverse("n26-campaign-add-battle", args=[table.pk]),
+            reverse("n26-campaign-add-asset", args=[table.pk]),
+            reverse("n26-campaign-asset-assign", args=[table.pk, unheld.pk]),
+            reverse("n26-campaign-asset-unassign", args=[table.pk, held.pk]),
+            reverse("n26-campaign-asset-remove", args=[table.pk, unheld.pk]),
+            reverse("n26-campaign-asset-transfer", args=[table.pk, held.pk]),
+            reverse("n26-campaign-add-asset-type", args=[table.pk]),
+            reverse("n26-campaign-new-asset", args=[table.pk]),
+            reverse("n26-campaign-add-counter", args=[table.pk]),
+            reverse("n26-campaign-add-label", args=[table.pk]),
+            reverse("n26-campaign-tables", args=[table.pk]),
+            reverse("n26-campaign-new-table", args=[table.pk]),
+            reverse("n26-campaign-table", args=[table.pk, rackets.pk]),
+        ]
+
+        def grants_read(path):
+            with CaptureQueriesContext(connection) as context:
+                response = client.get(path)
+            assert response.status_code == 200, path
+            grants = [
+                q["sql"]
+                for q in context.captured_queries
+                if 'FROM "accounts_badgegrant"' in q["sql"]
+            ]
+            for_one = [sql for sql in grants if '"user_id" = ' in sql]
+            for_the_page = [sql for sql in grants if '"user_id" IN (' in sql]
+            return for_one, for_the_page
+
+        own = f'"accounts_badgegrant"."user_id" = {supporter.pk}'
+        own_reads, _ = grants_read("/n26/")
+        assert own_reads and all(own in sql for sql in own_reads)
+        for screen in screens:
+            for_one, for_the_page = grants_read(screen)
+            assert for_the_page, screen
+            assert len(for_one) == len(own_reads), (screen, for_one)
+            assert all(own in sql for sql in for_one), (screen, for_one)
+
     def test_the_remove_player_question_names_them_with_their_badge(
         self, table, player, client
     ):
