@@ -1167,13 +1167,15 @@ def _build_registry():
                 )
             },
             model=AugmentCarriedItem,
+            identity="slot_type",
         ),
         Spec(
             authoring.resolve_advancement,
             {"slot": One(model=Slot, source=(ResolveAdvancement, "slot"))},
             model=ResolveAdvancement,
+            identity="slot",
         ),
-        Spec(authoring.apply_changes, {}, model=ApplyChanges),
+        Spec(authoring.apply_changes, {}, model=ApplyChanges, identity=None),
         Spec(
             authoring.add_apply_change,
             {
@@ -1195,21 +1197,25 @@ def _build_registry():
                 "amount": Int(source=(CounterChange, "amount")),
             },
             model=CounterChange,
+            identity="counter",
         ),
         Spec(
             authoring.remove_picks,
             {"slot_type": One(model=SlotType, source=(RemovePicks, "slot_type"))},
             model=RemovePicks,
+            identity="slot_type",
         ),
         Spec(
             authoring.recruitment_allowance_rule,
             {},
             model=RecruitmentAllowanceRule,
+            identity=None,
         ),
         Spec(
             authoring.rank_allowance_rule,
             {"counter": One(model=Counter, source=(RankAllowanceRule, "counter"))},
             model=RankAllowanceRule,
+            identity="counter",
         ),
         Spec(
             authoring.create_outcome,

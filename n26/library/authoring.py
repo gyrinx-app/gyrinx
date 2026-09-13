@@ -917,6 +917,8 @@ def create_action(
     outcomes=(),
     use_price=(),
     allowance_rule=None,
+    recruitment_allowance_rule=None,
+    rank_allowance_rule=None,
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
@@ -932,6 +934,14 @@ def create_action(
         RecruitmentAllowanceRule,
     )
 
+    rules = [
+        rule
+        for rule in (allowance_rule, recruitment_allowance_rule, rank_allowance_rule)
+        if rule is not None
+    ]
+    if len(rules) > 1:
+        raise ValidationError("An action can have only one allowance rule.")
+    allowance_rule = rules[0] if rules else None
     if allowance_rule is not None and use_price:
         raise ValidationError(
             "An action with an allowance rule cannot also have a use price."

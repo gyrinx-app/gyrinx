@@ -92,6 +92,31 @@ def test_action_authoring_rejects_an_allowance_and_price_without_partial_rows():
     assert (Action.objects.count(), ActionPriceComponent.objects.count()) == before
 
 
+def test_action_authoring_accepts_each_typed_allowance_rule_field():
+    xp = Counter.objects.create(name="XP")
+    recruitment = authoring.recruitment_allowance_rule()
+    ranks = authoring.rank_allowance_rule(xp)
+
+    recruited = authoring.create_action(
+        "Recruitment augmentation",
+        "recruitment",
+        recruitment_allowance_rule=recruitment,
+    )
+    advancement = authoring.create_action(
+        "Advancement", "post_cycle", rank_allowance_rule=ranks
+    )
+
+    assert recruited.recruitment_allowance_rule == recruitment
+    assert advancement.rank_allowance_rule == ranks
+    with pytest.raises(ValidationError, match="only one allowance rule"):
+        authoring.create_action(
+            "Ambiguous action",
+            "post_cycle",
+            recruitment_allowance_rule=recruitment,
+            rank_allowance_rule=ranks,
+        )
+
+
 def test_action_names_include_the_author_qualifier_and_may_have_an_acquisition_price():
     Action.objects.create(
         name="Maintenance", qualifier="Hunt master", timing="post_cycle", price=5
