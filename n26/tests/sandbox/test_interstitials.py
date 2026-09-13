@@ -1134,6 +1134,8 @@ class TestReadingTheScreenAloud:
     def test_each_picker_is_named_by_the_heading_that_asks_it(
         self, client, owner, gang_type, shown, legacy, picklist
     ):
+        import re
+
         several = create_slot(
             "Paths", legacy, picklist, max_picks=2, assigned_to="gang"
         )
@@ -1147,9 +1149,33 @@ class TestReadingTheScreenAloud:
         body = page(client, screen_url(gang, [one, many]))
 
         for key in (one, many):
-            heading = "ask-" + key.replace(":", "-")
-            assert f'id="{heading}"' in body
+            (heading,) = re.findall(rf'id="(ask-\d+-{key.replace(":", "-")})"', body)
             assert f'aria-labelledby="{heading}' in body
+
+    def test_a_question_under_two_screens_is_named_apart_under_each(
+        self, client, owner, gang_type, shown, archetype_slot
+    ):
+        """One slot two screens ask about is drawn under both, and each
+        drawing has a heading of its own for its own picker to name:
+        no id appears twice on the page, and every picker's label names
+        one heading."""
+        import re
+
+        create_interstitial("Also asked", slots=[archetype_slot], skippable=True)
+        gang = found_gang("The Forgotten", gang_type, owner=owner, budget=1000)
+        client.force_login(owner)
+        key = sheet_slot(gang, "Archetype").key
+
+        body = page(client, screen_url(gang, [key]))
+
+        ids = re.findall(r'\bid="(ask-[^"]+)"', body)
+        assert len(ids) == len(set(ids))
+        headings = [i for i in ids if i.endswith(key.replace(":", "-"))]
+        assert len(headings) == 2
+        named = [
+            value.split()[0] for value in re.findall(r'aria-labelledby="([^"]+)"', body)
+        ]
+        assert sorted(named) == sorted(headings)
 
 
 # --- The structure ------------------------------------------------------------

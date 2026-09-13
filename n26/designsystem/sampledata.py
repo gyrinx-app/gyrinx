@@ -1076,6 +1076,7 @@ def arrival_screen():
                 questions=(
                     ArrivalQuestion(
                         key="gang:1:1",
+                        under="1",
                         label="Archetype",
                         bearer="The Forgotten",
                         chosen=None,
@@ -1090,6 +1091,7 @@ def arrival_screen():
                 questions=(
                     ArrivalQuestion(
                         key="gang:1:2",
+                        under="2",
                         label="Creed",
                         bearer="The Forgotten",
                         chosen="Iron Law",
@@ -1123,6 +1125,7 @@ def arrival_screen():
                 questions=(
                     ArrivalQuestion(
                         key="2:3:4",
+                        under="3",
                         label="Hunter's path",
                         bearer="Kal",
                         chosen=None,
