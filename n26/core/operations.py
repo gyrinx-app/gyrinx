@@ -2327,6 +2327,7 @@ class Operation:
         previous_pick,
         miniature,
         action_record,
+        roll=None,
     ):
         """Archive one slot pick and retain exact before/after provenance."""
         anchor, miniature = _slot_context_under_the_lock(
@@ -2359,6 +2360,7 @@ class Operation:
                 slot=slot,
                 miniature=miniature,
                 action_record=action_record,
+                roll=roll,
             )
         if replacement is not None or previous_pick is not None:
             self.event(
