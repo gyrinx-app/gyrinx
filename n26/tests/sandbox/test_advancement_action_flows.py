@@ -153,7 +153,7 @@ def _choose_result(client, advancement, record, result, *, stage="choose"):
 class TestAnEarnedAdvancementStartsAndResumes:
     """XP remains held while its earned use keeps one saved 2D6 result."""
 
-    def test_crossing_xp_opens_one_paid_flow_and_the_roll_survives_resume(
+    def test_crossing_xp_opens_one_earned_flow_and_the_roll_survives_resume(
         self, client, monkeypatch, advancement
     ):
         _load_rolls(monkeypatch, 12)
@@ -185,6 +185,27 @@ class TestAnEarnedAdvancementStartsAndResumes:
         record.refresh_from_db()
         assert response.status_code == 302
         assert record.state == ActionRecord.State.STARTED
+
+    def test_an_earned_use_reserved_in_another_tab_has_a_visible_explanation(
+        self, client, advancement
+    ):
+        record = _start(client, advancement)
+        response = client.post(
+            reverse(
+                "n26-action-start", args=[advancement.fighter.pk, advancement.action.pk]
+            ),
+            {
+                "request_key": str(uuid4()),
+                "outcome": str(advancement.outcome.pk),
+                "allowance": str(advancement.allowance.pk),
+            },
+        )
+        assert response.status_code == 200
+        assert "That earned use is no longer available." in response.content.decode()
+        assert (
+            ActionRecord.objects.filter(fighter=advancement.fighter).get().pk
+            == record.pk
+        )
 
 
 class TestSelectingSkills:
@@ -259,7 +280,7 @@ class TestSelectingSkills:
 class TestCompletingAndCorrecting:
     """Confirmation settles once; correction changes the pick around that receipt."""
 
-    def test_completion_and_correction_keep_one_payment_and_one_roll(
+    def test_completion_and_correction_keep_one_use_and_one_roll(
         self, client, monkeypatch, advancement
     ):
         credits = advancement.gang.recompute_credits()

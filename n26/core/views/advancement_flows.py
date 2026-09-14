@@ -45,7 +45,9 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             submit_variant="primary",
         )
 
-    options = advancement_options(record, configured)
+    options = tuple(
+        option for option in advancement_options(record, configured) if option.gainable
+    )
     if step == "skill":
         pick_id = (
             request.GET.get("pick") if correction else record.terms.get("pickable_id")
