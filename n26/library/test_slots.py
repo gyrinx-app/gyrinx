@@ -26,7 +26,7 @@ from n26.library.authoring import (
     detach_interstitial,
     revise,
 )
-from n26.library.models import DefaultAssignment, Interstitial, Slot
+from n26.library.models import DefaultAssignment, Interstitial, PicklistMember, Slot
 
 pytestmark = pytest.mark.django_db
 
@@ -92,14 +92,28 @@ class TestOneSlotTypeThroughout:
             stray.clean()
 
     def test_a_pickable_is_listed_once_on_one_list(self, legacies, cawdor):
-        with pytest.raises(IntegrityError), transaction.atomic():
+        with pytest.raises(ValidationError, match="picklist_member_listed_once"):
             add_picklist_member(legacies, cawdor)
+
+    def test_the_database_says_it_too_where_a_verb_was_bypassed(self, legacies, cawdor):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            PicklistMember.objects.create(picklist=legacies, pickable=cawdor)
 
 
 class TestHowManyPicksAChoiceHolds:
     def test_a_minimum_above_the_maximum_is_refused(self, legacy, legacies):
-        with pytest.raises(IntegrityError), transaction.atomic():
+        with pytest.raises(ValidationError, match="slot_min_picks_within_max"):
             create_slot("Too many", legacy, legacies, min_picks=2, max_picks=1)
+
+    def test_the_database_says_it_too_where_a_verb_was_bypassed(self, legacy, legacies):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Slot.objects.create(
+                name="Too many",
+                slot_type=legacy,
+                picklist=legacies,
+                min_picks=2,
+                max_picks=1,
+            )
 
     def test_one_of_one_is_what_a_choice_asks_for_unless_told_otherwise(
         self, legacy, legacies
