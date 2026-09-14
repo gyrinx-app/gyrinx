@@ -432,36 +432,39 @@ def record_skill_roll(
     for attempt in selection.random_attempts:
         if attempt["request_key"] == str(request_key):
             return attempt
-    if selection.selected_skill_id:
-        accepted = next(
-            (
-                attempt
-                for attempt in reversed(selection.random_attempts)
-                if attempt.get("is_available")
-                and attempt.get("skill_id") == str(selection.selected_skill_id)
-            ),
-            None,
-        )
-        if accepted is not None:
-            return accepted
     options = skill_options(record, configured, pickable_id)
     category = next((row for row in options if str(row.pk) == str(skill_set_id)), None)
     if category is None:
         raise Refusal("That Skill Set is not available for this advancement.")
+    access = _skill_access(configured, pickable_id)
+    latest = selection.random_attempts[-1] if selection.random_attempts else None
+    if (
+        latest is not None
+        and selection.access == access
+        and selection.skill_set_id == category.pk
+        and selection.selected_skill_id
+    ):
+        return latest
     from n26.library.models import Dice
 
-    event = op.roll(
-        configured.slot,
-        miniature=record.fighter,
-        rolled=rolled,
-        rng=rng,
-        dice=Dice.D6,
-        action_record=record,
-        note=str(category),
-    )
+    if latest is not None and (
+        selection.access != access or selection.skill_set_id != category.pk
+    ):
+        event_id, result = latest["event_id"], latest["roll"]
+    else:
+        event = op.roll(
+            configured.slot,
+            miniature=record.fighter,
+            rolled=rolled,
+            rng=rng,
+            dice=Dice.D6,
+            action_record=record,
+            note=str(category),
+        )
+        event_id, result = str(event.pk), event.roll
     from n26.library.models import Skill
 
-    rolled_skill = Skill.objects.filter(category=category, position=event.roll).first()
+    rolled_skill = Skill.objects.filter(category=category, position=result).first()
     available = next(
         (
             row
@@ -472,9 +475,9 @@ def record_skill_roll(
     )
     attempt = {
         "request_key": str(request_key),
-        "event_id": str(event.pk),
+        "event_id": event_id,
         "skill_set_id": str(category.pk),
-        "roll": event.roll,
+        "roll": result,
         "skill_id": str(rolled_skill.pk) if rolled_skill else None,
         "result_name": str(rolled_skill) if rolled_skill else None,
         "is_available": available is not None,
@@ -485,6 +488,7 @@ def record_skill_roll(
         ),
     }
     selection.random_attempts = [*selection.random_attempts, attempt]
+    selection.access = access
     selection.skill_set, selection.selected_skill = category, available
     selection.save()
     return attempt
