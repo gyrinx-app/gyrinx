@@ -139,43 +139,51 @@ def find():
 
 def apply_one(gang_id):
     """Reread and initialise one gang under its operation lock."""
-    gang = Gang.objects.get(pk=gang_id, archived=False)
+    gang = Gang.objects.filter(pk=gang_id, archived=False).first()
+    if gang is None:
+        return f"Gang {gang_id}: skipped because it was archived or removed."
     assert_reconciled(gang)
     granted = skipped = 0
-    with operation(gang, actor=None) as op:
-        for (
-            fighter,
-            assignments,
-            baselines,
-            accesses,
-            card,
-            computed,
-        ) in _fighter_contexts(gang):
-            for assignment in assignments:
-                matching = [
-                    access.action
-                    for access in accesses
-                    if access.action.rank_allowance_rule_id
-                    and access.action.rank_allowance_rule.counter_id
-                    == assignment.counter_id
-                ]
-                if (
-                    not matching
-                    or rank_table_for(
-                        fighter, assignment.counter, card=card, computed=computed
+    try:
+        with operation(gang, actor=None) as op:
+            gang.refresh_from_db()
+            if gang.archived:
+                return f"{gang}: skipped because it was archived."
+            for (
+                fighter,
+                assignments,
+                baselines,
+                accesses,
+                card,
+                computed,
+            ) in _fighter_contexts(gang):
+                for assignment in assignments:
+                    matching = [
+                        access.action
+                        for access in accesses
+                        if access.action.rank_allowance_rule_id
+                        and access.action.rank_allowance_rule.counter_id
+                        == assignment.counter_id
+                    ]
+                    if (
+                        not matching
+                        or rank_table_for(
+                            fighter, assignment.counter, card=card, computed=computed
+                        )
+                        is None
+                    ):
+                        continue
+                    baseline = baselines[assignment.pk]
+                    if baseline is None:
+                        skipped += 1
+                        continue
+                    granted += len(
+                        grant_rank_allowances(
+                            op, assignment, baseline, assignment.counter_value.value
+                        )
                     )
-                    is None
-                ):
-                    continue
-                baseline = baselines[assignment.pk]
-                if baseline is None:
-                    skipped += 1
-                    continue
-                granted += len(
-                    grant_rank_allowances(
-                        op, assignment, baseline, assignment.counter_value.value
-                    )
-                )
+    except Gang.DoesNotExist:
+        return f"Gang {gang_id}: skipped because it was removed."
     gang.refresh_from_db()
     assert_reconciled(gang)
     return f"{gang}: granted {granted} earned use(s); skipped {skipped} counter(s) without a baseline."
