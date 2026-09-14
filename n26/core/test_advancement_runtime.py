@@ -640,6 +640,7 @@ def test_completed_advancement_correction_keeps_roll_and_allowance(fighter):
     assert not selection.pick_assignment.archived
     assert selection.intended_pick_id == toughness.id
     assert selection.roll_event_id == roll_event_id
+    assert selection.pick_assignment.roll_id == roll_event_id
     assert corrected.allowance_id == allowance.pk
     assert (
         LedgerEvent.objects.filter(
