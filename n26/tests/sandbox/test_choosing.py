@@ -970,6 +970,7 @@ def model_choices(gang, crew, profiles):
     from n26.core.operations import operation
     from n26.library.authoring import (
         add_built_in,
+        add_picklist_member,
         create_pickable,
         create_picklist,
         create_slot,
@@ -977,7 +978,7 @@ def model_choices(gang, crew, profiles):
         create_wargear,
         create_weapon,
     )
-    from n26.library.models import Power, Rule
+    from n26.library.models import Power, Rule, Slot, Subtype
 
     create_power("Test power", "Double")
     modifier(
@@ -988,17 +989,38 @@ def model_choices(gang, crew, profiles):
     )
     kind = create_slot_type("Augmentation")
     pick = create_pickable("Tier 1", kind)
-    table = create_picklist("Weapon tiers", kind, members=[pick])
-    slot = create_slot("Weapon augmentation", kind, table, label="Augmentation")
+    table = create_picklist("Weapon tiers", kind)
+    add_picklist_member(table, pick, level=1)
+    slot = create_slot(
+        "Weapon augmentation",
+        kind,
+        table,
+        label="Augmentation",
+        mode=Slot.Mode.TIER_LADDER,
+    )
     weapon = create_weapon("Augmentable gun", profiles=[("", 0)])
     add_built_in(weapon, slot)
     gear_pick = create_pickable("Gear tier 1", kind, rating_contribution=15)
     tier_rule = Rule.objects.create(name="Reinforced plating")
     modifier("Gear tier effect", targets_model(), adds(tier_rule), carried_by=gear_pick)
-    gear_table = create_picklist("Gear tiers", kind, members=[gear_pick])
-    gear_slot = create_slot("Wargear augmentation", kind, gear_table, label="Gear tier")
+    gear_table = create_picklist("Gear tiers", kind)
+    add_picklist_member(gear_table, gear_pick, level=1)
+    gear_slot = create_slot(
+        "Wargear augmentation",
+        kind,
+        gear_table,
+        label="Gear tier",
+        mode=Slot.Mode.TIER_LADDER,
+    )
     wargear = create_wargear("Augmentable rig")
     add_built_in(wargear, gear_slot)
+    create_subtype("Scout rig")
+    modifier(
+        "The rig offers a role",
+        targets_model(),
+        offers_choice(Subtype, label="Rig role"),
+        carried_by=wargear,
+    )
     with operation(gang, actor=gang.owner) as op:
         op.buy(crew["leader"], thing=weapon, paid=0)
         op.buy(crew["leader"], thing=wargear, paid=0)
@@ -1011,6 +1033,7 @@ def model_choices(gang, crew, profiles):
             "Power",
             "Augmentation",
             "Gear tier",
+            "Rig role",
         )
     }
 
@@ -1019,7 +1042,20 @@ def test_wargear_tier_stays_beneath_its_exact_carried_item(gang, crew, model_cho
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
     rig = next(line for line in card.equipment if line.name == "Augmentable rig")
     assert [choice.kind_label for choice in rig.choices] == ["Gear tier"]
+    assert rig.choices[0].is_tier_ladder is True
+    gun = next(weapon for weapon in card.weapons if weapon.name == "Augmentable gun")
+    assert gun.choices[0].is_tier_ladder is True
     assert "Gear tier" not in [choice.kind_label for choice in card.row_questions]
+
+
+def test_an_ordinary_choice_from_wargear_stays_on_the_model_card(
+    gang, crew, model_choices
+):
+    card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
+    rig = next(line for line in card.equipment if line.name == "Augmentable rig")
+    assert [choice.kind_label for choice in rig.choices] == ["Gear tier"]
+    role = next(choice for choice in card.choices if choice.kind_label == "Rig role")
+    assert role.is_tier_ladder is False
 
 
 def test_identical_wargear_copies_keep_their_own_tiers(gang, crew, model_choices):

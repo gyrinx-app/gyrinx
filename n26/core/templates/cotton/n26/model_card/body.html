@@ -294,7 +294,7 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                                                     {# Dismiss on the gang sheet as well as the model page. Only edit mode can change the level. #}
                                                     <c-n26.model-card.mode when="edit">
                                                         {% if choice.href %}
-                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
+                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_tier_ladder %}Choose tier{% elif choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
                                                         {% endif %}
                                                     </c-n26.model-card.mode>
 

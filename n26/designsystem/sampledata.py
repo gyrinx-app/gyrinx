@@ -1579,6 +1579,7 @@ def model_card():
                     ChoiceLine(
                         kind_label="Augmentation",
                         chosen="Tier 2",
+                        is_tier_ladder=True,
                         key="vesna-krail:lasgun:augmentation",
                         provenance=Provenance(
                             source="Lasgun", source_kind="weapon", computed=True
