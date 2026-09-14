@@ -11,6 +11,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.utils.text import slugify
 
+from n26.core.action_flow import ActionPanel, ActionUseLink
 from n26.core.activities import (
     FOUNDING_ABOUT,
     FOUNDING_HELP,
@@ -853,6 +854,37 @@ def context():
         ),
         "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
         "credit_payment_figures": PaymentFigures("Credits", "430¢", "100¢", "330¢"),
+        "sample_action_panels": (
+            ActionPanel(
+                action_id="suit-evolution",
+                name="Suit Evolution",
+                timing="post-battle action",
+                prices=(PaymentFigures("Kill Count", "8", "4", "4"),),
+                start_href="#start-suit-evolution",
+                drafts=[
+                    ActionUseLink(
+                        "suit-evolution-draft",
+                        "Resume Suit Evolution flow",
+                        "#resume-suit-evolution",
+                    )
+                ],
+            ),
+            ActionPanel(
+                action_id="advancement",
+                name="Advancement",
+                timing="when an XP threshold is reached",
+                allowance_id="advancement-allowance",
+                available_uses=1,
+                start_href="#start-advancement",
+                drafts=[
+                    ActionUseLink(
+                        "advancement-draft",
+                        "Resume Advancement flow",
+                        "#resume-advancement",
+                    )
+                ],
+            ),
+        ),
         "houses": HOUSES,
         "gang_owner": OWNER,
         # Somebody for a demo to name who is not the reader: a fixed name,
