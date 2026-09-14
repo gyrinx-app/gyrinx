@@ -480,7 +480,7 @@ class PicklistMember(Content):
     level = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        help_text="Numeric tier for a tier ladder. Level 0 means no pick.",
+        help_text="Numeric tier for a tier ladder. Starts at 1; no pick is empty.",
     )
     #: The band of rolls that lands on this row, both ends inclusive —
     #: "21-26" as readily as "11", which is the band with one roll in it.

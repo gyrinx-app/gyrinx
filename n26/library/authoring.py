@@ -883,11 +883,12 @@ def create_affiliation(
 # --- Slots and picks: a slot type, authored ----------------------------------
 
 
+@transaction.atomic
 def create_rank_table(
     name, counter, thresholds=(), qualifier="", library_author_help="", **kwargs
 ):
     """An XP schedule a fighter may hold; thresholds are positive XP values."""
-    from n26.library.models import RankTable, RankThreshold
+    from n26.library.models import RankTable
 
     table = RankTable.objects.create(
         name=name,
@@ -897,7 +898,7 @@ def create_rank_table(
         **kwargs,
     )
     for threshold in thresholds:
-        RankThreshold.objects.create(rank_table=table, threshold=threshold, **kwargs)
+        add_rank_threshold(table, threshold, **kwargs)
     return table
 
 
@@ -905,9 +906,10 @@ def add_rank_threshold(rank_table, threshold, **kwargs):
     """Add one XP threshold to a rank table."""
     from n26.library.models import RankThreshold
 
-    return RankThreshold.objects.create(
-        rank_table=rank_table, threshold=threshold, **kwargs
-    )
+    member = RankThreshold(rank_table=rank_table, threshold=threshold, **kwargs)
+    member.full_clean()
+    member.save()
+    return member
 
 
 @transaction.atomic
@@ -922,6 +924,7 @@ def create_action(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
+    price=0,
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -957,6 +960,7 @@ def create_action(
     action = Action.objects.create(
         name=name,
         timing=timing,
+        price=price,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **rule_kwargs,
@@ -1230,7 +1234,7 @@ def add_picklist_member(
 
     if problem := band_problem(roll_low, roll_high):
         raise ValidationError(problem)
-    return PicklistMember.objects.create(
+    member = PicklistMember(
         picklist=picklist,
         pickable=pickable,
         label_override=label_override,
@@ -1240,6 +1244,9 @@ def add_picklist_member(
         level=level,
         **kwargs,
     )
+    member.full_clean()
+    member.save()
+    return member
 
 
 def remove_picklist_member(member):
@@ -1281,7 +1288,7 @@ def create_slot(
             f"{picklist} lists {picklist.slot_type} pickables, and this is a "
             f"{slot_type} choice."
         )
-    return Slot.objects.create(
+    slot = Slot(
         name=name,
         slot_type=slot_type,
         picklist=picklist,
@@ -1296,6 +1303,9 @@ def create_slot(
         library_author_help=library_author_help,
         **kwargs,
     )
+    slot.full_clean()
+    slot.save()
+    return slot
 
 
 def create_interstitial(

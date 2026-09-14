@@ -196,6 +196,32 @@ class TestFieldlessActionConfigurations:
         )
 
 
+class TestRankThresholdWords:
+    """A rank table uses its configured counter without one query per threshold."""
+
+    def test_the_detail_names_its_counter_with_fixed_query_growth(
+        self, author, client, default_pack
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library import authoring
+
+        kills = authoring.create_counter("Kill Count")
+        table = authoring.create_rank_table("Hunt ranks", kills, thresholds=[4])
+        url = f"/n26/authoring/rank-table/{table.pk}/"
+        client.get(url)
+        with CaptureQueriesContext(connection) as one:
+            first = client.get(url)
+        assert "Kill Count" in first.content.decode()
+
+        for threshold in range(5, 15):
+            authoring.add_rank_threshold(table, threshold)
+        with CaptureQueriesContext(connection) as many:
+            client.get(url)
+        assert len(many) == len(one)
+
+
 class TestAffiliationIsRetiredFromTheMenu:
     """What an affiliation said is said by slots and picks. The menu
     stops inviting another one; leftover rows stay reachable."""

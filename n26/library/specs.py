@@ -1114,6 +1114,7 @@ def _build_registry():
             {
                 "name": Text(source=(Action, "name")),
                 "timing": Choice(source=(Action, "timing")),
+                "price": Int(source=(Action, "price")),
                 "recruitment_allowance_rule": One(
                     model=RecruitmentAllowanceRule,
                     source=(Action, "recruitment_allowance_rule"),

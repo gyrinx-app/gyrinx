@@ -291,7 +291,7 @@ Where the slot type does not allow repeats, the picker marks the pickables alrea
 
 ## Actions and outcomes
 
-An **action** is an assignable capability a fighter may use at recruitment or after a cycle. Its inherited price is the price of acquiring the capability and is always 0. Its **use price** is a separate ordered list: every component is paid together. A component spends either gang credits or an identified counter on the gang or fighter. An empty list means that using the action is free.
+An **action** is an assignable capability a fighter may use at recruitment or after a cycle. Its inherited price is the price of acquiring the capability. Its **use price** is a separate ordered list: every component is paid together. A component spends either gang credits or an identified counter on the gang or fighter. An empty list means that using the action is free.
 
 An action lists one or more **outcomes** in order. Each outcome owns one typed operation: augment one carried item's tier ladder, resolve an advancement slot, or apply an ordered set of counter changes and pick removals. Several actions may list the same outcome.
 

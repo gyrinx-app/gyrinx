@@ -17,6 +17,7 @@ from n26.library.models import (
     Counter,
     Pickable,
     Picklist,
+    PicklistMember,
     RankTable,
     Slot,
     SlotType,
@@ -145,8 +146,17 @@ def test_rank_thresholds_are_positive_unique_and_ordered():
         "Standard ranks", Counter.objects.create(name="XP"), thresholds=[60, 6, 31]
     )
     assert list(table.thresholds.values_list("threshold", flat=True)) == [6, 31, 60]
-    with pytest.raises(IntegrityError), transaction.atomic():
+    with pytest.raises(ValidationError):
         authoring.add_rank_threshold(table, 31)
+    with pytest.raises(ValidationError):
+        authoring.add_rank_threshold(table, 0)
+
+
+def test_rank_table_creation_rolls_back_every_threshold_on_a_refusal():
+    xp = Counter.objects.create(name="XP")
+    with pytest.raises(ValidationError):
+        authoring.create_rank_table("Broken ranks", xp, thresholds=[4, 0, 7])
+    assert not RankTable.objects.filter(name="Broken ranks").exists()
 
 
 def test_a_tier_ladder_requires_one_pick_and_numeric_levels():
@@ -164,6 +174,25 @@ def test_a_tier_ladder_requires_one_pick_and_numeric_levels():
     )
     with pytest.raises(ValidationError, match="one tier"):
         slot.full_clean()
+    with pytest.raises(ValidationError, match="one tier"):
+        authoring.create_slot(
+            "Invalid augmentation",
+            kind,
+            picklist,
+            mode="tier_ladder",
+            max_picks=2,
+        )
+
+    unlevelled = Picklist.objects.create(name="Unlevelled", slot_type=kind)
+    PicklistMember.objects.create(
+        picklist=unlevelled,
+        pickable=Pickable.objects.create(name="Unlevelled tier", slot_type=kind),
+        position=0,
+    )
+    with pytest.raises(ValidationError, match="numeric level"):
+        authoring.create_slot(
+            "Unlevelled augmentation", kind, unlevelled, mode="tier_ladder"
+        )
 
 
 def test_a_tier_ladder_rejects_an_unlevelled_member_added_or_edited_later():
@@ -184,6 +213,21 @@ def test_a_tier_ladder_rejects_an_unlevelled_member_added_or_edited_later():
         authoring.add_picklist_member(picklist, second)
     with pytest.raises(ValidationError, match="numeric level"):
         authoring.revise(member, level=None)
+    with pytest.raises(ValidationError, match="1 or higher"):
+        authoring.add_picklist_member(picklist, second, level=0)
+
+
+def test_action_validation_explains_two_allowance_rules():
+    action = Action(
+        name="Ambiguous",
+        timing="post_cycle",
+        recruitment_allowance_rule=authoring.recruitment_allowance_rule(),
+        rank_allowance_rule=authoring.rank_allowance_rule(
+            Counter.objects.create(name="XP")
+        ),
+    )
+    with pytest.raises(ValidationError, match="only one allowance rule"):
+        action.full_clean()
 
 
 class _Card:
@@ -288,6 +332,8 @@ def test_real_card_access_honours_direct_computed_and_removed_actions(
     direct.archive()
     (access,) = actions_for(fighter)
     assert access.computed is True
+    with django_assert_num_queries(0):
+        assert access.usability == ""
 
     blocker = create_wargear("Damaged controls")
     modifier(
@@ -396,3 +442,11 @@ def test_authoring_forms_build_prices_allowances_and_ladder_levels():
     assert member_form.is_valid(), member_form.errors
     member = specs()["add_picklist_member"].verb(picklist, **member_form.verb_data())
     assert member.level == 1
+
+
+def test_action_authoring_form_exposes_the_acquisition_price():
+    form = generate_form(specs()["create_action"])(
+        {"name": "Paid capability", "timing": "post_cycle", "price": 25}
+    )
+    assert form.is_valid(), form.errors
+    assert form.compile().price == 25

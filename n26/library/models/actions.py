@@ -15,7 +15,7 @@ from n26.library.models.base import Content
 
 
 class RankTable(Content, Assignable):
-    """An XP progression schedule assigned to a fighter."""
+    """A counter progression schedule assigned to a fighter."""
 
     family = Family.MODEL
     counter = models.ForeignKey(
@@ -41,13 +41,13 @@ class RankTable(Content, Assignable):
 
 
 class RankThreshold(Content):
-    """One positive XP threshold in a rank table."""
+    """One positive counter threshold in a rank table."""
 
     rank_table = models.ForeignKey(
         RankTable, on_delete=models.CASCADE, related_name="thresholds"
     )
     threshold = models.PositiveIntegerField(
-        help_text="XP at which this advancement is earned."
+        help_text="Counter value at which this action use is earned."
     )
 
     class Meta:
@@ -150,6 +150,8 @@ class Action(Content, Assignable, UsableBy):
 
     def clean(self):
         super().clean()
+        if self.recruitment_allowance_rule_id and self.rank_allowance_rule_id:
+            raise ValidationError("An action can have only one allowance rule.")
         if self.allowance_rule and self.pk and self.use_price.exists():
             raise ValidationError(
                 "An action with an allowance rule cannot also have a use price."

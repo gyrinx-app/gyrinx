@@ -499,7 +499,7 @@ def _describe_action_outcome(member):
 
 
 def _describe_rank_threshold(member):
-    return str(member.threshold), ["XP"]
+    return str(member.threshold), [str(member.rank_table.counter)]
 
 
 def _describe_action_price(component):
@@ -527,10 +527,10 @@ DETAIL_KINDS = {
         "parts": "thresholds",
         "statline": False,
         "describe": _describe_rank_threshold,
-        "parts_hint": lambda parts: parts,
+        "parts_hint": lambda parts: parts.select_related("rank_table__counter"),
         "parts_label": "thresholds",
         "part_name": "threshold",
-        "nothing_yet": "No thresholds yet. Add the XP values that earn advancements.",
+        "nothing_yet": "No thresholds yet. Add the counter values that earn action uses.",
     },
     "apply-changes": {
         "verb": "add_apply_change",
