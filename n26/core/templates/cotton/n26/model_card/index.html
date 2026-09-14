@@ -76,12 +76,13 @@ not something to do.
     {% endcomment %}
     <div class="border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
         {% comment %}
-        The figures keep their own top-right cell while the name takes the
-        space left beside them. The profile and controls occupy the two cells
+        Equal columns stop a long status and the figures beside it from
+        squeezing the name out of the top-left cell. The figures wrap inside
+        the top-right cell; the profile and controls occupy the two cells
         below, keeping the actions beside the profile without moving the
         rating away from its corner.
         {% endcomment %}
-        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+        <div class="grid grid-cols-2 items-start gap-x-3">
             {% comment %}
             The model's name. The library profile it was hired from sits in
             the cell below, so the controls can remain beside it.
@@ -136,7 +137,7 @@ not something to do.
             </div>
 
             <div class="contents">
-                <div class="col-start-2 row-start-1 flex items-baseline justify-end gap-1 text-sm font-medium tabular-nums">
+                <div class="col-start-2 row-start-1 flex min-w-0 flex-wrap items-baseline justify-end gap-1 text-sm font-medium tabular-nums">
                     {% comment %}
                     Where the model stands between battles, ahead of the
                     figures rather than among the acts below: a status is
@@ -206,7 +207,7 @@ not something to do.
                     The controls share the lower row with the profile and
                     wrap within their own cell when the card is narrow.
                     {% endcomment %}
-                    <div class="col-start-2 row-start-2 flex flex-wrap items-center justify-end gap-2">
+                    <div class="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end gap-2">
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
                                 <c-slot name="trigger">
