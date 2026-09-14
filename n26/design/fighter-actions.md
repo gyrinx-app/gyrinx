@@ -107,7 +107,7 @@ with a later category's roll.
 ## Code and examples
 
 - [Content models](../library/models/actions.py) and [authoring verbs](../library/authoring.py)
-- [Payment quotes](../core/payments.py) and [action lifecycle](../core/action_records.py)
+- [Payment quotes](../core/action_payments.py) and [action lifecycle](../core/action_records.py)
 - [Augmentation handler](../core/augmentations.py) and [advancement handler](../core/advancements.py)
 - [Allowance grants](../core/allowances.py) and [one-off initialisation](../core/action_initialisation.py)
 - [Flow pages](../core/views/action_flows.py) and [responsive components](../core/templates/cotton/n26/flow_progress.html)
