@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
 from n26 import maintenance
-from n26.core import action_initialisation
+from n26.core import action_initialisation, allowances
 from n26.core.action_initialisation import apply_one, find
 from n26.core.models import ActionAllowance, Gang, LedgerEvent
 from n26.core.operations import operation
@@ -214,7 +214,7 @@ def test_completed_run_is_checked_after_taking_the_single_flight_lock(
     assert first.status == Backfill.Status.DONE
 
 
-def test_a_distinct_queued_record_ends_when_another_run_holds_the_lock(
+def test_a_prior_attempt_competing_record_retries_after_the_lock_holder_finishes(
     monkeypatch,
 ):
     running = Backfill.objects.create(
@@ -224,20 +224,35 @@ def test_a_distinct_queued_record_ends_when_another_run_holds_the_lock(
     queued = Backfill.objects.create(
         operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
         status=Backfill.Status.RUNNING,
+        summary={"attempts": 1},
     )
+    lock_is_free = False
+    enqueued = []
 
     @contextmanager
-    def occupied(_key):
-        yield False
+    def lock(_key):
+        yield lock_is_free
 
-    monkeypatch.setattr(maintenance, "_single_flight", occupied)
+    monkeypatch.setattr(maintenance, "_single_flight", lock)
+    monkeypatch.setattr(
+        type(maintenance.initialise_action_allowances),
+        "enqueue",
+        lambda self, **kwargs: enqueued.append(kwargs),
+    )
     maintenance.initialise_action_allowances.call(backfill_id=str(queued.pk))
 
     queued.refresh_from_db()
-    running.refresh_from_db()
+    assert queued.status == Backfill.Status.RUNNING
+    assert enqueued == [{"backfill_id": str(queued.pk)}]
+
+    running.status = Backfill.Status.DONE
+    running.save(update_fields=["status", "modified"])
+    lock_is_free = True
+    maintenance.initialise_action_allowances.call(**enqueued.pop())
+
+    queued.refresh_from_db()
     assert queued.status == Backfill.Status.FAILED
-    assert "already running" in queued.error
-    assert running.status == Backfill.Status.RUNNING
+    assert "already initialised" in queued.error
 
 
 def test_a_duplicate_delivery_does_not_end_the_active_record(monkeypatch):
@@ -246,20 +261,46 @@ def test_a_duplicate_delivery_does_not_end_the_active_record(monkeypatch):
         status=Backfill.Status.RUNNING,
         summary={"attempts": 1},
     )
-    Backfill.objects.create(
-        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
-        status=Backfill.Status.RUNNING,
-    )
+    lock_is_free = False
+    enqueued = []
 
     @contextmanager
-    def occupied(_key):
-        yield False
+    def lock(_key):
+        yield lock_is_free
 
-    monkeypatch.setattr(maintenance, "_single_flight", occupied)
+    monkeypatch.setattr(maintenance, "_single_flight", lock)
+    monkeypatch.setattr(
+        type(maintenance.initialise_action_allowances),
+        "enqueue",
+        lambda self, **kwargs: enqueued.append(kwargs),
+    )
     maintenance.initialise_action_allowances.call(backfill_id=str(active.pk))
 
     active.refresh_from_db()
     assert active.status == Backfill.Status.RUNNING
+    assert enqueued == [{"backfill_id": str(active.pk)}]
+
+    active.status = Backfill.Status.DONE
+    active.save(update_fields=["status", "modified"])
+    lock_is_free = True
+    maintenance.initialise_action_allowances.call(**enqueued.pop())
+
+    active.refresh_from_db()
+    assert active.status == Backfill.Status.DONE
+
+
+def test_application_reuses_the_prepared_card_access(legacy_fighter, monkeypatch):
+    gang, fighter, action, _ = legacy_fighter
+
+    def rebuilt(*args, **kwargs):
+        raise AssertionError("allowance grant rebuilt prepared fighter access")
+
+    monkeypatch.setattr(allowances, "actions_for", rebuilt)
+    monkeypatch.setattr(allowances, "rank_table_for", rebuilt)
+
+    apply_one(gang.pk)
+
+    assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 2
 
 
 @pytest.mark.parametrize("change", ["archive", "delete"])
