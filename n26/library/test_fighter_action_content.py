@@ -133,6 +133,112 @@ def test_fighter_action_content_is_complete_and_idempotent():
     ] == ["Spyrer Hunting Rig Glitch"]
 
 
+def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pack):
+    from n26.library.models import (
+        Collection,
+        CollectionSection,
+        ContentPack,
+        Counter,
+        Pickable,
+        PicklistMember,
+        RankThreshold,
+    )
+
+    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-actions")
+    skill_collection = Collection.objects.create(pack=homebrew, name="Skills & Powers")
+    for position, name in enumerate(("Primary", "Secondary")):
+        CollectionSection.objects.create(
+            pack=homebrew,
+            collection=skill_collection,
+            name=name,
+            position=position,
+        )
+    advancement_type = SlotType.objects.create(pack=homebrew, name="Advancement")
+    table = Picklist.objects.create(
+        pack=homebrew,
+        name="Fighter advancement table",
+        slot_type=advancement_type,
+        dice="d6",
+        roll_selects="threshold",
+    )
+    for position, (name, roll, _) in enumerate(FIGHTER_ADVANCEMENTS):
+        pick = Pickable.objects.create(
+            pack=homebrew,
+            name=name,
+            slot_type=advancement_type,
+            rating_contribution=99,
+        )
+        PicklistMember.objects.create(
+            picklist=table,
+            pickable=pick,
+            position=position,
+            roll_low=roll,
+            roll_high=roll,
+        )
+    xp = Counter.objects.create(pack=homebrew, name="XP")
+    ranks = RankTable.objects.create(
+        pack=homebrew, name="Standard fighter ranks", counter=xp
+    )
+    for threshold in FIGHTER_RANK_THRESHOLDS:
+        RankThreshold.objects.create(rank_table=ranks, threshold=threshold)
+    for name in (
+        "Suit Evolution",
+        "Suit Maintenance",
+        "Recruitment augmentation",
+        "Advancement",
+    ):
+        Action.objects.create(
+            pack=homebrew, name=name, timing=Action.Timing.RECRUITMENT
+        )
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    assert content.check() == (0, 42)
+    content.create()
+    content.create()
+
+    assert content.check() == (42, 42)
+    assert Picklist.objects.get(pack=homebrew, name=table.name).dice == "d6"
+    assert (
+        Pickable.objects.get(pack=homebrew, name="Leadership").rating_contribution == 99
+    )
+    default_table = Picklist.objects.get(
+        pack=default_pack, name="Fighter advancement table"
+    )
+    assert default_table.dice == "2d6"
+    assert default_table.members.count() == len(FIGHTER_ADVANCEMENTS)
+    assert (
+        Pickable.objects.get(pack=default_pack, name="Leadership").rating_contribution
+        == 5
+    )
+    assert RankTable.objects.get(
+        pack=default_pack, name="Standard fighter ranks"
+    ).thresholds.count() == len(FIGHTER_RANK_THRESHOLDS)
+    assert (
+        Action.objects.filter(
+            pack=default_pack,
+            name__in=(
+                "Suit Evolution",
+                "Suit Maintenance",
+                "Recruitment augmentation",
+                "Advancement",
+            ),
+        ).count()
+        == 4
+    )
+    offers = Modifier.objects.filter(
+        pack=default_pack,
+        name__in=(
+            "Advancement: Random Primary skill",
+            "Advancement: Select Primary skill",
+            "Advancement: Random Secondary skill",
+            "Advancement: Select Secondary skill",
+        ),
+    )
+    assert {offer.effect.from_section.collection_id for offer in offers} == {
+        Collection.objects.get(pack=default_pack, name="Skills & Powers").pk
+    }
+
+
 def test_reseeding_repairs_the_old_broad_glitch_cleanup():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()

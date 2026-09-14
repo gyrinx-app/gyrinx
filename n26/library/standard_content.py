@@ -908,8 +908,11 @@ def _create_skills_collection():
         CollectionSection,
         CollectionSelector,
     )
+    from n26.library.models.pack import get_default_pack
 
-    collection, _ = Collection.objects.get_or_create(name=SKILLS_COLLECTION)
+    collection, _ = Collection.objects.get_or_create(
+        pack=get_default_pack(), name=SKILLS_COLLECTION
+    )
     for position, (name, is_default) in enumerate(SKILL_TIERS):
         CollectionSection.objects.get_or_create(
             collection=collection,
@@ -932,15 +935,19 @@ def _check_skills_collection():
         CollectionSection,
         CollectionSelector,
     )
+    from n26.library.models.pack import get_default_pack
 
-    present = _count(Collection, name=SKILLS_COLLECTION)
+    pack = get_default_pack()
+    present = _count(Collection, pack=pack, name=SKILLS_COLLECTION)
     present += _count(
         CollectionSection,
+        collection__pack=pack,
         collection__name=SKILLS_COLLECTION,
         name__in=[name for name, _ in SKILL_TIERS],
     )
     present += _count(
         CollectionSelector,
+        collection__pack=pack,
         collection__name=SKILLS_COLLECTION,
         of_kind__in=[
             ContentType.objects.get_for_model(model)
@@ -966,8 +973,10 @@ def _skill_rows():
 
 def _create_skills():
     from n26.library.models import Category, Section, Skill
+    from n26.library.models.pack import get_default_pack
 
-    section, _ = Section.objects.get_or_create(name=SKILLS_SECTION)
+    pack = get_default_pack()
+    section, _ = Section.objects.get_or_create(pack=pack, name=SKILLS_SECTION)
     sets = {}
     for position, set_name in enumerate([*SKILL_SETS, INHERENT_SET]):
         sets[set_name], _ = Category.objects.get_or_create(
@@ -975,6 +984,7 @@ def _create_skills():
         )
     for set_name, skill, number in _skill_rows():
         Skill.objects.get_or_create(
+            pack=pack,
             name=skill,
             defaults={"category": sets[set_name], "position": number},
         )
@@ -982,13 +992,18 @@ def _create_skills():
 
 def _check_skills():
     from n26.library.models import Category, Section, Skill
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     names = [skill for _, skill, _ in _skill_rows()]
-    present = _count(Section, name=SKILLS_SECTION)
+    present = _count(Section, pack=pack, name=SKILLS_SECTION)
     present += _count(
-        Category, section__name=SKILLS_SECTION, name__in=[*SKILL_SETS, INHERENT_SET]
+        Category,
+        section__pack=pack,
+        section__name=SKILLS_SECTION,
+        name__in=[*SKILL_SETS, INHERENT_SET],
     )
-    present += _count(Skill, name__in=names)
+    present += _count(Skill, pack=pack, name__in=names)
     return present, 1 + len(SKILL_SETS) + 1 + len(names)
 
 
@@ -1625,19 +1640,23 @@ def _create_fighter_actions():
         SlotType,
         Stat,
     )
+    from n26.library.models.pack import get_default_pack
+
+    pack = get_default_pack()
 
     def named(model, name, **defaults):
-        lookup = {"name__iexact": name}
+        lookup = {"pack": pack, "name__iexact": name}
         if any(field.name == "qualifier" for field in model._meta.fields):
             lookup["qualifier"] = ""
         found = model.objects.filter(**lookup).first()
-        return found or model.objects.create(name=name, **defaults)
+        return found or model.objects.create(pack=pack, name=name, **defaults)
 
     xp = named(Counter, XP_COUNTER)
     kills = named(Counter, "Kill Count")
     glitches = named(Counter, "Glitch count")
     advancement_type = named(SlotType, "Advancement")
     table, _ = Picklist.objects.get_or_create(
+        pack=pack,
         name="Fighter advancement table",
         slot_type=advancement_type,
         defaults={"dice": "2d6", "roll_selects": "threshold"},
@@ -1658,20 +1677,22 @@ def _create_fighter_actions():
         modifier_name = f"Advancement: {name}"
         if (
             name in {full for _, full, _, _ in MODEL_CHARACTERISTICS}
-            and not Modifier.objects.filter(name=modifier_name).exists()
+            and not Modifier.objects.filter(pack=pack, name=modifier_name).exists()
         ):
             authoring.modifier(
                 modifier_name,
                 authoring.targets_model(),
                 authoring.ef_changes_stat(
-                    Stat.objects.get(full_name=name), mode="improve", amount=1
+                    Stat.objects.get(pack=pack, full_name=name),
+                    mode="improve",
+                    amount=1,
                 ),
                 attach_to=pick,
             )
         elif (
             name.startswith(("Random", "Select"))
             and "skill" in name.lower()
-            and not Modifier.objects.filter(name=modifier_name).exists()
+            and not Modifier.objects.filter(pack=pack, name=modifier_name).exists()
         ):
             access = (
                 "Primary"
@@ -1681,7 +1702,11 @@ def _create_fighter_actions():
                 else None
             )
             section = (
-                CollectionSection.objects.filter(name=access).first()
+                CollectionSection.objects.filter(
+                    collection__pack=pack,
+                    collection__name=SKILLS_COLLECTION,
+                    name=access,
+                ).first()
                 if access
                 else None
             )
@@ -1695,6 +1720,7 @@ def _create_fighter_actions():
                 modifier_name, authoring.targets_model(), effect, attach_to=pick
             )
     slot, _ = Slot.objects.get_or_create(
+        pack=pack,
         name="Advancement",
         defaults={
             "slot_type": advancement_type,
@@ -1728,17 +1754,19 @@ def _create_fighter_actions():
         "Spyrer Hunting Rig Glitch",
         plural_name="Spyrer Hunting Rig Glitches",
     )
-    advance_outcome = Outcome.objects.filter(name="Advancement").first()
+    advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()
     if advance_outcome is None:
         advance_outcome = authoring.create_outcome(
             "Advancement", authoring.resolve_advancement(slot)
         )
-    augment_outcome = Outcome.objects.filter(name="Hunting Rig Augmentation").first()
+    augment_outcome = Outcome.objects.filter(
+        pack=pack, name="Hunting Rig Augmentation"
+    ).first()
     if augment_outcome is None:
         augment_outcome = authoring.create_outcome(
             "Hunting Rig Augmentation", authoring.augment_carried_item(augment_type)
         )
-    clear = Outcome.objects.filter(name="Clear glitches").first()
+    clear = Outcome.objects.filter(pack=pack, name="Clear glitches").first()
     if clear is None:
         clear = authoring.create_outcome(
             "Clear glitches",
@@ -1784,7 +1812,7 @@ def _create_fighter_actions():
         ("Advancement", "post_cycle", [advance_outcome], "rank", []),
     )
     for name, timing, outcomes, rule, price in definitions:
-        if not Action.objects.filter(name=name).exists():
+        if not Action.objects.filter(pack=pack, name=name).exists():
             rule = (
                 authoring.recruitment_allowance_rule()
                 if rule == "recruitment"
@@ -1797,20 +1825,23 @@ def _create_fighter_actions():
 
 def _check_fighter_actions():
     from n26.library.models import Action, PicklistMember, RankThreshold
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     present = Action.objects.filter(
+        pack=pack,
         name__in=(
             "Suit Evolution",
             "Suit Maintenance",
             "Recruitment augmentation",
             "Advancement",
-        )
+        ),
     ).count()
     present += PicklistMember.objects.filter(
-        picklist__name="Fighter advancement table"
+        picklist__pack=pack, picklist__name="Fighter advancement table"
     ).count()
     present += RankThreshold.objects.filter(
-        rank_table__name="Standard fighter ranks"
+        rank_table__pack=pack, rank_table__name="Standard fighter ranks"
     ).count()
     return present, 4 + len(FIGHTER_ADVANCEMENTS) + len(FIGHTER_RANK_THRESHOLDS)
 
