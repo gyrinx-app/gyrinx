@@ -6,16 +6,16 @@ review and merge them in this order. The stack starts at
 
 | Order | Layer | What it supplies |
 | --- | --- | --- |
-| 1 | Activity rename | Frees the name Action while preserving existing gang activities and references. |
-| 2 | Assignable content | Actions, outcomes, prices and rank tables; existing access and authoring tools; explicit tier levels. |
-| 3 | Records and counter history | Earned allowances, durable action records, typed selections and structured counter events. |
-| 4 | Checkout and corrections | Unpaid drafts, exact price review, atomic final payment, repeat-safe confirmation and operation receipts. |
-| 5 | Item augmentation | Select a carried item, replace its tier and correct the result without paying again. |
-| 6 | Progression and standard actions | Recruitment and rank allowances, saved advancement and skill rolls, all four standard actions. |
-| 7 | Existing-fighter initialisation | One explicit maintenance operation using trustworthy starting XP and current XP. |
-| 8 | Card and picker display | Tier effects and rating in pickers; tiers beneath equipment in screen, print, text and captured state. |
-| 9 | Fighter edit flows | Action panels beneath the card, responsive step indicators, resumable forms and final review. |
-| 10 | Gallery and design record | Production-component examples, an implementation guide and this reusable exploration directory. |
+| 1 | [Activity rename](https://github.com/gyrinx-app/gyrinx/pull/2579) | Frees the name Action while preserving existing gang activities and references. |
+| 2 | [Assignable content](https://github.com/gyrinx-app/gyrinx/pull/2580) | Actions, outcomes, prices and rank tables; existing access and authoring tools; explicit tier levels. |
+| 3 | [Records and counter history](https://github.com/gyrinx-app/gyrinx/pull/2581) | Earned allowances, durable action records, typed selections and structured counter events. |
+| 4 | [Checkout and corrections](https://github.com/gyrinx-app/gyrinx/pull/2584) | Unpaid drafts, exact price review, atomic final payment, repeat-safe confirmation and operation receipts. |
+| 5 | [Item augmentation](https://github.com/gyrinx-app/gyrinx/pull/2585) | Select a carried item, replace its tier and correct the result without paying again. |
+| 6 | [Progression and standard actions](https://github.com/gyrinx-app/gyrinx/pull/2586) | Recruitment and rank allowances, saved advancement and skill rolls, all four standard actions. |
+| 7 | [Existing-fighter initialisation](https://github.com/gyrinx-app/gyrinx/pull/2587) | One explicit maintenance operation using trustworthy starting XP and current XP. |
+| 8 | [Card and picker display](https://github.com/gyrinx-app/gyrinx/pull/2588) | Tier effects and rating in pickers; tiers beneath equipment in screen, print, text and captured state. |
+| 9 | [Fighter edit flows](https://github.com/gyrinx-app/gyrinx/pull/2589) | Action panels beneath the card, responsive step indicators, resumable forms and final review. |
+| 10 | [Gallery and design record](https://github.com/gyrinx-app/gyrinx/pull/2590) | Production-component examples, an implementation guide and this reusable exploration directory. |
 
 The shop remains generic. Actions use existing availability and assignment
 concepts. Every component of a mixed price is paid together. Outcomes provide
