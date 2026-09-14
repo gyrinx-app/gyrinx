@@ -28,7 +28,7 @@ import pytest
 from django.contrib.auth.models import User
 
 from n26.core.browse import EQUIPMENT_LIST, TRADING_POST, browse, terms_for
-from n26.core.models import Action, LedgerEvent
+from n26.core.models import Activity, LedgerEvent
 from n26.core.reconcile import assert_reconciled
 from n26.core.trading import receipt_for, visitors
 from n26.tests.sandbox.actions import (
@@ -223,7 +223,7 @@ class TestEndingTheAction:
             LedgerEvent.objects.filter(
                 gang=gang,
                 kind=LedgerEvent.Kind.ACTION_CLOSED,
-                note__startswith=Action.Kind.TRADING_POST_VISIT,
+                note__startswith=Activity.Kind.TRADING_POST_VISIT,
             ).count()
             == 1
         )
@@ -241,7 +241,7 @@ class TestEndingTheAction:
         assert not LedgerEvent.objects.filter(
             gang=gang,
             kind=LedgerEvent.Kind.ACTION_CLOSED,
-            note__startswith=Action.Kind.TRADING_POST_VISIT,
+            note__startswith=Activity.Kind.TRADING_POST_VISIT,
         ).exists()
 
     def test_what_went_before_stops_counting(self, gang, fighter, post):
@@ -315,8 +315,8 @@ class TestEndingTheAction:
         # Opened, closed, opened again: two rows, and neither one's
         # spending reaches the other, whatever the figure.
         assert (
-            Action.objects.filter(
-                gang=gang, kind=Action.Kind.TRADING_POST_VISIT
+            Activity.objects.filter(
+                gang=gang, kind=Activity.Kind.TRADING_POST_VISIT
             ).count()
             == 2
         )
@@ -386,7 +386,7 @@ def ranks(default_pack):
 class TestWhoPerformsTheAction:
     """Any fighter may go, and the two named ranks bring points with them.
     Who went is recorded per model, because the rules give each model one
-    Post-cycle Action and a figure cannot say whose it was."""
+    Post-cycle Activity and a figure cannot say whose it was."""
 
     @pytest.fixture
     def ranked(self, gang, ranks, make_profile, make_statline):
@@ -882,7 +882,7 @@ class TestWhatTheHistorySays:
         from n26.core.operations import operation
 
         with operation(gang, actor=player) as op:
-            op.close_action(gang.open_action(Action.Kind.FOUNDING))
+            op.close_activity(gang.open_activity(Activity.Kind.FOUNDING))
 
         assert self.sentences(gang)[-1] == "completed the Found and equip gang action"
 
@@ -898,7 +898,7 @@ class TestWhatAPurchaseCountsAgainst:
         bought = buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
 
         gang.refresh_from_db()
-        assert bought.ledger_entry.action == gang.open_visit
+        assert bought.ledger_entry.activity == gang.open_visit
 
     def test_a_purchase_from_a_list_records_nothing(
         self, gang, fighter, equipment_list
@@ -912,12 +912,12 @@ class TestWhatAPurchaseCountsAgainst:
             fighter, line_for(browse(equipment_list, EQUIPMENT_LIST), "Mesh armour")
         )
 
-        assert bought.ledger_entry.action is None
+        assert bought.ledger_entry.activity is None
 
     def test_a_purchase_with_the_post_shut_records_nothing(self, gang, fighter, post):
         bought = buy(fighter, line_for(browse(post, TRADING_POST), "Mesh armour"))
 
-        assert bought.ledger_entry.action is None
+        assert bought.ledger_entry.activity is None
 
     def test_what_an_action_spent_is_what_the_visit_spent(self, gang, fighter, post):
         """The two arithmetics agree while a visit is open: everything it
@@ -962,7 +962,7 @@ class TestWhatAPurchaseCountsAgainst:
         gang.refresh_from_db()
         assert gang.trade_points_spent == 3
 
-        LedgerEntry.objects.filter(pk=bought.ledger_entry.pk).update(action=None)
+        LedgerEntry.objects.filter(pk=bought.ledger_entry.pk).update(activity=None)
 
         gang.refresh_from_db()
         assert gang.trade_points_spent == 0
@@ -1071,7 +1071,7 @@ class TestReadingTheFigureOffTheGangsOwnRow:
         assert fetched.open_visit_brought == 4
 
         leave_trading_post(gang)
-        fetched.forget_open_actions()
+        fetched.forget_open_activities()
 
         assert fetched.open_visit_brought is None
         assert fetched.visiting_trading_post is False

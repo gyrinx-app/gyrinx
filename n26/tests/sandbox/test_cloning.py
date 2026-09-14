@@ -5,7 +5,7 @@ from n26.core.cloning import clone_event_details
 from n26.core.effects import compute
 from n26.core.history import build, campaign_history, campaign_history_size
 from n26.core.models import (
-    Action,
+    Activity,
     Assignment,
     AssignmentSet,
     CampaignMembership,
@@ -99,37 +99,42 @@ def _paid_for_live_assignments(gang):
 
 
 @pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
-@pytest.mark.parametrize("kind", [Action.Kind.FOUNDING, Action.Kind.TRADING_POST_VISIT])
+@pytest.mark.parametrize(
+    "kind", [Activity.Kind.FOUNDING, Activity.Kind.TRADING_POST_VISIT]
+)
 def test_cloned_purchases_do_not_count_against_the_source_action_or_buyer(
     gang, ganger_profile, owner, whole_gang, kind
 ):
     fighter = hire_with_option(gang, ganger_profile, "Broker", actor=owner)
-    if kind == Action.Kind.TRADING_POST_VISIT:
+    if kind == Activity.Kind.TRADING_POST_VISIT:
         visit_trading_post(gang, brought=4, actor=owner)
-    source_action = gang.open_action(kind)
+    source_action = gang.open_activity(kind)
     sight = create_wargear("Rare sight", price=20, trade_point_price=2)
     purchase = buy(
-        fighter, thing=sight, trade_points=2, action=source_action, actor=owner
+        fighter, thing=sight, trade_points=2, activity=source_action, actor=owner
     )
-    assert purchase.ledger_entry.action_id == source_action.pk
+    assert purchase.ledger_entry.activity_id == source_action.pk
     assert purchase.ledger_entry.spent_by_id == fighter.pk
     assert trade_points_spent_for(source_action) == 2
     assert trade_points_spent_by(source_action, fighter) == 2
 
     source_action_ids = set(
-        Action.objects.filter(gang=gang).values_list("pk", flat=True)
+        Activity.objects.filter(gang=gang).values_list("pk", flat=True)
     )
     if whole_gang:
         destination = clone_gang(gang, name="Echo", owner=owner, actor=owner)
         clone = Miniature.objects.get(membership__gang=destination, name="Broker")
-        assert destination.open_action(Action.Kind.FOUNDING).pk not in source_action_ids
-        assert destination.open_action(Action.Kind.TRADING_POST_VISIT) is None
+        assert (
+            destination.open_activity(Activity.Kind.FOUNDING).pk
+            not in source_action_ids
+        )
+        assert destination.open_activity(Activity.Kind.TRADING_POST_VISIT) is None
     else:
         destination = gang
         with operation(gang, actor=owner) as op:
             clone = op.clone_miniature(fighter, name="Broker II")
         assert (
-            set(Action.objects.filter(gang=gang).values_list("pk", flat=True))
+            set(Activity.objects.filter(gang=gang).values_list("pk", flat=True))
             == source_action_ids
         )
 
@@ -137,7 +142,7 @@ def test_cloned_purchases_do_not_count_against_the_source_action_or_buyer(
     assert copied_entries.exists()
     assert all(
         entry.trade_points == 0
-        and entry.action_id is None
+        and entry.activity_id is None
         and entry.spent_by_id is None
         for entry in copied_entries
     )
@@ -1441,11 +1446,11 @@ class TestCloningAGang:
         assert clone.starting_credits == source_credits + copied_spend
         assert clone.starting_credits != source_starting_credits
         assert clone.visiting_trading_post is False
-        founding = clone.open_action(Action.Kind.FOUNDING)
+        founding = clone.open_activity(Activity.Kind.FOUNDING)
         assert founding is not None
         assert founding.trade_points is None
-        assert founding.pk != source.open_action(Action.Kind.FOUNDING).pk
-        assert Action.objects.filter(gang=clone).count() == 1
+        assert founding.pk != source.open_activity(Activity.Kind.FOUNDING).pk
+        assert Activity.objects.filter(gang=clone).count() == 1
         assert clone.trade_points_left is None
         assert not CampaignMembership.objects.filter(gang=clone).exists()
 

@@ -88,22 +88,28 @@ class TestThePictureBoxPage:
         assert "Remove picture" in page
 
 
-class TestTheActionCardPage:
+class TestTheActivityCardPage:
     """Its props, its body subcomponent and its demos reach the gallery."""
 
     def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/action-card/").content.decode()
+        from n26.designsystem.catalog import get
+
+        assert get("activity-card").api is not None
+        page = reader.get("/n26/design/c/activity-card/").content.decode()
         # Read from the component's own <c-vars>, so a prop added there and
         # nowhere else still has to appear here.
         assert "boxed" in page
         assert "body" in page
 
     def test_the_page_names_the_body_subcomponent(self, reader):
-        page = reader.get("/n26/design/c/action-card/").content.decode()
-        assert "c-n26.action-card.body" in page
+        from n26.designsystem.catalog import get
+
+        assert all(api is not None for _, api in get("activity-card").part_apis)
+        page = reader.get("/n26/design/c/activity-card/").content.decode()
+        assert "c-n26.activity-card.body" in page
 
     def test_all_three_demos_render_rather_than_falling_back(self, reader):
-        page = reader.get("/n26/design/c/action-card/").content.decode()
+        page = reader.get("/n26/design/c/activity-card/").content.decode()
         # The titles come from the demo files; the rest is markup the demos
         # rendered, because a directory the catalog cannot find yields
         # "No examples yet" instead of an error.
@@ -116,24 +122,24 @@ class TestTheActionCardPage:
     def test_an_action_with_no_figures_draws_no_tally(self, reader):
         """A row of zeroes is worse than nothing: the founding counts
         nothing yet, so it says nothing."""
-        page = reader.get("/n26/design/c/action-card/").content.decode()
+        page = reader.get("/n26/design/c/activity-card/").content.decode()
         start = page.index("An action with none")
         assert "Remaining" not in page[start:]
 
 
-class TestTheActionsSquarePage:
+class TestTheActivitiesSquarePage:
     """Its props and all five states reach the gallery drawn."""
 
     def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "square" in page
 
     def test_the_open_action_is_badged(self, reader):
-        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Current action" in page
 
     def test_all_five_demos_render_rather_than_falling_back(self, reader):
-        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Nothing open" in page
         assert "The founding open" in page
         assert "A visit open" in page
@@ -148,19 +154,19 @@ class TestTheActionsSquarePage:
         """The snapshot's own markup, and one of the sample sentences —
         a demo that fell back to "No examples yet" would carry the
         heading from no state at all."""
-        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Recent history" in page
         assert "Full history" in page
         assert "hired Yolanda, a Ganger" in page
 
     def test_a_gang_with_no_story_says_so(self, reader):
-        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "No history for this gang yet." in page
 
     def test_the_start_row_is_a_post_not_a_link(self, reader):
         """Starting an act must never be a link: a link is followed by
         anything that follows links."""
-        page = reader.get("/n26/design/c/actions-square/").content.decode()
+        page = reader.get("/n26/design/c/activities-square/").content.decode()
         start = page.index("Equip the gang using founding Trade Points")
         form = page.rindex("<form", 0, start)
         assert 'method="post"' in page[form:start]
@@ -681,7 +687,7 @@ class TestTheShellStillDraws:
         assert "The Ashen Choir" in page
         assert "Goliath (HoC)" in page
 
-    def test_the_gang_shell_draws_the_actions_square(self, reader):
+    def test_the_gang_shell_draws_the_activities_square(self, reader):
         """Whether the square reads as one of the grid's squares depends on
         the stash and the cards beside it, which only the shell has."""
         page = reader.get("/n26/design/shell/gang/").content.decode()

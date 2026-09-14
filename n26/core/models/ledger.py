@@ -86,16 +86,16 @@ class LedgerEntry(Base):
     #: for them however long afterwards it happens. Blank for a purchase
     #: made with nothing open: the owner said they meant it, and it
     #: counts against nothing.
-    action = models.ForeignKey(
-        "n26.Action",
+    activity = models.ForeignKey(
+        "n26.Activity",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="purchases",
         help_text=(
-            "The action this purchase counted against — a trip to the "
+            "The activity this purchase counted against — a trip to the "
             "trading post, or founding the gang. Blank for a purchase "
-            "made with no action open."
+            "made with no activity open."
         ),
     )
     #: Whose Trade Points these were. An allowance may belong to one
@@ -206,7 +206,7 @@ class LedgerEvent(Base):
         # they added rather than what they are now.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
-        # An action opening and closing (``n26.core.models.action``).
+        # An activity opening and closing (``n26.core.models.activity``).
         # Neither moves anything of its own: what an action did is the
         # log between the two. The note holds the kind, so a reader of
         # the history can be told which action without a join, and the

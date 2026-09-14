@@ -32,7 +32,7 @@ from n26.core.campaigns import NO_CEILING
 from n26.core.cloning import clone_event_details
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
-from n26.core.models.action import read_note
+from n26.core.models.activity import read_note
 from n26.core.operations import CLEAN_HOUSE
 
 Kind = LedgerEvent.Kind
@@ -953,10 +953,10 @@ def _action_named(note):
     Empty for a note naming no kind this edition has, which leaves the
     sentence saying an action was started without inventing which.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
 
     try:
-        return Action.Kind(note).label
+        return Activity.Kind(note).label
     except ValueError:
         return ""
 

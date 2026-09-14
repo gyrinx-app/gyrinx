@@ -104,7 +104,7 @@ class TestWhenTheVisitCovers:
 
         gang.refresh_from_db()
         bought = Assignment.objects.get(gang_root=gang, wargear__isnull=False)
-        assert bought.ledger_entry.action == gang.open_visit
+        assert bought.ledger_entry.activity == gang.open_visit
 
 
 class TestWhenItDoesNot:
@@ -157,7 +157,7 @@ class TestWhenItDoesNot:
 
         bought = Assignment.objects.get(gang_root=gang, wargear__isnull=False)
         assert bought.ledger_entry.trade_points == 3
-        assert bought.ledger_entry.action is None
+        assert bought.ledger_entry.activity is None
 
     def test_confirming_buys_it(self, client, gang, fighter, post, buying):
         answer = client.post(equip_url(fighter, post), {**buying, "confirmed": "1"})

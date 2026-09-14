@@ -206,7 +206,7 @@ class TestTheCallToAction:
         assert "Track TP spend by starting an action" not in body
 
 
-class TestTheActionsSquare:
+class TestTheActivitiesSquare:
     """Where the gang sheet says the Trading Post stands. One square for
     everything the gang has open, ahead of the stash, so what is open is
     read in one place rather than found under whatever it is spent on."""
@@ -220,7 +220,7 @@ class TestTheActionsSquare:
         assert "Actions" in body
         assert f'href="{page(gang)}"' in body
 
-    def test_it_says_what_an_open_action_has_left(self, client, tester, roster, gang):
+    def test_it_says_what_an_open_activity_has_left(self, client, tester, roster, gang):
         client.force_login(tester)
         start(client, gang, roster["Vex"])
 

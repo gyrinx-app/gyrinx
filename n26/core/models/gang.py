@@ -11,7 +11,7 @@ _OPEN_VISIT_POINTS = "open_visit_points"
 
 
 def open_visit_points(gang="pk"):
-    """A subquery reading what a gang's open Visit Trading Post action
+    """A subquery reading what a gang's open Visit Trading Post activity
     brought, to annotate alongside the gang's own row.
 
     ``gang`` is the path from the queryset's model to the gang, so a
@@ -21,12 +21,12 @@ def open_visit_points(gang="pk"):
     the figure is coalesced inside the subquery, so a null can only mean
     there is no open visit — never a visit that brought no points.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
 
     return Subquery(
-        Action.objects.filter(
+        Activity.objects.filter(
             gang=OuterRef(gang),
-            kind=Action.Kind.TRADING_POST_VISIT,
+            kind=Activity.Kind.TRADING_POST_VISIT,
             closed__isnull=True,
         )
         .annotate(brought=Coalesce("trade_points", Value(0)))
@@ -84,9 +84,9 @@ class Gang(Base, Owned, Archived, Rated):
     #: its URL and never the bytes.
     image = models.ImageField(upload_to="gang-images/", blank=True, default="")
 
-    #: What ``open_actions`` read, or None before it has. Held on the
+    #: What ``open_activities`` read, or None before it has. Held on the
     #: instance rather than fetched per question; see there.
-    _open_actions = None
+    _open_activities = None
 
     class Meta:
         verbose_name = "gang"
@@ -144,8 +144,8 @@ class Gang(Base, Owned, Archived, Rated):
 
         return trade_points_spent(self)
 
-    def open_actions(self):
-        """Every action this gang has open, by kind.
+    def open_activities(self):
+        """Every activity this gang has open, by kind.
 
         One query for all of them, held on the instance. A page asks
         about more than one kind — the gang sheet draws the founding
@@ -157,31 +157,31 @@ class Gang(Base, Owned, Archived, Rated):
         performed it are read off it, and a second query for a row
         already in hand would be a join this could have made.
 
-        Held, where what an action has spent is not: spending moves as a
-        page acts on it, and which actions are open does not. An
+        Held, where what an activity has spent is not: spending moves as a
+        page acts on it, and which activities are open does not. An
         operation drops what was held the moment it closes, so a page
         that opened or closed one still reads the truth.
         """
-        if self._open_actions is None:
-            from n26.core.models import Action
+        if self._open_activities is None:
+            from n26.core.models import Activity
 
-            self._open_actions = {
-                action.kind: action
-                for action in Action.objects.filter(
+            self._open_activities = {
+                activity.kind: activity
+                for activity in Activity.objects.filter(
                     gang=self, closed__isnull=True
                 ).select_related("opened")
             }
-        return self._open_actions
+        return self._open_activities
 
-    def forget_open_actions(self):
+    def forget_open_activities(self):
         """Drop what was read, so the next reader asks again.
 
-        Everything held about which actions are open goes, however it
+        Everything held about which activities are open goes, however it
         arrived — the rows read on demand and the figure a queryset read
-        with the gang's own row. Called wherever an action is opened or
+        with the gang's own row. Called wherever an activity is opened or
         closed, and wherever a reading taken earlier must not be trusted.
         """
-        self._open_actions = None
+        self._open_activities = None
         self.__dict__.pop(_OPEN_VISIT_POINTS, None)
 
     def hold_open_visit(self, brought):
@@ -195,26 +195,26 @@ class Gang(Base, Owned, Archived, Rated):
 
     def refresh_from_db(self, *args, **kwargs):
         super().refresh_from_db(*args, **kwargs)
-        self.forget_open_actions()
+        self.forget_open_activities()
 
-    def open_action(self, kind):
-        """The action of this kind the gang has open, or None.
+    def open_activity(self, kind):
+        """The activity of this kind the gang has open, or None.
 
-        One row at most: the database holds a gang to one open action of
+        One row at most: the database holds a gang to one open activity of
         each kind, so there is never a set to pick from.
         """
-        return self.open_actions().get(kind)
+        return self.open_activities().get(kind)
 
     @property
     def open_visit(self):
-        """The open Visit Trading Post action, or None."""
-        from n26.core.models import Action
+        """The open Visit Trading Post activity, or None."""
+        from n26.core.models import Activity
 
-        return self.open_action(Action.Kind.TRADING_POST_VISIT)
+        return self.open_activity(Activity.Kind.TRADING_POST_VISIT)
 
     @property
     def open_visit_brought(self):
-        """What the open Visit Trading Post action brought, or None where
+        """What the open Visit Trading Post activity brought, or None where
         no visit is open.
 
         Nought is a figure and None is an absence: a visit that brought
@@ -224,7 +224,7 @@ class Gang(Base, Owned, Archived, Rated):
         Read off the gang's own row where the queryset asked for it
         (``open_visit_points``) — a page that draws the figure and never
         acts on the visit wants no more than this, and pays for no query
-        of its own. Where it did not, the action is read instead.
+        of its own. Where it did not, the activity is read instead.
         """
         if _OPEN_VISIT_POINTS in self.__dict__:
             return self.__dict__[_OPEN_VISIT_POINTS]
@@ -233,16 +233,16 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def visiting_trading_post(self):
-        """Whether a Visit Trading Post action is open.
+        """Whether a Visit Trading Post activity is open.
 
         The rules only let a gang buy from the post where a fighter
-        performed the action, so this is a real state and not an
+        performed the activity, so this is a real state and not an
         allowance of nothing: a visit that has spent every point is
         still a visit.
 
         It is not a gate. Nothing consults this to refuse a purchase —
         the equip screens read it to say where the gang stands, and a
-        buy with no action open goes through once its question is
+        buy with no activity open goes through once its question is
         answered.
         """
         return self.open_visit_brought is not None

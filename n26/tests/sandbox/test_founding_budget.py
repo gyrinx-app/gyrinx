@@ -28,7 +28,7 @@ from n26.core.browse import FOUNDING, browse
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.founding import budget_for, budget_granted
-from n26.core.models import Action
+from n26.core.models import Activity
 from n26.core.reconcile import assert_reconciled
 from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
@@ -50,7 +50,7 @@ from n26.tests.sandbox.actions import (
 
 pytestmark = pytest.mark.django_db
 
-FOUNDING_KIND = Action.Kind.FOUNDING
+FOUNDING_KIND = Activity.Kind.FOUNDING
 
 
 @pytest.fixture
@@ -225,7 +225,7 @@ def buy_at_founding(miniature, line, **kwargs):
     return buy(
         miniature,
         line,
-        action=miniature.gang.open_action(FOUNDING_KIND),
+        activity=miniature.gang.open_activity(FOUNDING_KIND),
         **kwargs,
     )
 
@@ -350,7 +350,7 @@ class TestWhatCountsAgainstIt:
         )
 
         assert bought.ledger_entry.trade_points == 3
-        assert bought.ledger_entry.action == gang.open_action(FOUNDING_KIND)
+        assert bought.ledger_entry.activity == gang.open_activity(FOUNDING_KIND)
         assert budget(leader).remaining == 2
         assert_reconciled(gang)
 
@@ -586,7 +586,7 @@ class TestFinishingAndStartingAgain:
         complete_action(gang, FOUNDING_KIND)
         start_action(gang, FOUNDING_KIND)
 
-        assert first.ledger_entry.action != gang.open_action(FOUNDING_KIND)
+        assert first.ledger_entry.activity != gang.open_activity(FOUNDING_KIND)
 
 
 class TestTwoAllowancesAtOnce:
@@ -1107,7 +1107,7 @@ class TestTheRosterReadInOneGo:
             ]
         )
         folds = {pk: compute(member, index) for pk, member in card.members.items()}
-        fresh.open_actions()
+        fresh.open_activities()
 
         with django_assert_num_queries(2):
             budgets_by_model(fresh, folds)

@@ -11,11 +11,11 @@ from datetime import timedelta
 from django.utils import timezone
 from django.utils.text import slugify
 
-from n26.core.actions import (
+from n26.core.activities import (
     FOUNDING_ABOUT,
     FOUNDING_HELP,
     VISIT_HELP,
-    ActionsSquare,
+    ActivitiesSquare,
     HistoryLine,
     VisitLine,
     open_card,
@@ -2496,7 +2496,7 @@ def model_card_editable():
 def gang_sheet_context():
     """What the gang sheet view needs."""
     from n26.core.founding import FoundingBudget
-    from n26.core.models import Action
+    from n26.core.models import Activity
     from n26.core.render import RosterGroup, RosterLine, RosterSummary
 
     sheet = gang_sheet()
@@ -2528,7 +2528,7 @@ def gang_sheet_context():
         Fact("Remaining", "3", ruled=True, strong=True),
     )
     founding_open = open_card(
-        Action.Kind.FOUNDING,
+        Activity.Kind.FOUNDING,
         "#",
         help=FOUNDING_HELP,
         about=FOUNDING_ABOUT,
@@ -2555,32 +2555,34 @@ def gang_sheet_context():
         # show, and the founding, which has none. Built by the real function
         # off the real kinds, so a title changed there changes here.
         "sample_action_visit": open_card(
-            Action.Kind.TRADING_POST_VISIT, "#", help=VISIT_HELP, facts=visit_facts
+            Activity.Kind.TRADING_POST_VISIT, "#", help=VISIT_HELP, facts=visit_facts
         ),
         "sample_action_founding": founding_open,
         # The Actions square's states. The start row is offered only
         # where no founding action is open, which is what the empty
         # start_founding says.
-        "sample_square_empty": ActionsSquare(
+        "sample_square_empty": ActivitiesSquare(
             history=lately, start_founding="#", history_href="#"
         ),
-        "sample_square_founding": ActionsSquare(
+        "sample_square_founding": ActivitiesSquare(
             founding=founding_open, history=lately, history_href="#"
         ),
-        "sample_square_visit": ActionsSquare(
+        "sample_square_visit": ActivitiesSquare(
             visit=a_visit, history=lately, start_founding="#", history_href="#"
         ),
-        "sample_square_both": ActionsSquare(
+        "sample_square_both": ActivitiesSquare(
             founding=founding_open, visit=a_visit, history=lately, history_href="#"
         ),
         # A gang nothing has been done to yet. The square says so rather
         # than drawing a heading over nothing.
-        "sample_square_no_history": ActionsSquare(start_founding="#", history_href="#"),
+        "sample_square_no_history": ActivitiesSquare(
+            start_founding="#", history_href="#"
+        ),
         # The two blocks an equip screen's rail draws for a model
         # part-way through the founding: its own allowance, and the
         # gang's open visit beside it. Real structures, so the tally is
         # the arithmetic the screen does rather than a copy of it.
-        "sample_founding_budget": FoundingBudget(action=None, granted=5, spent=2),
+        "sample_founding_budget": FoundingBudget(activity=None, granted=5, spent=2),
         "sample_founding_model": {"name": "Yolanda Kray"},
         # A gang with no visit open, so the stash card offers to start
         # one. The sheet above is mid-trip and shows the other state.

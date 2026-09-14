@@ -1,13 +1,13 @@
 """Actions on screen — what a gang has open, and how to start one.
 
-An ``n26.core.models.Action`` is the state: which act is open, and the two
+An ``n26.core.models.Activity`` is the state: which act is open, and the two
 events that bracket it. This module is the other half — the plain
 structures a template draws them by, so that every action reads the same
 way whatever it is. Founding and equipping the gang and a trip to the
 trading post are the same shape on screen: a title, where the act stands,
 a sentence of help, and one button that moves it on.
 
-``ActionsSquare`` gathers them into the one place a gang's page reports
+``ActivitiesSquare`` gathers them into the one place a gang's page reports
 them: a square in the same grid as the stash and the models, so what is
 open is read beside what it is being spent on. It carries the gang's
 last few acts too — what has been done is the other half of what is
@@ -47,7 +47,7 @@ SNAPSHOT = 5
 
 
 @dataclass(frozen=True)
-class ActionCard:
+class ActivityCard:
     """One open action as a screen draws it.
 
     ``facts`` is the tally under the title, where the action has figures
@@ -121,7 +121,7 @@ class Step:
 
 
 @dataclass(frozen=True)
-class ActionsSquare:
+class ActivitiesSquare:
     """What a gang has open, what is waiting to be done, and the ways to
     start something.
 
@@ -145,7 +145,7 @@ class ActionsSquare:
     than drawing a heading over nothing.
     """
 
-    founding: ActionCard | None = None
+    founding: ActivityCard | None = None
     visit: VisitLine | None = None
     history: tuple = ()
     start_founding: str = ""
@@ -163,7 +163,7 @@ class ActionsSquare:
 def open_card(kind, at, *, help="", about="", facts=(), marked=False):
     """One open action's card. The name comes from the kind, so a screen
     cannot call an action something the ledger does not."""
-    return ActionCard(
+    return ActivityCard(
         title=kind.label,
         action=at,
         help=help,
@@ -179,10 +179,10 @@ def founding_card(gang, at):
     The gang reads all its open actions in one query and holds them, so
     a page drawing this beside the visit's figure pays for one.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
 
-    kind = Action.Kind.FOUNDING
-    if gang.open_action(kind) is None:
+    kind = Activity.Kind.FOUNDING
+    if gang.open_activity(kind) is None:
         return None
     return open_card(kind, at, help=FOUNDING_HELP, about=FOUNDING_ABOUT, marked=True)
 
@@ -203,9 +203,9 @@ def founding_blocks_visit(gang, seen):
     Reads the gang's open actions, which a screen drawing this has
     normally asked for already.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
 
-    return bool(seen and gang.open_action(Action.Kind.FOUNDING) is not None)
+    return bool(seen and gang.open_activity(Activity.Kind.FOUNDING) is not None)
 
 
 def visit_card(receipt, at):
@@ -215,10 +215,10 @@ def visit_card(receipt, at):
     what it has left is one arithmetic (``n26.core.trading``), and a card
     that worked it out a second way could disagree with the page it sits on.
     """
-    from n26.core.models import Action
+    from n26.core.models import Activity
 
     return open_card(
-        Action.Kind.TRADING_POST_VISIT, at, help=VISIT_HELP, facts=receipt.facts
+        Activity.Kind.TRADING_POST_VISIT, at, help=VISIT_HELP, facts=receipt.facts
     )
 
 
@@ -240,7 +240,7 @@ def history_lines(gang, viewer=None, limit=SNAPSHOT):
     )
 
 
-def actions_square(
+def activities_square(
     gang,
     sheet,
     *,
@@ -265,7 +265,7 @@ def actions_square(
     visit = None
     if sheet.visiting_trading_post:
         visit = VisitLine(trade_points_left=sheet.trade_points_left, href=visit_at)
-    return ActionsSquare(
+    return ActivitiesSquare(
         founding=founding,
         visit=visit,
         history=history_lines(gang, viewer=viewer),

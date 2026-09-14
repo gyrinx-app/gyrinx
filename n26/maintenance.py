@@ -1590,10 +1590,10 @@ def gangs_without_a_founding_action():
     where they started. So a completed one counts as much as an open
     one.
     """
-    from n26.core.models import Action, Gang
+    from n26.core.models import Activity, Gang
 
     return Gang.objects.filter(archived=False).exclude(
-        actions__kind=Action.Kind.FOUNDING
+        activities__kind=Activity.Kind.FOUNDING
     )
 
 
@@ -1622,7 +1622,7 @@ def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
     its own. What the run has come to is added to the record as each
     gang lands, so a record read part-way says how far it has got.
     """
-    from n26.core.models import Action, Gang
+    from n26.core.models import Activity, Gang
     from n26.core.operations import Refusal, operation
 
     record = Backfill.objects.get(pk=backfill_id)
@@ -1638,12 +1638,12 @@ def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
             # Archived, or gone, since the walk was counted. Either way
             # it is not one of the gangs this run is for.
             return
-        if Action.objects.filter(gang=gang, kind=Action.Kind.FOUNDING).exists():
+        if Activity.objects.filter(gang=gang, kind=Activity.Kind.FOUNDING).exists():
             add_to_totals("already_had_one")
             return
         try:
             with operation(gang, actor=None) as op:
-                op.open_action(Action.Kind.FOUNDING)
+                op.open_activity(Activity.Kind.FOUNDING)
         except Refusal:
             # The check above runs before the gang's line is held, so an
             # owner can start the act in between and hold it by the time

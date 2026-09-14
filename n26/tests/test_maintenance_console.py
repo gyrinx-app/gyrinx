@@ -1062,7 +1062,7 @@ class TestTheFoundingActionBackfill:
         from n26.core.models import LedgerEvent
         from n26.tests.sandbox.actions import found_gang
 
-        gang = found_gang("Before The Action", gang_type, owner=owner, budget=1000)
+        gang = found_gang("Before The Activity", gang_type, owner=owner, budget=1000)
         LedgerEvent.objects.filter(
             gang=gang, kind=LedgerEvent.Kind.ACTION_OPENED
         ).delete()
@@ -1094,7 +1094,7 @@ class TestTheFoundingActionBackfill:
     def test_its_page_counts_the_gangs_and_writes_nothing(
         self, client, superuser, old_gang
     ):
-        from n26.core.models import Action
+        from n26.core.models import Activity
 
         client.force_login(superuser)
 
@@ -1104,7 +1104,7 @@ class TestTheFoundingActionBackfill:
         assert response.status_code == 200
         assert "1 of 1 unarchived gang would get the action" in page
         assert not Backfill.objects.exists()
-        assert not Action.objects.filter(gang=old_gang).exists()
+        assert not Activity.objects.filter(gang=old_gang).exists()
 
     def test_its_page_says_when_there_is_nothing_to_open(
         self, client, superuser, owner, default_pack, gang_type
@@ -1121,7 +1121,7 @@ class TestTheFoundingActionBackfill:
         assert "Nothing to open" in page
 
     def test_applying_records_what_it_opened(self, client, superuser, old_gang):
-        from n26.core.models import Action
+        from n26.core.models import Activity
 
         client.force_login(superuser)
 
@@ -1136,7 +1136,7 @@ class TestTheFoundingActionBackfill:
             "gangs walked, not gangs changed.",
         ]
         assert run.summary["totals"]["opened"] == 1
-        assert old_gang.open_action(Action.Kind.FOUNDING) is not None
+        assert old_gang.open_activity(Activity.Kind.FOUNDING) is not None
         old_gang.refresh_from_db()
         assert_reconciled(old_gang)
 
