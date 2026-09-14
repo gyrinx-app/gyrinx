@@ -298,6 +298,123 @@ def test_switching_random_skill_access_reuses_the_recorded_die(fighter):
     )
 
 
+def test_revisiting_random_access_restores_its_accepted_attempt(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    secondary = _secondary_cunning(fighter)
+    secondary_one = secondary.skills.get(position=1)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        op.assign(secondary_one, miniature=fighter)
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    random_primary = next(row for row in options if row.name == "Random Primary skill")
+    random_secondary = next(
+        row for row in options if row.name == "Random Secondary skill"
+    )
+
+    with operation(fighter.gang) as op:
+        primary_attempt = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+        unavailable_secondary = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=6,
+        )
+        accepted_secondary = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=5,
+        )
+        restored_primary = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=6,
+        )
+
+    assert unavailable_secondary["roll"] == primary_attempt["roll"] == 1
+    assert unavailable_secondary["is_available"] is False
+    assert accepted_secondary["roll"] == 5
+    assert restored_primary == primary_attempt
+    assert recorded_skill(record, configured, random_primary.id) == primary.skills.get(
+        position=1
+    )
+    assert (
+        LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).count()
+        == 3
+    )
+
+
+def test_exact_skill_roll_retry_survives_lost_access(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    category = Category.objects.get(name="Agility", section__name="Skills")
+    primary = CollectionSection.objects.get(
+        collection__name="Skills & Powers", name="Primary"
+    )
+    access = modifier(
+        "Hunter temporarily selects Agility",
+        targets_model(),
+        places(category, primary),
+        carried_by=fighter.membership.profile,
+    )
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=2)
+    random_primary = next(
+        row
+        for row in advancement_options(record, configured)
+        if row.name == "Random Primary skill"
+    )
+    request_key = uuid4()
+    with operation(fighter.gang) as op:
+        first = op.record_skill_roll(
+            record,
+            configured,
+            request_key,
+            pickable_id=random_primary.id,
+            skill_set_id=category.pk,
+            rolled=1,
+        )
+    access.delete()
+
+    with operation(fighter.gang) as op:
+        replayed = op.record_skill_roll(
+            record,
+            configured,
+            request_key,
+            pickable_id=random_primary.id,
+            skill_set_id=category.pk,
+            rolled=6,
+        )
+
+    assert replayed == first
+    assert (
+        LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).count()
+        == 2
+    )
+
+
 def test_computed_granted_skill_is_not_offered_again(fighter):
     action, outcome, allowance = _advancement(fighter)
     category = _primary_agility(fighter)
