@@ -106,9 +106,11 @@ def render_model_card(card, indent=""):
     if card.equipment:
         names = ", ".join(_line_words(line) for line in card.equipment)
         lines.append(f"{indent}  Equipment: {names}")
+        lines.extend(_item_choice_lines(card.equipment, indent))
     for group in card.gear_groups:
         names = ", ".join(_line_words(line) for line in group.lines)
         lines.append(f"{indent}  {group.name}: {names}")
+        lines.extend(_item_choice_lines(group.lines, indent))
     if card.collections:
         names = ", ".join(line.name for line in card.collections)
         lines.append(f"{indent}  Buys from: {names}")
@@ -125,6 +127,15 @@ def _line_words(line):
     order every card writes them: the name, the pets it brought, then
     how many it stands for."""
     return line.name + line.brought_mark + line.count_mark
+
+
+def _item_choice_lines(items, indent):
+    """Write a carried item's questions with the item that carries them."""
+    return [
+        f"{indent}    {item.name} — {choice.kind_label}: {choice.chosen or '—'}"
+        for item in items
+        for choice in item.choices
+    ]
 
 
 def _profile_suffix(profile):
