@@ -2015,14 +2015,19 @@ def create(request, kind):
             except IntegrityError:
                 # Not every kind calls its name "name" — the spec says
                 # which field an author reads as one, so the refusal
-                # lands on a field the form actually has.
+                # lands on a field the form actually has. A fieldless
+                # configuration has no value to blame, so its refusal is
+                # about the submission as a whole.
                 named = spec.identity
-                form.add_error(
-                    named,
-                    f"{_article_for(model._meta.verbose_name).capitalize()} "
-                    f"{model._meta.verbose_name} named "
-                    f"“{form.cleaned_data[named]}” already exists in this pack.",
-                )
+                noun = model._meta.verbose_name
+                if named is None:
+                    form.add_error(None, f"Another {noun} already exists in this pack.")
+                else:
+                    form.add_error(
+                        named,
+                        f"{_article_for(noun).capitalize()} {noun} named "
+                        f"“{form.cleaned_data[named]}” already exists in this pack.",
+                    )
             else:
                 if staged:
                     messages.success(
@@ -2430,11 +2435,16 @@ def detail(request, kind, pk):
             except IntegrityError:
                 named = spec.identity
                 noun = model._meta.verbose_name
-                edit_form.add_error(
-                    named,
-                    f"{_article_for(noun).capitalize()} {noun} named "
-                    f"“{edit_form.cleaned_data[named]}” already exists in this pack.",
-                )
+                if named is None:
+                    edit_form.add_error(
+                        None, f"Another {noun} already exists in this pack."
+                    )
+                else:
+                    edit_form.add_error(
+                        named,
+                        f"{_article_for(noun).capitalize()} {noun} named "
+                        f"“{edit_form.cleaned_data[named]}” already exists in this pack.",
+                    )
             else:
                 messages.success(request, f"Saved {thing}.")
                 return redirect("authoring-detail", kind=kind, pk=pk)
