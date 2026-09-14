@@ -1,0 +1,14 @@
+flowchart TD
+  AA[Action Assignment or computed grant] -->|effective access| A[Action]
+  A -->|use_price: all components| P[Price Components]
+  A -->|0 or 1| R[Allowance Rule]
+  A -->|1 or more| O[Outcomes]
+  RT[Assigned Rank Table] -->|current schedule for XP increase| R
+  B[XP before and after the change] -->|newly crossed thresholds| R
+  R -->|awards each source once| AL[Allowance]
+  AL -->|0 or 1 active/completed use| AR[Action Record]
+  A -->|performed as| AR
+  O -->|selected outcome| AR
+  AR -->|0 or 1 payment group at completion| PY[Payment]
+  PY -->|1 or more| PL[Payment Lines / ledger events]
+  AR -->|0 or more| C[Changes / ledger events]
