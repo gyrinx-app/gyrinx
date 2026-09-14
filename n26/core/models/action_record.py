@@ -104,7 +104,7 @@ class ActionRecord(Base):
     )
     allowance = models.ForeignKey(
         ActionAllowance,
-        on_delete=models.PROTECT,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="records",
