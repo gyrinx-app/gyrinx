@@ -240,13 +240,14 @@ def _carry_the_tally(grant, owner, tally, goes_with):
         return True
     if not _can_carry(grant, owner, goes_with):
         return False
-    standing, _ = CounterValue.objects.get_or_create(assignment=owner)
-    if standing.value < tally:
-        # This is a sanctioned repair, but the value still has to enter the
-        # structured journal. A bare CounterValue update would leave the
-        # survivor irreconcilable once the duplicate and its events are gone.
-        with operation(owner.gang_root) as op:
-            op.tally(owner, tally - standing.value, note="Duplicate tally merged")
+    with operation(owner.gang_root) as op:
+        standing = (
+            CounterValue.objects.filter(assignment=owner)
+            .values_list("value", flat=True)
+            .first()
+        )
+        if standing is None or standing < tally:
+            op.tally(owner, tally - (standing or 0), note="Duplicate tally merged")
     return True
 
 

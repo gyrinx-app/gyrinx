@@ -214,6 +214,30 @@ class TestACopySomebodyCountedOn:
         assert standing.counter_value.value == 7
         settled(gang)
 
+    def test_a_missing_survivor_value_gets_an_opening_event(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        fighter, counter, duplicate = self.tallied_duplicate(
+            gang, person_type, gang_type, 7
+        )
+        standing = Assignment.objects.exclude(pk=duplicate.pk).get(
+            counter=counter, miniature_root=fighter, archived=False
+        )
+        CounterValue.objects.filter(assignment=standing).delete()
+        standing.ledger_events.filter(counter_before__isnull=False).delete()
+
+        de_duplicate(gang.pk)
+
+        standing.refresh_from_db()
+        assert standing.counter_value.value == 7
+        events = list(
+            standing.ledger_events.filter(counter_before__isnull=False).order_by(
+                "created", "pk"
+            )
+        )
+        assert events[0].kind == LedgerEvent.Kind.COUNTER_OPENED
+        settled(gang)
+
     def test_the_higher_of_the_two_numbers_is_the_one_kept(
         self, gang, person_type, gang_type, default_pack
     ):
