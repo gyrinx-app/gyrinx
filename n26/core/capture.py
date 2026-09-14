@@ -58,6 +58,15 @@ def _rated(lines):
     return sorted((_line_label(line), line.rating) for line in _each(lines))
 
 
+def _item_choices(lines):
+    """Every question filed beneath its exact carried item."""
+    return sorted(
+        (_line_label(line), tuple(_choices(line.choices)))
+        for line in _each(lines)
+        if line.choices
+    )
+
+
 def _choices(lines):
     """Each question as (what the card calls it, what settled it)."""
     return sorted((line.kind_label, line.chosen or "") for line in lines)
@@ -109,6 +118,7 @@ def _model_state(card):
         "powers": _names(card.powers),
         "rules": _names(card.rules),
         "equipment": _rated(card.equipment),
+        "equipment_choices": _item_choices(card.equipment),
         # Gear drawn under its category's own heading, kept apart here as
         # it is on the card. Folding it back into equipment would let a
         # conversion move a possession between headings and still call the
@@ -121,6 +131,11 @@ def _model_state(card):
         # one and hide a move between them.
         "gear_groups": [
             (group.name, _rated(group.lines)) for group in card.gear_groups
+        ],
+        "gear_group_choices": [
+            (group.name, _item_choices(group.lines))
+            for group in card.gear_groups
+            if _item_choices(group.lines)
         ],
         "collections": _names(card.collections),
         # The card's own rows; a question a weapon carries is captured with

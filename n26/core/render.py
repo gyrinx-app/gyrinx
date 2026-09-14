@@ -1200,14 +1200,16 @@ class ModelCard:
     @property
     def item_questions(self):
         """Questions drawn directly beneath carried gear and weapons."""
+        return [*self.weapon_questions, *self.gear_questions]
+
+    @property
+    def gear_questions(self):
+        """Questions carried by non-weapon gear, in their card order."""
         gear = [
             *self.equipment,
             *(line for group in self.gear_groups for line in group.lines),
         ]
-        return [
-            *(choice for weapon in self.weapons for choice in weapon.choices),
-            *(choice for line in gear for choice in line.choices),
-        ]
+        return [choice for line in gear for choice in line.choices]
 
     @property
     def weapon_columns(self):
