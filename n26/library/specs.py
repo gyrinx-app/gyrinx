@@ -371,13 +371,19 @@ def _build_registry():
     from n26.library import authoring
     from n26.library.income import INCOME_HELP
     from n26.library.models import (
+        Action,
+        ActionOutcome,
+        ActionPriceComponent,
         AddsAssignable,
         Affiliation,
         AllowsAtMost,
+        ApplyChange,
+        ApplyChanges,
         Asset,
         AssetTable,
         AssetTableEntry,
         AssetType,
+        AugmentCarriedItem,
         CampaignType,
         Category,
         ChangesCategory,
@@ -388,6 +394,7 @@ def _build_registry():
         ContributesToCounter,
         Counter,
         CounterAtLeast,
+        CounterChange,
         DefaultAssignment,
         DefaultAssignmentSet,
         GangHasPickable,
@@ -408,6 +415,7 @@ def _build_registry():
         OpSetsStatus,
         Option,
         OptionGroup,
+        Outcome,
         Pickable,
         Picklist,
         PicklistMember,
@@ -415,7 +423,13 @@ def _build_registry():
         Power,
         Profile,
         ProfileType,
+        RankAllowanceRule,
+        RankTable,
+        RankThreshold,
+        RecruitmentAllowanceRule,
+        RemovePicks,
         RequiresCompanions,
+        ResolveAdvancement,
         Rule,
         Section,
         Skill,
@@ -1085,6 +1099,145 @@ def _build_registry():
             },
         ),
         Spec(
+            authoring.create_rank_table,
+            {
+                "name": Text(source=(RankTable, "name")),
+                "counter": One(model=Counter, source=(RankTable, "counter")),
+                "qualifier": Text(source=(RankTable, "qualifier")),
+                "library_author_help": Text(
+                    source=(RankTable, "library_author_help"), long=True
+                ),
+            },
+        ),
+        Spec(
+            authoring.create_action,
+            {
+                "name": Text(source=(Action, "name")),
+                "timing": Choice(source=(Action, "timing")),
+                "price": Int(source=(Action, "price")),
+                "recruitment_allowance_rule": One(
+                    model=RecruitmentAllowanceRule,
+                    source=(Action, "recruitment_allowance_rule"),
+                    optional=True,
+                ),
+                "rank_allowance_rule": One(
+                    model=RankAllowanceRule,
+                    source=(Action, "rank_allowance_rule"),
+                    optional=True,
+                ),
+                **use_lists(Action),
+                "qualifier": Text(source=(Action, "qualifier")),
+                "library_author_help": Text(
+                    source=(Action, "library_author_help"), long=True
+                ),
+            },
+        ),
+        Spec(
+            authoring.add_action_outcome,
+            {
+                "outcome": One(model=Outcome, source=(ActionOutcome, "outcome")),
+                "position": Int(source=(ActionOutcome, "position")),
+            },
+            model=ActionOutcome,
+        ),
+        Spec(
+            authoring.add_action_price_component,
+            {
+                "resource": Choice(source=(ActionPriceComponent, "resource")),
+                "payer": Choice(source=(ActionPriceComponent, "payer")),
+                "counter": One(
+                    model=Counter,
+                    source=(ActionPriceComponent, "counter"),
+                    optional=True,
+                ),
+                "amount": Int(source=(ActionPriceComponent, "amount")),
+                "position": Int(source=(ActionPriceComponent, "position")),
+            },
+            model=ActionPriceComponent,
+        ),
+        Spec(
+            authoring.add_rank_threshold,
+            {"threshold": Int(source=(RankThreshold, "threshold"))},
+            model=RankThreshold,
+        ),
+        Spec(
+            authoring.augment_carried_item,
+            {
+                "slot_type": One(
+                    model=SlotType, source=(AugmentCarriedItem, "slot_type")
+                )
+            },
+            model=AugmentCarriedItem,
+            identity="slot_type",
+        ),
+        Spec(
+            authoring.resolve_advancement,
+            {"slot": One(model=Slot, source=(ResolveAdvancement, "slot"))},
+            model=ResolveAdvancement,
+            identity="slot",
+        ),
+        Spec(authoring.apply_changes, {}, model=ApplyChanges, identity=None),
+        Spec(
+            authoring.add_apply_change,
+            {
+                "change": Union(
+                    over={
+                        "counter_change": "library.CounterChange",
+                        "remove_picks": "library.RemovePicks",
+                    }
+                ),
+                "position": Int(source=(ApplyChange, "position")),
+            },
+            model=ApplyChange,
+        ),
+        Spec(
+            authoring.counter_change,
+            {
+                "counter": One(model=Counter, source=(CounterChange, "counter")),
+                "mode": Choice(source=(CounterChange, "mode")),
+                "amount": Int(source=(CounterChange, "amount")),
+            },
+            model=CounterChange,
+            identity="counter",
+        ),
+        Spec(
+            authoring.remove_picks,
+            {"slot_type": One(model=SlotType, source=(RemovePicks, "slot_type"))},
+            model=RemovePicks,
+            identity="slot_type",
+        ),
+        Spec(
+            authoring.recruitment_allowance_rule,
+            {},
+            model=RecruitmentAllowanceRule,
+            identity=None,
+        ),
+        Spec(
+            authoring.rank_allowance_rule,
+            {"counter": One(model=Counter, source=(RankAllowanceRule, "counter"))},
+            model=RankAllowanceRule,
+            identity="counter",
+        ),
+        Spec(
+            authoring.create_outcome,
+            {
+                "name": Text(source=(Outcome, "name")),
+                "augment_carried_item": One(
+                    model=AugmentCarriedItem,
+                    source=(Outcome, "augment_carried_item"),
+                    optional=True,
+                ),
+                "resolve_advancement": One(
+                    model=ResolveAdvancement,
+                    source=(Outcome, "resolve_advancement"),
+                    optional=True,
+                ),
+                "apply_changes": One(
+                    model=ApplyChanges, source=(Outcome, "apply_changes"), optional=True
+                ),
+            },
+        ),
+        Spec(
             authoring.create_pickable,
             {
                 "name": Text(source=(Pickable, "name")),
@@ -1133,6 +1286,7 @@ def _build_registry():
                 "position": Int(source=(PicklistMember, "position")),
                 "roll_low": Int(source=(PicklistMember, "roll_low")),
                 "roll_high": Int(source=(PicklistMember, "roll_high")),
+                "level": Int(source=(PicklistMember, "level")),
             },
             model=PicklistMember,
         ),
@@ -1161,6 +1315,7 @@ def _build_registry():
                 "max_picks": Int(source=(Slot, "max_picks")),
                 "assigned_to": Choice(source=(Slot, "assigned_to")),
                 "hidden": Bool(source=(Slot, "hidden")),
+                "mode": Choice(source=(Slot, "mode")),
                 "position": Int(source=(Slot, "position")),
                 "qualifier": Text(source=(Slot, "qualifier")),
                 "library_author_help": Text(

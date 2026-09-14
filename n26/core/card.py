@@ -504,6 +504,9 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         # reads it off the card it was built from.
         "slot__slot_type",
         "slot__picklist",
+        "action__usable_by_profile_types",
+        "action__usable_by_subtypes",
+        "action__usable_by_profiles",
         # A profile's home is its gun's, so a scope narrowed to a
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.
@@ -1053,6 +1056,9 @@ def build_modifier_index(assignables, max_depth=3):
         # the row.
         "adds_assignable__slot__slot_type",
         "adds_assignable__slot__picklist",
+        "adds_assignable__action__usable_by_profile_types",
+        "adds_assignable__action__usable_by_subtypes",
+        "adds_assignable__action__usable_by_profiles",
         "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
         # A granted weapon is put on the card as lines, statlines and all,

@@ -52,10 +52,12 @@ class TestTheMenuIsBackedBySpecs:
         author reads as the thing's name. A spec naming a field it does
         not have would crash on that refusal instead of showing it."""
         spec = specs()[LEAF_KINDS[kind]]
-        assert spec.identity in spec.fields, (
+        fieldless = spec.identity is None and not spec.fields
+        assert fieldless or spec.identity in spec.fields, (
             f"The {kind} spec says its name field is {spec.identity!r}, but "
             f"its fields are {', '.join(spec.fields)}. Set identity= on the "
-            f"spec to whichever of those an author reads as the name."
+            "spec to whichever of those an author reads as the name, or "
+            "identity=None only when the configuration has no editable fields."
         )
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
@@ -141,6 +143,83 @@ class TestTheMenuIsBackedBySpecs:
 
     def test_an_unknown_kind_is_a_404(self, author, client, default_pack):
         assert client.get("/n26/authoring/gadget/").status_code == 404
+
+
+class TestFieldlessActionConfigurations:
+    """A typed configuration with no fields still has a complete authoring route."""
+
+    def test_apply_changes_can_be_created_edited_and_attached_to_an_outcome(
+        self, author, client, default_pack
+    ):
+        from n26.library.models import ApplyChanges, Outcome
+
+        created = client.post("/n26/authoring/apply-changes/new/", {})
+        operation = ApplyChanges.objects.get()
+        assert created.status_code == 302
+        detail = f"/n26/authoring/apply-changes/{operation.pk}/"
+        assert client.get(detail).status_code == 200
+        assert client.post(detail, {"act": "edit"}).status_code == 302
+
+        attached = client.post(
+            "/n26/authoring/outcome/new/",
+            {"name": "Clear counters", "apply_changes": str(operation.pk)},
+        )
+        assert attached.status_code == 302
+        assert Outcome.objects.get(name="Clear counters").apply_changes == operation
+
+    def test_recruitment_rule_can_be_created_edited_and_attached_to_an_action(
+        self, author, client, default_pack
+    ):
+        from n26.library.models import Action, RecruitmentAllowanceRule
+
+        created = client.post("/n26/authoring/recruitment-allowance-rule/new/", {})
+        rule = RecruitmentAllowanceRule.objects.get()
+        assert created.status_code == 302
+        detail = f"/n26/authoring/recruitment-allowance-rule/{rule.pk}/"
+        assert client.get(detail).status_code == 200
+        assert client.post(detail, {"act": "edit"}).status_code == 302
+
+        attached = client.post(
+            "/n26/authoring/action/new/",
+            {
+                "name": "Recruitment augmentation",
+                "timing": "recruitment",
+                "recruitment_allowance_rule": str(rule.pk),
+            },
+        )
+        assert attached.status_code == 302
+        assert (
+            Action.objects.get(
+                name="Recruitment augmentation"
+            ).recruitment_allowance_rule
+            == rule
+        )
+
+
+class TestRankThresholdWords:
+    """A rank table uses its configured counter without one query per threshold."""
+
+    def test_the_detail_names_its_counter_with_fixed_query_growth(
+        self, author, client, default_pack
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library import authoring
+
+        kills = authoring.create_counter("Kill Count")
+        table = authoring.create_rank_table("Hunt ranks", kills, thresholds=[4])
+        url = f"/n26/authoring/rank-table/{table.pk}/"
+        client.get(url)
+        with CaptureQueriesContext(connection) as one:
+            first = client.get(url)
+        assert "Kill Count" in first.content.decode()
+
+        for threshold in range(5, 15):
+            authoring.add_rank_threshold(table, threshold)
+        with CaptureQueriesContext(connection) as many:
+            client.get(url)
+        assert len(many) == len(one)
 
 
 class TestAffiliationIsRetiredFromTheMenu:

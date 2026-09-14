@@ -59,6 +59,16 @@ LEAF_KINDS = {
     "skill": "create_skill",
     "power": "create_power",
     "counter": "create_counter",
+    "action": "create_action",
+    "rank-table": "create_rank_table",
+    "outcome": "create_outcome",
+    "augment-carried-item": "augment_carried_item",
+    "resolve-advancement": "resolve_advancement",
+    "apply-changes": "apply_changes",
+    "counter-change": "counter_change",
+    "remove-picks": "remove_picks",
+    "recruitment-allowance-rule": "recruitment_allowance_rule",
+    "rank-allowance-rule": "rank_allowance_rule",
     "hidden": "create_hidden",
     "asset": "create_asset",
     "asset-table": "create_asset_table",
@@ -484,7 +494,56 @@ def _option_parts(parts):
 #: A kind's own parts: the things only that kind has, added to one of
 #: its rows over time. At most one section per kind, and a post naming
 #: no section is for this one.
+def _describe_action_outcome(member):
+    return str(member.outcome), []
+
+
+def _describe_rank_threshold(member):
+    return str(member.threshold), [str(member.rank_table.counter)]
+
+
+def _describe_action_price(component):
+    balance = component.counter.name if component.counter_id else "credits"
+    return f"{component.amount} {balance}", [component.get_payer_display()]
+
+
+def _describe_apply_change(member):
+    return str(member.change), []
+
+
 DETAIL_KINDS = {
+    "action": {
+        "verb": "add_action_outcome",
+        "parts": "outcomes",
+        "statline": False,
+        "describe": _describe_action_outcome,
+        "parts_hint": lambda parts: parts.select_related("outcome"),
+        "parts_label": "outcomes",
+        "part_name": "outcome",
+        "nothing_yet": "No outcomes yet. Add at least one result before using this action.",
+    },
+    "rank-table": {
+        "verb": "add_rank_threshold",
+        "parts": "thresholds",
+        "statline": False,
+        "describe": _describe_rank_threshold,
+        "parts_hint": lambda parts: parts.select_related("rank_table__counter"),
+        "parts_label": "thresholds",
+        "part_name": "threshold",
+        "nothing_yet": "No thresholds yet. Add the counter values that earn action uses.",
+    },
+    "apply-changes": {
+        "verb": "add_apply_change",
+        "parts": "changes",
+        "statline": False,
+        "describe": _describe_apply_change,
+        "parts_hint": lambda parts: parts.select_related(
+            "counter_change", "remove_picks"
+        ),
+        "parts_label": "changes",
+        "part_name": "change",
+        "nothing_yet": "No changes yet. Add at least one mutation for this outcome.",
+    },
     "weapon": {
         "verb": "add_weapon_profile",
         "parts": "profiles",
@@ -825,6 +884,19 @@ OPTION_SETS_PART = {
 }
 
 
+ACTION_PRICE_PART = {
+    "act": "price",
+    "verb": "add_action_price_component",
+    "parts": "use_price",
+    "statline": False,
+    "describe": _describe_action_price,
+    "parts_hint": lambda parts: parts.select_related("counter"),
+    "parts_label": "use price",
+    "part_name": "price component",
+    "nothing_yet": "No use price. Using this action does not spend a balance.",
+}
+
+
 def _carries_modifiers(kind):
     """Whether this kind's rows can carry modifiers — true for every
     assignable (the mixin's M2M is the tell), never for the foundation
@@ -871,6 +943,8 @@ def _part_sections(kind):
     sections = []
     if kind in DETAIL_KINDS:
         sections.append(DETAIL_KINDS[kind])
+    if kind == "action":
+        sections.append(ACTION_PRICE_PART)
     if _carries_built_ins(kind):
         sections.append(BUILT_INS_PART)
     if _offers_options(kind):
@@ -1941,14 +2015,19 @@ def create(request, kind):
             except IntegrityError:
                 # Not every kind calls its name "name" — the spec says
                 # which field an author reads as one, so the refusal
-                # lands on a field the form actually has.
+                # lands on a field the form actually has. A fieldless
+                # configuration has no value to blame, so its refusal is
+                # about the submission as a whole.
                 named = spec.identity
-                form.add_error(
-                    named,
-                    f"{_article_for(model._meta.verbose_name).capitalize()} "
-                    f"{model._meta.verbose_name} named "
-                    f"“{form.cleaned_data[named]}” already exists in this pack.",
-                )
+                noun = model._meta.verbose_name
+                if named is None:
+                    form.add_error(None, f"Another {noun} already exists in this pack.")
+                else:
+                    form.add_error(
+                        named,
+                        f"{_article_for(noun).capitalize()} {noun} named "
+                        f"“{form.cleaned_data[named]}” already exists in this pack.",
+                    )
             else:
                 if staged:
                     messages.success(
@@ -2356,11 +2435,16 @@ def detail(request, kind, pk):
             except IntegrityError:
                 named = spec.identity
                 noun = model._meta.verbose_name
-                edit_form.add_error(
-                    named,
-                    f"{_article_for(noun).capitalize()} {noun} named "
-                    f"“{edit_form.cleaned_data[named]}” already exists in this pack.",
-                )
+                if named is None:
+                    edit_form.add_error(
+                        None, f"Another {noun} already exists in this pack."
+                    )
+                else:
+                    edit_form.add_error(
+                        named,
+                        f"{_article_for(noun).capitalize()} {noun} named "
+                        f"“{edit_form.cleaned_data[named]}” already exists in this pack.",
+                    )
             else:
                 messages.success(request, f"Saved {thing}.")
                 return redirect("authoring-detail", kind=kind, pk=pk)
