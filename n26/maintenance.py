@@ -481,14 +481,14 @@ def run_batched(
     swallowing it would leave no delivery to finish the run.
     """
     continued = False
+    contended = False
     with _single_flight(LOCK_KEYS[operation]) as mine:
         if not mine:
             logger.info("%s already running; this copy stands down", what)
-            if stand_down is not None:
-                stand_down()
-            return
-        may_start, why_not = _claim(backfill_id)
-        if not may_start:
+            contended = True
+        if mine:
+            may_start, why_not = _claim(backfill_id)
+        if mine and not may_start:
             logger.info("%s not started: %s", what, why_not)
             _write(
                 backfill_id,
@@ -496,38 +496,36 @@ def run_batched(
                 error=f"Not started: {why_not}",
             )
             return
-        try:
-            work_list = items() if callable(items) else items
-            if work_list is not None:
-                continued = _work_through(
-                    backfill_id, what, work_list, do_one, batch_size, budget
-                )
-            elif Backfill.objects.filter(
-                pk=backfill_id, status=Backfill.Status.RUNNING
-            ).exists():
-                # Nothing to walk and no ending written: left alone, the
-                # record would say RUNNING for ever with no delivery
-                # coming to finish it.
+        if mine:
+            try:
+                work_list = items() if callable(items) else items
+                if work_list is not None:
+                    continued = _work_through(
+                        backfill_id, what, work_list, do_one, batch_size, budget
+                    )
+                elif Backfill.objects.filter(
+                    pk=backfill_id, status=Backfill.Status.RUNNING
+                ).exists():
+                    _write(
+                        backfill_id,
+                        status=Backfill.Status.FAILED,
+                        error=(
+                            "The work-list reported nothing to walk but wrote no "
+                            "ending onto the record."
+                        ),
+                    )
+            except refusals as refused:
+                _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
+            except Exception as broke:  # noqa: BLE001 — the ending must be recorded
+                logger.exception("%s broke", what)
                 _write(
                     backfill_id,
                     status=Backfill.Status.FAILED,
-                    error=(
-                        "The work-list reported nothing to walk but wrote no "
-                        "ending onto the record."
-                    ),
+                    error=f"{broke}\n\n{traceback.format_exc()}",
                 )
-        except refusals as refused:
-            # Refused before any row was walked, so the record ends in
-            # the refusal's own words with nothing to unwind.
-            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
-        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
-            logger.exception("%s broke", what)
-            _write(
-                backfill_id,
-                status=Backfill.Status.FAILED,
-                error=f"{broke}\n\n{traceback.format_exc()}",
-            )
-    if continued:
+    if contended and stand_down is not None:
+        stand_down()
+    elif continued:
         again()
 
 
@@ -687,6 +685,8 @@ def run_per_gang(
         ids = backfill.summary.get("gang_ids")
         if ids is None:
             plan = find()
+            if plan is None:
+                return None
             if plan.problems:
                 raise PlanRefused(
                     f"{what} cannot run: " + "; ".join(plan.problems) + "."
@@ -1783,31 +1783,6 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
             return None
         return find()
 
-    def end_competing_record():
-        # A duplicate delivery of this same record should stand down: the
-        # copy holding the lock will finish it. A distinct queued record has
-        # no delivery left after standing down, so give it a terminal state.
-        current = Backfill.objects.filter(pk=backfill_id).values("summary").first()
-        if current is None or int(current["summary"].get("attempts", 0)) > 0:
-            return
-        competing = (
-            Backfill.objects.filter(operation=operation, status=Backfill.Status.RUNNING)
-            .exclude(pk=backfill_id)
-            .exists()
-        )
-        completed = (
-            Backfill.objects.filter(operation=operation, status=Backfill.Status.DONE)
-            .exclude(pk=backfill_id)
-            .exists()
-        )
-        if competing or completed:
-            reason = (
-                "Existing fighter allowances were already initialised."
-                if completed
-                else "Another fighter allowance initialisation is already running."
-            )
-            _write(backfill_id, status=Backfill.Status.FAILED, error=reason)
-
     run_per_gang(
         backfill_id,
         operation=operation,
@@ -1815,7 +1790,9 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
         find=find_once,
         apply_one=apply_one,
         again=lambda: initialise_action_allowances.enqueue(backfill_id=backfill_id),
-        stand_down=end_competing_record,
+        stand_down=lambda: initialise_action_allowances.enqueue(
+            backfill_id=backfill_id
+        ),
     )
 
 

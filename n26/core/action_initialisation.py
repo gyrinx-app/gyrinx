@@ -165,13 +165,12 @@ def apply_one(gang_id):
                         and access.action.rank_allowance_rule.counter_id
                         == assignment.counter_id
                     ]
-                    if (
-                        not matching
-                        or rank_table_for(
-                            fighter, assignment.counter, card=card, computed=computed
-                        )
-                        is None
-                    ):
+                    if not matching:
+                        continue
+                    table_access = rank_table_for(
+                        fighter, assignment.counter, card=card, computed=computed
+                    )
+                    if table_access is None:
                         continue
                     baseline = baselines[assignment.pk]
                     if baseline is None:
@@ -179,7 +178,12 @@ def apply_one(gang_id):
                         continue
                     granted += len(
                         grant_rank_allowances(
-                            op, assignment, baseline, assignment.counter_value.value
+                            op,
+                            assignment,
+                            baseline,
+                            assignment.counter_value.value,
+                            action_accesses=accesses,
+                            table_access=table_access,
                         )
                     )
     except Gang.DoesNotExist:
