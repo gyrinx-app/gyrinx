@@ -1,0 +1,12 @@
+flowchart TD
+  T[Player completes recruitment or saves an XP increase] --> E[Read effective Action and Rank Table access]
+  E --> R[Apply Allowance Rule; ranks use before XP less than threshold at or below after XP]
+  R --> G[Create each missing Allowance once; retain existing ones]
+  G --> S{State of this allowance?}
+  S -->|Unused| L[Player starts: reserve allowance and create Action Record under gang lock]
+  S -->|Started| N[Continue existing Action Record and its rolls]
+  S -->|Completed| H[View existing result; no new use]
+  L --> N
+  N --> F[Make required selections or rolls]
+  F --> C[Commit outcome changes and mark complete together]
+  C --> H
