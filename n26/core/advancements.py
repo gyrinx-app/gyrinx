@@ -19,6 +19,7 @@ class AdvancementOption:
     gainable: bool
     needs_skill: bool
     skill_mode: str
+    effect: str = ""
 
 
 def _validate_draft(op, record, configured):
@@ -290,6 +291,8 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
 
 
 def advancement_options(record, configured):
+    from n26.library.prose import sentence_for
+
     try:
         selection = record.advancement_selection
     except AdvancementSelection.DoesNotExist as error:
@@ -355,6 +358,10 @@ def advancement_options(record, configured):
                 _skill_offer(member.pickable).mode
                 if _skill_offer(member.pickable)
                 else ""
+            ),
+            " ".join(
+                sentence_for(modifier, thing=member.pickable).text
+                for modifier, _ in index.for_thing(member.pickable)
             ),
         )
         for member in offered
