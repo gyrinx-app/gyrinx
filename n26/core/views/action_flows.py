@@ -234,7 +234,8 @@ def _selection_summary(record, stage):
         target = record.review.get("target", {})
         selected = target.get("selection") if isinstance(target, dict) else None
         if selected:
-            return f"{selected['item_name']}: {selected['candidate_tier']}. {selected['effect']}"
+            effect = selected["effect"]
+            return f"{selected['item_name']}: {selected['candidate_tier']}. {effect[:1].upper()}{effect[1:]}"
         if isinstance(target, dict) and target.get("result"):
             return (
                 f"{target['result']}: {target['skill']}"

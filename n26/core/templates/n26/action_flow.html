@@ -63,7 +63,7 @@
                         <c-n26.radio-cards.card name="selection"
                                                 value="{{ option.key }}"
                                                 label="{{ option.item.candidate_tier }}"
-                                                description="{{ option.item.effect }}"
+                                                description="{{ option.item.effect|capfirst }}"
                                                 :wrap="True"
                                                 :checked="option.checked">
                             <span class="block text-muted">Model rating {{ option.item.rating_before }}¢ → {{ option.item.rating_after }}¢</span>
@@ -83,10 +83,13 @@
                         <c-n26.radio-cards.card name="pickable_id"
                                                 value="{{ choice.option.id }}"
                                                 label="{{ choice.option.name }}"
+                                                description="{{ choice.option.effect|capfirst }}"
                                                 :checked="choice.checked"
                                                 :wrap="True">
                             <span class="block text-muted">Rating +{{ choice.option.rating }}¢</span>
                         </c-n26.radio-cards.card>
+                    {% empty %}
+                        <p class="text-muted">No advancement can change this model.</p>
                     {% endfor %}
                 </c-n26.radio-cards>
             </c-n26.form-section>
