@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
@@ -181,3 +182,98 @@ def test_a_new_task_record_refuses_after_a_successful_run(legacy_fighter):
     assert second.status == Backfill.Status.FAILED
     assert "already initialised" in second.error
     assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 2
+
+
+def test_completed_run_is_checked_after_taking_the_single_flight_lock(
+    legacy_fighter, monkeypatch
+):
+    first = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.DONE,
+    )
+    second = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"attempts": 0},
+    )
+    entered = False
+
+    @contextmanager
+    def observed_lock(_key):
+        nonlocal entered
+        entered = True
+        yield True
+
+    monkeypatch.setattr(maintenance, "_single_flight", observed_lock)
+    maintenance.initialise_action_allowances.call(backfill_id=str(second.pk))
+
+    second.refresh_from_db()
+    assert entered
+    assert second.status == Backfill.Status.FAILED
+    assert "already initialised" in second.error
+    assert first.status == Backfill.Status.DONE
+
+
+def test_a_distinct_queued_record_ends_when_another_run_holds_the_lock(
+    monkeypatch,
+):
+    running = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+    )
+    queued = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+    )
+
+    @contextmanager
+    def occupied(_key):
+        yield False
+
+    monkeypatch.setattr(maintenance, "_single_flight", occupied)
+    maintenance.initialise_action_allowances.call(backfill_id=str(queued.pk))
+
+    queued.refresh_from_db()
+    running.refresh_from_db()
+    assert queued.status == Backfill.Status.FAILED
+    assert "already running" in queued.error
+    assert running.status == Backfill.Status.RUNNING
+
+
+def test_a_duplicate_delivery_does_not_end_the_active_record(monkeypatch):
+    active = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"attempts": 1},
+    )
+    Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+    )
+
+    @contextmanager
+    def occupied(_key):
+        yield False
+
+    monkeypatch.setattr(maintenance, "_single_flight", occupied)
+    maintenance.initialise_action_allowances.call(backfill_id=str(active.pk))
+
+    active.refresh_from_db()
+    assert active.status == Backfill.Status.RUNNING
+
+
+@pytest.mark.parametrize("change", ["archive", "delete"])
+def test_a_planned_gang_that_disappears_is_skipped(legacy_fighter, change):
+    gang, fighter, action, _ = legacy_fighter
+    assert find().gangs == ((gang.pk,),)
+    gang_id = gang.pk
+    if change == "archive":
+        gang.archived = True
+        gang.save(update_fields=["archived", "modified"])
+    else:
+        gang.delete()
+
+    report = apply_one(gang_id)
+
+    assert "skipped" in report
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()

@@ -433,6 +433,7 @@ def run_batched(
     batch_size=BATCH_SIZE,
     budget=BATCH_BUDGET,
     refusals=(),
+    stand_down=None,
 ):
     """Work through ``items`` one at a time, each on its own commit,
     remembering how far it got.
@@ -483,6 +484,8 @@ def run_batched(
     with _single_flight(LOCK_KEYS[operation]) as mine:
         if not mine:
             logger.info("%s already running; this copy stands down", what)
+            if stand_down is not None:
+                stand_down()
             return
         may_start, why_not = _claim(backfill_id)
         if not may_start:
@@ -648,6 +651,7 @@ def run_per_gang(
     batch_size=PER_GANG_BATCH_SIZE,
     budget=BATCH_BUDGET,
     refusals=(),
+    stand_down=None,
 ):
     """Run a repair that works through players' gangs one at a time.
 
@@ -708,6 +712,7 @@ def run_per_gang(
         batch_size=batch_size,
         budget=budget,
         refusals=(PlanRefused, *refusals),
+        stand_down=stand_down,
     )
 
 
@@ -1759,27 +1764,58 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
     """Give existing fighters the rank allowances earned since recruitment."""
     from n26.core.action_initialisation import apply_one, find
 
-    if (
-        Backfill.objects.filter(
-            operation=Operation.INITIALISE_ACTION_ALLOWANCES,
-            status=Backfill.Status.DONE,
+    operation = Operation.INITIALISE_ACTION_ALLOWANCES
+
+    def find_once():
+        # run_per_gang calls this only after taking the operation's
+        # single-flight lock, so two queued records cannot both pass the
+        # permanent one-off decision.
+        if (
+            Backfill.objects.filter(operation=operation, status=Backfill.Status.DONE)
+            .exclude(pk=backfill_id)
+            .exists()
+        ):
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error="Existing fighter allowances were already initialised.",
+            )
+            return None
+        return find()
+
+    def end_competing_record():
+        # A duplicate delivery of this same record should stand down: the
+        # copy holding the lock will finish it. A distinct queued record has
+        # no delivery left after standing down, so give it a terminal state.
+        current = Backfill.objects.filter(pk=backfill_id).values("summary").first()
+        if current is None or int(current["summary"].get("attempts", 0)) > 0:
+            return
+        competing = (
+            Backfill.objects.filter(operation=operation, status=Backfill.Status.RUNNING)
+            .exclude(pk=backfill_id)
+            .exists()
         )
-        .exclude(pk=backfill_id)
-        .exists()
-    ):
-        _write(
-            backfill_id,
-            status=Backfill.Status.FAILED,
-            error="Existing fighter allowances were already initialised successfully.",
+        completed = (
+            Backfill.objects.filter(operation=operation, status=Backfill.Status.DONE)
+            .exclude(pk=backfill_id)
+            .exists()
         )
-        return
+        if competing or completed:
+            reason = (
+                "Existing fighter allowances were already initialised."
+                if completed
+                else "Another fighter allowance initialisation is already running."
+            )
+            _write(backfill_id, status=Backfill.Status.FAILED, error=reason)
+
     run_per_gang(
         backfill_id,
-        operation=Operation.INITIALISE_ACTION_ALLOWANCES,
+        operation=operation,
         what="Existing fighter action allowances",
-        find=find,
+        find=find_once,
         apply_one=apply_one,
         again=lambda: initialise_action_allowances.enqueue(backfill_id=backfill_id),
+        stand_down=end_competing_record,
     )
 
 
