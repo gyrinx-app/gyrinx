@@ -2306,6 +2306,7 @@ class Operation:
         previous_pick,
         miniature,
         action_record,
+        roll=None,
     ):
         """Archive one slot pick and retain exact before/after provenance."""
         if previous_pick is not None:
@@ -2322,6 +2323,7 @@ class Operation:
                 slot=slot,
                 miniature=miniature,
                 action_record=action_record,
+                roll=roll,
             )
         if replacement is not None or previous_pick is not None:
             self.event(

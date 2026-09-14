@@ -639,6 +639,7 @@ def correct_advancement(op, record, configured, terms):
         previous_pick=old_pick,
         miniature=record.fighter,
         action_record=record,
+        roll=selection.roll_event,
     )
     selection.intended_pick, selection.pick_assignment = pickable, replacement
     selection.save(update_fields=["intended_pick", "pick_assignment", "modified"])
