@@ -584,6 +584,9 @@ class ChoiceLine:
     #: on the control: a choice of one is chosen, a choice of several has
     #: picks added to it.
     takes_several: bool = False
+    #: True when carried kit owns an explicit tier ladder. Its control keeps
+    #: the specific "Choose tier" label after a tier is held.
+    is_tier_ladder: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
@@ -1940,6 +1943,7 @@ def _choice_line(slot, host):
         chosen=slot.chosen_name,
         is_full=slot.is_full,
         takes_several=slot.max_picks > 1,
+        is_tier_ladder=is_tier_ladder(slot),
         key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
@@ -2022,8 +2026,16 @@ def weapon_home(slot, weapons_by_key):
     )
 
 
+def is_tier_ladder(slot):
+    from n26.library.models import Slot
+
+    return getattr(getattr(slot, "slot", None), "mode", None) == Slot.Mode.TIER_LADDER
+
+
 def gear_home(slot, gear_by_key):
-    """The carried gear line a question belongs beneath, if any."""
+    """The carried gear line an explicit tier ladder belongs beneath."""
+    if not is_tier_ladder(slot):
+        return None
     anchor = slot.anchor
     if anchor is None:
         return None
@@ -2646,6 +2658,7 @@ def card_to_model_card(
     hosted_choice_keys = {
         key
         for slot in (computed.choices if computed else ())
+        if is_tier_ladder(slot)
         for key in (
             getattr(slot.anchor, "key", None),
             getattr(slot.anchor, "caused_by_key", None),

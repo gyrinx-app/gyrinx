@@ -392,7 +392,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                                 <div class="inline-flex items-center gap-0">
                                                     <c-n26.model-card.mode when="edit">
                                                         {% if choice.href %}
-                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
+                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_tier_ladder %}Choose tier{% elif choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
                                                         {% endif %}
                                                     </c-n26.model-card.mode>
                                                     {% comment %}
