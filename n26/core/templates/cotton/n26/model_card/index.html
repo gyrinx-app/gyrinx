@@ -45,10 +45,11 @@ where the collar that brought it sits there), which is what the model's own
 page wants. A stored model's card carries id="model-<pk>" on its header
 band, the anchor the sheet links to.
 
-The header band is a query container: narrow, its two columns stack, the
-name and profile over one row holding the figures and every control. The
-status sits with the figures rather than with the acts below it — where a
-model stands is something the card says, not something to do.
+The header band keeps the name and figures opposite one another at every
+width, so the rating stays at the top right. The profile and controls share
+the row below, each in its own corner. The status sits with the figures rather
+than with the acts below it — where a model stands is something the card says,
+not something to do.
 {% endcomment %}
 {% load richtext %}
 <c-vars
@@ -73,22 +74,19 @@ model stands is something the card says, not something to do.
     anchor, so a link to a model lands on its name; a card with no id depicts
     nobody and gets none.
     {% endcomment %}
-    <div class="@container border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
+    <div class="border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
         {% comment %}
-        A query container, so the band lays itself out by the width the card
-        has rather than the window's: a roster puts two cards side by side from
-        lg, where a viewport-based breakpoint would tell a half-width card it
-        had the whole screen. Narrow, the two columns stack — the name and its
-        profile over one row holding the figures and every control.
+        The figures keep their own top-right cell while the name takes the
+        space left beside them. The profile and controls occupy the two cells
+        below, keeping the actions beside the profile without moving the
+        rating away from its corner.
         {% endcomment %}
-        <div class="flex flex-col gap-2 @md:flex-row @md:items-start @md:gap-3">
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
             {% comment %}
-            The model's name, and under it the library profile it was hired
-            from. The profile name is skipped when the two agree, as
-            n26.render_text skips it, so a model nobody has renamed is not
-            named twice.
+            The model's name. The library profile it was hired from sits in
+            the cell below, so the controls can remain beside it.
             {% endcomment %}
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0">
                 <div class="font-semibold">
                     {{ card.name }}{% if name_action %}{{ name_action }}{% endif %}
                     {% comment %}
@@ -112,6 +110,14 @@ model stands is something the card says, not something to do.
                         </c-ui.tooltip>
                     {% endif %}
                 </div>
+            </div>
+
+            <div class="col-start-1 row-start-2 min-w-0 self-center">
+                {% comment %}
+                The profile name is skipped when it agrees with the model's
+                name, as n26.render_text skips it, so a model nobody has
+                renamed is not named twice.
+                {% endcomment %}
                 {% if card.profile_name and card.profile_name != card.name %}
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
                 {% endif %}
@@ -129,8 +135,8 @@ model stands is something the card says, not something to do.
                 {% endif %}
             </div>
 
-            <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-0 @md:flex-col @md:flex-nowrap @md:items-end @md:shrink-0">
-                <div class="flex items-baseline gap-1 text-sm font-medium tabular-nums">
+            <div class="contents">
+                <div class="col-start-2 row-start-1 flex items-baseline justify-end gap-1 text-sm font-medium tabular-nums">
                     {% comment %}
                     Where the model stands between battles, ahead of the
                     figures rather than among the acts below: a status is
@@ -197,11 +203,10 @@ model stands is something the card says, not something to do.
 
                 {% if actions or card.image_url %}
                     {% comment %}
-                    Wrapping while the card is narrow, where the longest
-                    status badge and four controls do not fit one line: held
-                    to one line the badge breaks its own words instead.
+                    The controls share the lower row with the profile and
+                    wrap within their own cell when the card is narrow.
                     {% endcomment %}
-                    <div class="flex flex-wrap items-center gap-2 @md:flex-nowrap">
+                    <div class="col-start-2 row-start-2 flex flex-wrap items-center justify-end gap-2">
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
                                 <c-slot name="trigger">
