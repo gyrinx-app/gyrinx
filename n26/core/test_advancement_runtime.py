@@ -77,6 +77,20 @@ def _primary_agility(fighter):
     return category
 
 
+def _secondary_cunning(fighter):
+    category = Category.objects.get(name="Cunning", section__name="Skills")
+    secondary = CollectionSection.objects.get(
+        collection__name="Skills & Powers", name="Secondary"
+    )
+    modifier(
+        "Hunter selects Cunning as secondary",
+        targets_model(),
+        places(category, secondary),
+        carried_by=fighter.membership.profile,
+    )
+    return category
+
+
 def _ensure_stat_result(name, stat):
     from n26.library.models import ChangesStat
 
@@ -221,6 +235,61 @@ def test_first_available_random_skill_is_immutable_across_request_keys(fighter):
         pickable__name="Random Secondary skill"
     ).pickable
     assert recorded_skill(record, configured, random_secondary.pk) is None
+    assert (
+        LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).count()
+        == 2
+    )
+
+
+def test_switching_random_skill_access_reuses_the_recorded_die(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    secondary = _secondary_cunning(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    random_primary = next(row for row in options if row.name == "Random Primary skill")
+    random_secondary = next(
+        row for row in options if row.name == "Random Secondary skill"
+    )
+
+    with operation(fighter.gang) as op:
+        first = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+        switched = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=6,
+        )
+        replayed = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=6,
+        )
+
+    assert switched["roll"] == first["roll"] == 1
+    assert switched["event_id"] == first["event_id"]
+    assert replayed == switched
+    assert recorded_skill(record, configured, random_primary.id) is None
+    assert recorded_skill(
+        record, configured, random_secondary.id
+    ) == secondary.skills.get(position=1)
     assert (
         LedgerEvent.objects.filter(
             action_record=record, kind=LedgerEvent.Kind.ROLLED
