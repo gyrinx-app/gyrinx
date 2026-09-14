@@ -107,6 +107,21 @@ def start(client, hunt, outcome):
 
 
 class TestSuitEvolutionForms:
+    def test_an_invalid_hidden_request_key_has_a_visible_explanation(
+        self, client, hunt
+    ):
+        client.force_login(hunt.owner)
+        response = client.post(
+            reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk]),
+            {"request_key": "not-a-request", "outcome": str(hunt.clear.pk)},
+        )
+        assert response.status_code == 200
+        assert (
+            "This form is not recognised. Reload this page and try again."
+            in response.content.decode()
+        )
+        assert not ActionRecord.objects.filter(fighter=hunt.fighter).exists()
+
     def test_more_action_panels_do_not_add_queries_per_action(self, client, hunt):
         client.force_login(hunt.owner)
         url = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
