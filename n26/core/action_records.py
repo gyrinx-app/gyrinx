@@ -87,6 +87,7 @@ def action_changes(record):
         or (
             event.kind == LedgerEvent.Kind.REMOVED
             and event.before_pick_id
+            and event.assignment_id == event.before_pick_id
             and event.before_pick_id not in amended_before
         )
     ]
@@ -120,7 +121,11 @@ def action_changes(record):
 
 
 def _refuse_unless_owned(op, fighter):
-    if fighter.membership_id is None or fighter.membership.gang_id != op.gang.pk:
+    if (
+        fighter.membership_id is None
+        or fighter.membership.archived
+        or fighter.membership.gang_id != op.gang.pk
+    ):
         raise Refusal("That fighter is no longer in this gang.")
 
 
@@ -269,13 +274,25 @@ def _operation_snapshot(configured):
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
-def _target_snapshot(record, configured, terms):
+def _post_payment_counters(quote):
+    """Counter balances after the reviewed coalesced price is paid."""
+    return {
+        line.balance.assignment_id: line.after_payment
+        for line in quote.lines
+        if line.balance.resource == Resource.COUNTER
+    }
+
+
+def _target_snapshot(record, configured, terms, *, quote=None):
     """Exact player state a typed outcome will read when it writes."""
     from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
 
     if isinstance(configured, ApplyChanges):
         values = []
         simulated = {}
+        # A normal review supplies its final quote and previews the state after
+        # payment. Correction previews omit it because corrections never repay.
+        projected = _post_payment_counters(quote) if quote is not None else {}
         for member in configured.changes.select_related(
             "counter_change__counter", "remove_picks__slot_type"
         ):
@@ -288,7 +305,8 @@ def _target_snapshot(record, configured, terms):
                     record.action,
                 )
                 before = simulated.setdefault(
-                    assignment.pk, assignment.counter_value.value
+                    assignment.pk,
+                    projected.get(str(assignment.pk), assignment.counter_value.value),
                 )
                 after = before + _counter_change_delta(member.counter_change, before)
                 simulated[assignment.pk] = after
@@ -318,11 +336,25 @@ def _target_snapshot(record, configured, terms):
                 )
         return values
     if isinstance(configured, AugmentCarriedItem):
-        from n26.core.augmentations import preview_augmentation
+        try:
+            from n26.core.augmentations import preview_augmentation
+        except ModuleNotFoundError as error:
+            if error.name != "n26.core.augmentations":
+                raise
+            raise Refusal(
+                "Item augmentation is not available in this build."
+            ) from error
 
         return preview_augmentation(record, configured, deepcopy(terms))
     if isinstance(configured, ResolveAdvancement):
-        from n26.core.advancements import preview_advancement
+        try:
+            from n26.core.advancements import preview_advancement
+        except ModuleNotFoundError as error:
+            if error.name != "n26.core.advancements":
+                raise
+            raise Refusal(
+                "Fighter advancement is not available in this build."
+            ) from error
 
         return preview_advancement(record, configured, deepcopy(terms))
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
@@ -466,10 +498,11 @@ def review_action(op, record, *, outcome, terms=None):
     record.review = {
         "price": quote.snapshot(),
         "content": _content_snapshot(record.action),
-        "target": _target_snapshot(record, configured, record.terms),
+        "target": _target_snapshot(record, configured, record.terms, quote=quote),
         "terms": record.terms,
     }
-    record.save(update_fields=["revision", "terms", "review", "modified"])
+    record.outcome = outcome
+    record.save(update_fields=["outcome", "revision", "terms", "review", "modified"])
     return record
 
 
@@ -494,7 +527,7 @@ def save_action_choices(op, record, *, outcome, terms):
     return record
 
 
-def _plan_apply_changes(op, record, operation):
+def _plan_apply_changes(op, record, operation, quote):
     changes = list(
         operation.changes.select_related(
             "counter_change__counter", "remove_picks__slot_type"
@@ -502,6 +535,8 @@ def _plan_apply_changes(op, record, operation):
     )
     planned = []
     simulated = {}
+    starting = {}
+    projected = _post_payment_counters(quote)
     for change in changes:
         if change.counter_change_id:
             configured = change.counter_change
@@ -512,7 +547,9 @@ def _plan_apply_changes(op, record, operation):
                 "fighter",
                 record.action,
             )
-            before = simulated.setdefault(assignment.pk, assignment.counter_value.value)
+            initial = projected.get(str(assignment.pk), assignment.counter_value.value)
+            before = simulated.setdefault(assignment.pk, initial)
+            starting.setdefault(assignment.pk, initial)
             delta = _counter_change_delta(configured, before)
             simulated[assignment.pk] = before + delta
             planned.append(("counter", assignment.pk, configured))
@@ -526,11 +563,7 @@ def _plan_apply_changes(op, record, operation):
             )
             planned.append(("picks", picks, None))
     changed_counter = any(
-        after
-        != Assignment.objects.select_related("counter_value")
-        .get(pk=assignment_id)
-        .counter_value.value
-        for assignment_id, after in simulated.items()
+        after != starting[assignment_id] for assignment_id, after in simulated.items()
     )
     if not changed_counter and not any(
         kind == "picks" and target for kind, target, _ in planned
@@ -565,21 +598,35 @@ def _counter_change_delta(configured, before):
     return -min(before, configured.amount)
 
 
-def _prepare_outcome(op, record, configured):
+def _prepare_outcome(op, record, configured, quote):
     """Validate one typed outcome and return its transactional writer."""
     from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
 
     if isinstance(configured, ApplyChanges):
-        planned = _plan_apply_changes(op, record, configured)
+        planned = _plan_apply_changes(op, record, configured, quote)
         return lambda: _apply_changes(op, record, planned)
     if isinstance(configured, AugmentCarriedItem):
-        from n26.core.augmentations import apply_augmentation
+        try:
+            from n26.core.augmentations import apply_augmentation
+        except ModuleNotFoundError as error:
+            if error.name != "n26.core.augmentations":
+                raise
+            raise Refusal(
+                "Item augmentation is not available in this build."
+            ) from error
 
         return lambda: apply_augmentation(
             op, record, configured, deepcopy(record.terms)
         )
     if isinstance(configured, ResolveAdvancement):
-        from n26.core.advancements import apply_advancement
+        try:
+            from n26.core.advancements import apply_advancement
+        except ModuleNotFoundError as error:
+            if error.name != "n26.core.advancements":
+                raise
+            raise Refusal(
+                "Fighter advancement is not available in this build."
+            ) from error
 
         return lambda: apply_advancement(op, record, configured, deepcopy(record.terms))
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
@@ -647,11 +694,11 @@ def complete_action(op, record, *, revision, review, outcome):
     configured = outcome.operation
     if configured is None:
         raise LibraryError(f"{outcome} has no operation.")
-    if _target_snapshot(record, configured, record.terms) != record.review.get(
-        "target"
-    ):
+    if _target_snapshot(
+        record, configured, record.terms, quote=quote
+    ) != record.review.get("target"):
         raise Refusal("The fighter changed. Review this action again.")
-    apply_outcome = _prepare_outcome(op, record, configured)
+    apply_outcome = _prepare_outcome(op, record, configured, quote)
     rating_before = record.fighter.recompute_rating()
     _pay(op, record, quote)
     apply_outcome()
@@ -684,12 +731,9 @@ def cancel_action(op, record):
         return record
     if record.state != ActionRecord.State.STARTED or record.payment_id is not None:
         raise Refusal("That action use can no longer be cancelled.")
-    if (
-        record.allowance_id
-        and AdvancementSelection.objects.filter(
-            action_record=record, roll_event__isnull=False
-        ).exists()
-    ):
+    if AdvancementSelection.objects.filter(
+        action_record=record, roll_event__isnull=False
+    ).exists():
         raise Refusal("A recorded advancement roll must be resumed.")
     record.state = ActionRecord.State.CANCELLED
     op.event(

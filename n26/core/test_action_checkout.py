@@ -3,10 +3,16 @@ import uuid
 import pytest
 
 from n26.core.action_records import action_changes
-from n26.core.models import ActionAllowance, ActionRecord, Gang, LedgerEvent
+from n26.core.models import (
+    ActionAllowance,
+    ActionRecord,
+    AdvancementSelection,
+    Gang,
+    LedgerEvent,
+)
 from n26.core.operations import Refusal, operation
 from n26.library import authoring
-from n26.library.models import Action, ApplyChange, Counter, Pickable, SlotType
+from n26.library.models import Action, ApplyChange, Counter, Pickable, SlotType, Trait
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
@@ -69,7 +75,11 @@ def start_and_review(user, gang, fighter, action, outcome):
     with operation(gang, actor=user) as op:
         record = op.start_action(fighter, action, uuid.uuid4())
     with operation(gang, actor=user) as op:
-        return op.review_action(record, outcome=outcome, terms={"screen": "confirm"})
+        reviewed = op.review_action(
+            record, outcome=outcome, terms={"screen": "confirm"}
+        )
+    assert reviewed.outcome == outcome
+    return reviewed
 
 
 def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
@@ -78,6 +88,15 @@ def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
     assert [(line["resource"], line["amount"]) for line in record.review["price"]] == [
         ("credits", 20),
         ("counter", 3),
+    ]
+    assert record.review["target"] == [
+        {
+            "kind": "counter",
+            "assignment": str(held.pk),
+            "name": "Glitches",
+            "before": 2,
+            "after": 0,
+        }
     ]
 
     with operation(gang, actor=user) as op:
@@ -106,6 +125,32 @@ def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
         (5, 2, True),
         (2, 0, False),
     ]
+
+
+def test_payment_that_already_causes_the_outcome_is_refused_atomically(
+    user, gang, fighter
+):
+    action, outcome, _, held = configured_action(user, gang, fighter, counter_value=3)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    assert record.review["target"][0]["before"] == 0
+    assert record.review["target"][0]["after"] == 0
+
+    with pytest.raises(Refusal, match="would not change"):
+        with operation(gang, actor=user) as op:
+            op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=outcome,
+            )
+
+    record.refresh_from_db()
+    held.counter_value.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert held.counter_value.value == 3
+    assert not LedgerEvent.objects.filter(
+        action_record=record, payment_id__isnull=False
+    ).exists()
 
 
 def test_insufficient_coalesced_counter_rolls_back_everything(user, gang, fighter):
@@ -173,6 +218,19 @@ def test_unpaid_draft_rechecks_removed_access(user, gang, fighter):
                 review=record.review,
                 outcome=outcome,
             )
+
+
+def test_archived_fighter_cannot_review_an_existing_draft(user, gang, fighter):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    with operation(gang, actor=user) as op:
+        record = op.start_action(fighter, action, uuid.uuid4())
+    membership = fighter.membership
+    membership.archived = True
+    membership.save(update_fields=["archived", "modified"])
+
+    with pytest.raises(Refusal, match="no longer in this gang"):
+        with operation(gang, actor=user) as op:
+            op.review_action(record, outcome=outcome)
 
 
 def test_earned_allowance_survives_removed_access(user, gang, fighter):
@@ -317,6 +375,11 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
     )
     with operation(gang, actor=user) as op:
         held_pick = op.assign(pick, miniature=fighter)
+        child = op.assign(
+            Trait.objects.create(name="Unstable"),
+            miniature=fighter,
+            caused_by=held_pick,
+        )
     record = start_and_review(user, gang, fighter, action, outcome)
     with operation(gang, actor=user) as op:
         op.complete_action(
@@ -326,8 +389,34 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
             outcome=outcome,
         )
     held_pick.refresh_from_db()
+    child.refresh_from_db()
     assert held_pick.archived
-    assert action_changes(record).picks[0].before_assignment_id == str(held_pick.pk)
+    assert child.archived
+    assert [row.before_assignment_id for row in action_changes(record).picks] == [
+        str(held_pick.pk)
+    ]
+
+
+def test_a_recorded_roll_prevents_cancelling_even_without_an_allowance(
+    user, gang, fighter
+):
+    action, _, _, _ = configured_action(user, gang, fighter)
+    slot_type = authoring.create_slot_type("Advancement result")
+    table = authoring.create_picklist(
+        "Advancement results", slot_type, dice="2d6", roll_selects="band"
+    )
+    slot = authoring.create_slot("Advancement", slot_type, table)
+    with operation(gang, actor=user) as op:
+        record = op.start_action(fighter, action, uuid.uuid4())
+        anchor = op.assign(slot, miniature=fighter, action_record=record)
+        rolled = op.roll(slot, miniature=fighter, rolled=7)
+        AdvancementSelection.objects.create(
+            action_record=record,
+            slot_assignment=anchor,
+            roll_event=rolled,
+        )
+        with pytest.raises(Refusal, match="must be resumed"):
+            op.cancel_action(record)
 
 
 def test_another_gang_cannot_complete_the_record(user, gang, fighter, gang_type):
