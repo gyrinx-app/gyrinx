@@ -160,6 +160,8 @@ function confirmPayment(){
  if(r.result==='augmentation'&&(!item||s[item.state]!==q.previous||r.target!==q.target||!item.tiers[q.tier-1])){r.quote=null;if(item)delete r.tiers[item.key];s.error='The selected item changed. Choose its augmentation again.';r.stage='item';page='item';return;}
  if(s.balance!==q.balance||cfg().price!==q.price||(r.result==='clear'&&s.glitches!==q.glitches)){prepareQuote(r);s.error='The figures changed. Review them before confirming.';page=r.result==='clear'?'clear-review':'review';return;}
  if(s.balance<q.price){s.error='You need four Kill Count to complete this action.';return;}
+ if(r.result==='clear'&&q.glitches===0){s.error='There are no glitches to clear.';return;}
+ if(r.result==='augmentation'&&q.previous===q.tier){s.error='Choose a different tier.';return;}
  // All validation precedes the simulated payment and result. Production uses one gang-locked transaction.
  charge(r);
  if(r.result==='clear'){s.glitches=0;s.log.push(`Glitch Count ${q.glitches} → 0. All held glitch picks removed.`);s.notice='All glitches removed. Glitch Count is now 0.';}
