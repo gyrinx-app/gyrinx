@@ -3,6 +3,7 @@ import uuid
 import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models.deletion import RestrictedError
 
 from n26.core import reconcile
 from n26.core.models import (
@@ -126,6 +127,39 @@ def test_active_record_reserves_an_allowance_until_cancelled(gang, fighter, acti
         allowance=allowance,
         request_key=uuid.uuid4(),
     )
+
+
+@pytest.mark.parametrize("delete", ["fighter", "gang"])
+def test_a_consumed_allowance_leaves_with_its_fighter_graph(
+    delete, gang, fighter, action
+):
+    allowance = recruitment_allowance(fighter, action)
+    ActionRecord.objects.create(
+        gang=gang,
+        fighter=fighter,
+        action=action,
+        allowance=allowance,
+        request_key=uuid.uuid4(),
+    )
+
+    (fighter if delete == "fighter" else gang).delete()
+
+    assert not ActionAllowance.objects.filter(pk=allowance.pk).exists()
+    assert not ActionRecord.objects.filter(allowance_id=allowance.pk).exists()
+
+
+def test_a_consumed_allowance_cannot_be_deleted_on_its_own(gang, fighter, action):
+    allowance = recruitment_allowance(fighter, action)
+    ActionRecord.objects.create(
+        gang=gang,
+        fighter=fighter,
+        action=action,
+        allowance=allowance,
+        request_key=uuid.uuid4(),
+    )
+
+    with pytest.raises(RestrictedError):
+        allowance.delete()
 
 
 def test_tally_writes_a_structured_chain(user, gang, fighter):
