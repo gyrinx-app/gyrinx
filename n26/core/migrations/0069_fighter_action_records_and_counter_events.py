@@ -31,7 +31,11 @@ def checkpoint_counter_values(apps, schema_editor):
                 counter_after=counter_value.value,
             )
         )
-    LedgerEvent.objects.using(alias).bulk_create(events, batch_size=500)
+        if len(events) == 500:
+            LedgerEvent.objects.using(alias).bulk_create(events, batch_size=500)
+            events.clear()
+    if events:
+        LedgerEvent.objects.using(alias).bulk_create(events, batch_size=500)
     # PostgreSQL defers the new foreign-key checks until this migration's
     # transaction ends. Django still has schema-editor index statements to
     # execute before then, and PostgreSQL refuses that DDL while constraint

@@ -6,7 +6,7 @@ cache, and each can be recomputed. These functions do the recomputing, so a
 test (or a management command) can prove the caches are honest.
 """
 
-from django.db.models import Sum
+from django.db.models import Prefetch, Sum
 
 from n26.core.models import Assignment, LedgerEntry
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
@@ -42,17 +42,27 @@ def check_entry(entry):
     return problems
 
 
-def check_counter_value(counter_value):
+def check_counter_value(counter_value, *, events=None):
     """Structured counter events must form one chain ending at the value."""
-    events = list(
-        counter_value.assignment.ledger_events.filter(
-            counter_before__isnull=False
-        ).order_by("created", "pk")
-    )
+    from n26.core.models import LedgerEvent
+
+    if events is None:
+        events = list(
+            counter_value.assignment.ledger_events.filter(
+                counter_before__isnull=False
+            ).order_by("created", "pk")
+        )
     if not events:
         return [f"{counter_value.assignment.assignable}: no counter opening event"]
 
     problems = []
+    if events[0].kind not in {
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+    }:
+        problems.append(
+            f"{counter_value.assignment.assignable}: no counter opening event"
+        )
     previous = None
     for event in events:
         if event.counter_before + event.counter_delta != event.counter_after:
@@ -325,12 +335,25 @@ def check_gang(gang):
         *_ENTRY_RELATED
     ):
         problems += check_entry(entry)
-    from n26.core.models import CounterValue
+    from n26.core.models import CounterValue, LedgerEvent
 
-    for counter_value in CounterValue.objects.filter(
-        assignment__gang_root=gang
-    ).select_related("assignment", "assignment__counter"):
-        problems += check_counter_value(counter_value)
+    counters = (
+        CounterValue.objects.filter(assignment__gang_root=gang)
+        .select_related("assignment", "assignment__counter")
+        .prefetch_related(
+            Prefetch(
+                "assignment__ledger_events",
+                queryset=LedgerEvent.objects.filter(
+                    counter_before__isnull=False
+                ).order_by("created", "pk"),
+                to_attr="counter_events",
+            )
+        )
+    )
+    for counter_value in counters:
+        problems += check_counter_value(
+            counter_value, events=counter_value.assignment.counter_events
+        )
     stash = getattr(gang, "stash", None)
     if stash is not None:
         stash_sum = sum_rating(stash_root=stash)

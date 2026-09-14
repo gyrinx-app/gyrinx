@@ -179,3 +179,32 @@ def test_tally_ignores_a_counter_value_cached_before_the_lock(user, gang, fighte
         op.tally(held, 3)
     with operation(gang, actor=user) as op:
         assert op.tally(held, 4) == 9
+
+
+def test_counter_chain_requires_an_opening(user, gang, fighter):
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+        op.tally(held, 3)
+    held.ledger_events.filter(kind=LedgerEvent.Kind.COUNTER_OPENED).delete()
+    assert any(
+        "no counter opening event" in problem
+        for problem in reconcile.check_counter_value(held.counter_value)
+    )
+
+
+def test_gang_reconciliation_reads_counter_chains_together(user, gang, fighter):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    with operation(gang, actor=user) as op:
+        for index in range(6):
+            held = op.assign(
+                Counter.objects.create(name=f"Counter {index}"), miniature=fighter
+            )
+            op.tally(held, index)
+    with CaptureQueriesContext(connection) as queries:
+        assert reconcile.check_gang(Gang.objects.get(pk=gang.pk)) == []
+    chain_reads = [
+        query for query in queries if '"counter_before" IS NOT NULL' in query["sql"]
+    ]
+    assert len(chain_reads) == 1

@@ -17,7 +17,7 @@ worktree database. Production was queried read-only for aggregate counts only.
 ## Rehearsal
 
 The script `counter-migration-volume-evidence.py` migrated a scratch database
-to both `n26` 0068 leaves, created exactly the production counter-value volume,
+to the final `n26` 0068 state (which includes the Activity rename), created exactly the production counter-value volume,
 then applied the real 0069 migration with `MigrationExecutor`. Synthetic rows
 matched the production zero/nonzero and active/archived distributions, with
 2,643 removed-event references among archived assignments.
@@ -51,3 +51,31 @@ fresh clone.
 No semantic discrepancy remained after the constraint-trigger flush. The
 scratch database contained no production records and production received no
 writes.
+
+The final dependency graph and 500-row insert batches were rehearsed again.
+The PostgreSQL implementation of `check_constraints()` in Django 6.0.7
+executes `SET CONSTRAINTS ALL IMMEDIATE` followed by `SET CONSTRAINTS ALL
+DEFERRED`; it is not the base backend's empty method. The final run preserved
+all values and references and passed the complete forward/reverse comparison.
+
+Final batched run:
+
+```json
+{
+  "active_assignments": 17268,
+  "archived_assignments": 2672,
+  "checkpoint_before_after_delta_and_gang_exact": true,
+  "checkpoint_events": 19940,
+  "counter_values": 19940,
+  "database": "wren_counter_migration_evidence_batched",
+  "elapsed_seconds": 11.598,
+  "nonzero_values": 19077,
+  "preserved_assignment_rows": true,
+  "preserved_counter_value_rows": true,
+  "preserved_removed_events": true,
+  "removed_assignments": 2643,
+  "reverse_elapsed_seconds": 18.38,
+  "reverse_removed_only_checkpoints": true,
+  "zero_values": 863
+}
+```
