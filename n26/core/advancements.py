@@ -438,17 +438,37 @@ def record_skill_roll(
         raise Refusal("That Skill Set is not available for this advancement.")
     access = _skill_access(configured, pickable_id)
     latest = selection.random_attempts[-1] if selection.random_attempts else None
-    if (
-        latest is not None
-        and selection.access == access
-        and selection.skill_set_id == category.pk
-        and selection.selected_skill_id
-    ):
-        return latest
+    matching = [
+        attempt
+        for attempt in selection.random_attempts
+        if attempt.get("skill_set_id") == str(category.pk)
+        and (
+            attempt.get("access") == access
+            or (
+                "access" not in attempt
+                and selection.access == access
+                and selection.skill_set_id == category.pk
+            )
+        )
+    ]
+    accepted = next(
+        (attempt for attempt in reversed(matching) if attempt.get("is_available")),
+        None,
+    )
+    if accepted is not None:
+        from n26.library.models import Skill
+
+        selection.access = access
+        selection.skill_set = category
+        selection.selected_skill = Skill.objects.get(pk=accepted["skill_id"])
+        selection.save()
+        return accepted
     from n26.library.models import Dice
 
-    if latest is not None and (
-        selection.access != access or selection.skill_set_id != category.pk
+    if (
+        latest is not None
+        and not matching
+        and (selection.access != access or selection.skill_set_id != category.pk)
     ):
         event_id, result = latest["event_id"], latest["roll"]
     else:
@@ -476,6 +496,7 @@ def record_skill_roll(
     attempt = {
         "request_key": str(request_key),
         "event_id": event_id,
+        "access": access,
         "skill_set_id": str(category.pk),
         "roll": result,
         "skill_id": str(rolled_skill.pk) if rolled_skill else None,
