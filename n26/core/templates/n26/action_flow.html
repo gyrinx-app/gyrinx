@@ -1,0 +1,146 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}{{ action }} — {{ miniature.name }}{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <div class="mb-6 max-w-3xl">
+        <c-n26.flow-progress :steps="steps" />
+    </div>
+    <c-n26.form-page action="{{ request.get_full_path }}"
+                     title="{{ action }}"
+                     lead="{{ miniature.name }}"
+                     :form="form"
+                     submit_label="{{ submit_label }}"
+                     submit_variant="{{ submit_variant }}"
+                     cancel_url="{{ back }}"
+                     cancel_label="Back to model">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ miniature.name }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ action }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% for field in form.hidden_fields %}
+            {{ field }}
+            {% if field.errors %}<c-ui.error :form="form" name="{{ field.name }}" />{% endif %}
+        {% endfor %}
+        {% if prices %}
+            <c-n26.form-section title="Price">
+                {% for figures in prices %}
+                    <c-n26.payment-figures :figures="figures" />
+                {% endfor %}
+            </c-n26.form-section>
+        {% endif %}
+        {% if stage == "start" %}
+            <c-n26.radio-cards label="Choose an outcome"
+                               :form="form"
+                               name="outcome"
+                               min="min(100%, 18rem)">
+                {% for outcome in outcomes %}
+                    <c-n26.radio-cards.card name="outcome"
+                                            value="{{ outcome.key }}"
+                                            label="{{ outcome.name }}"
+                                            description="{{ outcome.description }}"
+                                            :wrap="True"
+                                            :checked="outcome.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+        {% elif stage == "choose" or stage == "correct" %}
+            <c-n26.form-section title="Choose tier">
+                <c-ui.error :form="form" name="selection" />
+                {% for option in item_options %}
+                    <c-n26.radio-cards label="{{ option.item.item_name }}"
+                                       description="Current: {{ option.item.current_tier }}"
+                                       name="selection"
+                                       min="min(100%, 18rem)">
+                        <c-n26.radio-cards.card name="selection"
+                                                value="{{ option.key }}"
+                                                label="{{ option.item.candidate_tier }}"
+                                                description="{{ option.item.effect|capfirst }}"
+                                                :wrap="True"
+                                                :checked="option.checked">
+                            <span class="block text-muted">Model rating {{ option.item.rating_before }}¢ → {{ option.item.rating_after }}¢</span>
+                        </c-n26.radio-cards.card>
+                    </c-n26.radio-cards>
+                {% empty %}
+                    <p class="text-muted">No carried item has an available tier.</p>
+                {% endfor %}
+            </c-n26.form-section>
+        {% elif stage == "roll" %}
+            <p>Roll 2D6 to see the available advancement results.</p>
+        {% elif stage == "advancement" %}
+            <c-n26.form-section title="Choose an advancement">
+                {% if roll_value %}<p class="text-lg font-semibold">2D6: {{ roll_value }}</p>{% endif %}
+                <c-n26.radio-cards :form="form" name="pickable_id" min="min(100%, 18rem)">
+                    {% for choice in advancement_options %}
+                        <c-n26.radio-cards.card name="pickable_id"
+                                                value="{{ choice.option.id }}"
+                                                label="{{ choice.option.name }}"
+                                                description="{{ choice.option.effect|capfirst }}"
+                                                :checked="choice.checked"
+                                                :wrap="True">
+                            <span class="block text-muted">Rating +{{ choice.option.rating }}¢</span>
+                        </c-n26.radio-cards.card>
+                    {% empty %}
+                        <p class="text-muted">No advancement can change this model.</p>
+                    {% endfor %}
+                </c-n26.radio-cards>
+            </c-n26.form-section>
+        {% elif stage == "skill" %}
+            {% include "n26/includes/action_skills.html" %}
+        {% elif stage == "review" %}
+            <c-n26.form-section title="Review">
+                <p class="font-semibold">{{ record.outcome }}</p>
+                <p>{{ outcome_description }}</p>
+                {% if selection_summary %}<p>{{ selection_summary }}</p>{% endif %}
+                {% for change in change_preview %}
+                    {% if change.kind == "counter" %}
+                        <p>{{ change.name }}: {{ change.before }} → {{ change.after }}</p>
+                    {% elif change.removed_count %}
+                        <p>Remove {{ change.removed_count }} {{ change.slot_type }} choice{{ change.removed_count|pluralize }}.</p>
+                    {% endif %}
+                {% endfor %}
+                {% if correction %}
+                    {% if retained_payment %}<p class="text-sm text-muted">The original payment is retained.</p>{% endif %}
+                    {% if retained_roll %}<p class="text-sm text-muted">The recorded rolls are retained.</p>{% endif %}
+                {% elif prices %}
+                    <p class="text-sm text-muted">Confirming pays this price. Changing the result later does not return the payment.</p>
+                {% endif %}
+                {% if change_href %}<a href="{{ change_href }}" class="linked">Change selection</a>{% endif %}
+            </c-n26.form-section>
+        {% elif stage == "done" %}
+            <c-n26.form-section title="Recorded">
+                <p class="font-semibold">{{ record.outcome }}</p>
+                {% if selection_summary %}<p>{{ selection_summary }}</p>{% endif %}
+                {% if receipt %}
+                    <dl class="space-y-2">
+                        {% for line in receipt %}
+                            <div class="flex justify-between gap-4">
+                                <dt>{{ line.label }}</dt>
+                                <dd class="tabular-nums">
+                                    {{ line.value }}
+                                </dd>
+                            </div>
+                        {% endfor %}
+                    </dl>
+                {% endif %}
+                {% if correct_href %}<a href="{{ correct_href }}" class="linked">{{ correct_label }}</a>{% endif %}
+            </c-n26.form-section>
+        {% elif stage == "cancel" %}
+            <p>Cancel this unfinished flow?</p>
+        {% endif %}
+    </c-n26.form-page>
+    {% if outcome_href and stage != "review" %}
+        <p class="mt-6 text-sm"><a href="{{ outcome_href }}" class="linked">Change outcome</a></p>
+    {% endif %}
+    {% if cancel_href and stage != "done" and stage != "cancel" and not correction %}
+        <p class="mt-6 text-sm"><a href="{{ cancel_href }}" class="linked">Cancel this flow</a></p>
+    {% endif %}
+{% endblock %}

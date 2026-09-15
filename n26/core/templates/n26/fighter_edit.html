@@ -115,6 +115,9 @@ is named by the page's own heading directly below.
         Save is a success button because it ends the form; the outlined
         controls on the card beside it all start one.
         {% endcomment %}
+        <c-slot name="flows">
+            {% include "n26/includes/action_panels.html" %}
+        </c-slot>
         <c-slot name="notes">
             {% comment %}
             htmx saves without rebuilding the page, so lore typed in the
