@@ -10,8 +10,12 @@ running twice does nothing; and the console offers the repair without
 writing on GET.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
 import pytest
 from django.contrib.auth.models import User
+from django.db import close_old_connections, connection
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
@@ -254,6 +258,51 @@ class TestACopySomebodyCountedOn:
 
         standing.refresh_from_db()
         assert standing.counter_value.value == 9
+
+
+@pytest.mark.django_db(transaction=True)
+def test_repair_keeps_a_tally_committed_while_it_waits_for_the_gang_lock(
+    gang, person_type, gang_type, default_pack
+):
+    counter = create_counter("Kill Count")
+    profile = create_profile("Hunter", person_type, gang_type, price=100)
+    add_built_in(profile, counter)
+    fighter = hire(gang, profile, "Ana", paid=100)
+    strip_provenance(gang)
+    member = profile.built_ins.members.get(counter=counter)
+    duplicate = caught_up_copy(gang, fighter, member, fighter.membership, counter)
+    with operation(gang, actor=gang.owner) as op:
+        op.tally(duplicate, 7)
+
+    lock_attempted = Event()
+
+    def signal_lock(execute, sql, params, many, context):
+        if '"n26_gang"' in sql and "FOR UPDATE" in sql:
+            lock_attempted.set()
+        return execute(sql, params, many, context)
+
+    def repair():
+        close_old_connections()
+        try:
+            with connection.execute_wrapper(signal_lock):
+                return de_duplicate(gang.pk)
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with operation(gang, actor=gang.owner) as op:
+            pending = pool.submit(repair)
+            assert lock_attempted.wait(10), "Repair did not try to lock the gang"
+            op.tally(duplicate, 5)
+        outcome = pending.result(timeout=10)
+
+    assert outcome.merged == 1
+    standing = Assignment.objects.get(
+        counter=counter, miniature_root=fighter, archived=False
+    )
+    assert standing.counter_value.value == 12
+    assert not Assignment.objects.filter(pk=duplicate.pk).exists()
+    settled(gang)
 
 
 class TestTwinsAreLeftExactlyAsTheyStand:
