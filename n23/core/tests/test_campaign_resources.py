@@ -1123,3 +1123,38 @@ def test_resource_type_clean_refuses_uncheck_while_negative(content_house, user)
         match="You cannot turn this off while a gang has a negative amount.",
     ):
         resource_type.full_clean()
+
+
+@pytest.mark.django_db
+def test_resource_type_clean_refuses_uncheck_when_moved_to_another_campaign(
+    content_house, user
+):
+    from django.core.exceptions import ValidationError
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    other = Campaign.objects.create(name="Other Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    campaign.lists.add(list_obj)
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=-4,
+        owner=user,
+    )
+
+    resource_type.campaign = other
+    resource_type.can_go_negative = False
+    with pytest.raises(
+        ValidationError,
+        match="You cannot turn this off while a gang has a negative amount.",
+    ):
+        resource_type.full_clean()

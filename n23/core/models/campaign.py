@@ -823,10 +823,17 @@ class CampaignResourceType(AppBase):
         return self.can_go_negative and not self.is_default_reputation()
 
     def current_lists_have_negative_amount(self):
-        return self.list_resources.filter(
-            amount__lt=0,
-            list_id__in=self.campaign.lists.values("id"),
-        ).exists()
+        # Use the resource row's campaign, not the type's. An admin save that
+        # moves the type would otherwise hide a live negative on the old campaign.
+        still_in_that_campaign = Campaign.lists.through.objects.filter(
+            campaign_id=models.OuterRef("campaign_id"),
+            list_id=models.OuterRef("list_id"),
+        )
+        return (
+            self.list_resources.filter(amount__lt=0)
+            .filter(models.Exists(still_in_that_campaign))
+            .exists()
+        )
 
     def clean(self):
         super().clean()
