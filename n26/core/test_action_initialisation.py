@@ -43,7 +43,7 @@ def legacy_fighter(user, gang_type, make_profile, make_statline):
         value = op.open_counter(held, 61)
         op.event(
             held,
-            LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+            LedgerEvent.Kind.TALLIED,
             counter_before=61,
             counter_delta=6,
             counter_after=67,
@@ -77,8 +77,8 @@ def test_missing_baseline_is_reported_and_skipped(legacy_fighter):
         gang=gang,
         assignment=held,
         kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED,
-        counter_before=0,
-        counter_delta=67,
+        counter_before=67,
+        counter_delta=0,
         counter_after=67,
     )
     plan = find()
