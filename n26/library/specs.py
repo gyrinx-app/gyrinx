@@ -711,18 +711,19 @@ def _build_registry():
                     source=(OffersChoice, "from_section"),
                 ),
                 "label": Text(source=(OffersChoice, "label")),
+                "mode": Choice(source=(OffersChoice, "mode")),
                 "will_be_assigned_to": Choice(
                     source=(OffersChoice, "will_be_assigned_to")
                 ),
             },
             label="Offers a choice",
             blurb=(
-                "Puts an open question on the card; the player chooses one "
-                "thing of a kind."
+                "Puts an open question on the card. Select lets the player "
+                "choose; random records a roll from the chosen section."
             ),
             example=(
-                "A Leader starts with a Primary skill — the card says "
-                "“Choose” until they pick."
+                "A Leader selects a Primary skill, or an advancement rolls "
+                "a random skill from a Primary set."
             ),
         ),
         Spec(

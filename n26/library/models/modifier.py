@@ -1274,6 +1274,20 @@ class OffersChoice(models.Model):
 
     is_stored = False
 
+    class Mode(models.TextChoices):
+        SELECT = "select", "select"
+        RANDOM = "random", "random"
+
+    mode = models.CharField(
+        max_length=20,
+        choices=Mode,
+        default=Mode.SELECT,
+        help_text=(
+            "How the choice is resolved. Select lets the player choose; random "
+            "records a roll against the chosen collection section."
+        ),
+    )
+
     of_kind = models.ForeignKey(
         "contenttypes.ContentType",
         on_delete=models.PROTECT,
@@ -1366,6 +1380,7 @@ class OffersChoice(models.Model):
         from_section=None,
         label="",
         will_be_assigned_to=WillBeAssignedTo.BEARER,
+        mode=Mode.SELECT,
     ):
         from django.contrib.contenttypes.models import ContentType
 
@@ -1374,6 +1389,7 @@ class OffersChoice(models.Model):
             from_section=from_section,
             label=label,
             will_be_assigned_to=will_be_assigned_to,
+            mode=mode,
         )
 
     @property
