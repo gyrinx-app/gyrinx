@@ -46,7 +46,7 @@
             const previewCard = document.getElementById('preview-card');
             const newAmountSpan = document.getElementById('new-amount');
             const currentAmount = {{ resource.amount }};
-            const canGoNegative = {{ resource.resource_type.can_go_negative|yesno:"true,false" }};
+            const canGoNegative = {{ resource.resource_type.allows_negative_amounts|yesno:"true,false" }};
 
             function updatePreview() {
                 const modification = parseInt(modificationInput.value) || 0;

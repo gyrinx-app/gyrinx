@@ -875,7 +875,11 @@ class CampaignListResource(AppBase):
 
     def would_go_below_floor(self, new_amount):
         """True if ``new_amount`` is below zero and this type cannot go negative."""
-        return new_amount < 0 and not self.resource_type.allows_negative_amounts()
+        return (
+            new_amount is not None
+            and new_amount < 0
+            and not self.resource_type.allows_negative_amounts()
+        )
 
     def clean(self):
         super().clean()

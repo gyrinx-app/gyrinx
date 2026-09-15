@@ -185,6 +185,25 @@ def test_resource_cannot_go_negative(content_house):
 
 
 @pytest.mark.django_db
+def test_would_go_below_floor_ignores_missing_amount(content_house, user):
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign, name="Credits", owner=user
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=10,
+        owner=user,
+    )
+    assert resource.would_go_below_floor(None) is False
+
+
+@pytest.mark.django_db
 def test_resource_modification_requires_user(content_house):
     """Test that resource modification requires a user."""
     user = User.objects.create_user(username="testuser", password="testpass")
