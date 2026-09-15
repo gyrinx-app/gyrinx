@@ -319,9 +319,11 @@ def de_duplicate(gang_id, only_miniature_id=None):
     from n26.core.models import Gang
     from n26.core.reconcile import assert_reconciled
 
-    gang = Gang.objects.get(pk=gang_id)
     outcome = GangOutcome(gang_id=str(gang_id))
     with transaction.atomic():
+        # Read the repair plan under the same lock as ordinary counter writes.
+        # Keep it until the duplicate and its history have been removed.
+        gang = Gang.objects.select_for_update().get(pk=gang_id)
         # A duplicate may sit beneath another: a granted subtype brings
         # its own built-ins, and one of those may be a duplicate in its
         # own right. Dropping the one above takes it, so what has
