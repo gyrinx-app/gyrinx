@@ -146,13 +146,14 @@ The core app handles user-created content - lists, gangs, and campaigns.
 
 - Defines countable resources (e.g., Credits, Ammunition)
 - Default amounts allocated on campaign start
+- Optional `can_go_negative` flag (off by default; not offered on Reputation)
 - Rich text descriptions
 
 **CampaignListResource**
 
 - Tracks resource amounts for each gang
 - Supports modifications with validation
-- Cannot go below zero
+- Cannot go below zero unless the resource type allows it
 - Creates action log entries on changes
 
 ## Virtual Models

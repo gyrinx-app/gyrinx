@@ -774,6 +774,8 @@ class CampaignAsset(AppBase):
 class CampaignResourceType(AppBase):
     """Type of resource tracked in a campaign (e.g., Meat, Ammo, Credits)"""
 
+    DEFAULT_NAME = "Reputation"
+
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -793,6 +795,10 @@ class CampaignResourceType(AppBase):
         default=0,
         help_text="Default amount allocated to each list when campaign starts",
     )
+    can_go_negative = models.BooleanField(
+        default=False,
+        help_text="Gangs can hold a negative amount of this resource.",
+    )
 
     history = HistoricalRecords()
 
@@ -804,6 +810,13 @@ class CampaignResourceType(AppBase):
 
     def __str__(self):
         return f"{self.campaign.name} - {self.name}"
+
+    @classmethod
+    def is_reputation_name(cls, name):
+        return bool(name) and name.lower() == cls.DEFAULT_NAME.lower()
+
+    def is_default_reputation(self):
+        return self.is_reputation_name(self.name)
 
 
 class CampaignListResource(AppBase):
@@ -827,7 +840,7 @@ class CampaignListResource(AppBase):
         related_name="campaign_resources",
         help_text="The list that has this resource",
     )
-    amount = models.PositiveIntegerField(
+    amount = models.IntegerField(
         default=0,
         help_text="Current amount of this resource",
     )
@@ -843,6 +856,10 @@ class CampaignListResource(AppBase):
     def __str__(self):
         return f"{self.list.name} - {self.resource_type.name}: {self.amount}"
 
+    def would_go_below_floor(self, new_amount):
+        """True if ``new_amount`` is below zero and this type cannot go negative."""
+        return new_amount < 0 and not self.resource_type.can_go_negative
+
     def modify_amount(self, modification, user, battle=None):
         """Modify the resource amount and log the action
 
@@ -852,13 +869,14 @@ class CampaignListResource(AppBase):
             battle: Optional Battle to attach the logged action to
 
         Raises:
-            ValueError: If modification would result in negative amount
+            ValueError: If the type cannot go negative and the change
+                would take the amount below zero
         """
         if not user:
             raise ValueError("User is required for resource modifications")
 
         new_amount = self.amount + modification
-        if new_amount < 0:
+        if self.would_go_below_floor(new_amount):
             raise ValueError(
                 f"Cannot reduce {self.resource_type.name} below zero. Current: {self.amount}, Attempted change: {modification}"
             )

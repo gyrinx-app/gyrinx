@@ -70,11 +70,9 @@ def get_list_campaign_resources(list_obj):
         list_obj: The List instance
 
     Returns:
-        QuerySet of campaign resources with amount > 0
+        QuerySet of campaign resources with a non-zero amount
     """
-    return list_obj.campaign_resources.filter(amount__gt=0).select_related(
-        "resource_type"
-    )
+    return list_obj.campaign_resources.exclude(amount=0).select_related("resource_type")
 
 
 def get_list_held_assets(list_obj):

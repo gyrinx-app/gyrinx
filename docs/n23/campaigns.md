@@ -89,7 +89,8 @@ Resources represent countable items shared across the campaign:
 Resource features:
 
 - Automatically allocated when campaign starts
-- Cannot go below zero
+- Cannot go below zero unless the arbitrator marks the resource type as able to go negative
+- Reputation cannot go below zero
 - Modifications create action log entries
 - Both campaign and list owners can modify
 

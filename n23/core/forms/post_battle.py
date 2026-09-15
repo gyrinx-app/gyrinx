@@ -265,12 +265,12 @@ class PostBattleUpdatesForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
-        # Resource losses can't take a resource below zero; validate here so
-        # the whole submit fails cleanly instead of half-applying.
+        # Resource losses can't take a floored resource below zero; validate
+        # here so the whole submit fails cleanly instead of half-applying.
         for resource in self.resources:
             field = f"resource_{resource.pk}"
             delta = cleaned.get(field)
-            if delta and delta < 0 and resource.amount + delta < 0:
+            if delta and resource.would_go_below_floor(resource.amount + delta):
                 self.add_error(
                     field,
                     f"Cannot reduce {resource.resource_type.name} below zero "
