@@ -45,8 +45,13 @@ SHA-256 digest over every concrete field of every pre-existing ledger event.
   every then-current counter, retained the unrelated checkpoint, and again
   preserved the complete old-journal digest and pinned values.
 - Total runtime, including fresh schema setup and fixture creation, was 325.519
-  seconds. The pre-existing ledger digest was
-  `51b17f870442eb7203392ff680efb55e3290081332b02fa8cc8cde127714c2fe`.
+  seconds. The script checked equality of the complete journal digest in every
+  migration direction.
+
+An earlier successful run of the same forward migration took 12.241 seconds.
+The final run added the complete counter comparisons after reverse and reapply;
+its forward timing and digest value were not retained in the truncated console
+output. Its successful exit confirms that all assertions ran and passed.
 
 The rollback result applies to migration 0069's atomic transaction. It does not
 claim that the separate 0069, 0070 and 0071 migrations form one transaction.
@@ -84,7 +89,7 @@ The exact runner sequence, with any new owned scratch suffix, is:
 
 ```console
 .codex/run.sh createdb wren_counter_migration_evidence_example
-.codex/run.sh env DB_NAME=wren_counter_migration_evidence_example python .claude/notes/counter-migration-volume-evidence.py
+.codex/run.sh env DB_NAME=wren_counter_migration_evidence_example python .claude/notes/counter-migration-volume-evidence.py > .claude/notes/counter-migration-volume-evidence-result.log 2>&1
 .codex/run.sh dropdb wren_counter_migration_evidence_example
 ```
 
