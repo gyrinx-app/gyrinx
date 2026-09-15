@@ -1286,7 +1286,6 @@ class Operation:
         from n26.core.models import (
             AssignmentSet,
             ChosenProfileOption,
-            CounterValue,
             PrintConfig,
             StatOverride,
         )
@@ -1427,7 +1426,7 @@ class Operation:
             )
             counter = getattr(source, "counter_value", None)
             if counter is not None:
-                CounterValue.objects.create(assignment=clone, value=counter.value)
+                self.open_counter(clone, counter.value)
 
         for source in plan.miniatures:
             clone = miniature_map[source.pk]
@@ -1923,7 +1922,7 @@ class Operation:
             kinds_for,
             plan_defaults,
         )
-        from n26.core.models import CounterValue, Reason
+        from n26.core.models import Reason
         from n26.library.models import Weapon, WeaponProfile
 
         narrowed = kinds if kinds is not None else kinds_for(carrier)
@@ -1982,7 +1981,7 @@ class Operation:
                 self._choose_for_slot(assignment, assignable, member.default_pickable)
             elif member.counter_id is not None:
                 # A counter opens at its member's amount — Starting XP.
-                CounterValue.objects.create(assignment=assignment, value=member.amount)
+                self.open_counter(assignment, member.amount)
 
         for entry in ammo:
             if entry.satisfied:
@@ -2533,7 +2532,10 @@ class Operation:
         """
         from n26.core.models import CounterValue, LedgerEvent
 
-        held, _ = CounterValue.objects.get_or_create(assignment=assignment)
+        try:
+            held = CounterValue.objects.get(assignment=assignment)
+        except CounterValue.DoesNotExist:
+            held = self.open_counter(assignment, 0)
         before = held.value
         held.value = max(0, held.value + change)
         held.save(update_fields=["value", "modified"])
@@ -2545,9 +2547,26 @@ class Operation:
         self.event(
             assignment,
             LedgerEvent.Kind.TALLIED,
+            counter_before=before,
+            counter_delta=held.value - before,
+            counter_after=held.value,
             note=_movement_note(moved, note),
         )
         return held.value
+
+    def open_counter(self, assignment, value):
+        """Store a counter's opening value and its machine-readable event."""
+        from n26.core.models import CounterValue, LedgerEvent
+
+        held = CounterValue.objects.create(assignment=assignment, value=value)
+        self.event(
+            assignment,
+            LedgerEvent.Kind.COUNTER_OPENED,
+            counter_before=0,
+            counter_delta=value,
+            counter_after=value,
+        )
+        return held
 
     def move(self, assignment, to, note=""):
         """Re-home an assignment — model to stash, stash to model, onto a gun.

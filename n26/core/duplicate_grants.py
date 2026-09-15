@@ -234,15 +234,20 @@ def _carry_the_tally(grant, owner, tally, goes_with):
     answering False, so the duplicate is left standing instead.
     """
     from n26.core.models import CounterValue
+    from n26.core.operations import operation
 
     if not tally:
         return True
     if not _can_carry(grant, owner, goes_with):
         return False
-    standing, _ = CounterValue.objects.get_or_create(assignment=owner)
-    if standing.value < tally:
-        standing.value = tally
-        standing.save(update_fields=["value", "modified"])
+    with operation(owner.gang_root) as op:
+        standing = (
+            CounterValue.objects.filter(assignment=owner)
+            .values_list("value", flat=True)
+            .first()
+        )
+        if standing is None or standing < tally:
+            op.tally(owner, tally - (standing or 0), note="Duplicate tally merged")
     return True
 
 
@@ -314,9 +319,11 @@ def de_duplicate(gang_id, only_miniature_id=None):
     from n26.core.models import Gang
     from n26.core.reconcile import assert_reconciled
 
-    gang = Gang.objects.get(pk=gang_id)
     outcome = GangOutcome(gang_id=str(gang_id))
     with transaction.atomic():
+        # Read the repair plan under the same lock as ordinary counter writes.
+        # Keep it until the duplicate and its history have been removed.
+        gang = Gang.objects.select_for_update().get(pk=gang_id)
         # A duplicate may sit beneath another: a granted subtype brings
         # its own built-ins, and one of those may be a duplicate in its
         # own right. Dropping the one above takes it, so what has
