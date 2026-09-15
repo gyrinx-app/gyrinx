@@ -58,6 +58,15 @@ def _run(lines) -> str:
     return ", ".join(line.name + line.brought_mark + line.count_mark for line in lines)
 
 
+def _item_choices(lines) -> list[DetailGroup]:
+    """A carried item's questions, labelled with the item that carries them."""
+    return [
+        DetailGroup(f"{line.name} — {choice.kind_label}", choice.chosen or "—")
+        for line in lines
+        for choice in line.choices
+    ]
+
+
 def detail_groups(card) -> list[DetailGroup]:
     """A model card's loose assignables, as labelled runs.
 
@@ -95,10 +104,12 @@ def detail_groups(card) -> list[DetailGroup]:
         groups.append(DetailGroup("Powers", _run(card.powers)))
     if card.equipment:
         groups.append(DetailGroup("Gear", _run(card.equipment)))
+        groups.extend(_item_choices(card.equipment))
     for gear_group in card.gear_groups:
         # Under the category's own name, as on screen. A group with
         # nothing in it is not built, so there is no empty one to skip.
         groups.append(DetailGroup(gear_group.name, _run(gear_group.lines)))
+        groups.extend(_item_choices(gear_group.lines))
     for choice in card.row_questions:
         # What it holds, or a blank. The Add on the screen card is a way
         # into the picker, and nothing on paper can be added. A question
