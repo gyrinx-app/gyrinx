@@ -817,6 +817,19 @@ class TestTheModelEditPage:
             < heading("Lore")
         )
 
+    def test_action_panels_follow_the_card_using_the_production_include(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page.index('id="n26-model-card-host"')
+        evolution = page.index("Suit Evolution", card)
+        advancement = page.index("Advancement", evolution)
+        notes = page.index('<span class="font-semibold">Notes</span>', advancement)
+
+        assert card < evolution < advancement < notes
+        assert "Kill Count" in page[evolution:advancement]
+        assert "Resume Suit Evolution flow" in page[evolution:advancement]
+        assert "1 available use" in page[advancement:notes]
+        assert "Resume Advancement flow" in page[advancement:notes]
+
 
 class TestCounterLinesInTheGallery:
     """Only one sample card offers to move a number.

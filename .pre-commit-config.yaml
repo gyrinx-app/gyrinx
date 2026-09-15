@@ -30,9 +30,9 @@ repos:
       # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
       # paths pre-commit passes, so the exclusion is repeated here.
       - id: djlint-reformat-django
-        exclude: ^(gyrinx|n26/core)/templates/cotton/
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
       - id: djlint-django
-        exclude: ^(gyrinx|n26/core)/templates/cotton/
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1
@@ -133,7 +133,7 @@ repos:
         # the closing tag and collapses to a rendered space between adjacent
         # inline elements -- e.g. the dice-result badges butted together in
         # core/campaign/campaign_action_outcome.html:22.
-        exclude: ^(gyrinx|n26/core)/templates/cotton/
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
       - id: forbid-submodules
