@@ -242,7 +242,9 @@ def test_tally_writes_a_structured_chain(user, gang, fighter):
         op.tally(held, -10)
 
     events = list(
-        held.ledger_events.filter(counter_before__isnull=False).order_by("created")
+        held.ledger_events.filter(counter_before__isnull=False).order_by(
+            "created", "pk"
+        )
     )
     assert [
         (event.kind, event.counter_before, event.counter_delta, event.counter_after)
@@ -255,6 +257,54 @@ def test_tally_writes_a_structured_chain(user, gang, fighter):
     counter_value = held.counter_value
     counter_value.refresh_from_db()
     assert reconcile.check_counter_value(counter_value) == []
+
+
+@pytest.mark.parametrize(
+    ("kind", "message"),
+    [
+        (LedgerEvent.Kind.COUNTER_OPENED, "must start at zero"),
+        (LedgerEvent.Kind.COUNTER_CHECKPOINTED, "changes the value"),
+    ],
+)
+def test_counter_reconciliation_rejects_a_false_opening(
+    kind, message, user, gang, fighter
+):
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+        op.open_counter(held, 0)
+    held.ledger_events.filter(kind=LedgerEvent.Kind.COUNTER_OPENED).update(
+        kind=kind, counter_before=1, counter_delta=-1, counter_after=0
+    )
+
+    problems = reconcile.check_counter_value(held.counter_value)
+
+    assert any(message in problem for problem in problems)
+
+
+def test_counter_reconciliation_detects_a_gap_between_events(user, gang, fighter):
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+        op.tally(held, 7)
+    held.ledger_events.filter(kind=LedgerEvent.Kind.TALLIED).update(
+        counter_before=2, counter_delta=5
+    )
+
+    problems = reconcile.check_counter_value(held.counter_value)
+
+    assert any("starts at 2, after 0" in problem for problem in problems)
+
+
+def test_counter_reconciliation_detects_a_changed_pinned_value(user, gang, fighter):
+    from n26.core.models import CounterValue
+
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+        op.tally(held, 7)
+    CounterValue.objects.filter(assignment=held).update(value=8)
+
+    problems = reconcile.check_counter_value(CounterValue.objects.get(assignment=held))
+
+    assert any("value pinned 8, events end at 7" in problem for problem in problems)
 
 
 def test_counter_event_arithmetic_is_enforced(user, gang, fighter):
