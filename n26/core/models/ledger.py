@@ -409,7 +409,7 @@ class LedgerEvent(Base):
     class Meta:
         verbose_name = "ledger event"
         verbose_name_plural = "ledger events"
-        ordering = ["created"]
+        ordering = ["created", "pk"]
         constraints = [
             # At most one of the three subjects is set: any two of them
             # could disagree about what the record is about.
@@ -433,6 +433,23 @@ class LedgerEvent(Base):
                     )
                 ),
                 name="ledger_event_counter_movement_is_whole",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        counter_before__isnull=True,
+                        counter_delta__isnull=True,
+                        counter_after__isnull=True,
+                    )
+                    | models.Q(
+                        kind__in=[
+                            "counter_opened",
+                            "counter_checkpointed",
+                            "tallied",
+                        ]
+                    )
+                ),
+                name="ledger_event_counter_movement_kind",
             ),
             models.CheckConstraint(
                 condition=(

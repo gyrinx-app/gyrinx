@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -85,8 +86,22 @@ def test_allowance_must_name_its_fighters_recruitment(
         recruitment=other.membership,
         source_kind=ActionAllowance.Source.RECRUITMENT,
     )
-    with pytest.raises(ValidationError, match="another fighter"):
+    with pytest.raises(ValidationError, match="another model"):
         allowance.full_clean()
+
+
+def test_rank_allowance_threshold_must_be_positive(fighter, action):
+    xp = Counter.objects.create(name="XP")
+    ranks = RankTable.objects.create(name="Standard ranks", counter=xp)
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ActionAllowance.objects.create(
+            action=action,
+            fighter=fighter,
+            recruitment=fighter.membership,
+            source_kind=ActionAllowance.Source.RANK,
+            threshold=0,
+            rank_table=ranks,
+        )
 
 
 def test_request_keys_are_idempotent_within_a_gang(gang, fighter, action):
@@ -162,6 +177,63 @@ def test_a_consumed_allowance_cannot_be_deleted_on_its_own(gang, fighter, action
         allowance.delete()
 
 
+def test_exact_action_selections_persist_and_leave_with_the_record(
+    user, gang, fighter, action
+):
+    from n26.core.models import (
+        AdvancementSelection,
+        AugmentationSelection,
+        SkillSelection,
+    )
+    from n26.library.models import Category, Pickable, Section, Skill, SlotType
+
+    record = ActionRecord.objects.create(
+        gang=gang, fighter=fighter, action=action, request_key=uuid.uuid4()
+    )
+    slot_type = SlotType.objects.create(name="Selection")
+    intended = Pickable.objects.create(name="Exact result", slot_type=slot_type)
+    section = Section.objects.create(name="Selection skills")
+    skill_set = Category.objects.create(name="Selection set", section=section)
+    skill = Skill.objects.create(name="Exact skill", category=skill_set)
+    event = LedgerEvent.objects.create(
+        gang=gang, actor=user, kind=LedgerEvent.Kind.ROLLED, miniature=fighter
+    )
+    assignment = fighter.membership
+
+    augmentation = AugmentationSelection.objects.create(
+        action_record=record,
+        item_assignment=assignment,
+        slot_assignment=assignment,
+        previous_pick=assignment,
+        intended_pick=intended,
+        new_pick=assignment,
+    )
+    advancement = AdvancementSelection.objects.create(
+        action_record=record,
+        slot_assignment=assignment,
+        roll_event=event,
+        intended_pick=intended,
+        pick_assignment=assignment,
+    )
+    selected = SkillSelection.objects.create(
+        action_record=record,
+        mode=SkillSelection.Mode.SELECT,
+        access=SkillSelection.Access.PRIMARY,
+        skill_set=skill_set,
+        selected_skill=skill,
+        skill_assignment=assignment,
+    )
+
+    assert augmentation.intended_pick_id == intended.pk
+    assert advancement.roll_event_id == event.pk
+    assert selected.selected_skill_id == skill.pk
+
+    record.delete()
+    assert not AugmentationSelection.objects.filter(pk=augmentation.pk).exists()
+    assert not AdvancementSelection.objects.filter(pk=advancement.pk).exists()
+    assert not SkillSelection.objects.filter(pk=selected.pk).exists()
+
+
 def test_tally_writes_a_structured_chain(user, gang, fighter):
     xp = Counter.objects.create(name="XP")
     with operation(gang, actor=user) as op:
@@ -202,6 +274,50 @@ def test_counter_event_arithmetic_is_enforced(user, gang, fighter):
         )
 
 
+def test_counter_fields_are_refused_on_another_event_kind(user, gang, fighter):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        LedgerEvent.objects.create(
+            gang=gang,
+            actor=user,
+            kind=LedgerEvent.Kind.STATUS_SET,
+            miniature=fighter,
+            counter_before=0,
+            counter_delta=1,
+            counter_after=1,
+        )
+
+
+def test_legacy_tally_without_structured_counter_fields_is_kept(user, gang, fighter):
+    event = LedgerEvent.objects.create(
+        gang=gang,
+        actor=user,
+        kind=LedgerEvent.Kind.TALLIED,
+        miniature=fighter,
+    )
+    assert event.counter_before is None
+    assert event.counter_delta is None
+    assert event.counter_after is None
+
+
+def test_events_with_the_same_timestamp_have_stable_primary_key_order(
+    user, gang, fighter
+):
+    first = LedgerEvent.objects.create(
+        gang=gang, actor=user, kind=LedgerEvent.Kind.STATUS_SET, miniature=fighter
+    )
+    second = LedgerEvent.objects.create(
+        gang=gang, actor=user, kind=LedgerEvent.Kind.STATUS_SET, miniature=fighter
+    )
+    timestamp = first.created - timedelta(seconds=1)
+    LedgerEvent.objects.filter(pk__in=[first.pk, second.pk]).update(created=timestamp)
+
+    assert list(
+        LedgerEvent.objects.filter(pk__in=[first.pk, second.pk]).values_list(
+            "pk", flat=True
+        )
+    ) == sorted([first.pk, second.pk])
+
+
 def test_tally_ignores_a_counter_value_cached_before_the_lock(user, gang, fighter):
     counter = Counter.objects.create(name="XP")
     with operation(gang, actor=user) as op:
@@ -211,8 +327,11 @@ def test_tally_ignores_a_counter_value_cached_before_the_lock(user, gang, fighte
     assert stale.value == 2
     with operation(gang, actor=user) as op:
         op.tally(held, 3)
+    assert stale.value == 2
     with operation(gang, actor=user) as op:
         assert op.tally(held, 4) == 9
+    stale.refresh_from_db()
+    assert stale.value == 9
 
 
 def test_counter_chain_requires_an_opening(user, gang, fighter):

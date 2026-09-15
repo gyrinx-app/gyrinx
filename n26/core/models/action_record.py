@@ -58,7 +58,7 @@ class ActionAllowance(Base):
                     )
                     | models.Q(
                         source_kind="rank",
-                        threshold__isnull=False,
+                        threshold__gt=0,
                         rank_table__isnull=False,
                     )
                 ),
@@ -81,7 +81,7 @@ class ActionAllowance(Base):
         if self.fighter_id and self.recruitment_id:
             if self.fighter.membership_id != self.recruitment_id:
                 raise ValidationError(
-                    {"recruitment": "This recruitment belongs to another fighter."}
+                    {"recruitment": "This recruitment belongs to another model."}
                 )
 
 
@@ -168,12 +168,12 @@ class ActionRecord(Base):
             membership = self.fighter.membership
             if membership is None or membership.gang_id != self.gang_id:
                 raise ValidationError(
-                    {"fighter": "This fighter belongs to another gang."}
+                    {"fighter": "This model belongs to another gang."}
                 )
         if self.allowance_id:
             errors = {}
             if self.allowance.fighter_id != self.fighter_id:
-                errors["allowance"] = "This allowance belongs to another fighter."
+                errors["allowance"] = "This allowance belongs to another model."
             elif self.allowance.action_id != self.action_id:
                 errors["allowance"] = "This allowance belongs to another action."
             if errors:
