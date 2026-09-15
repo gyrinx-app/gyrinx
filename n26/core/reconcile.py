@@ -65,6 +65,19 @@ def check_counter_value(counter_value, *, events=None):
         )
     previous = None
     for event in events:
+        if event.kind == LedgerEvent.Kind.COUNTER_OPENED and event.counter_before != 0:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter opening "
+                f"{event.pk} must start at zero"
+            )
+        if (
+            event.kind == LedgerEvent.Kind.COUNTER_CHECKPOINTED
+            and event.counter_delta != 0
+        ):
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter checkpoint "
+                f"{event.pk} changes the value by {event.counter_delta}"
+            )
         if event.counter_before + event.counter_delta != event.counter_after:
             problems.append(
                 f"{counter_value.assignment.assignable}: counter event "
