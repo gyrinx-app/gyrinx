@@ -181,6 +181,7 @@ def _events(gang, window=None):
     rows = gang.ledger_events.exclude(kind__in=_COUNTER_MACHINERY).select_related(
         "miniature",
         "actor",
+        "action_record__fighter",
         "campaign",
         "campaign_asset__asset__asset_type",
         "counterpart",
@@ -725,6 +726,16 @@ def _tell(e, row, alive):
         return _tell_holding(e), "gang"
 
     match e.kind:
+        case Kind.ACTION_USE_STARTED:
+            return _tell_action_use(e, "started", alive), "model"
+        case Kind.ACTION_USE_PAID:
+            return _tell_action_use(e, "paid to use", alive), "money"
+        case Kind.ACTION_USE_COMPLETED:
+            return _tell_action_use(e, "completed", alive, result=True), "model"
+        case Kind.ACTION_USE_CANCELLED:
+            return _tell_action_use(e, "cancelled", alive), "model"
+        case Kind.ACTION_USE_CORRECTED:
+            return _tell_action_use(e, "corrected", alive, result=True), "model"
         case Kind.PURCHASED:
             if row is not None and row.profile_id is not None:
                 return (Span("hired "), at, Span(f", a {_name(row)}")), "money"
@@ -920,6 +931,20 @@ def _tell(e, row, alive):
     return (Span(e.get_kind_display().casefold()),), category
 
 
+def _tell_action_use(e, verb, alive, *, result=False):
+    """Tell an action event from the names captured when it was written."""
+    record = e.action_record
+    fighter = e.miniature or (record.fighter if record is not None else None)
+    action = (record.source or {}).get("name") if record is not None else ""
+    action = action or (e.note if not result else "") or "an action"
+    outcome = f" — {e.note}" if result and e.note else ""
+    return (
+        Span(f"{verb} {action}"),
+        *_for(fighter, _model_span(fighter, alive)),
+        Span(outcome),
+    )
+
+
 def _about_a_holding(e):
     """Whether this record is a campaign's asset coming to the gang or
     leaving it. The two kinds are written for nothing else."""
@@ -1044,6 +1069,11 @@ _NOTE_IS_MACHINERY = {
     Kind.TALLIED,
     Kind.ACTION_OPENED,
     Kind.ACTION_CLOSED,
+    Kind.ACTION_USE_STARTED,
+    Kind.ACTION_USE_PAID,
+    Kind.ACTION_USE_COMPLETED,
+    Kind.ACTION_USE_CANCELLED,
+    Kind.ACTION_USE_CORRECTED,
 }
 
 
@@ -1247,6 +1277,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         .select_related(
             "miniature",
             "actor",
+            "action_record__fighter",
             "gang",
             "campaign",
             "campaign_asset__asset__asset_type",
