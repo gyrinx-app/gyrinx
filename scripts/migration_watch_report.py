@@ -51,7 +51,8 @@ def tail(path):
     lines = [
         line
         for line in lines
-        if not line.startswith("DEBUG ") and "pkg_resources" not in line
+        if not line.startswith(("DEBUG ", "INFO ", "WARNING "))
+        and "pkg_resources" not in line
     ]
     return "\n".join(lines[-LOG_TAIL:])
 
@@ -203,9 +204,11 @@ def render(state, headline, problems, notes, run_url, main_sha):
         lines.append("\n\n".join(problems))
         lines.append("")
         lines.append(
-            "How to fix: regenerate the migration on a checkout that includes current main "
-            "(`manage makemigrations <app> -n <name>`), or add main's leaf to its `dependencies` "
-            "so it applies after what it relies on. No renaming is needed."
+            "How to fix: regenerate the migration on the tree you are working from, whether "
+            "that is current main or the branch below you in a stack "
+            "(`manage makemigrations <app> -n <name>`). Generated dependencies name every leaf "
+            "in that tree. You can also add the missing leaf to `dependencies` by hand. Either "
+            "way the file keeps its name: nothing here needs renumbering."
         )
     if notes:
         lines.append("")
