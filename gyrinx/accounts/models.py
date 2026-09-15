@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -322,19 +324,35 @@ class UserProfile(Base):
             return []
         return [b for b in PATREON_BADGES if b.rank <= rank]
 
+    @cached_property
+    def _own_badge_grant_ids(self) -> set[uuid.UUID]:
+        """Ids of the badges granted to this person by name.
+
+        The one part of working out a badge that reaches the database per user,
+        so it is cached on the instance: ``available_badges`` is read twice on
+        the way to ``display_badge`` — once directly, once through
+        ``eligible_badge_slugs`` — and every page that draws a username does
+        that. Call sites rendering many users should still ``prefetch_related``
+        the grants, or each user costs a query.
+
+        Cached for the life of the instance, alongside ``display_badge``.
+        Granting or revoking a badge and then drawing it again means reloading
+        the profile, which is what every write path here already does.
+        """
+        return {grant.badge_id for grant in self.user.badge_grants.all()}
+
     @property
     def granted_badges(self) -> list[BadgeDef]:
         """Badges this user holds because somebody granted them one.
 
         Two sources, both read from the cached badge table rather than the
         database: the grants naming this person, and the grants naming
-        everybody. Grants are looked up by ``badge_id`` so this needs no join —
-        call sites rendering many users must ``prefetch_related`` the grants,
-        or this costs a query per user.
+        everybody. Grants are looked up by ``badge_id`` so this needs no join.
+        The grants naming everybody are read here rather than cached with the
+        rest, so retiring a badge still takes effect on the shared cache's terms.
         """
         badges = granted_badges_by_id()
-        held = {grant.badge_id for grant in self.user.badge_grants.all()}
-        held.update(everyone_badge_ids())
+        held = self._own_badge_grant_ids | set(everyone_badge_ids())
         return [badges[badge_id] for badge_id in held if badge_id in badges]
 
     @property

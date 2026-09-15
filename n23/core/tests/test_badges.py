@@ -1,10 +1,14 @@
 """Tests for the supporter badge registry, eligibility logic, and render tag."""
 
+from contextlib import contextmanager
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import connection
 from django.db.utils import IntegrityError
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from gyrinx.accounts.models import Badge, BadgeGrant, PatreonStatus, UserProfile
@@ -408,6 +412,60 @@ def test_a_supporter_who_is_also_granted_a_badge_keeps_showing_the_tier(
 
     assert profile.eligible_badge_slugs == {"scummer", "guilder", "playtester"}
     assert profile.display_badge.slug == "guilder"
+
+
+@contextmanager
+def _grant_queries():
+    """The queries against the grants table made inside the block."""
+    with CaptureQueriesContext(connection) as captured:
+        made = []
+        yield made
+    made.extend(
+        q["sql"] for q in captured.captured_queries if "badgegrant" in q["sql"].lower()
+    )
+
+
+def _granted_profile(user):
+    """A user holding one badge, with the per-process badge table warmed."""
+    profile = _profile(user)
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    # Read once through a throwaway instance, so a measured read below is
+    # measuring the per-user grant lookup and not the first build of the
+    # per-process badge table.
+    assert UserProfile.objects.get(pk=profile.pk).display_badge is not None
+    return profile
+
+
+@pytest.mark.django_db
+def test_display_badge_reads_the_grants_once(user, clear_badge_cache):
+    """Every page draws the reader's own badge, so the read must not double up.
+
+    ``display_badge`` reads ``available_badges`` twice — once directly, once
+    through ``eligible_badge_slugs`` — and the site bar names the signed-in
+    reader on every page of both editions.
+    """
+    profile = _granted_profile(user)
+
+    fresh = UserProfile.objects.get(pk=profile.pk)
+    with _grant_queries() as queries:
+        assert fresh.display_badge.slug == "playtester"
+
+    assert len(queries) == 1, queries
+
+
+@pytest.mark.django_db
+def test_display_badge_reads_nothing_when_the_grants_are_prefetched(
+    user, clear_badge_cache
+):
+    """Caching the read must not cost the pages that already prefetch it."""
+    _granted_profile(user)
+
+    prefetched = type(user).objects.prefetch_related("badge_grants").get(pk=user.pk)
+    with _grant_queries() as queries:
+        assert prefetched.profile.display_badge.slug == "playtester"
+
+    assert queries == []
 
 
 @pytest.mark.django_db
