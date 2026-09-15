@@ -215,6 +215,10 @@ checkpoints = {
         "counter_after",
     )
 }
+assert (
+    NewEvent.objects.filter(kind="counter_checkpointed", batch=MIGRATION_BATCH).count()
+    == COUNTERS
+)
 assert len(checkpoints) == COUNTERS
 for _pk, (assignment_id, value) in before_values.items():
     gang_id, _archived = before_assignments[str(assignment_id)]
@@ -287,6 +291,18 @@ NewEvent.objects.create(
     note="+3 → 7",
 )
 
+pre_reverse_value_ids = list(NewValue.objects.values_list("pk", flat=True))
+pre_reverse_assignment_ids = list(NewAssignment.objects.values_list("pk", flat=True))
+pre_reverse_values = rows(NewValue, pre_reverse_value_ids, "assignment_id", "value")
+pre_reverse_assignments = rows(
+    NewAssignment,
+    pre_reverse_assignment_ids,
+    "gang_root_id",
+    "archived",
+)
+assert len(pre_reverse_values) == COUNTERS + 2
+assert len(pre_reverse_assignments) == COUNTERS + 2
+
 reverse_started = time.perf_counter()
 MigrationExecutor(connection).migrate(OLD)
 reverse_seconds = time.perf_counter() - reverse_started
@@ -300,6 +316,20 @@ assert ReversedEvent.objects.filter(pk=unrelated.pk).exists()
 assert (
     digest(ReversedEvent.objects.filter(pk__in=event_ids), event_fields)
     == before_events
+)
+assert (
+    rows(ReversedValue, pre_reverse_value_ids, "assignment_id", "value")
+    == pre_reverse_values
+)
+ReversedAssignment = reversed_apps.get_model("n26", "Assignment")
+assert (
+    rows(
+        ReversedAssignment,
+        pre_reverse_assignment_ids,
+        "gang_root_id",
+        "archived",
+    )
+    == pre_reverse_assignments
 )
 assert ReversedValue.objects.get(pk=modern_value.pk).value == 7
 assert ReversedValue.objects.get(pk=legacy_value.pk).value == 6
@@ -321,6 +351,20 @@ assert (
     digest(ReappliedEvent.objects.filter(pk__in=event_ids), event_fields)
     == before_events
 )
+assert (
+    rows(ReappliedValue, pre_reverse_value_ids, "assignment_id", "value")
+    == pre_reverse_values
+)
+ReappliedAssignment = reapplied_apps.get_model("n26", "Assignment")
+assert (
+    rows(
+        ReappliedAssignment,
+        pre_reverse_assignment_ids,
+        "gang_root_id",
+        "archived",
+    )
+    == pre_reverse_assignments
+)
 assert ReappliedValue.objects.get(pk=modern_value.pk).value == 7
 assert ReappliedValue.objects.get(pk=legacy_value.pk).value == 6
 
@@ -339,6 +383,8 @@ print(
             "legacy_existing_counter_gap": existing_gap,
             "legacy_new_counter_gap": new_gap,
             "post_migration_counter_value_survived_reverse": True,
+            "preserved_all_pre_reverse_assignments": True,
+            "preserved_all_pre_reverse_counter_values": True,
             "preexisting_ledger_digest": before_events[1],
             "preexisting_ledger_events": before_events[0],
             "preserved_all_preexisting_ledger_rows": True,
