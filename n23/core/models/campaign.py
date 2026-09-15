@@ -798,7 +798,7 @@ class CampaignResourceType(AppBase):
     )
     can_go_negative = models.BooleanField(
         default=False,
-        help_text="Gangs can hold a negative amount of this resource.",
+        help_text="This resource can have a negative amount.",
     )
 
     history = HistoricalRecords()

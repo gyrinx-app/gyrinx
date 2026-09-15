@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
             name="can_go_negative",
             field=models.BooleanField(
                 default=False,
-                help_text="Gangs can hold a negative amount of this resource.",
+                help_text="This resource can have a negative amount.",
             ),
         ),
         migrations.AddField(
@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
             name="can_go_negative",
             field=models.BooleanField(
                 default=False,
-                help_text="Gangs can hold a negative amount of this resource.",
+                help_text="This resource can have a negative amount.",
             ),
         ),
         migrations.AlterField(

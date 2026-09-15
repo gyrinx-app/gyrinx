@@ -700,7 +700,7 @@ class CampaignResourceTypeForm(forms.ModelForm):
             "name": "Name of the resource (e.g., 'Meat', 'Credits', 'Ammo')",
             "description": "Describe what this resource represents and how it's used",
             "default_amount": "Amount given to each gang when the campaign starts",
-            "can_go_negative": "Gangs can hold a negative amount of this resource.",
+            "can_go_negative": "This resource can have a negative amount.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),

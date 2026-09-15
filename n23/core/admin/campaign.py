@@ -88,6 +88,12 @@ class CampaignResourceTypeAdmin(BaseAdmin):
 
     inlines = [CampaignListResourceInline]
 
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if obj is not None and obj.is_default_reputation():
+            fields = [field for field in fields if field != "can_go_negative"]
+        return fields
+
 
 class CampaignAttributeValueInline(GyTabularInline):
     model = CampaignAttributeValue

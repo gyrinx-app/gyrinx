@@ -856,7 +856,9 @@ def test_create_resource_type_with_can_go_negative(client, user):
         reverse("core:campaign-resource-type-new", args=[campaign.id])
     )
     assert response.status_code == 200
-    assert "Can go negative" in response.content.decode()
+    content = response.content.decode()
+    assert "Can go negative" in content
+    assert "This resource can have a negative amount." in content
 
     response = client.post(
         reverse("core:campaign-resource-type-new", args=[campaign.id]),
@@ -870,6 +872,29 @@ def test_create_resource_type_with_can_go_negative(client, user):
     assert response.status_code == 302
     resource_type = CampaignResourceType.objects.get(campaign=campaign, name="Heat")
     assert resource_type.can_go_negative is True
+
+
+@pytest.mark.django_db
+def test_resource_type_admin_omits_can_go_negative_for_reputation(admin_client, user):
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    reputation = CampaignResourceType.objects.create(
+        campaign=campaign, name="Reputation", owner=user
+    )
+    heat = CampaignResourceType.objects.create(
+        campaign=campaign, name="Heat", owner=user
+    )
+
+    reputation_response = admin_client.get(
+        reverse("admin:core_campaignresourcetype_change", args=[reputation.pk])
+    )
+    assert reputation_response.status_code == 200
+    assert b'name="can_go_negative"' not in reputation_response.content
+
+    heat_response = admin_client.get(
+        reverse("admin:core_campaignresourcetype_change", args=[heat.pk])
+    )
+    assert heat_response.status_code == 200
+    assert b'name="can_go_negative"' in heat_response.content
 
 
 @pytest.mark.django_db
