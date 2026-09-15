@@ -728,7 +728,7 @@ class CampaignResourceTypeForm(forms.ModelForm):
             self.instance.pk
             and self.instance.can_go_negative
             and not can_go_negative
-            and self.instance.list_resources.filter(amount__lt=0).exists()
+            and self.instance.current_lists_have_negative_amount()
         ):
             raise forms.ValidationError(
                 "You cannot turn this off while a gang has a negative amount. "

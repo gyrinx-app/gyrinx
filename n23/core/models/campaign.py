@@ -4,6 +4,7 @@ import random
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import validators
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from simple_history.models import HistoricalRecords
 
@@ -818,6 +819,22 @@ class CampaignResourceType(AppBase):
     def is_default_reputation(self):
         return self.is_reputation_name(self.name)
 
+    def allows_negative_amounts(self):
+        return self.can_go_negative and not self.is_default_reputation()
+
+    def current_lists_have_negative_amount(self):
+        return self.list_resources.filter(
+            amount__lt=0,
+            list_id__in=self.campaign.lists.values("id"),
+        ).exists()
+
+    def clean(self):
+        super().clean()
+        if self.is_default_reputation() and self.can_go_negative:
+            raise ValidationError(
+                {"can_go_negative": "Reputation cannot go below zero."}
+            )
+
 
 class CampaignListResource(AppBase):
     """Tracks the amount of a resource that a list has in a campaign"""
@@ -858,7 +875,16 @@ class CampaignListResource(AppBase):
 
     def would_go_below_floor(self, new_amount):
         """True if ``new_amount`` is below zero and this type cannot go negative."""
-        return new_amount < 0 and not self.resource_type.can_go_negative
+        return new_amount < 0 and not self.resource_type.allows_negative_amounts()
+
+    def clean(self):
+        super().clean()
+        if not self.resource_type_id:
+            return
+        if self.would_go_below_floor(self.amount):
+            raise ValidationError(
+                {"amount": f"Cannot reduce {self.resource_type.name} below zero."}
+            )
 
     def modify_amount(self, modification, user, battle=None):
         """Modify the resource amount and log the action
