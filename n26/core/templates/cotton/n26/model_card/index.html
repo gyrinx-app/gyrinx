@@ -74,13 +74,13 @@ not something to do.
     anchor, so a link to a model lands on its name; a card with no id depicts
     nobody and gets none.
     {% endcomment %}
-    <div class="border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
+    <div class="@container border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
         {% comment %}
         Equal columns stop a long status and the figures beside it from
-        squeezing the name out of the top-left cell. The figures wrap inside
-        the top-right cell; the profile and controls occupy the two cells
-        below, keeping the actions beside the profile without moving the
-        rating away from its corner.
+        squeezing the name out of the top-left cell. The rating keeps the
+        top-right corner; the status and founding figures share its row when
+        the card is roomy and wrap beneath it when the card is narrow. The
+        profile and controls occupy the two cells below.
         {% endcomment %}
         <div class="grid grid-cols-2 items-start gap-x-3">
             {% comment %}
@@ -137,7 +137,8 @@ not something to do.
             </div>
 
             <div class="contents">
-                <div class="col-start-2 row-start-1 flex min-w-0 flex-wrap items-baseline justify-end gap-1 text-sm font-medium tabular-nums">
+                <div class="col-start-2 row-start-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1 text-sm font-medium tabular-nums">
+                    <div class="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-wrap items-baseline justify-end gap-1 @md:col-span-1 @md:row-start-1">
                     {% comment %}
                     Where the model stands between battles, ahead of the
                     figures rather than among the acts below: a status is
@@ -152,21 +153,21 @@ not something to do.
                     it: it is a control beside two figures, and the dot
                     below is the one between them.
                     {% endcomment %}
-                    {% if card.status_label %}
-                        {% if status_hx and status_href %}
-                            <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
-                        {% else %}
-                            <c-ui.badge size="sm" href="{{ status_href }}" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                        {% if card.status_label %}
+                            {% if status_hx and status_href %}
+                                <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                            {% else %}
+                                <c-ui.badge size="sm" href="{{ status_href }}" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                            {% endif %}
+                        {% elif status_href %}
+                            {# djlint:off #}
+                            {% if status_hx %}
+                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" class="!text-muted !font-normal">Active</c-ui.button>
+                            {% else %}
+                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
+                            {% endif %}
+                            {# djlint:on #}
                         {% endif %}
-                    {% elif status_href %}
-                        {# djlint:off #}
-                        {% if status_hx %}
-                            <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" class="!text-muted !font-normal">Active</c-ui.button>
-                        {% else %}
-                            <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
-                        {% endif %}
-                        {# djlint:on #}
-                    {% endif %}
                     {% comment %}
                     What the model has left of the Trade Points its books
                     give it to spend as it joins, ahead of the rating and
@@ -175,31 +176,34 @@ not something to do.
                     by. Drawn only where the owner is reading — what one
                     of their fighters may still spend is their business.
                     {% endcomment %}
-                    {% if card.founding_budget %}
-                        <c-n26.model-card.mode when="gang edit">
-                            <c-ui.tooltip size="sm">
-                                {% comment %}
-                                Plain inline, not a flex: this figure sits on
-                                the rating's baseline, and a flex box takes
-                                its baseline from its first item — the mark,
-                                whose bottom edge is a pixel or two off the
-                                text beside it. Inline, the text's own
-                                baseline is the box's, and the mark is nudged
-                                onto it by its wrapper.
-                                {% endcomment %}
-                                <span class="text-muted">
-                                    <span class="inline-block align-[-0.1875em]"><c-n26.founding-mark class="size-3.5" /></span>
-                                    <span>{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
-                                </span>
-                                <c-slot name="content">Founding Trade Points {{ card.name }} has left to spend while the Found and equip gang action is open.</c-slot>
-                            </c-ui.tooltip>
-                            <span aria-hidden="true" class="text-muted">·</span>
-                        </c-n26.model-card.mode>
-                    {% endif %}
-                    <c-ui.tooltip size="sm">
-                        <span>{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
-                        <c-slot name="content">Rating, including weapons and wargear</c-slot>
-                    </c-ui.tooltip>
+                        {% if card.founding_budget %}
+                            <c-n26.model-card.mode when="gang edit">
+                                <c-ui.tooltip size="sm">
+                                    {% comment %}
+                                    Plain inline, not a flex: this figure sits on
+                                    the rating's baseline, and a flex box takes
+                                    its baseline from its first item — the mark,
+                                    whose bottom edge is a pixel or two off the
+                                    text beside it. Inline, the text's own
+                                    baseline is the box's, and the mark is nudged
+                                    onto it by its wrapper.
+                                    {% endcomment %}
+                                    <span class="text-muted">
+                                        <span class="inline-block align-[-0.1875em]"><c-n26.founding-mark class="size-3.5" /></span>
+                                        <span>{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
+                                    </span>
+                                    <c-slot name="content">Founding Trade Points {{ card.name }} has left to spend while the Found and equip gang action is open.</c-slot>
+                                </c-ui.tooltip>
+                                <span aria-hidden="true" class="hidden text-muted @md:inline">·</span>
+                            </c-n26.model-card.mode>
+                        {% endif %}
+                    </div>
+                    <span class="col-start-2 row-start-1">
+                        <c-ui.tooltip size="sm">
+                            <span>{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
+                            <c-slot name="content">Rating, including weapons and wargear</c-slot>
+                        </c-ui.tooltip>
+                    </span>
                 </div>
 
                 {% if actions or card.image_url %}
