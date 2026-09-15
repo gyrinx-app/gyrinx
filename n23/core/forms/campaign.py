@@ -724,16 +724,6 @@ class CampaignResourceTypeForm(forms.ModelForm):
         name = self.cleaned_data.get("name") or self.instance.name
         if CampaignResourceType.is_reputation_name(name) and can_go_negative:
             raise forms.ValidationError("Reputation cannot go below zero.")
-        if (
-            self.instance.pk
-            and self.instance.can_go_negative
-            and not can_go_negative
-            and self.instance.current_lists_have_negative_amount()
-        ):
-            raise forms.ValidationError(
-                "You cannot turn this off while a gang has a negative amount. "
-                "Bring every gang's amount to zero or above first."
-            )
         return can_go_negative
 
 

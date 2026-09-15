@@ -834,6 +834,20 @@ class CampaignResourceType(AppBase):
             raise ValidationError(
                 {"can_go_negative": "Reputation cannot go below zero."}
             )
+        if (
+            self.pk
+            and not self.can_go_negative
+            and type(self).objects.filter(pk=self.pk, can_go_negative=True).exists()
+            and self.current_lists_have_negative_amount()
+        ):
+            raise ValidationError(
+                {
+                    "can_go_negative": (
+                        "You cannot turn this off while a gang has a negative amount. "
+                        "Bring every gang's amount to zero or above first."
+                    )
+                }
+            )
 
 
 class CampaignListResource(AppBase):
