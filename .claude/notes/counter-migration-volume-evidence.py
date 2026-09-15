@@ -1,14 +1,10 @@
-"""Exercise n26 migration 0069's counter checkpoint at production volume.
+"""Rehearse final n26 records migrations against production-sized synthetic data."""
 
-Run only against a disposable database selected through ``DB_NAME``. The script
-migrates that database back to the final 0068 state, creates synthetic historical
-rows through the migration state ORM, applies 0069, and independently compares
-every counter value and checkpoint.
-"""
-
+import hashlib
 import json
 import os
 import time
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import django
 
@@ -18,110 +14,199 @@ django.setup()
 from django.db import connection  # noqa: E402, I001
 from django.db.migrations.executor import MigrationExecutor  # noqa: E402
 
-
-OLD_TARGETS = [
-    ("n26", "0068_remove_assignment_assignment_exactly_one_assignable_and_more"),
-]
-NEW_TARGET = [("n26", "0069_fighter_action_records_and_counter_events")]
-VOLUME = 19_940
-ZERO = 863
-ARCHIVED = 2_672
-REMOVED = 2_643
+PREFIX = "wren_counter_migration_evidence_"
+OLD = [("n26", "0068_remove_assignment_assignment_exactly_one_assignable_and_more")]
+FINAL = [("n26", "0071_alter_ledgerevent_options_and_more")]
+COUNTERS, ZERO, ARCHIVED = 19_940, 863, 2_672
+EVENTS, REMOVED, GANGS = 228_571, 2_643, 20
+MIGRATION_BATCH = uuid5(NAMESPACE_URL, "https://gyrinx.app/migrations/n26/0069")
 
 
-def rows_by_id(model, ids, fields):
+def state(targets):
+    executor = MigrationExecutor(connection)
+    return executor, executor.loader.project_state(targets).apps
+
+
+def rows(model, ids, *fields):
     return {
         str(row[0]): tuple(row[1:])
         for row in model.objects.filter(pk__in=ids).values_list("pk", *fields)
     }
 
 
+def digest(queryset, fields=None):
+    fields = fields or [field.attname for field in queryset.model._meta.concrete_fields]
+    value = hashlib.sha256()
+    count = 0
+    for row in queryset.order_by("pk").values_list(*fields).iterator(chunk_size=2000):
+        value.update(json.dumps(row, default=str, separators=(",", ":")).encode())
+        value.update(b"\n")
+        count += 1
+    return count, value.hexdigest()
+
+
+def applied(name):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT EXISTS(SELECT 1 FROM django_migrations "
+            "WHERE app='n26' AND name=%s)",
+            [name],
+        )
+        return cursor.fetchone()[0]
+
+
 database = connection.settings_dict["NAME"]
-if "counter_migration_evidence" not in database:
+if not database.startswith(PREFIX):
     raise RuntimeError(f"Refusing non-scratch database {database!r}")
+if connection.introspection.table_names():
+    raise RuntimeError(f"Refusing non-empty scratch database {database!r}")
 
-executor = MigrationExecutor(connection)
-executor.migrate(OLD_TARGETS)
-old_apps = executor.loader.project_state(OLD_TARGETS).apps
+whole_started = time.perf_counter()
+MigrationExecutor(connection).migrate(OLD)
+_, apps = state(OLD)
+Gang = apps.get_model("n26", "Gang")
+Assignment = apps.get_model("n26", "Assignment")
+CounterValue = apps.get_model("n26", "CounterValue")
+LedgerEvent = apps.get_model("n26", "LedgerEvent")
+GangType = apps.get_model("library", "GangType")
+Counter = apps.get_model("library", "Counter")
 
-Gang = old_apps.get_model("n26", "Gang")
-Assignment = old_apps.get_model("n26", "Assignment")
-CounterValue = old_apps.get_model("n26", "CounterValue")
-LedgerEvent = old_apps.get_model("n26", "LedgerEvent")
-GangType = old_apps.get_model("library", "GangType")
-Counter = old_apps.get_model("library", "Counter")
-
-gang_type = GangType.objects.first()
-counter = Counter.objects.first()
-if gang_type is None or counter is None:
-    raise RuntimeError("Scratch clone must contain the standard content mirror")
-gang = Gang.objects.create(name="Counter migration evidence", gang_type=gang_type)
-
+gang_type = GangType.objects.create(name="Synthetic evidence type")
+counter = Counter.objects.create(name="Synthetic evidence counter")
+gangs = [
+    Gang.objects.create(name=f"Synthetic evidence gang {number}", gang_type=gang_type)
+    for number in range(GANGS)
+]
 assignments = Assignment.objects.bulk_create(
     [
         Assignment(
-            gang=gang,
-            gang_root=gang,
+            gang=gangs[n % GANGS],
+            gang_root=gangs[n % GANGS],
             counter=counter,
-            archived=position < ARCHIVED,
+            archived=n < ARCHIVED,
         )
-        for position in range(VOLUME)
+        for n in range(COUNTERS)
     ],
     batch_size=500,
 )
-counter_values = CounterValue.objects.bulk_create(
+values = CounterValue.objects.bulk_create(
     [
         CounterValue(
             assignment=assignment,
-            value=0 if position < ZERO else (position % 37) + 1,
+            value=0 if n < ZERO else (n % 37) + 1,
         )
-        for position, assignment in enumerate(assignments)
+        for n, assignment in enumerate(assignments)
     ],
     batch_size=500,
 )
-LedgerEvent.objects.bulk_create(
-    [
-        LedgerEvent(
-            gang=gang,
-            assignment=assignment,
-            kind="removed",
-            note="Synthetic pre-migration removal",
+pending = []
+for n in range(EVENTS):
+    if n < REMOVED:
+        pending.append(
+            LedgerEvent(
+                gang=gangs[n % GANGS],
+                assignment=assignments[n],
+                kind="removed",
+                note=f"Synthetic removal {n}",
+            )
         )
-        for assignment in assignments[:REMOVED]
-    ],
-    batch_size=500,
-)
+    else:
+        pending.append(
+            LedgerEvent(
+                gang=gangs[n % GANGS],
+                kind="noted",
+                note=f"Synthetic journal {n}",
+            )
+        )
+    if len(pending) == 2000:
+        LedgerEvent.objects.bulk_create(pending, batch_size=500)
+        pending.clear()
+if pending:
+    LedgerEvent.objects.bulk_create(pending, batch_size=500)
 
 assignment_ids = [row.pk for row in assignments]
-value_ids = [row.pk for row in counter_values]
-before_values = rows_by_id(CounterValue, value_ids, ("assignment_id", "value"))
-before_assignments = rows_by_id(
-    Assignment, assignment_ids, ("gang_root_id", "archived")
+value_ids = [row.pk for row in values]
+event_ids = list(LedgerEvent.objects.values_list("pk", flat=True))
+before_values = rows(CounterValue, value_ids, "assignment_id", "value")
+before_assignments = rows(Assignment, assignment_ids, "gang_root_id", "archived")
+event_fields = [field.attname for field in LedgerEvent._meta.concrete_fields]
+before_events = digest(LedgerEvent.objects.all(), event_fields)
+before_removed = rows(
+    LedgerEvent,
+    LedgerEvent.objects.filter(kind="removed").values_list("pk", flat=True),
+    "gang_id",
+    "assignment_id",
+    "kind",
+    "note",
 )
-before_removed = set(
-    str(value)
-    for value in LedgerEvent.objects.filter(
-        assignment_id__in=assignment_ids, kind="removed"
-    ).values_list("assignment_id", flat=True)
+assert before_events[0] == EVENTS and len(before_removed) == REMOVED
+
+# Let the real 0069 data function finish, then fail inside the same atomic
+# migration. The old state, including all 228,571 events, must be exact.
+failed_executor = MigrationExecutor(connection)
+migration = failed_executor.loader.get_migration(
+    "n26", "0069_fighter_action_records_and_counter_events"
+)
+run_python = next(
+    operation
+    for operation in migration.operations
+    if getattr(operation, "code", None)
+    and operation.code.__name__ == "checkpoint_counter_values"
+)
+real_code = run_python.code
+
+
+def fail_after_checkpoints(historical_apps, schema_editor):
+    real_code(historical_apps, schema_editor)
+    raise RuntimeError("intentional failure after checkpoints")
+
+
+run_python.code = fail_after_checkpoints
+failure_started = time.perf_counter()
+try:
+    failed_executor.migrate(FINAL)
+except RuntimeError as error:
+    assert str(error) == "intentional failure after checkpoints"
+else:
+    raise AssertionError("forced forward failure unexpectedly succeeded")
+finally:
+    run_python.code = real_code
+failure_seconds = time.perf_counter() - failure_started
+
+assert not applied("0069_fighter_action_records_and_counter_events")
+_, failed_apps = state(OLD)
+FailedValue = failed_apps.get_model("n26", "CounterValue")
+FailedAssignment = failed_apps.get_model("n26", "Assignment")
+FailedEvent = failed_apps.get_model("n26", "LedgerEvent")
+assert rows(FailedValue, value_ids, "assignment_id", "value") == before_values
+assert (
+    rows(FailedAssignment, assignment_ids, "gang_root_id", "archived")
+    == before_assignments
+)
+assert digest(FailedEvent.objects.all(), event_fields) == before_events
+
+forward_started = time.perf_counter()
+MigrationExecutor(connection).migrate(FINAL)
+forward_seconds = time.perf_counter() - forward_started
+_, final_apps = state(FINAL)
+NewValue = final_apps.get_model("n26", "CounterValue")
+NewAssignment = final_apps.get_model("n26", "Assignment")
+NewEvent = final_apps.get_model("n26", "LedgerEvent")
+assert rows(NewValue, value_ids, "assignment_id", "value") == before_values
+assert (
+    rows(NewAssignment, assignment_ids, "gang_root_id", "archived")
+    == before_assignments
+)
+assert digest(NewEvent.objects.filter(pk__in=event_ids), event_fields) == before_events
+assert (
+    rows(NewEvent, before_removed, "gang_id", "assignment_id", "kind", "note")
+    == before_removed
 )
 
-started = time.perf_counter()
-executor = MigrationExecutor(connection)
-executor.migrate(NEW_TARGET)
-elapsed = time.perf_counter() - started
-new_apps = executor.loader.project_state(NEW_TARGET).apps
-NewCounterValue = new_apps.get_model("n26", "CounterValue")
-NewAssignment = new_apps.get_model("n26", "Assignment")
-NewLedgerEvent = new_apps.get_model("n26", "LedgerEvent")
-
-after_values = rows_by_id(NewCounterValue, value_ids, ("assignment_id", "value"))
-after_assignments = rows_by_id(
-    NewAssignment, assignment_ids, ("gang_root_id", "archived")
-)
 checkpoints = {
     str(row[0]): tuple(row[1:])
-    for row in NewLedgerEvent.objects.filter(
-        assignment_id__in=assignment_ids, kind="counter_checkpointed"
+    for row in NewEvent.objects.filter(
+        kind="counter_checkpointed", batch=MIGRATION_BATCH
     ).values_list(
         "assignment_id",
         "gang_id",
@@ -130,76 +215,139 @@ checkpoints = {
         "counter_after",
     )
 }
-after_removed = set(
-    str(value)
-    for value in NewLedgerEvent.objects.filter(
-        assignment_id__in=assignment_ids, kind="removed"
-    ).values_list("assignment_id", flat=True)
-)
-
-assert before_values == after_values
-assert before_assignments == after_assignments
-assert before_removed == after_removed
-assert len(checkpoints) == VOLUME
-for _value_id, (assignment_id, value) in before_values.items():
+assert len(checkpoints) == COUNTERS
+for _pk, (assignment_id, value) in before_values.items():
     gang_id, _archived = before_assignments[str(assignment_id)]
     assert checkpoints[str(assignment_id)] == (gang_id, value, 0, value)
 
+# A later checkpoint owned by another batch must survive 0069's reverse.
+unrelated = NewEvent.objects.create(
+    gang_id=assignments[0].gang_root_id,
+    assignment_id=assignments[0].pk,
+    kind="counter_checkpointed",
+    batch=uuid4(),
+    counter_before=values[0].value,
+    counter_delta=0,
+    counter_after=values[0].value,
+    note="Unrelated later checkpoint",
+)
+
+# Reproduce both old-worker gaps after the checkpoint. These are expected
+# findings: old code changed the pin and wrote the fixed note, but left the
+# new structured columns NULL.
+legacy_existing = NewValue.objects.get(pk=values[ZERO].pk)
+legacy_existing.value += 4
+legacy_existing.save(update_fields=["value", "modified"])
+NewEvent.objects.create(
+    gang_id=assignments[ZERO].gang_root_id,
+    assignment_id=assignments[ZERO].pk,
+    kind="tallied",
+    note=f"+4 → {legacy_existing.value}: old worker",
+)
+legacy_assignment = NewAssignment.objects.create(
+    gang_id=gangs[0].pk, gang_root_id=gangs[0].pk, counter_id=counter.pk
+)
+legacy_value = NewValue.objects.create(assignment=legacy_assignment, value=6)
+NewEvent.objects.create(
+    gang_id=gangs[0].pk,
+    assignment=legacy_assignment,
+    kind="tallied",
+    note="+6 → 6: old worker created counter",
+)
+from n26.core.models import CounterValue as LiveCounterValue  # noqa: E402
+from n26.core.reconcile import check_counter_value  # noqa: E402
+
+existing_gap = check_counter_value(LiveCounterValue.objects.get(pk=legacy_existing.pk))
+new_gap = check_counter_value(LiveCounterValue.objects.get(pk=legacy_value.pk))
+assert any("events end" in problem for problem in existing_gap)
+assert any("no counter opening" in problem for problem in new_gap)
+
+# Exact persisted shape of a post-migration open followed by a tally.
+modern_assignment = NewAssignment.objects.create(
+    gang_id=gangs[1].pk, gang_root_id=gangs[1].pk, counter_id=counter.pk
+)
+modern_value = NewValue.objects.create(assignment=modern_assignment, value=4)
+NewEvent.objects.create(
+    gang_id=gangs[1].pk,
+    assignment=modern_assignment,
+    kind="counter_opened",
+    counter_before=0,
+    counter_delta=4,
+    counter_after=4,
+)
+modern_value.value = 7
+modern_value.save(update_fields=["value", "modified"])
+NewEvent.objects.create(
+    gang_id=gangs[1].pk,
+    assignment=modern_assignment,
+    kind="tallied",
+    counter_before=4,
+    counter_delta=3,
+    counter_after=7,
+    note="+3 → 7",
+)
+
 reverse_started = time.perf_counter()
-executor = MigrationExecutor(connection)
-executor.migrate(OLD_TARGETS)
-reverse_elapsed = time.perf_counter() - reverse_started
-reversed_apps = executor.loader.project_state(OLD_TARGETS).apps
-ReversedCounterValue = reversed_apps.get_model("n26", "CounterValue")
-ReversedAssignment = reversed_apps.get_model("n26", "Assignment")
-ReversedLedgerEvent = reversed_apps.get_model("n26", "LedgerEvent")
-assert (
-    rows_by_id(ReversedCounterValue, value_ids, ("assignment_id", "value"))
-    == before_values
-)
-assert (
-    rows_by_id(ReversedAssignment, assignment_ids, ("gang_root_id", "archived"))
-    == before_assignments
-)
-assert (
-    set(
-        str(value)
-        for value in ReversedLedgerEvent.objects.filter(
-            assignment_id__in=assignment_ids, kind="removed"
-        ).values_list("assignment_id", flat=True)
-    )
-    == before_removed
-)
-assert not ReversedLedgerEvent.objects.filter(
-    assignment_id__in=assignment_ids, kind="counter_checkpointed"
+MigrationExecutor(connection).migrate(OLD)
+reverse_seconds = time.perf_counter() - reverse_started
+_, reversed_apps = state(OLD)
+ReversedValue = reversed_apps.get_model("n26", "CounterValue")
+ReversedEvent = reversed_apps.get_model("n26", "LedgerEvent")
+assert not ReversedEvent.objects.filter(
+    kind="counter_checkpointed", batch=MIGRATION_BATCH
 ).exists()
+assert ReversedEvent.objects.filter(pk=unrelated.pk).exists()
+assert (
+    digest(ReversedEvent.objects.filter(pk__in=event_ids), event_fields)
+    == before_events
+)
+assert ReversedValue.objects.get(pk=modern_value.pk).value == 7
+assert ReversedValue.objects.get(pk=legacy_value.pk).value == 6
+
+reapply_started = time.perf_counter()
+MigrationExecutor(connection).migrate(FINAL)
+reapply_seconds = time.perf_counter() - reapply_started
+_, reapplied_apps = state(FINAL)
+ReappliedEvent = reapplied_apps.get_model("n26", "LedgerEvent")
+ReappliedValue = reapplied_apps.get_model("n26", "CounterValue")
+assert (
+    ReappliedEvent.objects.filter(
+        kind="counter_checkpointed", batch=MIGRATION_BATCH
+    ).count()
+    == COUNTERS + 2
+)
+assert ReappliedEvent.objects.filter(pk=unrelated.pk).exists()
+assert (
+    digest(ReappliedEvent.objects.filter(pk__in=event_ids), event_fields)
+    == before_events
+)
+assert ReappliedValue.objects.get(pk=modern_value.pk).value == 7
+assert ReappliedValue.objects.get(pk=legacy_value.pk).value == 6
 
 print(
     json.dumps(
         {
+            "active_assignments": COUNTERS - ARCHIVED,
+            "archived_assignments": ARCHIVED,
+            "atomic_failure_seconds": round(failure_seconds, 3),
+            "atomic_failure_left_old_state_exact": True,
+            "checkpoint_events": COUNTERS,
+            "counter_values": COUNTERS,
             "database": database,
-            "elapsed_seconds": round(elapsed, 3),
-            "reverse_elapsed_seconds": round(reverse_elapsed, 3),
-            "counter_values": len(after_values),
-            "zero_values": sum(
-                value == 0 for _assignment, value in after_values.values()
-            ),
-            "nonzero_values": sum(
-                value > 0 for _assignment, value in after_values.values()
-            ),
-            "archived_assignments": sum(
-                archived for _gang, archived in after_assignments.values()
-            ),
-            "active_assignments": sum(
-                not archived for _gang, archived in after_assignments.values()
-            ),
-            "removed_assignments": len(after_removed),
-            "checkpoint_events": len(checkpoints),
-            "preserved_counter_value_rows": True,
-            "preserved_assignment_rows": True,
-            "preserved_removed_events": True,
-            "checkpoint_before_after_delta_and_gang_exact": True,
-            "reverse_removed_only_checkpoints": True,
+            "forward_through_0071_seconds": round(forward_seconds, 3),
+            "gangs": GANGS,
+            "legacy_existing_counter_gap": existing_gap,
+            "legacy_new_counter_gap": new_gap,
+            "post_migration_counter_value_survived_reverse": True,
+            "preexisting_ledger_digest": before_events[1],
+            "preexisting_ledger_events": before_events[0],
+            "preserved_all_preexisting_ledger_rows": True,
+            "reapply_through_0071_seconds": round(reapply_seconds, 3),
+            "removed_event_references": REMOVED,
+            "reverse_seconds": round(reverse_seconds, 3),
+            "selective_reverse_preserved_unrelated_checkpoint": True,
+            "total_seconds": round(time.perf_counter() - whole_started, 3),
+            "zero_values": ZERO,
         },
         indent=2,
         sort_keys=True,
