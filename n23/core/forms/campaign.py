@@ -689,16 +689,18 @@ class CampaignResourceTypeForm(forms.ModelForm):
 
     class Meta:
         model = CampaignResourceType
-        fields = ["name", "description", "default_amount"]
+        fields = ["name", "description", "default_amount", "can_go_negative"]
         labels = {
             "name": "Resource Name",
             "description": "Description",
             "default_amount": "Default Amount",
+            "can_go_negative": "Can go negative",
         }
         help_texts = {
             "name": "Name of the resource (e.g., 'Meat', 'Credits', 'Ammo')",
             "description": "Describe what this resource represents and how it's used",
             "default_amount": "Amount given to each gang when the campaign starts",
+            "can_go_negative": "This resource can have a negative amount.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
@@ -708,7 +710,21 @@ class CampaignResourceTypeForm(forms.ModelForm):
             "default_amount": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0}
             ),
+            "can_go_negative": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Reputation keeps a hard floor of zero; do not offer the flag.
+        if self.instance.pk and self.instance.is_default_reputation():
+            self.fields.pop("can_go_negative", None)
+
+    def clean_can_go_negative(self):
+        can_go_negative = self.cleaned_data["can_go_negative"]
+        name = self.cleaned_data.get("name") or self.instance.name
+        if CampaignResourceType.is_reputation_name(name) and can_go_negative:
+            raise forms.ValidationError("Reputation cannot go below zero.")
+        return can_go_negative
 
 
 class ResourceModifyForm(forms.Form):
@@ -728,7 +744,7 @@ class ResourceModifyForm(forms.Form):
         modification = self.cleaned_data["modification"]
         new_amount = self.resource.amount + modification
 
-        if new_amount < 0:
+        if self.resource.would_go_below_floor(new_amount):
             raise forms.ValidationError(
                 f"Cannot reduce {self.resource.resource_type.name} below zero. "
                 f"Current amount: {self.resource.amount}, "

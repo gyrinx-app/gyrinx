@@ -1,3 +1,6 @@
-{% include "core/includes/form_field.html" with field=form.name %}
-{% include "core/includes/form_field.html" with field=form.description %}
-{% include "core/includes/form_field.html" with field=form.default_amount %}
+<c-form.field :field="form.name" />
+<c-form.field :field="form.description" />
+<c-form.field :field="form.default_amount" />
+{% if "can_go_negative" in form.fields %}
+    <c-form.field :field="form.can_go_negative" />
+{% endif %}

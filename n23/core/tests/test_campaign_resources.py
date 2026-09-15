@@ -185,6 +185,25 @@ def test_resource_cannot_go_negative(content_house):
 
 
 @pytest.mark.django_db
+def test_would_go_below_floor_ignores_missing_amount(content_house, user):
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign, name="Credits", owner=user
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=10,
+        owner=user,
+    )
+    assert resource.would_go_below_floor(None) is False
+
+
+@pytest.mark.django_db
 def test_resource_modification_requires_user(content_house):
     """Test that resource modification requires a user."""
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -652,3 +671,490 @@ def test_campaign_detail_does_not_create_resources_for_pre_campaign(content_hous
 
     # Verify NO resources were created (should wait until campaign starts)
     assert CampaignListResource.objects.filter(campaign=campaign).count() == 0
+
+
+@pytest.mark.django_db
+def test_resource_can_go_negative_when_type_allows(content_house, user):
+    """A type marked can_go_negative may drop below zero."""
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=2,
+        owner=user,
+    )
+
+    resource.modify_amount(-5, user=user)
+    resource.refresh_from_db()
+    assert resource.amount == -3
+
+    action = CampaignAction.objects.filter(campaign=campaign).latest("created")
+    assert action.description == ("Heat Update: Test Gang lost 5 Heat (new total: -3)")
+
+
+@pytest.mark.django_db
+def test_resource_modify_form_allows_negative_when_type_allows(content_house, user):
+    from n23.core.forms.campaign import ResourceModifyForm
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=2,
+        owner=user,
+    )
+
+    form = ResourceModifyForm(data={"modification": -5}, resource=resource)
+    assert form.is_valid()
+
+
+@pytest.mark.django_db
+def test_resource_type_form_hides_flag_on_reputation(user):
+    from n23.core.forms.campaign import CampaignResourceTypeForm
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    reputation = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Reputation",
+        owner=user,
+    )
+
+    form = CampaignResourceTypeForm(instance=reputation)
+    assert "can_go_negative" not in form.fields
+
+    # A POST that tries to flip the flag is ignored because the field is absent.
+    form = CampaignResourceTypeForm(
+        data={
+            "name": "Reputation",
+            "description": "",
+            "default_amount": "1",
+            "can_go_negative": "on",
+        },
+        instance=reputation,
+    )
+    assert form.is_valid()
+    form.save()
+    reputation.refresh_from_db()
+    assert reputation.can_go_negative is False
+
+
+@pytest.mark.django_db
+def test_resource_type_form_rejects_negative_reputation_name(user):
+    from n23.core.forms.campaign import CampaignResourceTypeForm
+
+    form = CampaignResourceTypeForm(
+        data={
+            "name": "Reputation",
+            "description": "",
+            "default_amount": "1",
+            "can_go_negative": "on",
+        }
+    )
+    assert not form.is_valid()
+    assert "Reputation cannot go below zero." in str(form.errors)
+
+
+@pytest.mark.django_db
+def test_resource_type_form_refuses_uncheck_while_negative(content_house, user):
+    from n23.core.forms.campaign import CampaignResourceTypeForm
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    campaign.lists.add(list_obj)
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=-4,
+        owner=user,
+    )
+
+    form = CampaignResourceTypeForm(
+        data={
+            "name": "Heat",
+            "description": "",
+            "default_amount": "0",
+        },
+        instance=resource_type,
+    )
+    assert not form.is_valid()
+    assert "You cannot turn this off while a gang has a negative amount." in str(
+        form.errors
+    )
+
+
+@pytest.mark.django_db
+def test_resource_type_form_can_uncheck_when_no_negatives(content_house, user):
+    from n23.core.forms.campaign import CampaignResourceTypeForm
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=0,
+        owner=user,
+    )
+
+    form = CampaignResourceTypeForm(
+        data={
+            "name": "Heat",
+            "description": "",
+            "default_amount": "0",
+        },
+        instance=resource_type,
+    )
+    assert form.is_valid()
+    form.save()
+    resource_type.refresh_from_db()
+    assert resource_type.can_go_negative is False
+
+
+@pytest.mark.django_db
+def test_create_resource_type_with_can_go_negative(client, user):
+    client.force_login(user)
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+
+    response = client.get(
+        reverse("core:campaign-resource-type-new", args=[campaign.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Can go negative" in content
+    assert "This resource can have a negative amount." in content
+
+    response = client.post(
+        reverse("core:campaign-resource-type-new", args=[campaign.id]),
+        {
+            "name": "Heat",
+            "description": "",
+            "default_amount": "0",
+            "can_go_negative": "on",
+        },
+    )
+    assert response.status_code == 302
+    resource_type = CampaignResourceType.objects.get(campaign=campaign, name="Heat")
+    assert resource_type.can_go_negative is True
+
+
+@pytest.mark.django_db
+def test_resource_type_admin_omits_can_go_negative_for_reputation(admin_client, user):
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    reputation = CampaignResourceType.objects.create(
+        campaign=campaign, name="Reputation", owner=user
+    )
+    heat = CampaignResourceType.objects.create(
+        campaign=campaign, name="Heat", owner=user
+    )
+
+    reputation_response = admin_client.get(
+        reverse("admin:core_campaignresourcetype_change", args=[reputation.pk])
+    )
+    assert reputation_response.status_code == 200
+    assert b'name="can_go_negative"' not in reputation_response.content
+
+    heat_response = admin_client.get(
+        reverse("admin:core_campaignresourcetype_change", args=[heat.pk])
+    )
+    assert heat_response.status_code == 200
+    assert b'name="can_go_negative"' in heat_response.content
+
+
+@pytest.mark.django_db
+def test_edit_reputation_type_omits_can_go_negative_field(client, user):
+    client.force_login(user)
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    reputation = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Reputation",
+        default_amount=1,
+        owner=user,
+    )
+
+    response = client.get(
+        reverse(
+            "core:campaign-resource-type-edit",
+            args=[campaign.id, reputation.id],
+        )
+    )
+    assert response.status_code == 200
+    assert "Can go negative" not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_get_list_campaign_resources_includes_negatives_hides_zero(content_house, user):
+    from n23.core.utils import get_list_campaign_resources
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+    heat = CampaignResourceType.objects.create(
+        campaign=campaign, name="Heat", can_go_negative=True, owner=user
+    )
+    meat = CampaignResourceType.objects.create(
+        campaign=campaign, name="Meat", owner=user
+    )
+    list_obj = List.objects.create(
+        name="Test Gang",
+        owner=user,
+        content_house=content_house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=heat,
+        list=list_obj,
+        amount=-3,
+        owner=user,
+    )
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=meat,
+        list=list_obj,
+        amount=0,
+        owner=user,
+    )
+
+    resources = list(get_list_campaign_resources(list_obj))
+    assert [r.resource_type.name for r in resources] == ["Heat"]
+    assert resources[0].amount == -3
+
+
+@pytest.mark.django_db
+def test_list_view_shows_negative_campaign_resource(client, user, content_house):
+    client.force_login(user)
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+    heat = CampaignResourceType.objects.create(
+        campaign=campaign, name="Heat", can_go_negative=True, owner=user
+    )
+    list_obj = List.objects.create(
+        name="Test Gang",
+        owner=user,
+        content_house=content_house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=heat,
+        list=list_obj,
+        amount=-3,
+        owner=user,
+    )
+
+    response = client.get(reverse("core:list", kwargs={"id": list_obj.id}))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Heat" in content
+    assert "-3" in content
+
+
+@pytest.mark.django_db
+def test_reputation_stays_floored_even_if_flag_is_set(content_house, user):
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Reputation",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=2,
+        owner=user,
+    )
+
+    with pytest.raises(ValueError, match="Cannot reduce Reputation below zero"):
+        resource.modify_amount(-5, user=user)
+    resource.refresh_from_db()
+    assert resource.amount == 2
+
+
+@pytest.mark.django_db
+def test_resource_type_form_ignores_negative_on_removed_gang(content_house, user):
+    from n23.core.forms.campaign import CampaignResourceTypeForm
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    campaign.lists.add(list_obj)
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=-4,
+        owner=user,
+    )
+    campaign.lists.remove(list_obj)
+
+    form = CampaignResourceTypeForm(
+        data={
+            "name": "Heat",
+            "description": "",
+            "default_amount": "0",
+        },
+        instance=resource_type,
+    )
+    assert form.is_valid()
+    form.save()
+    resource_type.refresh_from_db()
+    assert resource_type.can_go_negative is False
+
+
+@pytest.mark.django_db
+def test_list_resource_clean_rejects_negative_on_floored_type(content_house, user):
+    from django.core.exceptions import ValidationError
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Credits",
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    resource = CampaignListResource(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=-1,
+        owner=user,
+    )
+
+    with pytest.raises(ValidationError, match="Cannot reduce Credits below zero"):
+        resource.full_clean()
+
+
+@pytest.mark.django_db
+def test_resource_type_clean_rejects_negative_reputation(user):
+    from django.core.exceptions import ValidationError
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType(
+        campaign=campaign,
+        name="Reputation",
+        can_go_negative=True,
+        owner=user,
+    )
+
+    with pytest.raises(ValidationError, match="Reputation cannot go below zero"):
+        resource_type.full_clean()
+
+
+@pytest.mark.django_db
+def test_resource_type_clean_refuses_uncheck_while_negative(content_house, user):
+    from django.core.exceptions import ValidationError
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    campaign.lists.add(list_obj)
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=-4,
+        owner=user,
+    )
+
+    resource_type.can_go_negative = False
+    with pytest.raises(
+        ValidationError,
+        match="You cannot turn this off while a gang has a negative amount.",
+    ):
+        resource_type.full_clean()
+
+
+@pytest.mark.django_db
+def test_resource_type_clean_refuses_uncheck_when_moved_to_another_campaign(
+    content_house, user
+):
+    from django.core.exceptions import ValidationError
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user)
+    other = Campaign.objects.create(name="Other Campaign", owner=user)
+    resource_type = CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Heat",
+        can_go_negative=True,
+        owner=user,
+    )
+    list_obj = List.objects.create(
+        name="Test Gang", owner=user, content_house=content_house
+    )
+    campaign.lists.add(list_obj)
+    CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=resource_type,
+        list=list_obj,
+        amount=-4,
+        owner=user,
+    )
+
+    resource_type.campaign = other
+    resource_type.can_go_negative = False
+    with pytest.raises(
+        ValidationError,
+        match="You cannot turn this off while a gang has a negative amount.",
+    ):
+        resource_type.full_clean()

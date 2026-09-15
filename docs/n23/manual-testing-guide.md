@@ -318,14 +318,16 @@ This guide provides comprehensive test scenarios for the Gyrinx application, cov
 - Campaign owner defines resource types (e.g., Meat, Ammo)
 - Resources tracked per gang with quantities
 - Can add/subtract resources with validation
-- Cannot go below 0 resources
+- Cannot go below 0 unless the resource type is marked as able to go negative
+- Reputation cannot go below 0
 
 ### Test Cases
 
 | Scenario             | Steps                                         | Expected Result                               |
 | -------------------- | --------------------------------------------- | --------------------------------------------- |
 | Asset transfer       | Transfer territory between gangs              | Asset ownership updates correctly             |
-| Resource depletion   | Try to subtract more resources than available | Error: would go negative                      |
+| Resource depletion   | Subtract more than available on a floored type | Error: would go negative                     |
+| Negative resource    | Subtract below zero on a type that can go negative | Amount is negative                       |
 | Multiple resources   | Add multiple resource types to gang           | All shown with correct quantities             |
 | Archived gang assets | Archive gang with assets                      | Assets still visible but gang marked archived |
 

@@ -46,6 +46,7 @@
             const previewCard = document.getElementById('preview-card');
             const newAmountSpan = document.getElementById('new-amount');
             const currentAmount = {{ resource.amount }};
+            const canGoNegative = {{ resource.resource_type.allows_negative_amounts|yesno:"true,false" }};
 
             function updatePreview() {
                 const modification = parseInt(modificationInput.value) || 0;
@@ -55,7 +56,7 @@
                     previewCard.classList.remove('d-none');
                     newAmountSpan.textContent = newAmount;
 
-                    if (newAmount < 0) {
+                    if (newAmount < 0 && !canGoNegative) {
                         newAmountSpan.className = 'badge text-bg-danger fs-5';
                     } else {
                         newAmountSpan.className = 'badge text-bg-success fs-5';

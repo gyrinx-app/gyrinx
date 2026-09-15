@@ -286,6 +286,34 @@ def test_copy_campaign_content_copies_resource_types(user, make_campaign):
     assert copied_type.name == "Meat"
     assert copied_type.description == "Food for the gang"
     assert copied_type.default_amount == 10
+    assert copied_type.can_go_negative is False
+
+
+@pytest.mark.django_db
+def test_copy_campaign_content_copies_can_go_negative(user, make_campaign):
+    """Copied resource types keep the can-go-negative flag."""
+    source = make_campaign("Source Campaign")
+    target = make_campaign("Target Campaign")
+
+    resource_type = CampaignResourceType.objects.create(
+        campaign=source,
+        owner=user,
+        name="Heat",
+        description="Attention from the authorities",
+        default_amount=0,
+        can_go_negative=True,
+    )
+
+    result = copy_campaign_content(
+        source_campaign=source,
+        target_campaign=target,
+        user=user,
+        resource_type_ids=[str(resource_type.id)],
+    )
+
+    assert result.resource_types_copied == 1
+    copied_type = target.resource_types.get(name="Heat")
+    assert copied_type.can_go_negative is True
 
 
 @pytest.mark.django_db

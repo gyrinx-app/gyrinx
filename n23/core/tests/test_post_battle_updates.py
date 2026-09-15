@@ -695,6 +695,38 @@ def test_post_battle_resource_delta(
 
 
 @pytest.mark.django_db
+def test_post_battle_resource_delta_can_go_negative(
+    client, user, list_with_campaign, make_list_fighter
+):
+    from n23.core.models.campaign import (
+        CampaignListResource,
+        CampaignResourceType,
+    )
+
+    client.force_login(user)
+    make_list_fighter(list_with_campaign, "F1")
+    campaign = list_with_campaign.campaign
+    rtype = CampaignResourceType.objects.create(
+        campaign=campaign, name="Heat", can_go_negative=True, owner=user
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=rtype,
+        list=list_with_campaign,
+        amount=2,
+        owner=user,
+    )
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"resource_{resource.pk}": "-5"},
+    )
+    assert resp.status_code == 302
+    resource.refresh_from_db()
+    assert resource.amount == -3
+
+
+@pytest.mark.django_db
 def test_post_battle_asset_claim(
     client, user, list_with_campaign, make_list, make_list_fighter
 ):
