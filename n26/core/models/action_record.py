@@ -58,6 +58,7 @@ class ActionAllowance(Base):
                     )
                     | models.Q(
                         source_kind="rank",
+                        threshold__isnull=False,
                         threshold__gt=0,
                         rank_table__isnull=False,
                     )

@@ -90,7 +90,8 @@ def test_allowance_must_name_its_fighters_recruitment(
         allowance.full_clean()
 
 
-def test_rank_allowance_threshold_must_be_positive(fighter, action):
+@pytest.mark.parametrize("threshold", [None, 0])
+def test_rank_allowance_threshold_must_be_positive(threshold, fighter, action):
     xp = Counter.objects.create(name="XP")
     ranks = RankTable.objects.create(name="Standard ranks", counter=xp)
     with pytest.raises(IntegrityError), transaction.atomic():
@@ -99,9 +100,23 @@ def test_rank_allowance_threshold_must_be_positive(fighter, action):
             fighter=fighter,
             recruitment=fighter.membership,
             source_kind=ActionAllowance.Source.RANK,
-            threshold=0,
+            threshold=threshold,
             rank_table=ranks,
         )
+
+
+def test_rank_allowance_accepts_a_positive_threshold(fighter, action):
+    xp = Counter.objects.create(name="XP")
+    ranks = RankTable.objects.create(name="Standard ranks", counter=xp)
+    allowance = ActionAllowance.objects.create(
+        action=action,
+        fighter=fighter,
+        recruitment=fighter.membership,
+        source_kind=ActionAllowance.Source.RANK,
+        threshold=1,
+        rank_table=ranks,
+    )
+    assert allowance.threshold == 1
 
 
 def test_request_keys_are_idempotent_within_a_gang(gang, fighter, action):
