@@ -1,0 +1,11 @@
+flowchart TD
+  S[Choose outcome and all required selections] --> U[Save unpaid ActionRecord for later continuation]
+  U --> R[Review selected result and every Price Component]
+  U --> C[Cancel unfinished record: no payment to refund]
+  R --> F[Final confirmation under the gang lock]
+  F -->|Already completed| E[Return existing ActionRecord and receipt]
+  F -->|Still unfinished| V[Validate record revision, review, balances and exact targets]
+  V -->|Changed or insufficient| B[Refresh review or selections without charging]
+  B --> R
+  V -->|Valid| A[Commit every debit, result change and completed state together]
+  A -->|Failure before commit| X[Roll back debits and result changes; record remains unfinished]
