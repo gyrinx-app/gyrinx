@@ -253,6 +253,10 @@ class Operation(models.TextChoices):
         "n26_activate_counter_history",
         "n26: activate counter history",
     )
+    INITIALISE_ACTION_ALLOWANCES = (
+        "n26_initialise_action_allowances",
+        "n26: existing fighters receive earned action allowances",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -277,6 +281,7 @@ LOCK_KEYS = {
     Operation.CLEAR_ITEM_RESTRICTIONS: 826_020_623,
     Operation.ORDER_COLLECTIONS: 826_020_625,
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
+    Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
 }
 
 
@@ -453,6 +458,7 @@ def run_batched(
     batch_size=BATCH_SIZE,
     budget=BATCH_BUDGET,
     refusals=(),
+    stand_down=None,
 ):
     """Work through ``items`` one at a time, each on its own commit,
     remembering how far it got.
@@ -500,12 +506,14 @@ def run_batched(
     swallowing it would leave no delivery to finish the run.
     """
     continued = False
+    contended = False
     with _single_flight(LOCK_KEYS[operation]) as mine:
         if not mine:
             logger.info("%s already running; this copy stands down", what)
-            return
-        may_start, why_not = _claim(backfill_id)
-        if not may_start:
+            contended = True
+        if mine:
+            may_start, why_not = _claim(backfill_id)
+        if mine and not may_start:
             logger.info("%s not started: %s", what, why_not)
             _write(
                 backfill_id,
@@ -513,40 +521,38 @@ def run_batched(
                 error=f"Not started: {why_not}",
             )
             return
-        try:
-            work_list = items() if callable(items) else items
-            if work_list is not None:
-                continued = _work_through(
-                    backfill_id, what, work_list, do_one, batch_size, budget
-                )
-            elif Backfill.objects.filter(
-                pk=backfill_id, status=Backfill.Status.RUNNING
-            ).exists():
-                # Nothing to walk and no ending written: left alone, the
-                # record would say RUNNING for ever with no delivery
-                # coming to finish it.
+        if mine:
+            try:
+                work_list = items() if callable(items) else items
+                if work_list is not None:
+                    continued = _work_through(
+                        backfill_id, what, work_list, do_one, batch_size, budget
+                    )
+                elif Backfill.objects.filter(
+                    pk=backfill_id, status=Backfill.Status.RUNNING
+                ).exists():
+                    _write(
+                        backfill_id,
+                        status=Backfill.Status.FAILED,
+                        error=(
+                            "The work-list reported nothing to walk but wrote no "
+                            "ending onto the record."
+                        ),
+                    )
+            except refusals as refused:
+                _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
+            except WritesPaused:
+                raise
+            except Exception as broke:  # noqa: BLE001 — the ending must be recorded
+                logger.exception("%s broke", what)
                 _write(
                     backfill_id,
                     status=Backfill.Status.FAILED,
-                    error=(
-                        "The work-list reported nothing to walk but wrote no "
-                        "ending onto the record."
-                    ),
+                    error=f"{broke}\n\n{traceback.format_exc()}",
                 )
-        except refusals as refused:
-            # Refused before any row was walked, so the record ends in
-            # the refusal's own words with nothing to unwind.
-            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
-        except WritesPaused:
-            raise
-        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
-            logger.exception("%s broke", what)
-            _write(
-                backfill_id,
-                status=Backfill.Status.FAILED,
-                error=f"{broke}\n\n{traceback.format_exc()}",
-            )
-    if continued:
+    if contended and stand_down is not None:
+        stand_down()
+    elif continued:
         again()
 
 
@@ -672,6 +678,7 @@ def run_per_gang(
     batch_size=PER_GANG_BATCH_SIZE,
     budget=BATCH_BUDGET,
     refusals=(),
+    stand_down=None,
 ):
     """Run a repair that works through players' gangs one at a time.
 
@@ -707,6 +714,8 @@ def run_per_gang(
         ids = backfill.summary.get("gang_ids")
         if ids is None:
             plan = find()
+            if plan is None:
+                return None
             if plan.problems:
                 raise PlanRefused(
                     f"{what} cannot run: " + "; ".join(plan.problems) + "."
@@ -732,6 +741,7 @@ def run_per_gang(
         batch_size=batch_size,
         budget=budget,
         refusals=(PlanRefused, *refusals),
+        stand_down=stand_down,
     )
 
 
@@ -1778,6 +1788,121 @@ register_operation(
 )
 
 
+@task
+def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
+    """Give existing fighters the rank allowances earned since recruitment."""
+    from n26.core.action_initialisation import apply_one, find
+
+    operation = Operation.INITIALISE_ACTION_ALLOWANCES
+
+    def find_once():
+        # run_per_gang calls this only after taking the operation's
+        # single-flight lock, so two queued records cannot both pass the
+        # permanent one-off decision.
+        if (
+            Backfill.objects.filter(operation=operation, status=Backfill.Status.DONE)
+            .exclude(pk=backfill_id)
+            .exists()
+        ):
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error="Existing fighter allowances were already initialised.",
+            )
+            return None
+        return find()
+
+    run_per_gang(
+        backfill_id,
+        operation=operation,
+        what="Existing fighter action allowances",
+        find=find_once,
+        apply_one=apply_one,
+        again=lambda: initialise_action_allowances.enqueue(backfill_id=backfill_id),
+        stand_down=lambda: initialise_action_allowances.enqueue(
+            backfill_id=backfill_id
+        ),
+    )
+
+
+def initialise_action_allowances_view(request):
+    """Preview the legacy fighter plan, or enqueue its recorded run."""
+    from n26.core.action_initialisation import find
+
+    operation = Operation.INITIALISE_ACTION_ALLOWANCES
+    address = reverse(f"admin:maintenance_{operation.value}")
+    completed = Backfill.objects.filter(
+        operation=operation, status=Backfill.Status.DONE
+    ).first()
+    if request.method == "POST" and completed is not None:
+        messages.info(request, "Existing fighter allowances were already initialised.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[completed.id])
+        )
+    plan = None if completed is not None else find()
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That initialisation is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        if plan.problems:
+            if len(plan.problems) == 1:
+                messages.error(request, plan.problems[0])
+            else:
+                messages.error(
+                    request,
+                    "Resolve the reported problems before initialising allowances.",
+                )
+            return HttpResponseRedirect(address)
+        if plan.nothing_here:
+            messages.info(
+                request, "There are no existing fighter allowances to initialise."
+            )
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": plan.preview(), "attempts": 0},
+        )
+        initialise_action_allowances.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The initialisation is running.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    context = page_context(
+        request,
+        operation.label,
+        plan=plan,
+        completed=completed,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(
+        request,
+        "admin/maintenance/n26/initialise_action_allowances.html",
+        context,
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.INITIALISE_ACTION_ALLOWANCES.value,
+        name=Operation.INITIALISE_ACTION_ALLOWANCES.label,
+        added=date(2026, 9, 14),
+        description=(
+            "Give existing fighters the action uses earned by XP thresholds crossed "
+            "since recruitment. Missing starting values are reported and skipped; "
+            "conflicting rank tables refuse the run. Each gang is proved before and after."
+        ),
+        view=initialise_action_allowances_view,
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
+    )
+)
+
+
 register_operation(
     MaintenanceOperation(
         operation=Operation.REHOST_GANG_PICKS.value,
@@ -2776,6 +2901,7 @@ task_routes = [
     N26TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(initialise_action_allowances, ack_deadline=600),
 ]
 
 
