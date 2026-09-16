@@ -18,6 +18,7 @@ from n26.core.models.campaign import (
     CampaignMembership,
     CampaignParticipant,
 )
+from n26.core.models.counter_tracking import CounterTracking
 from n26.core.models.dismissed_offer import DismissedOffer
 from n26.core.models.gang import Gang
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
@@ -52,6 +53,7 @@ __all__ = [
     "CampaignParticipant",
     "ChosenProfileOption",
     "CounterValue",
+    "CounterTracking",
     "DismissedOffer",
     "Gang",
     "LedgerEntry",

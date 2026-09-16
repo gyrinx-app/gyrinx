@@ -16,7 +16,11 @@ from n26.core.models import (
 from n26.core.operations import operation
 from n26.library.models import Action, Counter, RankTable
 
-pytestmark = [pytest.mark.django_db, pytest.mark.core]
+pytestmark = [
+    pytest.mark.django_db,
+    pytest.mark.core,
+    pytest.mark.usefixtures("counter_tracking"),
+]
 
 
 @pytest.fixture

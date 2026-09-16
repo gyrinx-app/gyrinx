@@ -20,6 +20,20 @@ from n26.library.standard_content import MODEL_CHARACTERISTICS, MODEL_STATLINE
 FOUNDING_GROUP_NAME = "Founding preview"
 
 
+@pytest.fixture
+def counter_tracking(db):
+    """An installation whose counter checkpoint has already finished."""
+    from uuid import uuid4
+
+    from django.utils import timezone
+
+    from n26.core.models import CounterTracking
+
+    return CounterTracking.objects.create(
+        activated_at=timezone.now(), activation_run=uuid4()
+    )
+
+
 def admit_to_founding(*users):
     """Put these accounts on the founding flag's allowlist, creating the
     flag and its group where they do not exist yet.
