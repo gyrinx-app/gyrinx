@@ -6,7 +6,13 @@ from django.db import transaction
 
 from gyrinx.site.write_pause import (
     WritesPaused,
+    bind_paused_consumer,
+    exclusive_write_scope,
+    pause_scope,
+    pause_status,
     register_write_scope,
+    release_paused_consumer,
+    resume_scope,
 )
 from gyrinx.site.write_pause import (
     require_paused_consumer as _require_paused_consumer,
@@ -48,7 +54,13 @@ def require_paused_consumer(*, run_id, generation):
 __all__ = [
     "SCOPE",
     "WritesPaused",
+    "bind_paused_consumer",
+    "exclusive_write_scope",
     "guarded_write",
+    "pause_scope",
+    "pause_status",
+    "release_paused_consumer",
     "require_paused_consumer",
+    "resume_scope",
     "write_guard",
 ]
