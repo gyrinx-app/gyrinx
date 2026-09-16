@@ -70,6 +70,12 @@ ledger or a general workflow language.
 
 ## Standard content and activation
 
+Schema deployment leaves counter tracking inactive. Fighter Action flows refuse
+to start in that state. Open the counter-history maintenance page, start
+activation, and wait for the checkpoint and audit run to finish. The run leaves
+n26 writes paused; resume them manually before continuing. Schema migration does
+not write counter checkpoints or enable the flows.
+
 The standard-content entry `fighter-actions` creates these definitions:
 
 | Action | Use price or earned use | Outcomes |
@@ -91,12 +97,15 @@ Author those links with existing built-ins or modifiers:
    Set its picklist members' numeric levels to 1, 2 and 3. Level 0 means the
    item's empty slot; it is not a picklist member. Each tier contains its complete
    effects because choosing it replaces the previous tier.
-5. After those links are ready, use the existing-fighter allowance maintenance
-   operation once. It assumes none of the eligible advancements have been used.
+5. After counter activation has completed, writes have been resumed and those
+   links are ready, use the existing-fighter allowance maintenance operation
+   once. It assumes none of the eligible advancements have been used.
 
-These are content activation steps for the maintainer. The PR stack does not
-change production content or run the existing-fighter operation automatically.
-Existing Power Boost picks and their history remain intact.
+These are explicit maintainer steps: deploy, activate counter history, manually
+resume writes, seed and bind the content, then initialise existing-fighter
+allowances once. The PR stack does not change production content or run either
+maintenance operation automatically. Existing Power Boost picks and their
+history remain intact.
 
 Random skill choices preserve recorded dice. Switching to a new skill category
 uses the saved die; returning to a category restores that category's accepted

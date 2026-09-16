@@ -763,7 +763,7 @@ actor_created_batch: existing ledger metadata
 
 - Tier changes link to the existing item slot; the action record does not own that slot through caused_by.
 
-- Counter movements need structured opening and adjustment records for reconciliation. Existing counters require a migration checkpoint; do not parse old notes as financial truth.
+- Counter movements need structured opening and adjustment records for reconciliation. Existing counters require explicit checkpoint activation while n26 writes are paused; schema migration does not write player history, and old notes are not parsed as financial truth.
 
 - Correction events preserve the exact original result references, affected items and before/after states. Updating ActionRecord.selection must not erase the original history. A cross-item correction links the reversal on the original item and replacement on the new item to the same action record and transaction.
 
