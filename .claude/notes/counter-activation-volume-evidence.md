@@ -59,6 +59,16 @@ not predict production duration, real gang-size distribution or waiting for live
 requests to drain. Separate two-connection tests exercise writer draining. The
 old/new writer check here reproduces their persisted shapes sequentially.
 
+## Follow-up audit
+
+The final records changes require complete amounts on every opening and
+checkpoint, and reject counter events attached to another gang or a second
+baseline. On 16 September, the assembled stack at `62afe170b` migrated the same
+populated rehearsal database successfully, including those new constraints.
+The updated reconciliation then checked all 19,940 counter histories with no
+problems; all 19,940 checkpoints remained present. This was an additional
+populated-data migration and audit, not a repeat of the timed activation above.
+
 ## Reproduce
 
 The script refuses databases outside `wren_counter_activation_evidence_` and
