@@ -17,9 +17,9 @@ You are helping create a GitHub issue from an analysis or research document. The
 
 The analysis file path is: $1
 
-If no path is provided, look for the most recently modified `.md` file in `.claude/notes/`:
+If no path is provided, look for the most recently modified `.md` file in the external Gyrinx agent-notes directory:
 
-!`ls -t .claude/notes/*.md 2>/dev/null | head -1`
+!`python3 -c 'from pathlib import Path; files = list((Path.home() / ".local/share/gyrinx/agent-notes").rglob("*.md")); print(max(files, key=lambda path: path.stat().st_mtime) if files else "")'`
 
 Read the analysis file to understand its contents.
 

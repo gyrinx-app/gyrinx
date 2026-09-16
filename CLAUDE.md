@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Documentation Guidelines
 
-- **`.claude/notes/`** - Internal documentation and plans created by Claude to help with its work
-- **`docs/`** - Documentation for humans (user guides, API docs, etc.)
-- When creating analysis documents, optimization plans, or working notes, place them in `.claude/notes/`
-- Only create user-facing documentation in `docs/` when explicitly requested
+- Store private working notes, analysis, scratch review data, logs and agent continuity outside the repository under `~/.local/share/gyrinx/agent-notes/<task>/`. Use one directory per task so the material is available from every worktree. Never stage or commit it.
+- `.claude/notes/` contains legacy tracked material. Do not create new working notes there.
+- Put requested user-facing deliverables in the appropriate versioned `docs/`, `design/` or script path only when they are part of the project, rather than private agent memory.
 
 ## Quick Reference (Most Important)
 
@@ -175,8 +174,7 @@ in the workflow.
 
 - `/manual-test-plan [notes]` — Generate a manual test plan for recent changes, formatted for Claude for Chrome.
   Run after implementing a feature to create a browser-testable checklist.
-- `/gissue <path>` — Create a GitHub issue from an analysis file (e.g., from `.claude/notes/`), uploading the full
-  analysis to a gist and creating a summary issue.
+- `/gissue <path>` — Create a GitHub issue from an analysis file (for example, from the task's external agent-notes directory), uploading the full analysis to a gist and creating a summary issue.
 - `/trace-playbook <trace-file>` — Run the full trace performance analysis playbook on a Google Cloud Trace JSON file.
 - `/feature-dev [description]` — Guided 7-phase feature development workflow: discovery, codebase exploration,
   clarifying questions, architecture design, implementation, quality review, and summary. Uses `code-explorer`,
