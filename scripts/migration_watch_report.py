@@ -74,6 +74,20 @@ def build(report_dir):
         return "error", "could not fetch the branch", problems, notes
 
     if outcome("MERGE") != "success":
+        # A branch whose base is another branch conflicts with main whenever an
+        # ancestor has been squash-merged, because main holds the squashed
+        # version and this chain still holds the originals. That resolves when
+        # the branch below lands, so it is a note rather than a problem.
+        base = os.environ.get("PR_BASE", "main")
+        if base != "main":
+            notes.append(
+                f"This branch does not merge into main yet. It is stacked on `{base}`, which is "
+                "still open, so main can hold a squashed version of a commit this chain still "
+                "carries. Expect this to clear when that branch lands, or rebase onto main then. "
+                "The migration checks need a merge, so none of them ran.\n\n"
+                f"```\n{tail(report_dir / 'merge.log')}\n```"
+            )
+            return "pending", f"not checked, stacked on {base}", problems, notes
         problems.append(
             "**Does not merge into main.** Git reports a conflict; the checks below need a merge to run.\n\n"
             f"```\n{tail(report_dir / 'merge.log')}\n```"

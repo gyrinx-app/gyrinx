@@ -127,11 +127,23 @@ def test_a_failing_check_is_a_problem(run):
     assert "next deploy would fail" in problems[0]
 
 
-def test_a_branch_that_does_not_merge_is_a_problem(run):
+def test_a_branch_that_does_not_merge_is_a_problem(run, monkeypatch):
+    monkeypatch.setenv("PR_BASE", "main")
     state, headline, problems, _ = run(FETCH="success", MERGE="failure")
     assert state == "failure"
     assert headline == "conflicts with main"
     assert "Does not merge into main" in problems[0]
+
+
+def test_a_stacked_branch_that_does_not_merge_is_only_a_note(run, monkeypatch):
+    # Main holds a squashed ancestor this chain still carries unsquashed. That
+    # clears when the branch below lands, so it is not this branch's problem.
+    monkeypatch.setenv("PR_BASE", "codex/the-branch-below")
+    state, headline, problems, notes = run(FETCH="success", MERGE="failure")
+    assert state == "pending"
+    assert "codex/the-branch-below" in headline
+    assert problems == []
+    assert any("stacked on" in note for note in notes)
 
 
 def test_a_branch_that_could_not_be_fetched_is_an_error(run):

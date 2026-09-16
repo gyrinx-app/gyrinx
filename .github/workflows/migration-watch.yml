@@ -48,13 +48,15 @@ jobs:
           EVENT: ${{ github.event_name }}
           THIS_PR: ${{ github.event.pull_request.number }}
           THIS_SHA: ${{ github.event.pull_request.head.sha }}
+          THIS_BASE: ${{ github.event.pull_request.base.ref }}
           ASKED_PR: ${{ inputs.pr }}
         run: |
           if [ "$EVENT" = "pull_request" ]; then
-            prs=$(jq -cn --argjson n "$THIS_PR" --arg sha "$THIS_SHA" '[{number: $n, sha: $sha}]')
+            prs=$(jq -cn --argjson n "$THIS_PR" --arg sha "$THIS_SHA" --arg base "$THIS_BASE" \
+              '[{number: $n, sha: $sha, base: $base}]')
           elif [ -n "$ASKED_PR" ]; then
-            prs=$(gh pr view "$ASKED_PR" --repo "$GITHUB_REPOSITORY" --json number,headRefOid \
-              | jq -c '[{number: .number, sha: .headRefOid}]')
+            prs=$(gh pr view "$ASKED_PR" --repo "$GITHUB_REPOSITORY" --json number,headRefOid,baseRefName \
+              | jq -c '[{number: .number, sha: .headRefOid, base: .baseRefName}]')
           else
             # One diff listing per open pull request: `--json files` stops at
             # a hundred files and would hide a migration in a large change.
@@ -62,7 +64,9 @@ jobs:
             for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number --jq '.[].number'); do
               if gh pr diff "$pr" --repo "$GITHUB_REPOSITORY" --name-only | grep -Eq '/migrations/[^/]+\.py$'; then
                 sha=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
-                prs=$(jq -cn --argjson list "$prs" --argjson n "$pr" --arg sha "$sha" '$list + [{number: $n, sha: $sha}]')
+                base=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)
+                prs=$(jq -cn --argjson list "$prs" --argjson n "$pr" --arg sha "$sha" --arg base "$base" \
+                  '$list + [{number: $n, sha: $sha, base: $base}]')
               fi
             done
           fi
@@ -104,6 +108,7 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
       PR_NUMBER: ${{ matrix.pr.number }}
       PR_SHA: ${{ matrix.pr.sha }}
+      PR_BASE: ${{ matrix.pr.base }}
       REPORT_DIR: ${{ github.workspace }}/.migration-watch
     steps:
       # No token left in .git/config: the branch's own code runs in this job,
