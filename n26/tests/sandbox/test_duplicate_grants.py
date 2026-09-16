@@ -219,7 +219,7 @@ class TestACopySomebodyCountedOn:
         settled(gang)
 
     def test_a_missing_survivor_value_gets_an_opening_event(
-        self, gang, person_type, gang_type, default_pack
+        self, gang, person_type, gang_type, default_pack, counter_tracking
     ):
         fighter, counter, duplicate = self.tallied_duplicate(
             gang, person_type, gang_type, 7

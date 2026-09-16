@@ -348,6 +348,7 @@ def check_gang(gang):
         *_ENTRY_RELATED
     ):
         problems += check_entry(entry)
+    from n26.core.counter_tracking import is_active
     from n26.core.models import CounterValue, LedgerEvent
 
     counters = (
@@ -363,10 +364,11 @@ def check_gang(gang):
             )
         )
     )
-    for counter_value in counters:
-        problems += check_counter_value(
-            counter_value, events=counter_value.assignment.counter_events
-        )
+    if is_active():
+        for counter_value in counters:
+            problems += check_counter_value(
+                counter_value, events=counter_value.assignment.counter_events
+            )
     stash = getattr(gang, "stash", None)
     if stash is not None:
         stash_sum = sum_rating(stash_root=stash)

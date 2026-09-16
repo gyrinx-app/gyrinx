@@ -29,6 +29,7 @@ Use it as a context manager::
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import cached_property
 from uuid import uuid4
 
 from django.db import transaction
@@ -347,6 +348,12 @@ class Operation:
     def touched(self, miniature):
         if miniature is not None:
             self._miniatures[miniature.pk] = miniature
+
+    @cached_property
+    def counter_tracking_active(self):
+        from n26.core.counter_tracking import is_active
+
+        return is_active()
 
     # --- primitives ------------------------------------------------------
 
@@ -2544,28 +2551,36 @@ class Operation:
         # one that happened rather than the one asked for: a subtraction
         # that would go below zero stops at zero.
         moved = f"{held.value - before:+d} → {held.value}"
+        amounts = (
+            {
+                "counter_before": before,
+                "counter_delta": held.value - before,
+                "counter_after": held.value,
+            }
+            if self.counter_tracking_active
+            else {}
+        )
         self.event(
             assignment,
             LedgerEvent.Kind.TALLIED,
-            counter_before=before,
-            counter_delta=held.value - before,
-            counter_after=held.value,
             note=_movement_note(moved, note),
+            **amounts,
         )
         return held.value
 
     def open_counter(self, assignment, value):
-        """Store a counter's opening value and its machine-readable event."""
+        """Store an opening balance, journalling it once tracking is active."""
         from n26.core.models import CounterValue, LedgerEvent
 
         held = CounterValue.objects.create(assignment=assignment, value=value)
-        self.event(
-            assignment,
-            LedgerEvent.Kind.COUNTER_OPENED,
-            counter_before=0,
-            counter_delta=value,
-            counter_after=value,
-        )
+        if self.counter_tracking_active:
+            self.event(
+                assignment,
+                LedgerEvent.Kind.COUNTER_OPENED,
+                counter_before=0,
+                counter_delta=value,
+                counter_after=value,
+            )
         return held
 
     def move(self, assignment, to, note=""):
