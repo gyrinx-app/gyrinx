@@ -119,12 +119,13 @@ class TestHoldingTheSheets:
         assert Profile.objects.count() == 0
 
     def test_uploading_the_same_sheet_again_replaces_it(
-        self, author, client, foundation
+        self, author, client, foundation, django_capture_on_commit_callbacks
     ):
         hold(client, "equipment")
         first = UploadedSheet.objects.get(owner=author)
 
-        hold(client, "equipment", name="corrected.csv")
+        with django_capture_on_commit_callbacks(execute=True):
+            hold(client, "equipment", name="corrected.csv")
 
         assert UploadedSheet.objects.filter(owner=author).count() == 1
         held = UploadedSheet.objects.get(owner=author)
@@ -155,11 +156,16 @@ class TestHoldingTheSheets:
         body = client.post(URL, {"remove": "equipment"}, follow=True).content.decode()
         assert "No Equipment sheet was held" in body
 
-    def test_a_held_sheet_can_be_removed(self, author, client, foundation):
+    def test_a_held_sheet_can_be_removed(
+        self, author, client, foundation, django_capture_on_commit_callbacks
+    ):
         hold(client, "equipment")
         stored = UploadedSheet.objects.get(owner=author).file.name
 
-        body = client.post(URL, {"remove": "equipment"}, follow=True).content.decode()
+        with django_capture_on_commit_callbacks(execute=True):
+            body = client.post(
+                URL, {"remove": "equipment"}, follow=True
+            ).content.decode()
 
         assert not UploadedSheet.objects.filter(owner=author).exists()
         assert "Removed the Equipment sheet" in body

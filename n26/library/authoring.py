@@ -41,8 +41,10 @@ from n26.library.models import (
     StatlineType,
     StatlineTypeStat,
 )
+from n26.write_pause import guarded_write
 
 
+@guarded_write
 def create_pack(name, slug=None, **kwargs):
     """A content pack. Slug defaults to a lowercased, hyphenated name."""
     from n26.library.models import ContentPack
@@ -52,6 +54,7 @@ def create_pack(name, slug=None, **kwargs):
     )
 
 
+@guarded_write
 def create_gang_type(
     name,
     starting_credits=None,
@@ -83,6 +86,7 @@ def create_gang_type(
 # --- Campaign types and assets ---------------------------------------------
 
 
+@guarded_write
 def create_campaign_type(
     name, qualifier="", description="", library_author_help="", **kwargs
 ):
@@ -105,6 +109,7 @@ def create_campaign_type(
     )
 
 
+@guarded_write
 def add_asset_type(
     campaign_type, label_singular, ownership, label_plural="", position=None, **kwargs
 ):
@@ -141,6 +146,7 @@ def add_asset_type(
     )
 
 
+@guarded_write
 def remove_asset_type(asset_type):
     """Take an asset type off its campaign type.
 
@@ -160,6 +166,7 @@ def remove_asset_type(asset_type):
     asset_type.delete()
 
 
+@guarded_write
 def create_asset(
     name,
     asset_type,
@@ -250,6 +257,7 @@ def _default_member_kwarg(thing):
     raise ValueError(f"A {type(thing).__name__} is never built in")
 
 
+@guarded_write
 def create_asset_table(
     name,
     asset_type,
@@ -311,6 +319,7 @@ def create_asset_table(
     return table
 
 
+@guarded_write
 def add_asset_table_entry(
     table, asset, position=None, roll_low=None, roll_high=None, **kwargs
 ):
@@ -353,6 +362,7 @@ def add_asset_table_entry(
     )
 
 
+@guarded_write
 def remove_asset_table_entry(entry):
     """Take one asset off one table. The asset itself stays in the
     library and on every other table that lists it; a campaign that
@@ -360,6 +370,7 @@ def remove_asset_table_entry(entry):
     entry.delete()
 
 
+@guarded_write
 def set_income(asset, amount):
     """What the asset brings its holder each cycle, written as a modifier:
     the gang carrying the asset has ``amount`` added to its Income
@@ -404,6 +415,7 @@ def set_income(asset, amount):
     )
 
 
+@guarded_write
 def create_stat(
     short_name,
     full_name,
@@ -435,6 +447,7 @@ def create_stat(
     )
 
 
+@guarded_write
 def create_statline_type(name, stats=(), **kwargs):
     """A statline shape — the columns a profile prints in.
 
@@ -449,6 +462,7 @@ def create_statline_type(name, stats=(), **kwargs):
     return statline_type
 
 
+@guarded_write
 def add_stat_to_statline_type(
     statline_type,
     stat,
@@ -476,6 +490,7 @@ def add_stat_to_statline_type(
     )
 
 
+@guarded_write
 def create_profile_type(name, statline_type, **kwargs):
     return ProfileType.objects.create(
         name=name,
@@ -484,6 +499,7 @@ def create_profile_type(name, statline_type, **kwargs):
     )
 
 
+@guarded_write
 def create_profile(
     name,
     profile_type,
@@ -508,6 +524,7 @@ def create_profile(
     )
 
 
+@guarded_write
 def set_statline(owner, pack=None, **values):
     """Give a fighter profile or weapon profile a statline.
 
@@ -548,6 +565,7 @@ def set_statline(owner, pack=None, **values):
     return statline
 
 
+@guarded_write
 def revise(row, **fields):
     """Write the named columns of a row that already exists, and save.
 
@@ -595,6 +613,7 @@ def put_live(row):
     return revise(row, staged=False)
 
 
+@guarded_write
 def stage_all(rows):
     """Hold back several rows at once — what an import does with everything
     it made. One write per kind, and the rows in hand are marked too, so a
@@ -615,6 +634,7 @@ def stage_all(rows):
     return rows
 
 
+@guarded_write
 def put_everything_live():
     """Release every staged row at once, in one transaction — so a new gang
     type and the fighters and lists written for it reach players together
@@ -633,6 +653,7 @@ def put_everything_live():
         )
 
 
+@guarded_write
 def set_traits(weapon_profile, traits):
     """The traits printed on a weapon profile, replaced.
 
@@ -648,6 +669,7 @@ def set_traits(weapon_profile, traits):
 # --- Assignables ---------------------------------------------------------
 
 
+@guarded_write
 def create_wargear(
     name,
     price=0,
@@ -688,6 +710,7 @@ def create_wargear(
     )
 
 
+@guarded_write
 def create_weapon_accessory(
     name,
     price=0,
@@ -732,6 +755,7 @@ def create_weapon_accessory(
     )
 
 
+@guarded_write
 def create_subtype(name, qualifier="", library_author_help="", **kwargs):
     from n26.library.models import Subtype
 
@@ -743,6 +767,7 @@ def create_subtype(name, qualifier="", library_author_help="", **kwargs):
     )
 
 
+@guarded_write
 def create_skill(
     name,
     category=None,
@@ -776,6 +801,7 @@ def create_skill(
     )
 
 
+@guarded_write
 def create_power(
     name,
     annotation="",
@@ -829,6 +855,7 @@ def split_annotation(text):
     return text, ""
 
 
+@guarded_write
 def create_rule(name, annotation="", qualifier="", library_author_help="", **kwargs):
     """A named special rule — the name only, never the rules text."""
     from n26.library.models import Rule
@@ -842,6 +869,7 @@ def create_rule(name, annotation="", qualifier="", library_author_help="", **kwa
     )
 
 
+@guarded_write
 def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwargs):
     """A carrier for effects that draws no row of its own; ``effects``
     are (scope, effect) pairs."""
@@ -860,6 +888,7 @@ def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwar
     return carrier
 
 
+@guarded_write
 def create_affiliation(
     name, effects=(), qualifier="", library_author_help="", **kwargs
 ):
@@ -883,6 +912,7 @@ def create_affiliation(
 # --- Slots and picks: a slot type, authored ----------------------------------
 
 
+@guarded_write
 @transaction.atomic
 def create_rank_table(
     name, counter, thresholds=(), qualifier="", library_author_help="", **kwargs
@@ -902,6 +932,7 @@ def create_rank_table(
     return table
 
 
+@guarded_write
 def add_rank_threshold(rank_table, threshold, **kwargs):
     """Add one XP threshold to a rank table."""
     from n26.library.models import RankThreshold
@@ -912,6 +943,7 @@ def add_rank_threshold(rank_table, threshold, **kwargs):
     return member
 
 
+@guarded_write
 @transaction.atomic
 def create_action(
     name,
@@ -982,6 +1014,7 @@ def create_action(
     )
 
 
+@guarded_write
 def add_action_outcome(action, outcome, position=None, **kwargs):
     """Add one possible result to an action, at the end unless placed."""
     from n26.library.models import ActionOutcome
@@ -993,6 +1026,7 @@ def add_action_outcome(action, outcome, position=None, **kwargs):
     )
 
 
+@guarded_write
 def add_action_price_component(
     action, resource, payer, amount, counter=None, position=None, **kwargs
 ):
@@ -1019,6 +1053,7 @@ def add_action_price_component(
     return component
 
 
+@guarded_write
 def create_outcome(
     name,
     operation=None,
@@ -1050,18 +1085,21 @@ def create_outcome(
     return Outcome.objects.create(name=name, **configured, **kwargs)
 
 
+@guarded_write
 def augment_carried_item(slot_type, **kwargs):
     from n26.library.models import AugmentCarriedItem
 
     return AugmentCarriedItem.objects.create(slot_type=slot_type, **kwargs)
 
 
+@guarded_write
 def resolve_advancement(slot, **kwargs):
     from n26.library.models import ResolveAdvancement
 
     return ResolveAdvancement.objects.create(slot=slot, **kwargs)
 
 
+@guarded_write
 def apply_changes(*changes, **kwargs):
     from n26.library.models import ApplyChange, ApplyChanges, CounterChange
 
@@ -1076,6 +1114,7 @@ def apply_changes(*changes, **kwargs):
     return result
 
 
+@guarded_write
 def add_apply_change(apply_changes, change, position=None, **kwargs):
     """Add one typed mutation to an apply-changes operation."""
     from n26.library.models import ApplyChange, CounterChange
@@ -1088,6 +1127,7 @@ def add_apply_change(apply_changes, change, position=None, **kwargs):
     )
 
 
+@guarded_write
 def counter_change(counter, mode, amount=0, **kwargs):
     from n26.library.models import CounterChange
 
@@ -1096,24 +1136,28 @@ def counter_change(counter, mode, amount=0, **kwargs):
     )
 
 
+@guarded_write
 def remove_picks(slot_type, **kwargs):
     from n26.library.models import RemovePicks
 
     return RemovePicks.objects.create(slot_type=slot_type, **kwargs)
 
 
+@guarded_write
 def recruitment_allowance_rule(**kwargs):
     from n26.library.models import RecruitmentAllowanceRule
 
     return RecruitmentAllowanceRule.objects.create(**kwargs)
 
 
+@guarded_write
 def rank_allowance_rule(counter, **kwargs):
     from n26.library.models import RankAllowanceRule
 
     return RankAllowanceRule.objects.create(counter=counter, **kwargs)
 
 
+@guarded_write
 def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
     """What is chosen — Gang Legacy, Specialisation, Path.
 
@@ -1130,6 +1174,7 @@ def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
     )
 
 
+@guarded_write
 def create_pickable(
     name,
     slot_type,
@@ -1172,6 +1217,7 @@ def create_pickable(
     return pickable
 
 
+@guarded_write
 def create_picklist(name, slot_type, members=(), dice="", roll_selects="", **kwargs):
     """A flat, ordered list of one slot type's pickables.
 
@@ -1194,6 +1240,7 @@ def create_picklist(name, slot_type, members=(), dice="", roll_selects="", **kwa
     return picklist
 
 
+@guarded_write
 def add_picklist_member(
     picklist,
     pickable,
@@ -1249,6 +1296,7 @@ def add_picklist_member(
     return member
 
 
+@guarded_write
 def remove_picklist_member(member):
     """Stop offering one pickable on one list.
 
@@ -1259,6 +1307,7 @@ def remove_picklist_member(member):
     member.delete()
 
 
+@guarded_write
 def create_slot(
     name,
     slot_type,
@@ -1308,6 +1357,7 @@ def create_slot(
     return slot
 
 
+@guarded_write
 def create_interstitial(
     name,
     title="",
@@ -1340,6 +1390,7 @@ def create_interstitial(
     return interstitial
 
 
+@guarded_write
 def attach_interstitial(interstitial, slot, position=None, **kwargs):
     """Show this interstitial when this slot arrives, after the slots it
     is already attached to unless placed.
@@ -1386,6 +1437,7 @@ def attach_interstitial(interstitial, slot, position=None, **kwargs):
         raise
 
 
+@guarded_write
 def detach_interstitial(attachment):
     """Stop showing one interstitial when one slot arrives.
 
@@ -1396,6 +1448,7 @@ def detach_interstitial(attachment):
     attachment.delete()
 
 
+@guarded_write
 def create_trait(name, annotation="", qualifier="", library_author_help="", **kwargs):
     from n26.library.models import Trait
 
@@ -1408,6 +1461,7 @@ def create_trait(name, annotation="", qualifier="", library_author_help="", **kw
     )
 
 
+@guarded_write
 def create_weapon(
     name,
     profiles=(),
@@ -1476,6 +1530,7 @@ def create_weapon(
     )
 
 
+@guarded_write
 def add_weapon_profile(
     weapon,
     name="",
@@ -1533,6 +1588,7 @@ def add_weapon_profile(
     return profile
 
 
+@guarded_write
 def create_counter(name, qualifier="", drawn=True, library_author_help="", **kwargs):
     from n26.library.models import Counter
 
@@ -1545,6 +1601,7 @@ def create_counter(name, qualifier="", drawn=True, library_author_help="", **kwa
     )
 
 
+@guarded_write
 def restrict_use(thing, *allowed):
     """Who may use this — a ProfileType, a Subtype or a Profile.
 
@@ -1570,6 +1627,7 @@ def restrict_use(thing, *allowed):
     return thing
 
 
+@guarded_write
 def set_usable_by(
     thing,
     usable_by_profile_types=None,
@@ -1604,6 +1662,7 @@ def set_usable_by(
 # --- Default sets and options ----------------------------------------------
 
 
+@guarded_write
 def create_default_set(name, members=(), price=0, **kwargs):
     """A set of things a profile can come with. ``members`` are assignables, or
     ``(assignable, {extras})`` — ``(xp, {"amount": 61})`` for a counter's
@@ -1672,6 +1731,7 @@ def _free_set_name(carrier, phrase="built-ins", **shared):
     return next(name for name in tries if not taken.filter(name__iexact=name).exists())
 
 
+@guarded_write
 def add_built_in(
     carrier,
     thing,
@@ -1740,6 +1800,7 @@ def _refuse_a_bare_pickable(thing):
 
 # Atomic so the member and its propagation filing commit or roll back
 # together, whatever transaction the caller does or does not hold.
+@guarded_write
 @transaction.atomic
 def add_default_member(
     default_set,
@@ -1834,6 +1895,7 @@ def _the_one_gun_member(default_set, weapon_profile):
     return matches[0] if matches else None
 
 
+@guarded_write
 def remove_default_member(member):
     """Take one thing back out of a set of defaults.
 
@@ -1888,6 +1950,7 @@ def _something_materialised(member):
     ).exists()
 
 
+@guarded_write
 def offer_option(
     carrier,
     name,
@@ -1950,6 +2013,7 @@ def offer_option(
     return option
 
 
+@guarded_write
 def stop_offering(option):
     """Take one alternative back off what a carrier offers.
 
@@ -1977,6 +2041,7 @@ def stop_offering(option):
         pass
 
 
+@guarded_write
 def create_option_group(carrier, name, choose="one", position=None, **kwargs):
     """A further set of options — ``choose`` is "one" or "any".
 
@@ -1992,6 +2057,7 @@ def create_option_group(carrier, name, choose="one", position=None, **kwargs):
     )
 
 
+@guarded_write
 def remove_option_group(group):
     """Take a set of options off a carrier, and the options in it.
 
@@ -2008,6 +2074,7 @@ def remove_option_group(group):
 # --- Collections -----------------------------------------------------------
 
 
+@guarded_write
 def create_section(name, position=0, **kwargs):
     """One heading of the taxonomy — the level above categories."""
     from n26.library.models import Section
@@ -2015,6 +2082,7 @@ def create_section(name, position=0, **kwargs):
     return Section.objects.create(name=name, position=position, **kwargs)
 
 
+@guarded_write
 def create_category(section, name, position=0, draws_its_own_row=False, **kwargs):
     """A category under its heading. ``section`` is a Section row, or a
     name — named headings are found or founded, so the example suites
@@ -2041,6 +2109,7 @@ def create_category(section, name, position=0, draws_its_own_row=False, **kwargs
     )
 
 
+@guarded_write
 def section_of(collection, name, position, is_default=False, **kwargs):
     """One of a collection's own sections —
     ``section_of(skills, "Primary", 0)``."""
@@ -2055,6 +2124,7 @@ def section_of(collection, name, position, is_default=False, **kwargs):
     )
 
 
+@guarded_write
 def create_collection(
     name,
     entries=(),
@@ -2102,6 +2172,7 @@ def create_collection(
 
 # Atomic so an asset's memberships and the asset go together: a refused
 # delete leaves the memberships standing.
+@guarded_write
 @transaction.atomic
 def delete_content(row):
     """Take an authored row out of the library for good.
@@ -2127,6 +2198,7 @@ def delete_content(row):
     row.delete()
 
 
+@guarded_write
 def add_entry(
     collection,
     thing,
@@ -2172,6 +2244,7 @@ def add_entry(
     return entry
 
 
+@guarded_write
 def remove_entry(entry):
     """Stop listing one item. The thing named stays in the library and
     on every other list that names it — only this collection's entry
@@ -2190,6 +2263,7 @@ def add_section(collection, name, is_default=False, position=None, **kwargs):
     return section_of(collection, name, position, is_default=is_default, **kwargs)
 
 
+@guarded_write
 def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs):
     """A collection whose membership is *having a trade point price*:
     every weapon and wargear with a TP set, swept in — never listed by
@@ -2360,6 +2434,7 @@ def _attach_condition(condition, scope):
 # --- Scopes: who a modifier reaches -----------------------------------------
 
 
+@guarded_write
 def targets_model(*conditions):
     """The model carrying it — only the model the carrier is directly
     assigned to, narrowed by nested conditions —
@@ -2374,6 +2449,7 @@ def targets_model(*conditions):
     return _model_scope(TargetsMiniature.Reach.BEARER, conditions)
 
 
+@guarded_write
 def targets_every_model(*conditions):
     """All models in the gang, however the carrier is held, narrowed by
     the same nested conditions — ``targets_every_model(has_subtypes(x))``.
@@ -2410,6 +2486,7 @@ def _model_scope(reach, conditions):
     return scope
 
 
+@guarded_write
 def targets_weapons(*conditions):
     """The bearer's weapons, narrowed by nested conditions —
     ``targets_weapons(has_traits(melee))`` for "your Melee weapons",
@@ -2430,6 +2507,7 @@ def targets_weapons(*conditions):
     return scope
 
 
+@guarded_write
 def targets_attached_weapon():
     """The one weapon the carrier is bolted to — a telescopic sight."""
     from n26.library.models import TargetsAttachedWeapon
@@ -2437,6 +2515,7 @@ def targets_attached_weapon():
     return TargetsAttachedWeapon.objects.create()
 
 
+@guarded_write
 def targets_gang(*conditions):
     """The gang carrying it and all models: affects the gang and all
     models, in a different way per effect. Narrowed by nested conditions
@@ -2448,6 +2527,7 @@ def targets_gang(*conditions):
     return _gang_scope(True, conditions)
 
 
+@guarded_write
 def targets_gang_alone(*conditions):
     """The gang carrying it: applied only to the gang, and what it gives
     the gang does not reach the models. A pick given with a slot is the
@@ -2479,6 +2559,7 @@ def _gang_scope(echoes, conditions):
 # --- Effects: what a modifier does (ef_ at read, op_ at purchase) -----------
 
 
+@guarded_write
 def ef_adds(thing, with_pick=None):
     """Grants the target a subtype, skill, trait, collection, rule, weapon
     or wargear — or a further choice, which is how one pick opens the next.
@@ -2513,6 +2594,7 @@ def ef_adds(thing, with_pick=None):
     return grant
 
 
+@guarded_write
 def ef_removes(thing):
     """Takes one away, computed — Death of a Leader."""
     from n26.library.models import RemovesAssignable
@@ -2520,6 +2602,7 @@ def ef_removes(thing):
     return RemovesAssignable.objects.create(**_assignable_kwarg(thing))
 
 
+@guarded_write
 def ef_changes_stat(stat, mode="worsen", amount=1):
     """Shifts or sets one characteristic."""
     from n26.library.models import ChangesStat
@@ -2527,6 +2610,7 @@ def ef_changes_stat(stat, mode="worsen", amount=1):
     return ChangesStat.objects.create(stat=stat, mode=mode, amount=amount)
 
 
+@guarded_write
 def ef_contributes_to_counter(counter, amount=0):
     """Adds to a counter's reading while the carrier is held —
     ``ef_contributes_to_counter(visit_tp, 2)`` for the 2 Trade Points a
@@ -2537,6 +2621,7 @@ def ef_contributes_to_counter(counter, amount=0):
     return ContributesToCounter.objects.create(counter=counter, amount=amount)
 
 
+@guarded_write
 def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):
     """Puts an open question on the bearer's card —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a
@@ -2552,6 +2637,7 @@ def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="be
     )
 
 
+@guarded_write
 def ef_changes_category(category):
     """The bearer sorts under this category's heading on the gang sheet —
     ``ef_changes_category(leaders)`` for a fighter selected as Leader."""
@@ -2560,6 +2646,7 @@ def ef_changes_category(category):
     return ChangesCategory.objects.create(category=category)
 
 
+@guarded_write
 def ef_places(category, section):
     """For the bearer, that set sits under this section of its
     collection — ``ef_places(powers, skills_primary)``."""
@@ -2568,6 +2655,7 @@ def ef_places(category, section):
     return PlacesCategory.objects.create(category=category, section=section)
 
 
+@guarded_write
 def ef_places_choice(section):
     """The carrier-relative placement: whatever set the carrier's chosen
     thing is homed in sits under this collection section — a Venator
@@ -2577,6 +2665,7 @@ def ef_places_choice(section):
     return PlacesCategory.objects.create(the_chosen=True, section=section)
 
 
+@guarded_write
 def ef_draws_pick():
     """The pick the gang holds is drawn on the card of every model this
     reaches — ``modifier(name, targets_every_model(...), ef_draws_pick(),
@@ -2590,6 +2679,7 @@ def ef_draws_pick():
     return DrawsPick.objects.create()
 
 
+@guarded_write
 def ef_requires_companions(for_each, at_least, of):
     """A composition ask, said on the gang sheet and never enforced —
     ``ef_requires_companions(champion, 3, hive_scum)``."""
@@ -2600,6 +2690,7 @@ def ef_requires_companions(for_each, at_least, of):
     )
 
 
+@guarded_write
 def ef_allows_at_most(at_most, thing):
     """A ceiling, said on the sheet and never enforced —
     ``ef_allows_at_most(2, aberrant)``, and ``ef_allows_at_most(0, brute)``
@@ -2610,6 +2701,7 @@ def ef_allows_at_most(at_most, thing):
     return AllowsAtMost.objects.create(at_most=at_most, **_countable_kwarg(thing))
 
 
+@guarded_write
 def op_adds_model(profile):
     """A stored effect: assigning the carrier brings this model into the gang."""
     from n26.library.models import OpAddsMiniature
@@ -2617,6 +2709,7 @@ def op_adds_model(profile):
     return OpAddsMiniature.objects.create(profile=profile)
 
 
+@guarded_write
 def op_changes_counter(counter, mode="set", amount=0):
     """A stored effect: assigning the carrier moves the bearer's counter,
     through the ledger — ``op_changes_counter(xp, "set", 61)`` for a
@@ -2626,6 +2719,7 @@ def op_changes_counter(counter, mode="set", amount=0):
     return OpChangesCounter.objects.create(counter=counter, mode=mode, amount=amount)
 
 
+@guarded_write
 def op_sets_status(status):
     """A stored effect: assigning the carrier puts the bearer into a
     status — ``op_sets_status("recovery")`` on Grievous Wound, so the
@@ -2703,6 +2797,7 @@ def _parts(scope, effect):
     return fields
 
 
+@guarded_write
 def modifier(name, scope, effect, attach_to=None, **kwargs):
     """One scope plus one effect; optionally hung on an assignable."""
     from n26.library.models import Modifier
@@ -2713,6 +2808,7 @@ def modifier(name, scope, effect, attach_to=None, **kwargs):
     return row
 
 
+@guarded_write
 def recompose_modifier(row, name, scope, effect):
     """Say something else with a modifier that already exists.
 
@@ -2746,6 +2842,7 @@ def recompose_modifier(row, name, scope, effect):
     return row
 
 
+@guarded_write
 def delete_modifier(row):
     """Remove a modifier, and the rows it is made of, from everywhere.
 
@@ -2760,12 +2857,14 @@ def delete_modifier(row):
     effect.delete()
 
 
+@guarded_write
 def attach_modifiers_to(assignable, modifiers):
     """Hang already-built (reusable) modifiers on a further carrier."""
     assignable.modifiers.add(*modifiers)
     return assignable
 
 
+@guarded_write
 def detach_modifier(assignable, modifier):
     """Take a modifier off one carrier. The modifier itself survives —
     it may hang on other carriers, or wait as a reusable."""

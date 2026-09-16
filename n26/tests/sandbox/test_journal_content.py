@@ -31,7 +31,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
-from gyrinx.site.models import Availability, FeatureFlag
+from gyrinx.site.models import Availability, FeatureFlag, WritePause
 from n26.core import history, select
 from n26.core.campaigns import tables_held_by
 from n26.core.card import build_card, build_gang_card, build_modifier_index, carriers
@@ -846,6 +846,24 @@ class TestTheMaintenanceOperation:
         assert f"created the {SLOT_TYPE} slot type" in page
         assert f"created the {GOLIATH_TABLE} table, staged" in page
         assert "Create the missing rows" in page
+        assert not Backfill.objects.exists()
+        assert not SlotType.objects.filter(name=SLOT_TYPE).exists()
+
+    def test_the_preview_refuses_before_its_transient_writes_while_paused(
+        self, client, superuser, core, gang_types, clan_house, address
+    ):
+        client.force_login(superuser)
+        held = WritePause.objects.get(scope="n26")
+        held.state = WritePause.State.PAUSED
+        held.reason = "Counters are being checkpointed."
+        held.generation += 1
+        held.save(update_fields=["state", "reason", "generation", "modified"])
+
+        page = client.get(address)
+
+        assert page.status_code == 503
+        assert page.headers["Retry-After"] == "30"
+        assert "Counters are being checkpointed." in page.content.decode()
         assert not Backfill.objects.exists()
         assert not SlotType.objects.filter(name=SLOT_TYPE).exists()
 

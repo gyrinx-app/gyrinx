@@ -6,11 +6,14 @@ applies and creates a Backfill record + per-list audit ListAction.
 
 import pytest
 from bs4 import BeautifulSoup
+from django.contrib.admin.models import LogEntry
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
+from gyrinx.site.models import WritePause
+from gyrinx.site.write_pause import pause_scope, resume_scope
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
@@ -98,6 +101,62 @@ def test_superuser_can_view_index(make_user):
     assert r.status_code == 200
     assert b"Available data repairs" in r.content
     assert b"Migrate persistent stash items" in r.content
+
+
+@pytest.mark.django_db
+def test_write_pause_control_is_gated_to_superusers(client, make_user):
+    staff = make_user("pause-staff", "pw")
+    staff.is_staff = True
+    staff.save()
+    WritePause.objects.get_or_create(scope="n26")
+    client.force_login(staff)
+
+    response = client.get(reverse("admin:maintenance_write_pause", args=["n26"]))
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db(transaction=True)
+def test_write_pause_control_records_pause_and_resume(client, maintenance_superuser):
+    held, _ = WritePause.objects.get_or_create(scope="n26")
+    client.force_login(maintenance_superuser)
+    url = reverse("admin:maintenance_write_pause", args=["n26"])
+
+    response = client.post(url, {"action": "pause", "reason": "Counter maintenance"})
+
+    assert response.status_code == 302
+    held.refresh_from_db()
+    assert held.state == WritePause.State.PAUSED
+    assert LogEntry.objects.filter(object_id=str(held.pk)).count() == 1
+
+    response = client.post(url, {"action": "resume", "generation": held.generation})
+
+    assert response.status_code == 302
+    held.refresh_from_db()
+    assert held.state == WritePause.State.OPEN
+    assert LogEntry.objects.filter(object_id=str(held.pk)).count() == 2
+
+
+@pytest.mark.django_db(transaction=True)
+def test_write_pause_control_does_not_resume_a_newer_pause(
+    client, maintenance_superuser
+):
+    held, _ = WritePause.objects.get_or_create(scope="n26")
+    first = pause_scope("n26", actor=maintenance_superuser, reason="First pause")
+    resume_scope("n26", generation=first.generation, actor=maintenance_superuser)
+    latest = pause_scope("n26", actor=maintenance_superuser, reason="Latest pause")
+    client.force_login(maintenance_superuser)
+
+    response = client.post(
+        reverse("admin:maintenance_write_pause", args=["n26"]),
+        {"action": "resume", "generation": first.generation},
+    )
+
+    assert response.status_code == 302
+    held.refresh_from_db()
+    assert held.state == WritePause.State.PAUSED
+    assert held.generation == latest.generation
+    assert not LogEntry.objects.filter(object_id=str(held.pk)).exists()
 
 
 # ---------------------------------------------------------------- dry-run

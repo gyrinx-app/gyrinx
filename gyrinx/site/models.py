@@ -8,6 +8,7 @@ import logging
 import uuid
 from itertools import islice
 
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
@@ -32,6 +33,35 @@ BANNER_CACHE_KEYS = {
     "n26": "site_banner_live:n26",
 }
 BANNER_CACHE_TIMEOUT = 300  # 5 minutes
+
+
+class WritePause(Base):
+    """Persistent state for one registered domain write scope."""
+
+    class State(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        PAUSED = "PAUSED", "Paused"
+
+    scope = models.SlugField(max_length=64, unique=True)
+    state = models.CharField(max_length=8, choices=State, default=State.OPEN)
+    generation = models.PositiveBigIntegerField(default=0)
+    reason = models.TextField(blank=True)
+    paused_at = models.DateTimeField(null=True, blank=True)
+    paused_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="write_pauses_started",
+    )
+    permitted_task_name = models.CharField(max_length=255, blank=True)
+    permitted_run_id = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["scope"]
+
+    def __str__(self):
+        return f"{self.scope}: {self.get_state_display()}"
 
 
 class Banner(AppBase):

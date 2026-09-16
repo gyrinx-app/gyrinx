@@ -56,6 +56,14 @@ def validate_timezone(timezone: str) -> None:
 
 
 @dataclass
+class PausedTaskConsumer:
+    """Keywords carrying a task's exact paused-run authorisation."""
+
+    run_id_kwarg: str = "backfill_id"
+    generation_kwarg: str = "pause_generation"
+
+
+@dataclass
 class TaskRoute:
     """
     Configuration for a registered task.
@@ -88,12 +96,16 @@ class TaskRoute:
     max_retry_delay: int = 600
     schedule: str | None = None
     schedule_timezone: str = "UTC"
+    write_scope: str | None = None
+    paused_consumer: PausedTaskConsumer | None = None
 
     def __post_init__(self):
         """Validate configuration after initialization."""
         if self.schedule is not None:
             validate_cron_expression(self.schedule)
             validate_timezone(self.schedule_timezone)
+        if self.paused_consumer is not None and not self.write_scope:
+            raise ValueError("paused_consumer requires write_scope")
 
     @property
     def _underlying_func(self) -> Callable:

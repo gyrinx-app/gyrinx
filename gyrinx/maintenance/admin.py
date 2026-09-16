@@ -27,6 +27,7 @@ from gyrinx.maintenance.views import (
     backfill_detail_view,
     maintenance_index_view,
     superuser_only,
+    write_pause_view,
 )
 
 __all__ = ["BackfillAdmin", "MaintenanceAdminSite", "OperationFilter"]
@@ -112,6 +113,11 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_index",
             ),
             path(
+                "maintenance/write-pauses/<slug:scope>/",
+                self.admin_view(superuser_only(write_pause_view)),
+                name="maintenance_write_pause",
+            ),
+            path(
                 "maintenance/backfill/<uuid:pk>/",
                 self.admin_view(superuser_only(backfill_detail_view)),
                 name="maintenance_backfill_detail",
@@ -122,14 +128,10 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_backfill_cancel",
             ),
         ]
-        custom += [
-            path(
-                op.route,
-                self.admin_view(superuser_only(op.view)),
-                name=op.url_name,
-            )
-            for op in operations()
-        ]
+        for op in operations():
+            wrapped = self.admin_view(superuser_only(op.view))
+            wrapped.write_scope = op.write_scope
+            custom.append(path(op.route, wrapped, name=op.url_name))
         return custom + urls
 
 

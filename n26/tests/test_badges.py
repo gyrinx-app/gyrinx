@@ -499,8 +499,9 @@ class TestTheNamesOnACampaign:
         """A POST naming a gang the list did not offer draws the page
         again, which names the arbitrator in its trail and each gang's
         owner on its rows. Their badge data is read for the page as a GET
-        reads it, not looked up for the names: the redraw costs the same
-        queries as the GET, however many players there are."""
+        reads it, not looked up for the names. Captured ORM queries for the
+        redraw match the GET, however many players there are. Session locks
+        use the physical connection and stand outside this capture."""
 
         def redraw(path):
             client.get(path)

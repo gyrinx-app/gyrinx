@@ -206,6 +206,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "gyrinx.site.middleware.WritePauseMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",
     # Django allauth
@@ -233,6 +234,9 @@ MIDDLEWARE = [
     # "csp.middleware.CSPMiddleware",
 ]
 
+WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS = 20
+WRITE_PAUSE_OVERLONG_SECONDS = 600
+
 ROOT_URLCONF = "gyrinx.urls"
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
@@ -258,6 +262,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "gyrinx.context_processors.write_pause",
                 "gyrinx.context_processors.site_banner",
                 "gyrinx.context_processors.gyrinx_debug",
                 "gyrinx.context_processors.notifications",

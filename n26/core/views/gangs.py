@@ -1044,20 +1044,25 @@ def create_gang(request):
     if request.method == "POST":
         form = CreateGangForm(request.POST, include_staged=shown)
         if form.is_valid():
+            from django.db import transaction
+
+            from n26.write_pause import write_guard
+
             budget = form.cleaned_data["starting_credits"]
             gang_type = form.cleaned_data["gang_type"]
             if budget is None:
                 budget = gang_type.starting_credits
-            gang = Gang.objects.create(
-                name=form.cleaned_data["name"],
-                gang_type=gang_type,
-                owner=request.user,
-                starting_credits=budget,
-                credits=budget or 0,
-                colour=form.cleaned_data["colour"],
-            )
-            with operation(gang, actor=request.user) as op:
-                op.found(gang_type)
+            with transaction.atomic(), write_guard():
+                gang = Gang.objects.create(
+                    name=form.cleaned_data["name"],
+                    gang_type=gang_type,
+                    owner=request.user,
+                    starting_credits=budget,
+                    credits=budget or 0,
+                    colour=form.cleaned_data["colour"],
+                )
+                with operation(gang, actor=request.user) as op:
+                    op.found(gang_type)
             # Recorded after the founding has committed: an event written
             # inside the operation would vanish with it if it unwound.
             record(

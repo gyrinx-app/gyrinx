@@ -46,6 +46,7 @@ as a name rather than a bare slug.
 import logging
 import traceback
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import date, timedelta
 
 from django.contrib import messages
@@ -62,12 +63,29 @@ from django.urls import reverse
 from django.utils import timezone
 
 from gyrinx.maintenance.models import Backfill
-from gyrinx.maintenance.registry import MaintenanceOperation, register_operation
+from gyrinx.maintenance.registry import (
+    MaintenanceOperation,
+)
+from gyrinx.maintenance.registry import (
+    register_operation as register_platform_operation,
+)
 from gyrinx.maintenance.views import page_context, running_guard
-from gyrinx.tasks import TaskRoute
+from gyrinx.tasks import PausedTaskConsumer, TaskRoute
 from n26.core.propagation import propagate_built_ins, sweep_built_in_propagations
+from n26.write_pause import WritesPaused
 
 logger = logging.getLogger(__name__)
+
+
+def register_operation(operation):
+    """Register every n26 maintenance page as an n26 writer."""
+    register_platform_operation(replace(operation, write_scope="n26"))
+
+
+def register_control_operation(operation):
+    """Register a pause control page that must remain reachable while paused."""
+    register_platform_operation(operation)
+
 
 __all__ = [
     "Operation",
@@ -380,6 +398,8 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
             # and the reason is already in words.
             _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
             return
+        except WritesPaused:
+            raise
         except Exception as broke:  # noqa: BLE001 — the ending must be recorded
             logger.exception("%s broke", what)
             _write(
@@ -512,6 +532,8 @@ def run_batched(
             # Refused before any row was walked, so the record ends in
             # the refusal's own words with nothing to unwind.
             _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
+        except WritesPaused:
+            raise
         except Exception as broke:  # noqa: BLE001 — the ending must be recorded
             logger.exception("%s broke", what)
             _write(
@@ -587,6 +609,8 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
         for pk in batch:
             try:
                 line = do_one(pk)
+            except WritesPaused:
+                raise
             except Exception as broke:  # noqa: BLE001 — one row never starves the rest
                 logger.exception("%s could not settle %s", what, pk)
                 failures[str(pk)] = str(broke)
@@ -2441,6 +2465,23 @@ register_operation(
 )
 
 
+def N26TaskRoute(task_function, **kwargs):
+    """Declare one task as an n26 writer."""
+    return TaskRoute(task_function, write_scope="n26", **kwargs)
+
+
+def N26PausedTaskRoute(task_function, **kwargs):
+    """Declare the one exact maintenance consumer allowed during a pause."""
+    return N26TaskRoute(
+        task_function,
+        paused_consumer=PausedTaskConsumer(
+            run_id_kwarg="backfill_id",
+            generation_kwarg="pause_generation",
+        ),
+        **kwargs,
+    )
+
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a repair holds one
 #: transaction for as long as proving what it touched takes. It is also
@@ -2457,31 +2498,31 @@ register_operation(
 #: from the declaration, and only there — the local backend fires no
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
-    TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(merge_into, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(convert_variant, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(propagate_built_ins, ack_deadline=600),
-    TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
-    TaskRoute(audit_reconcile),
-    TaskRoute(repair_doubled_refunds, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(backfill_built_ins, ack_deadline=600),
-    TaskRoute(drop_duplicate_grants, ack_deadline=600),
-    TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(repoint_champion_picks, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(
+    N26TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(merge_into, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(convert_variant, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(propagate_built_ins, ack_deadline=600),
+    N26TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
+    N26TaskRoute(audit_reconcile),
+    N26TaskRoute(repair_doubled_refunds, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(backfill_built_ins, ack_deadline=600),
+    N26TaskRoute(drop_duplicate_grants, ack_deadline=600),
+    N26TaskRoute(rehost_gang_picks, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(repoint_champion_picks, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(
         delete_legacy_affiliation_assignments,
         ack_deadline=600,
         min_retry_delay=60,
     ),
-    TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(open_founding_actions, ack_deadline=600),
-    TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(open_founding_actions, ack_deadline=600),
+    N26TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
 ]
 
 

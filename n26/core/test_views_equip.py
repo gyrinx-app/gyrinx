@@ -2693,8 +2693,9 @@ class TestTheLibraryTabsQueryBudget:
         # guns' paid rounds, each kind's offers and each restricted
         # kind's use lists — and a browse of each list held, which is
         # what prices the library's lines. A fixed number per list,
-        # never one per item. One more reads the gang's dismissed offers.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 65
+        # never one per item. One more reads the gang's dismissed offers,
+        # and one reads the n26 write-pause state for the page notice.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 66
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked

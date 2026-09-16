@@ -171,6 +171,34 @@ def test_pubsub_handler_executes_registered_task(client, bypass_oidc):
     assert response.content == b"OK"
 
 
+@pytest.mark.django_db(transaction=True)
+def test_pubsub_handler_defers_a_scoped_task_while_writes_are_paused(
+    client, bypass_oidc
+):
+    from gyrinx.site.models import WritePause
+    from gyrinx.site.write_pause import pause_scope
+
+    calls = []
+
+    def scoped_task():
+        calls.append("called")
+
+    WritePause.objects.create(scope="test-pubsub-pause")
+    pause_scope("test-pubsub-pause", actor=None, reason="Maintenance")
+    routes = [TaskRoute(scoped_task, write_scope="test-pubsub-pause")]
+
+    with patch("gyrinx.tasks.registry._tasks", routes):
+        response = client.post(
+            reverse("tasks:pubsub"),
+            data=json.dumps(make_pubsub_message("scoped_task")),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 503
+    assert response["Retry-After"] == "30"
+    assert calls == []
+
+
 @pytest.mark.django_db
 def test_pubsub_handler_returns_500_on_task_error(client, bypass_oidc):
     """Task exceptions should return 500 for retry."""

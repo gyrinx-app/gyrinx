@@ -27,20 +27,24 @@ def destroy_gang(gang):
     A payment another gang made to this one keeps its line with the
     counterpart emptied, which is what that column says it does.
     """
+    from django.db import transaction
+
     from n26.core.models import Miniature
+    from n26.write_pause import write_guard
 
     models_in = list(
         Miniature.objects.filter(membership__gang_root=gang).values_list(
             "pk", flat=True
         )
     )
-    gang.delete()
-    # A model lives only through its membership, so none can survive the
-    # gang. Checked because a model nothing reaches would be a row
-    # nobody could ever delete.
-    left = Miniature.objects.filter(pk__in=models_in).count()
-    if left:
-        raise RuntimeError(f"{left} models survived deleting {gang.name}")
+    with transaction.atomic(), write_guard():
+        gang.delete()
+        # A model lives only through its membership, so none can survive the
+        # gang. Checked because a model nothing reaches would be a row
+        # nobody could ever delete.
+        left = Miniature.objects.filter(pk__in=models_in).count()
+        if left:
+            raise RuntimeError(f"{left} models survived deleting {gang.name}")
 
 
 def destroy_campaign(campaign):
@@ -51,4 +55,9 @@ def destroy_campaign(campaign):
     the arbitrator created in that pack — is library content, and stays
     for the caller to delete once the campaign no longer protects it.
     """
-    campaign.delete()
+    from django.db import transaction
+
+    from n26.write_pause import write_guard
+
+    with transaction.atomic(), write_guard():
+        campaign.delete()

@@ -122,14 +122,19 @@ class ManualTaskQueue:
         return outcome
 
     def deliver_all(self, max_rounds: int = 1000) -> int:
-        """Deliver every task until the queue drains (following retries). Returns
-        the number of delivery attempts made."""
+        """Deliver tasks until the queue drains or one is deferred.
+
+        Retries run immediately, but a paused task remains queued for a later call.
+        Returns the number of delivery attempts made.
+        """
         count = 0
         for _ in range(max_rounds):
             outcome = self.deliver_next()
             if outcome is None:
                 return count
             count += 1
+            if outcome == Outcome.DEFERRED:
+                return count
         raise RuntimeError(
             "deliver_all exceeded max_rounds — a task may be looping "
             "(self-re-enqueue without a base case?)"
@@ -157,19 +162,24 @@ class ManualTaskQueue:
             payload = self._last
         if payload is None:
             raise RuntimeError("no task has been delivered yet")
-        func, _route = _resolve(payload["task_name"])
+        func, route = _resolve(payload["task_name"])
         if func is None:
             raise RuntimeError(f"unknown task {payload['task_name']!r}")
-        return run_task(
-            func,
-            task_name=payload["task_name"],
-            task_id=payload["task_id"],
-            args=payload["args"],
-            kwargs=payload["kwargs"],
-            sender=local_backend.DatabaseBackend,
-            track_extra={"duplicate": True},
-            emit_signals=False,
-        )
+        from gyrinx.site.write_pause import task_delivery_gate
+
+        with task_delivery_gate(route, payload["kwargs"]) as admission:
+            if not admission.allowed:
+                return Outcome.DEFERRED
+            return run_task(
+                func,
+                task_name=payload["task_name"],
+                task_id=payload["task_id"],
+                args=payload["args"],
+                kwargs=payload["kwargs"],
+                sender=local_backend.DatabaseBackend,
+                track_extra={"duplicate": True},
+                emit_signals=False,
+            )
 
     # -- assertions -------------------------------------------------------------------
 

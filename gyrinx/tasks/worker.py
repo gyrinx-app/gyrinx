@@ -44,6 +44,7 @@ class Outcome(enum.StrEnum):
     RETRY_SCHEDULED = "retry_scheduled"
     GAVE_UP = "gave_up"  # exhausted max_attempts
     UNKNOWN_TASK = "unknown_task"
+    DEFERRED = "deferred"  # pause gate; does not consume an attempt
 
 
 def _resolve(task_name):
@@ -140,6 +141,37 @@ def deliver(
         qt.delete()
         return Outcome.UNKNOWN_TASK
 
+    from gyrinx.site.write_pause import task_delivery_gate
+
+    with task_delivery_gate(route, qt.kwargs) as admission:
+        if not admission.allowed:
+            qt.attempts = max(0, qt.attempts - 1)
+            qt.available_at = timezone.now() + timedelta(seconds=30)
+            qt.locked_until = None
+            qt.locked_by = ""
+            qt.save(
+                update_fields=[
+                    "attempts",
+                    "available_at",
+                    "locked_until",
+                    "locked_by",
+                    "modified",
+                ]
+            )
+            return Outcome.DEFERRED
+        return _deliver_admitted(
+            qt,
+            route=route,
+            func=func,
+            force_fail=force_fail,
+            drop=drop,
+            fault=fault,
+            sender=sender,
+        )
+
+
+def _deliver_admitted(qt, *, route, func, force_fail, drop, fault, sender):
+    """Run while task_delivery_gate holds its session-level shared lock."""
     if fault is not None:
         fault.sleep()
 

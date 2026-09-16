@@ -11,8 +11,11 @@ is ``admin.py``'s job, so no view can be published without the gate.
 """
 
 import uuid as uuid_module
+from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import admin, messages
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.db.models import Count
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -21,12 +24,15 @@ from django.utils import timezone
 
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import operations, resolve_operation
+from gyrinx.site.models import WritePause
+from gyrinx.site.write_pause import WritesPaused, pause_scope, resume_scope
 
 __all__ = [
     "backfill_cancel_view",
     "backfill_detail_view",
     "clean_list_scope",
     "maintenance_index_view",
+    "write_pause_view",
     "page_context",
     "running_guard",
     "superuser_only",
@@ -92,8 +98,65 @@ def maintenance_index_view(request):
         "Maintenance",
         operations=_operations_listing(),
         recent_backfills=Backfill.objects.order_by("-created")[:25],
+        write_pauses=WritePause.objects.order_by("scope"),
     )
     return render(request, "admin/maintenance/index.html", ctx)
+
+
+def write_pause_view(request, scope):
+    pause = get_object_or_404(WritePause, scope=scope)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "pause":
+                reason = request.POST.get("reason", "").strip()
+                if not reason:
+                    messages.error(request, "Enter a reason before pausing changes.")
+                else:
+                    pause = pause_scope(scope, actor=request.user, reason=reason)
+                    LogEntry.objects.log_actions(
+                        request.user.pk,
+                        [pause],
+                        CHANGE,
+                        f"Paused writes (generation {pause.generation}): {reason}",
+                    )
+                    messages.success(request, f"Changes to {scope} are paused.")
+            elif action == "resume":
+                try:
+                    generation = int(request.POST.get("generation", ""))
+                except ValueError:
+                    raise WritesPaused(
+                        "Reload the page before resuming changes."
+                    ) from None
+                pause = resume_scope(scope, generation=generation, actor=request.user)
+                LogEntry.objects.log_actions(
+                    request.user.pk,
+                    [pause],
+                    CHANGE,
+                    f"Resumed writes after generation {generation}.",
+                )
+                messages.success(request, f"Changes to {scope} resumed.")
+        except WritesPaused as exc:
+            messages.error(request, str(exc))
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_write_pause", args=[scope])
+        )
+    pause.refresh_from_db()
+    pause_overlong = bool(
+        pause.paused_at
+        and pause.paused_at
+        <= timezone.now() - timedelta(seconds=settings.WRITE_PAUSE_OVERLONG_SECONDS)
+    )
+    return render(
+        request,
+        "admin/maintenance/write_pause.html",
+        page_context(
+            request,
+            f"Write access: {scope}",
+            pause=pause,
+            pause_overlong=pause_overlong,
+        ),
+    )
 
 
 def _operations_listing():

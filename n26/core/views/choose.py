@@ -641,11 +641,12 @@ def dismiss_offer(request, pk, slot):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import DismissedOffer
     from n26.core.operations import _hold
+    from n26.write_pause import write_guard
 
     gang = _own_gang_or_404(request, pk)
     label = find_slot(gang, slot).slot.kind_label
     fallback = reverse("n26-gang", args=[gang.pk])
-    with transaction.atomic():
+    with transaction.atomic(), write_guard():
         _hold(gang)
         found = find_slot(gang, slot)
         if found.slot.is_resolved:
@@ -703,9 +704,10 @@ def restore_offer(request, pk, slot):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import DismissedOffer
     from n26.core.operations import _hold
+    from n26.write_pause import write_guard
 
     gang = _own_gang_or_404(request, pk)
-    with transaction.atomic():
+    with transaction.atomic(), write_guard():
         _hold(gang)
         DismissedOffer.objects.filter(gang=gang, slot_key=slot).delete()
     try:

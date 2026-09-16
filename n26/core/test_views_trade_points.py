@@ -408,15 +408,16 @@ class TestWhatThePageCosts:
     #: the equip list, the gang's rows and their hydration, the campaign
     #: assets the gang holds, the modifier index behind them, the actions
     #: the gang has open, and the standard Trading Post the receipt links
-    #: to. None of it repeats per model.
-    BUDGET = 38
+    #: to. One scope-state read supplies the write-pause notice. None of it
+    #: repeats per model.
+    BUDGET = 39
 
     #: The same page with a visit open, which is the state it is for.
     #: There is a receipt to draw then, and it costs two readings of the
     #: log: who performed the action, and what the visit has spent. Both
     #: are one query however many fighters went and however much the gang
     #: has bought, so this is a second fixed price and not a second rate.
-    WITH_A_VISIT = 40
+    WITH_A_VISIT = 41
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):

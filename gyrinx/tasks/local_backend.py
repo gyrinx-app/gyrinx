@@ -24,6 +24,7 @@ interrupted delivery's lease lapses and the row is redelivered rather than lost.
 import logging
 import threading
 import uuid
+from datetime import timedelta
 
 from django.tasks import TaskResult
 from django.tasks.backends.base import BaseTaskBackend
@@ -141,17 +142,42 @@ class DatabaseBackend(BaseTaskBackend):
         enqueued_at = timezone.now()
         task_result = self._new_task_result(task, task_id, args, kwargs, enqueued_at)
 
-        # Create the observability record (READY) via the shared signal handler —
-        # same path every backend uses.
-        task_enqueued.send(sender=type(self), task_result=task_result)
-
         mode = self.effective_mode
         task_name = task.func.__name__
 
         if mode == "eager":
-            # Inline, synchronous — behaviourally identical to ImmediateBackend.
-            # No QueuedTask row: eager doesn't retry or persist, so there's nothing
-            # to deliver later. Keeps the existing suite fast and unchanged.
+            from gyrinx.site.write_pause import task_delivery_gate
+            from gyrinx.tasks.registry import get_task
+
+            route = get_task(task_name)
+            if route is not None:
+                with task_delivery_gate(route, dict(kwargs)) as admission:
+                    if not admission.allowed:
+                        task_enqueued.send(sender=type(self), task_result=task_result)
+                        from gyrinx.tasks.models import QueuedTask
+
+                        QueuedTask.objects.create(
+                            task_id=task_id,
+                            task_name=task_name,
+                            args=list(args),
+                            kwargs=dict(kwargs),
+                            enqueued_at=enqueued_at,
+                            available_at=enqueued_at + timedelta(seconds=30),
+                            max_attempts=self.default_max_attempts,
+                        )
+                        return task_result
+                    task_enqueued.send(sender=type(self), task_result=task_result)
+                    run_task(
+                        task.func,
+                        task_name=task_name,
+                        task_id=task_id,
+                        args=list(args),
+                        kwargs=dict(kwargs),
+                        enqueued_at=enqueued_at,
+                        sender=type(self),
+                    )
+                    return task_result
+            task_enqueued.send(sender=type(self), task_result=task_result)
             run_task(
                 task.func,
                 task_name=task_name,
@@ -162,6 +188,8 @@ class DatabaseBackend(BaseTaskBackend):
                 sender=type(self),
             )
             return task_result
+
+        task_enqueued.send(sender=type(self), task_result=task_result)
 
         # worker / manual: persist a durable queue row.
         from gyrinx.tasks.models import QueuedTask
