@@ -38,7 +38,8 @@
                 {% endfor %}
             </c-n26.form-section>
         {% endif %}
-        {% if stage == "start" %}
+        {% if tracking_unavailable %}
+        {% elif stage == "start" %}
             <c-n26.radio-cards label="Choose an outcome"
                                :form="form"
                                name="outcome"

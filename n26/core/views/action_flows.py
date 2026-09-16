@@ -22,6 +22,7 @@ from n26.core.action_forms import (
 )
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
 from n26.core.action_records import quote_for
+from n26.core.counter_tracking import is_active as counter_tracking_is_active
 from n26.core.flow import FlowStep
 from n26.core.models import ActionAllowance, ActionRecord
 from n26.core.operations import Refusal, operation
@@ -284,6 +285,22 @@ def action_start(request, pk, action_id):
         )
         if existing:
             return redirect(flow_url(fighter, existing, "resume"))
+    if not counter_tracking_is_active():
+        form = EmptyActionForm({})
+        form.add_error(
+            None,
+            "You cannot start this flow until the site's counter records are ready.",
+        )
+        return _page(
+            request,
+            fighter,
+            action,
+            form=form,
+            prices=payment_figures(quote_for(fighter, action)),
+            tracking_unavailable=True,
+            submit_label="",
+            submit_variant="primary",
+        )
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter, action=action)
         .exclude(
