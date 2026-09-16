@@ -1,8 +1,15 @@
 # Counter activation rehearsal
 
-Rehearsed on 16 September 2026 at activation commit `82c70453f` using a new,
-empty local PostgreSQL database. All data was synthetic. Its size matches the
-aggregate counts observed on 15 September; this run did not connect to production.
+Rehearsed on 16 September 2026, before the stack was restacked, at activation
+commit `82c70453f` using a new, empty local PostgreSQL database. All data was
+synthetic. Its size matches the aggregate counts observed on 15 September; this
+run did not connect to production.
+
+The restacked implementation is inspectable at `6fee3a1b8`. The activation
+source, template, tests and write-pause seam are identical between that commit
+and the rehearsed commit. The rehearsal itself ran at `82c70453f`, not at the
+rewritten hash. Subsequent focused tests cover recovery from a lost initial or
+continuation delivery and refusal to adopt an unrelated generic write pause.
 
 ## Data and comparisons
 
