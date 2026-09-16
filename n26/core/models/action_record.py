@@ -298,3 +298,4 @@ class SkillSelection(Base):
         blank=True,
         related_name="action_skill_assignments",
     )
+    random_attempts = models.JSONField(default=list, blank=True)
