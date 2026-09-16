@@ -24,6 +24,7 @@ interrupted delivery's lease lapses and the row is redelivered rather than lost.
 import logging
 import threading
 import uuid
+from datetime import timedelta
 
 from django.tasks import TaskResult
 from django.tasks.backends.base import BaseTaskBackend
@@ -145,14 +146,26 @@ class DatabaseBackend(BaseTaskBackend):
         task_name = task.func.__name__
 
         if mode == "eager":
-            from gyrinx.site.write_pause import WritesPaused, task_delivery_gate
+            from gyrinx.site.write_pause import task_delivery_gate
             from gyrinx.tasks.registry import get_task
 
             route = get_task(task_name)
             if route is not None:
                 with task_delivery_gate(route, dict(kwargs)) as admission:
                     if not admission.allowed:
-                        raise WritesPaused("Changes are temporarily paused.")
+                        task_enqueued.send(sender=type(self), task_result=task_result)
+                        from gyrinx.tasks.models import QueuedTask
+
+                        QueuedTask.objects.create(
+                            task_id=task_id,
+                            task_name=task_name,
+                            args=list(args),
+                            kwargs=dict(kwargs),
+                            enqueued_at=enqueued_at,
+                            available_at=enqueued_at + timedelta(seconds=30),
+                            max_attempts=self.default_max_attempts,
+                        )
+                        return task_result
                     task_enqueued.send(sender=type(self), task_result=task_result)
                     run_task(
                         task.func,

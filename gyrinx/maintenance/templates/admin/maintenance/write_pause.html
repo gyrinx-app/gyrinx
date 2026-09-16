@@ -22,6 +22,7 @@
                 <button type="submit" class="button" name="action" value="pause">Pause changes</button>
             </div>
         {% else %}
+            <input type="hidden" name="generation" value="{{ pause.generation }}">
             <div class="submit-row"><button type="submit"
         class="button"
         name="action"

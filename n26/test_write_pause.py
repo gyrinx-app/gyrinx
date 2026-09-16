@@ -14,9 +14,18 @@ from n26.core.campaigns import campaign_operation
 from n26.core.deletion import destroy_gang
 from n26.core.models import Campaign, Gang
 from n26.core.operations import operation
-from n26.library.authoring import create_campaign_type, create_pack
+from n26.library.authoring import (
+    create_campaign_type,
+    create_pack,
+    create_trading_post,
+    ef_offers_choice,
+    targets_every_model,
+    targets_gang,
+    targets_gang_alone,
+    targets_model,
+)
 from n26.library.ingest import discard_sheets, store_sheet
-from n26.library.models import ContentPack, GangType
+from n26.library.models import Collection, CollectionSelector, ContentPack, GangType
 from n26.library.models.staging import UploadedSheet
 from n26.maintenance import task_routes
 
@@ -87,6 +96,36 @@ def test_public_authoring_refuses_before_creating_content():
         create_pack("Blocked", slug="blocked")
 
     assert not ContentPack.objects.filter(slug="blocked").exists()
+
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        create_trading_post,
+        targets_model,
+        targets_every_model,
+        targets_gang,
+        targets_gang_alone,
+        lambda: ef_offers_choice(object()),
+    ],
+)
+def test_public_authoring_helpers_refuse_while_writes_are_paused(write):
+    pause()
+
+    with pytest.raises(WritesPaused):
+        write()
+
+
+def test_trading_post_creation_rolls_back_if_a_selector_fails(monkeypatch):
+    def fail_selector(*args, **kwargs):
+        raise RuntimeError("selector failed")
+
+    monkeypatch.setattr(CollectionSelector, "of", fail_selector)
+
+    with pytest.raises(RuntimeError, match="selector failed"):
+        create_trading_post("Rolled back", contains=[GangType])
+
+    assert not Collection.objects.filter(name="Rolled back").exists()
 
 
 def test_ingest_upload_refuses_before_storing_a_sheet(user):

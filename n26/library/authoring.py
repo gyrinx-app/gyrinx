@@ -2263,6 +2263,7 @@ def add_section(collection, name, is_default=False, position=None, **kwargs):
     return section_of(collection, name, position, is_default=is_default, **kwargs)
 
 
+@guarded_write
 def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs):
     """A collection whose membership is *having a trade point price*:
     every weapon and wargear with a TP set, swept in — never listed by
@@ -2433,6 +2434,7 @@ def _attach_condition(condition, scope):
 # --- Scopes: who a modifier reaches -----------------------------------------
 
 
+@guarded_write
 def targets_model(*conditions):
     """The model carrying it — only the model the carrier is directly
     assigned to, narrowed by nested conditions —
@@ -2447,6 +2449,7 @@ def targets_model(*conditions):
     return _model_scope(TargetsMiniature.Reach.BEARER, conditions)
 
 
+@guarded_write
 def targets_every_model(*conditions):
     """All models in the gang, however the carrier is held, narrowed by
     the same nested conditions — ``targets_every_model(has_subtypes(x))``.
@@ -2512,6 +2515,7 @@ def targets_attached_weapon():
     return TargetsAttachedWeapon.objects.create()
 
 
+@guarded_write
 def targets_gang(*conditions):
     """The gang carrying it and all models: affects the gang and all
     models, in a different way per effect. Narrowed by nested conditions
@@ -2523,6 +2527,7 @@ def targets_gang(*conditions):
     return _gang_scope(True, conditions)
 
 
+@guarded_write
 def targets_gang_alone(*conditions):
     """The gang carrying it: applied only to the gang, and what it gives
     the gang does not reach the models. A pick given with a slot is the
@@ -2616,6 +2621,7 @@ def ef_contributes_to_counter(counter, amount=0):
     return ContributesToCounter.objects.create(counter=counter, amount=amount)
 
 
+@guarded_write
 def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):
     """Puts an open question on the bearer's card —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a

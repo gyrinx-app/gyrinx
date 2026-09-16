@@ -601,8 +601,8 @@ def discard_sheets(owner, sheets=None):
     held = UploadedSheet.objects.filter(owner=owner)
     if sheets is not None:
         held = held.filter(sheet__in=sheets)
-    uploads = list(held)
     with transaction.atomic(), write_guard():
+        uploads = list(held.select_for_update())
         UploadedSheet.objects.filter(pk__in=[upload.pk for upload in uploads]).delete()
         for upload in uploads:
             if upload.file.name:

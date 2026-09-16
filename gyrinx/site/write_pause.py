@@ -368,8 +368,13 @@ def release_paused_consumer(scope, *, generation, task_name, run_id):
     )
 
 
-def resume_scope(scope, *, actor=None):
+def resume_scope(scope, *, generation, actor=None):
     with exclusive_write_scope(scope) as pause:
+        if pause.generation != generation:
+            raise WritesPaused(
+                "This pause changed after the page loaded. Reload the page before "
+                "resuming changes."
+            )
         if pause.permitted_task_name or pause.permitted_run_id:
             raise WritesPaused(
                 "Release the authorised maintenance task before resuming writes."

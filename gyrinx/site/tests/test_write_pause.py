@@ -69,7 +69,7 @@ def test_pause_blocks_writes_and_requires_released_binding(scope):
         run_id="run-1",
     )
     with pytest.raises(WritesPaused, match="Release"):
-        resume_scope(scope.scope)
+        resume_scope(scope.scope, generation=pause.generation)
 
     release_paused_consumer(
         scope.scope,
@@ -77,9 +77,22 @@ def test_pause_blocks_writes_and_requires_released_binding(scope):
         task_name=f"{__name__}._task",
         run_id="run-1",
     )
-    resume_scope(scope.scope)
+    resume_scope(scope.scope, generation=pause.generation)
     with transaction.atomic(), write_guard(scope.scope):
         pass
+
+
+def test_resume_rejects_a_stale_generation(scope):
+    first = pause_scope(scope.scope, actor=None, reason="First pause")
+    resume_scope(scope.scope, generation=first.generation)
+    latest = pause_scope(scope.scope, actor=None, reason="Latest pause")
+
+    with pytest.raises(WritesPaused, match="changed after the page loaded"):
+        resume_scope(scope.scope, generation=first.generation)
+
+    scope.refresh_from_db()
+    assert scope.state == WritePause.State.PAUSED
+    assert scope.generation == latest.generation
 
 
 def test_exact_bound_task_is_admitted_and_stale_generation_is_deferred(scope):
@@ -209,6 +222,23 @@ def test_htmx_write_pause_refreshes_to_safe_read_notice(scope):
     assert response["Retry-After"] == "30"
     assert response["HX-Refresh"] == "true"
     assert b"&lt;script&gt;" in response.content
+
+
+def test_view_improperly_configured_error_is_not_masked_or_retried(scope):
+    calls = 0
+
+    def broken_view(request):
+        nonlocal calls
+        calls += 1
+        raise ImproperlyConfigured("The view is broken")
+
+    middleware = WritePauseMiddleware(broken_view)
+    request = RequestFactory().get("/test-pause/read")
+
+    with pytest.raises(ImproperlyConfigured, match="The view is broken"):
+        middleware(request)
+
+    assert calls == 1
 
 
 @override_settings(WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS=0.02)

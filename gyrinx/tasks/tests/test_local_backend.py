@@ -89,6 +89,28 @@ def test_eager_runs_inline_on_enqueue():
     assert QueuedTask.objects.count() == 0
 
 
+@pytest.mark.django_db(transaction=True)
+def test_eager_retains_a_scoped_task_while_writes_are_paused(monkeypatch):
+    from gyrinx.site.models import WritePause
+    from gyrinx.site.write_pause import pause_scope
+    from gyrinx.tasks import registry, route
+
+    WritePause.objects.create(scope="test-eager-pause")
+    monkeypatch.setattr(
+        registry,
+        "_tasks",
+        [route.TaskRoute(_record_task, write_scope="test-eager-pause")],
+    )
+    pause_scope("test-eager-pause", actor=None, reason="Maintenance")
+
+    result = _record_task.enqueue("later")
+
+    assert _side_effects == []
+    queued = QueuedTask.objects.get(task_id=result.id)
+    assert queued.attempts == 0
+    assert TaskExecution.objects.get(task_id=result.id).status == "READY"
+
+
 @pytest.mark.django_db
 def test_eager_records_failure_without_raising():
     """A failing task in eager mode is recorded FAILED, not propagated."""
@@ -203,6 +225,29 @@ def test_manual_pause_deferral_does_not_spend_attempt_or_start_execution(
     assert queued.attempts == 0
     assert queued.locked_until is None
     assert TaskExecution.objects.get(task_id=result.id).status == "READY"
+    assert _side_effects == []
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_deliver_all_stops_after_a_paused_task_is_deferred(
+    task_queue, monkeypatch
+):
+    from gyrinx.site.models import WritePause
+    from gyrinx.site.write_pause import pause_scope
+    from gyrinx.tasks import registry, route
+
+    WritePause.objects.create(scope="test-manual-pause")
+    monkeypatch.setattr(
+        registry,
+        "_tasks",
+        [route.TaskRoute(_record_task, write_scope="test-manual-pause")],
+    )
+    result = _record_task.enqueue("later")
+    pause_scope("test-manual-pause", actor=None, reason="Maintenance")
+
+    assert task_queue.deliver_all() == 1
+    queued = QueuedTask.objects.get(task_id=result.id)
+    assert queued.attempts == 0
     assert _side_effects == []
 
 

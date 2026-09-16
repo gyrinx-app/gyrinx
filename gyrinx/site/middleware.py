@@ -1,6 +1,7 @@
 """HTTP admission and read-only notices for registered write scopes."""
 
 import logging
+from contextlib import ExitStack
 from types import SimpleNamespace
 
 from django.core.exceptions import ImproperlyConfigured
@@ -79,32 +80,35 @@ class WritePauseMiddleware:
         request.write_pause = None
         if not scope:
             return self.get_response(request)
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            stack = ExitStack()
+            try:
+                admission = stack.enter_context(request_gate(scope))
+            except ImproperlyConfigured:
+                pause = _unavailable_pause()
+                request.write_pause = pause
+                return _paused_response(request, pause)
+            request.write_pause = admission.pause
+            if not admission.allowed:
+                stack.close()
+                logger.info(
+                    "HTTP write deferred by write pause",
+                    extra={
+                        "write_scope": scope,
+                        "request_method": request.method,
+                        "request_path": request.path_info,
+                        "pause_generation": admission.pause.generation,
+                    },
+                )
+                return _paused_response(request, admission.pause)
+            with stack:
+                return self.get_response(request)
         try:
-            if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-                with request_gate(scope) as admission:
-                    request.write_pause = admission.pause
-                    if not admission.allowed:
-                        logger.info(
-                            "HTTP write deferred by write pause",
-                            extra={
-                                "write_scope": scope,
-                                "request_method": request.method,
-                                "request_path": request.path_info,
-                                "pause_generation": admission.pause.generation,
-                            },
-                        )
-                        return _paused_response(request, admission.pause)
-                    return self.get_response(request)
             request.write_pause = pause_status(scope)
-            return self.get_response(request)
         except ImproperlyConfigured:
             pause = _unavailable_pause()
             request.write_pause = pause
-            if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-                return _paused_response(request, pause)
-            return self.get_response(request)
-        except WritesPaused as exc:
-            return _paused_response(request, type("Pause", (), {"reason": str(exc)})())
+        return self.get_response(request)
 
     def process_exception(self, request, exception):
         # Django converts view exceptions before they return through __call__.

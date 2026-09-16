@@ -122,8 +122,13 @@ def write_pause_view(request, scope):
                     )
                     messages.success(request, f"Changes to {scope} are paused.")
             elif action == "resume":
-                generation = pause.generation
-                pause = resume_scope(scope, actor=request.user)
+                try:
+                    generation = int(request.POST.get("generation", ""))
+                except ValueError:
+                    raise WritesPaused(
+                        "Reload the page before resuming changes."
+                    ) from None
+                pause = resume_scope(scope, generation=generation, actor=request.user)
                 LogEntry.objects.log_actions(
                     request.user.pk,
                     [pause],

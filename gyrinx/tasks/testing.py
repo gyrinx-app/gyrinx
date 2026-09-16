@@ -122,14 +122,19 @@ class ManualTaskQueue:
         return outcome
 
     def deliver_all(self, max_rounds: int = 1000) -> int:
-        """Deliver every task until the queue drains (following retries). Returns
-        the number of delivery attempts made."""
+        """Deliver tasks until the queue drains or one is deferred.
+
+        Retries run immediately, but a paused task remains queued for a later call.
+        Returns the number of delivery attempts made.
+        """
         count = 0
         for _ in range(max_rounds):
             outcome = self.deliver_next()
             if outcome is None:
                 return count
             count += 1
+            if outcome == Outcome.DEFERRED:
+                return count
         raise RuntimeError(
             "deliver_all exceeded max_rounds — a task may be looping "
             "(self-re-enqueue without a base case?)"
