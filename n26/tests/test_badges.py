@@ -499,9 +499,9 @@ class TestTheNamesOnACampaign:
         """A POST naming a gang the list did not offer draws the page
         again, which names the arbitrator in its trail and each gang's
         owner on its rows. Their badge data is read for the page as a GET
-        reads it, not looked up for the names. An unsafe request holds the
-        write-scope lock around the page and costs two queries more than the
-        safe request's scope-state read, however many players there are."""
+        reads it, not looked up for the names. Captured ORM queries for the
+        redraw match the GET, however many players there are. Session locks
+        use the physical connection and stand outside this capture."""
 
         def redraw(path):
             client.get(path)
@@ -515,7 +515,7 @@ class TestTheNamesOnACampaign:
         player(table, "vex")
         on_get = self._queries(client, address)
         with_one = redraw(address)
-        assert with_one == on_get + 2
+        assert with_one == on_get
         player(table, "kesh")
         player(table, "ash")
         player(table, "nyx")
