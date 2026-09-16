@@ -1,4 +1,15 @@
-"""Rehearse dormant deployment, failed activation, cleanup and activation."""
+"""Exercise dormant deployment, failed activation, cleanup and activation.
+
+Run from the repository root against a fresh local PostgreSQL database::
+
+    .codex/run.sh createdb counter_activation_rehearsal_example
+    .codex/run.sh env DB_NAME=counter_activation_rehearsal_example \\
+        python scripts/rehearse_counter_activation.py
+    .codex/run.sh dropdb counter_activation_rehearsal_example
+
+The database must be empty and its name must start with the prefix below.
+The script creates synthetic data and prints validation results and timings.
+"""
 
 import hashlib
 import json
@@ -15,7 +26,7 @@ django.setup()
 from django.db import connection  # noqa: E402, I001
 from django.db.migrations.executor import MigrationExecutor  # noqa: E402
 
-PREFIX = "wren_counter_activation_evidence_"
+PREFIX = "counter_activation_rehearsal_"
 OLD = [("n26", "0068_remove_assignment_assignment_exactly_one_assignable_and_more")]
 COUNTERS, ZERO, ARCHIVED = 19_940, 863, 2_672
 EVENTS, REMOVED, GANGS = 228_571, 2_643, 20
