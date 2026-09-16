@@ -249,6 +249,10 @@ class Operation(models.TextChoices):
         "n26_order_collections",
         "n26: variant equipment lists are moved after the gang's own on Equip",
     )
+    ACTIVATE_COUNTER_HISTORY = (
+        "n26_activate_counter_history",
+        "n26: activate counter history",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -272,6 +276,7 @@ LOCK_KEYS = {
     Operation.MERGE_INTO: 826_020_622,
     Operation.CLEAR_ITEM_RESTRICTIONS: 826_020_623,
     Operation.ORDER_COLLECTIONS: 826_020_625,
+    Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
 }
 
 
@@ -2482,6 +2487,260 @@ def N26PausedTaskRoute(task_function, **kwargs):
     )
 
 
+def _enqueue_counter_history(record, generation):
+    transaction.on_commit(
+        lambda: activate_counter_history.enqueue(
+            backfill_id=str(record.pk), pause_generation=generation
+        )
+    )
+
+
+def start_counter_history(actor):
+    """Drain n26 writers and record the explicitly requested activation."""
+    from n26.core.counter_activation import ActivationRefused, preview
+    from n26.core.counter_tracking import is_active
+    from n26.write_pause import (
+        SCOPE,
+        bind_paused_consumer,
+        exclusive_write_scope,
+        pause_scope,
+    )
+
+    with exclusive_write_scope(SCOPE) as pause:
+        if is_active():
+            raise ActivationRefused("Counter history is already active.")
+        if pause.permitted_run_id:
+            raise ActivationRefused(
+                "Another maintenance run is authorised during this write pause."
+            )
+        counts = preview()
+        if counts["without_gang"]:
+            raise ActivationRefused("Repair counters without a gang before activation.")
+        if counts["structured_events"]:
+            raise ActivationRefused(
+                "Structured counter history already exists. Review it before starting activation."
+            )
+        record = Backfill.objects.create(
+            operation=Operation.ACTIVATE_COUNTER_HISTORY,
+            triggered_by=actor,
+            status=Backfill.Status.RUNNING,
+            summary={
+                "phase": "checkpoint",
+                "preview": counts,
+                "readiness_confirmed_at": timezone.now().isoformat(),
+            },
+        )
+        task_name = COUNTER_HISTORY_TASK_PATH
+        if pause.state == "OPEN":
+            pause = pause_scope(
+                SCOPE,
+                actor=actor,
+                reason="Changes are paused while counter history is activated.",
+                permitted_task_name=task_name,
+                permitted_run_id=str(record.pk),
+            )
+        else:
+            pause = bind_paused_consumer(
+                SCOPE,
+                generation=pause.generation,
+                task_name=task_name,
+                run_id=str(record.pk),
+            )
+        record.summary["pause_generation"] = pause.generation
+        record.save(update_fields=["summary", "modified"])
+        _enqueue_counter_history(record, pause.generation)
+        return record
+
+
+def _counter_history_run(pause, run_id, generation):
+    from n26.core.counter_activation import ActivationRefused
+
+    if (
+        pause.state != "PAUSED"
+        or pause.permitted_task_name != COUNTER_HISTORY_TASK_PATH
+        or pause.permitted_run_id != str(run_id)
+        or str(pause.generation) != str(generation)
+    ):
+        raise ActivationRefused("The write pause changed. Reload this page.")
+    return Backfill.objects.select_for_update().get(
+        pk=run_id, operation=Operation.ACTIVATE_COUNTER_HISTORY
+    )
+
+
+def restart_counter_history(run_id, generation, *, cleanup=False):
+    """Drain the old delivery before changing or retrying this run's work."""
+    from n26.core.counter_activation import ActivationRefused
+    from n26.core.counter_tracking import is_active
+    from n26.write_pause import SCOPE, exclusive_write_scope
+
+    with exclusive_write_scope(SCOPE) as pause:
+        record = _counter_history_run(pause, run_id, generation)
+        if cleanup and is_active():
+            raise ActivationRefused("Counter history is active and cannot be cleared.")
+        phase = "cleanup" if cleanup else record.summary["phase"]
+        record.status = Backfill.Status.RUNNING
+        record.error = ""
+        record.summary = {
+            "phase": phase,
+            "preview": record.summary["preview"],
+            "readiness_confirmed_at": record.summary["readiness_confirmed_at"],
+            "pause_generation": pause.generation,
+        }
+        record.save()
+        _enqueue_counter_history(record, pause.generation)
+        return record
+
+
+def resume_after_counter_history(run_id, generation, actor):
+    """Reopen only after activation or a complete cleanup of this run."""
+    from n26.core.counter_activation import ActivationRefused
+    from n26.core.models import CounterTracking, LedgerEvent
+    from n26.write_pause import (
+        SCOPE,
+        exclusive_write_scope,
+        release_paused_consumer,
+        resume_scope,
+    )
+
+    with exclusive_write_scope(SCOPE) as pause:
+        record = _counter_history_run(pause, run_id, generation)
+        if record.status != Backfill.Status.DONE:
+            raise ActivationRefused(
+                "Wait for the maintenance run to finish before resuming writes."
+            )
+        active = CounterTracking.objects.filter(activated_at__isnull=False).first()
+        if record.summary["phase"] == "cleanup":
+            if (
+                active
+                or LedgerEvent.objects.filter(
+                    batch=record.pk, kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED
+                ).exists()
+            ):
+                raise ActivationRefused("Checkpoint cleanup has not finished.")
+        elif active is None or str(active.activation_run) != str(record.pk):
+            raise ActivationRefused("Counter history has not passed validation.")
+        release_paused_consumer(
+            SCOPE,
+            generation=pause.generation,
+            task_name=COUNTER_HISTORY_TASK_PATH,
+            run_id=str(record.pk),
+        )
+        resume_scope(SCOPE, actor=actor)
+
+
+@task
+def activate_counter_history(backfill_id, pause_generation):
+    from n26.core.counter_activation import (
+        ActivationRefused,
+        checkpoint_gang,
+        cleanup_gang,
+        plan,
+    )
+
+    record = Backfill.objects.get(
+        pk=backfill_id, operation=Operation.ACTIVATE_COUNTER_HISTORY
+    )
+    if record.status != Backfill.Status.RUNNING:
+        return
+    cleanup = record.summary["phase"] == "cleanup"
+    apply = cleanup_gang if cleanup else checkpoint_gang
+    run_per_gang(
+        backfill_id,
+        operation=Operation.ACTIVATE_COUNTER_HISTORY,
+        what="Counter checkpoint cleanup" if cleanup else "Counter history activation",
+        find=lambda: plan(backfill_id, pause_generation, cleanup=cleanup),
+        apply_one=lambda gang_id: apply(gang_id, backfill_id, pause_generation),
+        again=lambda: activate_counter_history.enqueue(
+            backfill_id=backfill_id, pause_generation=pause_generation
+        ),
+        refusals=(ActivationRefused,),
+    )
+
+
+COUNTER_HISTORY_TASK_PATH = "n26.maintenance.activate_counter_history"
+
+
+def counter_history_view(request):
+    from n26.core.counter_activation import ActivationRefused, preview
+    from n26.core.counter_tracking import is_active
+    from n26.write_pause import SCOPE, WritesPaused, pause_status
+
+    problem = ""
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "activate":
+                if request.POST.get("ready") != "confirmed":
+                    raise ActivationRefused(
+                        "Confirm that every serving web and task revision supports activation and that its task route is provisioned."
+                    )
+                start_counter_history(request.user)
+                messages.success(
+                    request,
+                    "Counter history activation started. Writes remain paused until you resume them.",
+                )
+            elif action in {"retry", "cleanup"}:
+                restart_counter_history(
+                    request.POST.get("run_id"),
+                    request.POST.get("generation"),
+                    cleanup=action == "cleanup",
+                )
+                messages.success(
+                    request, "Counter history maintenance queued. Writes remain paused."
+                )
+            elif action == "resume":
+                resume_after_counter_history(
+                    request.POST.get("run_id"),
+                    request.POST.get("generation"),
+                    request.user,
+                )
+                messages.success(request, "n26 writes resumed.")
+            else:
+                raise ActivationRefused("Choose one of the actions on this page.")
+        except (ActivationRefused, WritesPaused) as exc:
+            problem = str(exc)
+        else:
+            return HttpResponseRedirect(request.path)
+
+    pause = pause_status(SCOPE)
+    run = (
+        Backfill.objects.filter(
+            pk=pause.permitted_run_id,
+            operation=Operation.ACTIVATE_COUNTER_HISTORY,
+        ).first()
+        if pause.permitted_task_name == COUNTER_HISTORY_TASK_PATH
+        and pause.permitted_run_id
+        else None
+    )
+    return render(
+        request,
+        "admin/maintenance/n26/counter_history.html",
+        page_context(
+            request,
+            "Activate counter history",
+            pause=pause,
+            run=run,
+            active=is_active(),
+            counts=preview(),
+            problem=problem,
+        ),
+    )
+
+
+register_control_operation(
+    MaintenanceOperation(
+        operation=Operation.ACTIVATE_COUNTER_HISTORY.value,
+        name=Operation.ACTIVATE_COUNTER_HISTORY.label,
+        added=date(2026, 9, 16),
+        description=(
+            "Pause n26 writes, record every counter's current balance, and check "
+            "counter history before activating it. Resume writes after the job finishes."
+        ),
+        view=counter_history_view,
+    )
+)
+
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a repair holds one
 #: transaction for as long as proving what it touched takes. It is also
@@ -2498,6 +2757,7 @@ def N26PausedTaskRoute(task_function, **kwargs):
 #: from the declaration, and only there — the local backend fires no
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
+    N26PausedTaskRoute(activate_counter_history, ack_deadline=600),
     N26TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(merge_into, ack_deadline=600, min_retry_delay=60),
