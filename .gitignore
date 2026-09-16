@@ -22,6 +22,7 @@ screenshots/
 .claude/memory.local.json
 .claude/test-plans/
 .claude/worktrees/
+.claude/notes/
 CLAUDE.local.md
 /rule-reference
 media/
