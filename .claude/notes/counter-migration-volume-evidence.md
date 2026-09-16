@@ -1,11 +1,17 @@
 # Counter migration volume evidence
 
-Rehearsed on 2026-09-15 at records commit `d9893a2f3`, including the final
-generated migrations through `n26.0071`. The database was a new, explicitly
-guarded PostgreSQL scratch database populated only with synthetic rows. It was
-not cloned from a player database. Production supplied aggregate volumes via
-earlier read-only queries; this rehearsal made no production connection or
-write.
+This is historical evidence for records commit `d9893a2f3`. It measured the
+former migration-time checkpoint design. That design was superseded by an
+inactive schema deployment followed by a separate, explicitly triggered
+activation job. The measurements below remain evidence for the pinned revision;
+they do not describe the current activation path or its deployment procedure.
+
+The rehearsal ran on 2026-09-15 at records commit `d9893a2f3`, including the
+final generated migrations through `n26.0071`. The database was a new,
+explicitly guarded PostgreSQL scratch database populated only with synthetic
+rows. It was not cloned from a player database. Production supplied aggregate
+volumes via earlier read-only queries; this rehearsal made no production
+connection or write.
 
 ## Fixture
 
@@ -56,7 +62,7 @@ output. Its successful exit confirms that all assertions ran and passed.
 The rollback result applies to migration 0069's atomic transaction. It does not
 claim that the separate 0069, 0070 and 0071 migrations form one transaction.
 
-## Rolling-deployment limit
+## Historical rolling-deployment finding
 
 The rehearsal deliberately persisted both legacy writer shapes after the
 checkpoint:
@@ -66,24 +72,25 @@ checkpoint:
 - Creating a new counter and writing only the old `tallied` note left
   reconciliation reporting `no counter opening event`.
 
-These are expected gaps in the current design. Migration 0069 cannot checkpoint
-writes made afterward by an old application worker, and old code does not fill
-the structured counter columns. This was a persisted-shape experiment, not a
-true concurrent traffic test.
+These were expected gaps in that migration-time design. Migration 0069 could
+not checkpoint writes made afterward by an old application worker, and old code
+did not fill the structured counter columns. This was a persisted-shape
+experiment, not a true concurrent traffic test.
 
-Deploying this design therefore requires an externally enforced pause of
-counter writes and a drain of old in-flight application work before migrations
-start. Counter writes must remain paused until the new revision is serving and
-old workers cannot resume. The repository does not itself establish that
-maintenance switch or drain. This is a deployment prerequisite, not approval
-to deploy.
+At that revision, deploying the measured design would therefore have required
+an externally enforced pause and drain before migrations started. The current
+design no longer activates tracking in the schema migration: it deploys the
+compatible inactive state first, then uses a separate explicit activation job
+with its own pause, drain and validation protocol.
 
 ## Reproduce
 
-Run `.claude/notes/counter-migration-volume-evidence.py` only against a newly
-created PostgreSQL database whose name begins
-`wren_counter_migration_evidence_`. The script refuses a non-empty database or
-a name outside that prefix.
+To reproduce these measurements, first check out revision `d9893a2f3` and use
+the script from that revision. Do not run today's script against today's schema
+and treat the result as a reproduction of this report. Run the pinned
+`.claude/notes/counter-migration-volume-evidence.py` only against a newly created
+PostgreSQL database whose name begins `wren_counter_migration_evidence_`. The
+pinned script refuses a non-empty database or a name outside that prefix.
 
 The exact runner sequence, with any new owned scratch suffix, is:
 
