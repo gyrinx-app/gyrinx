@@ -338,6 +338,20 @@ class TestTheHeaderBandSpecimens:
         band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
         assert len(re.findall(r">\s*Active\s*<", band)) == 4
 
+    def test_status_and_rating_share_one_unbroken_figures_line(self, reader):
+        from bs4 import BeautifulSoup
+
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
+        document = BeautifulSoup(band, "html.parser")
+        active = document.find(string=lambda value: value and value.strip() == "Active")
+        assert active is not None
+        figures = active.find_parent("div", class_="tabular-nums")
+
+        assert figures is not None
+        assert "whitespace-nowrap" in figures["class"]
+        assert "390¢" in figures.get_text(" ", strip=True)
+
     def test_one_specimen_badges_the_longest_status(self, reader):
         from n26.designsystem import sampledata
 
