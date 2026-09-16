@@ -289,7 +289,7 @@ def action_start(request, pk, action_id):
         form = EmptyActionForm({})
         form.add_error(
             None,
-            "You cannot start this flow until the site's counter records are ready.",
+            "This flow is temporarily unavailable.",
         )
         return _page(
             request,
