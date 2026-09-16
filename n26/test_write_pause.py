@@ -1,6 +1,7 @@
 """The n26 boundaries onto the platform write pause."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -273,6 +274,11 @@ def test_safe_n26_request_stays_available_with_notice(client, user):
     assert response.status_code == 200
     assert response.context["write_pause"] is not None
     body = response.content.decode()
+    alert = BeautifulSoup(body, "html.parser").find(role="alert")
+    assert alert is not None
+    assert {"rounded-box", "bg-amber-50", "border-amber-200"} <= set(
+        alert.get("class", [])
+    )
     assert "Changes paused for maintenance" in body
     assert "A short test pause." in body
     assert "You can still view n26, but you cannot make changes." in body
