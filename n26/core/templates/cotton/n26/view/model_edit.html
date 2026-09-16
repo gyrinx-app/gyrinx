@@ -52,6 +52,7 @@ sits and what its heading says.
     grid reaches no set is not asked rather than shown an empty list.
   statline — the characteristics form, over the subtypes and sharing a cell
     with them. Without it no box is drawn.
+  flows — action panels beneath the model card and above the editing forms.
   htmx — set by a screen that draws this view for a real model, so the card's
     own controls post through htmx and take back the card alone.
 {% endcomment %}
@@ -71,6 +72,7 @@ sits and what its heading says.
     edits=""
     skills=""
     statline=""
+    flows=""
     :htmx="False"
     status_href=""
     class=""
@@ -103,6 +105,7 @@ sits and what its heading says.
         {% endif %}
     </c-n26.model-header>
 
+    {% if flows.strip %}{{ flows }}{% endif %}
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         {% if picture.strip %}
             <c-ui.card>
