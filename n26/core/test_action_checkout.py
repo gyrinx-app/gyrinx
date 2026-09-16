@@ -14,7 +14,11 @@ from n26.core.operations import Refusal, operation
 from n26.library import authoring
 from n26.library.models import Action, ApplyChange, Counter, Pickable, SlotType, Trait
 
-pytestmark = [pytest.mark.django_db, pytest.mark.core]
+pytestmark = [
+    pytest.mark.django_db,
+    pytest.mark.core,
+    pytest.mark.usefixtures("counter_tracking"),
+]
 
 
 @pytest.fixture
@@ -444,3 +448,76 @@ def test_tally_ignores_a_counter_value_cached_before_the_lock(user, gang, fighte
         op.tally(held, 3)
     with operation(gang, actor=user) as op:
         assert op.tally(held, 4) == 9
+
+
+def test_inactive_counter_tracking_refuses_new_action_without_writes(
+    user, gang, fighter, counter_tracking
+):
+    from n26.core.action_records import quote_for
+
+    action, _, _, _ = configured_action(user, gang, fighter)
+    counter_tracking.delete()
+
+    quote = quote_for(fighter, action, gang=gang)
+    assert quote.lines
+    before = LedgerEvent.objects.count()
+    with pytest.raises(Refusal, match="until counter tracking is active"):
+        with operation(gang, actor=user) as op:
+            op.start_action(fighter, action, uuid.uuid4())
+
+    assert not ActionRecord.objects.exists()
+    assert LedgerEvent.objects.count() == before
+
+
+def test_inactive_counter_tracking_refuses_incomplete_confirmation_without_payment(
+    user, gang, fighter, counter_tracking
+):
+    action, outcome, _, held = configured_action(user, gang, fighter)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    credits_before = gang.recompute_credits()
+    counter_before = held.counter_value.value
+    events_before = LedgerEvent.objects.filter(action_record=record).count()
+    counter_tracking.delete()
+
+    with pytest.raises(Refusal, match="until counter tracking is active"):
+        with operation(gang, actor=user) as op:
+            op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=outcome,
+            )
+
+    record.refresh_from_db()
+    held.counter_value.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.payment_id is None
+    assert record.completed_event_id is None
+    assert gang.recompute_credits() == credits_before
+    assert held.counter_value.value == counter_before
+    assert LedgerEvent.objects.filter(action_record=record).count() == events_before
+
+
+def test_inactive_counter_tracking_preserves_completed_retry_and_draft_cancel(
+    user, gang, fighter, counter_tracking
+):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    completed = start_and_review(user, gang, fighter, action, outcome)
+    with operation(gang, actor=user) as op:
+        completed = op.complete_action(
+            completed,
+            revision=completed.revision,
+            review=completed.review,
+            outcome=outcome,
+        )
+        draft = op.start_action(fighter, action, uuid.uuid4())
+    events_before = LedgerEvent.objects.filter(action_record=completed).count()
+    counter_tracking.delete()
+
+    with operation(gang, actor=user) as op:
+        retried = op.complete_action(completed, revision=0, review={}, outcome=outcome)
+        cancelled = op.cancel_action(draft)
+
+    assert retried.pk == completed.pk
+    assert cancelled.state == ActionRecord.State.CANCELLED
+    assert LedgerEvent.objects.filter(action_record=completed).count() == events_before

@@ -369,6 +369,10 @@ def start_action(op, fighter, action, request_key, allowance=None):
         if existing.fighter_id != fighter.pk or existing.action_id != action.pk:
             raise Refusal("That request key belongs to another action use.")
         return existing
+    if not op.counter_tracking_active:
+        raise Refusal(
+            "Fighter actions are unavailable until counter tracking is active."
+        )
 
     rule = action.allowance_rule
     if allowance is not None:
@@ -667,6 +671,10 @@ def complete_action(op, record, *, revision, review, outcome):
     _refuse_unless_owned(op, record.fighter)
     if record.state == ActionRecord.State.COMPLETED:
         return record
+    if not op.counter_tracking_active:
+        raise Refusal(
+            "Fighter actions are unavailable until counter tracking is active."
+        )
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer awaiting confirmation.")
     if revision != record.revision or review != record.review:
