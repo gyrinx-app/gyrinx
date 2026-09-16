@@ -93,8 +93,14 @@ def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(
         assert [
             a.threshold for a in bootstrap_rank_allowances(op, counter_assignment)
         ] == [7]
-        LedgerEvent.objects.filter(assignment=counter_assignment).update(
-            kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED
+        LedgerEvent.objects.filter(
+            assignment=counter_assignment,
+            kind=LedgerEvent.Kind.COUNTER_OPENED,
+        ).update(
+            kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+            counter_before=held.value,
+            counter_delta=0,
+            counter_after=held.value,
         )
         assert starting_counter_value(counter_assignment) is None
 
