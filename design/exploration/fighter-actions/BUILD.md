@@ -8,9 +8,9 @@ review and merge them in this order. The stack starts at
 | --- | --- | --- |
 | 1 | [Activity rename](https://github.com/gyrinx-app/gyrinx/pull/2579) | Frees the name Action while preserving existing gang activities and references. |
 | 2 | [Assignable content](https://github.com/gyrinx-app/gyrinx/pull/2580) | Actions, outcomes, prices and rank tables; existing access and authoring tools; explicit tier levels. |
-| 3 | Write pause (`codex/n26-write-pause`) | Drains n26 writers for maintenance while leaving read-only pages available. |
+| 3 | [Write pause](https://github.com/gyrinx-app/gyrinx/pull/2594) | Drains n26 writers for maintenance while leaving read-only pages available. |
 | 4 | [Records and counter history](https://github.com/gyrinx-app/gyrinx/pull/2581) | Earned allowances, durable action records, typed selections and structured counter events. |
-| 5 | Counter activation (`codex/n26-counter-activation`) | Explicitly checkpoints and audits existing counters before structured writers are enabled. |
+| 5 | [Counter activation](https://github.com/gyrinx-app/gyrinx/pull/2595) | Explicitly checkpoints and audits existing counters before structured writers are enabled. |
 | 6 | [Checkout and corrections](https://github.com/gyrinx-app/gyrinx/pull/2584) | Unpaid drafts, exact price review, atomic final payment, repeat-safe confirmation and operation receipts. |
 | 7 | [Item augmentation](https://github.com/gyrinx-app/gyrinx/pull/2585) | Select a carried item, replace its tier and correct the result without paying again. |
 | 8 | [Progression and standard actions](https://github.com/gyrinx-app/gyrinx/pull/2586) | Recruitment and rank allowances, saved advancement and skill rolls, all four standard actions. |
