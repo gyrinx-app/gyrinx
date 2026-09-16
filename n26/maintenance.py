@@ -2501,7 +2501,6 @@ def start_counter_history(actor):
     from n26.core.counter_tracking import is_active
     from n26.write_pause import (
         SCOPE,
-        bind_paused_consumer,
         exclusive_write_scope,
         pause_scope,
     )
@@ -2509,9 +2508,11 @@ def start_counter_history(actor):
     with exclusive_write_scope(SCOPE) as pause:
         if is_active():
             raise ActivationRefused("Counter history is already active.")
-        if pause.permitted_run_id:
+        if pause.state != "OPEN":
+            reason = pause.reason or "No reason was recorded."
             raise ActivationRefused(
-                "Another maintenance run is authorised during this write pause."
+                f"n26 writes are already paused: {reason} Resume that pause before "
+                "starting counter history activation."
             )
         counts = preview()
         if counts["without_gang"]:
@@ -2531,21 +2532,13 @@ def start_counter_history(actor):
             },
         )
         task_name = COUNTER_HISTORY_TASK_PATH
-        if pause.state == "OPEN":
-            pause = pause_scope(
-                SCOPE,
-                actor=actor,
-                reason="Changes are paused while counter history is activated.",
-                permitted_task_name=task_name,
-                permitted_run_id=str(record.pk),
-            )
-        else:
-            pause = bind_paused_consumer(
-                SCOPE,
-                generation=pause.generation,
-                task_name=task_name,
-                run_id=str(record.pk),
-            )
+        pause = pause_scope(
+            SCOPE,
+            actor=actor,
+            reason="Changes are paused while counter history is activated.",
+            permitted_task_name=task_name,
+            permitted_run_id=str(record.pk),
+        )
         record.summary["pause_generation"] = pause.generation
         record.save(update_fields=["summary", "modified"])
         _enqueue_counter_history(record, pause.generation)
