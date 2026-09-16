@@ -56,7 +56,7 @@ def payment_figures(quote):
     )
 
 
-def action_panels(fighter, *, card, computed):
+def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     """The effective actions and retained earned uses, with bounded reads."""
     access = actions_for(fighter, card=card, computed=computed)
     allowances = list(
@@ -143,6 +143,10 @@ def action_panels(fighter, *, card, computed):
                 panel.problem = f"This flow needs {' and '.join(shortfalls)}."
         if action.pk not in effective_ids and not granted:
             panel.problem = "This model cannot start another flow."
+        elif not counter_tracking_active and not panel.problem:
+            panel.problem = (
+                "You cannot start this flow until the site's counter records are ready."
+            )
         for record in by_action[action.pk]:
             if record.state == ActionRecord.State.STARTED:
                 panel.drafts.append(

@@ -446,10 +446,17 @@ def render_card_update(request, miniature, at):
     flows = []
     if on_edit:
         from n26.core.action_flow import action_panels
+        from n26.core.counter_tracking import is_active as counter_tracking_is_active
         from n26.core.views.action_flows import link_action_panels
 
         flows = link_action_panels(
-            miniature, action_panels(miniature, card=own, computed=computed)
+            miniature,
+            action_panels(
+                miniature,
+                card=own,
+                computed=computed,
+                counter_tracking_active=counter_tracking_is_active(),
+            ),
         )
 
     response = render(
@@ -733,10 +740,17 @@ def edit_fighter(request, pk):
     computed = compute(own, index)
 
     from n26.core.action_flow import action_panels
+    from n26.core.counter_tracking import is_active as counter_tracking_is_active
     from n26.core.views.action_flows import link_action_panels
 
     flows = link_action_panels(
-        miniature, action_panels(miniature, card=own, computed=computed)
+        miniature,
+        action_panels(
+            miniature,
+            card=own,
+            computed=computed,
+            counter_tracking_active=counter_tracking_is_active(),
+        ),
     )
 
     # The same acts the equip listing offers, pointed at this page so

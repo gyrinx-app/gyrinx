@@ -20,7 +20,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def hunt(default_pack, fighter_type, fighter_stats, make_statline):
+def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_tracking):
     owner = User.objects.create_user("flow-player")
     gang_type = a.create_gang_type("Hunting party", starting_credits=1000)
     gang = found_gang("The Descent", gang_type, owner=owner, budget=1000)
@@ -154,6 +154,49 @@ class TestSuitEvolutionForms:
         html = response.content.decode()
         assert "Start Suit Evolution flow" in html
         assert html.index("Available") < html.index("After payment")
+
+    def test_inactive_tracking_explains_why_a_flow_cannot_start(
+        self, client, hunt, counter_tracking
+    ):
+        counter_tracking.delete()
+        client.force_login(hunt.owner)
+        edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        html = edit.content.decode()
+        assert edit.status_code == 200
+        assert "counter records are ready" in html
+        assert "Start Suit Evolution flow" not in html
+
+        url = reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk])
+        start_page = client.get(url)
+        assert start_page.status_code == 200
+        assert "counter records are ready" in start_page.content.decode()
+        posted = client.post(
+            url,
+            {
+                "request_key": str(uuid4()),
+                "outcome": str(hunt.clear.pk),
+                "allowance": "",
+            },
+        )
+        assert posted.status_code == 200
+        assert not ActionRecord.objects.filter(fighter=hunt.fighter).exists()
+
+    def test_inactive_tracking_keeps_an_unfinished_flow_available_to_cancel(
+        self, client, hunt, counter_tracking
+    ):
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        counter_tracking.delete()
+
+        edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        assert edit.status_code == 200
+        assert "Resume Suit Evolution flow" in edit.content.decode()
+
+        cancelled = client.post(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "cancel"])
+        )
+        assert cancelled.status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.CANCELLED
 
     def test_a_carried_item_is_reviewed_before_any_kills_are_spent(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.upgrade)
