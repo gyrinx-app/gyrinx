@@ -81,12 +81,18 @@ class CampaignListResourceInline(GyTabularInline):
 
 @admin.register(CampaignResourceType)
 class CampaignResourceTypeAdmin(BaseAdmin):
-    list_display = ["name", "campaign", "description"]
+    list_display = ["name", "campaign", "can_go_negative", "description"]
     search_fields = ["name", "campaign__name"]
-    list_filter = ["campaign"]
-    fields = ["name", "campaign", "description", "owner"]
+    list_filter = ["campaign", "can_go_negative"]
+    fields = ["name", "campaign", "description", "can_go_negative", "owner"]
 
     inlines = [CampaignListResourceInline]
+
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if obj is not None and obj.is_default_reputation():
+            fields = [field for field in fields if field != "can_go_negative"]
+        return fields
 
 
 class CampaignAttributeValueInline(GyTabularInline):

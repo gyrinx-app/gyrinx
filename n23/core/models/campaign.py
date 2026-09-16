@@ -4,6 +4,7 @@ import random
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import validators
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from simple_history.models import HistoricalRecords
 
@@ -774,6 +775,8 @@ class CampaignAsset(AppBase):
 class CampaignResourceType(AppBase):
     """Type of resource tracked in a campaign (e.g., Meat, Ammo, Credits)"""
 
+    DEFAULT_NAME = "Reputation"
+
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -793,6 +796,10 @@ class CampaignResourceType(AppBase):
         default=0,
         help_text="Default amount allocated to each list when campaign starts",
     )
+    can_go_negative = models.BooleanField(
+        default=False,
+        help_text="This resource can have a negative amount.",
+    )
 
     history = HistoricalRecords()
 
@@ -804,6 +811,50 @@ class CampaignResourceType(AppBase):
 
     def __str__(self):
         return f"{self.campaign.name} - {self.name}"
+
+    @classmethod
+    def is_reputation_name(cls, name):
+        return bool(name) and name.lower() == cls.DEFAULT_NAME.lower()
+
+    def is_default_reputation(self):
+        return self.is_reputation_name(self.name)
+
+    def allows_negative_amounts(self):
+        return self.can_go_negative and not self.is_default_reputation()
+
+    def current_lists_have_negative_amount(self):
+        # Use the resource row's campaign, not the type's. An admin save that
+        # moves the type would otherwise hide a live negative on the old campaign.
+        still_in_that_campaign = Campaign.lists.through.objects.filter(
+            campaign_id=models.OuterRef("campaign_id"),
+            list_id=models.OuterRef("list_id"),
+        )
+        return (
+            self.list_resources.filter(amount__lt=0)
+            .filter(models.Exists(still_in_that_campaign))
+            .exists()
+        )
+
+    def clean(self):
+        super().clean()
+        if self.is_default_reputation() and self.can_go_negative:
+            raise ValidationError(
+                {"can_go_negative": "Reputation cannot go below zero."}
+            )
+        if (
+            self.pk
+            and not self.can_go_negative
+            and type(self).objects.filter(pk=self.pk, can_go_negative=True).exists()
+            and self.current_lists_have_negative_amount()
+        ):
+            raise ValidationError(
+                {
+                    "can_go_negative": (
+                        "You cannot turn this off while a gang has a negative amount. "
+                        "Bring every gang's amount to zero or above first."
+                    )
+                }
+            )
 
 
 class CampaignListResource(AppBase):
@@ -827,7 +878,7 @@ class CampaignListResource(AppBase):
         related_name="campaign_resources",
         help_text="The list that has this resource",
     )
-    amount = models.PositiveIntegerField(
+    amount = models.IntegerField(
         default=0,
         help_text="Current amount of this resource",
     )
@@ -843,6 +894,23 @@ class CampaignListResource(AppBase):
     def __str__(self):
         return f"{self.list.name} - {self.resource_type.name}: {self.amount}"
 
+    def would_go_below_floor(self, new_amount):
+        """True if ``new_amount`` is below zero and this type cannot go negative."""
+        return (
+            new_amount is not None
+            and new_amount < 0
+            and not self.resource_type.allows_negative_amounts()
+        )
+
+    def clean(self):
+        super().clean()
+        if not self.resource_type_id:
+            return
+        if self.would_go_below_floor(self.amount):
+            raise ValidationError(
+                {"amount": f"Cannot reduce {self.resource_type.name} below zero."}
+            )
+
     def modify_amount(self, modification, user, battle=None):
         """Modify the resource amount and log the action
 
@@ -852,13 +920,14 @@ class CampaignListResource(AppBase):
             battle: Optional Battle to attach the logged action to
 
         Raises:
-            ValueError: If modification would result in negative amount
+            ValueError: If the type cannot go negative and the change
+                would take the amount below zero
         """
         if not user:
             raise ValueError("User is required for resource modifications")
 
         new_amount = self.amount + modification
-        if new_amount < 0:
+        if self.would_go_below_floor(new_amount):
             raise ValueError(
                 f"Cannot reduce {self.resource_type.name} below zero. Current: {self.amount}, Attempted change: {modification}"
             )

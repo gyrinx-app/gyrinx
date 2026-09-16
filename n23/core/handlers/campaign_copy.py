@@ -246,6 +246,7 @@ def copy_campaign_content(
                 name=source_type.name,
                 description=source_type.description,
                 default_amount=source_type.default_amount,
+                can_go_negative=source_type.can_go_negative,
             )
             result.resource_types_copied += 1
 
@@ -299,7 +300,7 @@ def copy_campaign_content(
     return result
 
 
-DEFAULT_RESOURCE_TYPE_NAME = "Reputation"
+DEFAULT_RESOURCE_TYPE_NAME = CampaignResourceType.DEFAULT_NAME
 DEFAULT_RESOURCE_TYPE_DESCRIPTION = "Gang reputation gained during the campaign"
 
 
