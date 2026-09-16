@@ -74,15 +74,14 @@ not something to do.
     anchor, so a link to a model lands on its name; a card with no id depicts
     nobody and gets none.
     {% endcomment %}
-    <div class="@container border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
+    <div class="border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
         {% comment %}
-        Equal columns stop a long status and the figures beside it from
-        squeezing the name out of the top-left cell. The rating keeps the
-        top-right corner; the status and founding figures share its row when
-        the card is roomy and wrap beneath it when the card is narrow. The
-        profile and controls occupy the two cells below.
+        The figures take the width their unbroken line needs; the name gives
+        up width and wraps. The status, founding figure and rating stay on one
+        baseline at every card width, with the rating in the top-right corner.
+        The profile and controls occupy the two cells below.
         {% endcomment %}
-        <div class="grid grid-cols-2 items-start gap-x-3">
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
             {% comment %}
             The model's name. The library profile it was hired from sits in
             the cell below, so the controls can remain beside it.
@@ -137,8 +136,7 @@ not something to do.
             </div>
 
             <div class="contents">
-                <div class="col-start-2 row-start-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1 text-sm font-medium tabular-nums">
-                    <div class="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-wrap items-baseline justify-end gap-1 @md:col-span-1 @md:row-start-1">
+                <div class="col-start-2 row-start-1 flex min-w-0 items-baseline justify-end gap-1 whitespace-nowrap text-sm font-medium tabular-nums">
                     {% comment %}
                     Where the model stands between battles, ahead of the
                     figures rather than among the acts below: a status is
@@ -194,16 +192,13 @@ not something to do.
                                     </span>
                                     <c-slot name="content">Founding Trade Points {{ card.name }} has left to spend while the Found and equip gang action is open.</c-slot>
                                 </c-ui.tooltip>
-                                <span aria-hidden="true" class="hidden text-muted @md:inline">·</span>
+                                <span aria-hidden="true" class="text-muted">·</span>
                             </c-n26.model-card.mode>
                         {% endif %}
-                    </div>
-                    <span class="col-start-2 row-start-1">
-                        <c-ui.tooltip size="sm">
-                            <span>{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
-                            <c-slot name="content">Rating, including weapons and wargear</c-slot>
-                        </c-ui.tooltip>
-                    </span>
+                    <c-ui.tooltip size="sm">
+                        <span>{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
+                        <c-slot name="content">Rating, including weapons and wargear</c-slot>
+                    </c-ui.tooltip>
                 </div>
 
                 {% if actions or card.image_url %}
