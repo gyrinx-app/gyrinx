@@ -19,6 +19,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import DatabaseError, OperationalError, connection, transaction
 from django.utils import timezone
+from psycopg import Error as PsycopgError
 
 from gyrinx.site.models import WritePause
 
@@ -93,14 +94,21 @@ def _advisory(function, scope):
     return row[0] if row else None
 
 
-def _session_unlock(function, scope):
+def _session_lock(function, scope):
     connection.ensure_connection()
     raw_connection = connection.connection
+    with raw_connection.cursor() as cursor:
+        cursor.execute(f"SELECT {function}(%s)", [_lock_key(scope)])
+        cursor.fetchone()
+    return raw_connection
+
+
+def _session_unlock(function, scope, raw_connection):
     try:
-        with connection.cursor() as cursor:
+        with raw_connection.cursor() as cursor:
             cursor.execute(f"SELECT {function}(%s)", [_lock_key(scope)])
             cursor.fetchone()
-    except DatabaseError:
+    except DatabaseError, PsycopgError:
         # Django returns connections to its psycopg pool from connection.close().
         # Close the physical session first so putconn() discards it instead of
         # recycling a session that may still own this advisory lock.
@@ -194,14 +202,14 @@ def require_paused_consumer(scope, *, run_id, generation):
 @contextmanager
 def request_gate(scope):
     """Hold shared admission for an entire unsafe HTTP request."""
-    _advisory("pg_advisory_lock_shared", scope)
+    raw_connection = _session_lock("pg_advisory_lock_shared", scope)
     try:
         pause = _get_pause(scope)
         yield DeliveryAdmission(
             pause.state == WritePause.State.OPEN or _permit_matches(pause), pause
         )
     finally:
-        _session_unlock("pg_advisory_unlock_shared", scope)
+        _session_unlock("pg_advisory_unlock_shared", scope, raw_connection)
 
 
 @contextmanager
@@ -211,7 +219,7 @@ def task_delivery_gate(route, kwargs):
         yield DeliveryAdmission(True)
         return
     scope = route.write_scope
-    _advisory("pg_advisory_lock_shared", scope)
+    raw_connection = _session_lock("pg_advisory_lock_shared", scope)
     token = None
     try:
         try:
@@ -254,7 +262,7 @@ def task_delivery_gate(route, kwargs):
     finally:
         if token is not None:
             _permit.reset(token)
-        _session_unlock("pg_advisory_unlock_shared", scope)
+        _session_unlock("pg_advisory_unlock_shared", scope, raw_connection)
 
 
 @contextmanager
@@ -264,10 +272,21 @@ def exclusive_write_scope(scope):
         with transaction.atomic():
             timeout_ms = int(settings.WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS * 1000)
             with connection.cursor() as cursor:
+                cursor.execute("SHOW lock_timeout")
+                previous_timeout = cursor.fetchone()[0]
                 cursor.execute("SET LOCAL lock_timeout = %s", [f"{timeout_ms}ms"])
             # Transaction-scoped control lock cannot leak through a pooled connection.
             # It is acquired before the row lock, matching every pause transition.
-            _advisory("pg_advisory_xact_lock", scope)
+            acquired = False
+            try:
+                _advisory("pg_advisory_xact_lock", scope)
+                acquired = True
+            finally:
+                if acquired:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SET LOCAL lock_timeout = %s", [previous_timeout]
+                        )
             yield _get_pause(scope, for_update=True)
     except OperationalError as exc:
         if getattr(exc.__cause__, "sqlstate", None) == "55P03":

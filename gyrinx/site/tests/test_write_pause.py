@@ -12,6 +12,7 @@ from gyrinx.site.models import WritePause
 from gyrinx.site.write_pause import (
     WritesPaused,
     bind_paused_consumer,
+    exclusive_scope,
     pause_scope,
     register_write_scope,
     release_paused_consumer,
@@ -247,6 +248,9 @@ def test_unlock_failure_physically_closes_before_returning_connection_to_pool(
     class RawConnection:
         closed = False
 
+        def cursor(self):
+            return BrokenCursor()
+
         def close(self):
             self.closed = True
 
@@ -288,8 +292,58 @@ def test_unlock_failure_physically_closes_before_returning_connection_to_pool(
     raw = wrapper.connection
     monkeypatch.setattr(module, "connection", wrapper)
 
-    module._session_unlock("pg_advisory_unlock_shared", "test-scope")
+    module._session_unlock("pg_advisory_unlock_shared", "test-scope", raw)
 
     assert raw.closed
     assert wrapper.pool.returned == [raw]
     assert wrapper.connection is None
+
+
+def test_unlock_uses_the_physical_connection_that_acquired_the_lock(monkeypatch):
+    module = importlib.import_module("gyrinx.site.write_pause")
+
+    class Cursor:
+        def __init__(self, calls):
+            self.calls = calls
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, sql, params):
+            self.calls.append((sql, params))
+
+        def fetchone(self):
+            return (True,)
+
+    class Raw:
+        def __init__(self):
+            self.calls = []
+
+        def cursor(self):
+            return Cursor(self.calls)
+
+    acquired_on = Raw()
+    replacement = Raw()
+    wrapper = type("Wrapper", (), {"connection": replacement})()
+    monkeypatch.setattr(module, "connection", wrapper)
+
+    module._session_unlock("pg_advisory_unlock_shared", "test-scope", acquired_on)
+
+    assert len(acquired_on.calls) == 1
+    assert "pg_advisory_unlock_shared" in acquired_on.calls[0][0]
+    assert replacement.calls == []
+
+
+def test_exclusive_scope_restores_enclosing_transaction_lock_timeout(scope):
+    from django.db import connection
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET LOCAL lock_timeout = '7s'")
+        with exclusive_scope(scope.scope):
+            with connection.cursor() as cursor:
+                cursor.execute("SHOW lock_timeout")
+                assert cursor.fetchone()[0] == "7s"
