@@ -10,6 +10,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.write_pause import write_guard
 
 
 class Command(BaseCommand):
@@ -17,7 +18,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         for item in STANDARD_CONTENT.values():
-            with transaction.atomic():
+            with transaction.atomic(), write_guard():
                 item.create()
             self.stdout.write(f"{item.key}: {item.status()}")
         self.stdout.write(self.style.SUCCESS("Foundations backfilled."))

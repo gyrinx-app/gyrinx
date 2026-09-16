@@ -529,6 +529,7 @@ def store_sheet(owner, sheet, upload):
     whether it can be read at all.
     """
     from n26.library.models.staging import MAX_SHEET_BYTES, UploadedSheet
+    from n26.write_pause import write_guard
 
     if sheet not in SHEET_NAMES:
         raise SheetRefused(f"{sheet!r} is not one of the sheets.")
@@ -551,7 +552,7 @@ def store_sheet(owner, sheet, upload):
             "That file has a heading row and nothing under it, or is not a CSV at all."
         )
 
-    with transaction.atomic():
+    with transaction.atomic(), write_guard():
         # Locked, so an author who submits the same form twice replaces one
         # row twice rather than racing themselves into the constraint that
         # holds them to one sheet of each kind.
@@ -565,9 +566,10 @@ def store_sheet(owner, sheet, upload):
         held.lines = len(rows)
         held.file.save(f"{sheet}.csv", ContentFile(raw), save=False)
         held.save()
-
-    if superseded and superseded != held.file.name:
-        held.file.storage.delete(superseded)
+        if superseded and superseded != held.file.name:
+            transaction.on_commit(
+                lambda storage=held.file.storage, name=superseded: storage.delete(name)
+            )
     return held
 
 
@@ -594,15 +596,22 @@ def discard_sheets(owner, sheets=None):
     delete would leave the bytes behind.
     """
     from n26.library.models.staging import UploadedSheet
+    from n26.write_pause import write_guard
 
     held = UploadedSheet.objects.filter(owner=owner)
     if sheets is not None:
         held = held.filter(sheet__in=sheets)
-    gone = 0
-    for upload in held:
-        upload.delete()
-        gone += 1
-    return gone
+    uploads = list(held)
+    with transaction.atomic(), write_guard():
+        UploadedSheet.objects.filter(pk__in=[upload.pk for upload in uploads]).delete()
+        for upload in uploads:
+            if upload.file.name:
+                transaction.on_commit(
+                    lambda storage=upload.file.storage, name=upload.file.name: (
+                        storage.delete(name)
+                    )
+                )
+    return len(uploads)
 
 
 # --- Planning ----------------------------------------------------------------
@@ -2491,7 +2500,9 @@ def perform(plan, *, staged=False):
         )
     _refuse_what_cannot_be_done(plan)
     result = IngestResult(staged=staged)
-    with transaction.atomic():
+    from n26.write_pause import write_guard
+
+    with transaction.atomic(), write_guard():
         performer = _Performer(plan, result)
         for kind in PERFORM_ORDER:
             for planned in plan.planned:
@@ -3263,8 +3274,10 @@ def clear_imported(pack=None):
 
     Returns ``{what it was: how many}`` for what went.
     """
+    from n26.write_pause import write_guard
+
     gone = TallyCounter()
-    with transaction.atomic():
+    with transaction.atomic(), write_guard():
         for label, rows in _imported(pack):
             found = rows.count()
             if found:

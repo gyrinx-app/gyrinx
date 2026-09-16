@@ -47,6 +47,7 @@ from django.db import transaction
 from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
 from n26.library.gang_supertypes import SLOT, Outcome, seed_gang_supertypes
 from n26.library.territory_table import TERRITORY
+from n26.write_pause import guarded_write, write_guard
 
 #: The stored value of ``Dice.D6``.
 DICE = "d6"
@@ -258,6 +259,7 @@ def seed_journal_content():
     return outcome
 
 
+@guarded_write
 def seed_all():
     """The whole seed as one transaction, reported in words: what it
     created, then what it skipped — or, where it created nothing, a first
@@ -279,7 +281,10 @@ def preview():
     own and nothing is written — not even the propagation filings, whose
     messages publish only on commit."""
     try:
-        with transaction.atomic():
+        # Although this is a GET preview, the exact seed runs transiently.
+        # Join the same admission barrier as committed writes before making
+        # any scratch rows, so a checkpoint's exclusive lock also drains it.
+        with transaction.atomic(), write_guard():
             raise _RolledBack(seed_all())
     except _RolledBack as rolled_back:
         return rolled_back.args[0]

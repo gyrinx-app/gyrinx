@@ -209,6 +209,10 @@ def print_setup(request, pk):
     from n26.core.render import render_gang
 
     if request.method == "POST":
+        from django.db import transaction
+
+        from n26.write_pause import write_guard
+
         gang = _own_gang_or_404(request, pk)
         name = request.POST.get("name", "").strip()
         miniatures = Miniature.objects.filter(
@@ -225,15 +229,16 @@ def print_setup(request, pk):
         # unique over: saving "Roster" where the gang already holds
         # "roster" would otherwise miss, insert, and trip the constraint
         # rather than overwriting the setup the player meant.
-        config = PrintConfig.objects.filter(gang=gang, name__iexact=name).first()
-        if config is None:
-            config = PrintConfig(gang=gang, name=name)
-        config.include_header = bool(request.POST.get("include_header"))
-        config.include_stash = bool(request.POST.get("include_stash"))
-        config.include_notes = bool(request.POST.get("include_notes"))
-        config.save()
-        config.miniatures.set(miniatures)
-        config.assignments.set(weapons)
+        with transaction.atomic(), write_guard():
+            config = PrintConfig.objects.filter(gang=gang, name__iexact=name).first()
+            if config is None:
+                config = PrintConfig(gang=gang, name=name)
+            config.include_header = bool(request.POST.get("include_header"))
+            config.include_stash = bool(request.POST.get("include_stash"))
+            config.include_notes = bool(request.POST.get("include_notes"))
+            config.save()
+            config.miniatures.set(miniatures)
+            config.assignments.set(weapons)
         return redirect(f"{reverse('n26-print', args=[gang.pk])}?config={config.pk}")
 
     from n26.core.render import WEAPON_SLOTS_PER_CARD

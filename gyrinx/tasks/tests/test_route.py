@@ -6,6 +6,7 @@ import pytest
 from django.test import override_settings
 
 from gyrinx.tasks import TaskRoute
+from gyrinx.tasks.route import PausedTaskConsumer
 
 pytestmark = pytest.mark.core
 
@@ -53,6 +54,12 @@ def test_task_route_defaults():
     assert route.ack_deadline == 300
     assert route.min_retry_delay == 10
     assert route.max_retry_delay == 600
+    assert route.write_scope is None
+
+
+def test_paused_consumer_requires_write_scope():
+    with pytest.raises(ValueError, match="requires write_scope"):
+        TaskRoute(sample_task, paused_consumer=PausedTaskConsumer())
 
 
 def test_task_route_custom_config():

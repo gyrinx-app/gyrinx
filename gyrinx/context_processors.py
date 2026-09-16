@@ -46,6 +46,15 @@ def gyrinx_debug(request):
     return {"gyrinx_debug": settings.GYRINX_DEBUG}
 
 
+def write_pause(request):
+    pause = getattr(request, "write_pause", None)
+    return {
+        "write_pause": pause
+        if pause is not None and pause.state == pause.State.PAUSED
+        else None
+    }
+
+
 def impersonation(request):
     """Expose impersonation state to templates.
 

@@ -157,19 +157,24 @@ class ManualTaskQueue:
             payload = self._last
         if payload is None:
             raise RuntimeError("no task has been delivered yet")
-        func, _route = _resolve(payload["task_name"])
+        func, route = _resolve(payload["task_name"])
         if func is None:
             raise RuntimeError(f"unknown task {payload['task_name']!r}")
-        return run_task(
-            func,
-            task_name=payload["task_name"],
-            task_id=payload["task_id"],
-            args=payload["args"],
-            kwargs=payload["kwargs"],
-            sender=local_backend.DatabaseBackend,
-            track_extra={"duplicate": True},
-            emit_signals=False,
-        )
+        from gyrinx.site.write_pause import task_delivery_gate
+
+        with task_delivery_gate(route, payload["kwargs"]) as admission:
+            if not admission.allowed:
+                return Outcome.DEFERRED
+            return run_task(
+                func,
+                task_name=payload["task_name"],
+                task_id=payload["task_id"],
+                args=payload["args"],
+                kwargs=payload["kwargs"],
+                sender=local_backend.DatabaseBackend,
+                track_extra={"duplicate": True},
+                emit_signals=False,
+            )
 
     # -- assertions -------------------------------------------------------------------
 

@@ -31,6 +31,6 @@ Example:
     send_welcome_email.enqueue(user_id=user.id)
 """
 
-from gyrinx.tasks.route import TaskRoute
+from gyrinx.tasks.route import PausedTaskConsumer, TaskRoute
 
-__all__ = ["TaskRoute"]
+__all__ = ["PausedTaskConsumer", "TaskRoute"]

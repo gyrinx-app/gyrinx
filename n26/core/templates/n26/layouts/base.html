@@ -521,6 +521,13 @@ gtm_container_id, messages, user.
         {% endif %}
         {% block body %}
             <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
+                {% if write_pause.state == "PAUSED" %}
+                    <c-callout variant="warning"
+                               heading="Changes paused for maintenance"
+                               class="mb-4">
+                        You can still view n26, but you cannot make changes. {{ write_pause.reason }}
+                    </c-callout>
+                {% endif %}
                 {% comment %}
                 A block, so a page that needs its messages somewhere else can
                 empty this one and include the same partial where it wants

@@ -2812,8 +2812,9 @@ def clone_gang(source, *, name, owner, actor=None):
     """
     from n26.core.cloning import clone_event_note, plan_gang_clone
     from n26.core.models import Activity, Gang, Stash
+    from n26.write_pause import write_guard
 
-    with transaction.atomic():
+    with transaction.atomic(), write_guard():
         source = (
             Gang.objects.select_for_update()
             .filter(pk=source.pk, archived=False)
@@ -2856,7 +2857,9 @@ def operation(gang, actor=None, batch=None, also=()):
     in one order.
     """
     op = Operation(gang, actor=actor, batch=batch)
-    with transaction.atomic():
+    from n26.write_pause import write_guard
+
+    with transaction.atomic(), write_guard():
         if gang is not None and gang.pk is not None:
             _hold(gang, *also)
             # Anything the gang read before its line was taken can

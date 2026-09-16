@@ -1186,7 +1186,9 @@ def campaign_operation(campaign, actor=None):
     deadlock one of them. Nothing here ever changes the campaign's key, so
     the weaker lock loses nothing.
     """
-    with transaction.atomic():
+    from n26.write_pause import write_guard
+
+    with transaction.atomic(), write_guard():
         # A campaign being founded has a key already and no row yet, so
         # there is nothing to lock and nothing to read back.
         if not campaign._state.adding:

@@ -11,6 +11,29 @@
     </style>
 {% endblock extrahead %}
 {% block content %}
+    {% if write_pauses %}
+        <div class="module">
+            <table>
+                <caption>Write access</caption>
+                <thead>
+                    <tr>
+                        <th>Area</th>
+                        <th>Status</th>
+                        <th>Paused at</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pause in write_pauses %}
+                        <tr>
+                            <th><a href="{% url 'admin:maintenance_write_pause' pause.scope %}">{{ pause.scope }}</a></th>
+                            <td>{{ pause.get_state_display }}</td>
+                            <td>{{ pause.paused_at|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
     <h1>{{ title }}</h1>
     <p class="mt-page-intro">
         One-off data repairs and admin-only maintenance operations. All actions

@@ -306,16 +306,23 @@ def pubsub_push_handler(request):
         # task_started/task_finished signals (and TaskExecution bookkeeping) as
         # the local backend. run_task swallows the task's own exception into
         # ok=False rather than propagating, so we map that to a 500 (nack) here.
-        ok, _return_value, _error = run_task(
-            route._underlying_func,
-            task_name=task_name,
-            task_id=task_id,
-            args=args,
-            kwargs=kwargs,
-            enqueued_at=enqueued_at,
-            sender=PubSubBackend,
-            track_extra={"message_id": message_id},
-        )
+        from gyrinx.site.write_pause import task_delivery_gate
+
+        with task_delivery_gate(route, kwargs) as admission:
+            if not admission.allowed:
+                response = HttpResponse("Changes are temporarily paused.", status=503)
+                response["Retry-After"] = "30"
+                return response
+            ok, _return_value, _error = run_task(
+                route._underlying_func,
+                task_name=task_name,
+                task_id=task_id,
+                args=args,
+                kwargs=kwargs,
+                enqueued_at=enqueued_at,
+                sender=PubSubBackend,
+                track_extra={"message_id": message_id},
+            )
 
         if ok:
             return HttpResponse("OK", status=200)

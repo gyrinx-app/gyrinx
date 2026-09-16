@@ -739,8 +739,9 @@ class TestTheQueryBudget:
         # taken once for the page rather than once per model, so the count
         # below still holds however large the gang grows. One more reads
         # which offers the owner has dismissed — the whole gang's in one
-        # query, whether any are or not.
-        assert self.measure(client, edit_url(vex)) == 44
+        # query, whether any are or not. One more reads the n26 write-pause
+        # state for the page notice.
+        assert self.measure(client, edit_url(vex)) == 45
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

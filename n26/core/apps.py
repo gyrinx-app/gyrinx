@@ -16,5 +16,6 @@ class N26Config(AppConfig):
         from n26 import (
             analytics,  # noqa: F401  — claims this edition's event nouns
             flags,  # noqa: F401  — claims this edition's gated features
+            write_pause,  # noqa: F401  — registers this edition's write scope
         )
         from n26.core import checks  # noqa: F401  — registers startup checks

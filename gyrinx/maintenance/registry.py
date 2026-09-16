@@ -61,6 +61,8 @@ class MaintenanceOperation:
     #: Stated rather than derived: a repair has a date before it has ever run,
     #: and that is exactly when it needs to be easy to find.
     added: datetime.date | None = None
+    #: Registered write scope this operation mutates. Used by platform middleware.
+    write_scope: str | None = None
 
     @property
     def url_slug(self) -> str:

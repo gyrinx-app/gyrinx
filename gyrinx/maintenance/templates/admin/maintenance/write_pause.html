@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+    <div class="module aligned">
+        {% if pause_overlong %}
+            <p class="errornote">This pause has lasted longer than expected. Check the maintenance run before resuming changes.</p>
+        {% endif %}
+        <p><strong>Status:</strong> {{ pause.get_state_display }}</p>
+        {% if pause.reason %}<p><strong>Reason:</strong> {{ pause.reason }}</p>{% endif %}
+        {% if pause.paused_at %}<p>Paused {{ pause.paused_at }} by {{ pause.paused_by|default:"an administrator" }}.</p>{% endif %}
+        {% if pause.permitted_task_name %}
+            <p>An authorised maintenance run is active. Release it before resuming changes.</p>
+        {% endif %}
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        {% if pause.state == "OPEN" %}
+            <div class="form-row">
+                <label for="id_reason">Reason</label>
+                <textarea id="id_reason" name="reason" required rows="3"></textarea>
+            </div>
+            <div class="submit-row">
+                <button type="submit" class="button" name="action" value="pause">Pause changes</button>
+            </div>
+        {% else %}
+            <div class="submit-row"><button type="submit"
+        class="button"
+        name="action"
+        value="resume"
+        {% if pause.permitted_task_name %}disabled{% endif %}>Resume changes</button></div>
+        {% endif %}
+    </form>
+{% endblock %}
