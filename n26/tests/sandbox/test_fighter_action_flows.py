@@ -163,13 +163,13 @@ class TestSuitEvolutionForms:
         edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
         html = edit.content.decode()
         assert edit.status_code == 200
-        assert "counter records are ready" in html
+        assert "This flow is temporarily unavailable." in html
         assert "Start Suit Evolution flow" not in html
 
         url = reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk])
         start_page = client.get(url)
         assert start_page.status_code == 200
-        assert "counter records are ready" in start_page.content.decode()
+        assert "This flow is temporarily unavailable." in start_page.content.decode()
         posted = client.post(
             url,
             {

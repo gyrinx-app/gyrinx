@@ -741,8 +741,9 @@ class TestTheQueryBudget:
         # which offers the owner has dismissed — the whole gang's in one
         # query, whether any are or not. One more reads the n26 write-pause
         # state for the page notice.
-        # Earned action uses and saved flows are two bounded history reads.
-        assert self.measure(client, edit_url(vex)) == 47
+        # One reads whether counter tracking is active. Earned action uses
+        # and saved flows are two bounded history reads.
+        assert self.measure(client, edit_url(vex)) == 48
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

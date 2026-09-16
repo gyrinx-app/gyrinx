@@ -144,9 +144,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         if action.pk not in effective_ids and not granted:
             panel.problem = "This model cannot start another flow."
         elif not counter_tracking_active and not panel.problem:
-            panel.problem = (
-                "You cannot start this flow until the site's counter records are ready."
-            )
+            panel.problem = "This flow is temporarily unavailable."
         for record in by_action[action.pk]:
             if record.state == ActionRecord.State.STARTED:
                 panel.drafts.append(
