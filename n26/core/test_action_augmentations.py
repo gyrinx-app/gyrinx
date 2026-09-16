@@ -38,7 +38,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def action_record(default_pack, fighter_type, make_statline):
+def action_record(default_pack, fighter_type, make_statline, counter_tracking):
     gang_type = create_gang_type("Hunters", starting_credits=1000)
     owner = User.objects.create_user("augmentation-player")
     gang = found_gang("The Hunt", gang_type, owner=owner, budget=1000)
