@@ -1,5 +1,6 @@
 """The operator activates counter history after deployment, under a write pause."""
 
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -8,7 +9,7 @@ from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
 from gyrinx.site.models import WritePause
-from gyrinx.site.write_pause import WritesPaused, resume_scope
+from gyrinx.site.write_pause import WritesPaused, pause_scope, resume_scope
 from n26 import maintenance
 from n26.core import counter_activation
 from n26.core.counter_tracking import is_active
@@ -233,6 +234,71 @@ class TestInterruptedActivation:
         with pytest.raises(WritesPaused), transaction.atomic():
             counter_activation.checkpoint_gang(counters[0].gang_id, uuid4(), 1)
 
+    def test_an_operator_can_retry_after_the_initial_delivery_is_lost(
+        self, counters, owner, task_queue, admin_client
+    ):
+        before = snapshot()
+        record, generation = start(task_queue, owner)
+        task_queue.drop_next()
+        task_queue.deliver_all()
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.RUNNING
+        assert not LedgerEvent.objects.filter(batch=record.pk).exists()
+        page = admin_client.get(
+            reverse("admin:maintenance_n26_activate_counter_history")
+        )
+        assert b"If progress has stopped" in page.content
+        assert b"Retry this run" in page.content
+
+        with task_queue.capture():
+            maintenance.restart_counter_history(record.pk, generation)
+        task_queue.deliver_all()
+
+        assert is_active()
+        assert snapshot() == before
+        assert LedgerEvent.objects.filter(
+            batch=record.pk, kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED
+        ).count() == len(counters)
+
+    def test_an_operator_can_retry_after_a_continuation_is_lost(
+        self, counters, owner, task_queue, monkeypatch
+    ):
+        before = snapshot()
+        run_per_gang = maintenance.run_per_gang
+
+        def one_gang_per_delivery(*args, **kwargs):
+            kwargs["batch_size"] = 1
+            kwargs["budget"] = timedelta(0)
+            return run_per_gang(*args, **kwargs)
+
+        monkeypatch.setattr(maintenance, "run_per_gang", one_gang_per_delivery)
+        record, generation = start(task_queue, owner)
+        task_queue.deliver_next()
+        task_queue.drop_next()
+        task_queue.deliver_next()
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.RUNNING
+        assert (
+            LedgerEvent.objects.filter(
+                batch=record.pk, kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED
+            ).count()
+            == 1
+        )
+
+        with task_queue.capture():
+            maintenance.restart_counter_history(record.pk, generation)
+        task_queue.deliver_all()
+
+        assert is_active()
+        assert snapshot() == before
+        checkpoints = LedgerEvent.objects.filter(
+            batch=record.pk, kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED
+        )
+        assert checkpoints.count() == len(counters)
+        assert checkpoints.values("assignment_id").distinct().count() == len(counters)
+
 
 class TestOperatorPage:
     """The operator confirms rollout readiness before the job can begin."""
@@ -288,3 +354,31 @@ class TestOperatorPage:
             operation=maintenance.Operation.ACTIVATE_COUNTER_HISTORY
         ).exists()
         assert WritePause.objects.get(scope="n26").state == WritePause.State.OPEN
+
+    def test_activation_cannot_adopt_an_existing_generic_pause(
+        self, admin_client, owner
+    ):
+        pause = pause_scope(
+            "n26", actor=owner, reason="A separate repair is in progress."
+        )
+
+        with pytest.raises(
+            counter_activation.ActivationRefused,
+            match="A separate repair is in progress",
+        ):
+            maintenance.start_counter_history(owner)
+
+        pause.refresh_from_db()
+        assert pause.state == WritePause.State.PAUSED
+        assert pause.permitted_task_name == ""
+        assert pause.permitted_run_id == ""
+        assert not Backfill.objects.filter(
+            operation=maintenance.Operation.ACTIVATE_COUNTER_HISTORY
+        ).exists()
+
+        page = admin_client.get(
+            reverse("admin:maintenance_n26_activate_counter_history")
+        )
+        assert b"A separate repair is in progress." in page.content
+        assert b"Resume the existing write pause" in page.content
+        assert b"Pause writes and activate counter history" not in page.content
