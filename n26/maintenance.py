@@ -1848,7 +1848,13 @@ def initialise_action_allowances_view(request):
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
         if plan.problems:
-            messages.error(request, "Resolve the reported rank-table conflicts first.")
+            if len(plan.problems) == 1:
+                messages.error(request, plan.problems[0])
+            else:
+                messages.error(
+                    request,
+                    "Resolve the reported problems before initialising allowances.",
+                )
             return HttpResponseRedirect(address)
         if plan.nothing_here:
             messages.info(
