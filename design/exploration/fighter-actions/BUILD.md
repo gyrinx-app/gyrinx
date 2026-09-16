@@ -39,13 +39,16 @@ progress indicators. Screenshots are attached to the UI PR.
 
 The Activity data migration preserved 2,593 activity rows and 87 references.
 Counter checkpoints are created by an explicit maintenance operation, not a data
-migration. Its [volume rehearsal](../../../.claude/notes/counter-activation-volume-evidence.md)
+migration. Its [volume rehearsal](https://github.com/gyrinx-app/gyrinx/pull/2595)
 used 19,940 synthetic counters matching production value and archive distributions.
 An injected failure was cleaned up before a fresh activation completed locally in
 7.486 seconds, including validation. All values and references were preserved.
 That local measurement is evidence for the rehearsal, not a production timing
 promise. Production was read only for aggregate counts; no production data was
 changed.
+
+The reusable [rehearsal script](../../../scripts/rehearse_counter_activation.py)
+includes instructions for running against a fresh local database.
 
 ## Activation and deferred work
 
