@@ -436,20 +436,31 @@ class LedgerEvent(Base):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(
-                        counter_before__isnull=True,
-                        counter_delta__isnull=True,
-                        counter_after__isnull=True,
+                    (
+                        models.Q(
+                            counter_before__isnull=True,
+                            counter_delta__isnull=True,
+                            counter_after__isnull=True,
+                        )
+                        & ~models.Q(
+                            kind__in=[
+                                "counter_opened",
+                                "counter_checkpointed",
+                            ]
+                        )
                     )
                     | models.Q(
+                        counter_before__isnull=False,
+                        counter_delta__isnull=False,
+                        counter_after__isnull=False,
                         kind__in=[
                             "counter_opened",
                             "counter_checkpointed",
                             "tallied",
-                        ]
+                        ],
                     )
                 ),
-                name="ledger_event_counter_movement_kind",
+                name="ledger_event_counter_movement_kind_v2",
             ),
             models.CheckConstraint(
                 condition=(

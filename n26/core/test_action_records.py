@@ -356,6 +356,26 @@ def test_counter_fields_are_refused_on_another_event_kind(user, gang, fighter):
         )
 
 
+@pytest.mark.parametrize(
+    "kind",
+    [
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+    ],
+)
+def test_counter_baselines_require_structured_amounts(kind, user, gang, fighter):
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        LedgerEvent.objects.create(
+            gang=gang,
+            actor=user,
+            assignment=held,
+            kind=kind,
+        )
+
+
 def test_legacy_tally_without_structured_counter_fields_is_kept(user, gang, fighter):
     event = LedgerEvent.objects.create(
         gang=gang,
@@ -411,6 +431,52 @@ def test_counter_chain_requires_an_opening(user, gang, fighter):
     assert any(
         "no counter opening event" in problem
         for problem in reconcile.check_counter_value(held.counter_value)
+    )
+
+
+def test_counter_reconciliation_rejects_an_event_from_another_gang(
+    user, gang, fighter, gang_type
+):
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+        op.tally(held, 3)
+    other_gang = Gang.objects.create(
+        name="The Other Hunt", owner=user, gang_type=gang_type
+    )
+    held.ledger_events.filter(kind=LedgerEvent.Kind.TALLIED).update(gang=other_gang)
+
+    problems = reconcile.check_counter_value(held.counter_value)
+
+    assert any("belongs to another gang" in problem for problem in problems)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+    ],
+)
+def test_counter_reconciliation_rejects_an_additional_baseline(
+    kind, user, gang, fighter
+):
+    with operation(gang, actor=user) as op:
+        held = op.assign(Counter.objects.create(name="XP"), miniature=fighter)
+        op.open_counter(held, 0)
+    LedgerEvent.objects.create(
+        gang=gang,
+        actor=user,
+        assignment=held,
+        kind=kind,
+        counter_before=0,
+        counter_delta=0,
+        counter_after=0,
+    )
+
+    problems = reconcile.check_counter_value(held.counter_value)
+
+    assert any(
+        "is an additional opening or checkpoint" in problem for problem in problems
     )
 
 
