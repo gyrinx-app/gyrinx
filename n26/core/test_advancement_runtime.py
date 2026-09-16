@@ -32,7 +32,11 @@ from n26.tests.sandbox.actions import (
     targets_model,
 )
 
-pytestmark = [pytest.mark.django_db, pytest.mark.core]
+pytestmark = [
+    pytest.mark.django_db,
+    pytest.mark.core,
+    pytest.mark.usefixtures("counter_tracking"),
+]
 
 
 @pytest.fixture
