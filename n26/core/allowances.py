@@ -16,6 +16,8 @@ def _membership(fighter):
 @transaction.atomic
 def grant_recruitment_allowances(op, fighter):
     """Grant each effective recruitment allowance once, after hire is complete."""
+    if not op.counter_tracking_active:
+        return []
     recruitment = _membership(fighter)
     granted = []
     for access in actions_for(fighter):
@@ -43,7 +45,7 @@ def grant_recruitment_allowances(op, fighter):
 @transaction.atomic
 def grant_rank_allowances(op, counter_assignment, before, after):
     """Grant allowances for strictly crossed thresholds of the current table."""
-    if after <= before:
+    if after <= before or not op.counter_tracking_active:
         return []
     fighter = counter_assignment.miniature_root
     if fighter is None:
@@ -107,6 +109,8 @@ def starting_counter_value(counter_assignment):
 @transaction.atomic
 def bootstrap_rank_allowances(op, counter_assignment):
     """Grant unused legacy allowances from a trustworthy starting value."""
+    if not op.counter_tracking_active:
+        return []
     baseline = starting_counter_value(counter_assignment)
     if baseline is None:
         return []
@@ -120,6 +124,8 @@ def bootstrap_rank_allowances(op, counter_assignment):
 @transaction.atomic
 def clone_unused_allowances(op, source, clone):
     """Copy the earned uses that were unused in the source snapshot."""
+    if not op.counter_tracking_active:
+        return []
     copied = []
     unused = source.action_allowances.exclude(
         records__state__in=["started", "completed"]

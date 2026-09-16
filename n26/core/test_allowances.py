@@ -29,7 +29,9 @@ def fighter(user, gang_type, make_profile, make_statline):
         return op.hire(profile, "Kara", paid=100)
 
 
-def test_recruitment_allowances_are_granted_once_after_access_exists(fighter):
+def test_recruitment_allowances_are_granted_once_after_access_exists(
+    fighter, counter_tracking
+):
     rule = RecruitmentAllowanceRule.objects.create()
     action = Action.objects.create(
         name="Recruitment augmentation",
@@ -45,7 +47,9 @@ def test_recruitment_allowances_are_granted_once_after_access_exists(fighter):
     assert allowance.granted_event.kind == LedgerEvent.Kind.GRANTED
 
 
-def test_rank_allowances_grant_only_strict_crossings_and_never_regrant(fighter):
+def test_rank_allowances_grant_only_strict_crossings_and_never_regrant(
+    fighter, counter_tracking
+):
     xp = Counter.objects.create(name="XP")
     table = RankTable.objects.create(name="Standard ranks", counter=xp)
     for value in (4, 7, 10):
@@ -67,7 +71,9 @@ def test_rank_allowances_grant_only_strict_crossings_and_never_regrant(fighter):
     assert not ActionAllowance.objects.filter(granted_event__isnull=True).exists()
 
 
-def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(fighter):
+def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(
+    fighter, counter_tracking
+):
     xp = Counter.objects.create(name="XP")
     table = RankTable.objects.create(name="Standard ranks", counter=xp)
     RankThreshold.objects.create(rank_table=table, threshold=7)
@@ -93,7 +99,7 @@ def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(fighte
         assert starting_counter_value(counter_assignment) is None
 
 
-def test_clone_copies_only_unused_allowances(fighter):
+def test_clone_copies_only_unused_allowances(fighter, counter_tracking):
     rule = RecruitmentAllowanceRule.objects.create()
     action = Action.objects.create(
         name="Recruitment augmentation",
@@ -112,3 +118,36 @@ def test_clone_copies_only_unused_allowances(fighter):
     assert copied.action == unused.action
     assert copied.recruitment == clone.membership
     assert copied.granted_event.kind == LedgerEvent.Kind.GRANTED
+
+
+def test_allowances_stay_dormant_while_legacy_fighter_operations_continue(fighter):
+    recruitment_action = Action.objects.create(
+        name="Recruitment augmentation",
+        timing="recruitment",
+        recruitment_allowance_rule=RecruitmentAllowanceRule.objects.create(),
+    )
+    xp = Counter.objects.create(name="XP")
+    table = RankTable.objects.create(name="Standard ranks", counter=xp)
+    RankThreshold.objects.create(rank_table=table, threshold=4)
+    advancement = Action.objects.create(
+        name="Advancement",
+        timing="post_cycle",
+        rank_allowance_rule=RankAllowanceRule.objects.create(counter=xp),
+    )
+
+    with operation(fighter.gang) as op:
+        op.assign(recruitment_action, miniature=fighter)
+        op.assign(advancement, miniature=fighter)
+        op.assign(table, miniature=fighter)
+        counter_assignment = op.assign(xp, miniature=fighter)
+        op.open_counter(counter_assignment, 0)
+
+        assert grant_recruitment_allowances(op, fighter) == []
+        assert op.tally(counter_assignment, 8) == 8
+
+        clone = op.clone_miniature(fighter)
+
+    counter_assignment.counter_value.refresh_from_db()
+    assert counter_assignment.counter_value.value == 8
+    assert clone.membership is not None
+    assert not ActionAllowance.objects.exists()
