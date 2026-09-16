@@ -62,7 +62,7 @@ class TestActivationAndManualResume:
         with pytest.raises(WritesPaused), operation(counters[0].gang) as op:
             op.tally(counters[0], 1)
         with pytest.raises(WritesPaused):
-            resume_scope("n26", actor=owner)
+            resume_scope("n26", generation=generation, actor=owner)
 
         task_queue.deliver_all()
 
