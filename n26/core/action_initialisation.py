@@ -6,10 +6,15 @@ from itertools import groupby
 from n26.core.access import actions_for, rank_table_for
 from n26.core.allowances import grant_rank_allowances
 from n26.core.card import build_card, build_modifier_index, carriers
+from n26.core.counter_tracking import is_active
 from n26.core.effects import compute
 from n26.core.models import Assignment, Gang, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
+
+INACTIVE_REASON = (
+    "Activate counter history before initialising existing fighter allowances."
+)
 
 
 @dataclass(frozen=True)
@@ -95,6 +100,12 @@ def _fighter_contexts(gang=None):
 
 def find():
     """Build a dry-run plan without writing player history."""
+    if not is_active():
+        return InitialisationPlan(
+            gangs=(),
+            missing_baselines=(),
+            problems=(INACTIVE_REASON,),
+        )
     gangs = set()
     missing = []
     problems = []
@@ -149,6 +160,8 @@ def apply_one(gang_id):
             gang.refresh_from_db()
             if gang.archived:
                 return f"{gang}: skipped because it was archived."
+            if not is_active():
+                raise Refusal(INACTIVE_REASON)
             for (
                 fighter,
                 assignments,

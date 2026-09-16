@@ -7,9 +7,9 @@ from django.urls import reverse
 from gyrinx.maintenance.models import Backfill
 from n26 import maintenance
 from n26.core import action_initialisation, allowances
-from n26.core.action_initialisation import apply_one, find
-from n26.core.models import ActionAllowance, Gang, LedgerEvent
-from n26.core.operations import operation
+from n26.core.action_initialisation import INACTIVE_REASON, apply_one, find
+from n26.core.models import ActionAllowance, CounterTracking, Gang, LedgerEvent
+from n26.core.operations import Refusal, operation
 from n26.library.models import (
     Action,
     Counter,
@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
 
 @pytest.fixture
-def legacy_fighter(user, gang_type, make_profile, make_statline):
+def legacy_fighter(user, gang_type, make_profile, make_statline, counter_tracking):
     gang = Gang.objects.create(name="Legacy", owner=user, gang_type=gang_type)
     profile = make_profile("Hunter", price=100)
     make_statline(profile)
@@ -51,6 +51,66 @@ def legacy_fighter(user, gang_type, make_profile, make_statline):
         value.value = 67
         value.save(update_fields=["value"])
     return gang, fighter, action, held
+
+
+def test_inactive_counter_history_refuses_the_plan(legacy_fighter):
+    CounterTracking.objects.all().delete()
+
+    plan = find()
+
+    assert plan.gangs == ()
+    assert plan.missing_baselines == ()
+    assert plan.problems == (INACTIVE_REASON,)
+
+
+def test_application_rechecks_counter_history_under_the_gang_operation(
+    legacy_fighter,
+):
+    gang, fighter, action, _ = legacy_fighter
+    CounterTracking.objects.all().delete()
+
+    with pytest.raises(Refusal, match="Activate counter history"):
+        apply_one(gang.pk)
+
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+
+
+def test_inactive_counter_history_fails_the_task_instead_of_recording_done(
+    legacy_fighter,
+):
+    CounterTracking.objects.all().delete()
+    record = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"attempts": 0},
+    )
+
+    maintenance.initialise_action_allowances.call(backfill_id=str(record.pk))
+
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.FAILED
+    assert "Activate counter history" in record.error
+
+
+def test_inactive_counter_history_is_explained_on_the_maintenance_page(
+    client, admin_user, legacy_fighter
+):
+    CounterTracking.objects.all().delete()
+    client.force_login(admin_user)
+    address = reverse("admin:maintenance_n26_initialise_action_allowances")
+
+    page = client.get(address)
+
+    assert page.status_code == 200
+    assert b"Activate counter history before initialising" in page.content
+    assert b"Initialise earned allowances" not in page.content
+
+    response = client.post(address, follow=True)
+    assert response.status_code == 200
+    assert b"Activate counter history before initialising" in response.content
+    assert not Backfill.objects.filter(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES
+    ).exists()
 
 
 def test_initialisation_grants_only_thresholds_above_the_start(legacy_fighter):
