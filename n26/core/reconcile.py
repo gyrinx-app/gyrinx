@@ -64,7 +64,22 @@ def check_counter_value(counter_value, *, events=None):
             f"{counter_value.assignment.assignable}: no counter opening event"
         )
     previous = None
-    for event in events:
+    expected_gang_id = counter_value.assignment.gang_root_id
+    baseline_kinds = {
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+    }
+    for position, event in enumerate(events):
+        if event.gang_id != expected_gang_id:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} belongs to another gang"
+            )
+        if position > 0 and event.kind in baseline_kinds:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} is an additional opening or checkpoint"
+            )
         if event.kind == LedgerEvent.Kind.COUNTER_OPENED and event.counter_before != 0:
             problems.append(
                 f"{counter_value.assignment.assignable}: counter opening "
