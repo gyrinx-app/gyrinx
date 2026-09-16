@@ -7,7 +7,11 @@ from n26.core.models import Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.test_action_checkout import configured_action, start_and_review
 
-pytestmark = [pytest.mark.django_db, pytest.mark.core]
+pytestmark = [
+    pytest.mark.django_db,
+    pytest.mark.core,
+    pytest.mark.usefixtures("counter_tracking"),
+]
 
 
 @pytest.fixture
