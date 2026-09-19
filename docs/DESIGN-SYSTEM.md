@@ -71,25 +71,39 @@
 
 Every page: one `<h1>`. Index pages use full `<h1>`. Sub-pages use `<h1 class="h3">`. Sections use `<h2 class="h5 mb-0">`. Card headers use `<h3 class="h5 mb-0">`.
 
-### Flat page (help) headings
+### Flat pages and Help
 
-Help pages are long prose, so inside `.flatpage-content` heading levels differ by weight and colour as well as size — size alone is not enough for a dyslexic reader to tell a heading from body text. These rules apply only inside `.flatpage-content`; the rest of the app keeps Bootstrap's headings.
+Default flatpages use a platform-owned shell built from the n26 design system.
+The shared header reflects the reader's remembered edition. Custom flatpage
+templates retain their own shell.
 
-| Level | Weight | Colour | Contrast (light / dark) |
-|-------|--------|--------|-------------------------|
-| `h2` | bold (700) | `--gy-flatpage-h2-color` — gold `#8a6000` light, `#f0b02a` dark | 5.59:1 / 8.04:1 |
-| `h3` | bold (700) | `--bs-secondary-text-emphasis` | 13.5:1 / 6.7:1 |
-| `h4`, `h5`, `h6` | semibold (600) | `--gy-flatpage-h4-color` — `#4a5568` light, `#8c97a8` dark | 7.5:1 / 5.2:1 |
+Help pages under `/help/` use three columns on wide screens: a 12rem Help tree,
+a flexible article, and a 10rem **On this page** list. At tablet widths the Help
+tree stays on the left and the page contents move into a popover. On phones,
+**Browse help** opens a full-height drawer and **On this page** opens the popover.
+Both controls have native disclosure fallbacks when JavaScript is disabled.
 
-Prominence falls at every level: gold, near-black, mid-grey. `h4` had shared `h3`'s colour, which left the two separated by one weight step and 3.5px — not enough to see. The two mid-greys are not a lightened and darkened pair of each other because the themes start from different places: in light mode headings sit just below body text in contrast (body 16:1), in dark mode well below it (body ~12:1, `h3` 6.7:1).
+The Help tree lists accessible pages from both editions. It expands the current
+page's ancestors and marks the current page. A missing or inaccessible ancestor
+omits its branch from navigation; direct page access still follows the page's
+own visibility rules.
 
-These rules match the `.h1`–`.h6` classes as well as the elements, because Bootstrap `@extend`s each element selector onto its class. A heading looks like the level it is *drawn* at, not the level it is marked up as — so the contents block's "Contents" and the child listing's "In &lt;page&gt;:", both `<h2 class="h5">`, take the quiet mid-grey rather than the gold.
+Article text uses n26 rich-text typography: body text at 1rem, h2 at 1.4em and
+h3 at 1.15em. Lower headings stay close to body size with increased weight.
+Heading links retain fragment URLs and scroll clear of the sticky header.
 
-All pass WCAG AA (4.5:1) for normal text in both themes. `$yellow` itself is 2.2:1 on white and is also the injured-state colour, so the gold is a separate per-theme custom property, never `$warning`. Heading anchors (`add_heading_links`) never underline; the link icon on hover is the affordance.
+The page contents appear automatically when the article has at least two h2 or
+h3 headings. Deeper headings retain permalinks but are omitted from the contents.
+The old **Show contents** field remains in the database for compatibility and is
+hidden from the admin. It does not affect the default template.
 
-An admin can tick **Show contents** on a page's options (the "Flat page options" inline on the flat page admin) to render a nested list of its headings above the content: `{% page_contents flatpage %}` in `flatpages/default.html`. The list has no bullets or numbers, like the sidebar page nav; nesting shows as indentation. Heading ids are slugs of their text, de-duplicated with `-2`, `-3`… against every id already in the content, so the contents links always resolve.
+The **Introduction** remains a separate rich-text field above the article.
+Stored introduction and article HTML are sanitised before display. The article's
+heading IDs are generated from their text, with suffixes for collisions.
 
-The same options carry an **Introduction**, authored in the same editor as the page content and rendered by `{% page_introduction flatpage %}` above the contents block. It is a separate field rather than the opening paragraphs of the content because anything inside `content` falls below the contents list by construction. `.flatpage-introduction` sets it a little larger than body text and drops its last child's bottom margin.
+See `/help/` for the page layout and `/n26/design/c/popover/` for the shared
+popover component. The legacy `.flatpage-content` Bootstrap rules remain only
+for custom templates using the older rendering tags.
 
 ### Caps label
 
