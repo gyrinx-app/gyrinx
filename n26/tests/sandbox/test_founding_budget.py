@@ -37,6 +37,8 @@ from n26.tests.sandbox.actions import (
     buy,
     complete_action,
     create_collection,
+    create_pickable,
+    create_slot_type,
     create_trading_post,
     create_wargear,
     found_gang,
@@ -282,6 +284,23 @@ class TestWhatTheBooksGrant:
         from n26.library.standard_content import STANDARD_CONTENT
 
         clanless = Affiliation.objects.create(name="Clanless")
+        STANDARD_CONTENT["founding-budgets"].create()
+        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        assign(clanless, gang=gang)
+
+        assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
+        assert reading(hire_into(gang, ("Outcast", "Champion"), "Nix")) == 4
+        assert reading(hire_into(gang, ("Outcast", "Hive Scum"), "Tuk")) == 0
+
+    def test_a_clanless_pickable_adds_one_more(self, outcast, player, hire_into):
+        """The live affiliation choice is a pickable. A gang holding
+        that, not the emptied Affiliation row, is who the extra figure
+        must reach."""
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        clanless = create_pickable(
+            "Clanless", create_slot_type("Affiliation", "Affiliations")
+        )
         STANDARD_CONTENT["founding-budgets"].create()
         gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
         assign(clanless, gang=gang)
@@ -952,6 +971,65 @@ class TestTheSeed:
             ).count()
             == 1
         )
+
+    def test_and_is_wired_up_the_moment_the_pickable_exists(self, budgets):
+        from n26.library.standard_content import (
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        clanless = create_pickable(
+            "Clanless", create_slot_type("Affiliation", "Affiliations")
+        )
+        assert STANDARD_CONTENT["founding-budgets"].check() == (6, 7)
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert STANDARD_CONTENT["founding-budgets"].check() == (7, 7)
+        assert (
+            clanless.modifiers.filter(
+                contributes_to_counter__counter=founding_budget_counter()
+            ).count()
+            == 1
+        )
+
+    def test_the_pickable_is_preferred_when_both_exist(
+        self, budgets, outcast, player, hire_into
+    ):
+        """A leftover Affiliation row of the same name is not what a
+        gang holds. The seed hangs the figure on the pickable and takes
+        it off the affiliation; until it has, the check is incomplete
+        even if the affiliation already carries the modifier."""
+        from n26.library.models import Affiliation
+        from n26.library.standard_content import (
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        affiliation = Affiliation.objects.create(name="Clanless")
+        STANDARD_CONTENT["founding-budgets"].create()
+        clanless = create_pickable(
+            "Clanless", create_slot_type("Affiliation", "Affiliations")
+        )
+
+        assert STANDARD_CONTENT["founding-budgets"].check() == (6, 7)
+
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        assert STANDARD_CONTENT["founding-budgets"].check() == (7, 7)
+        assert (
+            clanless.modifiers.filter(
+                contributes_to_counter__counter=founding_budget_counter()
+            ).count()
+            == 1
+        )
+        assert not affiliation.modifiers.filter(
+            contributes_to_counter__counter=founding_budget_counter()
+        ).exists()
+
+        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        assign(clanless, gang=gang)
+        assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
 
     def test_the_counter_is_drawn_on_nothing(self, budgets):
         from n26.library.standard_content import founding_budget_counter
