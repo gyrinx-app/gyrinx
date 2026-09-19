@@ -77,8 +77,9 @@ Default flatpages use a platform-owned shell built from the n26 design system.
 The shared header reflects the reader's remembered edition. Custom flatpage
 templates retain their own shell.
 
-Help pages under `/help/` use three columns on wide screens: a 12rem Help tree,
-a flexible article, and a 10rem **On this page** list. At tablet widths the Help
+Help pages under `/help/` use three columns on wide screens: a 14rem Help tree,
+a flexible article, and a 12rem **On this page** list. The layout shares the
+navbar's outer edges. At tablet widths the Help
 tree stays on the left and the page contents move into a popover. On phones,
 **Browse help** opens a full-height drawer and **On this page** opens the popover.
 Both controls have native disclosure fallbacks when JavaScript is disabled.
@@ -90,6 +91,7 @@ own visibility rules.
 
 Article text uses n26 rich-text typography: body text at 1rem, h2 at 1.4em and
 h3 at 1.15em. Lower headings stay close to body size with increased weight.
+Page titles and article h1 headings use medium weight (500).
 Heading links retain fragment URLs and scroll clear of the sticky header.
 
 The page contents appear automatically when the article has at least two h2 or

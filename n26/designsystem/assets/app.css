@@ -246,18 +246,12 @@
     .flatpage-layout {
         display: grid;
         gap: 2rem;
-        margin-inline: auto;
-        max-width: 72rem;
-        padding: 1.5rem 1rem 4rem;
+        width: 100%;
+        padding-block: 1.5rem 4rem;
     }
     .flatpage-main {
         min-width: 0;
         width: 100%;
-    }
-    .flatpage-layout:not(.flatpage-layout--help):not(
-            .flatpage-layout--with-toc
-        ) {
-        max-width: calc(68ch + 2rem);
     }
     .flatpage-header {
         margin-bottom: 1.75rem;
@@ -271,7 +265,7 @@
         color: var(--color-ink-900);
         flex: 1;
         font-size: 1.5rem;
-        font-weight: 650;
+        font-weight: 500;
         letter-spacing: -0.025em;
         line-height: 1.15;
     }
@@ -302,6 +296,14 @@
     .flatpage-prose {
         max-width: 68ch;
         overflow-wrap: anywhere;
+    }
+    .flatpage-prose.rich-text h1,
+    .flatpage-introduction.rich-text h1 {
+        font-weight: 500;
+    }
+    .flatpage-prose.rich-text h1 :is(strong, b),
+    .flatpage-introduction.rich-text h1 :is(strong, b) {
+        font-weight: inherit;
     }
     .flatpage-prose table {
         display: block;
@@ -507,7 +509,7 @@
     }
     @media (min-width: 64rem) {
         .flatpage-layout--help {
-            grid-template-columns: 12rem minmax(0, 1fr);
+            grid-template-columns: 14rem minmax(0, 1fr);
         }
         .flatpage-help-nav {
             display: block;
@@ -520,10 +522,10 @@
     }
     @media (min-width: 80rem) {
         .flatpage-layout--with-toc {
-            grid-template-columns: minmax(0, 1fr) 10rem;
+            grid-template-columns: minmax(0, 1fr) 12rem;
         }
         .flatpage-layout--help.flatpage-layout--with-toc {
-            grid-template-columns: 12rem minmax(0, 1fr) 10rem;
+            grid-template-columns: 14rem minmax(0, 1fr) 12rem;
         }
         .flatpage-toc {
             display: block;
