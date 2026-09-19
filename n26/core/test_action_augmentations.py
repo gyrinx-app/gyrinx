@@ -13,7 +13,7 @@ from n26.core.augmentations import (
     correct_augmentation,
     preview_augmentation,
 )
-from n26.core.models import ActionRecord, Assignment, AugmentationSelection, LedgerEvent
+from n26.core.models import ActionRecord, Assignment, LedgerEvent, SlotSelection
 from n26.core.operations import Refusal, operation
 from n26.library.authoring import (
     add_action_outcome,
@@ -305,7 +305,7 @@ def test_apply_replaces_the_tier_and_records_exact_assignments(
     outcome = configured(augmentation)
 
     _apply(action_record, outcome, carried, tiers[0])
-    selection = AugmentationSelection.objects.get(action_record=action_record)
+    selection = SlotSelection.objects.get(action_record=action_record)
     first = selection.new_pick
     _apply(action_record, outcome, carried, tiers[1])
 
@@ -318,7 +318,7 @@ def test_apply_replaces_the_tier_and_records_exact_assignments(
     assert selection.intended_pick == tiers[1]
     assert selection.new_pick.pickable == tiers[1]
     assert selection.new_pick.caused_by == selection.slot_assignment
-    assert selection.new_pick.action_augmentation_slots.count() == 0
+    assert selection.new_pick.action_slot_selections.count() == 0
 
 
 def test_apply_refuses_a_stale_tier_before_writing(action_record, augmentation):
@@ -330,9 +330,7 @@ def test_apply_refuses_a_stale_tier_before_writing(action_record, augmentation):
     with pytest.raises(Refusal, match="next effective tier"):
         _apply(action_record, outcome, carried, tiers[1])
 
-    assert not AugmentationSelection.objects.filter(
-        action_record=action_record
-    ).exists()
+    assert not SlotSelection.objects.filter(action_record=action_record).exists()
 
 
 def test_apply_refuses_an_item_moved_out_of_the_fighters_possession(
@@ -378,7 +376,7 @@ def test_correction_moves_the_result_and_retains_original_history(
     second = buy(action_record.fighter, thing=second_item, paid=0)
     outcome = configured(augmentation)
     _apply(action_record, outcome, first, first_tier)
-    selection = AugmentationSelection.objects.get(action_record=action_record)
+    selection = SlotSelection.objects.get(action_record=action_record)
     original_pick = selection.new_pick
     payment_id = uuid.uuid4()
     action_record.payment_id = payment_id
@@ -536,7 +534,7 @@ def test_correction_refuses_a_later_tier_change(action_record, augmentation):
     outcome = configured(augmentation)
     _apply(action_record, outcome, carried, tiers[0])
     _mark_completed(action_record)
-    selection = AugmentationSelection.objects.get(action_record=action_record)
+    selection = SlotSelection.objects.get(action_record=action_record)
     with operation(action_record.gang) as op:
         op.replace_slot_pick(
             selection.slot_assignment,
@@ -571,9 +569,7 @@ def test_correction_restores_the_exact_previous_assignment(action_record, augmen
     replacement = buy(action_record.fighter, thing=replacement_item, paid=0)
     outcome = configured(augmentation)
     _apply(action_record, outcome, original, original_tiers[0])
-    first_assignment = AugmentationSelection.objects.get(
-        action_record=action_record
-    ).new_pick
+    first_assignment = SlotSelection.objects.get(action_record=action_record).new_pick
     _apply(action_record, outcome, original, original_tiers[1])
     _mark_completed(action_record)
 
@@ -607,7 +603,7 @@ def test_correction_refuses_dependent_changes(action_record, augmentation):
     outcome = configured(augmentation)
     _apply(action_record, outcome, carried, tier)
     _mark_completed(action_record)
-    selection = AugmentationSelection.objects.get(action_record=action_record)
+    selection = SlotSelection.objects.get(action_record=action_record)
     with operation(action_record.gang) as op:
         op.assign(
             create_wargear("Dependent part", price=0),

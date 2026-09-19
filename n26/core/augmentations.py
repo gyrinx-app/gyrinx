@@ -8,7 +8,7 @@ from django.db.models import Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import Assignment, AugmentationSelection
+from n26.core.models import Assignment, SlotSelection
 from n26.core.operations import Refusal
 from n26.core.render import build_model_card
 from n26.library.models import PicklistMember, Slot, Wargear, Weapon
@@ -299,7 +299,7 @@ def _candidate(card, ladder, index=None, before=None):
 
 
 def _original_selection(record, *, lock=False):
-    query = AugmentationSelection.objects
+    query = SlotSelection.objects
     if lock:
         query = query.select_for_update(of=("self",))
     try:
@@ -309,7 +309,7 @@ def _original_selection(record, *, lock=False):
             "previous_pick__ledger_entry",
             "new_pick",
         ).get(action_record=record)
-    except AugmentationSelection.DoesNotExist:
+    except SlotSelection.DoesNotExist:
         return None
     return selection
 
@@ -479,7 +479,7 @@ def apply_augmentation(op, record, configured, terms):
         miniature=record.fighter,
         action_record=record,
     )
-    AugmentationSelection.objects.update_or_create(
+    SlotSelection.objects.update_or_create(
         action_record=record,
         defaults={
             "item_assignment": ladder.item,
