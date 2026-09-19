@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.statline> — A characteristic table, as a single strip or as stacked book groups.
 
-The arith tag library is required. sub and at_least are not Django built-ins; a missing load leaves the colspan blank.
+The arith tag library is required. sub and at_least are not Django built-ins; a missing load is a TemplateSyntaxError.
 Book layout pads Type and XP onto the last group. type_line is the switch; XP without it is omitted.
 The Type colspan is the first group's width minus this group's, minus one for XP, floored at one.
 A last group as wide as the first still needs that floor, or Type disappears and the HTML colspan is invalid.

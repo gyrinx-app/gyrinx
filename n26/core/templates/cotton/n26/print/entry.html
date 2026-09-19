@@ -3,7 +3,8 @@
 
 inline-flex makes the box atomic. WebKit ignores break-inside on a flex item.
 Inside a print column the entry is blockified back to flex, so keep columns inside a card.
-aligned pins the label to --print-label-w. Set label_width on every entry in the run, or the columns drift.
+aligned pins the label to --print-label-w, which defaults to 14mm. label_width does nothing without aligned.
+Set the same label_width on every aligned entry in a run only when that default is wrong.
 {% endcomment %}
 
 <c-vars label="" stacked="" aligned="" label_width="" class="" />

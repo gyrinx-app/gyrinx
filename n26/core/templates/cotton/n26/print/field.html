@@ -6,7 +6,7 @@ Inside a print column the field is blockified back to flex, so keep columns insi
 height is a CSS value. Include the unit, or the box floor is ignored.
 height is a minimum. The box grows if the printed content needs more.
 The box tint is an rgba fill, not element opacity. Browsers drop opacity when printing.
-Set label_width on every field in a stack, or the boxes do not line up.
+Fields share a 14mm label column unless label_width is set. Override it on every field in a stack, or the boxes drift.
 {% endcomment %}
 
 <c-vars label="" height="" stacked="" label_width="" class="" />

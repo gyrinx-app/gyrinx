@@ -3,9 +3,9 @@
 
 Attributes come from attrs.attrs_dict, not attrs.dict.
 attrs.dict would write the form prop out as HTML and dump a second copy of the form into the page.
-message, the form and name, and the slot are exclusive. message wins, then form errors, then the slot.
+message, a form with a name, and the slot are exclusive. message wins, then form plus name, then the slot.
 Pass name as __all__ for non-field errors. Any other name is looked up on form.errors.
-A form without a name falls through to the slot and shows nothing if the slot is empty.
+A form without a name, or a name without a form, falls through to the slot and shows nothing if the slot is empty.
 A name that is not in form.errors renders nothing.
 {% endcomment %}
 

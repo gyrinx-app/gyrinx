@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.changelog.entry> — one changelog line: title, date, and a two-line body preview.
 
-The title is always a link. Pass href or the heading goes nowhere.
+The title is a link only when href is set. An empty href draws a span, not a dead link.
 n26-clamp-2 in app.css cuts the rich text at two lines and zeroes inner block margins.
 Do not stretch a link over the whole entry. Links in the body must stay independent destinations.
 rich-text sanitises the body here, so call sites do not each have to.

@@ -3,14 +3,8 @@
 
 Pass stored SVG markup as icon.
 Blank or unusable artwork renders nothing, so a missing mark does not hold space.
-The filter already marks the result safe.
-Do not add |safe to the raw value.
+The filter already marks the result safe. Do not add |safe to the raw value.
 Sizing and accessible names belong to the wrapping component.
 Pass icon as an expression. SVG source carries quotes and newlines and does not survive being folded into an HTML attribute.
-{% endcomment %}
-
-{% load artwork %}
-
-<c-vars icon="" />
-{# Already marked safe. Do not add |safe to the raw icon. #}
-{{ icon|safe_artwork }}
+This renders inline. Keep the tags packed tight and do not add a trailing newline.
+{% endcomment %}{% load artwork %}<c-vars icon="" />{{ icon|safe_artwork }}

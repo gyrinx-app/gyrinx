@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.print.card> — One printed unit that arrives on paper whole.
 
-Keep the card an inline-block. Flex or grid lets WebKit slice it at the page fold.
+Keep the card inline-block, or inline-flex when height is set. Flex or grid from a call site lets WebKit slice it at the page fold.
 A subtitle without a title or badge is dropped: the head opens only when title or badge is set.
 height makes a column so the foot stays on the bottom edge.
 Without a CSS unit, that column has no height. Include the unit on height, width, and pad.
