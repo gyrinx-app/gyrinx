@@ -170,19 +170,17 @@ def test_page_contents_renders_nothing_for_a_page_without_headings(site):
 
 
 @pytest.mark.django_db
-def test_flat_page_view_shows_contents_only_when_ticked(site):
+def test_flat_page_view_shows_automatic_contents(site):
     page = make_page(site, "/guide/", "Guide", CONTENT)
     client = Client()
 
-    off = client.get(page.url).content.decode()
-    assert "flatpage-contents" not in off
-    # The body's heading ids are there whether or not the contents block is.
-    assert 'id="setup-2"' in off
+    without_options = client.get(page.url).content.decode()
+    assert 'aria-label="On this page"' in without_options
+    assert 'id="setup-2"' in without_options
 
     FlatPageOptions.objects.create(page=page, show_contents=True)
-    on = client.get(page.url).content.decode()
-    assert "flatpage-contents" in on
-    assert on.index("flatpage-contents") < on.index('id="intro"')
+    with_legacy_option = client.get(page.url).content.decode()
+    assert 'aria-label="On this page"' in with_legacy_option
 
 
 # --- get_child_pages ----------------------------------------------------------
@@ -258,47 +256,17 @@ def test_flat_page_admin_has_the_options_inline():
 
 
 @pytest.mark.django_db
-def test_flat_page_change_page_renders_show_contents_checkbox(site, admin_user):
+def test_flat_page_change_page_hides_obsolete_show_contents_checkbox(site, admin_user):
     page = make_page(site, "/guide/", "Guide")
     client = Client()
     client.force_login(admin_user)
 
     html = client.get(f"/admin/flatpages/flatpage/{page.pk}/change/").content.decode()
 
-    assert 'name="options-0-show_contents"' in html
-    assert "Show a list of the page's headings above the content." in html
+    assert 'name="options-0-show_contents"' not in html
 
 
 @pytest.mark.django_db
-def test_flat_page_change_page_saves_show_contents(site, admin_user):
-    page = make_page(site, "/guide/", "Guide", CONTENT)
-    client = Client()
-    client.force_login(admin_user)
-
-    data = {
-        "url": page.url,
-        "title": page.title,
-        "content": page.content,
-        "sites": [str(site.pk)],
-        "template_name": "",
-        "options-TOTAL_FORMS": "1",
-        "options-INITIAL_FORMS": "0",
-        "options-MIN_NUM_FORMS": "0",
-        "options-MAX_NUM_FORMS": "1",
-        "options-0-page": str(page.pk),
-        "options-0-show_contents": "on",
-        "flatpagevisibility_set-TOTAL_FORMS": "0",
-        "flatpagevisibility_set-INITIAL_FORMS": "0",
-        "flatpagevisibility_set-MIN_NUM_FORMS": "0",
-        "flatpagevisibility_set-MAX_NUM_FORMS": "1000",
-    }
-    response = client.post(f"/admin/flatpages/flatpage/{page.pk}/change/", data)
-
-    assert response.status_code == 302, response.content.decode()[:2000]
-    assert FlatPageOptions.objects.get(page=page).show_contents is True
-    assert "flatpage-contents" in Client().get(page.url).content.decode()
-
-
 # --- page_introduction tag ----------------------------------------------------
 
 
@@ -337,7 +305,7 @@ def test_page_introduction_renders_its_html_unescaped(site):
 
 
 @pytest.mark.django_db
-def test_flat_page_view_puts_the_introduction_above_the_contents_and_body(site):
+def test_flat_page_view_puts_the_introduction_above_the_body(site):
     page = make_page(site, "/guide/", "Guide", CONTENT)
     FlatPageOptions.objects.create(
         page=page, introduction="<p>Read this first.</p>", show_contents=True
@@ -345,12 +313,12 @@ def test_flat_page_view_puts_the_introduction_above_the_contents_and_body(site):
 
     html = Client().get(page.url).content.decode()
 
-    assert html.index("flatpage-introduction") < html.index("flatpage-contents")
-    assert html.index("flatpage-contents") < html.index('id="intro"')
+    assert html.index("flatpage-introduction") < html.index('id="intro"')
+    assert 'aria-label="On this page"' in html
 
 
 @pytest.mark.django_db
-def test_flat_page_view_shows_the_introduction_with_contents_off(site):
+def test_flat_page_view_shows_the_introduction_and_ignores_legacy_contents_option(site):
     page = make_page(site, "/guide/", "Guide", CONTENT)
     FlatPageOptions.objects.create(
         page=page, introduction="<p>Read this first.</p>", show_contents=False
@@ -359,7 +327,7 @@ def test_flat_page_view_shows_the_introduction_with_contents_off(site):
     html = Client().get(page.url).content.decode()
 
     assert "flatpage-introduction" in html
-    assert "flatpage-contents" not in html
+    assert 'aria-label="On this page"' in html
 
 
 @pytest.mark.django_db

@@ -811,8 +811,10 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS),
                 notes=(
                     'open_on="hover" honours open_delay and close_delay so it does not '
-                    "flicker on a quick pass. Unlike tooltip, it can hold interactive "
-                    "content. Note that class styles the panel, not the root."
+                    "flicker on a quick pass. trigger_text renders a button with the "
+                    "expanded state, panel connection and keyboard focus handling. The "
+                    "trigger slot preserves the caller-owned trigger API. class styles "
+                    "the panel, not the root."
                 ),
             ),
         ],

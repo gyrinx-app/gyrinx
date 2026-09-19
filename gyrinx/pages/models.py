@@ -15,12 +15,12 @@ class FlatPageVisibility(Base):
     groups = models.ManyToManyField(
         Group,
         verbose_name="Visible to Groups",
-        help_text="Select the groups that can view this page. If no groups are selected, the page is public.",
+        help_text="Select the groups allowed by this rule. A rule with no groups grants no access. Other rules can still allow access to the page.",
     )
 
     history = HistoricalRecords()
 
-    help_text = "Select the groups that can view this page. If no groups are selected, the page is public."
+    help_text = "Select the groups allowed by this rule. A rule with no groups grants no access. Other rules can still allow access to the page."
 
     class Meta:
         verbose_name = "flat page visibility rule"

@@ -44,6 +44,7 @@
  * so nothing said so — automatic detection was quietly covering them. */
 @source "../../core/templates";
 @source "../../library/templates";
+@source "../../../gyrinx/pages/templates/flatpages";
 
 /* Paper. Kept in its own file because print is a different medium with rules
  * that contradict screen habits — see the note at the top of it, which is the
@@ -242,6 +243,305 @@
 }
 
 @layer components {
+    .flatpage-layout {
+        display: grid;
+        gap: 2rem;
+        width: 100%;
+        padding-block: 0.5rem 4rem;
+    }
+    .flatpage-main {
+        min-width: 0;
+        width: 100%;
+    }
+    .flatpage-header {
+        margin-bottom: 1rem;
+    }
+    .flatpage-share {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .flatpage-share [role="status"] {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        padding: 0.25rem 0.5rem;
+        background: var(--color-ink-900);
+        color: var(--color-ink-100);
+        white-space: nowrap;
+    }
+    .flatpage-title-row {
+        min-width: 0;
+    }
+    .flatpage-title-row h1 {
+        color: var(--color-ink-900);
+        font-size: 1.5rem;
+        font-weight: 500;
+        letter-spacing: -0.025em;
+        line-height: 1.15;
+    }
+    .dark .flatpage-title-row h1 {
+        color: var(--color-ink-100);
+    }
+    .flatpage-parent-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
+        margin-bottom: 0.25rem;
+        color: var(--color-muted);
+        font-size: 0.8125rem;
+        text-decoration: none;
+    }
+    .flatpage-parent-link:hover {
+        color: var(--color-accent-text);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+    .flatpage-introduction {
+        max-width: 65ch;
+        margin-top: 0.75rem;
+        color: var(--color-muted);
+        font-size: 1rem;
+        line-height: 1.65;
+    }
+    .flatpage-prose {
+        max-width: 68ch;
+        overflow-wrap: anywhere;
+    }
+    .flatpage-prose.rich-text h1,
+    .flatpage-introduction.rich-text h1 {
+        font-weight: 500;
+    }
+    .flatpage-prose.rich-text h1 :is(strong, b),
+    .flatpage-introduction.rich-text h1 :is(strong, b) {
+        font-weight: inherit;
+    }
+    .flatpage-prose table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .flatpage-prose .flatpage-embed,
+    .flatpage-introduction .flatpage-embed {
+        width: 100%;
+        max-width: 400px;
+        border: 0;
+    }
+    .flatpage-prose :is(h2, h3, h4, h5, h6) {
+        scroll-margin-top: 5rem;
+    }
+    .flatpage-prose h4,
+    .flatpage-prose h5,
+    .flatpage-prose h6 {
+        color: var(--color-ink-900);
+        font-weight: 600;
+        line-height: 1.3;
+        margin: 1.4em 0 0.45em;
+    }
+    .dark .flatpage-prose :is(h4, h5, h6) {
+        color: var(--color-ink-100);
+    }
+    .flatpage-prose h4,
+    .flatpage-prose h5 {
+        font-size: 1em;
+    }
+    .flatpage-prose h6 {
+        font-size: 1em;
+        font-weight: 500;
+    }
+    .flatpage-prose .flatpage-heading-link {
+        margin-left: 0.35em;
+        color: var(--color-muted);
+        font-size: 0.75em;
+        font-weight: 400;
+        opacity: 0.45;
+    }
+    .flatpage-prose :is(h2, h3):hover .flatpage-heading-link,
+    .flatpage-prose .flatpage-heading-link:focus-visible {
+        opacity: 1;
+    }
+    .flatpage-mobile-tools {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    .flatpage-help-nav,
+    .flatpage-toc {
+        display: none;
+        min-width: 0;
+    }
+    .flatpage-sticky-nav {
+        position: sticky;
+        top: 5rem;
+        max-height: calc(100vh - 6.5rem);
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+    .flatpage-nav-title,
+    .flatpage-toc h2 {
+        display: block;
+        margin-bottom: 0.6rem;
+        color: var(--color-ink-900);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+    .dark :is(.flatpage-nav-title, .flatpage-toc h2) {
+        color: var(--color-ink-100);
+    }
+    .flatpage-nav-title[aria-current="page"] {
+        color: var(--color-accent-text);
+    }
+    .flatpage-help-tree,
+    .flatpage-toc-list,
+    .flatpage-children ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    .flatpage-help-tree .flatpage-help-tree {
+        margin-left: 0.7rem;
+        padding-left: 0.55rem;
+        border-left: 1px solid var(--color-box-border);
+    }
+    .flatpage-help-tree-row {
+        display: flex;
+        align-items: center;
+        gap: 0.15rem;
+    }
+    .flatpage-help-tree-row > a {
+        flex: 1;
+        min-width: 0;
+        padding-block: 0.3rem;
+        color: var(--color-muted);
+        font-size: 0.8125rem;
+        line-height: 1.25;
+        text-decoration: none;
+    }
+    .flatpage-help-tree-row > a:hover,
+    .flatpage-help-tree-row > a[data-ancestor] {
+        color: var(--color-ink-900);
+    }
+    .dark .flatpage-help-tree-row > a:hover,
+    .dark .flatpage-help-tree-row > a[data-ancestor] {
+        color: var(--color-ink-100);
+    }
+    .flatpage-help-tree-row > a[aria-current="page"] {
+        color: var(--color-accent-text);
+        font-weight: 650;
+    }
+    .flatpage-toc-list li + li {
+        margin-top: 0.35rem;
+    }
+    .flatpage-toc-list .flatpage-toc-list {
+        margin-top: 0.35rem;
+        padding-left: 0.75rem;
+    }
+    .flatpage-toc-list a {
+        display: block;
+        border-left: 2px solid transparent;
+        padding-left: 0.5rem;
+        color: var(--color-muted);
+        font-size: 0.75rem;
+        line-height: 1.3;
+        text-decoration: none;
+    }
+    .flatpage-toc-list a:hover {
+        color: var(--color-ink-900);
+    }
+    .dark .flatpage-toc-list a:hover {
+        color: var(--color-ink-100);
+    }
+    .flatpage-toc-list a[data-current] {
+        border-left-color: var(--color-accent);
+        color: var(--color-accent-text);
+        font-weight: 600;
+    }
+    .flatpage-toc-list--compact {
+        width: min(18rem, calc(100vw - 3rem));
+    }
+    .flatpage-children {
+        max-width: 68ch;
+        margin-top: 2.5rem;
+        border-top: 1px solid var(--color-box-border);
+        padding-top: 1.25rem;
+    }
+    .flatpage-children h2 {
+        margin-bottom: 0.75rem;
+        color: var(--color-ink-900);
+        font-size: 0.875rem;
+        font-weight: 650;
+    }
+    .dark .flatpage-children h2 {
+        color: var(--color-ink-100);
+    }
+    .flatpage-children a {
+        display: block;
+        padding-block: 0.3rem;
+        color: var(--color-accent-text);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+    .flatpage-noscript-nav {
+        max-width: 68ch;
+        margin-top: 1rem;
+        border: 1px solid var(--color-box-border);
+        border-radius: var(--radius-box);
+        padding: 0.75rem;
+    }
+    .flatpage-noscript-nav summary {
+        cursor: pointer;
+        font-weight: 650;
+    }
+    .flatpage-noscript-nav[open] summary {
+        margin-bottom: 0.75rem;
+    }
+    @media (min-width: 64rem) {
+        .flatpage-layout {
+            padding-top: 1.5rem;
+        }
+        .flatpage-layout--with-navigation {
+            grid-template-columns: 14rem minmax(0, 1fr);
+        }
+        .flatpage-help-nav {
+            display: block;
+        }
+    }
+    @media (min-width: 40rem) {
+        .flatpage-title-row h1 {
+            font-size: 1.875rem;
+        }
+    }
+    @media (min-width: 80rem) {
+        .flatpage-layout--with-toc {
+            grid-template-columns: minmax(0, 1fr) 12rem;
+        }
+        .flatpage-layout--with-navigation.flatpage-layout--with-toc {
+            grid-template-columns: 14rem minmax(0, 1fr) 12rem;
+        }
+        .flatpage-toc {
+            display: block;
+        }
+        .flatpage-mobile-tools {
+            display: none;
+        }
+    }
+    @media print {
+        .flatpage-layout {
+            display: block;
+            max-width: 68ch;
+            padding: 0;
+        }
+        .flatpage-help-nav,
+        .flatpage-toc,
+        .flatpage-mobile-tools,
+        .flatpage-noscript-nav {
+            display: none;
+        }
+    }
+
     /* Syntax highlighting for demo source. Pygments emits short token classes;
      * these map them onto theme tokens so code blocks follow the active theme
      * in both light and dark rather than needing two hard-coded palettes. */

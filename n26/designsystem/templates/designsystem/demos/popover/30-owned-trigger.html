@@ -1,0 +1,12 @@
+{# title: Accessible owned trigger #}
+{# note: trigger_text lets the popover own the button, connect it to the panel and manage keyboard focus. #}
+{# layout: col #}
+<c-ui.popover trigger_text="Contents"
+              panel_label="On this page"
+              position="bottom"
+              align="start">
+    <nav class="w-56" aria-label="On this page">
+        <a class="block py-1 linked" href="#owned-trigger-demo">Owned trigger</a>
+        <a class="block py-1 linked" href="#keyboard-behaviour">Keyboard behaviour</a>
+    </nav>
+</c-ui.popover>

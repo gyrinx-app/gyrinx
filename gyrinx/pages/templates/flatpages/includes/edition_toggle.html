@@ -1,0 +1,18 @@
+{% comment %}
+Shared paths retain the edition selected by middleware. The classic link must
+include edition=n23 when leaving n26 so the root does not redirect back.
+{% endcomment %}
+{% if user.is_authenticated %}
+    <span role="group"
+          aria-label="Edition"
+          class="inline-flex shrink-0 items-center rounded-full border border-ink-300 p-0.5 text-xs dark:border-ink-700">
+        <a href="{% url 'core:index' %}{% if request.edition == 'n26' %}?edition=n23{% endif %}"
+           {% if request.edition != 'n26' %}aria-current="true"{% endif %}
+           title="Go to the classic app"
+           class="rounded-full px-2 py-0.5 focus-ring {% if request.edition != 'n26' %}bg-ink-200 font-medium text-ink-900 dark:bg-ink-700 dark:text-white{% else %}text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white{% endif %}">N23</a>
+        <a href="{% url 'n26-dashboard' %}"
+           {% if request.edition == 'n26' %}aria-current="true"{% endif %}
+           title="Go to the N26 preview"
+           class="rounded-full px-2 py-0.5 focus-ring {% if request.edition == 'n26' %}bg-ink-200 font-medium text-ink-900 dark:bg-ink-700 dark:text-white{% else %}text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white{% endif %}">N26</a>
+    </span>
+{% endif %}
