@@ -13,7 +13,7 @@ from gyrinx.site.write_pause import WritesPaused, pause_scope, resume_scope
 from n26 import maintenance
 from n26.core import counter_activation
 from n26.core.counter_tracking import is_active
-from n26.core.models import CounterTracking, CounterValue, Gang, LedgerEvent
+from n26.core.models import Assignment, CounterTracking, CounterValue, Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import check_counter_value
 from n26.library.authoring import create_counter
@@ -354,6 +354,68 @@ class TestOperatorPage:
             operation=maintenance.Operation.ACTIVATE_COUNTER_HISTORY
         ).exists()
         assert WritePause.objects.get(scope="n26").state == WritePause.State.OPEN
+
+    def test_existing_structured_history_refuses_activation_without_changing_data(
+        self, counters, owner, task_queue
+    ):
+        LedgerEvent.objects.create(
+            assignment=counters[0],
+            gang=counters[0].gang,
+            kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+            batch=uuid4(),
+            counter_before=0,
+            counter_delta=0,
+            counter_after=0,
+        )
+        before = snapshot()
+        old_events = list(LedgerEvent.objects.order_by("pk").values())
+        pause_before = WritePause.objects.filter(scope="n26").values().get()
+
+        with (
+            task_queue.capture(),
+            pytest.raises(
+                counter_activation.ActivationRefused,
+                match="Structured counter history already exists",
+            ),
+        ):
+            maintenance.start_counter_history(owner)
+
+        assert not is_active()
+        assert not Backfill.objects.filter(
+            operation=maintenance.Operation.ACTIVATE_COUNTER_HISTORY
+        ).exists()
+        assert task_queue.pending() == 0
+        assert WritePause.objects.filter(scope="n26").values().get() == pause_before
+        assert snapshot() == before
+        assert list(LedgerEvent.objects.order_by("pk").values()) == old_events
+
+    def test_a_counter_without_a_gang_refuses_activation_without_changing_data(
+        self, counters, owner, task_queue
+    ):
+        Assignment.objects.filter(pk=counters[0].pk).update(gang_root=None)
+        before = snapshot()
+        old_events = list(LedgerEvent.objects.order_by("pk").values())
+        pause_before = WritePause.objects.filter(scope="n26").values().get()
+
+        with (
+            task_queue.capture(),
+            pytest.raises(
+                counter_activation.ActivationRefused,
+                match="Repair counters without a gang before activation",
+            ),
+        ):
+            maintenance.start_counter_history(owner)
+
+        assert not is_active()
+        assert not Backfill.objects.filter(
+            operation=maintenance.Operation.ACTIVATE_COUNTER_HISTORY
+        ).exists()
+        assert task_queue.pending() == 0
+        assert WritePause.objects.filter(scope="n26").values().get() == pause_before
+        assert snapshot() == before
+        assert list(LedgerEvent.objects.order_by("pk").values()) == old_events
+        counters[0].refresh_from_db()
+        assert counters[0].gang_root_id is None
 
     def test_activation_cannot_adopt_an_existing_generic_pause(
         self, admin_client, owner
