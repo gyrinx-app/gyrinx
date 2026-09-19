@@ -199,7 +199,7 @@ def _render(card, index=None):
     if index is None:
         index = build_modifier_index(carriers(card))
     computed = compute(card, index)
-    return build_model_card(card.miniature, card=card, computed=computed)
+    return build_model_card(card.miniature, card=card, computed=computed, brought_in={})
 
 
 def _effect_state(value):
@@ -213,6 +213,7 @@ def _effect_state(value):
             not in {
                 "assignment_id",
                 "back",
+                "brought_in",
                 "choices",
                 "full_name",
                 "held_at",
@@ -341,6 +342,15 @@ def _selectable(member):
 
 
 def _candidate(card, ladder, index=None, before=None):
+    def supported_modifiers(member):
+        modifiers = tuple(index.for_thing(member.pickable))
+        if any(
+            getattr(modifier.effect, "is_stored", False)
+            for modifier, _source in modifiers
+        ):
+            return None
+        return modifiers
+
     current_level = _level(ladder, ladder.current)
     ordered = sorted(ladder.members, key=lambda member: member.level)
     next_members = [
@@ -352,6 +362,10 @@ def _candidate(card, ladder, index=None, before=None):
     if member is None:
         return None
 
+    candidate_modifiers = supported_modifiers(member)
+    if candidate_modifiers is None:
+        return None
+
     before = before or _render(card, index)
     after = _render_with_pick(card, ladder, member, index)
     # A capped characteristic may make the immediate rung do nothing. The
@@ -360,6 +374,9 @@ def _candidate(card, ladder, index=None, before=None):
     if same_effects and _newly_capped(before, after):
         member = next_members[1] if len(next_members) > 1 else None
         if member is None:
+            return None
+        candidate_modifiers = supported_modifiers(member)
+        if candidate_modifiers is None:
             return None
         after = _render_with_pick(card, ladder, member, index)
         if _effect_state(before) == _effect_state(after):
@@ -385,9 +402,7 @@ def _candidate(card, ladder, index=None, before=None):
         candidate_tier=member.label,
         candidate_pick_id=str(member.pickable_id),
         effect=(
-            "; ".join(
-                str(modifier.effect) for modifier, _ in index.for_thing(member.pickable)
-            )
+            "; ".join(str(modifier.effect) for modifier, _ in candidate_modifiers)
             or f"Select {member.label}."
         ),
         rating_before=before.rating,

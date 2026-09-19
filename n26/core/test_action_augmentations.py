@@ -48,6 +48,7 @@ from n26.tests.sandbox.actions import (
     found_gang,
     hire,
     modifier,
+    op_changes_counter,
     removes,
     targets_model,
 )
@@ -162,6 +163,81 @@ def test_preview_query_count_is_flat_as_items_grow(action_record, augmentation):
     assert len(preview.candidates) == len(items)
     assert len(one.candidates) == 1
     assert len(many_queries) == len(one_query)
+
+
+def test_preview_rendering_does_not_query_for_brought_in_models(
+    action_record, augmentation, monkeypatch
+):
+    rig = create_wargear("Rig", price=0)
+    ladder(rig, augmentation, [1])
+    buy(action_record.fighter, thing=rig, paid=0)
+    rendered_with = []
+    original = augmentations.build_model_card
+
+    def render_without_pet_lookup(*args, **kwargs):
+        rendered_with.append(kwargs.get("brought_in"))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(augmentations, "build_model_card", render_without_pet_lookup)
+
+    augmentation_options(action_record, configured(augmentation))
+
+    assert rendered_with
+    assert all(brought_in == {} for brought_in in rendered_with)
+
+
+def test_effect_fingerprint_ignores_brought_in_names():
+    assert augmentations._effect_state({"brought_in": ("Fang",)}) == (
+        augmentations._effect_state({"brought_in": ("Rex",)})
+    )
+
+
+def test_preview_does_not_offer_a_tier_with_a_stored_effect(
+    action_record, augmentation
+):
+    kills = Counter.objects.create(name="Kill Count")
+    rig = create_wargear("Rig", price=0)
+    ladder(
+        rig,
+        augmentation,
+        [1],
+        effects={
+            1: [(targets_model(), op_changes_counter(kills, "add", 1))],
+        },
+    )
+    buy(action_record.fighter, thing=rig, paid=0)
+
+    assert (
+        augmentation_options(action_record, configured(augmentation)).candidates == ()
+    )
+
+
+def test_preview_does_not_skip_a_capped_tier_to_one_with_a_stored_effect(
+    action_record, augmentation
+):
+    strength = Stat.objects.get(short_name="S")
+    type_stats = action_record.fighter.membership.profile.statline_type.stats
+    with operation(action_record.gang) as op:
+        op.set_stats(
+            action_record.fighter,
+            [(type_stats.get(stat=strength), "10", "Strength set to 10")],
+        )
+    kills = Counter.objects.create(name="Kill Count")
+    rig = create_wargear("Rig", price=0)
+    ladder(
+        rig,
+        augmentation,
+        [1, 2],
+        effects={
+            1: [(targets_model(), changes_stat(strength, "improve", 1))],
+            2: [(targets_model(), op_changes_counter(kills, "add", 1))],
+        },
+    )
+    buy(action_record.fighter, thing=rig, paid=0)
+
+    assert (
+        augmentation_options(action_record, configured(augmentation)).candidates == ()
+    )
 
 
 @pytest.mark.parametrize("kind", ["weapon", "wargear"])
