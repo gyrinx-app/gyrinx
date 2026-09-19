@@ -127,11 +127,23 @@ def test_a_failing_check_is_a_problem(run):
     assert "next deploy would fail" in problems[0]
 
 
-def test_a_branch_that_does_not_merge_is_a_problem(run):
+def test_a_branch_that_does_not_merge_is_a_problem(run, monkeypatch):
+    monkeypatch.setenv("PR_BASE", "main")
     state, headline, problems, _ = run(FETCH="success", MERGE="failure")
     assert state == "failure"
     assert headline == "conflicts with main"
     assert "Does not merge into main" in problems[0]
+
+
+def test_a_stacked_branch_that_does_not_merge_is_only_a_note(run, monkeypatch):
+    # Main holds a squashed ancestor this chain still carries unsquashed. That
+    # clears when the branch below lands, so it is not this branch's problem.
+    monkeypatch.setenv("PR_BASE", "codex/the-branch-below")
+    state, headline, problems, notes = run(FETCH="success", MERGE="failure")
+    assert state == "pending"
+    assert "codex/the-branch-below" in headline
+    assert problems == []
+    assert any("codex/the-branch-below" in note for note in notes)
 
 
 def test_a_branch_that_could_not_be_fetched_is_an_error(run):
@@ -165,6 +177,19 @@ def test_a_data_migration_is_only_a_note(run):
     assert headline == "clear, with a note"
     assert problems == []
     assert any("order does not matter" in note for note in notes)
+
+
+def test_the_log_excerpt_drops_the_application_chatter(tmp_path):
+    log = tmp_path / "leaves.log"
+    log.write_text(
+        "DEBUG 2026-01-01 tracing started\n"
+        "INFO 2026-01-01 tracing enabled\n"
+        "WARNING 2026-01-01 something noisy\n"
+        "CommandError: A branch may add one migration leaf per app.\n",
+        encoding="utf-8",
+    )
+    excerpt = report.tail(log)
+    assert excerpt == "CommandError: A branch may add one migration leaf per app."
 
 
 def test_a_run_that_checked_nothing_does_not_claim_it_checked(run):

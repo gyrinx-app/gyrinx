@@ -51,7 +51,8 @@ def tail(path):
     lines = [
         line
         for line in lines
-        if not line.startswith("DEBUG ") and "pkg_resources" not in line
+        if not line.startswith(("DEBUG ", "INFO ", "WARNING "))
+        and "pkg_resources" not in line
     ]
     return "\n".join(lines[-LOG_TAIL:])
 
@@ -73,6 +74,22 @@ def build(report_dir):
         return "error", "could not fetch the branch", problems, notes
 
     if outcome("MERGE") != "success":
+        # A branch whose base is another branch conflicts with main whenever an
+        # ancestor has been squash-merged, because main holds the squashed
+        # version and this chain still holds the originals. Whether that is the
+        # cause here cannot be told from the merge alone, so say so as a note
+        # rather than as this branch's problem.
+        base = os.environ.get("PR_BASE", "main")
+        if base != "main":
+            notes.append(
+                f"This branch does not merge into main yet. It targets `{base}` rather than main, "
+                "so while that branch is unmerged, main can hold a squashed version of a commit "
+                "this chain still carries. If that is what happened here, this clears when "
+                f"`{base}` lands, or rebase onto main at that point. The migration checks need a "
+                "merge, so none of them ran.\n\n"
+                f"```\n{tail(report_dir / 'merge.log')}\n```"
+            )
+            return "pending", f"not checked, stacked on {base}", problems, notes
         problems.append(
             "**Does not merge into main.** Git reports a conflict; the checks below need a merge to run.\n\n"
             f"```\n{tail(report_dir / 'merge.log')}\n```"
@@ -203,9 +220,12 @@ def render(state, headline, problems, notes, run_url, main_sha):
         lines.append("\n\n".join(problems))
         lines.append("")
         lines.append(
-            "How to fix: regenerate the migration on a checkout that includes current main "
-            "(`manage makemigrations <app> -n <name>`), or add main's leaf to its `dependencies` "
-            "so it applies after what it relies on. No renaming is needed."
+            "How to fix: regenerate the migration on the tree you are working from, whether "
+            "that is current main or the branch below you in a stack "
+            "(`manage makemigrations <app> -n <name>`). Generated dependencies name every leaf "
+            "in that tree, which is why the guidance is to let the command write them rather "
+            "than typing the list yourself. The file keeps its name either way: nothing here "
+            "needs renumbering."
         )
     if notes:
         lines.append("")

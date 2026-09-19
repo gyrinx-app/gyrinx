@@ -103,6 +103,6 @@ class Command(BaseCommand):
                 f"named above is already in {options['base']} upstream, the ref is behind. "
                 "Fetch it and run this again.\n\n"
                 "Otherwise, a migration written on a tree with several leaves must depend on all "
-                "of them, which `manage makemigrations` does itself. Regenerate the newer "
-                "migration, or add the missing leaf to its dependencies."
+                "of them. Regenerate the newer migration with `manage makemigrations`, which "
+                "writes those dependencies for you."
             )
