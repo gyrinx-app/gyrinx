@@ -361,7 +361,12 @@ def _target_snapshot(record, configured, terms, *, quote=None):
                 "Item augmentation is not available in this build."
             ) from error
 
-        return preview_augmentation(record, configured, deepcopy(terms))
+        return preview_augmentation(
+            record,
+            configured,
+            deepcopy(terms),
+            projected=_post_payment_counters(quote) if quote is not None else None,
+        )
     if isinstance(configured, ResolveAdvancement):
         try:
             from n26.core.advancements import preview_advancement
