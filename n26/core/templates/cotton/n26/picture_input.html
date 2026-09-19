@@ -8,9 +8,8 @@ crop is a width and height joined by a colon. A bad value becomes 1:1 in the scr
 data-crop-submit makes confirm post the form. Pair it with data-crop-fallback on that form.
 Only set that on a form that is the picture's own. Confirming would save every other field on a mixed form.
 
-Without the script this is an ordinary file input. The server still crops.
+Without the crop script, or without Cropper.js, this is an ordinary file input. The dialog never opens. The server still crops.
 Cancel, or any other close, clears the file pick.
-The page must load Cropper.js with the crop script, or this dialog opens on an inert picture.
 A refused save stays in this dialog so the same rectangle can be sent again.
 {% endcomment %}
 
