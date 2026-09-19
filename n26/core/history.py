@@ -140,6 +140,8 @@ class Act:
 #: snapshot wants.
 SNAPSHOT_WINDOW = 200
 
+_COUNTER_MACHINERY = {Kind.COUNTER_OPENED, Kind.COUNTER_CHECKPOINTED}
+
 
 def build(gang, viewer=None):
     """Every act in this gang's history, oldest first.
@@ -176,7 +178,7 @@ def latest(gang, limit=5, viewer=None):
 def _events(gang, window=None):
     """The gang's events, oldest first — all of them, or the last
     ``window`` of them read back to front and turned round."""
-    rows = gang.ledger_events.select_related(
+    rows = gang.ledger_events.exclude(kind__in=_COUNTER_MACHINERY).select_related(
         "miniature",
         "actor",
         "campaign",
@@ -550,6 +552,8 @@ def _machinery(e, row):
     Gang supertype built into a Clan House gang type — so neither the
     slot nor its pick is told.
     """
+    if e.kind in _COUNTER_MACHINERY:
+        return True
     if row is None:
         return False
     if e.kind == Kind.CLONED:
@@ -1189,6 +1193,7 @@ def campaign_history_size(campaign):
         + campaign.gang_events.exclude(riders)
         .exclude(handed_over)
         .exclude(kind=Kind.CLONED, assignment__isnull=False)
+        .exclude(kind__in=_COUNTER_MACHINERY)
         .count()
     )
 
@@ -1236,6 +1241,9 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         # letting the openings consume a page would make one large clone hide
         # the acts immediately before it.
         .exclude(kind=LedgerEvent.Kind.CLONED, assignment__isnull=False)
+        # An opening establishes a counter's ledger. It is not a campaign
+        # act, even when the counter arrived while joining the campaign.
+        .exclude(kind__in=_COUNTER_MACHINERY)
         .select_related(
             "miniature",
             "actor",

@@ -515,3 +515,35 @@ class TestThePageIsTheOwners:
         page = client.get(at).content.decode()
         assert 'role="search"' in page
         assert "@keydown.enter.prevent" not in page
+
+
+class TestCounterBookkeepingStaysOutOfHistory:
+    """Counter baselines do not displace the gang's visible acts."""
+
+    def test_checkpoints_do_not_displace_player_acts(self, gang, vex):
+        from n26.core.models import LedgerEvent
+        from n26.library.authoring import create_counter
+
+        with edit(gang) as op:
+            held = op.assign(create_counter("Kill Count"), miniature=vex)
+        before = history.latest(gang)
+        LedgerEvent.objects.bulk_create(
+            [
+                LedgerEvent(
+                    gang=gang,
+                    assignment=held,
+                    kind=LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+                    counter_before=0,
+                    counter_delta=0,
+                    counter_after=0,
+                )
+                for _ in range(history.SNAPSHOT_WINDOW + 1)
+            ]
+        )
+        assert [act.spans for act in history.latest(gang)] == [
+            act.spans for act in before
+        ]
+        assert not any(
+            "counter opened" in line or "counter checkpointed" in line
+            for line in sentences(gang)
+        )

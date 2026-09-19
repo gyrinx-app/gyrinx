@@ -178,6 +178,7 @@ def _carry(apps, membership, campaign_type, batch, lines):
         )
         if field == "counter":
             CounterValue.objects.create(assignment=copy, value=member.amount)
+            _open_counter(apps, membership, copy, member.amount, batch)
         thing = getattr(member, field)
         if getattr(thing, "built_ins_id", None) is not None:
             lines.append(
@@ -208,6 +209,28 @@ def _grant(apps, membership, batch, reason, **fields):
         batch=batch,
     )
     return assignment
+
+
+def _open_counter(apps, membership, assignment, value, batch):
+    """Write an opening only when the counter journal is active."""
+    try:
+        CounterTracking = apps.get_model("n26", "CounterTracking")
+    except LookupError:
+        # Historical states without tracking leave openings to activation.
+        return
+    if not CounterTracking.objects.filter(pk=1, activated_at__isnull=False).exists():
+        return
+    LedgerEvent = apps.get_model("n26", "LedgerEvent")
+    LedgerEvent.objects.create(
+        assignment=assignment,
+        gang=membership.gang,
+        campaign_id=membership.campaign_id,
+        kind="counter_opened",
+        batch=batch,
+        counter_before=0,
+        counter_delta=value,
+        counter_after=value,
+    )
 
 
 def _names(member):

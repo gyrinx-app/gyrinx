@@ -10,8 +10,12 @@ running twice does nothing; and the console offers the repair without
 writing on GET.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
 import pytest
 from django.contrib.auth.models import User
+from django.db import close_old_connections, connection
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
@@ -94,6 +98,30 @@ def settled(gang):
 class TestTheDuplicateGoesAndTheOwnersCopyStays:
     """The pass's copy is dropped and the owner's keeps the thing, now
     carrying the provenance that stops any pass granting it again."""
+
+    @pytest.mark.parametrize("budget_drift", [False, True])
+    def test_a_walk_without_duplicates_leaves_the_gangs_books_untouched(
+        self, budget_drift, gang, ganger
+    ):
+        hire(gang, ganger, "Ana", paid=50)
+        if budget_drift:
+            # A repair with nothing to remove must leave unrelated drift alone.
+            type(gang).objects.filter(pk=gang.pk).update(starting_credits=40)
+        gang.refresh_from_db()
+        before = (gang.starting_credits, gang.credits, gang.rating, gang.modified)
+        events = LedgerEvent.objects.filter(gang=gang).count()
+
+        outcome = de_duplicate(gang.pk)
+
+        gang.refresh_from_db()
+        assert outcome.dropped == 0
+        assert (
+            gang.starting_credits,
+            gang.credits,
+            gang.rating,
+            gang.modified,
+        ) == before
+        assert LedgerEvent.objects.filter(gang=gang).count() == events
 
     def test_the_owners_copy_survives_wearing_the_provenance(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
@@ -189,9 +217,10 @@ class TestACopySomebodyCountedOn:
         strip_provenance(gang)
         member = profile.built_ins.members.get(counter__isnull=False)
         duplicate = caught_up_copy(gang, fighter, member, fighter.membership, counter)
-        CounterValue.objects.update_or_create(
-            assignment=duplicate, defaults={"value": value}
-        )
+        CounterValue.objects.filter(assignment=duplicate).delete()
+        duplicate.ledger_events.filter(counter_before__isnull=False).delete()
+        with operation(gang, actor=gang.owner) as op:
+            op.open_counter(duplicate, value)
         return fighter, counter, duplicate
 
     def test_the_number_moves_to_the_copy_that_stays(
@@ -213,6 +242,30 @@ class TestACopySomebodyCountedOn:
         assert standing.counter_value.value == 7
         settled(gang)
 
+    def test_a_missing_survivor_value_gets_an_opening_event(
+        self, gang, person_type, gang_type, default_pack, counter_tracking
+    ):
+        fighter, counter, duplicate = self.tallied_duplicate(
+            gang, person_type, gang_type, 7
+        )
+        standing = Assignment.objects.exclude(pk=duplicate.pk).get(
+            counter=counter, miniature_root=fighter, archived=False
+        )
+        CounterValue.objects.filter(assignment=standing).delete()
+        standing.ledger_events.filter(counter_before__isnull=False).delete()
+
+        de_duplicate(gang.pk)
+
+        standing.refresh_from_db()
+        assert standing.counter_value.value == 7
+        events = list(
+            standing.ledger_events.filter(counter_before__isnull=False).order_by(
+                "created", "pk"
+            )
+        )
+        assert events[0].kind == LedgerEvent.Kind.COUNTER_OPENED
+        settled(gang)
+
     def test_the_higher_of_the_two_numbers_is_the_one_kept(
         self, gang, person_type, gang_type, default_pack
     ):
@@ -222,14 +275,58 @@ class TestACopySomebodyCountedOn:
         standing = Assignment.objects.exclude(pk=duplicate.pk).get(
             counter=counter, miniature_root=fighter, archived=False
         )
-        CounterValue.objects.update_or_create(
-            assignment=standing, defaults={"value": 9}
-        )
+        with operation(gang, actor=gang.owner) as op:
+            op.tally(standing, 9)
 
         de_duplicate(gang.pk)
 
         standing.refresh_from_db()
         assert standing.counter_value.value == 9
+
+
+@pytest.mark.django_db(transaction=True)
+def test_repair_keeps_a_tally_committed_while_it_waits_for_the_gang_lock(
+    gang, person_type, gang_type, default_pack
+):
+    counter = create_counter("Kill Count")
+    profile = create_profile("Hunter", person_type, gang_type, price=100)
+    add_built_in(profile, counter)
+    fighter = hire(gang, profile, "Ana", paid=100)
+    strip_provenance(gang)
+    member = profile.built_ins.members.get(counter=counter)
+    duplicate = caught_up_copy(gang, fighter, member, fighter.membership, counter)
+    with operation(gang, actor=gang.owner) as op:
+        op.tally(duplicate, 7)
+
+    lock_attempted = Event()
+
+    def signal_lock(execute, sql, params, many, context):
+        if '"n26_gang"' in sql and "FOR UPDATE" in sql:
+            lock_attempted.set()
+        return execute(sql, params, many, context)
+
+    def repair():
+        close_old_connections()
+        try:
+            with connection.execute_wrapper(signal_lock):
+                return de_duplicate(gang.pk)
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with operation(gang, actor=gang.owner) as op:
+            pending = pool.submit(repair)
+            assert lock_attempted.wait(10), "Repair did not try to lock the gang"
+            op.tally(duplicate, 5)
+        outcome = pending.result(timeout=10)
+
+    assert outcome.merged == 1
+    standing = Assignment.objects.get(
+        counter=counter, miniature_root=fighter, archived=False
+    )
+    assert standing.counter_value.value == 12
+    assert not Assignment.objects.filter(pk=duplicate.pk).exists()
+    settled(gang)
 
 
 class TestTwinsAreLeftExactlyAsTheyStand:

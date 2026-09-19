@@ -158,6 +158,11 @@ class LedgerEvent(Base):
         CAUGHT_UP = "caught_up", "Caught up"
         MOVED = "moved", "Moved"
         TALLIED = "tallied", "Tallied"
+        # A counter's first machine-readable value. A normal opening starts
+        # from zero; a checkpoint starts from the value found when structured
+        # counter history was introduced.
+        COUNTER_OPENED = "counter_opened", "Counter opened"
+        COUNTER_CHECKPOINTED = "counter_checkpointed", "Counter checkpointed"
         AMENDED = "amended", "Amended"
         REPRICED = "repriced", "Repriced"
         REMOVED = "removed", "Removed"
@@ -328,6 +333,48 @@ class LedgerEvent(Base):
     credits_delta = models.IntegerField(default=0)
     trade_points_delta = models.IntegerField(default=0)
     rating_delta = models.IntegerField(default=0)
+    #: The action use this event belongs to. This is provenance, not another
+    #: subject: ``assignment`` or ``miniature`` still says what changed.
+    action_record = models.ForeignKey(
+        "n26.ActionRecord",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ledger_events",
+    )
+    #: Every debit accepted together carries one payment id. An action with no
+    #: payment has no group, and unfinished actions write no payment events.
+    payment_id = models.UUIDField(null=True, blank=True, db_index=True)
+    #: Machine-readable counter history. All three are present together; the
+    #: signed delta is the movement that actually happened after the zero floor.
+    counter_before = models.PositiveIntegerField(null=True, blank=True)
+    counter_delta = models.IntegerField(null=True, blank=True)
+    counter_after = models.PositiveIntegerField(null=True, blank=True)
+    #: A correction points back to the exact event it reverses. The original
+    #: event remains append-only.
+    reversal_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reversals",
+    )
+    #: Exact tier or result assignments before and after a recorded change.
+    #: Archiving preserves the link; deletion requires this event to go too.
+    before_pick = models.ForeignKey(
+        "n26.Assignment",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="ledger_events_before_pick",
+    )
+    after_pick = models.ForeignKey(
+        "n26.Assignment",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="ledger_events_after_pick",
+    )
     note = models.CharField(max_length=255, blank=True)
     #: What a roll came to, on an event recording one — the number a
     #: table is read by, so 24 on a D66 and 8 on a 2D6. Columns rather
@@ -362,7 +409,7 @@ class LedgerEvent(Base):
     class Meta:
         verbose_name = "ledger event"
         verbose_name_plural = "ledger events"
-        ordering = ["created"]
+        ordering = ["created", "pk"]
         constraints = [
             # At most one of the three subjects is set: any two of them
             # could disagree about what the record is about.
@@ -371,6 +418,64 @@ class LedgerEvent(Base):
                 | models.Q(assignment__isnull=True, campaign_asset__isnull=True)
                 | models.Q(miniature__isnull=True, campaign_asset__isnull=True),
                 name="ledger_event_about_at_most_one",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        counter_before__isnull=True,
+                        counter_delta__isnull=True,
+                        counter_after__isnull=True,
+                    )
+                    | models.Q(
+                        counter_before__isnull=False,
+                        counter_delta__isnull=False,
+                        counter_after__isnull=False,
+                    )
+                ),
+                name="ledger_event_counter_movement_is_whole",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    (
+                        models.Q(
+                            counter_before__isnull=True,
+                            counter_delta__isnull=True,
+                            counter_after__isnull=True,
+                        )
+                        & ~models.Q(
+                            kind__in=[
+                                "counter_opened",
+                                "counter_checkpointed",
+                            ]
+                        )
+                    )
+                    | models.Q(
+                        counter_before__isnull=False,
+                        counter_delta__isnull=False,
+                        counter_after__isnull=False,
+                        kind__in=[
+                            "counter_opened",
+                            "counter_checkpointed",
+                            "tallied",
+                        ],
+                    )
+                ),
+                name="ledger_event_counter_movement_kind_v2",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(counter_before__isnull=True)
+                | models.Q(assignment__isnull=False),
+                name="ledger_event_counter_has_assignment",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(counter_before__isnull=True)
+                    | models.Q(
+                        counter_after=models.F("counter_before")
+                        + models.F("counter_delta")
+                    )
+                ),
+                name="ledger_event_counter_movement_adds_up",
             ),
         ]
         indexes = [

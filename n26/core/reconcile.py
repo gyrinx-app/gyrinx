@@ -6,6 +6,8 @@ cache, and each can be recomputed. These functions do the recomputing, so a
 test (or a management command) can prove the caches are honest.
 """
 
+from collections import defaultdict
+
 from django.db.models import Sum
 
 from n26.core.models import Assignment, LedgerEntry
@@ -38,6 +40,77 @@ def check_entry(entry):
         problems.append(
             f"{entry.assignable}: paid {entry.paid} != list {entry.list_price} "
             f"- discount {entry.discount}"
+        )
+    return problems
+
+
+def check_counter_value(counter_value, *, events=None):
+    """Structured counter events must form one chain ending at the value."""
+    from n26.core.models import LedgerEvent
+
+    if events is None:
+        events = list(
+            counter_value.assignment.ledger_events.filter(
+                counter_before__isnull=False
+            ).order_by("created", "pk")
+        )
+    if not events:
+        return [f"{counter_value.assignment.assignable}: no counter opening event"]
+
+    problems = []
+    if events[0].kind not in {
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+    }:
+        problems.append(
+            f"{counter_value.assignment.assignable}: no counter opening event"
+        )
+    previous = None
+    expected_gang_id = counter_value.assignment.gang_root_id
+    baseline_kinds = {
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+    }
+    for position, event in enumerate(events):
+        if event.gang_id != expected_gang_id:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} belongs to another gang"
+            )
+        if position > 0 and event.kind in baseline_kinds:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} is an additional opening or checkpoint"
+            )
+        if event.kind == LedgerEvent.Kind.COUNTER_OPENED and event.counter_before != 0:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter opening "
+                f"{event.pk} must start at zero"
+            )
+        if (
+            event.kind == LedgerEvent.Kind.COUNTER_CHECKPOINTED
+            and event.counter_delta != 0
+        ):
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter checkpoint "
+                f"{event.pk} changes the value by {event.counter_delta}"
+            )
+        if event.counter_before + event.counter_delta != event.counter_after:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} does not add up"
+            )
+        if previous is not None and event.counter_before != previous:
+            problems.append(
+                f"{counter_value.assignment.assignable}: counter event "
+                f"{event.pk} starts at {event.counter_before}, after {previous}"
+            )
+        previous = event.counter_after
+
+    if previous != counter_value.value:
+        problems.append(
+            f"{counter_value.assignment.assignable}: value pinned "
+            f"{counter_value.value}, events end at {previous}"
         )
     return problems
 
@@ -292,6 +365,27 @@ def check_gang(gang):
         *_ENTRY_RELATED
     ):
         problems += check_entry(entry)
+    from n26.core.counter_tracking import is_active
+    from n26.core.models import CounterValue, LedgerEvent
+
+    if is_active():
+        events_by_assignment = defaultdict(list)
+        for event in LedgerEvent.objects.filter(
+            assignment__gang_root=gang, counter_before__isnull=False
+        ).order_by("created", "pk"):
+            events_by_assignment[event.assignment_id].append(event)
+        counters = CounterValue.objects.filter(
+            assignment__gang_root=gang
+        ).select_related("assignment", "assignment__counter")
+        for counter_value in counters:
+            problems += check_counter_value(
+                counter_value,
+                events=events_by_assignment.pop(counter_value.assignment_id, []),
+            )
+        for assignment_id in events_by_assignment:
+            problems.append(
+                f"Counter assignment {assignment_id}: history has no counter value."
+            )
     stash = getattr(gang, "stash", None)
     if stash is not None:
         stash_sum = sum_rating(stash_root=stash)
