@@ -2312,6 +2312,7 @@ class Operation:
         anchor, miniature = _slot_context_under_the_lock(
             self.gang,
             anchor,
+            slot,
             miniature,
             "That augmentation has changed. Review it again.",
         )
@@ -2364,6 +2365,7 @@ class Operation:
         anchor, miniature = _slot_context_under_the_lock(
             self.gang,
             anchor,
+            slot,
             miniature,
             message,
         )
@@ -2907,7 +2909,7 @@ def _under_the_lock(assignment):
     return Assignment.objects.select_related("ledger_entry").get(pk=assignment.pk)
 
 
-def _slot_context_under_the_lock(gang, anchor, miniature, message):
+def _slot_context_under_the_lock(gang, anchor, slot, miniature, message):
     """Reload and prove a slot edit belongs to the operation's gang."""
     anchor = _under_the_lock(anchor)
     miniature = Miniature.objects.select_related("membership").get(pk=miniature.pk)
@@ -2915,6 +2917,8 @@ def _slot_context_under_the_lock(gang, anchor, miniature, message):
     if (
         anchor.archived
         or anchor.gang_root_id != gang.pk
+        or anchor.slot_id != slot.pk
+        or anchor.miniature_root_id != miniature.pk
         or membership is None
         or membership.archived
         or membership.gang_id != gang.pk
@@ -3082,6 +3086,7 @@ def operation(gang, actor=None, batch=None, also=()):
             # already be stale — two clicks on one button arrive
             # together often enough. What is decided in here is decided
             # on what stands under that line.
+            gang.refresh_from_db(fields=["starting_credits"])
             gang.forget_open_activities()
         yield op
         op.settle()

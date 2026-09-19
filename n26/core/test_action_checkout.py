@@ -220,6 +220,18 @@ def test_changed_budget_requires_a_new_review(user, gang, fighter):
     assert record.payment_id is None
 
 
+def test_start_uses_the_budget_held_by_the_operation(user, gang, fighter):
+    action, _, _, _ = configured_action(user, gang, fighter)
+    Gang.objects.filter(pk=gang.pk).update(starting_credits=1200, credits=1100)
+
+    with operation(gang, actor=user) as op:
+        op.start_action(fighter, action, uuid.uuid4())
+
+    gang.refresh_from_db()
+    assert gang.starting_credits == 1200
+    assert gang.credits == 1100
+
+
 def test_repeated_credit_components_read_the_balance_once(
     monkeypatch, user, gang, fighter
 ):
@@ -555,6 +567,41 @@ def test_replace_slot_pick_refuses_a_pick_from_another_anchor(user, gang, fighte
 
     unrelated.refresh_from_db()
     assert not unrelated.archived
+
+
+def test_replace_slot_pick_refuses_a_mismatched_slot_or_fighter(
+    user, gang, fighter, make_profile, make_statline
+):
+    slot_type = authoring.create_slot_type("Status")
+    table = authoring.create_picklist("Statuses", slot_type)
+    slot = authoring.create_slot("Status", slot_type, table)
+    other_slot = authoring.create_slot("Other status", slot_type, table)
+    pick = Pickable.objects.create(name="Glitched", slot_type=slot_type)
+    other_profile = make_profile("Other hunter", price=100)
+    make_statline(other_profile)
+    with operation(gang, actor=user) as op:
+        anchor = op.assign(slot, miniature=fighter)
+        wrong_slot_anchor = op.assign(other_slot, miniature=fighter)
+        other_fighter = op.hire(other_profile, "Mara", paid=100)
+
+    for malformed_anchor, malformed_fighter in (
+        (wrong_slot_anchor, fighter),
+        (anchor, other_fighter),
+    ):
+        with pytest.raises(Refusal, match="augmentation has changed"):
+            with operation(gang, actor=user) as op:
+                op.replace_slot_pick(
+                    malformed_anchor,
+                    slot,
+                    pick,
+                    previous_pick=None,
+                    miniature=malformed_fighter,
+                    action_record=None,
+                )
+
+    assert not Assignment.objects.filter(
+        chosen_for__in=[anchor, wrong_slot_anchor], pickable=pick
+    ).exists()
 
 
 def test_replace_slot_pick_refuses_a_cross_gang_context(user, gang, fighter):

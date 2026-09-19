@@ -172,7 +172,6 @@ def _counter_assignment(gang, fighter, counter, payer, action):
 
 def quote_action(op, fighter, action):
     """Resolve a quote inside an operation; final checkout remains authoritative."""
-    op.gang.refresh_from_db(fields=["starting_credits"])
     return quote_for(fighter, action, gang=op.gang)
 
 
