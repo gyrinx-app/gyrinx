@@ -1,0 +1,264 @@
+{% comment %}
+Platform flatpage document shell. Shared routes use request.edition for navigation.
+The n26 application shell owns its gang queries and maintenance state separately.
+{% endcomment %}
+{% load static %}
+{% load banner %}
+{% load pages %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Gyrinx is a free set of tools for the Necromunda community">
+        <meta name="author" content="Gyrinx">
+        <meta name="keywords" content="Necromunda, Gyrinx">
+        <meta name="application-name" content="Gyrinx">
+        <c-ui.mode-toggle.head storage_key="theme" default="system" />
+        <link rel="dns-prefetch" href="https://use.typekit.net">
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        {% block favicon %}
+            <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+            <link rel="icon" href="/favicon.ico" type="image/x-icon">
+            <link rel="apple-touch-icon-precomposed"
+                  sizes="152x152"
+                  href="{% static 'platform/img/brand/favicon/apple-touch-icon-152x152.png' %}">
+            <link rel="apple-touch-icon-precomposed"
+                  sizes="120x120"
+                  href="{% static 'platform/img/brand/favicon/apple-touch-icon-120x120.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="196x196"
+                  href="{% static 'platform/img/brand/favicon/favicon-196x196.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="32x32"
+                  href="{% static 'platform/img/brand/favicon/favicon-32x32.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="16x16"
+                  href="{% static 'platform/img/brand/favicon/favicon-16x16.png' %}">
+        {% endblock favicon %}
+        {# djlint:off #}
+        <title>{% spaceless %}{% block head_title %}{% endblock head_title %}{% endspaceless %} | Gyrinx</title>
+        {# djlint:on #}
+        {% block stylesheet %}
+            <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+        {% endblock stylesheet %}
+        {% block extra_head %}
+        {% endblock extra_head %}
+        <style>
+            :root { --n26-site-width: 75rem; }
+            @media (min-width: 1400px) {
+                :root { --n26-site-width: 1320px; }
+            }
+        </style>
+        {% if gtm_container_id %}
+            {# djlint:off #}
+            <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','{{ gtm_container_id }}');
+            </script>
+            {# djlint:on #}
+        {% endif %}
+        {% include "platform/includes/timezone_cookie.html" %}
+    </head>
+    {# djlint:off H021 — a CSS custom property children read; it must ride the element #}
+    <body class="flex min-h-screen flex-col" style="--n26-sticky-top: 3.5rem">
+        {# djlint:on #}
+        {% if gtm_container_id %}
+            {# djlint:off #}
+            <noscript>
+                <iframe src="https://www.googletagmanager.com/ns.html?id={{ gtm_container_id }}"
+                        height="0" width="0" style="display:none; visibility:hidden"></iframe>
+            </noscript>
+            {# djlint:on #}
+        {% endif %}
+        <a href="#content"
+           class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground">
+            Skip to main content
+        </a>
+        {% if banner %}
+            <c-n26.site.announcement tone="{{ banner.colour|banner_tone }}"
+                                     icon="{{ banner.icon|banner_icon }}"
+                                     cta_text="{{ banner.cta_text }}"
+                                     cta_url="{% if banner.cta_url %}{% url 'core:track-banner-click' banner.id %}{% endif %}"
+                                     on_dismiss="fetch('{% url 'core:dismiss-banner' %}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
+                                     id="site-banner-{{ banner.id }}">
+                {{ banner.text }}
+            </c-n26.site.announcement>
+        {% endif %}
+        <c-n26.site.nav title="Gyrinx"
+                        href="/"
+                        sticky="1"
+                        :unread="unread_notification_count"
+                        class="dark">
+            <c-slot name="logo">
+                <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                     alt=""
+                     width="24"
+                     height="24"
+                     class="size-6">
+            </c-slot>
+            {% if presentation.is_help %}<c-slot name="heading">Help</c-slot>{% endif %}
+            {% if user.is_authenticated %}
+                <c-slot name="user_label">
+                    <c-n26.user-link :user="user" tone="current" underline="none" />
+                </c-slot>
+            {% endif %}
+            <c-ui.navbar.item href="/">
+                Gyrinx
+            </c-ui.navbar.item>
+            <c-ui.navbar.item href="{% url 'n26-dashboard' %}">N26</c-ui.navbar.item>
+            <c-ui.navbar.item href="/help/" :current="presentation.is_help">
+                Help
+            </c-ui.navbar.item>
+            {% if user.is_authenticated %}
+                <c-slot name="menu">
+                    {% url 'admin:index' as admin_url_ %}
+                    {% url 'account_logout' as logout_url_ %}
+                    <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
+                        <c-n26.user-link :user="user" tone="current" underline="none" />
+                    </div>
+                    <c-ui.dropdown.separator />
+                    <c-ui.dropdown.item href="{% url 'core:account_home' %}">
+                        Your account
+                    </c-ui.dropdown.item>
+                    <c-ui.dropdown.item href="{% url 'core:notifications' %}">
+                        Notifications
+                        <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
+                    </c-ui.dropdown.item>
+                    <c-ui.dropdown.group label="Theme">
+                        <c-n26.site.nav.theme storage_key="theme" />
+                    </c-ui.dropdown.group>
+                    {% if user.is_staff %}
+                        <c-ui.dropdown.group label="Staff only">
+                            {% if admin_url_ %}
+                                <c-ui.dropdown.item href="{{ admin_url_ }}">
+                                    Admin
+                                </c-ui.dropdown.item>
+                            {% endif %}
+                            <c-ui.dropdown.item href="{% url 'authoring-index' %}">
+                                Content library
+                            </c-ui.dropdown.item>
+                            {% if impersonate_target %}
+                                <form method="post"
+                                      action="{% url 'core:impersonate-start' impersonate_target.pk %}"
+                                      role="none"
+                                      x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <c-ui.dropdown.item variant="danger">
+                                        Impersonate {{ impersonate_target.username }}
+                                    </c-ui.dropdown.item>
+                                </form>
+                            {% endif %}
+                        </c-ui.dropdown.group>
+                    {% endif %}
+                    {% if logout_url_ %}
+                        <c-ui.dropdown.separator />
+                        <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
+                            Sign out
+                        </c-ui.dropdown.item>
+                    {% endif %}
+                </c-slot>
+            {% endif %}
+            <c-slot name="actions">
+                {% include "flatpages/includes/edition_toggle.html" %}
+                {% if not user.is_authenticated %}
+                    <c-ui.mode-toggle storage_key="theme" size="sm" />
+                    {% with next_param=request.get_full_path|urlencode %}
+                        <c-ui.button size="sm"
+                                     href="{% url 'account_login' %}?next={{ next_param }}">Sign in</c-ui.button>
+                    {% endwith %}
+                {% endif %}
+            </c-slot>
+        </c-n26.site.nav>
+        {% if is_impersonating %}
+            {% url 'core:impersonate-stop' as stop_url_ %}
+            <c-n26.site.announcement tone="danger" dismissible="" id="impersonation-banner">
+                Impersonating <strong>{{ request.user.username }}</strong> — signed in as
+                {{ impersonator.username }}. Everything you do is recorded as this user.
+                <c-slot name="action">
+                    <form method="post" action="{{ stop_url_ }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <c-ui.button size="sm" variant="default" type="submit">
+                            Stop impersonating
+                        </c-ui.button>
+                    </form>
+                </c-slot>
+            </c-n26.site.announcement>
+        {% endif %}
+        {% block body %}
+            <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
+                {% block messages %}
+                    {% include "n26/includes/messages.html" %}
+                {% endblock messages %}
+                {% block content %}
+                {% endblock content %}
+            </main>
+        {% endblock body %}
+        {% block extra_body %}
+        {% endblock extra_body %}
+        {% block footer %}
+            <c-n26.site.footer>
+                <c-n26.site.footer.column>
+                    <c-slot name="lead">
+                        <a href="/" class="n26-site-brand focus-ring" aria-label="Gyrinx">
+                            <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                                 alt=""
+                                 width="24"
+                                 height="24"
+                                 class="size-6">
+                            <span>Gyrinx</span>
+                        </a>
+                    </c-slot>
+                    <li>Designed and built in the UK.</li>
+                    {% if user.is_staff %}
+                        <li><c-n26.link href="{% url 'admin:index' %}" tone="muted">Admin</c-n26.link></li>
+                    {% endif %}
+                    <li class="flex items-center gap-3 pt-1">
+                        <c-n26.link href="https://github.com/gyrinx-app" tone="muted">
+                            <c-n26.icon name="github" class="size-5" label="GitHub" />
+                        </c-n26.link>
+                        <c-n26.link href="https://discord.gg/WnJFKfyEuj" tone="muted">
+                            <c-n26.icon name="discord" class="size-5" label="Discord" />
+                        </c-n26.link>
+                    </li>
+                </c-n26.site.footer.column>
+                <c-n26.site.footer.column heading="Help and documentation">
+                    {% get_root_pages for user as help_pages_ %}
+                    {% for page in help_pages_ %}
+                        <li>
+                            <c-n26.link href="{{ page.url }}" tone="muted">
+                                {{ page.title }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
+                </c-n26.site.footer.column>
+                <c-n26.site.footer.column heading="Support Gyrinx on Patreon">
+                    <c-slot name="content">
+                        <a href="https://patreon.com/Gyrinx"
+                           class="n26-img-tilt block rounded-box focus-ring">
+                            <img src="{% static 'platform/img/patreon.png' %}"
+                                 alt="Support Gyrinx on Patreon"
+                                 class="w-full rounded-box border border-box-border">
+                        </a>
+                    </c-slot>
+                </c-n26.site.footer.column>
+            </c-n26.site.footer>
+        {% endblock footer %}
+        <script defer src="{% static 'n26/menu-position.js' %}"></script>
+        <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-collapse.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-focus.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine.min.js' %}"></script>
+        {% block extra_script %}
+        {% endblock extra_script %}
+    </body>
+</html>
