@@ -28,6 +28,7 @@ from n26.library.authoring import (
     create_picklist,
     create_profile,
     create_rule,
+    create_skill,
     create_slot,
     create_slot_type,
     create_trait,
@@ -38,6 +39,7 @@ from n26.library.models import (
     AugmentCarriedItem,
     Counter,
     PicklistMember,
+    Skill,
     Slot,
     Stat,
 )
@@ -48,6 +50,7 @@ from n26.tests.sandbox.actions import (
     found_gang,
     hire,
     modifier,
+    offers_choice,
     op_changes_counter,
     removes,
     targets_model,
@@ -189,6 +192,29 @@ def test_preview_rendering_does_not_query_for_brought_in_models(
 def test_effect_fingerprint_ignores_brought_in_names():
     assert augmentations._effect_state({"brought_in": ("Fang",)}) == (
         augmentations._effect_state({"brought_in": ("Rex",)})
+    )
+
+
+def test_effect_fingerprint_tracks_choice_state_without_its_address():
+    unresolved = {
+        "kind_label": "Bonus skill",
+        "chosen": None,
+        "is_full": False,
+        "takes_several": False,
+        "key": "fighter:carrier:offer",
+        "href": "/choose/first",
+        "provenance": {"source": "Tier"},
+    }
+    moved = {
+        **unresolved,
+        "key": "fighter:other-carrier:offer",
+        "href": "/choose/second",
+    }
+    resolved = {**moved, "chosen": "Dodge", "is_full": True}
+
+    assert augmentations._effect_state(unresolved) == augmentations._effect_state(moved)
+    assert augmentations._effect_state(unresolved) != augmentations._effect_state(
+        resolved
     )
 
 
@@ -517,6 +543,56 @@ def test_capped_rated_tier_skips_exactly_one_level(action_record, augmentation):
     assert candidate.candidate_pick_id == str(tiers[1].pk)
 
 
+def test_capped_tier_can_skip_to_a_rating_only_level(action_record, augmentation):
+    strength = Stat.objects.get(short_name="S")
+    type_stats = action_record.fighter.membership.profile.statline_type.stats
+    with operation(action_record.gang) as op:
+        op.set_stats(
+            action_record.fighter,
+            [(type_stats.get(stat=strength), "10", "Strength set to 10")],
+        )
+    rig = create_wargear("Rig", price=0)
+    tiers = ladder(
+        rig,
+        augmentation,
+        [1, 2],
+        effects={
+            1: [(targets_model(), changes_stat(strength, "improve", 1))],
+            2: [],
+        },
+    )
+    buy(action_record.fighter, thing=rig, paid=0)
+
+    (candidate,) = augmentation_options(
+        action_record, configured(augmentation)
+    ).candidates
+
+    assert candidate.candidate_pick_id == str(tiers[1].pk)
+    assert candidate.rating_after == candidate.rating_before + 2
+
+
+def test_preview_preserves_a_choice_added_by_a_tier(action_record, augmentation):
+    create_skill("Dodge")
+    rig = create_wargear("Rig", price=0)
+    (tier,) = ladder(
+        rig,
+        augmentation,
+        [1],
+        effects={
+            1: [(targets_model(), offers_choice(Skill, label="Bonus skill"))],
+        },
+    )
+    tier.rating_contribution = 0
+    tier.save(update_fields=["rating_contribution", "modified"])
+    buy(action_record.fighter, thing=rig, paid=0)
+
+    (candidate,) = augmentation_options(
+        action_record, configured(augmentation)
+    ).candidates
+
+    assert candidate.candidate_pick_id == str(tier.pk)
+
+
 def test_an_unrelated_capped_characteristic_does_not_skip(action_record, augmentation):
     strength = Stat.objects.get(short_name="S")
     attacks = Stat.objects.get(short_name="A")
@@ -656,6 +732,8 @@ def test_review_uses_the_counter_balance_after_payment(action_record, augmentati
         record = op.start_action(
             action_record.fighter, action_record.action, uuid.uuid4()
         )
+
+    assert augmentation_options(record, configured_outcome).candidates == ()
 
     with (
         operation(action_record.gang) as op,

@@ -202,19 +202,39 @@ def _render(card, index=None):
     return build_model_card(card.miniature, card=card, computed=computed, brought_in={})
 
 
-def _effect_state(value):
+_IGNORED_CHOICE = object()
+
+
+def _effect_state(value, *, ignored_choice_anchor=None):
     """Comparable game effects, excluding prices and presentation metadata."""
     value = asdict(value) if is_dataclass(value) else value
     if isinstance(value, dict):
-        return {
-            key: _effect_state(item)
-            for key, item in value.items()
-            if key
-            not in {
+        if {
+            "kind_label",
+            "chosen",
+            "is_full",
+            "takes_several",
+            "key",
+        }.issubset(value):
+            address = value.get("key", "").split(":")
+            if (
+                ignored_choice_anchor is not None
+                and len(address) == 3
+                and address[1] == str(ignored_choice_anchor)
+            ):
+                return _IGNORED_CHOICE
+            return {
+                "kind_label": value["kind_label"],
+                "chosen": value["chosen"],
+                "is_full": value["is_full"],
+                "takes_several": value["takes_several"],
+            }
+        comparable = {}
+        for key, item in value.items():
+            if key in {
                 "assignment_id",
                 "back",
                 "brought_in",
-                "choices",
                 "full_name",
                 "held_at",
                 "href",
@@ -227,10 +247,18 @@ def _effect_state(value):
                 "remarks",
                 "row_questions",
                 "short_name",
-            }
-        }
+            }:
+                continue
+            child = _effect_state(item, ignored_choice_anchor=ignored_choice_anchor)
+            if child is not _IGNORED_CHOICE:
+                comparable[key] = child
+        return comparable
     if isinstance(value, (list, tuple)):
-        return [_effect_state(item) for item in value]
+        comparable = (
+            _effect_state(item, ignored_choice_anchor=ignored_choice_anchor)
+            for item in value
+        )
+        return [item for item in comparable if item is not _IGNORED_CHOICE]
     return value
 
 
@@ -370,7 +398,9 @@ def _candidate(card, ladder, index=None, before=None):
     after = _render_with_pick(card, ladder, member, index)
     # A capped characteristic may make the immediate rung do nothing. The
     # rule permits looking exactly one rung farther, never an arbitrary jump.
-    same_effects = _effect_state(before) == _effect_state(after)
+    same_effects = _effect_state(
+        before, ignored_choice_anchor=ladder.slot.pk
+    ) == _effect_state(after, ignored_choice_anchor=ladder.slot.pk)
     if same_effects and _newly_capped(before, after):
         member = next_members[1] if len(next_members) > 1 else None
         if member is None:
@@ -379,7 +409,11 @@ def _candidate(card, ladder, index=None, before=None):
         if candidate_modifiers is None:
             return None
         after = _render_with_pick(card, ladder, member, index)
-        if _effect_state(before) == _effect_state(after):
+        if (
+            _effect_state(before, ignored_choice_anchor=ladder.slot.pk)
+            == _effect_state(after, ignored_choice_anchor=ladder.slot.pk)
+            and before.rating == after.rating
+        ):
             return None
     elif same_effects and before.rating == after.rating:
         return None
@@ -493,7 +527,16 @@ def _correction_baseline(record, configured, *, lock=False, projected=None):
 
 def augmentation_options(record, configured):
     """List effective next tiers for the fighter's carried items."""
-    card, ladders, _selection = _correction_baseline(record, configured)
+    projected = None
+    if record.state == record.State.STARTED:
+        from n26.core.action_records import post_payment_counters, quote_for
+
+        projected = post_payment_counters(
+            quote_for(record.fighter, record.action, gang=record.gang)
+        )
+    card, ladders, _selection = _correction_baseline(
+        record, configured, projected=projected
+    )
     preview_carriers = [*carriers(card)]
     preview_carriers.extend(
         member.pickable for ladder in ladders for member in ladder.members
@@ -593,8 +636,8 @@ def _selected(record, configured, terms, *, lock=False, projected=None):
         member,
         candidate,
         selection,
-        _effect_state(before),
-        _effect_state(after),
+        _effect_state(before, ignored_choice_anchor=ladder.slot.pk),
+        _effect_state(after, ignored_choice_anchor=ladder.slot.pk),
     )
 
 

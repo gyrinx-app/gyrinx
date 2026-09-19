@@ -290,7 +290,7 @@ def _operation_snapshot(configured):
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
-def _post_payment_counters(quote):
+def post_payment_counters(quote):
     """Counter balances after the reviewed coalesced price is paid."""
     return {
         line.balance.assignment_id: line.after_payment
@@ -308,7 +308,7 @@ def _target_snapshot(record, configured, terms, *, quote=None):
         simulated = {}
         # A normal review supplies its final quote and previews the state after
         # payment. Correction previews omit it because corrections never repay.
-        projected = _post_payment_counters(quote) if quote is not None else {}
+        projected = post_payment_counters(quote) if quote is not None else {}
         for member in configured.changes.select_related(
             "counter_change__counter", "remove_picks__slot_type"
         ):
@@ -365,7 +365,7 @@ def _target_snapshot(record, configured, terms, *, quote=None):
             record,
             configured,
             deepcopy(terms),
-            projected=_post_payment_counters(quote) if quote is not None else None,
+            projected=post_payment_counters(quote) if quote is not None else None,
         )
     if isinstance(configured, ResolveAdvancement):
         try:
@@ -572,7 +572,7 @@ def _plan_apply_changes(op, record, operation, quote):
     planned = []
     simulated = {}
     starting = {}
-    projected = _post_payment_counters(quote)
+    projected = post_payment_counters(quote)
     for change in changes:
         if change.counter_change_id:
             configured = change.counter_change
