@@ -1,6 +1,6 @@
 from django.conf import settings
-from django.contrib.flatpages import views
-from django.contrib.flatpages.models import FlatPage
+from django.contrib.auth.views import redirect_to_login
+from django.contrib.flatpages import views as django_flatpage_views
 from django.contrib.sites.shortcuts import get_current_site
 from django.http import (
     Http404,
@@ -8,8 +8,11 @@ from django.http import (
     HttpResponsePermanentRedirect,
 )
 from django.shortcuts import get_object_or_404, render
+from django.template import loader
+from django.views.decorators.csrf import csrf_protect
 
-from gyrinx.pages.models import FlatPageVisibility
+from gyrinx.pages.access import accessible_flatpages
+from gyrinx.pages.presentation import build_flatpage_presentation
 
 # Crawl policy. Amazonbot alone was ~70% of page traffic (2026-07-28) crawling
 # every fighter page of every public list; it feeds Amazon product answers and
@@ -56,27 +59,42 @@ def flatpage(request, url):
         url = "/" + url
     site_id = get_current_site(request).id
     try:
-        f = get_object_or_404(FlatPage, url=url, sites=site_id)
+        f = get_object_or_404(
+            accessible_flatpages(site_id=site_id, user=request.user), url=url
+        )
     except Http404:
         if not url.endswith("/") and settings.APPEND_SLASH:
             url += "/"
-            f = get_object_or_404(FlatPage, url=url, sites=site_id)
+            f = get_object_or_404(
+                accessible_flatpages(site_id=site_id, user=request.user), url=url
+            )
             return HttpResponsePermanentRedirect(f"{request.path}/")
         else:
             raise
 
-    # This is the new part
-    # Check if the page is visible to the user
-    # If the user is not authenticated, raise a 404
-    visibility = FlatPageVisibility.objects.filter(page=f)
-    if visibility.exists():
-        if not request.user.is_authenticated:
-            raise Http404
-        groups = request.user.groups.all()
-        if not visibility.filter(groups__in=groups).exists():
-            raise Http404
+    template = None
+    if f.template_name:
+        selected = loader.select_template((f.template_name, "flatpages/default.html"))
+        if selected.template.name != "flatpages/default.html":
+            return django_flatpage_views.render_flatpage(request, f)
+        template = selected
+    return render_flatpage(request, f, site_id=site_id, template=template)
 
-    return views.render_flatpage(request, f)
+
+@csrf_protect
+def render_flatpage(request, page, *, site_id, template=None):
+    """Render an accessible page while preserving Django's flatpage contract."""
+    if page.registration_required and not request.user.is_authenticated:
+        return redirect_to_login(request.path)
+
+    template = template or loader.get_template("flatpages/default.html")
+
+    presentation = build_flatpage_presentation(
+        page=page, site_id=site_id, user=request.user
+    )
+    return HttpResponse(
+        template.render({"flatpage": page, "presentation": presentation}, request)
+    )
 
 
 def error_400(request, exception=None):

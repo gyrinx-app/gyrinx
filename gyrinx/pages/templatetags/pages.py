@@ -4,13 +4,11 @@ from dataclasses import dataclass, field
 from bs4 import BeautifulSoup
 from django import template
 from django.conf import settings
-from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
-from django.core.cache import cache
-from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
 
+from gyrinx.pages.access import accessible_flatpages
 from gyrinx.pages.models import FlatPageOptions
 
 register = template.Library()
@@ -41,8 +39,12 @@ class FlatpageNode(template.Node):
         else:
             site_pk = settings.SITE_ID
 
-        # Build the queryset
-        flatpages = FlatPage.objects.filter(sites__id=site_pk)
+        user = self.user.resolve(context) if self.user else None
+        flatpages = accessible_flatpages(
+            site_id=site_pk,
+            user=user,
+            include_registration_required=bool(user and user.is_authenticated),
+        )
 
         # If a prefix was specified, add a filter
         starts_with = None
@@ -52,22 +54,6 @@ class FlatpageNode(template.Node):
             if self.children_only:
                 prefix = re.escape(_normalize_path(starts_with))
                 flatpages = flatpages.filter(url__regex=rf"^{prefix}[^/]+/?$")
-
-        # If the provided user is not authenticated, or no user
-        # was provided, filter the list to only public flatpages.
-        user = None
-        if self.user:
-            user = self.user.resolve(context)
-            if not user.is_authenticated:
-                flatpages = flatpages.filter(registration_required=False)
-            else:
-                # This is the addition: filter flatpages for visibility to the user
-                flatpages = flatpages.filter(
-                    Q(flatpagevisibility__isnull=True)
-                    | Q(flatpagevisibility__groups__in=user.groups.all())
-                ).distinct()
-        else:
-            flatpages = flatpages.filter(registration_required=False)
 
         if self.depth:
             # Optimized regex for depth=1 case
@@ -193,16 +179,24 @@ def pages_path_parent(path):
     return "/".join(path.split("/")[:-1]) + "/"
 
 
-@register.simple_tag
-def pages_parent(page):
+@register.simple_tag(takes_context=True)
+def pages_parent(context, page):
     """
     Return the parent of the page.
     """
     parent_url = pages_path_parent(page.url)
-    try:
-        return FlatPage.objects.get(url=parent_url)
-    except FlatPage.DoesNotExist:
-        return None
+    request = context.get("request")
+    site_id = get_current_site(request).pk if request else settings.SITE_ID
+    user = request.user if request else None
+    return (
+        accessible_flatpages(
+            site_id=site_id,
+            user=user,
+            include_registration_required=bool(user and user.is_authenticated),
+        )
+        .filter(url=parent_url)
+        .first()
+    )
 
 
 @register.simple_tag
@@ -213,39 +207,33 @@ def page_depth(page):
     return max(page.url.count("/") - 2, 0)
 
 
-@register.simple_tag
-def get_page_by_url(url):
+@register.simple_tag(takes_context=True)
+def get_page_by_url(context, url):
     """
     Return the page with the given URL.
 
-    Results are cached for 5 minutes to avoid repeated database queries,
-    especially useful for navbar links that appear on every page.
+    The lookup observes the current site and the requesting user's access.
     """
-    cache_key = f"flatpage_by_url_{url}"
-    cached_result = cache.get(cache_key)
-
-    if cached_result is not None:
-        # Return None if we cached a miss, otherwise return the cached page
-        return None if cached_result == "" else cached_result
-
-    try:
-        page = FlatPage.objects.get(url=url)
-        cache.set(cache_key, page, 300)  # Cache for 5 minutes
-        return page
-    except FlatPage.DoesNotExist:
-        cache.set(cache_key, "", 300)  # Cache the miss for 5 minutes
-        return None
+    request = context.get("request")
+    site_id = get_current_site(request).pk if request else settings.SITE_ID
+    user = request.user if request else None
+    return (
+        accessible_flatpages(
+            site_id=site_id,
+            user=user,
+            include_registration_required=bool(user and user.is_authenticated),
+        )
+        .filter(url=url)
+        .first()
+    )
 
 
 def slugify(text):
     """
     Convert the provided text into a slug suitable for use as an HTML id.
     """
-    # Convert to lowercase
     text = text.lower()
-    # Remove any characters that aren't alphanumeric, whitespace, or hyphens
     text = re.sub(r"[^\w\s-]", "", text)
-    # Replace spaces and hyphens with a single hyphen
     text = re.sub(r"[-\s]+", "-", text)
     return text.strip("-")
 
@@ -330,8 +318,6 @@ def parse_headings(html):
     """
     soup = BeautifulSoup(html or "", "html.parser")
     headings = []
-    # Authored content can carry its own ids (TinyMCE's anchor tool), so every
-    # id already on the page is reserved before any heading slug is chosen.
     seen = {tag["id"] for tag in soup.find_all(id=True)}
 
     for heading in soup.find_all(re.compile(r"^h[1-6]$")):
@@ -350,7 +336,6 @@ def parse_headings(html):
             href=f"#{slug}",
             attrs={"class": "link-underline link-underline-opacity-0 text-reset"},
         )
-        # Decorative: the anchor's accessible name is the heading text.
         icon = soup.new_tag(
             "i",
             attrs={
