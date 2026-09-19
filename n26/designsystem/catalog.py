@@ -462,9 +462,9 @@ GROUPS: list[Group] = [
                 template="label.html",
                 summary="The caption for a control, with an optional badge beside it.",
                 notes=(
-                    "The slot is the caption, not the control: pass for with the "
-                    "control's id to associate the two. A control placed in the "
-                    "slot sits on the caption line beside the badge."
+                    'The slot is the caption, not the control. Set for="<control-id>" '
+                    "to associate the label with its control. A control placed in "
+                    "the slot sits on the caption line beside the badge."
                 ),
             ),
             Component(
@@ -532,7 +532,7 @@ GROUPS: list[Group] = [
                 slug="badge",
                 tag="c-ui.badge",
                 template="badge.html",
-                summary="A small status or count pill, in nineteen colours.",
+                summary="A compact pill for a status, category or count.",
                 notes=(
                     "pill and solid are both values of variant, so they cannot be "
                     'combined. inset takes edge names (inset="top bottom") and '
@@ -597,7 +597,7 @@ GROUPS: list[Group] = [
                 slug="alert",
                 tag="c-ui.alert",
                 template="alert.html",
-                summary="An inline message box in four tones and three appearances.",
+                summary="An inline message box for status, feedback or errors.",
                 needs=(ALPINE,),
                 notes=(
                     "variant sets the tone and its icon together; appearance picks "
@@ -949,8 +949,8 @@ GROUPS: list[Group] = [
                 tag="c-ui.mode-toggle",
                 template="mode_toggle/index.html",
                 summary=(
-                    "Light, dark and system colour scheme switching, in four "
-                    "presentations."
+                    "A control for switching between light, dark and system colour "
+                    "schemes."
                 ),
                 needs=(ALPINE,),
                 notes=(
@@ -2253,8 +2253,8 @@ GROUPS: list[Group] = [
                 tag="c-n26.campaign-assets",
                 template="n26/campaign_assets.html",
                 summary=(
-                    "Every asset of one asset type, with who holds each and the "
-                    "acts on it."
+                    "Every asset of one asset type, showing who holds each and its "
+                    "available actions."
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
@@ -2320,9 +2320,9 @@ GROUPS: list[Group] = [
                     "one query, so the template computes nothing and nothing here "
                     "changes a statline or a weapon. Every control is drawn from an "
                     "href on the structure, so a print sheet or a hire preview that "
-                    "passes none draws none. mode is gang for the sheet's dense "
-                    "card and edit for the model's own page, where the controls are "
-                    "shown; wrap a region only one mode draws in "
+                    "passes none draws none. mode is gang for an owner's roster, "
+                    "view for a read-only roster, and edit for the model's own page. "
+                    "Wrap a region only one mode draws in "
                     "c-n26.model-card.mode. Only a stored model has an id, so a "
                     'preview must not render an empty anchor, and :tabs="False" '
                     "draws the body without the Card, Lore and Notes strip."
@@ -2433,9 +2433,10 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, "TinyMCE", "form.media"),
                 notes=(
-                    "Pass a bound field for the editor with its Edit and Preview "
-                    "switch, or just value for the rendered article, which runs "
-                    "through safe_rich_text; do not add a safe filter on that path. "
+                    "Pass a bound field to render the editor with its Edit and "
+                    "Preview switch. Pass only value to render the saved article, "
+                    "which runs through safe_rich_text; do not add a safe filter on "
+                    "that path. "
                     "It is wrapped in c-ui.field, so label, description and errors "
                     "work as they do on c-ui.input. The page must render {{ "
                     "form.media }} once, and load n26/richtext.js before it, or the "
