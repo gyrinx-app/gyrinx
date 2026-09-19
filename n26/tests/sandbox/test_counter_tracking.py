@@ -4,7 +4,7 @@ import pytest
 
 from n26.core.counter_tracking import is_active
 from n26.core.models import CounterValue, Gang, LedgerEvent
-from n26.core.operations import operation
+from n26.core.operations import Refusal, operation
 from n26.core.reconcile import check_counter_value, check_gang
 from n26.library.authoring import create_counter
 
@@ -84,6 +84,23 @@ class TestCounterTrackingAfterActivation:
             str(held.pk) in problem and "history has no counter value" in problem
             for problem in check_gang(gang)
         )
+
+    @pytest.mark.parametrize("writer", ["tally", "open_counter"])
+    def test_missing_balance_with_history_cannot_be_reopened(
+        self, writer, gang, counter_tracking
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            held = op.assign(create_counter("Kill Count"), gang=gang)
+            op.tally(held, 6)
+        CounterValue.objects.filter(assignment=held).delete()
+        events = list(gang.ledger_events.order_by("pk").values())
+
+        with pytest.raises(Refusal, match="Its value is missing"):
+            with operation(gang, actor=gang.owner) as op:
+                getattr(op, writer)(held, 2)
+
+        assert not CounterValue.objects.filter(assignment=held).exists()
+        assert list(gang.ledger_events.order_by("pk").values()) == events
 
     def test_an_untouched_counter_needs_no_balance(self, gang, counter_tracking):
         with operation(gang, actor=gang.owner) as op:

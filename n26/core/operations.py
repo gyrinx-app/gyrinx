@@ -2572,6 +2572,16 @@ class Operation:
         """Store an opening balance, journalling it once tracking is active."""
         from n26.core.models import CounterValue, LedgerEvent
 
+        if (
+            self.counter_tracking_active
+            and LedgerEvent.objects.filter(
+                assignment=assignment, counter_before__isnull=False
+            ).exists()
+        ):
+            raise Refusal(
+                "You cannot edit this counter. "
+                "Its value is missing, but its history already exists."
+            )
         held = CounterValue.objects.create(assignment=assignment, value=value)
         if self.counter_tracking_active:
             self.event(
