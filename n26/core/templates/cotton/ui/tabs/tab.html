@@ -4,7 +4,7 @@
 It calls register and isActive on the parent tabs component. Outside that parent, Alpine throws.
 name is the identity shown on the strip. It must match default_tab if you set one.
 icon must stay in c-vars. An undeclared icon would land on the panel as an HTML attribute and an SVG quote would break out of it.
-The display none style hides the panel until Alpine runs. Without JavaScript the content never appears.
+display none hides the panel until Alpine runs. The parent's noscript rule shows every panel when JavaScript is off.
 icon is HTML, passed into the parent and drawn with x-html.
 {% endcomment %}
 
@@ -19,7 +19,7 @@ icon is HTML, passed into the parent and drawn with x-html.
      style="display: none;"
      role="tabpanel"
      tabindex="0"
-     class="mt-2"
+     class="n26-tabs-panel mt-2"
      {{ attrs }}>
     {{ slot }}
 </div>

@@ -39,6 +39,10 @@ CAMPAIGNS_WAITING = mark_safe(  # nosec B703 B308 - literal, no user input
     ' bg-accent align-middle"></span>'
 )
 
+#: Query names the home page's tab strip will honour. Anything else falls
+#: back to Gangs so an unknown ?tab= cannot hide every panel.
+DASHBOARD_TABS = ("Gangs", "Campaigns", "Content Packs")
+
 
 @login_required
 def dashboard(request):
@@ -81,6 +85,7 @@ def dashboard(request):
     # The mark is markup rather than a flag because the tab strip is built in
     # the browser from a registered string, and a string is what it can take.
     invitations = list(invitations_for(request.user)) if campaigns_open else []
+    tab = request.GET.get("tab", "Gangs")
 
     return render(
         request,
@@ -93,6 +98,7 @@ def dashboard(request):
             "invitations": invitations,
             "waiting_invitations": len(invitations),
             "campaigns_mark": CAMPAIGNS_WAITING if invitations else "",
+            "dashboard_tab": tab if tab in DASHBOARD_TABS else "Gangs",
         },
     )
 

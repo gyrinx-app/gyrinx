@@ -72,3 +72,20 @@ class TestTheMarksBesideTheAction:
         the brand's own artwork was painted."""
         assert 'fill="currentColor"' in header
         assert "#FFFFFF" not in header
+
+
+class TestTheHomeTabQuery:
+    """?tab= is the URL for the home strip. An unknown name falls back
+    to Gangs so Alpine cannot hide every panel."""
+
+    def test_campaigns_is_the_open_tab_when_the_query_says_so(self, client, tester):
+        client.force_login(tester)
+        body = client.get(
+            reverse("n26-dashboard"), {"tab": "Campaigns"}
+        ).content.decode()
+        assert "activeTab: 'Campaigns'" in body
+
+    def test_an_unknown_name_opens_gangs(self, client, tester):
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard"), {"tab": "Nope"}).content.decode()
+        assert "activeTab: 'Gangs'" in body

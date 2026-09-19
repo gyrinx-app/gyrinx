@@ -1,11 +1,11 @@
 {% comment %}
-<c-ui.tabs> — Client-side tabs whose panels are c-ui.tabs.tab children.
+<c-ui.tabs> — Panels switched in the page, with every panel shown when JavaScript is off.
 
 <c-ui.tabs default_tab="Card">
     <c-ui.tabs.tab name="Card">...</c-ui.tabs.tab>
 </c-ui.tabs>
 
-default_tab must match a tab name exactly. A mismatch leaves every panel hidden.
+default_tab must match a tab name exactly. A mismatch leaves every panel hidden once Alpine runs.
 Two tabs with the same name both show when that name is active.
 The default variant draws through c-n26.tab-strip.
 On a narrow strip, more than two tabs keep only the active one visible. The rest open from a quick-switcher.
@@ -14,11 +14,14 @@ Do not compose these rows from c-n26.quick-switcher.choice. That bakes the label
 Keep the open tab in the menu. Hiding it leaves a search for that tab as a blank menu with no empty state.
 The segmented variant stays a scrolling strip and does not collapse. no-scrollbar is defined in app.css; the package names the class and does not ship it.
 An extra wrapper around the segmented strip unstyles every card tab strip. .n26-card-tabs selects the first child div by position.
-Every panel is in the HTML. Without JavaScript they stay hidden.
+Without JavaScript a noscript rule shows every panel. display none is only for Alpine.
+param copies the active name into the query string. Nested strips on one page must leave it empty.
+The view must honour that query name as default_tab if the first paint should match.
 {% endcomment %}
 
 <c-vars
     :default_tab="None"
+    param=""
     variant="default"
     size="md"
     :accent="True"
@@ -27,7 +30,13 @@ Every panel is in the HTML. Without JavaScript they stay hidden.
 
 <div x-data="{
     tabs: [],
+    param: '{{ param|escapejs }}',
     activeTab: '{{ default_tab|default:''|escapejs }}',
+    init() {
+        if (!this.param) return;
+        var q = new URLSearchParams(location.search).get(this.param);
+        if (q) this.activeTab = q;
+    },
     register(name, icon) {
         this.tabs.push({name: name, icon: icon});
         if (!this.activeTab && this.tabs.length === 1) {
@@ -36,10 +45,23 @@ Every panel is in the HTML. Without JavaScript they stay hidden.
     },
     isActive(name) {
         return this.activeTab === name;
+    },
+    select(name) {
+        this.activeTab = name;
+        if (!this.param) return;
+        var u = new URL(location.href);
+        u.searchParams.set(this.param, name);
+        history.replaceState(null, '', u);
     }
 }"
 class="w-full space-y-4"
 {{ attrs }}>
+    <noscript>
+        {# display none on panels is what noscript overrides. x-cloak would keep them hidden without JS. #}
+        <style>
+            .n26-tabs-panel { display: block !important; }
+        </style>
+    </noscript>
 
     {% if variant == 'segmented' %}
 
@@ -50,7 +72,7 @@ class="w-full space-y-4"
         ">
             <template x-for="tab in tabs" :key="tab.name">
                 <button type="button"
-                    @click="activeTab = tab.name"
+                    @click="select(tab.name)"
                     class="
                         inline-flex items-center justify-center whitespace-nowrap transition-all focus-ring
                         {% if fill %}flex-1{% endif %}
@@ -75,7 +97,7 @@ class="w-full space-y-4"
             <c-slot name="full">
                 <template x-for="tab in tabs" :key="tab.name">
                     <button type="button"
-                        @click="activeTab = tab.name"
+                        @click="select(tab.name)"
                         class="
                             inline-flex items-center justify-center whitespace-nowrap transition-all focus-ring
                             border-b-2 font-medium rounded-t-md
@@ -105,7 +127,7 @@ class="w-full space-y-4"
                 <template x-for="tab in tabs" :key="tab.name">
                     <button type="button"
                         x-show="tabs.length <= 2 || isActive(tab.name)"
-                        @click="activeTab = tab.name"
+                        @click="select(tab.name)"
                         class="
                             inline-flex max-w-full items-center justify-center whitespace-nowrap transition-all focus-ring
                             border-b-2 font-medium rounded-t-md
@@ -131,7 +153,7 @@ class="w-full space-y-4"
 
                 {# order-last: Alpine appends x-for clones at the end of the container. #}
                 <span x-show="tabs.length > 2" x-cloak
-                      @quick-switcher-choose="activeTab = $event.detail.value"
+                      @quick-switcher-choose="select($event.detail.value)"
                       class="order-last flex shrink-0 items-center border-b-2 border-box-border"
                 >
                     <c-n26.quick-switcher heading="Which tab"

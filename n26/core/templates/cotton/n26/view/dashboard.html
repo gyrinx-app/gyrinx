@@ -4,6 +4,7 @@
 An empty Gangs slot draws nothing. Campaigns and Content Packs fall back to coming-soon.
 Declare gangs and changelog. An undeclared name resolves to the caller's variable of that name.
 campaigns_mark is markup for the Campaigns tab icon. That is the only extra the strip will draw.
+default_tab is the open panel. The home page reads it from ?tab=.
 {% endcomment %}
 
 <c-vars
@@ -17,6 +18,7 @@ campaigns_mark is markup for the Campaigns tab icon. That is the only extra the 
     campaigns_mark=""
     content_packs=""
     changelog=""
+    default_tab="Gangs"
     class=""
 />
 
@@ -57,7 +59,7 @@ campaigns_mark is markup for the Campaigns tab icon. That is the only extra the 
 
     <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
         <div class="min-w-0 lg:col-span-2">
-            <c-ui.tabs default_tab="Gangs">
+            <c-ui.tabs default_tab="{{ default_tab }}" param="tab">
                 {# Gangs has no empty state. An empty slot is a blank tab. #}
                 <c-ui.tabs.tab name="Gangs">{{ gangs }}</c-ui.tabs.tab>
 
