@@ -11,12 +11,12 @@
                                  size="xs"
                                  aria-label="Show pages in {{ node.page.title }}"
                                  x-cloak
-                                 ::aria-label="(open ? 'Hide pages in ' : 'Show pages in ') + '{{ node.page.title|escapejs }}'"
-                                 ::aria-expanded="open"
+                                 x-bind:aria-label="(open ? 'Hide pages in ' : 'Show pages in ') + '{{ node.page.title|escapejs }}'"
+                                 x-bind:aria-expanded="open"
                                  @click="open = !open">
                         <c-n26.icon name="chevron-right"
                                     class="size-3 transition-transform"
-                                    ::class="{ 'rotate-90': open }" />
+                                    x-bind:class="{ 'rotate-90': open }" />
                     </c-ui.button>
                 {% endif %}
             </div>
