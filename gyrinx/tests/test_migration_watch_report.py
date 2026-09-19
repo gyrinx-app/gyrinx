@@ -143,7 +143,7 @@ def test_a_stacked_branch_that_does_not_merge_is_only_a_note(run, monkeypatch):
     assert state == "pending"
     assert "codex/the-branch-below" in headline
     assert problems == []
-    assert any("stacked on" in note for note in notes)
+    assert any("codex/the-branch-below" in note for note in notes)
 
 
 def test_a_branch_that_could_not_be_fetched_is_an_error(run):
