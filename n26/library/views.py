@@ -2845,7 +2845,8 @@ def staged(request):
         # same bad link.
         try:
             row = get_object_or_404(
-                model.objects.filter(staged=True), pk=request.POST.get("pk", "")
+                model.objects.outside_campaign_packs().filter(staged=True),
+                pk=request.POST.get("pk", ""),
             )
         except ValidationError:
             raise Http404("No such row") from None

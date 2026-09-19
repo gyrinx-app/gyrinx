@@ -52,6 +52,7 @@ from n26.library.models import (
     Slot,
     SlotType,
 )
+from n26.library.staged import staged_count, staged_rows
 from n26.tests.sandbox.actions import (
     add_asset,
     add_campaign_asset_type,
@@ -1048,6 +1049,49 @@ class TestCampaignContentIsOutsideAuthoring:
         assert campaign_url in body
         assert book_url not in body
         assert admin_client.get(campaign_url).status_code == 200
+
+    def test_staged_authoring_leaves_campaign_content_alone(
+        self, admin_client, campaign
+    ):
+        add_campaign_label(campaign, "Alignment", ["Outlaw"])
+        campaign_pick = Pickable.objects.get(pack=campaign.pack, name="Outlaw")
+        book_type = create_slot_type("Book label")
+        book_pick = create_pickable("Book option", book_type)
+        campaign_url = reverse("authoring-detail", args=["pickable", campaign_pick.pk])
+        book_url = reverse("authoring-detail", args=["pickable", book_pick.pk])
+
+        assert admin_client.post(campaign_url, {"act": "stage"}).status_code == 302
+        assert admin_client.post(book_url, {"act": "stage"}).status_code == 302
+        assert staged_count() == 1
+        assert staged_rows() == [(Pickable, [book_pick])]
+
+        body = admin_client.get(reverse("authoring-staged")).content.decode()
+        assert book_url in body
+        assert campaign_url not in body
+        delete_page = admin_client.get(reverse("authoring-staged-delete"))
+        assert delete_page.context["count"] == 1
+
+        response = admin_client.post(
+            reverse("authoring-staged"),
+            {
+                "act": "put_live",
+                "model": "pickable",
+                "pk": str(campaign_pick.pk),
+            },
+        )
+        assert response.status_code == 404
+
+        response = admin_client.post(reverse("authoring-staged-put-live"))
+        assert response.status_code == 302
+        campaign_pick.refresh_from_db()
+        book_pick.refresh_from_db()
+        assert campaign_pick.staged is True
+        assert book_pick.staged is False
+
+        response = admin_client.post(reverse("authoring-staged-delete"))
+        assert response.status_code == 302
+        campaign_pick.refresh_from_db()
+        assert campaign_pick.staged is True
 
 
 class TestTheArbitratorTallies:
