@@ -1,18 +1,12 @@
 {% comment %}
-<c-n26.tally> — figures that add up, label left and value right.
+<c-n26.tally> — A stack of labelled figures, with optional rules and emphasis.
 
-    <c-n26.tally :facts="receipt.facts" />
-
-Drawn by the Visit Trading Post card and by the confirmation before an
-overspend, so one arithmetic cannot come to be shown two ways.
-
-Emphasis and rules are the row's own, never read off its position: a tally may
-carry more than one total, as that confirmation does.
-
-  :facts — n26.core.confirm.Fact objects: label, value, and optionally the
-    `sub` line saying where the figure came from.
-  class — extra classes on the list.
+Ruled draws a line above that fact, which is how a total is marked off.
+Strong sets that fact in bold. The two usually travel together.
+Read ruled and strong off the fact, never off its position. A tally may carry more than one total.
+Visit and overspend confirmation both use this, so one arithmetic cannot be shown two ways.
 {% endcomment %}
+
 <c-vars :facts="None" class="" />
 
 <dl {{ attrs }} class="flex flex-col gap-2 {{ class }}">

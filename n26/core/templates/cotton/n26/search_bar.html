@@ -1,33 +1,18 @@
 {% comment %}
-<c-n26.search-bar> — a search field with its submit button beside it.
+<c-n26.search-bar> — A search field that is either a GET form or a live filter bound to parent Alpine state.
 
-    <c-n26.search-bar action="/lists/" name="q" placeholder="Search lists" />
+nested renders a div. Put it inside an existing form. A nested form would be invalid HTML.
+live binds x-model to the parent field named by model. That parent must own the state.
 
-A real <form>, so it submits as a GET with no JavaScript. `:live` instead binds
-the field to the Alpine expression named in `model`, resolved in the
-surrounding scope, and narrows the list already on the page as you type; it
-also gains a clear button.
+<c-n26.search-bar :live="True" model="query" />
 
-`:nested` is required, not cosmetic, when this sits inside another form. HTML
-has no nested forms: a browser drops the inner tag without complaint and
-reparents its children, so the field and the button stop being one row. Nested
-renders a <div> instead and draws no submit, since a submit there would post
-the surrounding form.
-
-The submit is drawn only where clicking it does something — any bar that is not
-live, and a live one given an `action`. A live bar with no action has its
-submit prevented; there is nothing to ask for that is not already on screen.
-
-Enter in a live box that has no Search button of its own does nothing. The
-filter already runs as you type. Enter would otherwise submit the surrounding
-form, and the first Buy or Hire in that form is what the browser activates —
-even a row the filter has hidden. A nested bar that is the filter of a GET
-form is not live, so Enter still submits that search.
-
-The field is a plain <input> with its own border stripped, since the kit has no
-input group and c-ui.input would draw a second border inside this one. It
-carries the same token classes, so it themes identically.
+live without action swallows submit and Enter so the browser does not navigate.
+The input id is search- plus name. Two bars with the same name on one page collide.
+A live nested bar swallows Enter. Otherwise the browser activates the first Hire or Buy in the form, even a line the filter has hidden.
+A browser drops a nested form tag without complaint and reparents its children, so the field and the button stop being one control.
+The field is a plain input. c-ui.input would draw a second border inside this group.
 {% endcomment %}
+
 <c-vars
     action=""
     method="get"
@@ -41,16 +26,14 @@ carries the same token classes, so it themes identically.
     class=""
 />
 
+{# nested cannot be a form: this bar often sits inside one. #}
 <{% if nested %}div{% else %}form{% endif %}
       {% if not nested %}action="{{ action }}" method="{{ method }}"{% endif %}
       {% if live and not action and not nested %}@submit.prevent{% endif %}
       role="search" {{ attrs }}
       class="flex items-center gap-2 {{ class }}">
 
-    {% comment %}
-    The focus ring belongs to the field group alone. On the form it would also
-    light up when the submit button is focused, which says the wrong thing.
-    {% endcomment %}
+{# Focus ring is on the field group. On the form it would also light when the submit button is focused. #}
     <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-control
                 border border-box-border bg-[var(--color-input-bg)]
                 shadow-[var(--shadow-input)]
@@ -71,16 +54,14 @@ carries the same token classes, so it themes identically.
             value="{{ value }}"
             placeholder="{{ placeholder }}"
             autocomplete="off"
+            {# model is an Alpine path in the parent scope, not a Django form field. #}
             {% if live %}x-model="{{ model }}"{% endif %}
             {% if live %}{% if nested or not action %}@keydown.enter.prevent{% endif %}{% endif %}
             class="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none
                    placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500">
 
         {% if live %}
-            {% comment %}
-            type="search" draws its own clear button in some browsers and not
-            others; this one is always there and always looks the same.
-            {% endcomment %}
+
             <button type="button" x-show="{{ model }}" x-cloak
                     @click="{{ model }} = ''; $refs.field.focus()"
                     aria-label="Clear search"
@@ -91,11 +72,7 @@ carries the same token classes, so it themes identically.
         {% endif %}
     </div>
 
-    {% comment %}
-    Two nested ifs, because Django's `if` has no parentheses and the test is
-    `not nested and (not live or action)`. Flattened, the `or` would swallow the
-    nesting test and put a real submit inside the surrounding form.
-    {% endcomment %}
+    {# Two nested ifs. Django if has no parentheses, and flattening would let or put a submit inside the surrounding form. #}
     {% if not nested %}
         {% if not live or action %}
             <c-ui.button type="submit" variant="primary" class="shrink-0">

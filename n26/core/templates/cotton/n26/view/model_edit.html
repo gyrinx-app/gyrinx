@@ -1,60 +1,16 @@
 {% comment %}
-<c-n26.view.model-edit> — one model, whole: their card, editable, and the notes.
+<c-n26.view.model-edit> — Edit face of a model: header card, notes, picture, skills, characteristics, and lore.
 
-    <c-n26.view.model-edit :miniature="miniature" :card="card" lead="Leader">
-        <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
-        <c-slot name="notes">…the notes form…</c-slot>
-        <c-slot name="statline">…the characteristics form…</c-slot>
-    </c-n26.view.model-edit>
-
-The Edit face of a model's own page: the header (see <c-n26.model-header>)
-with the card in its card slot, above the tab strip, then a grid holding the
-forms, one column on a phone.
-
-The card is drawn in `edit` mode, which is where its controls come out. It is
-otherwise the same card the gang sheet draws, from the same renderer. Each
-piece of kit the model holds carries a menu of the listing's acts here — Add
-accessory, Sell and the rest — so taking something off does not mean finding
-it on the Equip tab first. The Equip and Options faces draw the same card in
-the same place (n26/includes/model_card_host.html), so what the model is stays
-in view whichever tab is open.
-
-The grid runs two columns all the way down and nothing spans both: Picture and
-Notes, then Skills & Powers beside a column holding Characteristics over
-Subtypes & Rules, then Lore and Dismissed choices. The dismissed-choice card
-stays at its content height rather than stretching to match Lore.
-
-Characteristics and Subtypes & Rules share one cell so the pair stands level
-with Skills & Powers beside them, Subtypes & Rules taking whatever height
-Characteristics leaves.
-
-Saving is the caller's business. Notes, skills and statline arrive as whole
-forms — fields, submit and all — and this component only decides where each box
-sits and what its heading says.
-
-  :miniature — the model. The header reads pk and name, and the Equip link is
-    built from pk.
-  :card — the model's n26.render.ModelCard.
-  lead — the model's rank, under the name.
-  tab_actions — controls at the right-hand end of the tab strip.
-  dismissed_choices — the dismissed-choice card and its live-update target,
-    after Lore. The caller keeps an empty target when no choices are dismissed.
-  name_action — a control beside the model's name. Without it the rename
-    pencil is drawn (n26/includes/model_name_action.html); the gallery, with
-    no model to rename, passes a link of its own.
-  lore — the lore form, a cell of its own on the bottom row. Without it no box
-    is drawn.
-  picture — the picture forms, the first box of the grid. Without it no box is
-    drawn.
-  edits — the subtypes and rules forms, under the characteristics and sharing
-    a cell with them. Without it no box is drawn.
-  skills — the skills form. Without it no box is drawn at all, so a model whose
-    grid reaches no set is not asked rather than shown an empty list.
-  statline — the characteristics form, over the subtypes and sharing a cell
-    with them. Without it no box is drawn.
-  htmx — set by a screen that draws this view for a real model, so the card's
-    own controls post through htmx and take back the card alone.
+The header's card slot is filled here. Pass the model card as the card prop.
+htmx and status_href travel into the card include.
+Only a page that also draws the dialog hosts may set htmx true. An out-of-band swap whose id is missing from the page is dropped silently.
+Notes always renders. Picture, skills, lore, and edits omit themselves when empty.
+dismissed_choices stay off the card. Only this page draws them, so a print sheet never will.
+The include draws the card in edit mode, which is where its controls come out.
+The editors are siblings of the card, not children, so replacing the card leaves them in place.
+Without name_action the include draws the rename pencil.
 {% endcomment %}
+
 <c-vars
     :miniature="None"
     :card="None"
@@ -87,15 +43,9 @@ sits and what its heading says.
         {% if actions.strip %}
             <c-slot name="actions">{{ actions }}</c-slot>
         {% endif %}
-        {% comment %}
-        The card sits in a host of its own so an act on it can send back the
-        card alone — the same include every other screen of the model
-        draws, so the gallery's card and the pages' are one element and an
-        update addressed to its id always lands somewhere. The editors
-        below are the card's siblings, not its children, which is what
-        lets the whole card be replaced without rebuilding them.
-        {% endcomment %}
+
         <c-slot name="card">
+            {# The include reads htmx and status_href. Set htmx only when the page has the dialog hosts. #}
             {% include "n26/includes/model_card_host.html" with name_action=name_action %}
         </c-slot>
         {% if tab_actions.strip %}
@@ -129,15 +79,10 @@ sits and what its heading says.
             </c-ui.card>
         {% endif %}
 
-        {% comment %}
-        Two boxes in one cell, so the short one and the long one together
-        stand level with Skills &amp; Powers beside them. The lower box grows
-        into whatever height the upper one leaves; where only one of the two
-        is drawn, that one grows instead.
-        {% endcomment %}
         {% if statline.strip or edits.strip %}
             <div class="flex flex-col gap-4">
                 {% if statline.strip %}
+                    {# Fill the column when Subtypes and Rules is absent. #}
                     <c-ui.card class="{% if not edits.strip %}grow{% endif %}">
                         <c-slot name="header">
                             <span class="font-semibold">Characteristics</span>

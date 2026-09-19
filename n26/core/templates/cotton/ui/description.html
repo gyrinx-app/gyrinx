@@ -1,14 +1,10 @@
 {% comment %}
-<c-ui.description> — help text beneath a form field, set at body size.
+<c-ui.description> — Secondary text under a label or heading.
 
-Overrides the kit, which sets help text at text-sm. This is the sentence a
-reader needs in order to fill the field in correctly, so it is not set smaller
-than the text around it.
-
-Attributes come from `attrs.attrs_dict` rather than `attrs.dict`: only the
-former filters out props declared in <c-vars>, which would otherwise be
-written back out as HTML attributes.
+Attributes come from attrs.attrs_dict, not attrs.dict. Only attrs_dict drops props declared in c-vars, which would otherwise become HTML attributes.
+Class is merged through attrs, so a caller class= adds to the muted style instead of replacing it.
 {% endcomment %}
+
 <div {{ attrs.attrs_dict|merge:'class:text-ink-600 dark:text-ink-400 mt-1.5' }}>
     {{ slot }}
 </div>

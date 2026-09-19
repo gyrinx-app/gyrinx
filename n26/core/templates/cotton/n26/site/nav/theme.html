@@ -1,40 +1,19 @@
 {% comment %}
-<c-n26.site.nav.theme> — light, dark, or whatever the machine is set to.
+<c-n26.site.nav.theme> — Light, dark, and system theme radios, driven by the kit mode toggle.
 
-    <c-ui.dropdown.group label="Theme">
-        <c-n26.site.nav.theme storage_key="theme" />
-    </c-ui.dropdown.group>
-
-Three named states rather than a two-way flip, because a toggle cannot say "the
-same as everything else on this machine" — which is the state most readers are
-already in, and the only one that keeps following the machine afterwards.
-System's accessible name says which scheme the machine is currently asking for.
-
-Built on the kit's headless mode-toggle rather than its menu variant, which is
-itself a dropdown: a dropdown opened inside a dropdown leaves two panels
-fighting over the same outside click.
-
-The segments are `menuitemradio`s, and the raised pill is drawn from
-`aria-checked` rather than from a second piece of Alpine state, so what the
-control looks like and what it announces cannot come apart. The menu is left
-open on a click, since a reader picking a scheme is usually comparing.
-
-  storage_key — where the choice is kept. Must match the <c-ui.mode-toggle.head>
-    in the page's head, or the first paint disagrees with the stored choice.
+The buttons must stay inside c-ui.mode-toggle. set and mode come from that wrapper.
+variant is headless, so this file owns the drawing.
+The system control's accessible name follows the device media query.
+The menu variant is itself a dropdown. Two panels would fight over the same outside click.
+storage_key must match the mode-toggle head on the page, or the first paint disagrees with the stored choice.
+Draw the raised state from aria-checked. A second Alpine flag can disagree with what is announced.
+Keep a flex row, not a three-column grid. A grid column can be narrower than System and wrap it.
 {% endcomment %}
+
 <c-vars storage_key="theme" class="" />
 
-{% comment %}
-The headless toggle carries all the behaviour and none of the controls: the
-stored choice, the media query it follows in system mode, and the class on
-<html> the rest of the page reads. `mode`, `mq` and `set()` live in its scope.
-{% endcomment %}
 <c-ui.mode-toggle variant="headless" storage_key="{{ storage_key }}">
-    {% comment %}
-    A flex row rather than a three-column grid: a grid column may be narrower
-    than its content, which wraps "System" onto two lines. Flex items refuse to
-    shrink below theirs, so the panel widens to fit the control instead.
-    {% endcomment %}
+
     <div {{ attrs }}
          role="group"
          aria-label="Theme"
@@ -68,6 +47,7 @@ stored choice, the media query it follows in system mode, and the class on
             <c-n26.icon name="moon" class="size-4" />
             Dark
         </button>
+        {# Name follows the device query. The visible label stays System. #}
         <button type="button"
                 role="menuitemradio"
                 @click="set('system')"

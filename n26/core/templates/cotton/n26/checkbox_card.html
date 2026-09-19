@@ -1,32 +1,16 @@
 {% comment %}
-<c-n26.checkbox-card> — a selectable card whose body stays interactive.
+<c-n26.checkbox-card> — A checkbox drawn as a card, with nested controls that go inert when it is clear.
 
-    <c-n26.checkbox-card name="fighters" value="01ABC…" label="Vex"
-                         description="Ganger" :checked="True">
-        <c-slot name="meta">85¢</c-slot>
-        …rows of dependent controls…
-    </c-n26.checkbox-card>
+Nested controls are inert when the box is clear. That blocks clicks. It does
+not keep them out of the POST. Disable those inputs yourself if they must not
+submit.
 
-Use this instead of the kit's checkbox cards (c-ui.checkbox.group
-variant="cards") when the card holds controls of its own: the kit makes the
-whole surface the toggle, so a click on any of them would tick the card. Here
-the toggle is confined to the header row and the body stays live. The
-presentation matches the kit's, so the two read as one family.
-
-While unticked the body is dimmed and inert. `inert` stops interaction and
-focus but not form submission — an input that must not submit while the card is
-unticked binds :disabled="!picked" itself.
-
-`picked` is in Alpine scope for the body and meta slots to read.
-
-  name, value — the form identity of the card's own checkbox.
-  :checked — the starting state.
-  label — the card's title.
-  description — the muted line under it. Optional.
-  meta — a slot at the header's far end: a price, a counter. Optional.
-  slot — the body, under a rule. Optional; without one the card is just
-    its header.
+checked is turned into a JS true or false with yesno. A Python True is not
+valid in x-data.
+Use this when the card holds controls of its own. The kit's card variant makes the whole surface the toggle.
+picked is in Alpine scope for nested controls to read.
 {% endcomment %}
+
 <c-vars name="" value="" :checked="False" label="" description="" meta="" class="" />
 
 <div {{ attrs }}
@@ -46,13 +30,12 @@ unticked binds :disabled="!picked" itself.
         </span>
         {% if meta %}{{ meta }}{% endif %}
     </label>
-    {% comment %}
-    pl-8 is the checkbox width plus the header's gap, lining the body up with
-    the title's left edge.
-    {% endcomment %}
+
     {% if slot.strip %}
+        {# pl-8 lines the body up with the title, past the checkbox and its gap. #}
         <div class="mt-2 border-t border-box-border pt-2 pl-8"
              :class="picked ? '' : 'opacity-50'"
+             {# inert blocks clicks. It does not keep nested inputs out of the POST. #}
              :inert="!picked">{{ slot }}</div>
     {% endif %}
 </div>

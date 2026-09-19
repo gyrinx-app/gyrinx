@@ -1,22 +1,15 @@
 {% comment %}
-<c-ui.button> — overrides the kit's button to add `success` and `text-danger`.
+<c-ui.button> — A pressable control: a link when href is set, otherwise a button.
 
-Colour carries meaning, which is why this is a variant and not a class at the
-call site: `success` brings something into existence, `danger` destroys
-something, `primary` does neither. `text-danger` is `danger` drawn as a link,
-for a destructive act that should not shout — a Remove beside every row of a
-long list.
-
-app.css gives solid buttons their inset shadow by matching background utility
-classes by name (`:is(.bg-accent, .bg-red-500, .bg-ink-100, .bg-green-700)`).
-A new solid variant must be added to that list there too, or its button
-renders flatter than every other button.
-
-A button that submits, fetches or navigates goes busy — spinner, no label, no
-second click — until the work ends. Nothing is declared here for it: the shell
-loads n26/core/static/n26/busy.js, which finds the control through the event.
-Pass `data-busy="off"` on the button or on its form to keep a control out of it.
+Keep rounded-button on the element. busy.js treats those links as buttons. The button-group rules key on the same class.
+A button that submits, fetches, or navigates goes busy until the work ends. Pass data-busy=off on the button or its form to opt out.
+app.css gives solid buttons their inset shadow by matching background classes.
+Add a new solid fill to that list too, or the button renders flatter than the others.
+href draws an anchor, which cannot submit a form. To submit, omit href and pass type=submit.
+text and text-danger drop horizontal padding so they sit in a sentence like a link.
+The link form has no disabled styles. An href control stays clickable.
 {% endcomment %}
+
 <c-vars
     variant="default"
     size="md"
@@ -69,6 +62,7 @@ Pass `data-busy="off"` on the button or on its form to keep a control out of it.
     {{ slot }}
 </a>
 {% else %}
+{# attrs first so a call-site type=submit wins over type=button. #}
 <button {{ attrs }} type="button" class="
     {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
     cursor-pointer whitespace-nowrap rounded-button

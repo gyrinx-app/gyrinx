@@ -1,39 +1,19 @@
 {% comment %}
-<c-n26.radio-cards> — pick exactly one of a handful of things, laid out as cards.
+<c-n26.radio-cards> — A fieldset of radio cards laid out in a wrapping grid.
 
-    <c-n26.radio-cards label="Gang type *" description="What the gang is."
-                       :form="form" name="gang_type">
-        {% for option in options %}
-            <c-n26.radio-cards.card name="gang_type" value="{{ option.value }}"
-                                    label="{{ option.label }}"
-                                    description="{{ option.description }}"
-                                    :checked="option.checked" />
-        {% endfor %}
+    <c-n26.radio-cards label="Status" name="status">
+        <c-n26.radio-cards.card name="status" value="active" label="Active" />
     </c-n26.radio-cards>
 
-A grid rather than a select, so options can carry a badge and a line of detail
-and be compared side by side. Drawn to match <c-n26.colour-picker>, the other
-radio group on these forms.
+Put c-n26.radio-cards.card in the default slot. Cards that share name are one group.
 
-A fieldset with a legend, not a label: the group is what is being named, and a
-<label> would have to point at one card and announce nothing for the rest.
+min is the CSS minmax track size, not a count of columns.
 
-Native radios sharing a name, so one-of-many is the browser's rule, the form
-submits without JavaScript, and a redisplay after a failed submit re-checks
-whichever card the server says.
-
-  label — the question, as the fieldset's legend. Optional.
-  description — the line under it. Optional.
-  form, name — a Django form and the field, so the group can draw the field's
-    error under the cards where the reader is looking. Both or neither.
-  min — the narrowest a card may be before the grid drops to fewer per row.
-  id — the fieldset's id; with a label, the legend gets "<id>-legend". Optional.
-  labelled_by — the id of a heading elsewhere that asks this question, where
-    the page draws one above the group. The fieldset is then named by that
-    heading and its own legend, in that order, for a reader who hears the
-    options rather than seeing what they sit under. Optional.
-  slot — the cards.
+labelled_by is additive: with label and id, the legend id is appended to that list.
+Use a legend, not a label. A label would point at one card and announce nothing for the rest.
+Pass form and name together, or neither. One without the other draws no field error.
 {% endcomment %}
+
 <c-vars
     label=""
     description=""
@@ -53,12 +33,7 @@ whichever card the server says.
         <p class="mb-2 text-muted">{{ description }}</p>
     {% endif %}
 
-    {% comment %}
-    auto-fill rather than a column count per breakpoint: how many cards fit a
-    row follows from the one number saying how narrow a card may get.
-    min-w-0 on each child so a nowrap name cannot push the track wider than
-    the card; wrap is what lets a sentence stay inside that width.
-    {% endcomment %}
+    {# Keep min-w-0 so a nowrap name cannot widen the track past the card. #}
     <div class="grid gap-3 [&>*]:min-w-0" style="grid-template-columns: repeat(auto-fill, minmax({{ min }}, 1fr));">
         {{ slot }}
     </div>

@@ -1,27 +1,13 @@
 {% comment %}
-<c-n26.filter-menu> — many of a set, as a dropdown with checkboxes.
+<c-n26.filter-menu> — A checkbox dropdown that applies a named set of values through a window event.
 
-    <c-n26.filter-menu
-        label="House"
-        name="house"
-        :options="[{'value': 'escher', 'label': 'Escher (HoB)'},
-                   {'value': 'goliath', 'label': 'Goliath (HoC)'}]" />
-
-For one of a set — a sort order, say — use <c-n26.choice-menu>, the same panel
-with radios and no All / None or only.
-
-OK dispatches `filter-apply` with {name, values}; Cancel restores the selection
-as it was when the panel opened and dispatches nothing. The menu owns its
-selection, so a "clear all" elsewhere on the page reaches it by dispatching
-`filter-reset` under the same name. `select_all` ticks everything when
-`selected` is empty, an untouched filter usually meaning no filter.
-
-The checkbox group wraps the whole dropdown rather than sitting inside the
-panel, which is what lets the trigger show a count while shut. Its scope keeps
-the selection in an assignable `values` array and the dropdown's exposes
-`close()`, both above this content, so All / None / only are one assignment
-each.
+OK dispatches filter-apply with name and values. A parent must listen or the ticks do nothing.
+name must match the listener and any filter-reset. Collection-picker listens for category.
+With select_all, an empty selected list becomes every option on init. You cannot open on none.
+Cancel restores the snapshot taken when the panel opened, not the last applied set.
+The checkbox group wraps the whole dropdown, not just the panel, so the shut trigger can show a count.
 {% endcomment %}
+
 <c-vars
     label="Filter"
     name=""
@@ -37,24 +23,18 @@ each.
 />
 
 <c-ui.checkbox.group name="{{ name }}" :values="selected" class="contents">
+    {# values comes from the checkbox group wrapper. Unwrap this and the ticks stop sharing state. #}
     <div
         x-data="{ allValues: {{ options|json_dumps }}.map(o => o.value), snapshot: [] }"
         {% if select_all %}x-init="if (!values.length) values = allValues.slice()"{% endif %}
-        {% comment %}
-        The mirror of filter-apply: nothing outside can set this menu's
-        selection, so it listens under the same name it reports under.
-        {% endcomment %}
+
         @filter-reset.window="if ($event.detail.name === {{ name|json_dumps }}) values = allValues.slice()"
         class="inline-block"
         {{ attrs }}>
 
         <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
             <c-slot name="trigger">
-                {% comment %}
-                sm and `default`: this sits in a bar under a search field,
-                refining a list rather than acting on the page. A screen that is
-                mostly list takes size="xs".
-                {% endcomment %}
+
                 <c-ui.button size="{{ size }}" variant="default">
                     <span class="flex items-center justify-center gap-1.5">
                         {{ label }}
@@ -67,10 +47,6 @@ each.
                 </c-ui.button>
             </c-slot>
 
-            {% comment %}
-            Snapshot on open rather than on init, so Cancel reverts to how
-            things were when the panel was opened, not to the page's first load.
-            {% endcomment %}
             <div class="p-3"
                  x-init="$watch('dropdownMenu', open => { if (open) snapshot = values.slice() })">
 

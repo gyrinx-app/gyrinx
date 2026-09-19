@@ -1,29 +1,19 @@
 {% comment %}
-<c-n26.filter-select> — a long <select>, with a box to search it.
+<c-n26.filter-select> — Upgrades a native select in its slot to a searchable list when it has enough options.
 
-    <c-n26.filter-select>
-        <c-ui.select.native name="weapon" id="id_weapon" placeholder="">
-            <c-ui.select.option value="7">Autogun</c-ui.select.option>
-        </c-ui.select.native>
-    </c-n26.filter-select>
+Put a select in the default slot. This hides it only after it counts min_options or more.
 
-The <select> handed in is still what the browser submits, untouched: the
-panel sets `selectedIndex` or flips `option.selected` on the real element,
-and nothing here mirrors the value into a second input. The slot must hold
-a select; given anything else the component silently does nothing.
+<c-n26.filter-select>
+    {{ form.field }}
+</c-n26.filter-select>
 
-With no script the select renders visible and complete — the panel is
-x-cloak'd, and hiding the select happens on init. That is also why the
-kit's combobox is not underneath: its name is an Alpine binding and its
-options are a <template>, so scriptless it submits nothing at all, and the
-options it does render carry label text where a primary key belongs.
-
-Below `min_options` the select is left exactly as it came. The counting
-happens in the browser, since the options are already on the page.
-
-The <label> the field drew is repointed at the trigger on init, the select
-it pointed at being hidden by then.
+The associated label's for is rewritten to the trigger. Leave the select's id in place.
+Disabled options are omitted from the list, not dimmed, so arrow keys never land on them.
+Enter is swallowed because this control sits in a form and would submit mid-search.
+The slot must hold a select. Anything else and this component does nothing, with no error.
+Do not replace this with the kit combobox. Without script that control submits nothing, and its options carry labels where a primary key belongs.
 {% endcomment %}
+
 <c-vars min_options="15"
         placeholder="Type to filter"
         empty="No matches"
@@ -62,8 +52,9 @@ it pointed at being hidden by then.
          get chosen() { return this.options.filter(option => option.selected && option.value) },
          get summary() { return this.chosen.map(option => option.label).join(', ') },
          // A disabled empty option is a placeholder somebody wrote, and
-         // worth more than a generic line; an enabled one is the way back to
-         // no choice at all, and its dashes say nothing.
+         // worth more than a generic line.
+         // An enabled one is the way back to no choice at all, and its
+         // dashes say nothing.
          get nothing() {
              const written = this.options.find(option => !option.value && option.disabled);
              return written ? written.label : 'Nothing chosen';
@@ -78,8 +69,9 @@ it pointed at being hidden by then.
          show() {
              this.open = true;
              // A frame, not a tick. Clicking the trigger focuses it, and the
-             // browser does that after this handler has run — a focus moved
-             // inside the same task is taken straight back by the button.
+             // browser does that after this handler has run.
+             // A focus moved inside the same task is taken straight back by
+             // the button.
              this.$nextTick(() => requestAnimationFrame(() => this.$refs.filter.focus()));
          },
          close(back) {
@@ -139,16 +131,11 @@ it pointed at being hidden by then.
      class="relative {{ class }}"
      {{ attrs }}>
     {{ slot }}
-    {% comment %}
-    x-cloak as well as x-show: Alpine has to run to honour x-show, so between
-    the HTML arriving and Alpine booting the panel would sit on the screen
-    over the select it replaces.
-    {% endcomment %}
+
+    {# The native select stays in the slot and is hidden only after min_options. Form submit still posts it. #}
+    {# x-cloak as well as x-show. Alpine has to run to honour x-show, so the panel would otherwise cover the select on boot. #}
     <div x-show="ready" x-cloak>
-        {% comment %}
-        The chevron is drawn rather than set as a background image, so it
-        takes the ink colour.
-        {% endcomment %}
+
         <button type="button"
                 x-ref="trigger"
                 @click="open ? close(false) : show()"
@@ -190,11 +177,7 @@ it pointed at being hidden by then.
                  :aria-multiselectable="multiple"
                  class="max-h-72 overflow-y-auto py-1">
                 <template x-for="option in filtered" :key="option.index">
-                    {% comment %}
-                    The pointer moves the highlight too, so the option under
-                    the pointer and the one Enter would take are never two
-                    different options.
-                    {% endcomment %}
+
                     <div role="option"
                          :id="$id('n26-filter-select') + '-option-' + option.index"
                          :data-active="option.index === active"

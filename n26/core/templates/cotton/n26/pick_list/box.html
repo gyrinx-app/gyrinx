@@ -1,20 +1,12 @@
 {% comment %}
-<c-n26.pick-list.box> — one option of a pick list, as a box to tick.
+<c-n26.pick-list.box> — One tickable option in a pick list, fixed when a grant or a purchase holds it.
 
-    <c-n26.pick-list.box :option="option" name="subtypes" />
-
-The row <c-n26.pick-list> draws, whether the thing is held or is one of the
-hundred the panel offers — one definition, so the two runs cannot come to look
-different. Binds to `picked` above it in the Alpine scope, which is what lets
-the panel tick a box and the list read what is ticked.
-
-Every line states its own size: `text-muted` is a colour and carries none, so a
-muted line without one inherits whatever it sits in and can come out larger
-than the name it belongs under.
-
-  :option — a n26.render.Choosable.
-  name — the input name this box submits under.
+Must sit inside pick-list. The checkbox binds to that scope's picked list.
+granted_by disables the input: a grant has no assignment a tick could remove.
+fixed_because disables it too: a priced hold must be sold from the equip screen.
+text-muted sets colour only. Each muted line must set its own size, or it inherits and can outgrow the name.
 {% endcomment %}
+
 <c-vars :option="None" name="thing" class="" />
 
 <label {{ attrs }}
@@ -25,6 +17,7 @@ than the name it belongs under.
            value="{{ option.key }}"
            x-model="picked"
            {% if option.is_current %}checked{% endif %}
+           {# Disabled inputs are omitted from a submit. A grant or a priced hold must not be posted as a tick the owner could take back. #}
            {% if option.granted_by or option.fixed_because %}disabled{% endif %}
            class="mt-1 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
     <span class="min-w-0 flex-1">

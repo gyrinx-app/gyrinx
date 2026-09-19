@@ -1,28 +1,12 @@
 {% comment %}
-<c-n26.choice-offer> — a list of things to choose one of, grouped under headings.
+<c-n26.choice-offer> — Radio cards for a ChoiceOffer that settles the whole list in one submit.
 
-    <c-n26.choice-offer :offer="offer">
-        <c-slot name="empty">Nothing available to choose here.</c-slot>
-    </c-n26.choice-offer>
-
-Takes a n26.render.ChoiceOffer, already flattened by the view. Nothing here
-knows what kind of thing is being chosen — a skill, a pickable, an
-affiliation — so a new kind needs nothing changed in this file.
-
-One fieldset per heading, every card sharing the one input `name`: the groups
-are how the list is read rather than separate questions, and one name is what
-makes the browser hold a single selection across the lot. Radios and no script,
-so the form submits and redisplays without JavaScript. A group with no heading
-draws its cards and no legend.
-
-`empty` is what to say when there is nothing to choose; why an offer is empty is
-something the page knows and this does not.
-
-  labelled_by — the id of the heading that asks this question, where the page
-    draws one above the list. Each group is then named by that heading and its
-    own, so a reader who hears the options hears which question they answer.
-    Optional.
+offer must be a ChoiceOffer. Use this when the offer does not take several picks.
+Use choice-picks when takes_several is set.
+labelled_by prefixes each group's id so an external heading can name the list.
+Every group shares the same input name. That is what makes the browser keep a single selection across the list.
 {% endcomment %}
+
 <c-vars :offer="None" name="thing" labelled_by="" class="" />
 
 <div {{ attrs }} class="space-y-8 {{ class }}">
@@ -34,21 +18,13 @@ something the page knows and this does not.
         </c-n26.form-section>
     {% else %}
         {% for group in offer.groups %}
-            {% comment %}
-            The caption says which tier the set sits in, and n26.render fills it
-            in only where the list spans several (n26.render.ChoosableGroup).
-            {% endcomment %}
+
             <c-n26.radio-cards label="{{ group.name }}"
                                description="{{ group.caption }}"
                                name="{{ name }}"
                                id="{% if labelled_by %}{{ labelled_by }}-g{{ forloop.counter }}{% endif %}"
                                labelled_by="{{ labelled_by }}">
-                {% comment %}
-                The muted line is the option's own remark (n26.render.Choosable)
-                — including, where a slot takes a thing only once, which other
-                choice already has it. Marked and never disabled: the card still
-                takes the click.
-                {% endcomment %}
+
                 {% for option in group.options %}
                     <c-n26.radio-cards.card name="{{ name }}"
                                             value="{{ option.key }}"

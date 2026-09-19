@@ -1,22 +1,14 @@
 {% comment %}
-<c-ui.switch> — a toggle switch backed by a hidden checkbox, so the state
-posts with the surrounding form.
+<c-ui.switch.impl> — The hidden checkbox and visible switch track.
 
-Overrides the kit, which binds that checkbox through `x-bind="input"`. Bound
-that way the model never reflects back onto the element: from the moment
-Alpine initialises, the checkbox reads checked and stays checked however the
-switch is moved. The visible track follows `switchOn` correctly, so the
-control looks right and posts the opposite — a silent wrong value on save.
-
-`x-model="switchOn"` on the element itself reflects both ways. No `.boolean`
-modifier: that casts a string, and this state is a boolean already.
-
-The checkbox also carries `checked` in the markup when the switch starts on.
-A form posts what the DOM holds, and until Alpine has run — or with no script
-at all — the DOM holds only what the server drew: without the attribute an
-"on" switch posts nothing, and the field reads as off. Alpine seeds
-`switchOn` from the same value, so the two agree from the first byte.
+This is the implementation file. attrs land on the checkbox so id and form fields submit. class lands on the visible button.
+Pass checked and disabled as booleans. None becomes the identifier none, and Alpine throws on init.
+x-model on the checkbox reflects both ways. Do not bind the checkbox with x-bind=input. That leaves it checked and posts the opposite of the track.
+Do not add the .boolean modifier. That casts a string, and switchOn is already a boolean.
+The checked attribute must stay in the markup when the switch starts on. Until Alpine runs, the form posts only what the server drew.
+The ready flag delays colour and thumb transitions so a checked switch does not animate on first paint.
 {% endcomment %}
+
 <c-vars
     name=""
     class=""
@@ -65,6 +57,7 @@ at all — the DOM holds only what the server drew: without the attribute an
                {{ size_classes|get_item:size }}
                {% if disabled %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}
                {{ class }}"
+        {# ready is set next tick so the thumb does not slide from off on load. #}
         :class="{
             'transition-colors': ready,
             {% if accent %}
@@ -78,9 +71,10 @@ at all — the DOM holds only what the server drew: without the attribute an
         <span
             class="inline-block transform rounded-full bg-white dark:bg-ink-900 shadow-lg
                    {{ indicator_classes|get_item:size }}"
+            {# Thumb offsets must match the track widths above. Change one, change the other. #}
             :class="{
                 'transition-transform': ready,
-                {% comment %}On-position is symmetric: track - thumb - 0.125rem, so the right gap matches the 0.125rem top/bottom/left gap.{% endcomment %}
+
                 {% if size == 'xs' %}
                 'translate-x-[0.875rem]': switchOn,
                 'translate-x-0.5': !switchOn

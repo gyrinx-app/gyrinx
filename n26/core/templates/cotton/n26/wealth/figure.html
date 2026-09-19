@@ -1,30 +1,12 @@
 {% comment %}
-<c-n26.wealth.figure> — one labelled figure in the wealth strip.
+<c-n26.wealth.figure> — One labelled figure in the wealth strip, or a dash when unset.
 
-    <c-n26.wealth.figure short="R" full="Rating" :value="sheet.rating" />
-
-The short name over the figure, both centred, each pair authored once so the two
-cannot fall out of step.
-
-The full name is a c-ui.tooltip rather than a title attribute, unlike
-<c-n26.statline.header>: a title never appears without a mouse, and "R" is not a
-word. There are four of these on a page, so the machinery is affordable here.
-
-  short — the abbreviation shown. Two characters at most; Cr, not Cred.
-  full — what it stands for, revealed on hover or tap.
-  :value — an integer, drawn with the unit appended so no caller has to
-    remember which figures carry one.
-  unit — ¢ unless said otherwise. A figure counting things passes an empty one.
-  href — makes the figure a link to where it is changed. The caller decides,
-    because a strip drawn for somebody who does not own the gang must not
-    offer a door they would be refused at.
-  class — extra classes on the cell. A figure outside the sum beside it
-    passes `border-r border-box-border`; the padding is the cell's already.
-  unset — why this figure has no answer, as a sentence. Given one, the cell
-    draws a muted em dash carrying it and ignores `value`. For a figure that is
-    absent rather than zero, where a 0¢ would be read as bankrupt. An `href`
-    still applies.
+unset wins over value. Pass it only for a true absence, never for zero.
+This figure is a dt and dd for the parent dl. Do not wrap it in another list.
+An empty href still goes through the link so a figure with no address is not rendered as an anchor.
+The short name uses a tooltip, not a title. A title never appears without a mouse, and R is not a word.
 {% endcomment %}
+
 <c-vars short="" full="" :value="0" unit="¢" unset="" href="" class="" />
 
 <div {{ attrs }} class="flex flex-col items-center px-3 {{ class }}">
@@ -34,11 +16,8 @@ word. There are four of these on a page, so the machinery is affordable here.
             <c-slot name="content">{{ full }}</c-slot>
         </c-ui.tooltip>
     </dt>
-    {# The em dash carries its reason in the same tooltip the label uses, so a #}
-    {# reader who taps one learns the other works too. #}
-    {# c-n26.link draws a span when handed no href, so neither branch needs #}
-    {# one of its own. The em dash links too: a figure with no answer yet is #}
-    {# the one a reader most wants the way in to. #}
+
+    {# unset is an absence. Zero is a figure and must not take this branch. #}
     {% if unset %}
         <dd class="whitespace-nowrap text-sm text-muted">
             <c-ui.tooltip size="sm">

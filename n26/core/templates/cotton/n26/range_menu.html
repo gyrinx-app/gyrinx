@@ -1,30 +1,19 @@
 {% comment %}
-<c-n26.range-menu> — a bound on a number, as a slider in a dropdown.
+<c-n26.range-menu> — A dropdown that edits one Alpine number, or a min and max pair.
 
-    {# one thumb: a ceiling #}
-    <c-n26.range-menu label="Price" model="maxPrice"
-                      min="0" max="200" step="5"
-                      prefix="≤ " suffix="¢" at_max_label="Any" />
+    <div x-data="{ minPrice: 0, maxPrice: 400 }">
+        <c-n26.range-menu model_min="minPrice" model_max="maxPrice" min="0" max="400" />
+    </div>
 
-    {# two thumbs: a floor and a ceiling #}
-    <c-n26.range-menu label="Price" model_min="minPrice" model_max="maxPrice"
-                      min="0" max="200" step="5"
-                      suffix="¢" at_max_label="Any" />
+model, model_min, and model_max are Alpine names in an ancestor scope, not
+numeric values.
 
-The third of the menu family, after <c-n26.filter-menu> (many of a set) and
-<c-n26.choice-menu> (one of a set). `model` is one Alpine expression, a
-ceiling; setting model_min and model_max instead switches this to two thumbs
-and `model` is then ignored.
-
-The trigger states the bound rather than the label alone — "Price ≤ 80¢", or
-"Price 20–80¢" with two thumbs — so a filter bar can be read without opening
-anything. prefix and suffix wrap that figure. at_min_label and at_max_label put
-a word at an end where the number would not say what it means ("Any" rather
-than "≤ 200¢", "Common only" rather than "≤ R0").
-
-No OK or Cancel: the value applies as it moves, so there is nothing to confirm
-and nothing to snapshot.
+Two thumbs need both model_min and model_max. If either name is empty, the
+single-thumb path runs.
+Keep the trigger's end labels as separate spans. Building that string in Alpine would quote Django output into JavaScript.
+Use c-n26.range-slider, not the kit range. A Clear control must move the thumb from outside, which the kit cannot do.
 {% endcomment %}
+
 <c-vars
     label="Range"
     model=""
@@ -46,20 +35,11 @@ and nothing to snapshot.
 <div class="inline-block" {{ attrs }}>
     <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
         <c-slot name="trigger">
-            {% comment %}
-            sm and `default`: this sits in a bar under a search field, refining
-            a list rather than acting on the page. A screen that is mostly list
-            takes size="xs".
-            {% endcomment %}
+
             <c-ui.button size="{{ size }}" variant="default">
                 <span class="flex items-center justify-center gap-1.5">
                     {{ label }}
-                    {% comment %}
-                    Separate spans rather than one expression: the end labels
-                    are template text, and building the string inside the
-                    binding would mean quoting Django output into JavaScript.
-                    Exactly one of them shows.
-                    {% endcomment %}
+
                     <span class="tabular-nums opacity-80">
                         {% if model_min and model_max %}
                             {% if at_max_label %}<span x-show="{{ model_min }} <= {{ min }} && {{ model_max }} >= {{ max }}" x-cloak>{{ at_max_label }}</span>{% endif %}
@@ -89,12 +69,6 @@ and nothing to snapshot.
                 </span>
             </div>
 
-            {% comment %}
-            <c-n26.range-slider> in both forms, not c-ui.range for the single
-            thumb: a Clear button has to be able to move the slider, and the
-            kit's cannot be moved from outside. It takes no starting value
-            because it holds no state — it renders the caller's variables.
-            {% endcomment %}
             {% if model_min and model_max %}
                 <c-n26.range-slider model_min="{{ model_min }}"
                                     model_max="{{ model_max }}"
@@ -105,10 +79,6 @@ and nothing to snapshot.
                 <c-n26.range-slider model="{{ model }}" min="{{ min }}" max="{{ max }}" step="{{ step }}" />
             {% endif %}
 
-            {% comment %}
-            The two ends written under the track: without a scale, 80 out of 200
-            and 80 out of 100 look the same.
-            {% endcomment %}
             <div class="mt-1 flex justify-between text-xs text-muted">
                 <span>{{ at_min_label|default:min }}</span>
                 <span>{{ at_max_label|default:max }}</span>

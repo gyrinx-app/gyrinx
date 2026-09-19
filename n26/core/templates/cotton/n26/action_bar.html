@@ -1,35 +1,12 @@
 {% comment %}
-<c-n26.action-bar> — the inline row that buttons, groups, dropdowns and links sit in.
+<c-n26.action-bar> — horizontal cluster of controls, with optional trailing actions pushed right.
 
-    {# a page's actions #}
-    <c-n26.action-bar>
-        <c-ui.button variant="success">Add fighter</c-ui.button>
-        <c-n26.button-group>
-            <c-ui.button>Pin</c-ui.button>
-            <c-ui.button>Print</c-ui.button>
-        </c-n26.button-group>
-        <c-ui.dropdown trigger_text="More">…</c-ui.dropdown>
-    </c-n26.action-bar>
-
-    {# a quieter one, on its own tinted strip #}
-    <c-n26.action-bar :surface="True">
-        <c-n26.action-links>
-            <c-n26.action-link href="/x/">Attributes</c-n26.action-link>
-            <c-n26.action-link href="/y/">Resources</c-n26.action-link>
-        </c-n26.action-links>
-    </c-n26.action-bar>
-
-Layout only: a wrapping flex row that keeps controls of different heights on a
-shared centre line and pushes the trailing slot to the far end. A row of filters
-is a row of actions — use this for both rather than adding a second component
-with the same markup.
-
-  :surface — a tinted, rounded strip behind the row, for a secondary bar sitting
-    inside a card or under a heading rather than at the top of a page.
-  :divided — a rule underneath, for when the bar sits directly above a table.
-  gap — normal (default) or tight, which is what a row of icon buttons wants.
-  trailing — right-aligned content.
+Pass trailing as a named slot. The trailing slot is pushed to the right even when the bar wraps.
+Do not pass gap_classes. It is the lookup table for gap.
+An unknown gap value renders no gap class, so the children sit flush.
+Use this for a row of filters too. Do not add a second component with the same markup.
 {% endcomment %}
+
 <c-vars
     :surface="False"
     :divided="False"

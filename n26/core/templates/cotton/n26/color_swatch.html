@@ -1,41 +1,21 @@
 {% comment %}
-<c-n26.color-swatch> — a colour, as a small round mark before a name.
+<c-n26.color-swatch> — A small disc filled with a theme token or a literal colour.
 
-    <c-n26.color-swatch color="teal" />
-    <c-n26.color-swatch color="#8d9900" shade="600" label="Gang colour" />
+A blank color draws nothing, so a missing value does not hold space.
+An unknown token name yields a transparent disc rather than an error.
+Literals that contain # or ( pass through and do not follow a theme change.
+Pass label when the disc is the only thing that names the colour.
+Every place a gang colour is drawn uses this, so a table, a heading, and a drawer cannot disagree.
+Put the colour on a style attribute, not a class. Tailwind never emits a class name built from a variable.
+Do not draw a grey placeholder. The palette contains ink, so that mark would look like a gang that chose grey.
+Size and spacing are in em, so there is no size prop and one call works in a table and in a heading.
+This renders inline. Keep the tags packed tight and do not add a trailing newline.
+Whitespace around the markup becomes a second gap next to the name.
+{% endcomment %}
 
-The mark a gang's colour makes wherever the gang is named. Everything about how
-a colour is drawn is decided here, so a table, a heading and a drawer row cannot
-disagree. <c-n26.color-link> draws this in its leading slot; somewhere that
-already has an anchor of its own draws it directly.
-
-One prop takes the colour whichever kind it is: anything containing "#" or "("
-is used verbatim, anything else resolves as a theme colour (see css_color in
-core/templatetags/theme.py). It has to reach the element as a style attribute
-rather than a class — Tailwind reads class names as literal strings, so
-bg-{{ colour }}-500 is a class it never sees and never emits, while every
---color-* variable is emitted for exactly this lookup.
-
-An empty colour draws nothing at all: no outline, no reserved space. The palette
-contains `ink`, so a neutral placeholder would be indistinguishable from a gang
-that chose grey.
-
-Sized and spaced in em, so there is no size prop and one call works in a small
-table row and in a large heading alike.
-
-  color — a theme colour name, `accent`, or a literal such as #8d9900. Empty
-    draws nothing at all.
-  shade — which step of a named scale. Default 500; ignored for accent and literals.
-  label — an accessible name for the mark. Left empty it is aria-hidden, which is
-    right wherever the text beside it says what the thing is: a colour alone tells
-    a reader who cannot see it nothing they can use.
-{% endcomment %}{% load theme %}<c-vars
+{% load theme %}<c-vars
     color=""
     shade="500"
     label=""
     class=""
-/>{% comment %}
-This renders inline, so the tags are packed tight and the file ends without a
-newline: any whitespace emitted around the markup becomes a second gap next to
-the name the mark precedes.
-{% endcomment %}{% if color %}<span class="mr-[0.4em] inline-block size-[0.8em] shrink-0 rounded-full align-[-0.02em] {{ class }}" style="background: {{ color|css_color:shade }}" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}></span>{% endif %}
+/>{% if color %}<span class="mr-[0.4em] inline-block size-[0.8em] shrink-0 rounded-full align-[-0.02em] {{ class }}" style="background: {# Unknown token names resolve to a var that is transparent. Nothing raises. #}{{ color|css_color:shade }}" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}></span>{% endif %}

@@ -1,35 +1,16 @@
 {% comment %}
-<c-n26.view.gang-sheet> — a gang, whole: who owns it, what it is worth, who is in it.
+<c-n26.view.gang-sheet> — Draws the gang screen: header, details, stash, and member cards.
 
-    <c-n26.view.gang-sheet :sheet="gang" owner="tom" gangs_href="/gangs/">
-        <c-slot name="details">…detail-list rows…</c-slot>
-        <c-slot name="members">…model cards…</c-slot>
-    </c-n26.view.gang-sheet>
-
-The caller builds the breadcrumb's owner, the detail list, the action buttons and
-the fighter cards; this component decides only where each of them goes. The grid
-opens with the Actions square, then the stash, then `members`.
-
-  :sheet — a n26.render.GangSheet. Its figures — the roster count and the wealth
-    strip — are drawn opposite the name, the count off the sheet's own tally.
-  owner_flair_label, type_flair_label — what each badge means, for a screen
-    reader and as its title. Left empty the badge is aria-hidden, which is right
-    when it only repeats the text beside it.
-  switcher — the reader's other gangs, after the title and outside the h1.
-  share — <c-n26.share> for this gang, at the far end of the breadcrumb row.
-    It sits there rather than beside the name because it acts on the page as a
-    whole, and because the trail is the one row on the sheet with room to spare
-    at every width.
-  secondary_actions — Print, and a dropdown holding Delete. A run of its own,
-    after the primary actions rather than sorted in among them.
-  activities_square — what the gang has open, as the first square of the grid;
-    see <c-n26.activities-square>. Only the owner gets one.
-  stash_empty — what to say when the stash is empty.
-  stash_actions — a middot link after the Stash title (e.g. Equip).
-  stash_notice — a strip above the stash's contents; see <c-n26.stash>.
+The stash is excluded from rating. Rating is what the models are worth; stashed gear counts in wealth instead.
+The share slot fills the header's breadcrumb_actions.
+Owner, owner_href, and owner_flair build the breadcrumb here.
+members is markup, drawn as a sibling of the stash in the grid.
+Declare the slots. An undeclared name resolves to the caller's variable of that name.
+Keep the header actions slot filled. Left empty, Cotton would draw this page's Hire controls beside the title.
+The switcher goes in trailing, not leading. Leading sits inside the h1 and is read as the page name.
+Pass activities_square only for the owner.
 {% endcomment %}
-{# The slots are declared: an undeclared slot name is not empty when nobody #}
-{# fills it — it resolves to the caller's own variable of that name. #}
+
 <c-vars
     :sheet="None"
     trade_points_href=""
@@ -56,20 +37,13 @@ opens with the Actions square, then the stash, then `members`.
 <div class="flex flex-col gap-4 {{ class }}">
 
     <c-n26.page-header title="{{ sheet.name }}">
-        {% comment %}
-        The gang's colour, inside the h1, so the sheet and the row that opened
-        it are marked the same way. Drawn only where there is one — see
-        <c-n26.color-swatch> for why an unset colour holds no space.
-        {% endcomment %}
+
         {% if sheet.colour %}
             <c-slot name="leading">
                 <c-n26.color-swatch color="{{ sheet.colour }}" />
             </c-slot>
         {% endif %}
-        {% comment %}
-        Trailing rather than leading: the leading slot is inside the h1 and is
-        read out as part of the page's name, which a control must not be.
-        {% endcomment %}
+
         {% if switcher.strip %}
             <c-slot name="trailing">{{ switcher }}</c-slot>
         {% endif %}
@@ -77,11 +51,7 @@ opens with the Actions square, then the stash, then `members`.
             <c-slot name="breadcrumb_actions">{{ share }}</c-slot>
         {% endif %}
         <c-slot name="breadcrumb">
-            {% comment %}
-            The gang is the current item and so carries aria-current, which
-            makes the trail the answer to "which gang is this" for anything
-            reading the page aloud.
-            {% endcomment %}
+
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
                     <c-n26.flair-link text="{{ owner }}" href="{{ owner_href }}"
@@ -91,26 +61,11 @@ opens with the Actions square, then the stash, then `members`.
             </c-ui.breadcrumbs>
         </c-slot>
 
-        {% comment %}
-        The house icon is drawn through flair-link, which sizes it in em and lets
-        it inherit the lead's muted colour. No href, so flair-link draws a span
-        rather than a link: a gang's own type is not somewhere to go.
-        {% endcomment %}
         <c-slot name="lead">
             <c-n26.flair-link text="{{ sheet.gang_type }}" tone="current"
                               label="{{ type_flair_label }}">{{ type_flair }}</c-n26.flair-link>
         </c-slot>
 
-        {% comment %}
-        This slot must be filled, even were there nothing to put in it. Cotton
-        slots are context variables, and this view has an `actions` slot of its
-        own: left unfilled here, the header resolves that one instead and draws
-        the gang's Hire Fighters a second time, up beside the title.
-
-        The same figures the model screens keep in this corner, so a reader
-        moving between the sheet and a fighter reads one strip in one place —
-        the roster count included, holding its own breakdown.
-        {% endcomment %}
         <c-slot name="actions">
             <c-n26.gang-figures :gang="sheet"
                                 :summary="sheet.summary"
@@ -118,18 +73,8 @@ opens with the Actions square, then the stash, then `members`.
         </c-slot>
     </c-n26.page-header>
 
-    {% comment %}
-    Wraps rather than scrolls: a row of actions that scrolls sideways hides the
-    irreversible one behind an edge. ml-auto keeps the buttons at the right edge
-    even for a gang with no details, under the wealth strip above them, and
-    shrink-0 makes a squeezed row wrap the facts rather than squash a button.
-
-    min-w-0 on the facts is what lets a long pickable list shrink and wrap
-    inside its control. Without it the nowrap min-content of that control is
-    the row's floor, and md:flex-row grows the page sideways. md:flex-wrap
-    drops the actions under the facts when both will not share a line.
-    {% endcomment %}
     <div class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
+        {# min-w-0 lets a long pickable list shrink. Without it the row grows the page sideways. #}
         {% if details %}<div class="min-w-0 max-w-full">{{ details }}</div>{% endif %}
         <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 md:ml-auto md:shrink-0">
             <div class="flex flex-wrap items-center gap-2">
@@ -143,14 +88,7 @@ opens with the Actions square, then the stash, then `members`.
         </div>
     </div>
 
-    {% comment %}
-    auto-rows-min keeps a short card short; items-start would only align the
-    cards, not stop them stretching to the tallest in the row.
-
-    The Actions square leads, ahead of the stash: what the gang has open is
-    read before what it is being spent on, and on a phone — one column — it
-    is the first thing under the buttons.
-    {% endcomment %}
+    {# auto-rows-min keeps a short card short. items-start would still stretch cards to the tallest. #}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {% if activities_square %}{{ activities_square }}{% endif %}
         <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">

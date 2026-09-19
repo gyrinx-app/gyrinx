@@ -1,45 +1,17 @@
 {% comment %}
-<c-n26.site.nav> — the bar across the top of every page, and the drawer behind
-its burger.
+<c-n26.site.nav> — Site header: brand, optional heading, account menu, and a drawer of links.
 
-    <c-n26.site.nav title="Gyrinx" href="/" user_label="tom">
-        <c-ui.navbar.item href="/gangs/">Gangs</c-ui.navbar.item>
-        <c-slot name="heading">Create a gang</c-slot>
-        <c-slot name="gangs">…c-n26.site.nav.gang…</c-slot>
-        <c-slot name="menu">…c-ui.dropdown.item…</c-slot>
-    </c-n26.site.nav>
-
-The links live only in the drawer, at every width, so the space beside the brand
-belongs to the page's own name. That name gives ground — heading or switcher
-label, ellipsis — so the chevron beside it stays a control when the actions on
-the right leave little room. A <noscript> strip under the bar draws the same
-list flat, the drawer's panel being built by Alpine and absent without it.
-
-`heading` is a slot rather than an attribute because the base template fills it
-from a {% block %}, and a block inside a Cotton attribute never runs. It is
-tested with `.strip`: an empty block still passes the newlines around it, and
-Django counts whitespace as truthy. `switcher` is a slot of its own rather than
-more of `heading` because the name sits in a box that hides its overflow — that
-is what truncates it — and a panel opening inside such a box is clipped to
-nothing.
-
-`user_label` is the account menu's trigger, and with no name there is no menu.
-It takes either shape: an attribute for a plain name, or a slot for markup such
-as a <c-n26.user-link>. An attribute is escaped, so markup passed that way
-prints as source; pass both and the attribute wins, silently.
-
-`unread` rides the corner of that same trigger, because what is waiting is in
-the menu behind it. Pass it as :unread so it arrives a number — written
-unread="{{ count }}" it arrives the string "0", which is true, and a reader with
-an empty inbox gets a badge saying nothing is waiting.
-
-  slot — the drawer's links, as <c-ui.navbar.item>; the current one marks itself.
-  menu — the account items, as <c-ui.dropdown.item>. The caller draws its own
-    separators, so a section only staff see leaves no rule behind for others.
-  unread — how many notifications are waiting. Nothing is drawn at zero.
-  brand_actions — icon links beside the name in the drawer's header, drawn at
-    every width. Where anything the bar hides as it narrows goes.
+The default slot is drawn twice: once in the drawer and once in the noscript strip.
+The switcher hides nested noscript so it does not stack with this bar's fallback nav.
+Print CSS in app.css hides the whole header.
+The bar background is set outside the utility layer in app.css, so kit background utilities do not replace it.
+unread fills the badge and the trigger's accessible name together.
+heading must be a slot. A Django block inside a Cotton attribute never runs.
+Pass :unread so it arrives a number. Written without the colon, the string 0 is true and draws a badge for an empty inbox.
+aria-label replaces the trigger's inner text. A badge inside is announced to nobody.
+The drawer's root is display:contents, so the burger sits in this row. The panel teleports to the body and leaves this header's dark subtree.
 {% endcomment %}
+
 <c-vars
     title=""
     href="/"
@@ -61,39 +33,23 @@ an empty inbox gets a badge saying nothing is waiting.
 <header {{ attrs }} class="n26-site-nav {% if sticky %}sticky top-0{% else %}relative{% endif %}
                            z-40 w-full border-b border-ink-200 dark:border-ink-800 {{ class }}">
     <div class="flex h-14 items-center gap-2 px-4">
-        {% comment %}
-        Below sm the wordmark goes and the mark stays, so a phone's bar is a
-        logo that is still a link home, and then the page.
-        {% endcomment %}
+
         <a href="{{ href }}" class="n26-site-brand shrink-0 focus-ring">
             {% if logo %}{{ logo }}{% endif %}
             {% if title %}<span class="hidden sm:inline">{{ title }}</span>{% endif %}
         </a>
 
+        {# An empty block still passes newlines, which Django treats as true. #}
         {% if heading.strip or switcher.strip %}
-            {% comment %}
-            min-w-0 so this box, not the actions, is what shrinks when the row
-            runs out of room. The heading truncates here; the switcher's own
-            label truncates inside the switcher, because the chevron has to
-            remain a whole control and a panel opening inside a box that hides
-            its overflow comes out empty.
-            {% endcomment %}
+
             <span class="flex min-w-0 items-center gap-2">
                 {% if heading.strip %}
                     <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
                 {% endif %}
-                {% comment %}
-                A switcher draws its destinations again, flat, for a reader
-                with no script — and a flat panel inside a row fixed at 14
-                units tall spills over the page beneath it. Hidden here only:
-                the noscript strip under this bar reaches the same pages.
 
-                Not shrink-0: the label inside is what gives ground, and
-                pinning this wrap to the label's full width is what would
-                push the chevron into the actions. min-w-0 lets the wrap
-                shrink; overflow stays visible so the panel is not clipped.
-                {% endcomment %}
                 {% if switcher.strip %}
+                    {# Hide a nested noscript. This bar already has one below. #}
+                    {# Keep overflow visible: a panel inside a truncated box is clipped to nothing. #}
                     <span class="min-w-0 [&_noscript]:hidden">{{ switcher }}</span>
                 {% endif %}
             </span>
@@ -102,45 +58,23 @@ an empty inbox gets a badge saying nothing is waiting.
         <div class="ml-auto flex shrink-0 items-center gap-2">
             {{ actions }}
 
-            {% comment %}
-            align="end" so the panel hangs from the right edge of the window:
-            the trigger is near the end of the bar, and a panel aligned to its
-            start would open into the margin.
-            {% endcomment %}
             {% if user_label %}
                 <c-ui.dropdown align="end">
                     <c-slot name="trigger">
-                        {% comment %}
-                        The unread count is folded into the button's accessible
-                        name rather than left to be read out of the corner
-                        badge: aria-label replaces everything inside the
-                        control, so a badge in there is announced to nobody.
-                        {% endcomment %}
+
                         <button type="button"
                                 aria-label="{{ menu_label }}{% if unread %} — {{ unread }} unread notifications{% endif %}"
                                 title="{{ menu_label }}"
                                 class="relative inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
                                        text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
                                        dark:text-ink-300 dark:hover:bg-ink-800">
-                            {% comment %}
-                            The name goes below sm, and whatever it carries goes
-                            with it: a badge after it is inside this box rather
-                            than standing in the bar on its own. The ellipsis
-                            and chevron are left saying the control opens
-                            something, and the accessible name says what.
-                            {% endcomment %}
+
                             <span class="hidden max-w-40 truncate sm:inline">{{ user_label }}</span>
                             <span class="n26-icon-only gap-0.5">
                                 <c-n26.icon name="ellipsis-vertical" class="size-4" />
                                 <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
                             </span>
-                            {% comment %}
-                            On the corner rather than in the row: the count is
-                            about what is behind the button, and a number
-                            sitting beside the name would read as part of it.
-                            No label — the button's own accessible name above
-                            carries the number, and two of them could disagree.
-                            {% endcomment %}
+
                             <c-n26.count-badge :count="unread" class="absolute -top-0.5 -right-0.5" />
                         </button>
                     </c-slot>
@@ -148,19 +82,8 @@ an empty inbox gets a badge saying nothing is waiting.
                 </c-ui.dropdown>
             {% endif %}
 
-            {% comment %}
-            A hairline between the two controls that open something, which
-            side by side read as one. Decorative, so it says nothing aloud.
-            {% endcomment %}
             <span aria-hidden="true" class="h-6 w-px shrink-0 bg-ink-200 dark:bg-ink-700"></span>
 
-            {% comment %}
-            The drawer's root is display:contents, so the burger sits in this
-            row as if the drawer were not wrapped around it. The panel
-            teleports to the body, which takes it out of this header's `dark`
-            subtree: the bar stays dark in both modes and the drawer follows
-            the reader's theme.
-            {% endcomment %}
             <c-ui.drawer side="right" size="sm">
                 <button type="button"
                         @click="drawerOpen = true"
@@ -179,14 +102,8 @@ an empty inbox gets a badge saying nothing is waiting.
                     {% if brand_actions.strip %}{{ brand_actions }}{% endif %}
                 </c-slot>
                 <c-slot name="content">
-                    {% comment %}
-                    Styled by the container rather than by each item, which is
-                    what lets the same list be drawn here and in the noscript
-                    strip below: a navbar item is a bare <a> carrying an
-                    is-current marker, and whatever holds it decides the look.
-                    A place with no page yet is a <span>, so it is in the list
-                    without being a door that opens on nothing.
-                    {% endcomment %}
+
+                    {# Same default slot as the noscript strip. Cotton does not consume it. #}
                     <nav class="-mx-2 flex flex-col
                                 [&>a]:flex [&>a]:items-center [&>a]:gap-3
                                 [&>a]:rounded-control [&>a]:px-3 [&>a]:py-2
@@ -210,12 +127,8 @@ an empty inbox gets a badge saying nothing is waiting.
         </div>
     </div>
 
-    {% comment %}
-    The same list the drawer holds, drawn flat for a reader whose browser ran
-    no script and so has no drawer to open. A wrapping row rather than a stack:
-    a column of links at the top of every page would push the page off screen.
-    {% endcomment %}
     <noscript>
+        {# Fallback when the drawer is off. Same links as the drawer slot. #}
         <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-ink-200 px-4 py-2
                     text-sm [&>a]:text-ink-600 [&>a:hover]:text-ink-900 [&>.is-current]:font-medium
                     [&>.is-current]:text-accent [&>span]:text-ink-400

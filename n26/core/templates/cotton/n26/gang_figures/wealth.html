@@ -1,19 +1,14 @@
 {% comment %}
-<c-n26.gang-figures.wealth> — the money half of the figures strip, named.
+<c-n26.gang-figures.wealth> — The wealth strip as a live region a purchase can replace.
 
-    <c-n26.gang-figures.wealth :sheet="gang" />
-
-The id is fixed, not a prop: a partial update replaces this element by that
-name (see n26/includes/equip_update.html), and an id chosen per call site
-would let a page and the update that lands on it disagree. The seam styling
-lives here for the same reason — the element an update delivers must match
-the one it replaces.
-
-  :sheet — anything carrying the four worth figures; the Gang model does,
-    and so does a rendered GangSheet.
-  trade_points_href — passed through to <c-n26.wealth>; see there. An update
-    must carry it too, or the figure it delivers loses its link.
+id="n26-gang-wealth" is the out-of-band swap target after an equip act. Changing it leaves the strip stale.
+Do not pass id or class. They are not declared, so they land in attrs first.
+The browser then drops the swap hook and the border.
+This wrapper is only the money figures. The roster count sits beside it and must not share this id.
+An update must pass trade_points_href too, or the figure it delivers loses its link.
+Do not add padding here. Each figure already carries its own.
 {% endcomment %}
+
 <c-vars :sheet="None" trade_points_href="" />
 
 <div {{ attrs }} id="n26-gang-wealth" class="border-l border-box-border">

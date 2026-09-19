@@ -1,33 +1,17 @@
 {% comment %}
-<c-n26.print.table> — a long table that crosses pages without losing its head.
+<c-n26.print.table> — A long table that may cross pages without losing its head.
 
+Named head and foot slots become thead and tfoot, which print engines repeat on every page.
     <c-n26.print.table>
-        <c-slot name="head">
-            <tr><th>Item</th><th class="is-numeric">Price</th></tr>
-        </c-slot>
-        {% for item in items %}
-            <tr><td>{{ item.name }}</td><td class="is-numeric">{{ item.price }}¢</td></tr>
-        {% endfor %}
+        <c-slot name="head"><tr>...</tr></c-slot>
+        rows
     </c-n26.print.table>
-
-Alone in this family, a table is meant to break across pages — it must only
-never break through a row, and must take its header with it. The thead is
-`display: table-header-group`, which is what makes a browser repeat it on every
-page the table reaches; written as an ordinary first row it would appear once
-and leave every later page a wall of unlabelled numbers.
-
-Column widths are fixed by default because auto layout re-measures per fragment,
-so one table can come out aligned differently either side of a fold.
-
-  layout — fixed (default) or auto.
-  groups — the slot supplies a <tbody> per group of rows rather than every row
-    sharing one, and .is-grouped drops the per-row rules. The component has to
-    stop wrapping rather than the caller nest, because a browser silently
-    flattens a <tbody> inside a <tbody>, which looks like the CSS failing.
-
-Cell classes for th and td alike: `is-numeric` for right-aligned tabular
-figures, `is-group` for a rule opening a run of related columns.
+groups is a flag. It leaves tbody wrapping to you: one tbody per entry.
+If you pass groups and omit tbody, grouped rules that target adjacent bodies never apply.
+A browser flattens a tbody nested in a tbody. That looks like the grouped CSS failing.
+Fixed layout keeps column widths across a fold. Auto re-measures each fragment and the columns can drift.
 {% endcomment %}
+
 <c-vars layout="fixed" groups="" head="" foot="" class="" />
 
 <table {{ attrs }} class="n26-print-table{% if layout == 'auto' %} is-auto{% endif %}{% if groups %} is-grouped{% endif %} {{ class }}">

@@ -1,29 +1,18 @@
 {% comment %}
-<c-n26.record-table.gang-row> — one gang: what it is called, what it is, what it is worth.
+<c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and edit controls.
 
-    <c-n26.record-table.gang-row name="The Ashen Choir" type="Escher (HoB)" colour="teal"
-                          :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
-
-The whole row opens the gang and the buttons on it still work. Exactly one real
-<a> is in the markup — on the name — and `.n26-row-link` stretches its ::after
-over the row; the row is `relative` for that stretch to fill, and the actions are
-`relative` so they paint above it. Drop either class and the row swallows every
-click, leaving Print unreachable. They live on the markup rather than in the CSS
-rule because which parts of a row stay clickable is the row's decision.
-
-The column widths are named rather than `auto`. Every row is its own grid and a
-grid's columns only align within one element, so `auto` sizes each row to its own
-content and the wealth strips land a few pixels apart down the page.
-
-  name — the gang's. The link, and the accessible name for the whole row.
-  colour, type_icon — a mark before the name and a badge on the type line. Each
-    draws nothing when empty, so a list of mixed gangs keeps one left edge.
-  :sheet — a n26.render.GangSheet, for <c-n26.wealth>.
-  href — where the row goes.
-  print_href — the print button's destination. Omitted, no print button.
-  owner — whose gang it is, after the type. For a list holding more than one
-    person's; on a list of your own it would say your name on every row.
+Must sit inside a record table so register and matches exist.
+Search includes the gang type as well as the name.
+The wide layout keys off the table's query container, not the viewport.
+The listing itself must stay relative too. Drop either and the stretched link swallows Print.
+Keep the actions cell relative so its buttons stay clickable above the stretched link.
+Name the column widths. Auto sizes each listing to its own content, so wealth strips will not line up.
+Keep the type outside the name link so the accessible name stays the gang's name only.
+The colour mark sits inside the name link so the focus ring covers both and they cannot wrap apart.
+The actions cell spans both grid rows so the buttons sit against the name and the wealth strip together.
+Pass the owner's name as text. A user object will not draw as a link here.
 {% endcomment %}
+
 <c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
         owner="" class="" />
 
@@ -34,30 +23,17 @@ content and the wealth strips land a few pixels apart down the page.
      x-init="register(facets)"
      x-show="matches(facets)"
      x-cloak
-     {% comment %}
-     Fixed tracks once the list is wide enough, not auto: stating the widths is
-     what makes five separate grids look like one table. The alternative — one
-     grid on the container with the rows as display:contents — takes the row's
-     box away, leaving no hover and nothing for the stretched link to fill.
-     {% endcomment %}
+
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
             hover:bg-ink-500/5 @2xl:grid-cols-[minmax(0,1fr)_17rem_9rem] {{ class }}">
 
     <div class="col-start-1 row-start-1 min-w-0">
-        {% comment %}
-        The mark goes inside the anchor, so the focus ring draws around both and
-        the two never wrap apart. It is aria-hidden, leaving the row's accessible
-        name the gang's name and nothing else.
-        {% endcomment %}
+
         <a href="{{ href }}"
            class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
             <c-n26.color-swatch color="{{ colour }}" />{{ name }}
         </a>
-        {% comment %}
-        The type sits outside the anchor above, which is what keeps the row's
-        accessible name the gang's own. No href, so flair-link draws a span: a
-        gang's type is not somewhere to go.
-        {% endcomment %}
+
         <p class="text-sm text-muted">
             <c-n26.flair-link text="{{ type }}" tone="current">
                 <c-n26.flair.gang-type :icon="type_icon" />
@@ -66,18 +42,10 @@ content and the wealth strips land a few pixels apart down the page.
         </p>
     </div>
 
-    {% comment %}
-    Left-aligned at both widths, so the strip starts where the name starts
-    rather than floating at the far edge of the row.
-    {% endcomment %}
     <c-n26.wealth :sheet="sheet"
                   class="col-start-1 row-start-2 justify-self-start @2xl:col-start-2 @2xl:row-start-1" />
 
-    {% comment %}
-    relative, so the buttons paint above the stretched link rather than under it.
-    They span both grid rows, which keeps them centred against the name and the
-    wealth strip together rather than pinned to one of the two.
-    {% endcomment %}
+    {# This cell is relative so the buttons paint above the stretched link. #}
     <div class="relative col-start-2 row-start-1 row-span-2 flex shrink-0 flex-col
                 items-stretch gap-2 justify-self-end
                 @2xl:col-start-3 @2xl:row-span-1 @2xl:flex-row @2xl:items-center">

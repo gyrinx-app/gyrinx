@@ -1,35 +1,21 @@
 {% comment %}
-<c-n26.roll-table> — the controls that roll on a choice's table.
+<c-n26.roll-table> — Controls to roll the choice's die, or to enter a roll made at the table.
 
-    <c-n26.roll-table :table="roll_table" />
-
-Two ways to record one roll: a button that rolls the die here, and a field for
-a roll already made at the table. Both post to the page, which writes the roll
-to the gang's history and comes back showing where it landed. Plain submit
-buttons and no form of its own — the page owns the form and the token.
-
-  :table — a n26.render.RollTable: the die's name and the lowest and highest
-    roll it can make, for the field's hint. The server refuses a number the
-    die cannot make; the field itself is not bounded, because HTML validation
-    on one field would stop every other button on the page's form.
+Must sit inside the pick form.
+The visually hidden Enter submit comes first.
+Pressing Enter in the number field must post enter, not roll.
+HTML's default submit is the first submit in the form.
+Do not put min or max on the number field.
+HTML validation on one field would stop every other button on the page's form.
+The server refuses a number the die cannot make.
+The field has no visible label. Keep the aria-label. The placeholder is not enough for a reader who cannot see it.
 {% endcomment %}
+
 <c-vars :table="None" class="" />
 
-{% comment %}
-The two ways sit side by side with a rule between them, and stack with an "or"
-rule on a narrow screen, so both read as alternatives rather than as a control
-and its help. The field has no visible label — the placeholder says what goes
-in it, and the aria-label says the same for a reader who cannot see it. The
-width sits on a wrapper: the kit's input does not declare `class`, so one
-passed to it would print a second class attribute and drop its styling.
-{% endcomment %}
 <div {{ attrs }} class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5 {{ class }}">
-    {% comment %}
-    Pressing Enter in the field submits the form through its first submit
-    button in document order. That has to be the Enter act, not Roll, or a
-    typed number becomes a random roll on the record — so an unseen Enter
-    button comes first.
-    {% endcomment %}
+
+    {# This submit comes first so Enter in the number field posts enter, not roll. #}
     <button type="submit" name="act" value="enter" class="sr-only" tabindex="-1" aria-hidden="true">Enter</button>
     <c-ui.button type="submit" name="act" value="roll" variant="primary">
         Roll a {{ table.dice_label }}
@@ -37,6 +23,7 @@ passed to it would print a second class attribute and drop its styling.
     <c-n26.divider label="or" class="sm:hidden" />
     <span class="hidden w-px self-stretch bg-box-border sm:block" aria-hidden="true"></span>
     <div class="flex items-center gap-2">
+        {# Put width on a wrapper. A class on the kit input prints a second class attribute and drops its styling. #}
         <div class="w-56">
             <c-ui.input name="rolled" type="number" inputmode="numeric"
                         placeholder="Your own roll ({{ table.lowest }}–{{ table.highest }})"

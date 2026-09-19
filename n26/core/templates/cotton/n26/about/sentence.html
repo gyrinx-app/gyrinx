@@ -1,18 +1,15 @@
 {% comment %}
-<c-n26.about.sentence> — one sentence of an about column.
+<c-n26.about.sentence> — one statement about a piece of content, with an optional hint.
 
-    <c-n26.about.sentence :sentence="sentence" />
-
-Linked where the sentence's subject has a page, plain words where it
-does not. The hint is revealed on hover or keyboard focus, CSS-only so it
-works without script, and doubles as the element's title so a touch reader
-gets the browser's own fallback.
-
-  :sentence — .text, .hint, .href.
+A hint sets tabindex so keyboard focus can open the popup. Without it, only a pointer can open the popup.
+The title attribute is the fallback when CSS cannot show the popup.
+The hint is CSS only, so it works without script.
 {% endcomment %}
+
 <c-vars :sentence="None" class="" />
 
 <span class="group/hint relative inline {{ class }}"
+      {# Keyboard focus must land here so group-focus-within can open the hint. #}
       {% if sentence.hint %}tabindex="0" title="{{ sentence.hint }}"{% endif %}>
     {% if sentence.href %}
         <c-n26.link href="{{ sentence.href }}">{{ sentence.text }}</c-n26.link>

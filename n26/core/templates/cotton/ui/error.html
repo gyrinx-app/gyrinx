@@ -1,16 +1,14 @@
 {% comment %}
-<c-ui.error> — a field's error text, from an explicit `message`, from a bound
-form plus a field `name`, or from slot content.
+<c-ui.error> — Field or form errors in the danger colour.
 
-Overrides the kit so attributes come from `attrs.attrs_dict` rather than
-`attrs.dict`: only the former filters out props declared in <c-vars>. Without
-it the `form` prop is written back out as an HTML attribute, and a Django Form
-stringifies to the entire form rendered as HTML — so the attribute terminates
-early and a second copy of the form lands in the page.
-
-designsystem/tests.py::test_error_override_still_needed fails once the kit no
-longer needs this override.
+Attributes come from attrs.attrs_dict, not attrs.dict.
+attrs.dict would write the form prop out as HTML and dump a second copy of the form into the page.
+message, the form and name, and the slot are exclusive. message wins, then form errors, then the slot.
+Pass name as __all__ for non-field errors. Any other name is looked up on form.errors.
+A form without a name falls through to the slot and shows nothing if the slot is empty.
+A name that is not in form.errors renders nothing.
 {% endcomment %}
+
 <c-vars
     name
     form

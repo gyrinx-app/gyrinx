@@ -1,43 +1,20 @@
 {% comment %}
-<c-n26.collection-picker.section> — one collapsible tier of the list.
+<c-n26.collection-picker.section> — One named band of a collection picker, stacked or shown as the active tab.
 
-    <c-n26.collection-picker.section name="Weapons" :open="True">
-        <c-n26.collection-picker.category name="Pistols">
-            <c-n26.collection-picker.item name="Autopistol" :price="10" />
-        </c-n26.collection-picker.category>
-    </c-n26.collection-picker.section>
-
-The coarse tier. Sections are the collection's own, per
-library.CollectionSection; this draws them and decides nothing about what they
-are. Under `tabs` the strip is the disclosure and the header is not drawn.
-
-It hides itself when nothing under it matches, counting through the category
-filter as well as the search.
-
-Items may sit straight inside one, with no category between. They then register
-the section's name as their category, which is how a one-level list is built.
-
-  name — the tier's name, and what an item with no category registers against.
-  :open — start expanded. Usually true for the first section only.
+Must sit inside collection-picker. It reads countInSection, sectionIsActive, tabbed, and query from that scope.
+Sets sectionName for nested items. categoryName stays null so a category-less item uses the section name.
+The heading hides when tabs are on. The tab strip names the section instead.
+A search forces the panel open without writing to open. Clearing the search then returns each section to what the reader last chose.
+The header count is matches, not the total, so filtering visibly empties a section.
 {% endcomment %}
+
 <c-vars name="" :open="False" />
 
-{% comment %}
-`categoryName: null` is declared here as well as in the category, so an item
-sitting straight in a section is not reaching up the Alpine scope chain for a
-name that exists nowhere.
-{% endcomment %}
 <div x-data="{ open: {{ open|lower }}, sectionName: {{ name|json_dumps }}, categoryName: null }"
      x-show="countInSection(sectionName) > 0 && sectionIsActive(sectionName)"
      @collection-picker-toggle.window="open = $event.detail.open"
      x-cloak>
 
-    {% comment %}
-    A search forces the panel open without writing to `open`, so clearing the
-    search returns each section to what the reader last chose. The chevron
-    reads the same expression rather than `open`, so that it describes what the
-    panel is doing now.
-    {% endcomment %}
     <button type="button" @click="open = !open" x-show="!tabbed"
             :aria-expanded="open || query.length > 0 ? 'true' : 'false'"
             class="flex min-h-11 w-full items-center gap-2 px-1 py-2 text-left focus-ring
@@ -49,10 +26,6 @@ name that exists nowhere.
 
         <span class="min-w-0 flex-1 truncate font-semibold text-ink-900 dark:text-ink-100">{{ name }}</span>
 
-        {% comment %}
-        The matching count, not the total, so filtering visibly empties a
-        section out.
-        {% endcomment %}
         <span class="shrink-0 rounded-full bg-ink-500/10 px-2 py-0.5 text-xs tabular-nums text-ink-900 dark:text-ink-100"
               x-text="countInSection(sectionName)"></span>
     </button>

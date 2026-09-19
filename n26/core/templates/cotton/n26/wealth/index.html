@@ -1,46 +1,16 @@
 {% comment %}
-<c-n26.wealth> — what the gang is worth, as a figure strip.
+<c-n26.wealth> — Trade Points, then rating, credits, stash and wealth for a gang.
 
-    <c-n26.wealth :sheet="gang" />
-
-Four money figures, left to right in the order that makes the sum: rating is
-what the gang fields, credits what it has left to spend, stash what it owns and
-nobody is carrying, and wealth the three added together.
-
-Trade Points lead, behind a rule. They are not money and not part of the sum,
-being what an open Visit Trading Post action has left, so they must not sit in a
-run of figures a reader adds up. They carry no unit.
-
-With no action open the cell draws an em dash: the post is shut to the gang,
-which is not the same as a visit that has spent everything.
-
-It takes the whole sheet rather than loose integers, because positional numbers
-of the same type in the same units are that many chances to swap two and never
-find out.
-
-A definition list, not the two-row table it resembles: a table would need the
-labels and the figures in separate rows, written out twice and kept in step by
-hand. Its type scale, padding and tabular figures mirror <c-n26.statline.cells>,
-and a test holds them to it.
-
-A gang founding without a budget has no credits figure to give, so that cell
-draws a muted em dash rather than 0¢, which would read as bankrupt.
-
-  :sheet — a n26.render.GangSheet, or anything carrying the same figures; the
-    Gang model does, which is what the hire and equip screens pass. Trade
-    Points are read as `trade_points_left`, and `visiting_trading_post` says
-    whether there is a visit for that to be a figure of.
-  trade_points_href — where the Visit Trading Post action is started. Empty
-    for a reader who may not change it; see <c-n26.wealth.figure>.
-  class — passed to the scroll container. Whether the strip needs fencing off
-    depends on what sits beside it, so a page that wants a rule down the left
-    passes `border-l border-box-border`, with no padding — each figure carries
-    its own.
+Trade Points are not money and sit outside the sum. They carry no credits sign.
+Rating is what the models are worth. Stashed gear counts in wealth instead.
+Wealth is rating plus credits plus stash rating, in that order.
+A zero is a real figure. Only the unset message draws a dash, and it ignores the value.
+A shut trading post and unlimited credits pass unset so they draw a dash. A remaining zero does not.
+Pass the whole sheet, not loose integers. Two figures in the same units are easy to swap and hard to notice.
 {% endcomment %}
+
 <c-vars :sheet="None" trade_points_href="" class="" />
 
-{# Scrolls rather than wraps: a strip whose last figure drops onto a second #}
-{# line stops reading as a strip. #}
 <div class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
         <c-n26.wealth.figure short="TP"

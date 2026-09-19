@@ -1,36 +1,21 @@
 {% comment %}
-<c-n26.deferred> — a fragment fetched when first needed, not shipped with the page.
+<c-n26.deferred> — fetches HTML from a URL and injects it, with a spinner then a retry.
 
-    <template x-if="expanded">
-        <div><c-n26.deferred url="/n26/gangs/1/hire/card/2/" /></div>
-    </template>
+<c-n26.deferred url="{{ card_url }}" follows="card" />
 
-For the heavy tail of a page: detail behind a disclosure that most
-readers never open, drawn and sent only for the ones somebody opens.
-
-The fetch happens once, on this component's own init, so the call site's
-placement decides when: dropped straight into the page it fetches on
-load and defers nothing, while inside a `<template x-if>` it fetches
-when the template first instantiates. Alpine initialises whatever lands
-in the document, so a fetched fragment's own behaviours work as if it
-had been inline.
-
-The URL must be a side-effect-free GET returning an HTML fragment — no
-doctype, no shell. This component adds no caching of its own; cache
-headers on the fragment are what make a reopened disclosure instant. A
-failed fetch draws a retry control rather than nothing, since silence
-would read as the detail not existing.
-
-With `follows`, the fragment is fetched again whenever the expression's
-value changes, and the one already drawn stays on screen until the new
-one arrives. The address is checked when a reply lands, so a slow early
-request cannot overwrite a fragment asked for since.
-
-  url — where the fragment lives. The address fetched on init, and the
-    one a call site states when the fragment never changes.
-  follows — an Alpine expression giving the address, evaluated in the
-    call site's own scope. Refetches whenever its value changes.
+follows is an Alpine expression in the parent scope, used as the fetch address when it changes.
+A slower response is dropped when at does not match the latest address. A stale fetch cannot overwrite a newer one.
+x-html injects the response as HTML. The URL must return trusted markup.
+The spinner box holds a fixed height so the slot does not jump when the fragment arrives.
+The fetch runs on this component's init.
+Dropped straight on the page it fetches on load and defers nothing.
+Put it inside a template x-if so it fetches when that template first instantiates.
+Alpine initialises whatever lands in the document, so a fetched fragment's own behaviours work as if they were inline.
+The URL must be a side-effect-free GET that returns an HTML fragment, with no doctype and no shell.
+This component does not cache. Cache headers on the fragment make a reopened disclosure instant.
+A failed fetch draws a retry control. Silence would read as the detail not existing.
 {% endcomment %}
+
 <c-vars url="" follows="" class="" />
 
 <div x-data="{
@@ -45,6 +30,7 @@ request cannot overwrite a fragment asked for since.
                 const response = await fetch(at);
                 if (!response.ok) throw new Error(response.status);
                 const drawn = await response.text();
+                {# Drop the payload unless this request is still the latest address. #}
                 if (this.at === at) { this.html = drawn; }
             } catch {
                 if (this.at === at) { this.failed = true; }
@@ -53,10 +39,7 @@ request cannot overwrite a fragment asked for since.
      }"
      {% if follows %}x-effect="fetchIt({{ follows }})"{% else %}x-init="fetchIt()"{% endif %}
      class="{{ class }}">
-    {% comment %}
-    The placeholder holds a card-ish height, so the disclosure does not
-    open as a sliver and then jump when the fragment arrives.
-    {% endcomment %}
+
     <div x-show="!html && !failed" class="flex h-24 items-center justify-center">
         <c-ui.spinner size="md" color="ink" />
     </div>

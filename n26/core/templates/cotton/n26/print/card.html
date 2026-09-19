@@ -1,28 +1,17 @@
 {% comment %}
-<c-n26.print.card> — one thing that arrives on paper whole.
+<c-n26.print.card> — One printed unit that arrives on paper whole.
 
-    <c-n26.print.card title="Escher Gang Queen" subtitle="Fighter (Leader)"
-                      badge="135¢" height="110mm">
-        <c-slot name="foot"><c-n26.print.field label="Notes" /></c-slot>
-        …
-    </c-n26.print.card>
-
-Width comes from the grid's cell. Outside a grid the custom property is not
-there and the card fills its container instead. Given a height, the card becomes
-a fixed physical object: the body takes the slack, the `foot` slot sits on the
-bottom edge, and anything past the bottom is clipped rather than spilling onto
-the next card.
-
-A card is an atomic inline, so no page fold can split it — see
-<c-n26.print.grid>.
-
-  title, subtitle, badge — the head band. Give none and no band is drawn.
-  width, height, pad — CSS lengths.
-  fit — mark the body for the shrink-to-fit script. Needs
-    <c-n26.print.sheet fit> to have loaded it, and does nothing without a
-    height, since an auto-height card cannot overflow.
-  fit_min — the type size in millimetres below which it clips instead.
+Keep the card an inline-block. Flex or grid lets WebKit slice it at the page fold.
+A subtitle without a title or badge is dropped: the head opens only when title or badge is set.
+height makes a column so the foot stays on the bottom edge.
+Without a CSS unit, that column has no height. Include the unit on height, width, and pad.
+fit only marks the body, and the body only exists when height is set.
+The sheet must also set fit so print-fit.js loads. fit_min is ignored unless fit is set.
+Without the script, overflow clips. Sizing descendants in millimetres then shrinking the parent does nothing.
+fill on columns and spread on a column need this fixed-height body, or spreading has no height to divide.
+Unset width takes the parent grid's cell width, or the full sheet when there is no grid.
 {% endcomment %}
+
 <c-vars
     title=""
     subtitle=""
@@ -50,7 +39,6 @@ A card is an atomic inline, so no page fold can split it — see
         </div>
     {% endif %}
 
-    {# The body wrapper absorbs the slack a fixed-height card's footer sits below. #}
     {% if height %}
         <div class="n26-print-card-body"{% if fit %} data-print-fit{% if fit_min %} data-print-fit-min="{{ fit_min }}"{% endif %}{% endif %}>{{ slot }}</div>
         {% if foot %}<div class="n26-print-card-foot">{{ foot }}</div>{% endif %}

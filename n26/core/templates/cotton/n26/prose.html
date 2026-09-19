@@ -1,25 +1,16 @@
 {% comment %}
-<c-n26.prose> — a run of authored copy: headings, paragraphs, lists, links.
+<c-n26.prose> — A block of HTML copy styled as readable rich text.
 
-    <c-n26.prose>
-        <h2>Getting started</h2>
-        <p>Build a gang, hire some fighters, print the cards.</p>
-    </c-n26.prose>
-
-For copy a template writes; <c-n26.rich-text> is for copy the database stores.
-Both go through the same .rich-text rules in app.css, so a page's own words and a
-description someone typed into the editor get the same typography.
-
-Write plain HTML inside — h2, p, ul, a — not components. The styling reaches the
-tags by descendant selector, which is what makes ordinary markup work.
-
-Capped at max-w-prose by default, since body copy running the full width of a
-desktop window is hard to track between lines. Pass :measure="False" where a
-card, column or dialog already constrains the width; <c-n26.rich-text> does not
-cap at all, because stored content is nearly always already inside something.
-
-  :measure — cap the line length. True by default.
+The rich-text class restores heading, list, and link styles that Tailwind preflight removes.
+Put already-safe HTML in the slot. This wrapper does not sanitise.
+Use this for copy a template writes. Use rich-text for copy the database stores.
+Both go through the same rich-text rules in app.css.
+Write plain HTML inside, not components. The styling reaches those tags by descendant selector.
+Pass measure as False where a card, column, or dialog already constrains the width.
+rich-text does not cap at all, because stored content is nearly always already inside something.
 {% endcomment %}
+
 <c-vars :measure="True" class="" />
 
+{# Tailwind preflight flattens bare headings and lists. This class puts those styles back. #}
 <div {{ attrs }} class="rich-text {% if measure %}max-w-prose{% endif %} {{ class }}">{{ slot }}</div>

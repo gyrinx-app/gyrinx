@@ -1,24 +1,18 @@
 {% comment %}
-<c-n26.toggle> — a switch with its label beside it, for toolbars.
+<c-n26.toggle> — A kit switch with a text label beside it.
 
-    <c-n26.toggle name="mine" label="Your lists only" :checked="True" />
+The inner switch gets an empty label. The visible words live on this wrapping
+label so they are not drawn twice.
 
-The kit's own label positions are a stacked label above the control, or the
-field's full-width row with the switch pushed to the far right. This puts the
-two side by side and keeps the pair as wide as its content.
+Call-site attributes sit on the wrapping label.
 
-The wrapping <label> is doing real work. It associates the text with the
-switch's hidden checkbox, so clicking the words toggles the switch with no
-script added here, and the switch's factory can find the text through
-$refs.input.labels and use it as the accessible name — which it cannot do when
-the text is an unassociated sibling. Clicking the switch itself does not
-double-toggle, because a label does not forward activation that lands on
-interactive content inside it, and the switch is a <button>.
-
-  label — the text. A default slot works too, for markup.
-  name, value, :checked, :disabled, size — passed to c-ui.switch. size defaults
-    to sm, a notch under the kit's default, for a toolbar.
+Clicking the kit button dispatches checkedChange and does not fire change.
+Clicking the text fires change and does not dispatch.
+Listen for both if the value must stay in sync.
+Pass empty label and class to the switch. A missing c-var falls through to this component's own label and class.
+The wrapping label associates the text with the hidden checkbox, so the words toggle it and become the accessible name.
 {% endcomment %}
+
 <c-vars
     label=""
     name=""
@@ -32,12 +26,8 @@ interactive content inside it, and the switch is a <button>.
 <label {{ attrs }}
        class="inline-flex select-none items-center gap-2 text-sm
               {% if disabled %}cursor-not-allowed opacity-50{% else %}cursor-pointer{% endif %} {{ class }}">
-    {% comment %}
-    label="" and class="" are shadowing, not padding. A c-var declared with no
-    default is never bound into the child's scope, so the lookup falls through
-    to the parent context and finds *this* component's label — leaving it out
-    makes the switch draw its own field wrapper and the text appear twice.
-    {% endcomment %}
+
+    {# Empty so the kit does not draw a second copy of the words. #}
     <c-ui.switch
         label=""
         class=""

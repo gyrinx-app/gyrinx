@@ -1,26 +1,11 @@
 {% comment %}
-<c-n26.section> — a titled part of a page, with its count and its controls.
+<c-n26.section> — a titled block with an optional count and actions.
 
-    <c-n26.section id="gangs" title="Gangs" count="3 gangs">
-        <c-slot name="actions"><c-ui.button size="sm" variant="primary" href="…">Add gang</c-ui.button></c-slot>
-        …a table, a list…
-    </c-n26.section>
-
-One heading scale for every section of a detail page, decided here: the same
-h2 <c-n26.form-section> gives a form's groups, so a campaign's Gangs and a
-form's General read as the same rank of thing. The count sits after the title
-in muted text and is part of the heading, so a reader scanning headings reads
-"Gangs, 3 gangs" and does not have to find the number elsewhere.
-
-The heading row wraps: the controls drop under the title on a phone rather
-than squeezing it. `id` lands on the <section>, so an address ending in
-#gangs opens the page at this heading.
-
-  title — the heading. There should be exactly one per section.
-  count — a short fact after the title: "3 gangs", "2 held, 1 unclaimed".
-  actions — controls for the section as a whole, drawn at the far end.
-  id — the anchor.
+id is the fragment target. Omit it and the section cannot be linked to.
+Use the same h2 rank as form-section. A detail section and a form group then read as the same rank of thing.
+Keep the count inside the heading so a reader scanning headings hears the title and the count together.
 {% endcomment %}
+
 <c-vars title="" count="" actions="" id="" class="" />
 
 <section {% if id %}id="{{ id }}"{% endif %} class="flex flex-col gap-3 {{ class }}">

@@ -1,35 +1,24 @@
 {% comment %}
-<c-n26.link> — an inline text link.
+<c-n26.link> — A text link with optional leading and trailing marks.
 
-    <c-n26.link href="/lists/">Back to lists</c-n26.link>
-    <c-n26.link href="/lists/" tone="current" underline="always">In a coloured row</c-n26.link>
-    <c-n26.link>No href, so no link</c-n26.link>
+Pass markup through named leading and trailing slots. A string attribute is escaped.
+Those slots sit outside the underline, so only the default slot is underlined.
 
-The base the other link-ish components are built from. The kit has none of its
-own — c-ui.button variant="text" is still a button, with a button's padding and
-semantics.
+    <c-n26.link href="/path">
+        <c-slot name="leading">...</c-slot>
+        words
+    </c-n26.link>
 
-Colour is a `tone` prop rather than a class, so exactly one colour utility is
-ever applied: passing class="text-muted" over the default would leave two of
-equal specificity fighting, settled by the order Tailwind happened to emit them.
+No href draws a span. Tone and underline do not apply on that branch.
+An unknown tone or underline key adds no class and does not error.
+The default slot is trusted HTML because strip would otherwise escape it.
+Put colour on tone, not on class. A text-muted class over the default leaves two equal utilities fighting, settled by the order Tailwind emits.
+This renders inline. Keep the tags packed tight and do not add a trailing newline.
+Newlines around the markup collapse to a space in the surrounding sentence.
+Strip the default slot. Newlines around it would sit inside the underline span and get a rule drawn under them.
+{% endcomment %}
 
-Without an href it renders a <span> rather than a dead anchor, so a table cell
-or list entry that is only sometimes linked stays a single call.
-
-The text sits in its own span, so the underline runs under the text alone and
-whatever is in the `leading` and `trailing` slots stays clear of the rule.
-<c-n26.color-link> is this with a swatch in the first; <c-n26.flair-link> is it
-with a badge in the second.
-
-  href — renders an <a>; without it, a <span>.
-  underline — hover (default), always, or none.
-  tone — accent (default), current to inherit the surrounding colour, muted, or
-    danger for a link that removes something. Accent here is the accent's text
-    shade, not the fill a primary button uses, and it holds on hover: the
-    underline is the whole of the change.
-  leading — content before the text, outside the underline.
-  trailing — content after the text, outside the underline.
-{% endcomment %}<c-vars
+<c-vars
     href=""
     underline="hover"
     tone="accent"
@@ -47,13 +36,4 @@ with a badge in the second.
         'always': 'underline underline-offset-2',
         'none': 'no-underline',
     }"
-/>{% comment %}
-Whitespace here is load-bearing, hence the cramped tags below and the missing
-trailing newline. An inline component emits its template's own leading and
-trailing newlines into the text flow, where they collapse to a space — enough to
-put a gap before the comma in "<c-n26.link>…</c-n26.link>, and".
-
-slot.strip, not slot, for the same reason one level in: a slot written across
-several lines arrives wrapped in newlines, and inside the underlined span those
-get a rule drawn under them. |safe restores the marking that .strip drops.
-{% endcomment %}{% if href %}<a href="{{ href }}" {{ attrs }} class="no-underline transition-colors {{ tone_classes|get_item:tone }} {{ class }}">{{ leading }}<span class="{{ underline_classes|get_item:underline }}">{{ slot.strip|safe }}</span>{{ trailing }}</a>{% else %}<span {{ attrs }} class="{{ class }}">{{ leading }}{{ slot.strip|safe }}{{ trailing }}</span>{% endif %}
+/>{# No href draws a span. Tone and underline are skipped. #}{% if href %}<a href="{{ href }}" {{ attrs }} class="no-underline transition-colors {{ tone_classes|get_item:tone }} {{ class }}">{{ leading }}{# Underline wraps the words only, so marks on either side stay clear of it. #}<span class="{{ underline_classes|get_item:underline }}">{{ slot.strip|safe }}</span>{{ trailing }}</a>{% else %}<span {{ attrs }} class="{{ class }}">{{ leading }}{{ slot.strip|safe }}{{ trailing }}</span>{% endif %}

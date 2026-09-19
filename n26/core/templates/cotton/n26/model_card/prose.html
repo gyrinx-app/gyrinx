@@ -1,20 +1,10 @@
 {% comment %}
-<c-n26.model-card.prose> — a written section of a card: Notes, Lore.
+<c-n26.model-card.prose> — Lore or notes on a model card, with an empty state and an Edit link.
 
-    <c-n26.model-card.prose href="/fighters/1/edit/"
-                            empty="No notes yet.">{{ notes }}</c-n26.model-card.prose>
-
-The written text and a muted Edit under it. With nothing written the empty
-sentence is drawn instead — but only where there is somewhere to edit: the
-sentence exists to tell a reader the section can be written, and a read-only
-card has nothing to tell, so its blank section stays bare.
-
-  heading — a title over the text, where the section is not already under one.
-    A tab panel is: its tab names it.
-  href — where Edit goes. Without one no link is drawn and no empty sentence
-    either, which is what a read-only card wants.
-  empty — what to say when there is nothing written and href says it can be.
+slot.strip treats whitespace-only cotton slots as empty. Without strip, a slot of newlines hides the empty message.
+The empty message draws only when href is set. A reader with no edit link sees a blank section.
 {% endcomment %}
+
 <c-vars heading="" href="" empty="" class="" />
 
 <section class="px-4 py-3 {{ class }}">
@@ -22,11 +12,6 @@ card has nothing to tell, so its blank section stays bare.
         <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h3>
     {% endif %}
 
-    {% comment %}
-    slot.strip, not slot: a slot written across several lines holds the
-    newlines between them, and Django counts whitespace as truthy — the plain
-    test draws a blank paragraph and never the empty sentence.
-    {% endcomment %}
     {% if slot.strip %}
         <c-n26.prose :measure="False" class="mt-1 text-sm">{{ slot }}</c-n26.prose>
     {% elif empty and href %}

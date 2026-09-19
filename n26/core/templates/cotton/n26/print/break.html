@@ -1,21 +1,12 @@
 {% comment %}
-<c-n26.print.break> — end the page here.
+<c-n26.print.break> — An empty box that forces a page break.
 
-    <c-n26.print.grid>…</c-n26.print.grid>
-    <c-n26.print.break />
-    <c-n26.print.table>…</c-n26.print.table>
-
-For a sheet whose reader expects a page boundary: a cover, then the cards; the
-cards, then the reference table.
-
-Zero height, and it carries both the modern break property and the legacy alias
-because WebKit reads the old name. aria-hidden, since a page is a fact about
-paper and a screen reader is not holding any.
-
-It does not move the on-screen preview's fold guides: <c-n26.print.sheet paged>
-draws them at even page intervals and knows nothing of a break. The printed
-output is right; the guide below the break is not.
+Print engines break after a box. A class on a wrapper is not enough.
+The stylesheet sets both break-after and page-break-after, because WebKit honours the old name.
+It does not move the on-screen fold guides. A paged sheet draws those at even page intervals and knows nothing of a break.
+The box is not content, so it is hidden from assistive tech.
 {% endcomment %}
+
 <c-vars class="" />
 
 <div {{ attrs }} class="n26-print-break {{ class }}" aria-hidden="true"></div>

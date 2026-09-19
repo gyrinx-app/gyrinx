@@ -1,39 +1,17 @@
 {% comment %}
-<c-n26.campaign-gangs> — every gang at the campaign's table, as one table.
+<c-n26.campaign-gangs> — Every gang in the campaign, with rating, credits, counters, labels, and assets.
 
-    <c-n26.campaign-gangs :sheet="sheet" />
-
-A real table, because what a reader does here is compare gangs down a column:
-whose rating is highest, who holds which territories, where Reputation stands.
-The columns are the sheet's own — one per campaign counter, one per label the
-arbitrator asks, then one per asset type — laid out by position, so the
-component names nothing the campaign type
-did not.
-
-The gang cell carries the name, and under it the type and whose gang it is: a
-campaign's table holds several people's gangs, and a row that did not say
-whose would send the reader to the sheet to find out. The name is a link to
-the gang's sheet, which opens for anybody holding the address.
-
-Every empty value is an em dash, never a blank. A counter a gang does not
-carry and an asset type of which it has nothing both read as "none" rather than as a
-cell that failed to fill.
-
-A counter cell carries the same controls a gang sheet draws beside a counter,
-and only where the line carries an address: the view fills one for the
-arbitrator on every gang, and for a gang's owner on their own. Everybody else
-reads the number alone.
-
-Scrolls sideways inside its own box, which the kit's table wrapper provides,
-so a campaign with several counters and asset types never widens the page.
-
-Under the gang's name, a Roll starting territory control for each asset type
-of which the gang holds a rolled table — worded in the type's own word — where
-the line carries an address for it. The view fills one for the arbitrator.
-
-  :sheet — a n26.render.CampaignSheet. Each gang's `href` should already be
-    filled; a gang with none draws as plain text.
+Lay counters, labels, and assets by position against the sheet's column lists, never by name.
+A missing counter is None. Draw it as a dash, not a blank.
+Unlimited credits also draw as a dash.
+Every empty value is a dash, never a blank. A blank cell looks like a failed number.
+Name whose gang it is under the type. A campaign table holds several people's gangs.
+Counter controls appear only where the line has an href. The view fills that for the arbitrator, and for a gang's owner on their own.
+The kit table wrapper scrolls sideways. Do not add a wrap, or a wide campaign will widen the page.
+Over budget is amber, not orange. Orange is what a waiting invitation wears on the same page.
+Starting rolls fetch with hx-swap none so a dialog opens.
 {% endcomment %}
+
 <c-vars :sheet="None" class="" />
 
 <c-ui.table class="{{ class }}">
@@ -57,11 +35,7 @@ the line carries an address for it. The view fills one for the arbitrator.
                                 <c-slot name="leading"><c-n26.color-swatch color="{{ gang.colour }}" /></c-slot>
                                 {{ gang.name }}
                             </c-n26.link>
-                            {% comment %}
-                            Amber rather than orange: orange is what an
-                            invitation still waiting wears on the same page,
-                            and one colour cannot mean two things on one screen.
-                            {% endcomment %}
+
                             {% if gang.over_budget %}
                                 <span class="ml-1 inline-block align-middle">
                                     <c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>
@@ -69,15 +43,11 @@ the line carries an address for it. The view fills one for the arbitrator.
                             {% endif %}
                         </span>
                         <span class="text-xs text-muted">{{ gang.gang_type }}{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
-                        {% comment %}
-                        One control per asset type of which the gang holds a
-                        rolled table, in the type's own word, for the reader
-                        whose address the view filled — the arbitrator. Asks
-                        over htmx for the panel alone; a plain link otherwise.
-                        {% endcomment %}
+
                         {% for roll in gang.starting_rolls %}
                             {% if roll.href %}
                                 <span class="mt-1">
+                                    {# The response opens a dialog. Swapping this fetch would replace the table. #}
                                     <c-ui.button size="xs"
                                                  variant="default"
                                                  href="{{ roll.href }}"
@@ -94,6 +64,7 @@ the line carries an address for it. The view fills one for the arbitrator.
                 </td>
                 {% for line in gang.counters %}
                     <td class="text-right tabular-nums whitespace-nowrap">
+                        {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}
                         {% if line is None %}
                             <span class="text-muted">&mdash;</span>
                         {% else %}

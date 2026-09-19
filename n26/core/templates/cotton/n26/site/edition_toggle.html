@@ -1,24 +1,13 @@
 {% comment %}
-<c-n26.site.edition-toggle> — which edition you are in, and the way to the other.
+<c-n26.site.edition-toggle> — Chrome control that marks N26 as current and links back to the classic app.
 
-    <c-n26.site.edition-toggle />
-
-Two segments, the edition you are in filled and the other a way out. Nothing
-toggles in place — changing edition is going somewhere — so both are plain links
-to an edition's front page and the pill works with no script.
-
-The N23 half is written as a path rather than a route name. Reversing the other
-edition's URLs here would cross the boundary n26/CLAUDE.md draws, and the site
-root is the one address that belongs to neither edition.
-
-It carries ?edition=n23, and must. The site remembers the last edition a reader
-was in and sends them from the root back to it, so a bare link to the root from
-an n26 page is a link that returns here — the parameter is how the reader says
-they mean to leave.
-
-Draw it only where the reader can follow both links: a signed-out visitor has
-nowhere yet to be sent.
+N26 is always aria-current here: this chrome is the N26 preview.
+The N23 link is a path. The N26 link is a named URL so a rename raises.
+The N23 href must keep ?edition=n23. A bare root link returns here, because the site remembers this edition.
+Reversing N23 URLs here would cross the edition boundary.
+Draw this only where the reader can follow both links. A signed-out visitor has nowhere to be sent.
 {% endcomment %}
+
 <c-vars class="" />
 <span {{ attrs }}
       role="group"

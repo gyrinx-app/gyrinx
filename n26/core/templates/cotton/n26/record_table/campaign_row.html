@@ -1,35 +1,18 @@
 {% comment %}
-<c-n26.record-table.campaign-row> — one campaign in a <c-n26.record-table>.
+<c-n26.record-table.campaign-row> — One campaign listing in a record table.
 
-    <c-n26.record-table.campaign-row name="Dust Falls"
-                                     href="/n26/campaigns/1/"
-                                     :owner="campaign.owner"
-                                     action_label="Edit" />
-
-The gang row's twin, on the same grid so the two lists read as the same kind
-of page. What differs is what a row has to say: a gang carries a type, a
-colour and a strip of money, where a campaign carries its name and, where the
-reader is not the one running it, who is.
-
-It registers the same facets the container's filter reads, so typing in the
-box narrows these rows exactly as it narrows gangs. There is no type here, so
-the facet is empty and the type menu — drawn only where there are two or more
-options — never appears.
-
-  name — the campaign's name, and the row's accessible name.
-  href — the campaign's own page.
-  owner — the arbitrator, drawn by name beside the campaign's name with the
-    badge they hold, through <c-n26.user-link>. A person rather than a name, because
-    which badge follows the name is decided by the platform's registry, and it
-    decides for a user. Omitted, nothing is said: a reader running the campaign
-    already knows who runs it.
-  action_label — the button's word, and there is no button without one. A
-    campaign somebody only plays in offers none: the whole row already opens
-    it, and there is nothing on the far side for them to change. Left out,
-    a row draws no button — the quiet way round, because a row that grew a
-    control nobody asked for would say the reader may do something they may
-    not.
+Must sit inside a record table so register and matches exist.
+Outside it, Alpine throws and x-cloak keeps the listing hidden.
+This listing registers an empty type, so a type filter that is not null hides every campaign.
+n26-row-link stretches the click target over the whole listing.
+Keep the actions cell relative so its button stays clickable above that sheet.
+Do not let this listing span two grid rows. The name would sit on the first while the button centres across both.
+Keep the owner beside the name. A second line would make campaigns you run a different height from the rest.
+Pass owner as a user object. A name string cannot carry the badge the platform registry decides.
+The actions cell is floored at one button's height so listings with and without a button stay the same height.
+Repeat that floor if the button's padding changes.
 {% endcomment %}
+
 <c-vars name="" href="" owner="" action_label="" class="" />
 
 <div x-data="{ facets: {
@@ -39,13 +22,7 @@ options — never appears.
      x-init="register(facets)"
      x-show="matches(facets)"
      x-cloak
-     {% comment %}
-     The same fixed tracks as the gang row, minus its middle column: stating
-     the widths is what makes separate grids look like one table. One row,
-     because everything a campaign says sits on a single line — so nothing
-     here may span two, or the grid grows a second row and the name centres
-     in the first while the button centres across both.
-     {% endcomment %}
+
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-1 py-3
             hover:bg-ink-500/5 {{ class }}">
 
@@ -54,26 +31,11 @@ options — never appears.
            class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
             {{ name }}
         </a>
-        {% comment %}
-        Beside the name rather than under it, where the gang row puts its
-        owner. A gang row always has that second line — it carries a type —
-        so every one of them stands the same height; a campaign names an
-        arbitrator only on the rows the reader does not run, and putting it
-        below would leave a list of both sorts ragged.
-        {% endcomment %}
+
         {% if owner %}<span class="text-sm text-muted">arbitrated by <c-n26.user-link :user="owner" tone="current" /></span>{% endif %}
     </div>
 
-    {% comment %}
-    relative, so the button paints above the stretched link rather than under
-    it.
-
-    Drawn whether or not it holds a button, and floored at the height of one
-    — a small button's line plus its padding and border — so a list mixing
-    rows that have a button with rows that do not keeps a single row height.
-    The floor is stated rather than measured, so a change to the button's
-    padding has to be repeated here.
-    {% endcomment %}
+    {# This cell is relative so the button paints above the stretched link. #}
     <div class="relative col-start-2 row-start-1 flex min-h-8.5 shrink-0 items-center justify-self-end">
         {% if action_label %}
             <c-ui.button size="sm" variant="default" href="{{ href }}">{{ action_label }}</c-ui.button>

@@ -1,25 +1,19 @@
 {% comment %}
-<c-n26.owned-lines> — what the model is already carrying, and what can happen to it.
+<c-n26.owned-lines> — Each held copy, with its parts, rating, and actions.
 
-    <c-n26.owned-lines :copies="row.copies" />
-
-Takes n26.core.listing.OwnedCopyRow: one line per copy the model holds, with a
-line beneath for each part hanging off it — a gun's paid ammo, a sight bolted
-to it. The weapon's own profile is not among them; it *is* the weapon.
-
-Which acts a copy offers, and which of them is red, is the structure's word and
-not this template's (see n26/includes/row_action.html), so an act added there
-appears here with nothing edited. A part offers no move, because
-Operation.move refuses a weapon profile. The Sell and more-menu pair is
-<c-n26.owned-actions>, which the model's own card folds into one menu.
-
-Every control is a link to a real address: the dialogs behind them are server
-states a reader can send and reload, and links keep this out of the
-surrounding catalogue form, which HTML would not let hold a nested one. The
-accessory panel is drawn on the page ahead of the click as well, so clicking it
-opens what is already there rather than rebuilding a listing of several hundred
-lines.
+Parts hang under the copy they belong to.
+The weapon's own profile is not among the parts. It is the weapon.
+Their rating is extra on that copy, prefixed with a plus.
+Accessorise opens a dialog whose id is n26-accessorise- plus the copy id.
+The page must host that dialog. Without JS the href navigates.
+The accessorise panel is already on the page. Opening it must not rebuild a listing of hundreds of lines.
+Keep every control a link. This listing sits inside the catalogue form, and HTML cannot nest a form.
+A part offers no move. Operation.move refuses a weapon profile.
+Chosen options belong on the copy, not on a heading. Two of the same mount may carry different guns.
+n26-cp-price is the collection picker's price column, so contributed rating lines up with what the listing asks.
+Rating zero draws as nothing. A line that added nothing has no figure to state.
 {% endcomment %}
+
 <c-vars :copies="None" :htmx="False" class="" />
 
 <div class="flex flex-col gap-1 {{ class }}">
@@ -28,13 +22,10 @@ lines.
             <span class="flex min-w-0 flex-1 flex-col justify-center">
                 <span class="text-sm text-ink-900 dark:text-ink-100">
                     {{ copy.marked_name }}
-                    {% comment %}
-                    Only a weapon carries this, which is the structure's word
-                    and not a test made here. Its own x-data, because Alpine
-                    walks only into elements a component contains and this is
-                    drawn in places where nothing above it is one.
-                    {% endcomment %}
+
                     {% if copy.accessorise %}
+                        {# The dispatch names n26-accessorise- plus the copy id. The page must host that dialog. #}
+                        {# This button needs its own x-data. Alpine only walks into elements a component contains. #}
                         <c-ui.button variant="ghost"
                                      size="xs"
                                      class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
@@ -42,11 +33,8 @@ lines.
                                      aria-label="{{ copy.accessorise.label }} to {{ copy.marked_name }}"
                                      x-data
                                      x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
-                            {% comment %}
-                            The kit button is inline-block and the reset makes
-                            an svg a block, so without this span the icon and
-                            the words stack.
-                            {% endcomment %}
+
+                            {# Keep icon and words in one span. The kit button is inline-block, and a reset makes an svg a block, so they would stack. #}
                             <span class="inline-flex items-center gap-1 whitespace-nowrap">
                                 <c-n26.icon name="plus"
                                             class="size-3.5"
@@ -56,23 +44,13 @@ lines.
                         </c-ui.button>
                     {% endif %}
                 </span>
-                {% comment %}
-                What this copy was bought with. Two of the same mount may carry
-                different guns, so it belongs to the copy and not to the
-                heading above it. The options alone, without the sets they were
-                picked from and without prices — the figure on the right
-                already holds what each one added.
-                {% endcomment %}
+
                 {% if copy.chosen %}
                     <span class="text-xs text-muted">{{ copy.chosen|join:" · " }}</span>
                 {% endif %}
             </span>
-            {% comment %}
-            The collection picker's own price column, so what a thing
-            contributed lines up with what the listing asks for it. Zero draws
-            nothing: a line that added nothing to the rating has no figure to
-            state.
-            {% endcomment %}
+
+            {# This column has a fixed min-width so ratings and actions line up across copies. #}
             <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
                 {% if copy.rating %}{{ copy.rating }}¢{% endif %}
             </span>

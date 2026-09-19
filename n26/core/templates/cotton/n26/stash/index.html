@@ -1,36 +1,19 @@
 {% comment %}
-<c-n26.stash> — the gang's storage: what it owns and nobody is carrying.
+<c-n26.stash> — The gang's stashed gear, grouped by kind, with its rating total.
 
-    <c-n26.stash :lines="gang.stash" :total="gang.stash_rating" />
-
-A card, built to sit in the same grid as the fighters, so moving something
-between a fighter and the stash is moving it between two like things on one
-screen.
-
-GangSheet.stash is deliberately flat — how to group it is presentational, and a
-text sheet and a web sheet do not agree — so this component groups by kind.
-dictsort runs before regroup because regroup only gathers adjacent equal keys:
-handed an unsorted list it silently yields "weapon, wargear, weapon" as three
-groups.
-
-An empty stash still draws the card, since a slot that comes and goes with the
-contents shifts every fighter after it around the grid.
-
-  :lines — n26.render.StashLine objects, straight from GangSheet.stash.
-  :total — what the whole stash is pinned at, in credits. Drawn quietly: the
-    wealth strip above is where that number lives.
-  empty — what to say when there is nothing.
-  actions — links after the title in a middot run (e.g. Equip), not buttons.
-  notice — a strip above the contents, ruled off from them. For a standing
-    fact about buying rather than about what is stored, which a reader
-    wants before reading a list rather than after it.
+total is the stash rating. Do not sum the visible figures: a stacked line shows the rating for one copy.
+Stashed gear counts in wealth, not in the models' rating.
+regroup needs dictsort first. Without it, the same kind appearing twice becomes two groups.
+Named slots use .strip because a cotton slot of newlines is not empty.
+An empty stash still draws the card. A slot that comes and goes would shift every model after it in the grid.
 {% endcomment %}
+
 <c-vars :lines="None" :total="0" empty="" actions="" notice="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
-        {# -mx-2 because the kit's header band hardcodes px-6 where the rows #}
-        {# below are px-4, so the name would start further in than the contents. #}
+
+        {# -mx-2: the kit header hardcodes px-6, and the rows below are px-4. #}
         <div class="-mx-2 flex items-baseline gap-3">
             <div class="min-w-0 flex-1">
                 <c-n26.action-links class="text-sm">
@@ -48,6 +31,7 @@ contents shifts every fighter after it around the grid.
     {% endif %}
     {% if lines %}
         <dl class="flex flex-col gap-1 px-4 py-3">
+            {# dictsort first, or regroup splits the same kind into several groups. #}
             {% regroup lines|dictsort:"kind" by kind as kinds %}
             {% for kind in kinds %}
                 <c-n26.stash.group label="{{ kind.grouper }}" :lines="kind.list" />

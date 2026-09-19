@@ -1,38 +1,17 @@
 {% comment %}
-<c-n26.site.announcement> — a bar across the top of the site, saying one thing.
+<c-n26.site.announcement> — Site-wide announcement bar with optional CTA, extra action, and dismiss.
 
-    <c-n26.site.announcement tone="info" cta_text="Read the notes" cta_url="/changelog/">
-        Campaigns are live.
-    </c-n26.site.announcement>
-
-    {# tell the server it was dismissed, so it stops sending it #}
-    <c-n26.site.announcement tone="warning"
-                             on_dismiss="fetch('/banners/{{ banner.id }}/dismiss/', {method: 'POST'})">
-        Scheduled maintenance on Sunday.
-    </c-n26.site.announcement>
-
-Drawn above the nav, so it pushes the whole application down rather than sitting
-inside it.
-
-**It does not remember being dismissed.** Closing hides it for this page and
-nothing more; reload and it is back. `on_dismiss` takes an Alpine expression run
-at the moment of closing — a POST to the server, or a localStorage flag — so the
-component owns the interaction and the application owns the memory.
-
-  tone — info (default), success, warning, danger, neutral. Sets the colours and
-    the default icon together.
-  icon — override the tone's icon with any name from n26/icons.py, or "none" for
-    a bar with no icon at all.
-  cta_text, cta_url — a call to action. Both, or neither: a button with no
-    destination is furniture.
-  action — a control where a link will not do, a form that POSTs say. Drawn
-    beside the CTA and outside the message span, because a <form> is flow
-    content and the browser would close the span around it.
-  dismissible — a close button. On by default.
+Print CSS in app.css hides this bar.
+Tone is a data-tone attribute, so background, border, and ink stay in step.
+Pass none to hide the icon. An empty icon draws the tone's default.
+A CTA needs both cta_text and cta_url.
+Dismiss only hides this visit unless on_dismiss persists it. Pass an empty dismissible to keep the bar.
+The action slot is extra controls, typically a form.
+Do not add role=status. That announces on change, and this bar is already on the page at load.
+Do not add x-cloak. The bar starts visible, and x-cloak would hide it then drop it in.
+Keep action outside the message span. The browser closes a span around a form.
 {% endcomment %}
-{# The slots are declared: an undeclared slot name is not empty when nobody #}
-{# fills it — it resolves to the caller's own variable of that name, and #}
-{# this bar is drawn on every screen in the site. #}
+
 <c-vars
     tone="info"
     icon=""
@@ -44,14 +23,6 @@ component owns the interaction and the application owns the memory.
     class=""
 />
 
-{% comment %}
-An <aside> gives the bar a landmark a screen reader can skip or return to. No
-role="status": that announces on change, and this is on the page at load, so it
-would interrupt to read out something already on screen.
-
-x-show with no x-cloak: the bar starts visible and stays so until someone closes
-it, and x-cloak would hide it and then drop it in, shifting the page.
-{% endcomment %}
 <aside {{ attrs }}
        x-data="{ shown: true }"
        x-show="shown"
@@ -60,6 +31,7 @@ it, and x-cloak would hide it and then drop it in, shifting the page.
        aria-label="Site announcement">
     <div class="n26-site-container n26-announcement-row">
 
+        {# none hides the icon. Empty falls through to the tone. #}
         {% if icon != "none" %}
             <c-n26.icon
                 name="{% if icon %}{{ icon }}{% elif tone == 'success' %}circle-check{% elif tone == 'warning' or tone == 'danger' %}triangle-alert{% else %}info{% endif %}"
@@ -74,14 +46,12 @@ it, and x-cloak would hide it and then drop it in, shifting the page.
                     <c-n26.icon name="arrow-right" class="size-4" stroke_width="2" />
                 </a>
             {% endif %}
-            {% comment %}
-            Beside the CTA rather than inside the message span: a <form> is flow
-            content, and the browser closes a span around one.
-            {% endcomment %}
+
             {% if action %}{{ action }}{% endif %}
         </div>
 
         {% if dismissible %}
+            {# Local hide only. Persist with on_dismiss. #}
             <button type="button"
                     @click="shown = false{% if on_dismiss %}; {{ on_dismiss }}{% endif %}"
                     class="n26-announcement-dismiss focus-ring"

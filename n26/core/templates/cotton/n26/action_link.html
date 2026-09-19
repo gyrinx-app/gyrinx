@@ -1,23 +1,13 @@
 {% comment %}
-<c-n26.action-link> — one link in an action row, with an optional icon.
+<c-n26.action-link> — one text link with an optional leading icon.
 
-    <c-n26.action-link href="/edit/">
-        <c-slot name="icon"><svg …/></c-slot>
-        Attributes
-    </c-n26.action-link>
-
-Wraps <c-n26.link>, putting the icon in the `leading` slot so it sits outside
-the span carrying the underline and the rule runs under the words alone. The
-icon is sized in em, so it fits a table's small print and a page heading alike
-with no size prop.
-
-`tone="danger"` exists here and not on <c-n26.link>, for a destructive action
-sitting in a run of ordinary ones.
-
-  href, underline — passed to <c-n26.link>.
-  tone — accent (default), muted, current, or danger.
-  icon — leading icon.
+tone danger is remapped to current plus red classes. The link component has no danger tone.
+The slot is marked safe. Only pass trusted markup.
+icon is raw HTML and is hidden from assistive tech. Put the name in the slot.
+Put the icon in the leading slot so the underline runs under the words alone.
+Size the icon in em so it fits small print and a heading with no size prop.
 {% endcomment %}
+
 <c-vars
     href=""
     underline="hover"
@@ -27,10 +17,7 @@ sitting in a run of ordinary ones.
 />
 
 {% if tone == "danger" %}
-    {% comment %}
-    Red is not a theme token, so c-n26.link has no danger tone; tone="current"
-    lets the classes set here through.
-    {% endcomment %}
+
     <c-n26.link href="{{ href }}" underline="{{ underline }}" tone="current"
                 class="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 {{ class }}">
         <c-slot name="leading">{% if icon %}<span class="n26-icon-inline mr-1" aria-hidden="true">{{ icon }}</span>{% endif %}</c-slot>

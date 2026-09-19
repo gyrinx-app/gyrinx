@@ -1,30 +1,22 @@
 {% comment %}
-<c-n26.print.weapons> — a card's weapon table, on paper.
+<c-n26.print.weapons> — A model's weapons as one grouped print table.
 
-    <c-n26.print.weapons :card="card" />
-
-Two lines per profile, matching <c-n26.model-card>: the stats on the name's
-line, the traits beneath it, indented past the name column so they begin under
-the leftmost stat they describe.
-
-Which profile is the weapon and which is a named variant comes from WeaponLine
-(own_line / named_profiles), so the screen card, the text card and this one
-cannot drift.
-
-No ratings, unlike the screen card. A printed card sits on the table during a
-game, where the width a number takes is width the traits and the stat columns
-want.
-
-  :card — a n26.render.ModelCard whose weapons to draw.
+Pass :card a ModelCard. Headings come from weapon_columns: the first profile that has characteristics.
+Do not copy the screen card's colspan of 99. This table is table-layout fixed, so an oversized span squeezes the real columns.
+A combi has an unnamed line and no stats: the name spans the row so empty stat cells are not drawn.
+groups is on so you supply one tbody per weapon. A rule then falls between weapons, not between a name and its profiles.
+is-continued hides the rule so a name, its stats, and its traits read as one weapon.
+An empty first cell keeps traits under the numbers, not under the name.
+No ratings: a printed card sits on the table during a game, and those figures take width the stats need.
+Bleed reaches the card padding. Pair this with a print card so --print-card-pad matches.
 {% endcomment %}
+
 <c-vars :card="None" class="" />
 
-{# No top margin, so it sits directly on the statline's bottom rule. #}
 <c-n26.print.table class="n26-print-bleed" groups="1">
     <c-slot name="head">
         <tr>
-            {# Columns come from the card, so a pack that changes a weapon's #}
-            {# statline type changes this header with it. #}
+
             {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
             <th style="width: 40%">Weapon</th>
             {% for cell in card.weapon_columns %}
@@ -34,23 +26,12 @@ want.
         </tr>
     </c-slot>
     {% for weapon in card.weapons %}
-        {# One tbody per weapon, so the rule falls between weapons rather than #}
-        {# between the lines of one. See .n26-print-table.is-grouped. #}
+
         <tbody>
-            {# The unnamed profile is the weapon, so its stats sit on the weapon's #}
-            {# own line and every named profile takes a line beneath. #}
+
             {% with own=weapon.own_line stats=weapon.own_stats %}
                 <tr {% if own.traits or not stats %}class="is-continued"{% endif %}>
-                    {% comment %}
-                The span is a real column count, not the colspan="99" the screen
-                card gets away with: this table is table-layout: fixed, which
-                takes an oversized colspan at face value and squeezes the real
-                columns into a fraction of the width.
 
-                Branching on stats rather than on an own line, because a
-                combi-weapon has an unnamed profile with no characteristics of
-                its own.
-                    {% endcomment %}
                     <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.brought_mark }}{% if weapon.accessories or weapon.choices %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{{ accessory.brought_mark }}{% if not forloop.last or weapon.choices %}; {% endif %}{% endfor %}{% for choice in weapon.choices %}{{ choice.kind_label }}: {{ choice.chosen|default:"—" }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>{% endif %}</td>
                     {% if stats %}
                         {% for cell in stats %}
@@ -60,8 +41,7 @@ want.
                 </tr>
                 {% if own.traits %}
                     <tr>
-                        {# An empty cell under the name column, so the traits start #}
-                        {# under the leftmost stat rather than under the name. #}
+
                         {% if stats %}<td></td>{% endif %}
                         <td colspan="{% if stats %}{{ stats|length }}{% else %}{{ card.weapon_columns|length|add:1 }}{% endif %}" class="n26-print-traits">
                             {% for trait in own.traits %}{{ trait.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
@@ -70,7 +50,7 @@ want.
                 {% endif %}
             {% endwith %}
             {% for profile in weapon.named_profiles %}
-                {# is-continued suppresses the row rule when a traits line follows. #}
+
                 <tr {% if profile.traits %}class="is-continued"{% endif %}>
                     <td><span class="n26-print-subname">{{ profile.name }}{{ profile.brought_mark }}</span></td>
                     {% for cell in profile.statline.cells %}
@@ -79,7 +59,7 @@ want.
                 </tr>
                 {% if profile.traits %}
                     <tr>
-                        {# Aligned as the own line's traits are, and for the reason given there. #}
+
                         <td></td>
                         <td colspan="{{ profile.statline.cells|length }}"
                             class="n26-print-traits">

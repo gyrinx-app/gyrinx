@@ -1,33 +1,15 @@
 {% comment %}
-<c-n26.profile-picker> — the models a gang could hire, in sections and filtered.
+<c-n26.profile-picker> — A collection picker preset for hireable profiles, with no trade-points filter.
 
-    <c-n26.profile-picker :categories="hire_categories"
-                     price_floor="{{ floor }}" price_ceiling="{{ ceiling }}">
-        <c-slot name="filters">…</c-slot>
-        <c-n26.collection-picker.section name="Gang List" :open="True">
-            <c-n26.collection-picker.category name="Leaders">
-                <c-n26.profile-picker.row :entry="entry" />
-            </c-n26.collection-picker.category>
-        </c-n26.collection-picker.section>
-    </c-n26.profile-picker>
-
-<c-n26.collection-picker> with hiring's vocabulary on it: a Profile is an
-assignable, so a gang list is a collection like any other. All this component
-adds is the noun and a tabbed default — sections as a tab strip rather than
-stacked collapsibles.
-
-`categories` fills the filter menu, and `sections` is read only when `tabs` is
-on. The `filters` slot renders inside the shell's Alpine scope.
+Forwards filters, the default slot, and empty to collection-picker. Sections and categories still need that picker's nested children.
+tabs is passed through explicitly. An empty value here would override collection-picker and quietly untab the list.
+Does not pass tp_ceiling, so lowering trade points cannot hide exclusive profiles.
 {% endcomment %}
+
 <c-vars
     :categories="[]"
     :sections="[]"
-    {% comment %}
-    Declared here because tabs is passed through explicitly below. An empty
-    default would override the collection picker default and quietly untab
-    every gang list. Cotton tokenises this whole attribute region, so a
-    comment here must carry no quote marks, apostrophes or angle brackets.
-    {% endcomment %}
+
     tabs="1"
     price_floor="0"
     price_ceiling="9999"

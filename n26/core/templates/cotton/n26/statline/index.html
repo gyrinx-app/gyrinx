@@ -1,33 +1,15 @@
 {% comment %}
-<c-n26.statline> — a set of characteristics as a table.
+<c-n26.statline> — A characteristic table, as a single strip or as stacked book groups.
 
-    {# one strip: a weapon profile, or a fighter where space is tight #}
-    <c-n26.statline :statline="profile.statline" />
-
-    {# the rulebook's layout: a row pair per group, Type and XP filling the rest #}
-    <c-n26.statline :statline="card.statline" layout="book"
-                    type_line="Fighter (Leader)" xp="61" />
-
-Two layouts. `strip` puts every characteristic on one row, which is what a weapon
-profile wants; `book` breaks at each group — M–Sv above Ld–Int, as printed — and
-spends the last row's leftover columns on the type line and XP. Where the groups
-break comes from is_first_of_group on StatlineTypeStat and the tint from
-is_highlighted, so both are the content's decision, not this component's.
-
-Not built on c-ui.table: that component styles itself through descendant
-variants like [&_th]:text-ink-500, which outrank any class from a call site, so
-its left-aligned data grid cannot be turned into a centred characteristic strip.
-
-Scrolls horizontally rather than wrapping — thirteen characteristics do not fit
-a phone, and a statline that reflows stops reading as a row.
-
-  :statline — a n26.render.Statline.
-  layout — strip (default) or book.
-  type_line — book only; the last row's trailing cells.
-  xp, xp_target — passed apart, not as one "61/79" string, so the target can be
-    muted and each can carry a tooltip saying what it is. Without a target, xp stands
-    alone.
+The arith tag library is required. sub and at_least are not Django built-ins; a missing load leaves the colspan blank.
+Book layout pads Type and XP onto the last group. type_line is the switch; XP without it is omitted.
+The Type colspan is the first group's width minus this group's, minus one for XP, floored at one.
+A last group as wide as the first still needs that floor, or Type disappears and the HTML colspan is invalid.
+Not built on c-ui.table. Its descendant variants outrank any class from a call site, so the cells cannot be centred.
+Book layout keeps headers in tbody. HTML allows only one thead, and each group needs its own header row.
+Pass xp and xp_target separately. A single joined string cannot mute the target or give each a tooltip.
 {% endcomment %}
+
 {% load arith %}
 <c-vars
     :statline="None"
@@ -41,14 +23,7 @@ a phone, and a statline that reflows stops reading as a row.
 <div class="overflow-x-auto {{ class }}">
     <table class="w-full border-collapse text-sm">
         {% if layout == "book" %}
-            {% comment %}
-            One tbody with <th> rows inside it, because HTML allows only one thead.
 
-            The widest group sets the column count; Type spans what the last group
-            leaves, less one for XP. The subtraction needs the filters in
-            core/templatetags/arith.py, and is floored at 1 because a colspan of 0
-            is invalid.
-            {% endcomment %}
             <tbody>
                 {% for group in statline.groups %}
                     {% with wide=statline.groups.0|length narrow=group|length %}
@@ -69,14 +44,10 @@ a phone, and a statline that reflows stops reading as a row.
                                     <c-slot name="trailing">
                                         <td colspan="{{ wide|sub:narrow|sub:1|at_least:1 }}"
                                             class="border-l border-box-border px-2 py-0.5 text-center text-ink-900 dark:text-ink-100">{{ type_line }}</td>
-                                        {% comment %}
-                                        inline-flex so the three parts sit tight:
-                                        a flex container drops whitespace-only
-                                        children, which stops the newlines in this
-                                        markup becoming gaps around the slash.
-                                        {% endcomment %}
+
                                         <td class="border-l border-box-border px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100">
                                             {% if xp_target %}
+                                                {# inline-flex drops whitespace-only children, so newlines here do not become gaps around the slash. #}
                                                 <span class="inline-flex items-baseline">
                                                     <c-ui.tooltip size="sm" content="Current">{{ xp }}</c-ui.tooltip>
                                                     <span class="text-muted">/</span>

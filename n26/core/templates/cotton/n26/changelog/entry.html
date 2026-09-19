@@ -1,20 +1,12 @@
 {% comment %}
-<c-n26.changelog.entry> — one update: a short title, two lines of rich text, a date.
+<c-n26.changelog.entry> — one changelog line: title, date, and a two-line body preview.
 
-    <c-n26.changelog.entry title="Vehicles" date="6 Aug"
-                           href="/changelog/vehicles/" :body="entry.body" />
-
-The title opens the entry. Links in the rich-text summary remain independent
-destinations, so the row is not covered by a stretched link.
-
-The body is sanitised here rather than at each call site. It is clamped to two
-small-text lines; the full text is one click away.
-
-  title — the short header.
-  date — when. Stays beside the title at phone width.
-  href — the entry.
-  body — stored rich text, sanitised before rendering.
+The title is always a link. Pass href or the heading goes nowhere.
+n26-clamp-2 in app.css cuts the rich text at two lines and zeroes inner block margins.
+Do not stretch a link over the whole entry. Links in the body must stay independent destinations.
+rich-text sanitises the body here, so call sites do not each have to.
 {% endcomment %}
+
 <c-vars title="" date="" href="" body="" class="" />
 
 <div class="px-1 py-3 {{ class }}">

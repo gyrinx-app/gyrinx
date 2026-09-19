@@ -1,60 +1,20 @@
-{% load listing %}
 {% comment %}
-<c-n26.collection-picker.item> — one row: what it is, what it asks, what you can do.
+<c-n26.collection-picker.item> — One priced line in a collection picker, with optional notes, nested options, and a deferred details pane.
 
-    <c-n26.collection-picker.item name="Autopistol" :price="10" :trade_points="0" keywords="pistol">
-        <c-slot name="icon"><c-n26.icon name="check" /></c-slot>
-        <c-slot name="actions"><c-ui.button size="sm" variant="success">Add</c-ui.button></c-slot>
-    </c-n26.collection-picker.item>
-
-Registers its facets with <c-n26.collection-picker> on init and shows itself
-only while they pass, so a row and the counts above it are filtered from one
-object and cannot disagree. Price, trade points and exclusivity are props
-rather than markup for that reason: the picker has to read them.
-
-One row at every width. The name is the only thing that gives ground;
-everything else is shrink-0, so the actions stay put and stay hittable.
-
-  name — shown, and searched.
-  :price — credits. What the price filter caps.
-  :trade_points — what a post charging them asks instead.
-  :exclusive — equipment list only. Shows "E", and drops out as soon as the
-    trade-points filter narrows, following n26.browse.narrow.
-  details — the row opened: a model card, a picture, a form. Given one, the
-    name grows a disclosure button, and the content is built only once opened.
-  :disclosure — draw that button. Off where the row's own actions set
-    `expanded` instead, so there are not two controls saying one thing.
-  :open — render details open on the server. URL-driven rows use this so
-    their controls remain available without JavaScript.
-  details_label — what the disclosure says it will show: "card", "details".
-  rows — further rows under this one, always visible. For options a reader
-    chooses between, which is not something to hide.
-  keywords — extra searchable text that is not on screen.
-  icon — a small leading mark, after the name.
-  meta — extra content after the name, before the actions.
-  actions — buttons. Keep them small; there is one of these per row.
-  price_control — markup for the price column instead of the figure. :price is
-    still required and is still what the filter reads, so filtering cannot
-    disagree with itself while a reader is typing in the control.
-  row_key — what this row is a row for, in the caller's own words. Counted
-    under it, and findable by it, so a row redrawn in place replaces itself
-    rather than arriving as a second row. A listing draws one row per key.
-  :redrawn — this row was drawn on its own, to stand in for the one of its
-    name already on a page nobody is rebuilding. It needs a row_key to stand
-    in for anything.
-  state — extra Alpine state merged into this row's scope, as object-literal
-    properties. The row's slots render inside it, so this is how price_control
-    and the rows slot share anything; an x-data inside a slot would put them in
-    sibling scopes that cannot see each other.
-
-Every slot is declared below as well as described here, and must stay that way.
-A slot a component draws but never declares is not empty when nobody fills it:
-the name falls through to whatever the rendering page holds under that
-spelling. This row is drawn by the partial update as well as by the page, and
-that update walks a context variable called `rows` while an owned row fills no
-`rows` slot — so the undeclared name printed the update's own list of rows
-inside the row it had just delivered.
+Must sit inside a section. x-init copies sectionName and categoryName into the facets it registers.
+Pass extra Alpine fields through state as bare properties, not a wrapped object.
+When open is false, details stay out of the DOM until expanded. Open true keeps them mounted.
+redrawn and row_key together mark the line for an HTMX out-of-band swap onto the same id.
+n26-cp-inset matches the category gutter width, so hanging options line up with category text.
+Exclusive lines show E and skip the trade-points figure.
+Every slot this line draws must stay in c-vars. An undeclared slot is not empty. The name falls through to the page context.
+A partial that walks a context variable called rows would then print that list inside the line.
+price_control replaces the figure. :price is still required, and is still what the filter reads.
+Details bring their own inset. This pane does not indent, because a card with its own edge would look stepped twice.
 {% endcomment %}
+
+{% load listing %}
+
 <c-vars
     name=""
     :price="0"
@@ -77,6 +37,7 @@ inside the row it had just delivered.
     rows=""
 />
 
+{# state is spliced as fields. A wrapped object here is a syntax error in x-data. #}
 <div x-data="{ facets: {
         name: {{ name|json_dumps }},
         price: {{ price|default:0 }},
@@ -89,40 +50,22 @@ inside the row it had just delivered.
      x-init="
         facets.section = sectionName;
         facets.category = categoryName || sectionName;
-        {% comment %}
-        A row's section and category are searchable too, folded in and
-        lowercased once here rather than compared per keystroke: the predicate
-        runs over every item on every letter typed.
-        {% endcomment %}
+
         facets.search = [facets.search, categoryName, sectionName]
             .filter(Boolean).join(' ').toLowerCase();
         register({{ row_key|json_dumps }}, facets)"
      x-show="matches(facets)"
-     {% comment %}
-     A name the server can address this row by when it sends back a redrawn
-     one. Slugified because the key holds a colon and a dot, which an id is
-     allowed to carry but a selector then has to escape.
-     {% endcomment %}
+
+     {# listing.row_dom_id must match the partial that swaps this line, or HTMX cannot find it. #}
      {% if row_key %}id="{{ row_key|row_dom_id }}" data-row="{{ row_key }}"{% endif %}
-     {% comment %}
-     A row drawn on its own, to stand in for the one of this name already on
-     the page. The page it is going back to is not being rebuilt, so the row
-     has to say that it replaces rather than joins.
-     {% endcomment %}
+
      {% if redrawn and row_key %}hx-swap-oob="true"{% endif %}
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
     <div class="flex min-h-9 items-center gap-2">
 
-    {% comment %}
-    A chevron marks a tier — a section or a category — so a row carries a rail
-    in its place and says what it opens in words instead.
-    {% endcomment %}
     <span class="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-900 dark:text-ink-100">
         <span class="n26-cp-rail" aria-hidden="true"></span>
-        {% comment %}
-        The name wraps on a phone and truncates from sm up: it is the one thing
-        on the row that cannot be recovered by looking elsewhere.
-        {% endcomment %}
+
         <span class="min-w-0 font-semibold sm:truncate">{{ name }}</span>
 
         {% if icon %}<span class="n26-icon-inline shrink-0 text-muted">{{ icon }}</span>{% endif %}
@@ -142,11 +85,6 @@ inside the row it had just delivered.
 
     {% if meta %}<span class="shrink-0">{{ meta }}</span>{% endif %}
 
-    {% comment %}
-    Freely available items draw nothing here, so the hard-to-find ones have
-    something to stand out against. Exclusive prints "E": equipment list only,
-    not a point on the trade-points scale.
-    {% endcomment %}
     {% if exclusive %}
         <span class="shrink-0 text-xs font-semibold tabular-nums text-ink-900 dark:text-ink-100"
               title="Exclusive — equipment list only">E</span>
@@ -155,10 +93,6 @@ inside the row it had just delivered.
               title="{{ trade_points }} trade points">{{ trade_points }}TP</span>
     {% endif %}
 
-    {% comment %}
-    Fixed width, so a 5¢ row and a 145¢ row put their buttons in the same
-    place.
-    {% endcomment %}
     <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">{% if price_control %}{{ price_control }}{% else %}{{ price }}¢{% endif %}</span>
 
     {% if actions %}<span class="flex shrink-0 items-center gap-1">{{ actions }}</span>{% endif %}
@@ -166,34 +100,19 @@ inside the row it had just delivered.
 
     {% if rows %}<div class="n26-cp-inset">{{ rows }}</div>{% endif %}
 
-    {% comment %}
-    A note's level says how loudly to draw it and never blocks anything, so the
-    loudest this gets is a mark and a heavier weight.
-    {% endcomment %}
     {% for note in notes %}
         <div class="n26-cp-inset pb-1 text-xs {% if note.level == 'error' %}font-semibold{% endif %} text-ink-900 dark:text-ink-100">
             {% if note.level != "info" %}<span class="text-muted">!</span> {% endif %}{{ note.text }}
         </div>
     {% endfor %}
 
-    {% comment %}
-    Closed details stay in an x-if so Alpine does not bind every hidden row.
-    URL-open details are rendered directly so they remain available without
-    JavaScript.
-    {% endcomment %}
-    {% comment %}
-    The details block imposes no indent of its own: what opens here ranges
-    from a bordered card that draws its own edge — where an indent reads as
-    a layout mistake — to a plain list of lines that needs one to say it
-    belongs to the row above. Content that needs the step brings its own
-    n26-cp-inset.
-    {% endcomment %}
     {% if details %}
         {% if open %}
             <div x-show="expanded" x-collapse>
                 <div class="pb-2 pt-1">{{ details }}</div>
             </div>
         {% else %}
+            {# x-if keeps a closed model card out of the DOM until the reader opens it. #}
             <div x-show="expanded" x-collapse x-cloak>
                 <template x-if="expanded">
                     <div class="pb-2 pt-1">{{ details }}</div>

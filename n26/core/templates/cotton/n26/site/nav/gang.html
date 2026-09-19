@@ -1,28 +1,17 @@
 {% comment %}
-<c-n26.site.nav.gang> — one of the reader's gangs, in the navigation drawer.
+<c-n26.site.nav.gang> — One gang in the navigation drawer, as a single link.
 
-    <c-n26.site.nav.gang href="/n26/gangs/1/" name="The Ashen Choir" type="Escher"
-                         colour="teal" />
-
-The name on one line and the type, quieter, under it. The whole row is one
-anchor, so its accessible name is the name and the type read together; neither
-the colour mark nor the type's artwork adds to it, both being aria-hidden.
-
-  type_icon — the gang type's stored artwork, as SVG source. Empty draws nothing.
-  colour — the gang's colour, as a mark before the name. Empty draws nothing, so
-    a drawer where few gangs have one keeps its left edge.
+Nested interactive content inside this link is invalid HTML.
+Keep the colour mark inside the name span. A column of its own would indent the type when colour is empty.
 {% endcomment %}
+
 <c-vars href="#" name="" type="" type_icon="" colour="" class="" />
 
 <a href="{{ href }}"
    {{ attrs }}
    class="flex flex-col rounded-control px-3 py-2 transition-colors
           hover:bg-ink-100 dark:hover:bg-ink-800 {{ class }}">
-    {% comment %}
-    The mark sits inside the name's span rather than in a column of its own: a
-    column would hold space whether or not the gang has a colour, and the type
-    line below would then start indented from the row's left edge.
-    {% endcomment %}
+
     <span class="truncate text-sm text-ink-700 dark:text-ink-300"><c-n26.color-swatch color="{{ colour }}" />{{ name }}</span>
     {% if type %}
         <span class="truncate text-xs text-ink-500 dark:text-ink-400"><c-n26.flair-link text="{{ type }}" tone="current"><c-n26.flair.gang-type :icon="type_icon" /></c-n26.flair-link></span>

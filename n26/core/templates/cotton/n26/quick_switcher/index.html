@@ -1,53 +1,19 @@
 {% comment %}
-<c-n26.quick-switcher> — the thing you are looking at, and a short way to its
-siblings.
+<c-n26.quick-switcher> — A searchable menu of destinations or in-page choices, with keyboard highlight and a no-JS list.
 
-    <c-n26.quick-switcher label="The Ashen Choir" href="/n26/gangs/1/"
-                          heading="Switch gang" placeholder="Search gangs">
-        <c-n26.quick-switcher.item label="Pit of Teeth" href="/n26/gangs/2/" />
-    </c-n26.quick-switcher>
+Fill the default slot with item or choice children. Each child must call register on this scope.
 
-A ghost button group: a link to the thing you are on, joined to a chevron that
-opens the rest. Without a `label` only the chevron is drawn, which is the shape
-for a placement whose heading already says what is current. The label is what
-gives ground in a tight row — it ellipsises — so the chevron stays a control.
+<c-n26.quick-switcher heading="Switch" label="The Goliaths">
+    <c-n26.quick-switcher.item label="..." href="..." />
+</c-n26.quick-switcher>
 
-The panel is the kit's dropdown and stays hidden until Alpine runs, so the same
-rows are drawn again in a <noscript> strip below. Every row is a real <a>
-either way: the filter narrows what is already on the page and fetches nothing.
-
-fit() places the panel itself, fixed and clamped inside the window, against the
-rectangle of the [data-quick-switcher] root — so anything wrapped around this
-component must leave that root reachable. The kit writes offsets of its own on
-open, scroll and resize and they are wrong for a fixed box; those listeners are
-dropped and replaced, so a scroll that started inside the panel is not treated
-as the switcher leaving the window. Rewriting position:fixed mid-gesture
-can interrupt scrolling. The dropdown is the only scroll container; its
-search field stays pinned while the destinations scroll underneath it.
-Its height follows the visible viewport, including the on-screen keyboard.
-
-Focus lands in the filter box and never leaves it: Down and Up move a
-highlight, Enter clicks the highlighted row, Escape clears the filter before it
-closes the panel, and the box points at the highlighted row with
-aria-activedescendant so the tinted row and the spoken one agree.
-
-  label, href, icon — the leading link. Without a label there is no link.
-  heading — what the panel is for. Spoken as the chevron's accessible name,
-    never drawn. menu_label overrides it and is what a chevron standing alone
-    has instead of a neighbour's words.
-  placeholder — the filter's placeholder, and its accessible name.
-  empty — what to show when the filter matches nothing.
-  hotkey — a single letter; ⌥⇧ with it opens and closes the panel from
-    anywhere on the page, and the tooltip and aria-keyshortcuts say so. Matched
-    on the physical key. One letter per page: two controls sharing a chord both
-    open.
-  align — which edge of the switcher the panel hangs from: start or end.
-  min_width — the panel's minimum width, as a CSS length. Capped at the
-    window's width, which a wider minimum would otherwise beat.
-  trigger_words — markup inside the chevron's own button, before the glyph, for
-    a switcher with no label link. Drawn small and muted whatever is passed.
-  slot — the destinations, as <c-n26.quick-switcher.item>.
+The default slot is drawn twice: once in the menu and once inside noscript.
+hotkey is one letter. The listener is Alt+Shift+that letter, on window capture.
+Two colons pass a binding to Alpine. One colon is a cotton prop and Alpine never sees it.
+One letter per page. Two controls sharing that chord both open.
+fit() measures the [data-quick-switcher] root. Wrapping markup must leave that node reachable.
 {% endcomment %}
+
 <c-vars label=""
         href=""
         icon=""
@@ -62,18 +28,11 @@ aria-activedescendant so the tinted row and the spoken one agree.
         class="" />
 <div {{ attrs }} data-quick-switcher class="inline-block min-w-0 max-w-full {{ class }}">
     <c-n26.button-group class="min-w-0 max-w-full">
-        {% comment %}
-        The padding is overridden rather than taken from a smaller size, which
-        would shrink the text with it. Marked important: two plain padding
-        utilities are settled by the order Tailwind emitted them.
 
-        min-w-0 overflow-hidden: the kit button is whitespace-nowrap, so
-        without both the label's min-content is the whole word and a row
-        that has run out of room pushes the chevron off instead of
-        ellipsising. Overflow is hidden on this half only — the panel
-        lives on the chevron, and hiding overflow around that clips it.
-        {% endcomment %}
         {% if label %}
+            {# min-w-0 overflow-hidden: the kit button is whitespace-nowrap, so without both the label pushes the chevron off the row. #}
+            {# Overflow is hidden on this half only. Hiding it around the chevron would clip the panel. #}
+            {# Padding is marked important. Two plain padding utilities are settled by the order Tailwind emitted them. #}
             <c-ui.button variant="ghost" size="sm" class="min-w-0 overflow-hidden px-2!" href="{{ href }}">
                 <span class="flex min-w-0 items-center gap-1.5">
                     {% if icon %}
@@ -87,14 +46,8 @@ aria-activedescendant so the tinted row and the spoken one agree.
         <c-ui.dropdown align="{{ align }}"
                        min_width="min({{ min_width }}, calc(100vw - 1rem))">
             <c-slot name="trigger">
-                {% comment %}
-                The chevron carries an accessible name of its own, because the
-                label beside it is optional. aria-expanded is bound, because
-                the open state lives in the dropdown's Alpine scope.
 
-                shrink-0: the switcher goes in rows that run out of room, and
-                the label is what gives ground.
-                {% endcomment %}
+                {# Two colons pass this to Alpine. One colon would bind a cotton prop and the menu state would never reach the button. #}
                 <c-ui.button variant="ghost"
                              size="sm"
                              class="shrink-0 {% if trigger_words.strip %}inline-flex items-center gap-1.5 px-2!{% else %}px-1.5!{% endif %}"
@@ -103,12 +56,7 @@ aria-activedescendant so the tinted row and the spoken one agree.
                              aria-keyshortcuts="{% if hotkey %}Alt+Shift+{{ hotkey|upper }}{% endif %}"
                              aria-haspopup="menu"
                              ::aria-expanded="dropdownMenu">
-                    {% comment %}
-                    The button becomes a flex row to hold these words: the
-                    glyph's .n26-icon-only is display:flex, so among inline
-                    content it starts a line of its own and the words end up
-                    stacked above the chevron.
-                    {% endcomment %}
+
                     {% if trigger_words.strip %}<span class="text-xs text-muted">{{ trigger_words }}</span>{% endif %}
                     <span class="n26-icon-only">
                         <c-n26.icon name="chevron-down"
@@ -118,16 +66,9 @@ aria-activedescendant so the tinted row and the spoken one agree.
                     </span>
                 </c-ui.button>
             </c-slot>
-            {% comment %}
-            The panel's own scope. Every row reads `matches` and the empty
-            message reads `shown`, so the list and the message are one
-            computation.
 
-            The ids are minted from one x-id root so the filter box and the
-            rows agree on them: $id otherwise counts per element, and the box
-            would point at a list id nothing has.
-            {% endcomment %}
             <div x-id="['n26-switcher']"
+                 {# One x-id root so the filter box and the rows agree. $id otherwise counts per element and the box points at nothing. #}
                  x-data="{
                      query: '',
                      items: [],
@@ -147,9 +88,8 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          const q = this.query.trim().toLowerCase();
                          return !q || facets.search.includes(q);
                      },
-                     // The highlight walks the rows the filter lets through,
-                     // never all of them: a position in the whole list counts
-                     // rows nobody can see and lands on one of them.
+                     // The highlight walks the rows the filter lets through, never all of them.
+                     // A position in the whole list counts rows nobody can see and lands on one of them.
                      get visible() { return this.items.filter(row => this.matches(row)) },
                      get shown() { return this.visible.length },
                      highlight(id) { this.active = id },
@@ -166,9 +106,9 @@ aria-activedescendant so the tinted row and the spoken one agree.
                      keys(event) {
                          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                              // The panel around this box handles an arrow key
-                             // by putting real focus on a row, which would
-                             // take the caret out of the box mid-word. Kept
-                             // from it; the highlight moves instead.
+                             // by putting real focus on a row.
+                             // That would take the caret out of the box mid-word.
+                             // Kept from it; the highlight moves instead.
                              event.preventDefault();
                              event.stopPropagation();
                              this.move(event.key === 'ArrowDown' ? 1 : -1);
@@ -186,7 +126,7 @@ aria-activedescendant so the tinted row and the spoken one agree.
                              row.el.click();
                          } else if (event.key === 'Escape') {
                              // Kept from the window listener that closes the
-                             // panel: a filter with something in it is the
+                             // panel. A filter with something in it is the
                              // smaller thing to undo, and Escape again still
                              // leaves.
                              event.stopPropagation();
@@ -221,13 +161,13 @@ aria-activedescendant so the tinted row and the spoken one agree.
                      },
                      fit() {
                          const panel = this.$el.parentElement;
-                         // A panel still opening has no width to measure, and
-                         // coming back next frame rather than giving up is
-                         // what places it the first time it opens. Bounded,
-                         // and only while open, so a panel that never gains
-                         // width cannot spin; invisible until placed, so the
-                         // frames spent waiting do not show it wherever the
-                         // kit's own writes left it.
+                         // A panel still opening has no width to measure.
+                         // Coming back next frame rather than giving up is
+                         // what places it the first time it opens.
+                         // Bounded, and only while open, so a panel that never
+                         // gains width cannot spin.
+                         // Invisible until placed, so the frames spent waiting
+                         // do not show it wherever the kit left it.
                          if (!panel.offsetWidth) {
                              if (this.dropdownMenu && this.tries < 30) {
                                  this.tries += 1;
@@ -247,14 +187,16 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          const drop = viewport ? viewport.height : document.documentElement.clientHeight;
                          const anchor = panel.closest('[data-quick-switcher]').getBoundingClientRect();
                          // Fixed, so the window is the panel's containing
-                         // block: the width it is offered does not depend on
-                         // where it sits, and a box mid-placement cannot widen
-                         // the page or add a horizontal scrollbar.
+                         // block. The width it is offered does not depend on
+                         // where it sits.
+                         // A box mid-placement cannot widen the page or add
+                         // a horizontal scrollbar.
                          panel.style.position = 'fixed';
-                         // The cap uses the same measured width as the clamp:
+                         // The cap uses the same measured width as the clamp.
                          // 100vw counts a scrollbar the window's usable width
-                         // does not, and the difference is exactly a panel at
-                         // full cap poking out by a scrollbar.
+                         // does not.
+                         // The difference is a panel at full cap poking out
+                         // by a scrollbar.
                          panel.style.maxWidth = room - 2 * this.gutter + 'px';
                          // A minimum beats a maximum, including when pinch
                          // zoom makes the visual viewport narrower.
@@ -264,8 +206,9 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          panel.style.transform = '';
                          // Parked at the gutter to be measured, where the
                          // window offers all the room the clamp could ever
-                         // leave it, so the width read is the content's own
-                         // and not an artefact of the previous placement.
+                         // leave it.
+                         // The width read is the content's own, not an
+                         // artefact of the previous placement.
                          panel.style.left = left + this.gutter + 'px';
                          panel.style.top = '0px';
                          const width = panel.offsetWidth;
@@ -299,7 +242,7 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          });
                          // Scroll as well as resize: a fixed box stays put
                          // while the switcher scrolls away from under it.
-                         // An inner scroll is the list moving — refitting
+                         // An inner scroll is the list moving. Refitting
                          // would rewrite position:fixed and cancel it.
                          this.refit = (event) => {
                              if (!this.dropdownMenu) return;
@@ -321,13 +264,16 @@ aria-activedescendant so the tinted row and the spoken one agree.
                          window.addEventListener('scroll', this.refit, true);
                          {% if hotkey %}
                          // On the window, capture phase: the chord has to
-                         // reach this control from wherever focus is, and on
-                         // the way up any handler could stop it first. The
-                         // letter is matched two ways because neither covers
-                         // everyone: with ⌥ held, event.key is whatever glyph
-                         // the layout types; event.code is the physical key,
-                         // which a remapped layout moves, and keyCode follows
-                         // the letter wherever the layout put it.
+                         // reach this control from wherever focus is.
+                         // On the way up any handler could stop it first.
+                         // The letter is matched two ways because neither
+                         // covers everyone.
+                         // With Alt held, event.key is whatever glyph the
+                         // layout types.
+                         // event.code is the physical key, which a remapped
+                         // layout moves.
+                         // keyCode follows the letter wherever the layout
+                         // put it.
                          this.chord = (event) => {
                              if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey) return;
                              if (event.code !== 'Key{{ hotkey|upper }}' && event.keyCode !== '{{ hotkey|upper }}'.charCodeAt(0)) return;
@@ -352,15 +298,9 @@ aria-activedescendant so the tinted row and the spoken one agree.
                  @touchend="touchY = null; touchX = null"
                  @touchcancel="touchY = null; touchX = null"
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
-                {% comment %}
-                The filter box owns the arrow keys and never gives focus up:
-                it points at the highlighted row with aria-activedescendant
-                instead, so the caret stays in the words being typed.
-                aria-controls is what makes that legal — the row it points at sits
-                outside the box, so the box has to say which list it is naming
-                a row in.
-                {% endcomment %}
+
                 <div x-ref="filterHeader" class="sticky top-0 z-10 border-b border-box-border bg-white p-2 dark:bg-ink-900">
+                    {# aria-controls makes aria-activedescendant legal. The row it names sits outside this box. #}
                     <c-ui.input type="search"
                                 size="sm"
                                 placeholder="{{ placeholder }}"
@@ -376,28 +316,16 @@ aria-activedescendant so the tinted row and the spoken one agree.
                         </c-slot>
                     </c-ui.input>
                 </div>
-                {% comment %}
-                No negative bottom margin here, however tidy it would make the
-                last row's rule: it shrinks this box's layout height but not
-                the overflow it leaves in the panel, so a list that fits gains
-                a scrollbar and one pixel of scroll.
-                {% endcomment %}
+
                 <div :id="$id('n26-switcher') + '-list'">{{ slot }}</div>
-                {% comment %}
-                x-cloak, so a reader with no script never sees a line about a
-                filter they do not have.
-                {% endcomment %}
+
                 <p x-show="shown === 0"
                    x-cloak
                    class="px-3 py-4 text-center text-sm text-muted">{{ empty }}</p>
             </div>
         </c-ui.dropdown>
     </c-n26.button-group>
-    {% comment %}
-    The same destinations, drawn flat for a reader whose browser ran no script
-    and so has no panel to open. No filter box with them: a filter that cannot
-    filter is a field that swallows typing and does nothing.
-    {% endcomment %}
+
     <noscript>
         <div class="mt-2 w-72 max-w-full overflow-hidden rounded-box border border-box-border">
             <div>{{ slot }}</div>

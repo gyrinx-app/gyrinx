@@ -1,27 +1,10 @@
 {% comment %}
-<c-n26.gang-figures> — the numbers a spending decision is made against.
+<c-n26.gang-figures> — Roster count beside the gang's wealth strip.
 
-    <c-n26.gang-figures :gang="gang" :summary="summary" />
-
-The roster count, then the money. Drawn on the gang sheet, above the hire
-list and in the model screens' header, since hiring and buying are decided
-against how many models the gang fields and what it has left to spend.
-
-The count is <c-n26.roster-summary>, so the figure a reader glances at is also
-the control holding the roster's own arithmetic. It is not wealth, so the money
-is fenced off by the rule <c-n26.wealth> documents for this seam. The rule takes
-no padding: every cell carries its own already.
-
-The money is <c-n26.gang-figures.wealth>, which carries a fixed id: a screen
-that updates without a rebuild replaces the money by that name, and only the
-money — an act on kit never changes how many models there are.
-
-  :gang — anything carrying the four worth figures; the Gang model does, and so
-    does a rendered GangSheet.
-  :summary — a n26.render.RosterSummary. The count comes off it, so nothing has
-    to be told twice how many models there are.
-  trade_points_href — passed through to <c-n26.wealth>; see there.
+Keep the count outside the wealth wrapper. A purchase replaces the money figures and must not rebuild the model count.
+Pass gang as any object with the wealth field names. A Gang and a GangSheet both work.
 {% endcomment %}
+
 <c-vars :gang="None" :summary="None" trade_points_href="" class="" />
 
 <div {{ attrs }} class="flex items-center gap-3 {{ class }}">

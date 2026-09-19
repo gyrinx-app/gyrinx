@@ -1,43 +1,20 @@
 {% comment %}
-<c-n26.radio-cards.card> — one option in a <c-n26.radio-cards> grid.
+<c-n26.radio-cards.card> — One labelled radio drawn as a card in a radio-cards group.
 
-    <c-n26.radio-cards.card name="gang_type" value="01ABC…" label="Escher (HoB)"
-                            description="Founding budget 1,000¢" :checked="True">
-        <c-slot name="flair"><c-n26.flair.gang-type :icon="type.icon" /></c-slot>
-        <c-slot name="meta">6 entries</c-slot>
-    </c-n26.radio-cards.card>
+Cards in one group must share name.
 
-Unlike <c-n26.checkbox-card>, nothing here dims while unpicked and there is no
-dependent body: in a one-of-many group every card but one is unpicked at any
-moment, so dimming would grey out the very options a reader is comparing.
+reason replaces description when the card is disabled. Both never draw together.
 
-There is no JavaScript. One-of-many is the browser's rule over a shared `name`,
-not something a card can decide about itself. The whole card is the label, so a
-click anywhere selects; the radio itself stays visible, or a grid of cards does
-not read as a question.
+example is omitted when disabled, so a blocked choice does not offer a tooltip.
 
-  name — shared across every card in the group. This is what makes it a group.
-  value — what this card submits.
-  checked — whether this is the chosen one. The server decides.
-  label — the option's name.
-  description — the muted line under it. Optional.
-  wrap — let the label and description run to several lines instead of
-    truncating, for options whose detail is a sentence rather than a phrase.
-    The badge after the name wraps with the last word; it does not hold
-    the line open.
-  example — a concrete case, revealed on hover or keyboard focus of the small
-    icon after the description, and set as its title for touch. Optional.
-  disabled — the option cannot be picked here: the radio is disabled and the
-    card dims. The server decides, exactly as it decides checked.
-  reason — the sentence saying why, drawn on a disabled card in the
-    description's place. A greyed option with no reason reads as broken.
-  flair — a badge after the label, sized in em by <c-n26.flair-link>. Optional.
-  meta — a slot at the far end of the header: a price, a count. Optional.
-  slot — lines of detail under the description, for an option that is a
-    set of rules rather than a name. Phrasing content only: the whole card
-    is a <label>, so write <span class="block"> lines, never a list.
-    Optional.
+Pass marks through the flair slot. They ride the label via c-n26.flair-link.
+
+The whole card is a label. Nested buttons or lists inside it are invalid.
+Keep the radio visible. Hide it and the grid does not read as a question.
+A disabled card needs reason. A greyed option with no sentence reads as broken.
+has-[:checked] styles the card from the real input, so it is right with no script.
 {% endcomment %}
+
 <c-vars
     name=""
     value=""
@@ -53,11 +30,6 @@ not read as a question.
     class=""
 />
 
-{% comment %}
-has-[:checked] rather than Alpine: the card is styled from the state of the real
-input inside it, so it is right before any script runs and without one. The
-accent border and tint match the kit's checkbox cards.
-{% endcomment %}
 <label {{ attrs }}
        class="flex min-w-0 items-start gap-3 rounded-box border-2 border-ink-200 p-4
               transition-[background-color,border-color]
@@ -71,11 +43,7 @@ accent border and tint match the kit's checkbox cards.
            {% if disabled %}disabled{% endif %}
            class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
     <span class="min-w-0 flex-1">
-        {% comment %}
-        The badge goes through flair-link, which sizes it in em and gives it the
-        same placement it has in a heading or a table cell. tone="current"
-        because the card's title has already set its colour.
-        {% endcomment %}
+
         <span class="block {% if not wrap %}truncate{% endif %} text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current" :wrap="wrap">{{ flair }}</c-n26.flair-link></span>
         {% if disabled and reason %}
             <span class="block text-muted">{{ reason }}</span>
@@ -86,11 +54,7 @@ accent border and tint match the kit's checkbox cards.
             <span class="mt-2 block border-t border-box-border pt-2 text-sm">{{ slot }}</span>
         {% endif %}
         {% if example and not disabled %}
-            {% comment %}
-            The example sits behind a small icon rather than on the card,
-            shown on hover or keyboard focus with no script, and set as
-            the icon's title so touch gets the browser's own tooltip.
-            {% endcomment %}
+
             <span class="group/eg relative mt-1 inline-flex" tabindex="0" title="{{ example }}">
                 <c-n26.icon name="info" class="size-4 text-muted" />
                 <span class="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-72 max-w-[70vw] rounded-control border border-[color:var(--color-box-border)] bg-white p-2.5 text-xs font-normal text-ink-900 shadow-lg group-focus-within/eg:block group-hover/eg:block dark:bg-ink-900 dark:text-ink-100">{{ example }}</span>

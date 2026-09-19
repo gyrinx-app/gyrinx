@@ -1,79 +1,16 @@
 {% comment %}
-<c-n26.pick-list> — what a thing has, and a searchable way to add to it.
+<c-n26.pick-list> — A ticked list of options, with a switcher for ones not yet on the list.
 
-    <c-n26.pick-list :offer="held" :addable="rest" name="subtypes"
-                     add_label="Add a subtype" placeholder="Search subtypes">
-        <c-slot name="actions">…Reset and Save…</c-slot>
-    </c-n26.pick-list>
-
-A list of ticked boxes, and a button that opens the rest of the library as a
-searchable panel. Click a row in the panel and its box appears in the list
-above, already ticked; clear a box and the row is offered again. Nothing is
-fetched and nothing reloads, because every box was already on the page.
-
-The panel is <c-n26.quick-switcher>, which is where a reader has already met
-this shape — a chevron, a filter box, arrow keys, Enter on the highlighted row.
-Its rows are <c-n26.quick-switcher.choice>, which report a value rather than
-navigate; the value is the option's key, because two rows can read alike and
-mean different rows.
-
-  --- the boxes are the control ---
-
-Every option is a real checkbox with the same name, ticked or not by the
-server, and the form posts exactly what it always did. The panel only ticks
-them: it adds no input of its own, so there is nothing to post that nobody
-chose, and no value can arrive that was not already on the page.
-
-  --- with no script ---
-
-The addable boxes are hidden by an inline style and shown again by a <noscript>
-rule, so a reader with no script gets one plain list of every option — the
-whole library, ticked where it is held — and the form works. The panel is
-cloaked, because a filter box and a chevron that do nothing are worse than no
-control at all. With script the same style keeps the hundred unticked boxes
-from flashing up before Alpine folds them away.
-
-  --- Save says whether there is anything to save ---
-
-With script, Save is disabled until the ticked set differs from the one the
-page arrived with. The `actions` slot renders inside this component's Alpine
-scope, which is what lets a caller bind `::disabled="!dirty"` on its own
-button. Without script `dirty` is nothing, the attribute is never added, and
-Save stays live.
-
-  --- what a fixed box means ---
-
-An option the offer marks granted, or otherwise fixed, is drawn ticked and
-disabled saying why — as <c-n26.tick-list> draws them. A disabled box submits
-nothing, so whatever applies the difference must leave those out rather than
-read their silence as a clearing.
-
-  --- one list, or a list under headings ---
-
-Left alone, the offer's groups are drawn as one run of boxes: a list of
-subtypes is a list of subtypes, and a heading over each would be the same word
-down the page. Set `grouped` where the groups are the point — skill sets, each
-sitting in a tier — and each is drawn under its own name, the way
-<c-n26.tick-list> draws them. The addable boxes stay together at the foot under
-a heading of their own, since which set a thing came from is what the panel's
-search was for.
-
-  :offer — a n26.render.ChoiceOffer: what the thing has, and anything the owner
-    has touched. Always drawn, so a row saying "taken away by you" stays where
-    it can be put back.
-  :grouped — draw each of the offer's groups under its own name and caption.
-    Off by default, for a list whose one group needs no heading.
-  added_label — the heading over the boxes that came from the panel, when
-    `grouped`. Left out, they sit under the last group as if they had always
-    been there.
-  :addable — the rest of the library, as n26.render.Choosable options. Each is
-    a box that appears once ticked, and a row in the panel until it is.
-  name — the input name every box submits under.
-  add_label — the panel's heading, and the words on the button that opens it.
-  placeholder — the filter's placeholder, and its accessible name.
-  actions — the form's buttons. Rendered inside the Alpine scope, so they may
-    read `dirty`.
+offer is a ChoiceOffer, or anything with groups of options. Each option needs key, name, and the box fields.
+addable options stay out of the layout until picked. Noscript forces them visible without Alpine.
+The switcher listens for quick-switcher-choose and ticks that key. Already picked keys must not appear as available.
+Pass commit controls in the actions slot. Whitespace-only actions are treated as absent.
+The actions slot renders inside this Alpine scope, so Save can bind ::disabled=!dirty.
+Without script, dirty is unset and Save stays live.
+The switcher adds no input of its own. Only the boxes post, so a value that was never on the page cannot arrive.
+A disabled box submits nothing. The view that applies the difference must not read that silence as a clearing.
 {% endcomment %}
+
 <c-vars :offer="None"
         :addable="None"
         name="thing"
@@ -84,11 +21,6 @@ search was for.
         actions=""
         class="" />
 
-{% comment %}
-`picked` is the ticked set and every box binds to it, so the boxes are the truth
-and this only reads them. `opened` is the set the page arrived with, kept so
-Save can say whether anything moved.
-{% endcomment %}
 <div {{ attrs }}
      x-data="{
          picked: [],
@@ -114,6 +46,7 @@ Save can say whether anything moved.
      @quick-switcher-choose="pick($event.detail.value)"
      class="{{ class }}">
     <noscript>
+        {# display:none on addable boxes is what noscript overrides. x-cloak would keep them hidden without JS. #}
         <style>
             .n26-addable { display: flex !important; }
             .n26-addable-group { display: block !important; }
@@ -122,11 +55,7 @@ Save can say whether anything moved.
     <div class="{% if grouped %}space-y-4{% else %}flex flex-col{% endif %}">
         {% for group in offer.groups %}
             {% if grouped %}
-                {% comment %}
-                A fieldset per heading, as <c-n26.tick-list> draws one: the
-                heading is what the boxes under it have in common, and the
-                caption says which tier it sits in.
-                {% endcomment %}
+
                 <fieldset>
                     <legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
                         {{ group.name }}
@@ -144,17 +73,8 @@ Save can say whether anything moved.
                 {% endfor %}
             {% endif %}
         {% endfor %}
-        {% comment %}
-        Hidden until ticked, and hidden by a style rather than by x-show alone
-        so a hundred boxes do not flash up before Alpine folds them away. The
-        noscript rule above puts them back for a reader with no script, for
-        whom this list is the only way to add anything.
 
-        Under a heading of their own where the list is grouped, so a box that
-        arrives from the panel is not read as belonging to the last group. The
-        heading goes with them: it is drawn while any of them is ticked, and a
-        reader with no script sees it over the rest of the library.
-        {% endcomment %}
+        {# n26-addable is how init tells extras from the listed boxes. Omit it and anyAdded never becomes true. #}
         {% if grouped and added_label and addable %}
             <fieldset class="n26-addable-group" style="display: none" x-show="anyAdded">
                 <legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
@@ -181,10 +101,7 @@ Save can say whether anything moved.
         {% endif %}
     </div>
     {% if addable %}
-        {% comment %}
-        Cloaked: without Alpine the panel cannot filter and its rows cannot
-        tick anything, and the full list of boxes above is the way in.
-        {% endcomment %}
+
         <div x-cloak class="mt-2">
             <c-n26.quick-switcher heading="{{ add_label }}"
                                   menu_label="{{ add_label }}"
@@ -199,5 +116,6 @@ Save can say whether anything moved.
             </c-n26.quick-switcher>
         </div>
     {% endif %}
+    {# strip treats a slot of only whitespace as empty, so a layout gap does not appear. #}
     {% if actions.strip %}<div class="mt-3">{{ actions }}</div>{% endif %}
 </div>

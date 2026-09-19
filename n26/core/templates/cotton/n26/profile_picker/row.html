@@ -1,36 +1,17 @@
 {% comment %}
-<c-n26.profile-picker.row> — one fighter you could hire, configured in place.
+<c-n26.profile-picker.row> — One hireable profile in a profile picker, with a live price and option groups.
 
-    <c-n26.profile-picker.row :entry="entry" limited="1" value="ganger" />
-
-Takes a n26.hire.HireEntry. There is exactly one Hire here, and everything
-under it configures that one hire. Which control a set of options gets is
-decided by n26.hire and not here: a group's `choose` is "one" or "any", which
-is radios or checkboxes, and the default of every one-of group is already
-marked. A set is never named — the structure carries no label to name it with.
-
-The live price and the card's address are both recomputed from the checked
-inputs on every bubbled `change`, reading `data-total` and `data-set` off the
-DOM rather than a table mirrored into Alpine. Recomputed rather than derived,
-because a getter that reads the DOM is not reactive. The sum holds because
-n26.hire prices each option against an otherwise-default selection, so a one-of
-group's default contributes zero. It is a preview: options price additively
-here, and the server prices the hire that is actually made.
-
-  limited — mark this line as counting against the composition limit. A note,
-    not a gate; refusing is the operation's job.
-  value — what this profile submits as, which turns Hire into a submit button
-    for the surrounding form and scopes this line's field names. Without it the
-    controls still work, for a call site to wire up itself.
+entry must be a HireEntry. Nested options submit as scope:group-index, where scope is value or the slugified name.
+Without value, Hire is a button and does not submit the form.
+A pick-one group with one option is skipped: it is taken unasked.
+The first drawn group has no heading. Later groups that still ask the reader do.
+mainpick follows the first group's checked input. Later groups retotal the price but do not switch the card.
+If entry.card_url is set, details load through deferred. Otherwise each option's card is inlined and shown by mainpick.
+retotal subtracts base from each ticked total. A group's default is already in the base, so it must contribute zero.
 {% endcomment %}
+
 <c-vars :entry="None" limited="" value="" field="hire" class="" />
 
-{% comment %}
-Every field is scoped by the profile, because one form holds the whole listing:
-without it the second fighter's radios would join the first fighter's group and
-picking one would silently unpick the other. The server reads the scope
-belonging to the profile that was submitted and ignores the rest.
-{% endcomment %}
 {% with scope=value|default:entry.name|slugify %}
 <c-n26.collection-picker.item
     name="{{ entry.name }}"
@@ -61,24 +42,13 @@ belonging to the profile that was submitted and ignores the rest.
         </c-slot>
     {% endif %}
 
-    {% comment %}
-    The live total, in the column a fixed price would occupy. tabular-nums so
-    the digits do not jitter as it changes.
-    {% endcomment %}
     <c-slot name="price_control">
         <span class="tabular-nums" x-text="total + '¢'">{{ entry.base_price }}¢</span>
     </c-slot>
 
-    {% comment %}
-    `type` passes through the kit's {{ attrs }}, which it renders before its own
-    hardcoded type="button"; HTML takes the first of a duplicate pair, so this
-    one wins and the button submits.
-
-    The condition sits inside the quoted value rather than wrapping the
-    attribute: cotton parses a component's attribute list itself, before Django
-    sees the template, so template tags must stay out of the list.
-    {% endcomment %}
     <c-slot name="actions">
+        {# Keep the if inside the quoted value. Cotton parses attributes before Django, so a wrapping if never runs. #}
+        {# type in attrs beats the hardcoded type=button on the kit button. HTML keeps the first of a duplicate pair. #}
         <c-ui.button size="sm" variant="success"
                      type="{% if value %}submit{% else %}button{% endif %}"
                      name="{{ field }}" value="{{ value }}">Hire</c-ui.button>
@@ -86,18 +56,11 @@ belonging to the profile that was submitted and ignores the rest.
 
     {% if entry.offers_a_choice %}
         <c-slot name="rows">
-            {% comment %}
-            One listener for the whole block rather than one per input: `change`
-            bubbles.
-            {% endcomment %}
+
             <div @change="retotal($el)">
                 {% for group in entry.groups %}
                     {% if group.offers_a_choice %}
-                        {% comment %}
-                        The heading says how many options to take and never
-                        shows the set's label. The first set gets neither heading nor
-                        rule: the fighter's own line is directly above it.
-                        {% endcomment %}
+
                         {% if not forloop.first %}
                             <div class="mt-1 flex min-h-8 items-center gap-2 border-t border-box-border pt-2">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -113,13 +76,8 @@ belonging to the profile that was submitted and ignores the rest.
                         {% endif %}
 
                         {% for option in group.options %}
-                            {% comment %}
-                            The whole line is the label, so the hit target is
-                            the line rather than a control the width of a
-                            fingertip. The surcharge follows the name rather
-                            than sitting in the price column: it is what this
-                            option adds, not a figure anybody is charged.
-                            {% endcomment %}
+
+                            {# Groups share a name per entry. Colliding names across profiles would merge their radios. #}
                             <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
                                 <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
                                        name="{{ scope }}:{{ forloop.parentloop.counter0 }}"
@@ -134,15 +92,10 @@ belonging to the profile that was submitted and ignores the rest.
                                 {% endif %}
                             </label>
                         {% endfor %}
-                        {% comment %}
-                        A radio cannot be unchecked once one in the group is
-                        checked, so a one-or-none set needs "None" as a real
-                        option to make taking nothing pickable. It is checked
-                        from the start, its data-total is the base so it adds
-                        nothing, and its empty value is what the submission
-                        parser skips.
-                        {% endcomment %}
+
                         {% if group.choose == "one-or-none" %}
+                            {# A radio cannot be unchecked, so a one-or-none group needs a None option. #}
+                            {# Empty value is what the submit parser skips. data-total is the base, so this pick adds nothing. #}
                             <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
                                 <input type="radio"
                                        name="{{ scope }}:{{ forloop.counter0 }}"
@@ -160,18 +113,9 @@ belonging to the profile that was submitted and ignores the rest.
         </c-slot>
     {% endif %}
 
-    {% comment %}
-    The card of the fighter as currently configured, which is a card per
-    *combination* — too many to draw up front, so it is fetched from the
-    address rebuilt by retotal() above.
-
-    An entry whose options carry no card_url has nothing to fetch from (the
-    gallery's sample data) and falls back to the cards the entry was built
-    with. Those are one per main-pick option, so further sets do not show on
-    such a line.
-    {% endcomment %}
     <c-slot name="details">
         {% if entry.card_url %}
+            {# follows card, which retotal rewrites as options are ticked. A static url would ignore the ticks. #}
             <c-n26.deferred url="{{ entry.default_option.card_url }}" follows="card" />
         {% else %}
             {% for option in entry.options %}

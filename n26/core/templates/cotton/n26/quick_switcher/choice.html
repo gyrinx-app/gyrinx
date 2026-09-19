@@ -1,61 +1,28 @@
 {% comment %}
-<c-n26.quick-switcher.choice> — one row in the switcher's list that changes the
-page instead of going somewhere.
+<c-n26.quick-switcher.choice> — An in-page option in a quick switcher that reports its value and closes.
 
-    <c-n26.quick-switcher heading="Which section" menu_label="More sections">
-        <c-n26.quick-switcher.choice label="Wargear"
-                                     current_value="visibleSection"
-                                     available="countInSection(label) !== 0" />
-    </c-n26.quick-switcher>
-
-The sibling of <c-n26.quick-switcher.item>, for a switcher whose alternatives
-are states of the page rather than destinations. Everything around it — the
-panel, its placement, the filter box, the arrow keys — is unchanged.
-
-A <button>, not a link with a dead href: a link that goes nowhere is offered as
-a place, opens nothing in a new tab, and is read aloud as a lie. Enter still
-works, because the panel clicks the highlighted row.
-
-Clicking dispatches a bubbling `quick-switcher-choose` carrying what this row
-stands for, and the caller listens for it on whatever holds the switcher. Which
-row is current is bound rather than fixed at render, since the choice takes
-effect without a reload; the comparison is the caller's to write.
-
-  label — what the row says, and what the filter matches.
-  value — what the row reports and is compared on. Defaults to the label, which
-    is right where the words are the thing. Set it where they are not: two rows
-    may read alike and mean different things, and a caller acting on the words
-    would act on whichever it found first.
-  current_value — an Alpine expression holding the choice in force. This row is
-    current while that equals its value; left out, no row is ever marked.
-  available — an Alpine expression; the row is drawn only while it is true, and
-    `label` is in scope so a caller can ask about this row. An unavailable row
-    is still reachable by the arrow keys, so a caller offering rows that come
-    and go must handle a choice it cannot honour.
-  icon — a c-n26.icon name before the label.
+Must sit inside quick-switcher. Click dispatches quick-switcher-choose with value, then closes.
+available and current_value are Alpine expressions interpolated into JS. Pass them as strings, not Python flags.
+value defaults to label. The parent that listens must treat that as the identity.
+available hides the row. Arrow keys still walk it, so a caller must handle a choice it cannot honour.
+A button, not a link with a dead href. A link that goes nowhere is offered as a place and is read as a lie.
+Each row draws its own bottom rule. Filtering hides rows without removing them, and divide-y would leave a rule above a gap.
 {% endcomment %}
+
 <c-vars label="" value="" current_value="false" available="true" icon="" class="" />
 
-{% comment %}
-register, matches, highlight, active and close all live above this row in the
-Alpine scope chain — the first four on the panel, close() on the dropdown. The
-row holds its label, the text it is matched on, and the id the panel minted for
-it, which the filter box points at while this row is highlighted.
-
-The highlight tint has to win against the current row's, which is the colour
-hover uses; two plain background utilities are settled by the order Tailwind
-emitted them, so this one is marked important.
-{% endcomment %}
 <button type="button"
         role="menuitem"
         x-data="{ id: '', label: {{ label|json_dumps }}, value: {{ value|default:label|json_dumps }}, facets: { search: {{ label|lower|json_dumps }} } }"
         x-init="id = register($el, facets)"
         :id="id"
+        {# Ampersands in x-show must be written as entities. A raw && can break the attribute. #}
         x-show="matches(facets) &amp;&amp; ({{ available }})"
         x-cloak
         @click="$dispatch('quick-switcher-choose', { value: value }); close()"
         @mouseenter="highlight(id)"
         :aria-current="({{ current_value }}) === value ? 'true' : 'false'"
+        {# The highlight tint is marked important so it wins against the current row's hover colour. #}
         :class="{
             'bg-ink-200! dark:bg-ink-700!': active === id,
             'bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100': ({{ current_value }}) === value,
