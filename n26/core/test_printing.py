@@ -10,7 +10,7 @@ in it.
 from dataclasses import dataclass
 
 from n26.core.printing import balance_columns, detail_groups, estimate_lines
-from n26.core.render import ChoiceLine, ModelCard, Statline
+from n26.core.render import ChoiceLine, EffectLine, ModelCard, Statline
 
 
 @dataclass(frozen=True)
@@ -135,3 +135,10 @@ class TestDetailGroups:
         card = card_with(ChoiceLine(kind_label="Archetype", chosen=None))
         groups = detail_groups(card)
         assert [(group.label, group.text) for group in groups] == [("Archetype", "—")]
+
+    def test_stored_effect_prose_is_not_printed(self):
+        """Its result has a dedicated place on paper; the operation does not."""
+        card = card_with()
+        card.effects = [EffectLine("marks the model In Recovery", happened=True)]
+
+        assert detail_groups(card) == []

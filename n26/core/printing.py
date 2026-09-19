@@ -77,6 +77,12 @@ def detail_groups(card) -> list[DetailGroup]:
     has a cell in the statline above and would be saying the same number
     twice. Nothing on paper can be changed, so the line XP draws on the
     screen it is edited from has nothing to do here.
+
+    Stored effects are deliberately absent too. Their current result is
+    already printed as a dedicated fact: the model's status in its header,
+    a counter's value in its row, or a pet's name beside the kit that brought
+    it. Repeating the operation as prose both duplicates that fact and, after
+    something such as Clean House, can contradict it.
     """
     groups = []
     for counter in card.counter_lines:
@@ -104,12 +110,6 @@ def detail_groups(card) -> list[DetailGroup]:
         # into the picker, and nothing on paper can be added. A question
         # a weapon carries prints beside the weapon instead.
         groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
-    for effect in card.effects:
-        # "(when taken)" on paper as on screen. A printed card is read away
-        # from the application, so an effect that has not happened yet has to
-        # say so on the page or it reads as something the model already does.
-        tense = "" if effect.happened else " (when taken)"
-        groups.append(DetailGroup("Effect", f"{effect.description}{tense}"))
     return groups
 
 

@@ -84,10 +84,12 @@
             <c-n26.print.grid columns="2" gutter="4mm">
                 {% for row in rows %}
                     {% comment %}
-                    A pet's card says whose it is under the profile name,
-                    in the words the screen card and the text card use.
+                    Current status leads the subtitle, where it remains visible
+                    before the profile and a pet's owner.
                     {% endcomment %}
-                    <c-n26.print.card title="{{ row.card.name }}" subtitle="{{ row.card.profile_name }}{% if row.card.owner_line %}{% if row.card.profile_name %} · {% endif %}{{ row.card.owner_line }}{% endif %}" badge="{{ row.card.rating }}¢">
+                    <c-n26.print.card title="{{ row.card.name }}"
+                                      subtitle="{{ row.subtitle }}"
+                                      badge="{{ row.card.rating }}¢">
                         {% if include_notes %}
                             {% comment %}
                             Notes, a box to write in, and the picture share
