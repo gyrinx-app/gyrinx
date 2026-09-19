@@ -13,7 +13,7 @@ from n26.core.models.abstract import Base
 
 
 class ActionAllowance(Base):
-    """One earned use of an action, tied to the recruitment that earned it."""
+    """One earned use of an action, linked to its source assignment."""
 
     class Source(models.TextChoices):
         RECRUITMENT = "recruitment", "Recruitment"
@@ -25,7 +25,7 @@ class ActionAllowance(Base):
     fighter = models.ForeignKey(
         "n26.Miniature", on_delete=models.CASCADE, related_name="action_allowances"
     )
-    recruitment = models.ForeignKey(
+    source = models.ForeignKey(
         "n26.Assignment", on_delete=models.CASCADE, related_name="action_allowances"
     )
     source_kind = models.CharField(max_length=20, choices=Source)
@@ -66,12 +66,12 @@ class ActionAllowance(Base):
                 name="action_allowance_source_is_whole",
             ),
             models.UniqueConstraint(
-                fields=["action", "recruitment"],
+                fields=["action", "source"],
                 condition=models.Q(source_kind="recruitment"),
                 name="action_allowance_recruitment_once",
             ),
             models.UniqueConstraint(
-                fields=["action", "recruitment", "threshold"],
+                fields=["action", "source", "threshold"],
                 condition=models.Q(source_kind="rank"),
                 name="action_allowance_rank_once",
             ),
@@ -79,10 +79,10 @@ class ActionAllowance(Base):
 
     def clean(self):
         super().clean()
-        if self.fighter_id and self.recruitment_id:
-            if self.fighter.membership_id != self.recruitment_id:
+        if self.fighter_id and self.source_id:
+            if self.fighter.membership_id != self.source_id:
                 raise ValidationError(
-                    {"recruitment": "This recruitment belongs to another model."}
+                    {"source": "The source must be this model's recruitment."}
                 )
 
 
@@ -181,11 +181,11 @@ class ActionRecord(Base):
                 raise ValidationError(errors)
 
 
-class AugmentationSelection(Base):
-    """The exact item, slot and tier assignments selected for augmentation."""
+class SlotSelection(Base):
+    """The slot and exact picks recorded for an action, with an optional item."""
 
     action_record = models.OneToOneField(
-        ActionRecord, on_delete=models.CASCADE, related_name="augmentation_selection"
+        ActionRecord, on_delete=models.CASCADE, related_name="slot_selection"
     )
     item_assignment = models.ForeignKey(
         "n26.Assignment",
@@ -199,28 +199,28 @@ class AugmentationSelection(Base):
         on_delete=models.RESTRICT,
         null=True,
         blank=True,
-        related_name="action_augmentation_slots",
+        related_name="action_slot_selections",
     )
     previous_pick = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.RESTRICT,
         null=True,
         blank=True,
-        related_name="action_previous_tiers",
+        related_name="action_previous_picks",
     )
     intended_pick = models.ForeignKey(
         "library.Pickable",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        related_name="intended_action_augmentations",
+        related_name="intended_slot_selections",
     )
     new_pick = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.RESTRICT,
         null=True,
         blank=True,
-        related_name="action_new_tiers",
+        related_name="action_new_picks",
     )
 
 

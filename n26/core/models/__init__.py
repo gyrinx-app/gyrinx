@@ -3,8 +3,8 @@ from n26.core.models.action_record import (
     ActionAllowance,
     ActionRecord,
     AdvancementSelection,
-    AugmentationSelection,
     SkillSelection,
+    SlotSelection,
 )
 from n26.core.models.activity import Activity
 from n26.core.models.assignment import Assignment
@@ -42,7 +42,6 @@ __all__ = [
     "Archived",
     "Assignment",
     "AssignmentSet",
-    "AugmentationSelection",
     "Base",
     "BuiltInPropagationTask",
     "Battle",
@@ -64,6 +63,7 @@ __all__ = [
     "ProfileRole",
     "Reason",
     "SkillSelection",
+    "SlotSelection",
     "Stash",
     "StatOverride",
 ]

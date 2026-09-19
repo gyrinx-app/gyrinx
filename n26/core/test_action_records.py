@@ -12,10 +12,10 @@ from n26.core.models import (
     ActionRecord,
     AdvancementSelection,
     Assignment,
-    AugmentationSelection,
     Gang,
     LedgerEvent,
     SkillSelection,
+    SlotSelection,
 )
 from n26.core.operations import operation
 from n26.library.models import Action, Counter, RankTable
@@ -49,7 +49,7 @@ def recruitment_allowance(fighter, action):
     return ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
-        recruitment=fighter.membership,
+        source=fighter.membership,
         source_kind=ActionAllowance.Source.RECRUITMENT,
     )
 
@@ -59,7 +59,7 @@ def test_allowance_source_shape_is_enforced(fighter, action):
         ActionAllowance.objects.create(
             action=action,
             fighter=fighter,
-            recruitment=fighter.membership,
+            source=fighter.membership,
             source_kind=ActionAllowance.Source.RANK,
             threshold=6,
         )
@@ -71,7 +71,7 @@ def test_rank_allowances_are_unique_per_threshold(fighter, action):
     fields = {
         "action": action,
         "fighter": fighter,
-        "recruitment": fighter.membership,
+        "source": fighter.membership,
         "source_kind": ActionAllowance.Source.RANK,
         "threshold": 6,
         "rank_table": ranks,
@@ -81,7 +81,7 @@ def test_rank_allowances_are_unique_per_threshold(fighter, action):
         ActionAllowance.objects.create(**fields)
 
 
-def test_allowance_must_name_its_fighters_recruitment(
+def test_allowance_source_must_name_its_fighters_recruitment(
     user, gang, fighter, action, make_profile, make_statline
 ):
     profile = make_profile("Other hunter", price=100)
@@ -91,11 +91,12 @@ def test_allowance_must_name_its_fighters_recruitment(
     allowance = ActionAllowance(
         action=action,
         fighter=fighter,
-        recruitment=other.membership,
+        source=other.membership,
         source_kind=ActionAllowance.Source.RECRUITMENT,
     )
-    with pytest.raises(ValidationError, match="another model"):
+    with pytest.raises(ValidationError, match="this model's recruitment") as error:
         allowance.full_clean()
+    assert "source" in error.value.message_dict
 
 
 @pytest.mark.parametrize("threshold", [None, 0])
@@ -106,7 +107,7 @@ def test_rank_allowance_threshold_must_be_positive(threshold, fighter, action):
         ActionAllowance.objects.create(
             action=action,
             fighter=fighter,
-            recruitment=fighter.membership,
+            source=fighter.membership,
             source_kind=ActionAllowance.Source.RANK,
             threshold=threshold,
             rank_table=ranks,
@@ -119,7 +120,7 @@ def test_rank_allowance_accepts_a_positive_threshold(fighter, action):
     allowance = ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
-        recruitment=fighter.membership,
+        source=fighter.membership,
         source_kind=ActionAllowance.Source.RANK,
         threshold=1,
         rank_table=ranks,
@@ -226,7 +227,7 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
             Counter.objects.create(name="Recorded selection"), miniature=fighter
         )
 
-    augmentation = AugmentationSelection.objects.create(
+    selection = SlotSelection.objects.create(
         action_record=record,
         item_assignment=assignment,
         slot_assignment=assignment,
@@ -250,23 +251,24 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
         skill_assignment=assignment,
     )
 
-    assert augmentation.intended_pick_id == intended.pk
+    assert selection.intended_pick_id == intended.pk
+    assert record.slot_selection.pk == selection.pk
     assert advancement.roll_event_id == event.pk
     assert selected.selected_skill_id == skill.pk
 
     for content in (intended, advance_pick, skill, skill_set):
         with pytest.raises(ProtectedError):
             content.delete()
-    augmentation.refresh_from_db()
+    selection.refresh_from_db()
     advancement.refresh_from_db()
     selected.refresh_from_db()
-    assert augmentation.intended_pick_id == intended.pk
+    assert selection.intended_pick_id == intended.pk
     assert advancement.intended_pick_id == advance_pick.pk
     assert selected.selected_skill_id == skill.pk
     assert selected.skill_set_id == skill_set.pk
 
     {"record": record, "fighter": fighter, "gang": gang}[delete].delete()
-    assert not AugmentationSelection.objects.filter(pk=augmentation.pk).exists()
+    assert not SlotSelection.objects.filter(pk=selection.pk).exists()
     assert not AdvancementSelection.objects.filter(pk=advancement.pk).exists()
     assert not SkillSelection.objects.filter(pk=selected.pk).exists()
     intended.delete()
@@ -276,7 +278,7 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
 
 
 @pytest.mark.parametrize(
-    "selection_model", [AugmentationSelection, AdvancementSelection, SkillSelection]
+    "selection_model", [SlotSelection, AdvancementSelection, SkillSelection]
 )
 def test_recorded_selection_assignments_cannot_be_deleted_separately(
     selection_model, gang, fighter, action
