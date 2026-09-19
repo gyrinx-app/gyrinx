@@ -59,7 +59,7 @@ def _advancement(fighter):
     allowance = ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
-        recruitment=fighter.membership,
+        source=fighter.membership,
         source_kind=ActionAllowance.Source.RANK,
         threshold=4,
         rank_table=action.rank_allowance_rule.counter.rank_tables.get(),

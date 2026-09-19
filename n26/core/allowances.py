@@ -27,7 +27,7 @@ def grant_recruitment_allowances(op, fighter):
         allowance, created = ActionAllowance.objects.get_or_create(
             action=action,
             fighter=fighter,
-            recruitment=recruitment,
+            source=recruitment,
             source_kind=ActionAllowance.Source.RECRUITMENT,
             defaults={"threshold": None, "rank_table": None},
         )
@@ -71,7 +71,7 @@ def grant_rank_allowances(op, counter_assignment, before, after):
             allowance, created = ActionAllowance.objects.get_or_create(
                 action=action,
                 fighter=fighter,
-                recruitment=recruitment,
+                source=recruitment,
                 source_kind=ActionAllowance.Source.RANK,
                 threshold=threshold.threshold,
                 defaults={"rank_table": table},
@@ -134,7 +134,7 @@ def clone_unused_allowances(op, source, clone):
         duplicate = ActionAllowance.objects.create(
             action=allowance.action,
             fighter=clone,
-            recruitment=clone.membership,
+            source=clone.membership,
             source_kind=allowance.source_kind,
             threshold=allowance.threshold,
             rank_table=allowance.rank_table,

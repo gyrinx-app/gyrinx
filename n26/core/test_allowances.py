@@ -43,7 +43,7 @@ def test_recruitment_allowances_are_granted_once_after_access_exists(
         assert len(grant_recruitment_allowances(op, fighter)) == 1
         assert grant_recruitment_allowances(op, fighter) == []
     allowance = ActionAllowance.objects.get()
-    assert allowance.recruitment == fighter.membership
+    assert allowance.source == fighter.membership
     assert allowance.granted_event.kind == LedgerEvent.Kind.GRANTED
 
 
@@ -115,14 +115,14 @@ def test_clone_copies_only_unused_allowances(fighter, counter_tracking):
     unused = ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
-        recruitment=fighter.membership,
+        source=fighter.membership,
         source_kind=ActionAllowance.Source.RECRUITMENT,
     )
     with operation(fighter.gang) as op:
         clone = op.clone_miniature(fighter)
     copied = clone.action_allowances.get()
     assert copied.action == unused.action
-    assert copied.recruitment == clone.membership
+    assert copied.source == clone.membership
     assert copied.granted_event.kind == LedgerEvent.Kind.GRANTED
 
 
