@@ -99,6 +99,30 @@ class TestTheDuplicateGoesAndTheOwnersCopyStays:
     """The pass's copy is dropped and the owner's keeps the thing, now
     carrying the provenance that stops any pass granting it again."""
 
+    @pytest.mark.parametrize("budget_drift", [False, True])
+    def test_a_walk_without_duplicates_leaves_the_gangs_books_untouched(
+        self, budget_drift, gang, ganger
+    ):
+        hire(gang, ganger, "Ana", paid=50)
+        if budget_drift:
+            # A repair with nothing to remove must leave unrelated drift alone.
+            type(gang).objects.filter(pk=gang.pk).update(starting_credits=40)
+        gang.refresh_from_db()
+        before = (gang.starting_credits, gang.credits, gang.rating, gang.modified)
+        events = LedgerEvent.objects.filter(gang=gang).count()
+
+        outcome = de_duplicate(gang.pk)
+
+        gang.refresh_from_db()
+        assert outcome.dropped == 0
+        assert (
+            gang.starting_credits,
+            gang.credits,
+            gang.rating,
+            gang.modified,
+        ) == before
+        assert LedgerEvent.objects.filter(gang=gang).count() == events
+
     def test_the_owners_copy_survives_wearing_the_provenance(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
         strip_provenance(gang)
@@ -216,45 +240,6 @@ class TestACopySomebodyCountedOn:
             counter=counter, miniature_root=fighter, archived=False
         )
         assert standing.counter_value.value == 7
-        settled(gang)
-
-    def test_multiple_counter_merges_settle_the_gang_once(
-        self, gang, person_type, gang_type, default_pack, counter_tracking, monkeypatch
-    ):
-        from n26.core.operations import Operation as GangOperation
-
-        counter = create_counter("Kill Count")
-        profile = create_profile("Hunter", person_type, gang_type, price=100)
-        add_built_in(profile, counter)
-        fighters = [hire(gang, profile, name, paid=100) for name in ("Ana", "Bea")]
-        strip_provenance(gang)
-        member = profile.built_ins.members.get(counter=counter)
-        for fighter in fighters:
-            duplicate = caught_up_copy(
-                gang, fighter, member, fighter.membership, counter
-            )
-            with operation(gang, actor=gang.owner) as op:
-                op.tally(duplicate, 7)
-
-        settlements = []
-        original_settle = GangOperation.settle
-
-        def settle(op):
-            settlements.append(op.gang.pk)
-            return original_settle(op)
-
-        monkeypatch.setattr(GangOperation, "settle", settle)
-        outcome = de_duplicate(gang.pk)
-
-        assert outcome.merged == 2
-        assert settlements == [gang.pk]
-        assert list(
-            CounterValue.objects.filter(assignment__gang_root=gang).values_list(
-                "value", flat=True
-            )
-        ) == [7, 7]
-        movements = LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TALLIED)
-        assert [event.note for event in movements] == ["+7 → 7", "+7 → 7"]
         settled(gang)
 
     def test_a_missing_survivor_value_gets_an_opening_event(

@@ -224,7 +224,7 @@ def _can_carry(grant, owner, goes_with):
     ).exists()
 
 
-def _carry_the_tally(op, grant, owner, tally, goes_with):
+def _carry_the_tally(grant, owner, tally, goes_with):
     """Move a tally from the duplicate onto the copy that stays, where
     there is somewhere for it to go.
 
@@ -234,18 +234,20 @@ def _carry_the_tally(op, grant, owner, tally, goes_with):
     answering False, so the duplicate is left standing instead.
     """
     from n26.core.models import CounterValue
+    from n26.core.operations import operation
 
     if not tally:
         return True
     if not _can_carry(grant, owner, goes_with):
         return False
-    standing = (
-        CounterValue.objects.filter(assignment=owner)
-        .values_list("value", flat=True)
-        .first()
-    )
-    if standing is None or standing < tally:
-        op.tally(owner, tally - (standing or 0))
+    with operation(owner.gang_root) as op:
+        standing = (
+            CounterValue.objects.filter(assignment=owner)
+            .values_list("value", flat=True)
+            .first()
+        )
+        if standing is None or standing < tally:
+            op.tally(owner, tally - (standing or 0))
     return True
 
 
@@ -315,7 +317,6 @@ def de_duplicate(gang_id, only_miniature_id=None):
     from django.db import transaction
 
     from n26.core.models import Gang
-    from n26.core.operations import operation
     from n26.core.reconcile import assert_reconciled
 
     outcome = GangOutcome(gang_id=str(gang_id))
@@ -330,33 +331,32 @@ def de_duplicate(gang_id, only_miniature_id=None):
         # survivor is gone has nothing left to settle, and writing the
         # provenance of a deleted carrier onto anything would fail the
         # whole gang.
-        with operation(gang) as op:
-            gone = set()
-            for grant, owner in duplicates_in(gang, only_miniature_id):
-                if grant.pk in gone or owner.pk in gone:
-                    continue
-                action, sentence = _verdict(grant, owner, gang)
-                if action == "stands":
-                    outcome.kept_a_tally.append(sentence)
-                    continue
-                goes_with = _goes_with(grant)
-                tally = _tally_under(grant, goes_with)
-                if tally:
-                    _carry_the_tally(op, grant, owner, tally, goes_with)
-                    outcome.merged += 1
-                swept = len(goes_with)
-                member_id = grant.materialised_from_id
-                carrier_id = grant.materialised_for_id
-                grant.delete()
-                gone |= {grant.pk} | goes_with
-                owner.materialised_from_id = member_id
-                owner.materialised_for_id = carrier_id
-                owner.save(
-                    update_fields=["materialised_from", "materialised_for", "modified"]
-                )
-                outcome.dropped += 1
-                outcome.retagged += 1
-                outcome.swept += swept
+        gone = set()
+        for grant, owner in duplicates_in(gang, only_miniature_id):
+            if grant.pk in gone or owner.pk in gone:
+                continue
+            action, sentence = _verdict(grant, owner, gang)
+            if action == "stands":
+                outcome.kept_a_tally.append(sentence)
+                continue
+            goes_with = _goes_with(grant)
+            tally = _tally_under(grant, goes_with)
+            if tally:
+                _carry_the_tally(grant, owner, tally, goes_with)
+                outcome.merged += 1
+            swept = len(goes_with)
+            member_id = grant.materialised_from_id
+            carrier_id = grant.materialised_for_id
+            grant.delete()
+            gone |= {grant.pk} | goes_with
+            owner.materialised_from_id = member_id
+            owner.materialised_for_id = carrier_id
+            owner.save(
+                update_fields=["materialised_from", "materialised_for", "modified"]
+            )
+            outcome.dropped += 1
+            outcome.retagged += 1
+            outcome.swept += swept
         if outcome.dropped:
             gang.refresh_from_db()
             assert_reconciled(gang)
