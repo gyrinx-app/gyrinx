@@ -83,7 +83,7 @@ def build(report_dir):
         if base != "main":
             notes.append(
                 f"This branch does not merge into main yet. It targets `{base}` rather than main, "
-                "so while that branch is unmerged main can hold a squashed version of a commit "
+                "so while that branch is unmerged, main can hold a squashed version of a commit "
                 "this chain still carries. If that is what happened here, this clears when "
                 f"`{base}` lands, or rebase onto main at that point. The migration checks need a "
                 "merge, so none of them ran.\n\n"
