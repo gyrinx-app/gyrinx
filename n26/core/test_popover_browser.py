@@ -30,6 +30,8 @@ def test_keyboard_and_link_selection_manage_focus():
         '<a href="#chosen">First section</a></c-ui.popover>'
         '<c-ui.popover trigger_text="Help" panel_label="Help topics">'
         '<a href="#chosen">Help topic</a></c-ui.popover>'
+        '<c-ui.popover><c-slot name="trigger"><button>Legacy trigger</button></c-slot>'
+        "<button>Legacy action</button></c-ui.popover>"
     )
     alpine_path = finders.find("designsystem/vendor/alpine.min.js")
     kit_path = finders.find("django_cotton_ui/cotton-ui.min.js")
@@ -56,6 +58,8 @@ def test_keyboard_and_link_selection_manage_focus():
         first_link = page.get_by_role("link", name="First section")
         help_trigger = page.get_by_role("button", name="Help")
         help_panel = page.locator('[role="dialog"][aria-label="Help topics"]')
+        legacy_trigger = page.get_by_role("button", name="Legacy trigger")
+        legacy_panel = page.locator('[role="dialog"]:has-text("Legacy action")')
 
         expect(trigger).to_have_attribute("aria-controls", re.compile(r".+"))
         expect(help_trigger).to_have_attribute("aria-controls", re.compile(r".+"))
@@ -64,6 +68,9 @@ def test_keyboard_and_link_selection_manage_focus():
         assert controls != help_controls
         assert panel.get_attribute("id") == controls
         assert help_panel.get_attribute("id") == help_controls
+        legacy_label = legacy_panel.get_attribute("aria-labelledby")
+        assert legacy_label
+        assert page.locator(f"#{legacy_label}").count() == 1
 
         expect(trigger).to_have_attribute("aria-expanded", "false")
         trigger.focus()
@@ -99,5 +106,13 @@ def test_keyboard_and_link_selection_manage_focus():
         )
         assert page.evaluate("window.scrollY") > 1000
         assert 0 <= target_top < page.evaluate("window.innerHeight")
+
+        page.evaluate("window.scrollTo(0, 0)")
+        legacy_trigger.focus()
+        legacy_trigger.press("Enter")
+        legacy_panel.wait_for(state="visible")
+        page.keyboard.press("Escape")
+        legacy_panel.wait_for(state="hidden")
+        assert legacy_trigger.evaluate("element => element === document.activeElement")
 
         browser.close()

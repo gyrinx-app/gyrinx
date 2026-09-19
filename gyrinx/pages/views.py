@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
-from django.contrib.flatpages import views as django_flatpage_views
 from django.contrib.sites.shortcuts import get_current_site
 from django.http import (
     Http404,
@@ -9,6 +8,8 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, render
 from django.template import loader
+from django.utils.functional import SimpleLazyObject
+from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_protect
 
 from gyrinx.pages.access import accessible_flatpages
@@ -65,7 +66,7 @@ def flatpage(request, url):
     except Http404:
         if not url.endswith("/") and settings.APPEND_SLASH:
             url += "/"
-            f = get_object_or_404(
+            get_object_or_404(
                 accessible_flatpages(site_id=site_id, user=request.user), url=url
             )
             return HttpResponsePermanentRedirect(f"{request.path}/")
@@ -73,24 +74,33 @@ def flatpage(request, url):
             raise
 
     template = None
+    custom_template = False
     if f.template_name:
         selected = loader.select_template((f.template_name, "flatpages/default.html"))
-        if selected.template.name != "flatpages/default.html":
-            return django_flatpage_views.render_flatpage(request, f)
         template = selected
-    return render_flatpage(request, f, site_id=site_id, template=template)
+        custom_template = selected.template.name != "flatpages/default.html"
+    return render_flatpage(
+        request, f, site_id=site_id, template=template, custom_template=custom_template
+    )
 
 
 @csrf_protect
-def render_flatpage(request, page, *, site_id, template=None):
+def render_flatpage(request, page, *, site_id, template=None, custom_template=False):
     """Render an accessible page while preserving Django's flatpage contract."""
     if page.registration_required and not request.user.is_authenticated:
         return redirect_to_login(request.path)
 
     template = template or loader.get_template("flatpages/default.html")
 
-    presentation = build_flatpage_presentation(
-        page=page, site_id=site_id, user=request.user
+    if custom_template:
+        # Django's custom flatpage templates receive trusted editor HTML.
+        page.title = mark_safe(page.title)  # nosec B703 B308
+        page.content = mark_safe(page.content)  # nosec B703 B308
+
+    presentation = SimpleLazyObject(
+        lambda: build_flatpage_presentation(
+            page=page, site_id=site_id, user=request.user
+        )
     )
     return HttpResponse(
         template.render({"flatpage": page, "presentation": presentation}, request)

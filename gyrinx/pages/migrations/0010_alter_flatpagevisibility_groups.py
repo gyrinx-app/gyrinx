@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
             model_name="flatpagevisibility",
             name="groups",
             field=models.ManyToManyField(
-                help_text="Select the groups that can view this page. A rule with no groups prevents everyone from viewing the page.",
+                help_text="Select the groups allowed by this rule. A rule with no groups grants no access. Other rules can still allow access to the page.",
                 to="auth.group",
                 verbose_name="Visible to Groups",
             ),

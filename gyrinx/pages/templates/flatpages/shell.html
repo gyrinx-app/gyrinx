@@ -4,7 +4,6 @@ The n26 application shell owns its gang queries and maintenance state separately
 {% endcomment %}
 {% load static %}
 {% load banner %}
-{% load pages %}
 <!DOCTYPE html>
 <html lang="en-gb">
     <head>
@@ -233,11 +232,10 @@ The n26 application shell owns its gang queries and maintenance state separately
                     </li>
                 </c-n26.site.footer.column>
                 <c-n26.site.footer.column heading="Help and documentation">
-                    {% get_root_pages for user as help_pages_ %}
-                    {% for page in help_pages_ %}
+                    {% for node in presentation.navigation_tree %}
                         <li>
-                            <c-n26.link href="{{ page.url }}" tone="muted">
-                                {{ page.title }}
+                            <c-n26.link href="{{ node.page.url }}" tone="muted">
+                                {{ node.page.title }}
                             </c-n26.link>
                         </li>
                     {% endfor %}

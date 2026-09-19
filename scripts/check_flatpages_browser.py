@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise a running Help page with two or more sections in Chromium.
+"""Exercise a running Help page in Chromium.
 
 Run through .codex/run.sh against the worktree server. Optional screenshots are
 saved locally; this command neither seeds data nor changes application records.
@@ -11,7 +11,7 @@ from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
 
 
-def check(page, url, width, screenshot_dir=None, theme="light"):
+def check(page, url, width, screenshot_dir=None, theme="light", with_toc=True):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(url)
@@ -26,6 +26,13 @@ def check(page, url, width, screenshot_dir=None, theme="light"):
         expect(page.locator(".flatpage-help-nav")).not_to_be_visible()
         browse = page.get_by_role("button", name="Help & documentation", exact=True)
         expect(browse).to_be_visible()
+        assert (
+            abs(
+                browse.bounding_box()["x"]
+                - page.locator(".flatpage-main").bounding_box()["x"]
+            )
+            < 2
+        ), "The menu stays at the left edge, including pages without a ToC."
         browse.focus()
         browse.press("Enter")
         drawer = page.get_by_role("dialog", name="Help & documentation", exact=True)
@@ -44,7 +51,12 @@ def check(page, url, width, screenshot_dir=None, theme="light"):
         expect(page.locator(".flatpage-help-nav")).to_be_visible()
         expect(page.locator(".flatpage-layout")).to_have_css("display", "grid")
 
-    if width < 1280:
+    if not with_toc:
+        expect(
+            page.get_by_role("button", name="On this page", exact=True)
+        ).to_have_count(0)
+        expect(page.locator(".flatpage-toc")).to_have_count(0)
+    elif width < 1280:
         trigger = page.get_by_role("button", name="On this page", exact=True)
         expect(trigger).to_be_visible()
         trigger.focus()
@@ -95,6 +107,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", help="Local Help page with at least two h2/h3 headings.")
     parser.add_argument("--screenshots", type=Path)
+    parser.add_argument(
+        "--no-toc",
+        action="store_true",
+        help="Check a page with fewer than two h2/h3 headings.",
+    )
     args = parser.parse_args()
     if args.screenshots:
         args.screenshots.mkdir(parents=True, exist_ok=True)
@@ -106,7 +123,14 @@ def main():
                     viewport={"width": width, "height": 950}, color_scheme=theme
                 )
                 page = context.new_page()
-                check(page, args.url, width, args.screenshots, theme)
+                check(
+                    page,
+                    args.url,
+                    width,
+                    args.screenshots,
+                    theme,
+                    with_toc=not args.no_toc,
+                )
                 context.close()
                 print(f"PASS {width}px {theme}")
         context = browser.new_context(
@@ -114,7 +138,12 @@ def main():
         )
         page = context.new_page()
         page.goto(args.url)
-        for label in ("Help & documentation", "On this page"):
+        labels = (
+            ("Help & documentation",)
+            if args.no_toc
+            else ("Help & documentation", "On this page")
+        )
+        for label in labels:
             disclosure = page.locator(".flatpage-noscript-nav").filter(
                 has=page.locator("summary", has_text=label)
             )

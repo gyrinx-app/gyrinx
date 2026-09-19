@@ -1,5 +1,8 @@
 """Shared documentation chrome keeps the reader's edition and account state."""
 
+from copy import deepcopy
+from unittest.mock import patch
+
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.flatpages.models import FlatPage
@@ -65,3 +68,60 @@ def test_shared_shell_does_not_draw_n26_write_pause(user):
     assert "Pause test" not in html
     assert "Your account" in html
     assert "Notifications" in html
+
+
+def configure_custom_template(settings, tmp_path, shell_page, source):
+    (tmp_path / "custom.html").write_text(source)
+    templates = deepcopy(settings.TEMPLATES)
+    templates[0]["DIRS"] = [str(tmp_path), *templates[0]["DIRS"]]
+    settings.TEMPLATES = templates
+    shell_page.template_name = "custom.html"
+    shell_page.save()
+
+
+def test_custom_template_extending_default_receives_presentation(
+    client, settings, tmp_path, shell_page
+):
+    configure_custom_template(
+        settings,
+        tmp_path,
+        shell_page,
+        '{% extends "flatpages/default.html" %}',
+    )
+
+    response = client.get(shell_page.url)
+    document = BeautifulSoup(response.content, "html.parser")
+
+    assert response.status_code == 200
+    assert document.select_one(".flatpage-prose #first-section") is not None
+    assert document.select_one(".flatpage-toc a")["href"] == "#first-section"
+
+
+def test_standalone_custom_template_keeps_safe_html_without_building_presentation(
+    client, settings, tmp_path, shell_page
+):
+    shell_page.title = "<em>Custom title</em>"
+    configure_custom_template(
+        settings,
+        tmp_path,
+        shell_page,
+        "{{ flatpage.title }}{{ flatpage.content }}",
+    )
+
+    with patch("gyrinx.pages.views.build_flatpage_presentation") as builder:
+        response = client.get(shell_page.url)
+
+    assert response.status_code == 200
+    assert response.content.decode() == shell_page.title + shell_page.content
+    builder.assert_not_called()
+
+
+def test_missing_custom_template_falls_back_to_the_default(client, shell_page):
+    shell_page.template_name = "missing-custom-flatpage.html"
+    shell_page.save()
+
+    response = client.get(shell_page.url)
+    document = BeautifulSoup(response.content, "html.parser")
+
+    assert response.status_code == 200
+    assert document.select_one(".flatpage-prose #first-section") is not None

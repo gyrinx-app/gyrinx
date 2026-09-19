@@ -38,9 +38,9 @@ def test_owned_trigger_focus_and_close_behaviour_is_present():
     assert "toggle($event.detail === 0)" in html
     assert "(target || this.$refs.dialog).focus()" in html
     assert '@keydown.escape.window="doClose(true)"' in html
-    assert "this.$refs.trigger.focus({ preventScroll: true })" in html
+    assert "this.opener.focus({ preventScroll: true })" in html
     assert "event.target.closest('a[href]')" in html
-    assert "this.doClose(this.ownsTrigger)" in html
+    assert "this.doClose(this.mode === 'click')" in html
 
 
 def test_owned_trigger_labels_the_panel_when_no_panel_label_is_given():
@@ -71,5 +71,10 @@ def test_legacy_trigger_slot_keeps_the_existing_wrapper_api():
 
     assert "<span>Avatar</span>" in html
     assert "@click=\"mode === 'click' && toggle()\"" in html
+    document = BeautifulSoup(html, "html.parser")
+    trigger = document.find(attrs={"x-ref": "trigger"})
+    dialog = document.find(attrs={"role": "dialog"})
+    assert trigger[":id"] == "$id('popover-trigger')"
+    assert dialog[":aria-labelledby"] == "$id('popover-trigger')"
     assert "Profile" in html
     assert "<button" not in html

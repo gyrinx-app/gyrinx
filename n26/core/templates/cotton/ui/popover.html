@@ -32,6 +32,7 @@ class styles the panel. trigger_class styles only the owned trigger.
     mode: '{{ open_on }}',
     ownsTrigger: {% if trigger_text %}true{% else %}false{% endif %},
     focusOnOpen: false,
+    opener: null,
     _openT: null,
     _closeT: null,
     init() {
@@ -53,6 +54,7 @@ class styles the panel. trigger_class styles only the owned trigger.
       clearTimeout(this._closeT);
       this.focusOnOpen = moveFocus;
       if (this.open) return;
+      this.opener = this.mode === 'click' ? this.triggerFocusTarget() : null;
       this.open = true;
       this.$nextTick(() => {
         this.position();
@@ -68,8 +70,17 @@ class styles the panel. trigger_class styles only the owned trigger.
       clearTimeout(this._openT);
       if (!this.open) return;
       this.open = false;
-      if (returnFocus) this.$nextTick(() => this.$refs.trigger.focus({ preventScroll: true }));
+      if (returnFocus && this.opener) {
+        this.$nextTick(() => this.opener.focus({ preventScroll: true }));
+      }
       this.$dispatch('popover-close');
+    },
+    triggerFocusTarget() {
+      if (this.ownsTrigger) return this.$refs.trigger;
+      const active = document.activeElement;
+      if (active && active !== this.$refs.trigger && this.$refs.trigger.contains(active)) return active;
+      const candidates = this.$refs.trigger.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]');
+      return Array.from(candidates).find(element => element.tabIndex >= 0) || null;
     },
     toggle(moveFocus = false) { this.open ? this.doClose() : this.doOpen(moveFocus); },
     close() { this.doClose(); },
@@ -84,7 +95,7 @@ class styles the panel. trigger_class styles only the owned trigger.
       this._closeT = setTimeout(() => this.doClose(), {{ close_delay }});
     },
     onPanelClick(event) {
-      if (event.target.closest('a[href]')) this.doClose(this.ownsTrigger);
+      if (event.target.closest('a[href]')) this.doClose(this.mode === 'click');
     }
   }"
   x-id="['popover-trigger', 'popover-panel']"
@@ -111,6 +122,7 @@ class styles the panel. trigger_class styles only the owned trigger.
   {% else %}
     <div
       x-ref="trigger"
+      :id="$id('popover-trigger')"
       @click="mode === 'click' && toggle()"
       :aria-expanded="open"
       class="inline-block"
