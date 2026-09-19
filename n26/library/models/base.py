@@ -67,6 +67,16 @@ class ContentQuerySet(models.QuerySet):
         """Narrow to the N26 pack."""
         return self.filter(pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG)
 
+    def outside_campaign_packs(self):
+        """Drop content in a campaign's own pack.
+
+        A campaign pack is a player's working space. Staff listings and their
+        counts keep its content apart from the library they maintain. Test the
+        relationship rather than the pack's owner: a person may own another
+        pack that staff still author.
+        """
+        return self.filter(pack__campaign__isnull=True)
+
     def unarchived(self):
         """Drop archived content, and content in archived packs."""
         return self.filter(archived=False, pack__archived=False)
