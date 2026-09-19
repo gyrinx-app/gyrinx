@@ -2310,6 +2310,14 @@ class Operation:
     ):
         """Archive one slot pick and retain exact before/after provenance."""
         if previous_pick is not None:
+            previous_pick = _under_the_lock(previous_pick)
+            if (
+                previous_pick.archived
+                or previous_pick.chosen_for_id != anchor.pk
+                or previous_pick.chosen_for_slot_id != slot.pk
+                or previous_pick.miniature_root_id != miniature.pk
+            ):
+                raise Refusal("That augmentation has changed. Review it again.")
             self.remove(
                 previous_pick,
                 action_record=action_record,

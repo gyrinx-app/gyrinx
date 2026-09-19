@@ -14,6 +14,7 @@ from n26.core.models import (
     AdvancementSelection,
     Assignment,
     LedgerEvent,
+    Miniature,
 )
 from n26.core.operations import LibraryError, Refusal
 
@@ -145,6 +146,14 @@ def _source_assignment(fighter, action):
     )
 
 
+def _allowance_source_kind(action):
+    if action.recruitment_allowance_rule_id is not None:
+        return ActionAllowance.Source.RECRUITMENT
+    if action.rank_allowance_rule_id is not None:
+        return ActionAllowance.Source.RANK
+    return None
+
+
 def _counter_assignment(gang, fighter, counter, payer, action):
     assignments = Assignment.objects.filter(
         counter=counter, archived=False, gang_root=gang
@@ -161,6 +170,7 @@ def _counter_assignment(gang, fighter, counter, payer, action):
 
 def quote_action(op, fighter, action):
     """Resolve a quote inside an operation; final checkout remains authoritative."""
+    op.gang.refresh_from_db(fields=["starting_credits"])
     return quote_for(fighter, action, gang=op.gang)
 
 
@@ -170,10 +180,15 @@ def quote_for(fighter, action, *, gang=None):
     if gang is None:
         raise Refusal("That fighter is no longer in a gang.")
     lines = []
+    credits_available = None
+    credits_quoted = False
     for component in action.use_price.select_related("counter").all():
         if component.resource == component.Resource.CREDITS:
             balance = Balance(Resource.CREDITS, str(gang.pk))
-            available = gang.recompute_credits()
+            if not credits_quoted:
+                credits_available = gang.recompute_credits()
+                credits_quoted = True
+            available = credits_available
             name = "Credits"
         else:
             assignment = _counter_assignment(
@@ -361,6 +376,7 @@ def _target_snapshot(record, configured, terms, *, quote=None):
 
 
 def start_action(op, fighter, action, request_key, allowance=None):
+    fighter = Miniature.objects.select_related("membership").get(pk=fighter.pk)
     _refuse_unless_owned(op, fighter)
     existing = ActionRecord.objects.filter(
         gang=op.gang, request_key=request_key
@@ -375,6 +391,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
         )
 
     rule = action.allowance_rule
+    source_kind = _allowance_source_kind(action)
     if allowance is not None:
         allowance = ActionAllowance.objects.select_for_update().get(pk=allowance.pk)
         if (
@@ -382,6 +399,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
             or allowance.fighter_id != fighter.pk
             or allowance.action_id != action.pk
             or allowance.source_id != fighter.membership_id
+            or allowance.source_kind != source_kind
         ):
             raise Refusal("That allowance belongs to another action use.")
         if allowance.records.filter(
@@ -391,7 +409,12 @@ def start_action(op, fighter, action, request_key, allowance=None):
     elif rule is not None:
         allowance = (
             ActionAllowance.objects.select_for_update()
-            .filter(action=action, fighter=fighter, source=fighter.membership)
+            .filter(
+                action=action,
+                fighter=fighter,
+                source=fighter.membership,
+                source_kind=source_kind,
+            )
             .exclude(
                 records__state__in=[
                     ActionRecord.State.STARTED,
@@ -453,8 +476,11 @@ def _validate_draft_definition(record):
             raise Refusal("That fighter can no longer use this action.")
         return
     allowance = record.allowance
+    source_kind = _allowance_source_kind(record.action)
     if (
-        allowance.fighter_id != record.fighter_id
+        source_kind is None
+        or allowance.source_kind != source_kind
+        or allowance.fighter_id != record.fighter_id
         or allowance.action_id != record.action_id
         or allowance.source_id != record.fighter.membership_id
     ):
@@ -638,19 +664,23 @@ def _prepare_outcome(op, record, configured, quote):
 
 def _pay(op, record, quote):
     payment_id = uuid4() if quote.lines else None
+    if payment_id is not None:
+        op.event(
+            record.fighter,
+            LedgerEvent.Kind.ACTION_USE_PAID,
+            credits_delta=sum(
+                line.amount
+                for line in quote.lines
+                if line.balance.resource == Resource.CREDITS
+            ),
+            action_record=record,
+            payment_id=payment_id,
+            note=str(record.action),
+        )
     for line in quote.lines:
         if line.after_payment is not None and line.after_payment < 0:
             raise Refusal(f"There is not enough {line.name} to use this action.")
-        if line.balance.resource == Resource.CREDITS:
-            op.event(
-                None,
-                LedgerEvent.Kind.ACTION_USE_PAID,
-                credits_delta=line.amount,
-                action_record=record,
-                payment_id=payment_id,
-                note=str(record.action),
-            )
-        else:
+        if line.balance.resource == Resource.COUNTER:
             assignment = Assignment.objects.select_related("counter_value").get(
                 pk=line.balance.assignment_id, gang_root=op.gang, archived=False
             )
@@ -761,6 +791,10 @@ def review_action_correction(op, record, *, terms):
     if record.state != ActionRecord.State.COMPLETED or record.outcome_id is None:
         raise Refusal("That action use has no completed result to correct.")
     configured = record.outcome.operation
+    from n26.library.models import AugmentCarriedItem, ResolveAdvancement
+
+    if not isinstance(configured, (AugmentCarriedItem, ResolveAdvancement)):
+        raise Refusal("That action result cannot be corrected here.")
     proposed = deepcopy(terms)
     record.revision += 1
     record.review = {

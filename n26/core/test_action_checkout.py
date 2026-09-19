@@ -2,17 +2,26 @@ import uuid
 
 import pytest
 
-from n26.core.action_records import action_changes
+from n26.core.action_records import action_changes, quote_for
 from n26.core.models import (
     ActionAllowance,
     ActionRecord,
     AdvancementSelection,
+    Assignment,
     Gang,
     LedgerEvent,
 )
 from n26.core.operations import Refusal, operation
 from n26.library import authoring
-from n26.library.models import Action, ApplyChange, Counter, Pickable, SlotType, Trait
+from n26.library.models import (
+    Action,
+    ApplyChange,
+    Counter,
+    Pickable,
+    RankTable,
+    SlotType,
+    Trait,
+)
 
 pytestmark = [
     pytest.mark.django_db,
@@ -192,6 +201,47 @@ def test_changed_balance_requires_a_new_review(user, gang, fighter):
             )
 
 
+def test_changed_budget_requires_a_new_review(user, gang, fighter):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    Gang.objects.filter(pk=gang.pk).update(starting_credits=100)
+
+    with pytest.raises(Refusal, match="price changed"):
+        with operation(gang, actor=user) as op:
+            op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=outcome,
+            )
+
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.payment_id is None
+
+
+def test_repeated_credit_components_read_the_balance_once(
+    monkeypatch, user, gang, fighter
+):
+    action, _, _, _ = configured_action(user, gang, fighter)
+    authoring.add_action_price_component(
+        action, resource="credits", payer="gang", amount=5
+    )
+    original = Gang.recompute_credits
+    calls = []
+
+    def counted_recompute_credits(quoted_gang):
+        calls.append(quoted_gang.pk)
+        return original(quoted_gang)
+
+    monkeypatch.setattr(Gang, "recompute_credits", counted_recompute_credits)
+
+    quote = quote_for(fighter, action, gang=gang)
+
+    assert calls == [gang.pk]
+    assert quote.lines[0].amount == 25
+
+
 def test_duplicate_confirmation_returns_the_same_receipt(user, gang, fighter):
     action, outcome, _, _ = configured_action(user, gang, fighter)
     record = start_and_review(user, gang, fighter, action, outcome)
@@ -237,6 +287,18 @@ def test_archived_fighter_cannot_review_an_existing_draft(user, gang, fighter):
             op.review_action(record, outcome=outcome)
 
 
+def test_archived_fighter_cannot_start_from_a_stale_instance(user, gang, fighter):
+    action, _, _, _ = configured_action(user, gang, fighter)
+    assert not fighter.membership.archived
+    Assignment.objects.filter(pk=fighter.membership_id).update(archived=True)
+
+    with pytest.raises(Refusal, match="no longer in this gang"):
+        with operation(gang, actor=user) as op:
+            op.start_action(fighter, action, uuid.uuid4())
+
+    assert not ActionRecord.objects.exists()
+
+
 def test_earned_allowance_survives_removed_access(user, gang, fighter):
     action, outcome, access, _ = configured_action(user, gang, fighter)
     action.use_price.all().delete()
@@ -272,6 +334,35 @@ def test_allowance_action_refuses_an_unearned_use(user, gang, fighter):
     with pytest.raises(Refusal, match="no unused allowance"):
         with operation(gang, actor=user) as op:
             op.start_action(fighter, action, uuid.uuid4())
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_allowance_source_kind_must_match_the_active_rule(
+    explicit, user, gang, fighter
+):
+    action, _, _, _ = configured_action(user, gang, fighter)
+    action.use_price.all().delete()
+    action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
+    action.save(update_fields=["recruitment_allowance_rule", "modified"])
+    xp = Counter.objects.create(name="XP")
+    ranks = RankTable.objects.create(name="Standard ranks", counter=xp)
+    wrong_kind = ActionAllowance.objects.create(
+        action=action,
+        fighter=fighter,
+        source=fighter.membership,
+        source_kind=ActionAllowance.Source.RANK,
+        threshold=1,
+        rank_table=ranks,
+    )
+
+    with pytest.raises(Refusal, match="belongs|no unused"):
+        with operation(gang, actor=user) as op:
+            op.start_action(
+                fighter,
+                action,
+                uuid.uuid4(),
+                allowance=wrong_kind if explicit else None,
+            )
 
 
 def test_ordered_counter_changes_with_the_same_final_value_are_refused(
@@ -400,6 +491,77 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
     assert [row.before_assignment_id for row in action_changes(record).picks] == [
         str(held_pick.pk)
     ]
+
+
+def test_replace_slot_pick_refuses_a_pick_from_another_anchor(user, gang, fighter):
+    slot_type = authoring.create_slot_type("Status")
+    table = authoring.create_picklist("Statuses", slot_type)
+    slot = authoring.create_slot("Status", slot_type, table)
+    pick = Pickable.objects.create(name="Glitched", slot_type=slot_type)
+    with operation(gang, actor=user) as op:
+        anchor = op.assign(slot, miniature=fighter)
+        other_anchor = op.assign(slot, miniature=fighter)
+        unrelated = op.choose(other_anchor, pick, slot=slot, miniature=fighter)
+
+    with pytest.raises(Refusal, match="augmentation has changed"):
+        with operation(gang, actor=user) as op:
+            op.replace_slot_pick(
+                anchor,
+                slot,
+                None,
+                previous_pick=unrelated,
+                miniature=fighter,
+                action_record=None,
+            )
+
+    unrelated.refresh_from_db()
+    assert not unrelated.archived
+
+
+def test_counter_only_payment_has_an_action_payment_event(user, gang, fighter):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    action.use_price.filter(resource="credits").delete()
+    record = start_and_review(user, gang, fighter, action, outcome)
+
+    with operation(gang, actor=user) as op:
+        completed = op.complete_action(
+            record,
+            revision=record.revision,
+            review=record.review,
+            outcome=outcome,
+        )
+
+    paid = completed.ledger_events.get(kind=LedgerEvent.Kind.ACTION_USE_PAID)
+    assert paid.payment_id == completed.payment_id
+    assert paid.miniature_id == fighter.pk
+    assert paid.credits_delta == 0
+    assert completed.ledger_events.filter(
+        kind=LedgerEvent.Kind.TALLIED, payment_id=completed.payment_id
+    ).exists()
+
+
+def test_apply_changes_correction_is_refused_before_saving_a_review(
+    user, gang, fighter
+):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    with operation(gang, actor=user) as op:
+        completed = op.complete_action(
+            record,
+            revision=record.revision,
+            review=record.review,
+            outcome=outcome,
+        )
+    revision = completed.revision
+    review = completed.review
+
+    with pytest.raises(Refusal, match="cannot be corrected here"):
+        with operation(gang, actor=user) as op:
+            op.review_action_correction(completed, terms={})
+
+    completed.refresh_from_db()
+    assert completed.revision == revision
+    assert completed.review == review
 
 
 def test_a_recorded_roll_prevents_cancelling_even_without_an_allowance(
