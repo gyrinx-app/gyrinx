@@ -621,8 +621,8 @@ New player-data model ActionAllowance.
 id: record ID
 action: library.Action reference
 fighter: Miniature reference
-recruitment: membership Assignment reference
-source:
+source: membership Assignment reference
+provenance:
   kind: recruitment | rank
   threshold: integer for rank; null for recruitment
   rank_table: RankTable content reference and acquisition provenance for rank grants; null for recruitment
@@ -631,13 +631,13 @@ granted_event: LedgerEvent reference
 
 ```
 
-- RecruitmentSource uniqueness: action + recruitment. RankSource uniqueness: action + recruitment + threshold.
+- RecruitmentSource uniqueness: action + source. RankSource uniqueness: action + source + threshold.
 
 - An allowance may have at most one started or completed action record. Cancellation before any roll can release it. After a roll, retain the same unfinished record for continuation or correction.
 
 - Payment-funded actions do not need allowances.
 
-- Rank grants remain unique on action + recruitment + threshold. Changing tables never clears these records or grants anything by itself. A later XP increase uses the current table; re-crossing an already recorded threshold cannot grant it twice.
+- Rank grants remain unique on action + source + threshold. Changing tables never clears these records or grants anything by itself. A later XP increase uses the current table; re-crossing an already recorded threshold cannot grant it twice.
 
 ### Action record — NEW PLAYER MODEL
 
@@ -665,7 +665,7 @@ terms: >-
 started_event: LedgerEvent reference
 completed_event: LedgerEvent reference or null
 selection:
-  AugmentationSelection:
+  SlotSelection:
     item_assignment: Assignment or null until selected
     slot_assignment: Assignment or null
     previous_pick: Assignment or null for level zero

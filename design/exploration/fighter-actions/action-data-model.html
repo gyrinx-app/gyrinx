@@ -203,12 +203,12 @@ operation: &#39;AugmentCarriedItem | ResolveAdvancement | ApplyChanges(changes: 
 combination: all components required</code></pre><ul><li>An empty component list means no payment. Each action component has a positive amount.</li><li>Coalesce components that resolve to the same balance, then verify the total under the gang lock. Repeating a counter in the list must not bypass affordability.</li><li>Confirm the full list after all selections. All component debits, result changes and completion of the action record commit or roll back together. Saving unfinished choices does not pay or reserve balances.</li><li>Preserve the accepted components on the action record. Future content edits cannot reprice an existing payment.</li><li>Alternatives such as credits OR Kill Count would be an explicit future payment-method choice, not another meaning for this list.</li><li>Inherited Assignable.price describes acquiring an action capability; use_price describes performing it. Keep those separate. The initial capabilities are all free.</li></ul></details><details><summary>Allowance <span class="status">NEW PLAYER MODEL</span></summary><p>One earned or granted use of an action, such as the advancement at 49 XP. This is internal bookkeeping, not a player-facing token.</p><p class="muted">New player-data model ActionAllowance.</p><pre><code>id: record ID
 action: library.Action reference
 fighter: Miniature reference
-recruitment: membership Assignment reference
-source:
+source: membership Assignment reference
+provenance:
   kind: recruitment | rank
   threshold: integer for rank; null for recruitment
   rank_table: RankTable content reference and acquisition provenance for rank grants; null for recruitment
-granted_event: LedgerEvent reference</code></pre><ul><li>RecruitmentSource uniqueness: action + recruitment. RankSource uniqueness: action + recruitment + threshold.</li><li>An allowance may have at most one started or completed action record. Cancellation before any roll can release it. After a roll, retain the same unfinished record for continuation or correction.</li><li>Payment-funded actions do not need allowances.</li><li>Rank grants remain unique on action + recruitment + threshold. Changing tables never clears these records or grants anything by itself. A later XP increase uses the current table; re-crossing an already recorded threshold cannot grant it twice.</li></ul></details><details><summary>Action record <span class="status">NEW PLAYER MODEL</span></summary><p>One use of an action, including an unfinished use the player can continue.</p><p class="muted">New player-data model core.ActionRecord. The existing gang core.Action would be renamed core.Activity.</p><pre><code>id: record ID
+granted_event: LedgerEvent reference</code></pre><ul><li>RecruitmentSource uniqueness: action + source. RankSource uniqueness: action + source + threshold.</li><li>An allowance may have at most one started or completed action record. Cancellation before any roll can release it. After a roll, retain the same unfinished record for continuation or correction.</li><li>Payment-funded actions do not need allowances.</li><li>Rank grants remain unique on action + source + threshold. Changing tables never clears these records or grants anything by itself. A later XP increase uses the current table; re-crossing an already recorded threshold cannot grant it twice.</li></ul></details><details><summary>Action record <span class="status">NEW PLAYER MODEL</span></summary><p>One use of an action, including an unfinished use the player can continue.</p><p class="muted">New player-data model core.ActionRecord. The existing gang core.Action would be renamed core.Activity.</p><pre><code>id: record ID
 request_key: &gt;-
   unique use ID scoped to the gang; repeated starts or final confirmations address the same record. Completed
   records return their receipt without another payment.
@@ -225,7 +225,7 @@ terms: &gt;-
 started_event: LedgerEvent reference
 completed_event: LedgerEvent reference or null
 selection:
-  AugmentationSelection:
+  SlotSelection:
     item_assignment: Assignment or null until selected
     slot_assignment: Assignment or null
     previous_pick: Assignment or null for level zero
