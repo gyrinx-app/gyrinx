@@ -269,14 +269,16 @@
         color: var(--color-ink-100);
         white-space: nowrap;
     }
-    .flatpage-title-row {
+    .flatpage-heading {
         display: flex;
         align-items: center;
         gap: 0.75rem;
     }
+    .flatpage-title-row {
+        min-width: 0;
+    }
     .flatpage-title-row h1 {
         color: var(--color-ink-900);
-        flex: 1;
         font-size: 1.5rem;
         font-weight: 500;
         letter-spacing: -0.025em;
@@ -365,7 +367,7 @@
     .flatpage-mobile-tools {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-end;
         gap: 0.75rem;
         margin-bottom: 1.25rem;
     }

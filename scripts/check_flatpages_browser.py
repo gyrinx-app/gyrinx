@@ -24,11 +24,11 @@ def check(page, url, width, screenshot_dir=None, theme="light"):
 
     if width < 1024:
         expect(page.locator(".flatpage-help-nav")).not_to_be_visible()
-        browse = page.get_by_role("button", name="Browse pages", exact=True)
+        browse = page.get_by_role("button", name="Help & documentation", exact=True)
         expect(browse).to_be_visible()
         browse.focus()
         browse.press("Enter")
-        drawer = page.get_by_role("dialog", name="Browse pages", exact=True)
+        drawer = page.get_by_role("dialog", name="Help & documentation", exact=True)
         expect(drawer).to_be_visible()
         expect(drawer.locator('a[aria-current="page"]')).to_be_visible()
         expect(drawer.get_by_role("button", name="Close", exact=True)).to_be_focused()
@@ -114,7 +114,7 @@ def main():
         )
         page = context.new_page()
         page.goto(args.url)
-        for label in ("Browse pages", "On this page"):
+        for label in ("Help & documentation", "On this page"):
             disclosure = page.locator(".flatpage-noscript-nav").filter(
                 has=page.locator("summary", has_text=label)
             )

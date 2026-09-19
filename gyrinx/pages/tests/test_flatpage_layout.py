@@ -62,7 +62,11 @@ def test_layout_only_renders_navigation_columns_with_content(
 
     assert document.select_one("aside.flatpage-help-nav") is not None
     assert (document.select_one("aside.flatpage-toc") is not None) is shows_toc
-    assert document.find(string="Browse pages") is not None
+    trigger = document.select_one(
+        '.flatpage-heading button[aria-label="Help & documentation"]'
+    )
+    assert trigger is not None
+    assert not trigger.get_text(strip=True)
 
 
 def test_default_page_has_one_main_landmark(client, site):
@@ -106,7 +110,7 @@ def test_noscript_toc_is_outside_alpine_teleport_templates(client, site, url):
     assert len(fallbacks) == 1
     assert fallbacks[0].find_parent("template") is None
     assert "On this page" in fallbacks[0].get_text(" ", strip=True)
-    assert "Browse pages" in fallbacks[0].get_text(" ", strip=True)
+    assert "Help & documentation" in fallbacks[0].get_text(" ", strip=True)
 
 
 def test_authored_content_is_sanitised_before_reaching_the_layout(client, site):
