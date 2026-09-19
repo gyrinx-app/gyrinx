@@ -381,7 +381,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
             rule is None
             or allowance.fighter_id != fighter.pk
             or allowance.action_id != action.pk
-            or allowance.recruitment_id != fighter.membership_id
+            or allowance.source_id != fighter.membership_id
         ):
             raise Refusal("That allowance belongs to another action use.")
         if allowance.records.filter(
@@ -456,7 +456,7 @@ def _validate_draft_definition(record):
     if (
         allowance.fighter_id != record.fighter_id
         or allowance.action_id != record.action_id
-        or allowance.recruitment_id != record.fighter.membership_id
+        or allowance.source_id != record.fighter.membership_id
     ):
         raise Refusal("That allowance belongs to another action use.")
 
