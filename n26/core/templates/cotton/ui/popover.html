@@ -1,0 +1,146 @@
+{% comment %}
+<c-ui.popover> — A floating panel opened by a click or a hover.
+
+<c-ui.popover trigger_text="Contents" panel_label="On this page">
+    ...
+</c-ui.popover>
+
+trigger_text renders the accessible trigger. The trigger slot keeps the kit API for callers that own their trigger.
+Keyboard activation of the owned trigger moves focus into the panel. Escape closes it and returns focus.
+Following a link in the panel closes it. The panel scrolls within the viewport when its content is tall.
+panel_id is optional. When omitted, Alpine assigns a unique id and connects the owned trigger to it.
+class styles the panel. trigger_class styles only the owned trigger.
+{% endcomment %}
+
+<c-vars
+  position="bottom"
+  align="center"
+  open_on="click"
+  :offset="8"
+  :open_delay="120"
+  :close_delay="200"
+  trigger_text=""
+  trigger_class=""
+  panel_label=""
+  panel_id=""
+  class=""
+/>
+
+<div
+  x-data="{
+    open: false,
+    mode: '{{ open_on }}',
+    ownsTrigger: {% if trigger_text %}true{% else %}false{% endif %},
+    focusOnOpen: false,
+    _openT: null,
+    _closeT: null,
+    init() {
+      this._cleanupReposition = window.CottonUI.watchReposition(() => {
+        if (this.open) this.position();
+      });
+    },
+    destroy() {
+      this._cleanupReposition && this._cleanupReposition();
+      clearTimeout(this._openT);
+      clearTimeout(this._closeT);
+    },
+    position() {
+      window.CottonUI.positionPopover(this.$refs.trigger, this.$refs.panel, {
+        position: '{{ position }}', align: '{{ align }}', offset: {{ offset }}, responsive: true,
+      });
+    },
+    doOpen(moveFocus = false) {
+      clearTimeout(this._closeT);
+      this.focusOnOpen = moveFocus;
+      if (this.open) return;
+      this.open = true;
+      this.$nextTick(() => {
+        this.position();
+        if (this.focusOnOpen) {
+          const targets = this.$refs.dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]');
+          const target = Array.from(targets).find(element => element.tabIndex >= 0);
+          (target || this.$refs.dialog).focus();
+        }
+      });
+      this.$dispatch('popover-open');
+    },
+    doClose(returnFocus = false) {
+      clearTimeout(this._openT);
+      if (!this.open) return;
+      this.open = false;
+      if (returnFocus) this.$nextTick(() => this.$refs.trigger.focus({ preventScroll: true }));
+      this.$dispatch('popover-close');
+    },
+    toggle(moveFocus = false) { this.open ? this.doClose() : this.doOpen(moveFocus); },
+    close() { this.doClose(); },
+    onEnter() {
+      if (this.mode !== 'hover') return;
+      clearTimeout(this._closeT);
+      this._openT = setTimeout(() => this.doOpen(), {{ open_delay }});
+    },
+    onLeave() {
+      if (this.mode !== 'hover') return;
+      clearTimeout(this._openT);
+      this._closeT = setTimeout(() => this.doClose(), {{ close_delay }});
+    },
+    onPanelClick(event) {
+      if (event.target.closest('a[href]')) this.doClose(this.ownsTrigger);
+    }
+  }"
+  x-id="['popover-trigger', 'popover-panel']"
+  @keydown.escape.window="doClose(true)"
+  @click.outside="doClose()"
+  @mouseenter="onEnter()"
+  @mouseleave="onLeave()"
+  {{ attrs }}
+  data-popover
+  class="relative inline-block"
+>
+  {% if trigger_text %}
+    <button
+      type="button"
+      x-ref="trigger"
+      :id="$id('popover-trigger')"
+      @click="mode === 'click' && toggle($event.detail === 0)"
+      :aria-expanded="open"
+      :aria-controls="'{{ panel_id }}' || $id('popover-panel')"
+      class="cursor-pointer whitespace-nowrap rounded-button bg-white text-ink-800 border border-ink-200 dark:bg-ink-400/30 dark:text-ink-300 dark:border-ink-300/20 shadow px-4 py-2 text-sm font-medium transition text-center focus-ring active:opacity-100 {{ trigger_class }}"
+    >
+      {{ trigger_text }}
+    </button>
+  {% else %}
+    <div
+      x-ref="trigger"
+      @click="mode === 'click' && toggle()"
+      :aria-expanded="open"
+      class="inline-block"
+    >
+      {{ trigger }}
+    </div>
+  {% endif %}
+
+  {# The positioning frame and transition panel stay separate because both own transforms. #}
+  <div x-ref="panel" class="absolute z-50">
+    <div
+      x-ref="dialog"
+      id="{{ panel_id }}"
+      {% if not panel_id %}:id="$id('popover-panel')"{% endif %}
+      x-show="open"
+      x-cloak
+      @click="onPanelClick($event)"
+      x-transition:enter="transition ease-out duration-100"
+      x-transition:enter-start="opacity-0 scale-95"
+      x-transition:enter-end="opacity-100 scale-100"
+      x-transition:leave="transition ease-in duration-75"
+      x-transition:leave-start="opacity-100 scale-100"
+      x-transition:leave-end="opacity-0 scale-95"
+      role="dialog"
+      {% if panel_label %}aria-label="{{ panel_label }}"{% else %}:aria-labelledby="$id('popover-trigger')"{% endif %}
+      tabindex="-1"
+      data-popover-panel
+      class="w-max max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain rounded-box border border-[color:var(--color-box-border)] bg-white dark:bg-ink-800 p-4 shadow-lg text-sm text-ink-700 dark:text-ink-200 {{ class }}"
+    >
+      {{ slot }}
+    </div>
+  </div>
+</div>
