@@ -78,11 +78,10 @@ class LedgerEntry(Base):
             "get-out is a purchase with no entry."
         ),
     )
-    #: The action this purchase counted against, where one was open —
-    #: a trip to the trading post, founding and equipping the gang. What
-    #: an action has spent is the sum over the purchases pointing at it,
-    #: and a refund's event sits on the same assignment, so handing
-    #: something back returns its Trade Points to the action that paid
+    #: The activity this purchase counted against, where one was open.
+    #: What an activity has spent is the sum over the purchases pointing
+    #: at it, and a refund's event sits on the same assignment, so handing
+    #: something back returns its Trade Points to the activity that paid
     #: for them however long afterwards it happens. Blank for a purchase
     #: made with nothing open: the owner said they meant it, and it
     #: counts against nothing.
@@ -99,13 +98,12 @@ class LedgerEntry(Base):
         ),
     )
     #: Whose Trade Points these were. An allowance may belong to one
-    #: model rather than to the gang — what a fighter is given to spend
-    #: as it joins — and what it has spent has to follow the buyer, never
-    #: the thing bought: moving a gun into the stash or handing it to
-    #: somebody else does not refund the points, and refunding it there
-    #: returns them to whoever spent them. Blank where nothing was
-    #: recorded against an action, and for a purchase into the stash,
-    #: which nobody's allowance pays for.
+    #: model rather than to the gang, and what it has spent has to follow
+    #: the buyer, never the thing bought: moving a gun into the stash or
+    #: handing it to somebody else does not refund the points, and
+    #: refunding it there returns them to whoever spent them. Blank where
+    #: nothing was recorded against an activity, and for a purchase into
+    #: the stash, which nobody's allowance pays for.
     spent_by = models.ForeignKey(
         "n26.Miniature",
         on_delete=models.SET_NULL,
@@ -131,11 +129,9 @@ class LedgerEntry(Base):
 
     @property
     def assignable(self):
-        """What was acquired. Read through the assignment — one source of truth.
-
-        Note for later: if an assignment is ever *amended* (Death of a Leader
-        swapping a profile), this will follow the new assignable rather than
-        remember the old one. See design/assignables.md, open questions.
+        """What was acquired. Read through the assignment — one source of
+        truth. An amendment that swaps the assignable rewrites what
+        already-written history names.
         """
         return self.assignment.assignable
 
@@ -191,27 +187,21 @@ class LedgerEvent(Base):
         # what every later purchase is measured against, so a reader owed
         # an explanation of "where did my credits go" is owed this too.
         BUDGET_SET = "budget_set", "Budget set"
-        # A Visit Trading Post action opening or closing, from before it
-        # was an action row. Nothing writes one now — the pair below say
-        # it for every kind of action — and the kind stays so that a
-        # gang's older history still has a word for what it did.
+        # A Visit Trading Post opening or closing, from gangs whose history
+        # predates the activity row. Nothing writes this kind now; it stays
+        # so older history still has a word for the act.
         TRADE_POINTS_SET = "trade_points_set", "Trade Points set"
-        # One fighter performing that action. The Trade Points they add
-        # are the gang's, counted once on the event above, so this
-        # carries none of its own — it says who went, which is what
-        # answers "has this model already used their action" and what a
-        # receipt names. The note holds what the card said raised their
-        # figure — the rank's name, where one rank raised it, and the
-        # figure itself where several things did — since that is what
-        # they added rather than what they are now.
+        # One fighter performing that visit. The Trade Points they add
+        # are the gang's, counted once on the activity's opening event, so
+        # this carries none of its own — it says who went. The note holds
+        # what the card said raised their figure.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
         # An activity opening and closing (``n26.core.models.activity``).
-        # Neither moves anything of its own: what an action did is the
+        # Neither moves anything of its own: what an activity did is the
         # log between the two. The note holds the kind, so a reader of
-        # the history can be told which action without a join, and the
-        # figure the act carried where it carried one — what a visit
-        # brought, and what it still had when it ended.
+        # the history can be told which activity without a join, and the
+        # figure the act carried where it carried one.
         ACTION_OPENED = "action_opened", "Action started"
         ACTION_CLOSED = "action_closed", "Action completed"
 

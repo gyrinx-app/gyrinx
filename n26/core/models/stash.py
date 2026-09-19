@@ -4,16 +4,11 @@ from n26.core.models.abstract import Base, Rated
 
 
 class Stash(Base, Rated):
-    """The gang's holding pen for surplus equipment.
+    """A fourth host an assignment can live on — storage, not a model.
 
-    A fourth place an assignment can live — not a model: no name, no XP,
-    no profile, never a card. Created at founding; fed by purchases and
-    (later) the post-battle flows; drained by moving things onto models.
-    Its pinned rating is Wealth's third term — stashed gear counts toward
-    what a gang is worth, never toward its rating.
-
-    v1 modelled this as a hidden fighter and regretted it; here the
-    database itself knows the difference between a fighter and storage.
+    No name, no XP, no profile, never a card. Its pinned rating is
+    wealth's third term: stashed gear counts toward what a gang is
+    worth, never toward its rating.
     """
 
     gang = models.OneToOneField(

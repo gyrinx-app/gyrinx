@@ -1,9 +1,9 @@
 """Setting groups — small typed models carrying extra facts.
 
-Each group is its own model with real columns and real foreign keys, rather
-than a bag of JSON, so values can point at other rows and be queried in SQL.
-A group registers under a stable key; an ``AssignableType`` declares which
-keys apply to its assignables and assignments.
+Each group is its own model with real columns and real foreign keys,
+registered under a stable key. An ``AssignableType`` declares which keys
+apply to its assignables and assignments. The model must be imported from
+``models/__init__.py`` or ``SETTING_GROUPS`` never sees it.
 
 Adding a new kind of setting is a new small model plus a migration.
 """
@@ -12,13 +12,10 @@ from django.db import models
 
 from n26.core.models.abstract import Base
 
-#: group key -> model class
 SETTING_GROUPS = {}
 
 
 def setting_group(key, applies_to):
-    """Register a setting-group model under a stable key."""
-
     def decorate(cls):
         cls.group_key = key
         cls.applies_to = applies_to
@@ -30,8 +27,6 @@ def setting_group(key, applies_to):
 
 @setting_group("profile-role", "assignment")
 class ProfileRole(Base):
-    """Whether a profile assignment is the model's primary one or a legacy."""
-
     class Role(models.TextChoices):
         PRIMARY = "primary", "Primary"
         LEGACY = "legacy", "Legacy"
@@ -54,9 +49,8 @@ class ChosenProfileOption(Base):
     """One option a hire took, recorded on the membership.
 
     Derivable from which default assignments exist, but stored: display
-    wants "Khimerix (razor-sharp talons)" without reverse-engineering it,
-    and a later edit needs to know what it is changing from. One row per
-    set taken — a profile with several option groups records several.
+    wants the chosen name without reverse-engineering it, and a later
+    edit needs to know what it is changing from. One row per set taken.
     """
 
     assignment = models.ForeignKey(
@@ -83,9 +77,7 @@ class ChosenProfileOption(Base):
 class CounterValue(Base):
     """The running value of one counter assignment.
 
-    The first mutable player-side number on an assignment. Written only
-    by ``op.tally``, which records a ledger event per change — the
-    spend-with-audit discipline, on the one ledger.
+    Written only by ``op.tally``, which records a ledger event per change.
     """
 
     assignment = models.OneToOneField(

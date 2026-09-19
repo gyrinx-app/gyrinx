@@ -35,8 +35,6 @@ def open_visit_points(gang="pk"):
 
 
 class Gang(Base, Owned, Archived, Rated):
-    """A player's gang."""
-
     name = models.CharField(max_length=200)
     gang_type = models.ForeignKey(
         "library.GangType", on_delete=models.PROTECT, related_name="gangs"
@@ -198,16 +196,10 @@ class Gang(Base, Owned, Archived, Rated):
         self.forget_open_activities()
 
     def open_activity(self, kind):
-        """The activity of this kind the gang has open, or None.
-
-        One row at most: the database holds a gang to one open activity of
-        each kind, so there is never a set to pick from.
-        """
         return self.open_activities().get(kind)
 
     @property
     def open_visit(self):
-        """The open Visit Trading Post activity, or None."""
         from n26.core.models import Activity
 
         return self.open_activity(Activity.Kind.TRADING_POST_VISIT)
@@ -273,11 +265,9 @@ class Gang(Base, Owned, Archived, Rated):
 
     @property
     def stash_rating(self):
-        """What the stash holds, or 0 before one exists. Column reads."""
         stash = getattr(self, "stash", None)
         return stash.rating if stash else 0
 
     @property
     def wealth(self):
-        """Rating, plus cash, plus what the stash holds. Column reads."""
         return self.rating + self.credits + self.stash_rating

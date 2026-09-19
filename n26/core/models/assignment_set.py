@@ -1,21 +1,12 @@
-"""Assignment sets — the rulebook's multiple Model Cards.
+"""Assignment sets — a named selection of one model's equipment.
 
-A model owns one pool of equipment, bought once and counted once. An
-assignment set is a **named selection** from that pool: which weapons and
-wargear show on one particular card. The rulebook calls these equipment
-sets — "all models can have multiple Model Cards, each representing a
-different set of equipment".
+A model owns one pool, bought once. A set is which weapons and wargear
+show on one card; everything else rides every card. Building a card
+without a set means everything the model owns.
 
-The default card is **no set at all**: building a card without a set means
-everything the model owns, which is what the code always did.
-
-What is selectable is hard-coded for now: weapons and wargear hosted on the
-model. Everything else — the profile, subtypes, skills, injuries — rides
-every card ("If the model suffers any Lasting Injuries… it should be
-recorded on all of their Model Cards"). A weapon's ammo follows the weapon.
-
-Sets are free, change no rating and touch no ledger — pure
-display state, so they do not go through ``n26.operations``.
+Selectable kinds are weapons and wargear hosted on the model; a weapon's
+ammo follows the weapon. Sets change no rating and never go through
+``n26.operations``.
 """
 
 from django.core.exceptions import ValidationError
@@ -24,7 +15,6 @@ from django.db.models.functions import Lower
 
 from n26.core.models.abstract import Base
 
-#: Assignment columns a set may select. Everything else is always on-card.
 SELECTABLE_FIELDS = ("weapon", "wargear")
 
 
