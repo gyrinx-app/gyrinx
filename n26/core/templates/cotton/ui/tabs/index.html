@@ -17,7 +17,7 @@ An extra wrapper around the segmented strip unstyles every card tab strip. .n26-
 Without JavaScript a noscript rule shows every panel. display none is only for Alpine.
 param copies the active name into the query string. Nested strips on one page must leave it empty.
 Alpine applies the query when a registered tab's name matches, so an unknown name cannot hide every panel.
-Pass the query as default_tab as well, so the first paint matches before Alpine runs.
+Pass the query as default_tab as well, so Alpine's initial state matches the URL.
 {% endcomment %}
 
 <c-vars
