@@ -259,6 +259,26 @@ def test_duplicate_confirmation_returns_the_same_receipt(user, gang, fighter):
     assert LedgerEvent.objects.filter(action_record=first).count() == before
 
 
+def test_completed_retry_survives_archived_fighter(user, gang, fighter):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    with operation(gang, actor=user) as op:
+        completed = op.complete_action(
+            record,
+            revision=record.revision,
+            review=record.review,
+            outcome=outcome,
+        )
+    events_before = LedgerEvent.objects.filter(action_record=completed).count()
+    Assignment.objects.filter(pk=fighter.membership_id).update(archived=True)
+
+    with operation(gang, actor=user) as op:
+        retried = op.complete_action(completed, revision=0, review={}, outcome=outcome)
+
+    assert retried.pk == completed.pk
+    assert LedgerEvent.objects.filter(action_record=completed).count() == events_before
+
+
 def test_unpaid_draft_rechecks_removed_access(user, gang, fighter):
     action, outcome, access, _ = configured_action(user, gang, fighter)
     record = start_and_review(user, gang, fighter, action, outcome)
@@ -272,6 +292,25 @@ def test_unpaid_draft_rechecks_removed_access(user, gang, fighter):
                 review=record.review,
                 outcome=outcome,
             )
+
+
+def test_missing_price_counter_refuses_as_stale_review(user, gang, fighter):
+    action, outcome, _, held = configured_action(user, gang, fighter)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    Assignment.objects.filter(pk=held.pk).update(archived=True)
+
+    with pytest.raises(Refusal, match="counter is no longer available"):
+        with operation(gang, actor=user) as op:
+            op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=outcome,
+            )
+
+    record.refresh_from_db()
+    assert record.state == ActionRecord.State.STARTED
+    assert record.payment_id is None
 
 
 def test_archived_fighter_cannot_review_an_existing_draft(user, gang, fighter):
