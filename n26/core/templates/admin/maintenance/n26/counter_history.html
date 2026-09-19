@@ -1,0 +1,120 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">Back to maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    {% if problem %}<p class="errornote" role="alert">{{ problem }}</p>{% endif %}
+    {% if active %}
+        <p>Counter history is active.</p>
+    {% else %}
+        <p>
+            Counter history is inactive. While writes are open, counter edits
+            use the existing journal entries.
+        </p>
+    {% endif %}
+    {% if pause.state == "PAUSED" %}
+        <p>n26 writes are paused. {{ pause.reason }}</p>
+        <p>Paused at {{ pause.paused_at }} by {{ pause.paused_by|default:"an operator" }}.</p>
+    {% else %}
+        <p>n26 writes are open.</p>
+    {% endif %}
+    <h2>Current counters</h2>
+    <dl>
+        <dt>Counter values</dt>
+        <dd>
+            {{ counts.counters }}
+        </dd>
+        <dt>On archived assignments</dt>
+        <dd>
+            {{ counts.archived }}
+        </dd>
+        <dt>Structured counter events</dt>
+        <dd>
+            {{ counts.structured_events }}
+        </dd>
+        <dt>Counters without a gang</dt>
+        <dd>
+            {{ counts.without_gang }}
+        </dd>
+    </dl>
+    {% if run %}
+        <h2>Current run</h2>
+        <p>
+            <a href="{% url 'admin:maintenance_backfill_detail' run.pk %}">View the maintenance record</a>
+            · {{ run.get_status_display }}
+        </p>
+        {% if run.summary.phase == "cleanup" %}
+            <p>Removing this run's checkpoints before resuming ordinary counter edits.</p>
+        {% else %}
+            <p>Recording current balances and checking every counter's history.</p>
+        {% endif %}
+        {% if run.summary.total != None %}
+            <p>{{ run.summary.done|default:0 }} of {{ run.summary.total }} gangs checked.</p>
+        {% endif %}
+        {% if run.error %}<pre>{{ run.error }}</pre>{% endif %}
+        {% if run.status == "done" %}
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="run_id" value="{{ run.pk }}">
+                <input type="hidden" name="generation" value="{{ pause.generation }}">
+                <button type="submit" name="action" value="resume" class="button default">Resume n26 writes</button>
+            </form>
+        {% else %}
+            {% if run.status == "running" %}
+                <p>
+                    Refresh this page to see progress. If progress has stopped,
+                    retry the run. A live delivery finishes before the retry begins.
+                </p>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="run_id" value="{{ run.pk }}">
+                <input type="hidden" name="generation" value="{{ pause.generation }}">
+                <button type="submit" name="action" value="retry" class="button">Retry this run</button>
+            </form>
+        {% endif %}
+        {% if not active and run.summary.phase != "cleanup" %}
+            <h2>Abandon activation</h2>
+            <p>
+                Wait for the current task delivery to finish, then remove only
+                this run's checkpoints. Counter values stay unchanged. Resume
+                writes after cleanup finishes.
+            </p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="run_id" value="{{ run.pk }}">
+                <input type="hidden" name="generation" value="{{ pause.generation }}">
+                <button type="submit"
+                        name="action"
+                        value="cleanup"
+                        class="button">Stop activation and clear its checkpoints</button>
+            </form>
+        {% endif %}
+    {% elif not active and pause.state == "OPEN" %}
+        <h2>Activate counter history</h2>
+        <p>
+            This pauses n26 writes and waits for edits and background jobs already
+            running. A background job then records each counter's current value
+            and checks its history. Counter values stay unchanged. You resume
+            writes after the job finishes.
+        </p>
+        <p>Finish deployment and provision the task route before starting this job.</p>
+        <form method="post">
+            {% csrf_token %}
+            <p>
+                <label>
+                    <input type="checkbox" name="ready" value="confirmed" required>
+                    I have confirmed that every serving web and task revision supports
+                    counter activation, and the activation task route is provisioned.
+                </label>
+            </p>
+            <button type="submit"
+                    name="action"
+                    value="activate"
+                    class="button default">Pause writes and activate counter history</button>
+        </form>
+    {% elif not active %}
+        <p>Resume the existing write pause before starting counter history activation.</p>
+    {% endif %}
+{% endblock content %}
