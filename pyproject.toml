@@ -70,7 +70,7 @@ dependencies = [
     "referencing==0.37.0",
     "requests==2.34.2",
     "rich==15.0.0",
-    "ruff==0.16.6",
+    "ruff==0.16.7",
     "setuptools==81.0.0",
     "simpleeval==1.0.7",
     "sqlparse==0.6.0",
