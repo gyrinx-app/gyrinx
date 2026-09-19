@@ -4,7 +4,8 @@
 This is a block of inline-blocks. CSS grid or flex slices items at the page fold.
 columns must be 1 to 6. The stylesheet names each count; a seventh still takes a gutter and wraps early.
 A child with display none still occupies a turn in nth-child, so the trailing gutter lands on the wrong card.
-Newlines between children become spaces that wrap a column early. Cards restore type for their own content.
+The grid zeros font-size and line-height so template newlines between children do not wrap a column early. Cards restore type for their own content.
+A child that is not a print-card inherits that zero type and draws blank.
 Cards inherit --print-cell-w. Set width on a card that must not follow the grid.
 {% endcomment %}
 
