@@ -1,8 +1,8 @@
 """Assignments — a player's copy of an assignable, attached to something.
 
-An assignment lives in exactly one place: on a gang, on a model, or on
-another assignment (a scope on a gun on a fighter). That is its *host*, and
-the database enforces that exactly one is set.
+An assignment lives in exactly one place: on a gang, on a model, on
+the stash, or on another assignment (a scope on a gun on a fighter).
+That is its *host*, and the database enforces that exactly one is set.
 
 It also names exactly one **assignable**. Because assignables are a mixin
 rather than a shared table (see ``n26.library.models.assignable``), there is no
@@ -21,9 +21,9 @@ The payoff over a loose pointer: real referential integrity, and resolving
 a whole gang's assignments to their assignables is **one** query with a few
 left joins rather than one query per kind present.
 
-Two **root** columns name the gang and model at the top of the chain,
-written at save time, so "everything on this gang" is one indexed query at
-any depth — no walking.
+Three **root** columns name the gang, model, and stash at the top of the
+chain, written at save time, so "everything on this gang" is one indexed
+query at any depth — no walking.
 """
 
 from django.core.exceptions import ValidationError
@@ -33,9 +33,9 @@ from n26.core.constraints import NamesAnAssignable, exactly_one_of
 from n26.core.models.abstract import Archived, Base
 
 #: Field on Assignment -> the assignable model it points at. Adding a kind
-#: means a line here and a migration; ``n26.checks`` compares these paths
-#: to the Assignable registry and refuses to boot if they disagree.
-#: ``NamesAnAssignable`` iterates the field names.
+#: means a matching nullable FK, a line here, and a migration; ``n26.checks``
+#: compares these paths to the Assignable registry and refuses to boot if
+#: they disagree. ``NamesAnAssignable`` iterates the field names.
 ASSIGNABLE_FIELDS = {
     "profile": "library.Profile",
     "weapon": "library.Weapon",
@@ -220,7 +220,7 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="assignments",
     )
 
-    # Where it lives — exactly one of gang, model, parent, or stash.
+    # Where it lives — exactly one of gang, miniature, parent, or stash.
     gang = models.ForeignKey(
         "n26.Gang",
         on_delete=models.CASCADE,

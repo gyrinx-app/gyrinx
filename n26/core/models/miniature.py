@@ -49,8 +49,9 @@ class Miniature(Base, Owned, Rated):
     #: cascade fires only when the assignment is genuinely deleted, which
     #: in practice means the gang was.
     #:
-    #: Nullable because ``Operation.hire`` writes the model before
-    #: attaching its membership; a null cascades from nothing.
+    #: Nullable so a miniature can exist without a gang (``gang`` is then
+    #: None). Hire and clone write the membership first, then create the
+    #: miniature already pointing at it; a null cascades from nothing.
     membership = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.CASCADE,

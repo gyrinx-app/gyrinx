@@ -1,8 +1,8 @@
 """Setting groups — small typed models carrying extra facts.
 
 Each group is its own model with real columns and real foreign keys,
-registered under a stable key. An ``AssignableType`` declares which keys
-apply to its assignables and assignments. The model must be imported from
+registered under a stable key. The decorator records ``group_key`` and
+``applies_to`` on the class. The model must be imported from
 ``models/__init__.py`` or ``SETTING_GROUPS`` never sees it.
 
 Adding a new kind of setting is a new small model plus a migration.
@@ -77,7 +77,8 @@ class ChosenProfileOption(Base):
 class CounterValue(Base):
     """The running value of one counter assignment.
 
-    Written only by ``op.tally``, which records a ledger event per change.
+    User changes go through ``op.tally``, which records a ledger event.
+    Hiring and cloning also create it.
     """
 
     assignment = models.OneToOneField(
