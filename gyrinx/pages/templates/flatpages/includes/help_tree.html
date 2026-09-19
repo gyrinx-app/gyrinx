@@ -1,0 +1,28 @@
+<ul class="flatpage-help-tree">
+    {% for node in nodes %}
+        <li{% if node.children %} x-data="{ open: {% if node.is_current or node.is_ancestor %}true{% else %}false{% endif %} }"{% endif %}>
+            <div class="flatpage-help-tree-row">
+                <a href="{{ node.page.url }}"
+                   {% if node.is_current %}aria-current="page"{% endif %}
+                   {% if node.is_ancestor %}data-ancestor{% endif %}>{{ node.page.title }}</a>
+                {% if node.children %}
+                    <c-ui.button type="button"
+                                 variant="ghost"
+                                 size="xs"
+                                 aria-label="Show pages in {{ node.page.title }}"
+                                 x-cloak
+                                 ::aria-label="(open ? 'Hide pages in ' : 'Show pages in ') + '{{ node.page.title|escapejs }}'"
+                                 ::aria-expanded="open"
+                                 @click="open = !open">
+                        <c-n26.icon name="chevron-right"
+                                    class="size-3 transition-transform"
+                                    ::class="{ 'rotate-90': open }" />
+                    </c-ui.button>
+                {% endif %}
+            </div>
+            {% if node.children %}
+                <div x-show="open">{% include "flatpages/includes/help_tree.html" with nodes=node.children %}</div>
+            {% endif %}
+        </li>
+    {% endfor %}
+</ul>

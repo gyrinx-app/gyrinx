@@ -1,0 +1,10 @@
+<ul class="flatpage-toc-list{% if compact %} flatpage-toc-list--compact{% endif %}">
+    {% for heading in headings %}
+        <li>
+            <a href="#{{ heading.slug }}">{{ heading.text }}</a>
+            {% if heading.children %}
+                {% include "flatpages/includes/toc.html" with headings=heading.children compact=compact %}
+            {% endif %}
+        </li>
+    {% endfor %}
+</ul>

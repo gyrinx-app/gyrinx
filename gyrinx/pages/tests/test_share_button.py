@@ -1,9 +1,7 @@
-"""The Share button on a help page: a link to the page itself, with
-the hook index.js takes over."""
-
-import re
+"""The Share button on a help page remains a real link to the page."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.flatpages.models import FlatPage
 
 
@@ -22,9 +20,7 @@ def flatpage(site):
 def test_help_page_share_is_a_link_to_the_page(client, flatpage):
     body = client.get(flatpage.url).content.decode()
 
-    match = re.search(
-        rf'<a\s[^>]*data-share-url="{re.escape(flatpage.url)}"[^>]*>', body
-    )
-    assert match is not None
-    assert f'href="{flatpage.url}"' in match.group(0)
+    share = BeautifulSoup(body, "html.parser").find("a", attrs={"aria-label": "Share"})
+    assert share is not None
+    assert share["href"] == flatpage.url
     assert "Link copied." in body

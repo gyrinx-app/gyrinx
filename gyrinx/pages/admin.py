@@ -69,6 +69,7 @@ def rich_text_widget(*, rows, height):
 
 class FlatPageOptionsInline(admin.StackedInline):
     model = FlatPageOptions
+    exclude = ("show_contents",)
     # One-to-one: show the single form straight away rather than behind an
     # "Add another" link. An untouched form is not saved, so a page without
     # options set gets no row.

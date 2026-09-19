@@ -1,120 +1,149 @@
-{% extends "core/layouts/base.html" %}
-{% load pages %}
-{% block head_title %}
-    {{ flatpage.title }}
-{% endblock head_title %}
+{% extends "flatpages/shell.html" %}
+{% block head_title %}{{ flatpage.title }}{% endblock head_title %}
 {% block content %}
-    <div class="row">
-        {% page_depth flatpage as depth %}
-        {% pages_path_segment flatpage.url depth as prefix %}
-        {% get_pages for user as all_flatpages %}
-        {% get_pages prefix for user as flatpages %}
-        {% pages_parent flatpage as parent %}
-        <div class="flatpage-heading col-md-4 d-flex flex-column">
-            <div class="stickyboi sticky-md-top ms-1">
-                <div class="order-2 order-md-1">
-                    {% if parent %}
-                        <i class="bi-chevron-left"></i>
-                        <a href="{{ parent.url }}"
-                           class="link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
-                            {{ parent.title }}
-                        </a>
-                    {% else %}
-                        <span class="text-secondary">Help &amp; Documentation</span>
-                    {% endif %}
-                    <h1>{{ flatpage.title }}</h1>
-                    <c-share url="{{ flatpage.url }}" />
-                    <hr class="my-3 my-md-4" />
+    <div class="flatpage-layout{% if presentation.is_help %} flatpage-layout--help{% endif %}{% if presentation.show_toc %} flatpage-layout--with-toc{% endif %}">
+        {% if presentation.is_help %}
+            <aside class="flatpage-help-nav" aria-label="Help">
+                <div class="flatpage-sticky-nav">
+                    {# Flatpage URLs are content-managed and have no named route. #}
+                    {# djlint:off D018 #}
+                    <a href="/help/"
+                       class="flatpage-nav-title"
+                       {% if flatpage.url == "/help/" %}aria-current="page"{% endif %}>Help</a>
+                    {# djlint:on #}
+                    {% include "flatpages/includes/help_tree.html" with nodes=presentation.help_tree.0.children %}
                 </div>
-                {% if flatpages|length > 1 %}
-                    <div class="dropdown d-md-none mb-3 order-1">
-                        <c-btn variant="outline-secondary"
-                               class="dropdown-toggle"
-                               type="button"
-                               data-bs-toggle="dropdown"
-                               aria-expanded="false">
-                            Help &amp; Documentation
-                        </c-btn>
-                        <ul class="dropdown-menu">
-                            {% for page in all_flatpages %}
-                                <li>
-                                    {% if page == flatpage %}
-                                        <span class="dropdown-item active">
-                                            <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
-                                        </span>
-                                    {% else %}
-                                        <a class="dropdown-item" href="{{ page.url }}">
-                                            <span style="padding-left:{% page_depth page %}em">{{ page.title }}</span>
-                                        </a>
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    <ul class="d-none d-md-flex nav flex-column order-2">
-                        {% for page in all_flatpages %}
-                            <li style="padding-left:{% page_depth page %}em" class="mb-1">
-                                {% if page == flatpage %}
-                                    <span class="text-decoration-underline">{{ page.title }}</span>
-                                {% else %}
-                                    <a href="{{ page.url }}" class="linked">{{ page.title }}</a>
-                                {% endif %}
-                            </li>
-                        {% endfor %}
-                    </ul>
+            </aside>
+        {% endif %}
+        <article class="flatpage-main">
+            <header class="flatpage-header">
+                {% if presentation.parent %}
+                    <a href="{{ presentation.parent.url }}" class="flatpage-parent-link">
+                        <c-n26.icon name="chevron-left" class="size-3.5" />
+                        {{ presentation.parent.title }}
+                    </a>
                 {% endif %}
-            </div>
-        </div>
-        <div class="flatpage-content col-12 col-md-8 col-xl-6 mt-2 mt-md-0">
-            {% page_introduction flatpage %}
-            {% page_contents flatpage %}
-            {{ flatpage.content|add_heading_links }}
-            {% comment %}Direct child pages, for narrow viewports without the sidebar{% endcomment %}
-            {% get_child_pages flatpage.url for user as sub_pages %}
-            {% if sub_pages %}
-                <div class="mt-5 pt-3 border-top">
-                    <h2 class="h5 mb-3">In {{ flatpage.title }}:</h2>
-                    <ul class="list-unstyled">
-                        {% for page in sub_pages %}
-                            <li class="mb-2">
-                                <a href="{{ page.url }}"
-                                   class="d-block p-2 rounded text-decoration-none">{{ page.title }}</a>
-                            </li>
-                        {% endfor %}
-                    </ul>
+                <div class="flatpage-title-row">
+                    <h1>{{ flatpage.title }}</h1>
+                    <c-n26.share url="{{ flatpage.url }}" />
+                </div>
+                {% if presentation.introduction_html %}<div class="flatpage-introduction rich-text">{{ presentation.introduction_html }}</div>{% endif %}
+            </header>
+            {% if presentation.is_help %}
+                <div class="flatpage-mobile-tools" x-data x-cloak>
+                    <c-ui.drawer title="Browse help" side="left" size="sm">
+                        <c-ui.button type="button"
+                                     :outlined="True"
+                                     size="sm"
+                                     class="inline-flex items-center gap-1.5 lg:hidden"
+                                     @click="drawerOpen = true">
+                            <c-n26.icon name="menu" class="size-4" />
+                            Browse help
+                        </c-ui.button>
+                        <c-slot name="content">
+                            <nav aria-label="Help">
+                                {% include "flatpages/includes/help_tree.html" with nodes=presentation.help_tree %}
+                            </nav>
+                        </c-slot>
+                    </c-ui.drawer>
+                    {% if presentation.show_toc %}
+                        <div class="xl:hidden">
+                            <c-ui.popover trigger_text="On this page"
+                                          position="bottom"
+                                          align="end"
+                                          panel_label="On this page"
+                                          trigger_class="flatpage-toc-trigger">
+                                {% include "flatpages/includes/toc.html" with headings=presentation.toc compact=True %}
+                            </c-ui.popover>
+                        </div>
+                    {% endif %}
+                </div>
+            {% elif presentation.show_toc %}
+                <div class="flatpage-mobile-tools xl:hidden" x-data x-cloak>
+                    <c-ui.popover trigger_text="On this page"
+                                  position="bottom"
+                                  align="end"
+                                  panel_label="On this page"
+                                  trigger_class="flatpage-toc-trigger">
+                        {% include "flatpages/includes/toc.html" with headings=presentation.toc compact=True %}
+                    </c-ui.popover>
                 </div>
             {% endif %}
-            {% comment %}Back to top button{% endcomment %}
-            <c-btn id="back-to-top"
-                   variant="secondary"
-                   size="sm"
-                   class="position-fixed bottom-0 start-0 ms-3 mb-3 z-1 d-none"
-                   aria-label="Back to top">
-                <i class="bi-arrow-up"></i> Back to top
-            </c-btn>
-        </div>
+            {% if presentation.is_help %}
+                <noscript>
+                    <details class="flatpage-noscript-nav">
+                        <summary>Browse help</summary>
+                        <nav aria-label="Help">
+                            {% include "flatpages/includes/help_tree.html" with nodes=presentation.help_tree %}
+                        </nav>
+                    </details>
+                    {% if presentation.show_toc %}
+                        <details class="flatpage-noscript-nav">
+                            <summary>On this page</summary>
+                            {% include "flatpages/includes/toc.html" with headings=presentation.toc compact=True %}
+                        </details>
+                    {% endif %}
+                </noscript>
+            {% elif presentation.show_toc %}
+                <noscript>
+                    <details class="flatpage-noscript-nav">
+                        <summary>On this page</summary>
+                        {% include "flatpages/includes/toc.html" with headings=presentation.toc compact=True %}
+                    </details>
+                </noscript>
+            {% endif %}
+            <c-n26.prose class="flatpage-prose" :measure="False">
+                {{ presentation.content_html }}
+            </c-n26.prose>
+            {% if presentation.children %}
+                <nav class="flatpage-children" aria-label="In {{ flatpage.title }}">
+                    <h2>In {{ flatpage.title }}:</h2>
+                    <ul>
+                        {% for child in presentation.children %}<li><a href="{{ child.url }}">{{ child.title }}</a></li>{% endfor %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </article>
+        {% if presentation.show_toc %}
+            <aside class="flatpage-toc" aria-label="On this page">
+                <div class="flatpage-sticky-nav">
+                    <h2>On this page</h2>
+                    {% include "flatpages/includes/toc.html" with headings=presentation.toc %}
+                </div>
+            </aside>
+        {% endif %}
     </div>
 {% endblock content %}
 {% block extra_script %}
-    <script>
-        // Back to top button functionality
-        const backToTopButton = document.getElementById('back-to-top');
-
-        // Show/hide button based on scroll position
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 300) {
-                backToTopButton.classList.remove('d-none');
-            } else {
-                backToTopButton.classList.add('d-none');
-            }
-        });
-
-        // Scroll to top when button is clicked
-        backToTopButton.addEventListener('click', () => {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
-        });
-    </script>
+    {{ block.super }}
+    {% if presentation.show_toc %}
+        <script>
+            (() => {
+                const headings = [...document.querySelectorAll('.flatpage-prose :is(h2, h3)[id]')];
+                const links = [...document.querySelectorAll('.flatpage-toc-list a[href^="#"]')];
+                if (!headings.length || !links.length) return;
+                const setCurrent = (id) => {
+                    for (const link of links) {
+                        const current = decodeURIComponent(link.hash.slice(1)) === id;
+                        link.toggleAttribute('data-current', current);
+                        if (current) link.setAttribute('aria-current', 'location');
+                        else link.removeAttribute('aria-current');
+                    }
+                };
+                let frame;
+                const update = () => {
+                    frame = undefined;
+                    const current = headings.reduce((found, heading) => {
+                        return heading.getBoundingClientRect().top <= 96 ? heading : found;
+                    }, headings[0]);
+                    setCurrent(current.id);
+                };
+                const queueUpdate = () => {
+                    if (!frame) frame = requestAnimationFrame(update);
+                };
+                update();
+                window.addEventListener('scroll', queueUpdate, { passive: true });
+            })();
+        </script>
+    {% endif %}
 {% endblock extra_script %}
