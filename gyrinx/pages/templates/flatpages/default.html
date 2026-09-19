@@ -1,5 +1,5 @@
 {% extends "flatpages/shell.html" %}
-{% block head_title %}{{ flatpage.title }}{% endblock head_title %}
+{% block head_title %}{{ flatpage.title|force_escape }}{% endblock head_title %}
 {% block content %}
     <div class="flatpage-layout{% if presentation.navigation_tree %} flatpage-layout--with-navigation{% endif %}{% if presentation.show_toc %} flatpage-layout--with-toc{% endif %}">
         {% if presentation.navigation_tree %}
@@ -55,7 +55,7 @@
                             {{ presentation.parent.title }}
                         </a>
                     {% endif %}
-                    <h1>{{ flatpage.title }}</h1>
+                    <h1>{{ flatpage.title|force_escape }}</h1>
                 </div>
                 {% if presentation.introduction_html %}<div class="flatpage-introduction rich-text">{{ presentation.introduction_html }}</div>{% endif %}
             </header>
@@ -86,8 +86,9 @@
                 {{ presentation.content_html }}
             </c-n26.prose>
             {% if presentation.children %}
-                <nav class="flatpage-children" aria-label="In {{ flatpage.title }}">
-                    <h2>In {{ flatpage.title }}:</h2>
+                <nav class="flatpage-children"
+                     aria-label="In {{ flatpage.title|force_escape }}">
+                    <h2>In {{ flatpage.title|force_escape }}:</h2>
                     <ul>
                         {% for child in presentation.children %}<li><a href="{{ child.url }}">{{ child.title }}</a></li>{% endfor %}
                     </ul>

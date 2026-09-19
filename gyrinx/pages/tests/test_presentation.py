@@ -153,6 +153,7 @@ def test_help_tree_omits_pages_with_a_missing_ancestor(site):
 
 
 def test_navigation_includes_only_accessible_top_level_pages(site):
+    make_page(site, "/", "Homepage")
     root = make_page(site, "/help/", "Help")
     about = make_page(site, "/about/", "About")
     restricted = make_page(site, "/private/", "Private")

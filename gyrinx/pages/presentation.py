@@ -10,7 +10,7 @@ from django.contrib.flatpages.models import FlatPage
 from django.utils.safestring import SafeString, mark_safe
 
 from gyrinx.pages.access import accessible_flatpages
-from n26.core.templatetags.richtext import safe_rich_text
+from gyrinx.site.templatetags.platform_tags import safe_rich_text
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,8 @@ def slugify_heading(text: str) -> str:
 def sanitise_flatpage_html(html: str) -> SafeString:
     """Sanitise editor HTML while retaining inert, local iframe embeds."""
     source = BeautifulSoup(html or "", "html.parser")
+    for element in source.find_all(["script", "style"]):
+        element.decompose()
     local_embeds: dict[str, dict[str, str]] = {}
 
     for iframe in source.find_all("iframe"):
@@ -205,6 +207,7 @@ def _navigation_pages(*, site_id: int, user) -> list[FlatPage]:
             user=user,
             include_registration_required=bool(user and user.is_authenticated),
         )
+        .exclude(url="/")
         .only("pk", "url", "title", "registration_required")
         .order_by("url")
     )

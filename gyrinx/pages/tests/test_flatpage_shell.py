@@ -82,6 +82,7 @@ def configure_custom_template(settings, tmp_path, shell_page, source):
 def test_custom_template_extending_default_receives_presentation(
     client, settings, tmp_path, shell_page
 ):
+    shell_page.title = "<em>Custom title</em>"
     configure_custom_template(
         settings,
         tmp_path,
@@ -95,6 +96,9 @@ def test_custom_template_extending_default_receives_presentation(
     assert response.status_code == 200
     assert document.select_one(".flatpage-prose #first-section") is not None
     assert document.select_one(".flatpage-toc a")["href"] == "#first-section"
+    assert document.select_one(".flatpage-title-row h1").get_text() == shell_page.title
+    assert document.select_one(".flatpage-title-row h1 em") is None
+    assert shell_page.title in document.title.get_text()
 
 
 def test_standalone_custom_template_keeps_safe_html_without_building_presentation(
