@@ -1545,12 +1545,9 @@ LEAF_LISTING_HINTS = {
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
     "interstitial": _interstitial_listing,
     # A campaign type says its asset types and counts the assets under
-    # them. A campaign's own campaign type — the one its arbitrator adds
-    # to — is left out: it is the campaign's machinery, not a type anybody
-    # founds on, and it wears the campaign's name.
-    "campaign-type": lambda rows: rows.filter(
-        additions_to__isnull=True
-    ).prefetch_related("asset_types__assets"),
+    # them. A campaign's own type is held back with everything else in
+    # its campaign pack.
+    "campaign-type": lambda rows: rows.prefetch_related("asset_types__assets"),
 }
 
 
@@ -1887,13 +1884,14 @@ def attach_modifier(request, kind):
     if not things:
         messages.error(request, f"Select at least one {singular} first.")
         return redirect("authoring-leaf", kind=kind)
-    if not Modifier.objects.exists():
+    if not Modifier.objects.outside_campaign_packs().exists():
         messages.error(request, "No modifiers to attach yet. Create one first.")
         return redirect("authoring-leaf", kind=kind)
 
     if request.method == "POST":
         modifier = get_object_or_404(
-            Modifier.objects.select_related("pack"), pk=request.POST.get("modifier", "")
+            Modifier.objects.outside_campaign_packs().select_related("pack"),
+            pk=request.POST.get("modifier", ""),
         )
         # Every selected row is a carrier the modifier would be referenced
         # from, so the first that may not reference it refuses the whole
@@ -1941,7 +1939,7 @@ def attach_modifier(request, kind):
             "pk": modifier.pk,
             "label": f"{modifier.name} — {modifier.scope}: {modifier.effect}",
         }
-        for modifier in _reading_sentences(Modifier.objects.all())
+        for modifier in _reading_sentences(Modifier.objects.outside_campaign_packs())
     ]
     return render(
         request,
@@ -2960,9 +2958,10 @@ def _modifier_action(request, kind, thing, act):
             return redirect("authoring-detail", kind=kind, pk=thing.pk), None
         return None, composer
 
-    modifier = get_object_or_404(
-        Modifier.objects.select_related("pack"), pk=request.POST.get("modifier", "")
-    )
+    modifiers = Modifier.objects.select_related("pack")
+    if act == "attach":
+        modifiers = modifiers.outside_campaign_packs()
+    modifier = get_object_or_404(modifiers, pk=request.POST.get("modifier", ""))
     if act == "attach":
         # Attaching is a reference from the carrier to the modifier, and
         # the same rule the forms hold for a picked row holds for it.
@@ -4214,7 +4213,9 @@ def _modifier_section(request, thing, bound_composer=None):
             "label": f"{modifier.name} — {modifier.scope}: {modifier.effect}",
         }
         for modifier in _reading_sentences(
-            Modifier.objects.exclude(pk__in=[m.pk for m in attached])
+            Modifier.objects.outside_campaign_packs().exclude(
+                pk__in=[m.pk for m in attached]
+            )
         )
     ]
 
@@ -4270,7 +4271,7 @@ def modifiers(request):
     )
     from n26.library.models import Modifier
 
-    every = list(_reading_sentences(Modifier.objects.all()))
+    every = list(_reading_sentences(Modifier.objects.outside_campaign_packs()))
     counts = _carrier_counts(every)
 
     rows = []
@@ -4437,7 +4438,11 @@ def _what_it_does(modifier):
 
 
 def _modifier_or_404(pk):
-    """One modifier with everything its sentence reads already loaded."""
+    """One modifier with everything its sentence reads already loaded.
+
+    A direct address remains an escape hatch for campaign content even
+    though authoring listings and attachment pickers leave it out.
+    """
     from n26.library.models import Modifier
 
     return get_object_or_404(_reading_sentences(Modifier.objects.all()), pk=pk)
@@ -5714,18 +5719,22 @@ def ingest_preview(request):
 
 
 def _rows(model, kind=None):
-    """Every row of a kind, in the order an author wants to read them.
+    """Every authorable row of a kind, in the order an author wants to read them.
 
     Not by recency: a listing is for checking content, and thirty-nine
     skills entered in one go would hide all but the last few. Kinds
     that sort into the taxonomy read set by set, and within a set by
     the number they are rolled on.
 
+    A campaign pack holds one campaign's player-authored machinery. It
+    remains readable wherever the campaign uses it, but is not part of
+    the library staff maintain.
+
     With ``kind``, what that kind's labels and describers read is
     loaded up front (``LEAF_LISTING_HINTS``) — every reader of a set of
     rows wants the hints, so they live here rather than in each caller.
     """
-    rows = model.objects.all()
+    rows = model.objects.outside_campaign_packs()
     if any(field.name == "category" for field in model._meta.get_fields()):
         rows = rows.select_related("category").order_by(
             "category__position", "category__name", "position", "name"
