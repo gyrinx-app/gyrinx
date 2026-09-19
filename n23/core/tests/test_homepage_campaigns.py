@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
@@ -343,3 +345,39 @@ def test_homepage_anonymous_user():
 
     # Should see marketing content
     assert "Build and manage your gangs" in content
+
+
+@pytest.mark.django_db
+def test_homepage_campaign_name_sits_above_mobile_row_overlay(
+    client, user, list_with_campaign
+):
+    """Campaign names on homepage gang rows stay campaign links on mobile.
+
+    The chevron uses Bootstrap stretched-link over the row (z-index 1).
+    Without a higher stacking context the campaign <a> looks like a link
+    but the overlay sends the tap to the gang.
+    """
+    client.force_login(user)
+    response = client.get(reverse("core:index"))
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    campaign_url = reverse("core:campaign", args=(list_with_campaign.campaign_id,))
+    gang_url = reverse("core:list", args=(list_with_campaign.id,))
+    campaign_name = list_with_campaign.campaign.name
+
+    campaign_link = re.search(
+        rf'<a href="{re.escape(campaign_url)}"\s+'
+        rf'class="icon-link linked position-relative z-2">'
+        rf"{re.escape(campaign_name)}</a>",
+        content,
+    )
+    assert campaign_link, (
+        "homepage campaign name must be a campaign link stacked above "
+        "the mobile stretched-link overlay"
+    )
+
+    assert re.search(
+        rf'<a href="{re.escape(gang_url)}" class="p-3 stretched-link">',
+        content,
+    )
