@@ -696,21 +696,24 @@ def _drop_modifier(row):
             part.delete()
 
 
-def _drop_affiliation_budget(name, counter, amount):
-    """Take this founding figure off an Affiliation row of this name.
+def _take_affiliation_budget(name, carrier, counter, amount):
+    """Move this founding figure onto the live carrier, if an Affiliation
+    row of the same name still holds it.
 
-    Used when the live choice is the pickable: the same contribution
-    left on the affiliation row would be a second modifier nobody
-    holds.
+    Modifier names are unique per pack, so creating a second row of the
+    same name would be refused; the contribution is one contribution,
+    and the pickable is who now holds it.
     """
     from n26.library.models import Affiliation
 
     affiliation = _by_name(Affiliation, name)
-    if affiliation is None:
+    if affiliation is None or affiliation.pk == carrier.pk:
         return
     standing = _raises_founding_budget(affiliation, counter, amount).first()
-    if standing is not None:
-        _drop_modifier(standing)
+    if standing is None:
+        return
+    affiliation.modifiers.remove(standing)
+    carrier.modifiers.add(standing)
 
 
 def _settle_budget(carrier, counter, name, amount, subtypes, wanted):
@@ -843,6 +846,8 @@ def _create_founding_budgets():
         if carrier is None or gang_type is None:
             continue
         subtypes = [_by_name(Subtype, rank) for rank in ranks]
+        if isinstance(carrier, Pickable):
+            _take_affiliation_budget(name, carrier, counter, amount)
         _settle_budget(
             carrier,
             counter,
@@ -851,8 +856,6 @@ def _create_founding_budgets():
             [one for one in subtypes if one is not None],
             _affiliation_profiles(gang_type, ranks),
         )
-        if isinstance(carrier, Pickable):
-            _drop_affiliation_budget(name, counter, amount)
 
 
 def _affiliation_profiles(gang_type, ranks):

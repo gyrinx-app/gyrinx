@@ -35,9 +35,12 @@ from n26.tests.sandbox.actions import (
     add_entry,
     assign,
     buy,
+    choose,
     complete_action,
     create_collection,
     create_pickable,
+    create_picklist,
+    create_slot,
     create_slot_type,
     create_trading_post,
     create_wargear,
@@ -53,6 +56,20 @@ from n26.tests.sandbox.actions import (
 pytestmark = pytest.mark.django_db
 
 FOUNDING_KIND = Activity.Kind.FOUNDING
+
+
+def hold_as_affiliation(gang, pickable, slot_type):
+    """Put this pickable on the gang the way a converted affiliation
+    sits: a slot the gang holds, then the pick that answers it."""
+    offered = create_picklist("Affiliations", slot_type, members=[pickable])
+    slot = create_slot(
+        "Affiliation",
+        slot_type,
+        offered,
+        label="Affiliation",
+        assigned_to="gang",
+    )
+    choose(assign(slot, gang=gang), pickable)
 
 
 @pytest.fixture
@@ -298,12 +315,11 @@ class TestWhatTheBooksGrant:
         must reach."""
         from n26.library.standard_content import STANDARD_CONTENT
 
-        clanless = create_pickable(
-            "Clanless", create_slot_type("Affiliation", "Affiliations")
-        )
+        slot_type = create_slot_type("Affiliation", "Affiliations")
+        clanless = create_pickable("Clanless", slot_type)
         STANDARD_CONTENT["founding-budgets"].create()
         gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
-        assign(clanless, gang=gang)
+        hold_as_affiliation(gang, clanless, slot_type)
 
         assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
         assert reading(hire_into(gang, ("Outcast", "Champion"), "Nix")) == 4
@@ -1008,9 +1024,8 @@ class TestTheSeed:
 
         affiliation = Affiliation.objects.create(name="Clanless")
         STANDARD_CONTENT["founding-budgets"].create()
-        clanless = create_pickable(
-            "Clanless", create_slot_type("Affiliation", "Affiliations")
-        )
+        slot_type = create_slot_type("Affiliation", "Affiliations")
+        clanless = create_pickable("Clanless", slot_type)
 
         assert STANDARD_CONTENT["founding-budgets"].check() == (6, 7)
 
@@ -1028,7 +1043,7 @@ class TestTheSeed:
         ).exists()
 
         gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
-        assign(clanless, gang=gang)
+        hold_as_affiliation(gang, clanless, slot_type)
         assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
 
     def test_the_counter_is_drawn_on_nothing(self, budgets):
