@@ -148,8 +148,21 @@ def test_help_tree_omits_pages_with_a_missing_ancestor(site):
 
     presentation = build_flatpage_presentation(page=root, site_id=site.pk, user=None)
 
-    assert [node.page.url for node in presentation.help_tree] == ["/help/"]
-    assert presentation.help_tree[0].children == ()
+    assert [node.page.url for node in presentation.navigation_tree] == ["/help/"]
+    assert presentation.navigation_tree[0].children == ()
+
+
+def test_navigation_includes_only_accessible_top_level_pages(site):
+    root = make_page(site, "/help/", "Help")
+    about = make_page(site, "/about/", "About")
+    restricted = make_page(site, "/private/", "Private")
+    FlatPageVisibility.objects.create(page=restricted)
+    make_page(site, "/private/child/", "Private child")
+    make_page(site, "/members/", "Members", registration_required=True)
+
+    presentation = build_flatpage_presentation(page=root, site_id=site.pk, user=None)
+
+    assert [node.page for node in presentation.navigation_tree] == [about, root]
 
 
 def test_help_tree_omits_a_restricted_branch_and_keeps_url_order(site):
@@ -162,7 +175,7 @@ def test_help_tree_omits_a_restricted_branch_and_keeps_url_order(site):
 
     presentation = build_flatpage_presentation(page=root, site_id=site.pk, user=None)
 
-    assert [node.page for node in presentation.help_tree[0].children] == [allowed]
+    assert [node.page for node in presentation.navigation_tree[0].children] == [allowed]
 
 
 def test_help_context_marks_current_ancestors_and_direct_children(site):
@@ -176,7 +189,7 @@ def test_help_context_marks_current_ancestors_and_direct_children(site):
     assert presentation.ancestors == (root, section)
     assert presentation.parent == section
     assert presentation.children == (child,)
-    root_node = presentation.help_tree[0]
+    root_node = presentation.navigation_tree[0]
     section_node = root_node.children[0]
     current_node = section_node.children[0]
     assert root_node.is_ancestor is True

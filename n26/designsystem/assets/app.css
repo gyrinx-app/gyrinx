@@ -508,7 +508,7 @@
         margin-bottom: 0.75rem;
     }
     @media (min-width: 64rem) {
-        .flatpage-layout--help {
+        .flatpage-layout--with-navigation {
             grid-template-columns: 14rem minmax(0, 1fr);
         }
         .flatpage-help-nav {
@@ -524,7 +524,7 @@
         .flatpage-layout--with-toc {
             grid-template-columns: minmax(0, 1fr) 12rem;
         }
-        .flatpage-layout--help.flatpage-layout--with-toc {
+        .flatpage-layout--with-navigation.flatpage-layout--with-toc {
             grid-template-columns: 14rem minmax(0, 1fr) 12rem;
         }
         .flatpage-toc {

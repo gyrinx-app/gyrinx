@@ -7,7 +7,6 @@ from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 from django.contrib.flatpages.models import FlatPage
-from django.db.models import Q
 from django.utils.safestring import SafeString, mark_safe
 
 from gyrinx.pages.access import accessible_flatpages
@@ -33,11 +32,11 @@ class ParsedContent:
 
 
 @dataclass(frozen=True)
-class HelpPageNode:
-    """One accessible page in the Help hierarchy."""
+class PageNavigationNode:
+    """One accessible page in the documentation hierarchy."""
 
     page: FlatPage
-    children: tuple[HelpPageNode, ...]
+    children: tuple[PageNavigationNode, ...]
     is_current: bool
     is_ancestor: bool
 
@@ -52,7 +51,7 @@ class FlatPagePresentation:
     toc: tuple[Heading, ...]
     show_toc: bool
     is_help: bool
-    help_tree: tuple[HelpPageNode, ...]
+    navigation_tree: tuple[PageNavigationNode, ...]
     ancestors: tuple[FlatPage, ...]
     parent: FlatPage | None
     children: tuple[FlatPage, ...]
@@ -199,14 +198,13 @@ def _parent_url(url: str) -> str | None:
     return f"/{'/'.join(segments[:-1])}/"
 
 
-def _help_pages(*, site_id: int, user) -> list[FlatPage]:
+def _navigation_pages(*, site_id: int, user) -> list[FlatPage]:
     candidates = list(
         accessible_flatpages(
             site_id=site_id,
             user=user,
             include_registration_required=bool(user and user.is_authenticated),
         )
-        .filter(url__startswith="/help/")
         .only("pk", "url", "title", "registration_required")
         .order_by("url")
     )
@@ -215,7 +213,7 @@ def _help_pages(*, site_id: int, user) -> list[FlatPage]:
     included_urls: set[str] = set()
     for page in candidates:
         parent_url = _parent_url(page.url)
-        if page.url == "/help/" or (
+        if parent_url is None or (
             parent_url in candidates_by_url and parent_url in included_urls
         ):
             included.append(page)
@@ -223,8 +221,8 @@ def _help_pages(*, site_id: int, user) -> list[FlatPage]:
     return included
 
 
-def _help_context(*, page: FlatPage, site_id: int, user):
-    pages = _help_pages(site_id=site_id, user=user)
+def _navigation_context(*, page: FlatPage, site_id: int, user):
+    pages = _navigation_pages(site_id=site_id, user=user)
     pages_by_url = {candidate.url: candidate for candidate in pages}
     children_by_url: dict[str | None, list[FlatPage]] = {}
     for candidate in pages:
@@ -239,8 +237,8 @@ def _help_context(*, page: FlatPage, site_id: int, user):
     ancestor_urls.reverse()
     ancestor_set = set(ancestor_urls)
 
-    def make_node(candidate: FlatPage) -> HelpPageNode:
-        return HelpPageNode(
+    def make_node(candidate: FlatPage) -> PageNavigationNode:
+        return PageNavigationNode(
             page=candidate,
             children=tuple(
                 make_node(child) for child in children_by_url.get(candidate.url, [])
@@ -266,33 +264,9 @@ def build_flatpage_presentation(
     )
     is_help = page.url == "/help/" or page.url.startswith("/help/")
 
-    help_tree: tuple[HelpPageNode, ...] = ()
-    ancestors: tuple[FlatPage, ...] = ()
-    parent = None
-    children: tuple[FlatPage, ...] = ()
-    if is_help:
-        help_tree, ancestors, parent, children = _help_context(
-            page=page, site_id=site_id, user=user
-        )
-    else:
-        parent_url = _parent_url(page.url)
-        child_prefix = re.escape(page.url if page.url.endswith("/") else f"{page.url}/")
-        relatives = list(
-            accessible_flatpages(
-                site_id=site_id,
-                user=user,
-                include_registration_required=bool(user and user.is_authenticated),
-            )
-            .filter(Q(url=parent_url) | Q(url__regex=rf"^{child_prefix}[^/]+/?$"))
-            .only("pk", "url", "title", "registration_required")
-            .order_by("url")
-        )
-        parent = next(
-            (relative for relative in relatives if relative.url == parent_url), None
-        )
-        children = tuple(
-            relative for relative in relatives if relative.url != parent_url
-        )
+    navigation_tree, ancestors, parent, children = _navigation_context(
+        page=page, site_id=site_id, user=user
+    )
 
     try:
         introduction = page.options.introduction
@@ -306,7 +280,7 @@ def build_flatpage_presentation(
         toc=nest_headings(toc_headings),
         show_toc=len(toc_headings) >= 2,
         is_help=is_help,
-        help_tree=help_tree,
+        navigation_tree=navigation_tree,
         ancestors=ancestors,
         parent=parent,
         children=children,

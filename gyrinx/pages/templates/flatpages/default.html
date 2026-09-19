@@ -1,17 +1,12 @@
 {% extends "flatpages/shell.html" %}
 {% block head_title %}{{ flatpage.title }}{% endblock head_title %}
 {% block content %}
-    <div class="flatpage-layout{% if presentation.is_help %} flatpage-layout--help{% endif %}{% if presentation.show_toc %} flatpage-layout--with-toc{% endif %}">
-        {% if presentation.is_help %}
-            <aside class="flatpage-help-nav" aria-label="Help">
+    <div class="flatpage-layout{% if presentation.navigation_tree %} flatpage-layout--with-navigation{% endif %}{% if presentation.show_toc %} flatpage-layout--with-toc{% endif %}">
+        {% if presentation.navigation_tree %}
+            <aside class="flatpage-help-nav" aria-label="Help and documentation">
                 <div class="flatpage-sticky-nav">
-                    {# Flatpage URLs are content-managed and have no named route. #}
-                    {# djlint:off D018 #}
-                    <a href="/help/"
-                       class="flatpage-nav-title"
-                       {% if flatpage.url == "/help/" %}aria-current="page"{% endif %}>Help</a>
-                    {# djlint:on #}
-                    {% include "flatpages/includes/help_tree.html" with nodes=presentation.help_tree.0.children %}
+                    <h2 class="flatpage-nav-title">Help and documentation</h2>
+                    {% include "flatpages/includes/help_tree.html" with nodes=presentation.navigation_tree %}
                 </div>
             </aside>
         {% endif %}
@@ -29,20 +24,20 @@
                 </div>
                 {% if presentation.introduction_html %}<div class="flatpage-introduction rich-text">{{ presentation.introduction_html }}</div>{% endif %}
             </header>
-            {% if presentation.is_help %}
+            {% if presentation.navigation_tree %}
                 <div class="flatpage-mobile-tools" x-data x-cloak>
-                    <c-ui.drawer title="Browse help" side="left" size="sm">
+                    <c-ui.drawer title="Browse pages" side="left" size="sm">
                         <c-ui.button type="button"
                                      :outlined="True"
                                      size="sm"
                                      class="inline-flex items-center gap-1.5 lg:hidden"
                                      @click="drawerOpen = true">
                             <c-n26.icon name="menu" class="size-4" />
-                            Browse help
+                            Browse pages
                         </c-ui.button>
                         <c-slot name="content">
-                            <nav aria-label="Help">
-                                {% include "flatpages/includes/help_tree.html" with nodes=presentation.help_tree %}
+                            <nav aria-label="Help and documentation">
+                                {% include "flatpages/includes/help_tree.html" with nodes=presentation.navigation_tree %}
                             </nav>
                         </c-slot>
                     </c-ui.drawer>
@@ -69,12 +64,12 @@
                     </c-ui.popover>
                 </div>
             {% endif %}
-            {% if presentation.is_help %}
+            {% if presentation.navigation_tree %}
                 <noscript>
                     <details class="flatpage-noscript-nav">
-                        <summary>Browse help</summary>
-                        <nav aria-label="Help">
-                            {% include "flatpages/includes/help_tree.html" with nodes=presentation.help_tree %}
+                        <summary>Browse pages</summary>
+                        <nav aria-label="Help and documentation">
+                            {% include "flatpages/includes/help_tree.html" with nodes=presentation.navigation_tree %}
                         </nav>
                     </details>
                     {% if presentation.show_toc %}

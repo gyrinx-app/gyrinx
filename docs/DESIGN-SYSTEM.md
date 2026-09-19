@@ -77,14 +77,15 @@ Default flatpages use a platform-owned shell built from the n26 design system.
 The shared header reflects the reader's remembered edition. Custom flatpage
 templates retain their own shell.
 
-Help pages under `/help/` use three columns on wide screens: a 14rem Help tree,
+Default flatpages use three columns on wide screens: a 14rem navigation tree,
 a flexible article, and a 12rem **On this page** list. The layout shares the
 navbar's outer edges. At tablet widths the Help
 tree stays on the left and the page contents move into a popover. On phones,
-**Browse help** opens a full-height drawer and **On this page** opens the popover.
+**Browse pages** opens a full-height drawer and **On this page** opens the popover.
 Both controls have native disclosure fallbacks when JavaScript is disabled.
 
-The Help tree lists accessible pages from both editions. It expands the current
+The navigation tree lists accessible top-level pages, including Help with both
+editions beneath it. It expands the current
 page's ancestors and marks the current page. A missing or inaccessible ancestor
 omits its branch from navigation; direct page access still follows the page's
 own visibility rules.

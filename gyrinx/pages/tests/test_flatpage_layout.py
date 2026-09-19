@@ -60,9 +60,9 @@ def test_layout_only_renders_navigation_columns_with_content(
 
     document = get_document(client, page)
 
-    assert (document.select_one("aside.flatpage-help-nav") is not None) is is_help
+    assert document.select_one("aside.flatpage-help-nav") is not None
     assert (document.select_one("aside.flatpage-toc") is not None) is shows_toc
-    assert (document.find(string="Browse help") is not None) is is_help
+    assert document.find(string="Browse pages") is not None
 
 
 def test_default_page_has_one_main_landmark(client, site):
@@ -72,6 +72,28 @@ def test_default_page_has_one_main_landmark(client, site):
 
     assert len(document.find_all("main")) == 1
     assert document.select_one("main article.flatpage-main") is not None
+
+
+@pytest.mark.parametrize("current_url", ["/help/", "/about/"])
+def test_top_level_navigation_is_shared_by_sidebar_drawer_and_noscript(
+    client, site, current_url
+):
+    pages = {
+        url: make_page(site, url=url, title=title)
+        for url, title in [
+            ("/about/", "About"),
+            ("/help/", "Help"),
+            ("/help/n26/", "N26 Help"),
+            ("/getinvolved/", "Get involved"),
+        ]
+    }
+    document = get_document(client, pages[current_url])
+
+    for navigation in document.select('nav[aria-label="Help and documentation"]') + [
+        document.select_one("aside.flatpage-help-nav")
+    ]:
+        assert {link["href"] for link in navigation.select("a")} == set(pages)
+        assert navigation.select_one('a[aria-current="page"]')["href"] == current_url
 
 
 @pytest.mark.parametrize("url", ["/help/", "/guide/"])
@@ -84,8 +106,7 @@ def test_noscript_toc_is_outside_alpine_teleport_templates(client, site, url):
     assert len(fallbacks) == 1
     assert fallbacks[0].find_parent("template") is None
     assert "On this page" in fallbacks[0].get_text(" ", strip=True)
-    if url == "/help/":
-        assert "Browse help" in fallbacks[0].get_text(" ", strip=True)
+    assert "Browse pages" in fallbacks[0].get_text(" ", strip=True)
 
 
 def test_authored_content_is_sanitised_before_reaching_the_layout(client, site):
