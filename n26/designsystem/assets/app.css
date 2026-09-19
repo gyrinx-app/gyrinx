@@ -256,6 +256,19 @@
     .flatpage-header {
         margin-bottom: 1.75rem;
     }
+    .flatpage-share {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .flatpage-share [role="status"] {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        padding: 0.25rem 0.5rem;
+        background: var(--color-ink-900);
+        color: var(--color-ink-100);
+        white-space: nowrap;
+    }
     .flatpage-title-row {
         display: flex;
         align-items: center;

@@ -168,6 +168,7 @@ The n26 application shell owns its gang queries and maintenance state separately
                 </c-slot>
             {% endif %}
             <c-slot name="actions">
+                <c-n26.share url="{{ flatpage.url }}" class="flatpage-share" />
                 {% include "flatpages/includes/edition_toggle.html" %}
                 {% if not user.is_authenticated %}
                     <c-ui.mode-toggle storage_key="theme" size="sm" />

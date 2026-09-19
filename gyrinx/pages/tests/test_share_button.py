@@ -23,4 +23,5 @@ def test_help_page_share_is_a_link_to_the_page(client, flatpage):
     share = BeautifulSoup(body, "html.parser").find("a", attrs={"aria-label": "Share"})
     assert share is not None
     assert share["href"] == flatpage.url
+    assert "n26-site-nav" in share.find_parent("header")["class"]
     assert "Link copied." in body
