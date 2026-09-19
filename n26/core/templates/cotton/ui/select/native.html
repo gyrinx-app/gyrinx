@@ -1,18 +1,13 @@
 {% comment %}
-<c-ui.select.native> — the real <select>, usable on its own.
+<c-ui.select.native> — A native select, single or multiple.
 
-Overrides the kit: a multiple select is a list, not a dropdown. The kit
-paints every option the input's own fill, which hides the browser's
-selected highlight — Fighter and Vehicle then read as the same, and the
-chevron drawn for a one-of-many select sits on a list it does not open.
-Multiple drops that chrome and marks option:checked instead
-(.n26-select-multiple in app.css).
-
-  name — posted with the form.
-  placeholder — an empty disabled option, for a one-of-many select only.
-  multiple — more than one option may be chosen; the control is a list.
-  size — padding and type, not the HTML size attribute.
+Put option or optgroup elements in the slot.
+size is padding and type, not the HTML size attribute.
+multiple adds n26-select-multiple. app.css uses that class for the selected-option mark and a list min-height.
+The placeholder option is only for a single select. A multiple select has no placeholder option.
+class is not declared. A caller class= lands in attrs and the browser drops every select style.
 {% endcomment %}
+
 <c-vars
     name=""
     placeholder="Select an option"

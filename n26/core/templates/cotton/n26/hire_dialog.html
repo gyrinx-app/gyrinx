@@ -1,25 +1,21 @@
 {% comment %}
-<c-n26.hire-dialog> — name the fighter whose Hire was clicked.
+<c-n26.hire-dialog> — The hire form: name, the price paid, and whether rating matches that price.
 
-    <c-n26.hire-dialog action="/gangs/1/hire/" profile="Ganger" price="55"
-                       :choices="choices" :fields="fields"
-                       cancel_url="/gangs/1/hire/" :form="form">
-        {% csrf_token %}
-    </c-n26.hire-dialog>
+Render this only when the hire question is open. It always draws the dialog open.
 
-The last step of a hire and the only one that asks anything. The profile and
-the options picked on the listing arrive as hidden `fields` — {name, value}
-pairs — rather than as controls, since changing them means going back to the
-listing. What is left is a name and a price.
+profile is the hireable type name used in the title.
 
-The price may be typed over, and `rate_at_paid` says whether the typed figure
-becomes the fighter's rating too. It starts ticked, and a redrawn dialog hands
-back what was answered, so an untick survives a name the field would not take.
+Lead is a named slot so an option name can carry an ampersand.
 
-The panel is <c-n26.dialog>, where the open-state rules are written down. The
-slot carries the csrf token: a component has no request and renders none
-itself.
+fields become hidden inputs the hire view needs. Drop them and the POST has no option.
+
+The price box reads Alpine quoted and price on the wrapping span. Do not remove that scope.
+
+Put the csrf token in the default slot.
+Use a plain checkbox, not the kit's. The kit checkbox needs Alpine group scope, and this panel must work with scripting off.
+Pass rate_at_paid from the posted form. A redraw must keep an untick after a name the field refused.
 {% endcomment %}
+
 <c-vars
     action=""
     profile=""
@@ -39,10 +35,7 @@ itself.
               submit_label="Hire"
               :modal="modal"
               class="{{ class }}">
-    {% comment %}
-    A slot rather than an attribute: an option's name may hold an ampersand,
-    which an attribute would carry here already escaped.
-    {% endcomment %}
+
     <c-slot name="lead">{{ price }}¢{% if choices %} — {{ choices|join:", " }}{% endif %}</c-slot>
 
     {{ slot }}
@@ -58,28 +51,16 @@ itself.
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
 
-    {% comment %}
-    The same typed-over price an equip page's listing offers, in the same
-    control. The include compares the typed figure against the quote and reads
-    both from this scope.
-    {% endcomment %}
     <c-ui.field label="Price"
                 description="What the gang pays. The box below decides what they are worth."
                 for="hire-paid">
+        {# The price include reads quoted and price from this Alpine scope. #}
         <span x-data="{ quoted: {{ price|default:0 }}, price: {{ price|default:0 }} }"
               class="inline-flex">
             {% include "n26/includes/equip_price.html" with field="paid" quoted=price label=profile %}
         </span>
     </c-ui.field>
 
-    {% comment %}
-    The one place the edition lets a rating be argued with; equipment settles
-    it without asking (n26/core/views/equip.py, _charge).
-
-    A plain input rather than the kit's checkbox, which is wired for its own
-    group scope: this dialog has to be answerable with scripting off, so its
-    answer cannot depend on Alpine.
-    {% endcomment %}
     <label class="flex cursor-pointer items-start gap-2.5">
         <input type="checkbox"
                name="rate"

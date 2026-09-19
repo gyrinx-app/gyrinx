@@ -1,83 +1,44 @@
 {% comment %}
-<c-n26.record-table> — the gangs you own, searchable.
+<c-n26.record-table> — Filters gang or campaign listings as you type and by type.
 
-    <c-n26.record-table :type_options="options" noun="gangs"
-                      action="/n26/gangs/" :query="query">
-        <c-n26.record-table.gang-row name="The Ashen Choir" type="Escher (HoB)"
-                              :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
-    </c-n26.record-table>
-
-Called a table because that is what it is to a reader, and built as a list of
-grid rows because a real one cannot survive a phone: one column with each row's
-parts stacked when narrow, columns that line up down the page when wide.
-
-One box, two searches. Typing narrows what is already on the page; clicking
-Search asks the server, which can reach gangs this page never carried. While the
-box still holds the query the server answered, the in-page filter passes every
-row — the rows on the page are that answer, and narrowing by the same query
-again would hide any the server matched by means a substring search has not (a
-word stem, a field the row does not print).
-
-  :query — the query the server answered, echoed back into the box. Pass it as
-    an expression: through an attribute it is escaped twice, and a quote in the
-    query comes back as its own entity.
-  :type_options — [{value, label}] of every gang type present. Drawn only when
-    there are two or more: a filter with one option filters nothing.
-  action — where Search submits, as a GET. Without one the submit does nothing;
-    the box still narrows in place.
-  total — how many the whole answer holds, where these rows are one page of it.
-    Drawn as "8 of 143 gangs"; omitted, the count stands alone.
-  shown — how many rows were handed over, for a reader with no script. The live
-    count replaces it the moment Alpine runs.
-  filters — controls that ask the server for different rows, drawn beside the
-    type menu. A link or a form: clicking one reloads the page.
+Child listings must sit in the default slot so they share this Alpine scope.
+Each child must call register on init. Without that, the count stays at zero.
+The type filter listens only for filter-apply events named type.
+Pass query as an expression. Written as an attribute, a quote is escaped twice and comes back as an entity.
+Live typing only hides listings already on the page.
+Submitting the search asks the server for listings this page did not render.
+Anything in filters asks the server and reloads.
+The listings wrapper is a query container. A gang listing's wide layout keys off that, not the viewport.
 {% endcomment %}
+
 <c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty=""
         filters="" :total="None" :shown="None" class="" />
 
 <div x-data="{
         rows: [],
         query: {{ query|json_dumps }},
+        {# The server already applied this query. Live filtering starts only once the box differs. #}
         answered: {{ query|lower|json_dumps }},
-        {% comment %}
-        null until the menu first applies: no selection yet means no
-        narrowing, where an empty list is a real answer — every type
-        unticked — and shows nothing, as the picker's category filter does.
-        {% endcomment %}
+
+        {# null means no filter yet. An empty list is every type unticked and shows nothing. #}
         types: null,
         register(facets) { this.rows.push(facets) },
         matches(facets) {
             if (this.types !== null && !this.types.includes(facets.type)) return false;
             const q = this.query.trim().toLowerCase();
-            {% comment %}
-            The server already answered this exact question, so these rows are
-            the result — asking it again here could only take rows away.
-            {% endcomment %}
+
             if (!q || q === this.answered) return true;
             return facets.search.includes(q);
         },
         get shown() { return this.rows.filter(f => this.matches(f)).length },
      }"
-     {% comment %}
-     The menu publishes its choice on the window, so the control and the list
-     never hold a reference to each other.
-     {% endcomment %}
+
      @filter-apply.window="if ($event.detail.name === 'type') types = $event.detail.values"
      class="flex flex-col gap-3 {{ class }}">
 
-    {% comment %}
-    Passed as expressions rather than "{{ … }}" strings: a value written into an
-    attribute is escaped on the way in and again on the way out, so a query
-    containing a quote comes back into the box as an entity.
-    {% endcomment %}
     <c-n26.search-bar :live="True" model="query" :action="action"
                       :value="query" placeholder="Search {{ noun }}" />
 
-    {% comment %}
-    The type menu narrows the rows already on the page; anything in `filters`
-    asks the server for different rows and so reloads. They share a line
-    because a reader reads them as one bar of ways to change what is listed.
-    {% endcomment %}
     {% if type_options|length > 1 or filters %}
         <div class="flex flex-wrap items-center gap-2">
             {% if type_options|length > 1 %}
@@ -89,12 +50,7 @@ word stem, a field the row does not print).
 
     <p class="text-sm text-muted">
         <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" x-text="shown">{{ shown }}</span>
-        {% comment %}
-        Where the rows are one page of a longer answer the count says so, since
-        a reader filtering in place must not be told that is all there is. The
-        plural is what a reader with no script gets, a list worth filtering
-        rarely holding one thing.
-        {% endcomment %}
+
         {% if total %}
             of {{ total }} {{ noun }}
         {% else %}
@@ -102,12 +58,6 @@ word stem, a field the row does not print).
         {% endif %}
     </p>
 
-    {% comment %}
-    A query container, so a row lays itself out by the width it has rather than
-    the window's. The dashboard puts this list in a two-thirds column, where a
-    viewport-based `md:` would tell a row it has 1024px while it really has 640,
-    overrunning the fixed tracks and squeezing the name to nothing.
-    {% endcomment %}
     <div class="@container divide-y divide-box-border border-y border-box-border">{{ slot }}</div>
 
     {% if empty %}

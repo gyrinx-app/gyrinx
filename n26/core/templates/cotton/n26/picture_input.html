@@ -1,41 +1,21 @@
 {% comment %}
-<c-n26.picture-input> — a picture upload whose crop is chosen in a dialog.
+<c-n26.picture-input> — A file box that opens a crop dialog when the crop script is on the page.
 
-    <c-n26.picture-input id="model-image" name="image" crop="4:5" />
+The script finds the dialog via the n26-picture-input class. That class is the hook.
 
-A plain file input, and beside it the dialog the crop is chosen in.
-Picking a file opens the dialog (n26/imagecrop.js): a rectangle of the
-declared shape over the picture, opening at the largest window the
-picture holds, dragged and resized by its handles. "Use this crop" puts
-the chosen window back on the input — so the form's own save sends
-exactly what the dialog showed. Cancelling, or closing the dialog any
-other way, clears the pick.
+crop is a width and height joined by a colon. A bad value becomes 1:1 in the script.
 
-The rectangle is Cropper.js (vendored beside Alpine); the page loads
-its stylesheet and script with the crop script or the dialog opens on
-an inert picture. Without any of the scripts the input is an ordinary
-file box and the dialog never opens; the server centre-crops every
-upload to the same shape regardless (n26/core/images.py), so the
-dialog chooses, it is not trusted.
+data-crop-submit makes confirm post the form. Pair it with data-crop-fallback on that form.
+Only set that on a form that is the picture's own. Confirming would save every other field on a mixed form.
 
-  id, name — the input's own.
-  crop — the shape, "4:5" or "16:9", width to height — a served page
-    hands it str() of the server's own ratio (n26/core/images.py).
-  max — the stored picture's long side, the server's cap handed the
-    same way; the dialog encodes no bigger, since the server would
-    only shrink it.
-  submit_on_crop — confirming the crop saves the input's form, so the
-    picture lands without a second click. Only for a form that is the
-    picture's own: on a form carrying other fields it would save them
-    all. The form's own submit control, marked data-crop-fallback, is
-    hidden once the script is driving — it is the scriptless path.
-    The save happens from the open dialog: the confirm button works,
-    and a picture the server refuses says why in the dialog, on the
-    same rectangle that can be sent again. Only a save that landed
-    closes it.
+Without the crop script, or without Cropper.js, this is an ordinary file input. The dialog never opens. The server still crops.
+Cancel, or any other close, clears the file pick.
+A refused save stays in this dialog so the same rectangle can be sent again.
 {% endcomment %}
+
 <c-vars id="" name="image" crop="" max="" :submit_on_crop="False" class="" />
 
+{# The crop script finds the dialog by this class. #}
 <div class="n26-picture-input {{ class }}">
     <input type="file"
            id="{{ id }}"
@@ -51,20 +31,16 @@ dialog chooses, it is not trusted.
         <div class="space-y-4 p-6">
             <h2 class="text-lg font-semibold tracking-tight">Crop the picture</h2>
             <p class="text-sm text-muted">Drag the rectangle, or its corners, to choose what shows.</p>
+            {# app.css caps this so a tall photograph does not push the buttons off screen. #}
             <div class="n26-crop-stage">
                 <img data-crop-image alt="">
             </div>
-            {% comment %}
-            Where a refused save is read. Drawn empty and hidden; the crop
-            script fills it with what the server said and shows it, leaving the
-            dialog open so the same rectangle can be sent again. The alert
-            carries role="alert", so a reason arriving while the dialog is open
-            is announced rather than only drawn.
-            {% endcomment %}
+
             <c-ui.alert data-crop-error hidden variant="error" class="text-left">
                 <span data-crop-error-text></span>
             </c-ui.alert>
             <div class="flex justify-end gap-2">
+                {# type=button: these must not submit the form that wraps the input. #}
                 <c-ui.button type="button" variant="default" size="sm" data-crop-cancel>
                     Cancel
                 </c-ui.button>

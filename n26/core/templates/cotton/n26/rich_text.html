@@ -1,35 +1,18 @@
 {% comment %}
-<c-n26.rich-text> — a TinyMCE editor that behaves like the other form fields, and
-the safe renderer for what it produces.
+<c-n26.rich-text> — A TinyMCE field with a live preview, or sanitised HTML when there is no field.
 
-    {# editing #}
-    <c-n26.rich-text :field="form.body" label="Description"
-                     description="Markdown shortcuts work: ## for a heading." />
+With field this is an editor. Without, the value runs through safe_rich_text.
+Do not add a safe filter on that path.
 
-    {# rendering what was saved #}
-    <c-n26.rich-text :value="page.body" />
+Load n26/richtext.js before form.media so the skin is patched before TinyMCE inits.
 
-Two modes: pass a bound field and you get the editor with an Edit / Preview
-switch, pass only a value and you get the rendered article. The editing mode is
-wrapped in <c-ui.field>, so label, description and form errors behave as they do
-on c-ui.input.
-
-Rendering always goes through safe_rich_text — editor output is user input that
-has been round-tripped through a database, so it is sanitised on the way out.
-
-The page must render {{ form.media }} once, or the widget stays a plain textarea
-and no editor ever appears. Once per page, not per field: every editor on it
-shares the one script.
-
-The editor's own appearance lives outside this template — static/n26/richtext.js
-swaps the skin with light and dark, app.css restyles the frame and the rendered
-prose from theme tokens.
-
-  :field — a bound form field whose widget is n26.widgets.RichText.
-  value — HTML. The content to render, or the editor's starting preview.
-  :toggle — show the Edit / Preview switch (default True, ignored without a field).
-  label, description, error, form, name — passed to c-ui.field.
+Preview uses x-html of the editor's live content, not the sanitiser.
+It is what you are typing.
+The page must render form.media once. Without it the widget stays a plain textarea.
+Once per page, not per field: every editor shares the one script.
+Keep the editor on x-show, not x-if. Hiding must not rebuild TinyMCE and drop undo history.
 {% endcomment %}
+
 <c-vars
     field=""
     value=""
@@ -51,12 +34,10 @@ prose from theme tokens.
                 :form="form"
                 name="{{ name }}"
                 class="{{ class }}">
+        {# json_dumps makes a JS literal. HTML-escaping this string would break the Alpine data. #}
         <div x-data="richText({{ value|safe_rich_text|json_dumps }})">
             {% if toggle %}
-                {% comment %}
-                Buttons rather than radios: this switches a view and submits
-                nothing.
-                {% endcomment %}
+
                 <div class="mb-2 inline-flex rounded-control border border-box-border p-0.5 text-sm">
                     <button type="button" @click="show('edit')"
                             :class="mode === 'edit' ? 'bg-accent text-accent-foreground' : 'text-muted hover:text-accent'"
@@ -71,10 +52,6 @@ prose from theme tokens.
                 </div>
             {% endif %}
 
-            {% comment %}
-            x-show, not a template swap: hiding keeps the editor instance alive,
-            so switching back does not rebuild TinyMCE and lose the undo history.
-            {% endcomment %}
             <div x-show="mode === 'edit'">{{ field }}</div>
 
             <div x-show="mode === 'preview'" x-cloak
@@ -82,6 +59,7 @@ prose from theme tokens.
                 <template x-if="!html.trim()">
                     <p class="text-muted">Nothing to preview yet.</p>
                 </template>
+                {# Live editor HTML, not the sanitiser. Preview is what you are typing. #}
                 <div x-html="html"></div>
             </div>
         </div>

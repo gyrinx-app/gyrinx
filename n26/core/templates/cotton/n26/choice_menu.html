@@ -1,26 +1,12 @@
 {% comment %}
-<c-n26.choice-menu> — one of a set, as a dropdown with radios.
+<c-n26.choice-menu> — A radio dropdown that applies one named value through a window event.
 
-    <c-n26.choice-menu
-        label="Sort"
-        name="sort"
-        :selected="'recent'"
-        :options="[{'value': 'recent', 'label': 'Recently edited'},
-                   {'value': 'name', 'label': 'Name A–Z'}]" />
-
-The sibling of <c-n26.filter-menu>, which is the same panel with checkboxes and
-All / None. For a menu that commits the moment you choose — no OK, no Cancel —
-the kit's own <c-ui.menu> is the better fit.
-
-OK dispatches `choice-apply` with {name, value}; Cancel puts the choice back to
-what it was when the panel opened and dispatches nothing.
-
-The radio group wraps the whole dropdown rather than sitting inside the panel,
-which is what lets the trigger show the current choice while shut. Its scope
-holds the choice in an assignable `value` and the dropdown's exposes `close()`,
-and both sit above this content, so the expressions here read and write them
-directly.
+OK dispatches choice-apply with name and value. A parent must listen or the value is not applied.
+Cancel restores the snapshot taken when the panel opened.
+Keep the radio group wrapper. value lives on that group, not on this div.
+The radio group wraps the whole dropdown, not just the panel, so the shut trigger can show the current choice.
 {% endcomment %}
+
 <c-vars
     label="Choose"
     name=""
@@ -35,6 +21,7 @@ directly.
 />
 
 <c-ui.radio.group name="{{ name }}" :value="selected" class="contents">
+    {# value comes from the radio group wrapper. Unwrap this and the radios stop sharing state. #}
     <div
         x-data="{ options: {{ options|json_dumps }}, snapshot: null }"
         class="inline-block"
@@ -42,18 +29,11 @@ directly.
 
         <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
             <c-slot name="trigger">
-                {% comment %}
-                sm and `default`, matching <c-n26.filter-menu>'s trigger: these
-                sit together in a bar under a search field, refining a list
-                rather than acting on the page.
-                {% endcomment %}
+
                 <c-ui.button size="sm" variant="default">
                     <span class="flex items-center justify-center gap-1.5">
                         {{ label }}
-                        {% comment %}
-                        The chosen label rather than a count, which here is
-                        always one.
-                        {% endcomment %}
+
                         <span x-show="value" x-cloak
                               x-text="options.find(o => o.value === value)?.label"
                               class="rounded-full bg-ink-500/15 px-1.5 text-xs"></span>
@@ -64,10 +44,6 @@ directly.
                 </c-ui.button>
             </c-slot>
 
-            {% comment %}
-            Snapshot on open rather than on init, so Cancel reverts to how
-            things were when the panel was opened, not to the page's first load.
-            {% endcomment %}
             <div class="p-3"
                  x-init="$watch('dropdownMenu', open => { if (open) snapshot = value })">
 

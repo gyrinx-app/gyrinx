@@ -1,39 +1,15 @@
 {% comment %}
-<c-n26.form-page> — the wrapper every form screen shares.
+<c-n26.form-page> — a form screen with a page heading, non-field errors, the fields, and a submit footer.
 
-    <c-n26.form-page action="/gangs/new/" title="Create a gang"
-                     lead="A gang is a name and a type." submit_label="Create gang">
-        <c-slot name="breadcrumb">…c-ui.breadcrumbs…</c-slot>
-        <c-n26.form-section title="General">…</c-n26.form-section>
-    </c-n26.form-page>
-
-The measure, the vertical rhythm, the heading and the footer live here; a form
-view supplies its fields and nothing else about the frame around them.
-
-The footer is drawn only when there is something to put in it, so a form whose
-submit lives inside its own content passes neither `submit_label` nor
-`cancel_url` and gets no footer at all.
-
-  action, method — where and how it posts. GET for a search form.
-  form — the Django form, for its non-field errors. The fields read it
-    themselves through c-ui.field; this is only the __all__ lookup.
-  lead — the line under the title. What a reader needs before starting, not a
-    restatement of the fields.
-  trailing, leading, breadcrumb — handed straight to <c-n26.page-header>.
-  submit_variant — the act's variant. `success` by default: a button that brings
-    a thing into existence is green, one that saves is `primary`, one that
-    destroys is `danger`.
-  header_actions — controls for the page as a whole, drawn by the heading. Not
-    `actions`, which is the footer's, beside the submit at the end of the form.
-  slot — the fields, normally as <c-n26.form-section>s. Goes inside the <form>,
-    so a csrf token can go here too.
+header_actions is the heading's controls. actions is extra footer controls beside submit.
+Put the csrf token in the default slot. This wrapper draws the form tag and does not include the token.
+max-w-3xl is a cap, not a width. Nothing inside may set a measure of its own, or it overflows this column.
+The footer draws only when actions, submit_label, or cancel_url is set.
+form and the heading slots are in c-vars so they cannot leak from the view.
+A Django form's string is the whole form as HTML. Left on the tag it would print a second copy into the page.
+Forward heading markup as slots, not attributes. An attribute would print it as source.
 {% endcomment %}
-{# `form` is declared so it cannot fall through to the tag's attributes: a #}
-{# Django form's str() is the whole form as HTML, which would break out of #}
-{# the attribute and print a second copy of the form into the page. The #}
-{# slots are declared because an undeclared slot name is not empty when #}
-{# nobody fills it — it resolves to the caller's own variable of that name, #}
-{# and every one of these is also a slot on the header below. #}
+
 <c-vars
     action=""
     method="post"
@@ -52,44 +28,21 @@ submit lives inside its own content passes neither `submit_label` nor
     class=""
 />
 
-{% comment %}
-max-w-3xl is a cap, not a width: below it the form is the width of its
-container, so narrowing the window shrinks the fields rather than scrolling
-them. Nothing inside may set a measure of its own, or it overflows this column.
-
-The gap between sections is larger than <c-n26.form-section>'s own gap between
-fields, which is what makes a group read as a group without a box around it.
-{% endcomment %}
 <form method="{{ method }}" action="{{ action }}" {{ attrs }}
       class="max-w-3xl space-y-8 {{ class }}">
-    {% comment %}
-    No csrf token: a component has no request. The page embedding this puts one
-    in the slot.
 
-    The header slots are forwarded as slots rather than attributes, since what
-    goes in them is markup and an attribute would print it as source.
-    `header_actions` arrives under the header's own name for `actions`, this
-    wrapper's `actions` being the footer's.
-    {% endcomment %}
     <c-n26.page-header title="{{ title }}" lead="{{ lead }}">
         {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
         {% if leading %}<c-slot name="leading">{{ leading }}</c-slot>{% endif %}
         {% if trailing %}<c-slot name="trailing">{{ trailing }}</c-slot>{% endif %}
+        {# header_actions, not actions: actions is the footer's extra controls. #}
         {% if header_actions %}<c-slot name="actions">{{ header_actions }}</c-slot>{% endif %}
     </c-n26.page-header>
 
-    {% comment %}
-    Errors about the submission rather than about any one input go above
-    everything: anywhere else attaches them to a field they are not about.
-    {% endcomment %}
     {% if form %}<c-ui.error :form="form" name="__all__" />{% endif %}
 
     {{ slot }}
 
-    {% comment %}
-    The footer is <c-n26.form-actions>, the same one a dialog draws. This
-    wrapper owns the rule above it and nothing else about it.
-    {% endcomment %}
     {% if actions or submit_label or cancel_url %}
         <div class="border-t border-box-border pt-6">
             <c-n26.form-actions submit_label="{{ submit_label }}"

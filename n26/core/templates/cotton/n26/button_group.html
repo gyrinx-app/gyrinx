@@ -1,21 +1,12 @@
 {% comment %}
-<c-n26.button-group> — buttons joined into one control.
+<c-n26.button-group> — joins slotted buttons or links into one segmented control.
 
-    <c-n26.button-group>
-        <c-ui.button>Pin</c-ui.button>
-        <c-ui.button>Star</c-ui.button>
-        <c-ui.button>Print</c-ui.button>
-    </c-n26.button-group>
-
-The joining is done in app.css, by `.n26-button-group > :is(button, a)`: the
-group owns the outer radius, its children give up their own, and each one after
-the first pulls left a pixel so touching borders read as one line. That selector
-outranks the `rounded-button` utility the buttons already carry — passing a
-`rounded-none` class down instead would tie the result to the order Tailwind
-happened to emit two equal-specificity utilities in.
-
-Anything can go inside; a dropdown's trigger joins the run like any other button.
+The joining lives in app.css outside any layer, so it can beat the radius utilities on kit buttons.
+Do not pass rounded-none down to the buttons. Two equal utilities would then depend on the order Tailwind emits.
+Put buttons, links, or a dropdown trigger in the slot. Menu items inside a dropdown are excluded.
+A wrapper around a trigger must be a direct child or the heights will not match.
 {% endcomment %}
+
 <c-vars
     class=""
 />

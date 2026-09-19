@@ -1,31 +1,18 @@
 {% comment %}
-<c-n26.detail-list> — labelled values, dense, each value a control.
+<c-n26.detail-list> — A wrapping strip of labelled facts.
+
+Put headings and rows inside.
 
     <c-n26.detail-list>
-        <c-n26.detail-list.row label="House list" value="Escher" />
-        <c-n26.detail-list.row label="Skill trees">
-            Ferocity, Brawn, Cunning
-        </c-n26.detail-list.row>
+        <c-n26.detail-list.row label="Type" value="Escher" :editable="False" />
     </c-n26.detail-list>
 
-For the dozen small standing facts a gang carries — its house list, its ranked
-skill trees, its counters — each of which is also something to change.
-
-The spacing belongs to the container, as in <c-n26.action-links>, so hiding a
-row behind a permission check cannot leave a gap behind. No separator between
-items, unlike action-links: these are pairs, and a mark between one pair and the
-next reads as sitting inside a pair.
-
-Rows are a flex wrap rather than a grid or a two-column table, so each takes only
-the width its value needs and short pairs share a line. A grid would align every
-value to the widest label on the sheet.
-
-min-w-0 max-w-full lets a long value — every pick on one slot, joined with
-commas — shrink with the sheet instead of setting the list's min-content to the
-unbroken string.
-
-  class — extra classes on the container.
+Other markup breaks the dt and dd pairing.
+Spacing lives on this list. A margin on a fact leaves a gap when that fact is hidden.
+min-w-0 and max-w-full let a long value shrink. Without them the list's min-content becomes the unbroken string.
+Keep this a wrapping flex list. A grid would align every value to the widest label.
 {% endcomment %}
+
 <c-vars class="" />
 
 <dl {{ attrs }} class="flex min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-1 {{ class }}">{{ slot }}</dl>

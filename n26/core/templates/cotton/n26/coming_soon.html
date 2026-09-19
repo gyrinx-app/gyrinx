@@ -1,20 +1,11 @@
 {% comment %}
-<c-n26.coming-soon> — a section that exists but is not built yet.
+<c-n26.coming-soon> — centred placeholder for a surface that is not ready yet.
 
-    <c-n26.coming-soon />
-    <c-n26.coming-soon title="Coming Soon">We're working hard on it.</c-n26.coming-soon>
-
-For a tab or a panel that is going to hold something and does not yet. Not for a
-list that happens to be empty — use a table's own empty slot for that, since the
-two say opposite things: an empty list is something the reader can change by
-searching differently, and this is not.
-
-Deliberately plain — no illustration, no button — because nothing here is
-actionable and a reader will pass it on every load.
-
-  title — the heading. "Coming Soon" by default.
-  slot — the line under it. Optional.
+Whitespace-only slot content is treated as empty, so the subtitle line is omitted.
+Do not use this for an empty list. Use that list's own empty slot.
+An empty list changes when the reader searches differently. This does not.
 {% endcomment %}
+
 <c-vars title="Coming Soon" class="" />
 
 <div class="py-16 text-center {{ class }}" {{ attrs }}>

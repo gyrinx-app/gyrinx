@@ -1,26 +1,12 @@
 {% comment %}
-<c-n26.campaign-assets> — every asset of one asset type in the campaign, as
-a table.
+<c-n26.campaign-assets> — One campaign asset type, with who holds each asset and the acts on it.
 
-    <c-n26.campaign-assets :table="table" />
-
-One table per asset type whose ownership is Holding, headed by the type's
-own plural — Territories — with what each asset is called, what it brings
-in, what holding it does, and who holds it. The holder is a link to
-the gang's sheet; an asset nobody holds says Unclaimed in muted text, a fact
-and not a control.
-
-The controls are whatever addresses the structure carries. Each leads to a
-page that asks; nothing here acts on a click. A reader whose structure
-carries no addresses sees a table with no controls, not a table of disabled
-ones — the view fills them for the arbitrator, and Unassign and the transfer
-for the owner of the holding gang, whose transfer reads "Hand over".
-
-The Roll control takes the asset type's own word too — "Roll territory" —
-and is drawn only where the campaign has a rolled table of the type.
-
-  :table — a n26.render.CampaignAssetTable.
+The roll control fetches with hx-swap none so the response opens a dialog, not a new table.
+Without JS it is a plain link.
+Draw a control only when the structure carries its address. A reader with none sees no controls, not disabled ones.
+Roll is primary because it begins a form. The other controls do not.
 {% endcomment %}
+
 <c-vars :table="None" class="" />
 
 <div class="flex flex-col gap-2 {{ class }}">
@@ -33,14 +19,9 @@ and is drawn only where the campaign has a rolled table of the type.
         </h3>
         {% if table.add_href or table.create_href or table.roll_href %}
             <div class="flex items-center gap-1">
-                {% comment %}
-                Primary: the one control here that begins a form, and the act
-                the rules have the arbitrator do first. Drawn only where the
-                campaign holds a rolled table of this type. It asks over htmx
-                for the panel alone; without a script it is a link to the
-                page with the panel open.
-                {% endcomment %}
+
                 {% if table.roll_href %}
+                    {# The response opens a dialog. Swapping this fetch would replace the table. #}
                     <c-ui.button size="xs"
                                  variant="primary"
                                  href="{{ table.roll_href }}"

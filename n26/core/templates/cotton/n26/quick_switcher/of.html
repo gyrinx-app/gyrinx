@@ -1,23 +1,11 @@
 {% comment %}
-<c-n26.quick-switcher.of> — a whole switcher from one object.
+<c-n26.quick-switcher.of> — Draws a Switcher dataclass as a labelled quick switcher of navigable items.
 
-    <c-n26.quick-switcher.of :switcher="nav_switcher" />
-
-The same control as <c-n26.quick-switcher>, handed a `Switcher` built in the
-view (n26/core/navigation.py) instead of having its rows written out. This is
-the one place that turns one into markup, so the wording and the current-row
-marking cannot drift between call sites.
-
-The shape follows the structure: a Switcher with no `label` draws the chevron
-alone (`switcher.unnamed`).
-
-  :switcher — the Switcher to draw. Its `items` are the destinations.
-  align — which edge of the trigger the panel hangs from: start or end.
-  min_width — the panel's minimum width, as a CSS length.
-  hotkey — a letter; ⌥⇧ with it opens the panel from anywhere on the page.
-    Passed here rather than carried by the structure, because which chord a
-    control takes depends on where it was put, not on what it lists.
+switcher must be a Switcher. Put the current page in items, or the control names somewhere else.
+menu_label must differ from every other switcher on the page. Two controls called Switch are indistinguishable.
+hotkey is a prop, not a field on Switcher. Which chord a control takes depends on where it was put.
 {% endcomment %}
+
 <c-vars :switcher="None" align="start" min_width="16rem" hotkey="" class="" />
 
 <c-n26.quick-switcher label="{{ switcher.label }}"

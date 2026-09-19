@@ -1,32 +1,17 @@
 {% comment %}
-<c-n26.range-slider> — a slider with one thumb or two.
+<c-n26.range-slider> — One or two native range inputs overlaid on a shared track.
 
-    {# one: a ceiling #}
-    <div x-data="{ cap: 80 }">
-        <c-n26.range-slider model="cap" min="0" max="200" step="5" />
-    </div>
+model, model_min, and model_max are Alpine names in an ancestor scope, not
+numeric values. Two thumbs need both model_min and model_max.
 
-    {# two: a floor and a ceiling #}
-    <div x-data="{ lo: 20, hi: 80 }">
-        <c-n26.range-slider model_min="lo" model_max="hi" min="0" max="200" step="5" />
-    </div>
+n26-range-slider is the CSS hook in n26/designsystem/assets/app.css. Drop it
+and the overlay styling is gone.
 
-There is no private copy of the value: the caller's variables are the only
-state, so no direction can go stale. That is what c-ui.range cannot offer — it
-binds with x-modelable, which carries a drag outward to the caller but not a
-programmatic change back in, so a Clear button moves the thumb while the filled
-part of the track stays where it was.
-
-Real <input type="range"> elements, so the step, the keyboard and the slider
-role come for free. The two overlap exactly and only their thumbs take pointer
-events, which is geometry .n26-range-slider in app.css owns — the two files have
-to agree. The ends clamp against each other rather than swapping places, so a
-thumb dragged past its partner stops instead of handing the pointer the other
-one.
-
-`model` is a single Alpine expression, ignored when the model_min/model_max
-pair is given.
+The span getter falls back to 1 so a zero-width range does not divide by zero.
+Bind with :value, not x-model. x-model would write the raw drag before the clamp runs.
+The kit range cannot take a programmatic change back in. Clear would move the thumb and leave the fill behind.
 {% endcomment %}
+
 <c-vars
     model=""
     model_min=""
@@ -37,11 +22,6 @@ pair is given.
     class=""
 />
 
-{% comment %}
-Only geometry: the ends of the track and the two percentages the fill is drawn
-between. Both read the caller's variables, so the bar and the thumbs are the
-same number rendered twice and cannot disagree.
-{% endcomment %}
 <div {{ attrs }}
      class="n26-range-slider {{ class }}"
      x-data="{
@@ -60,14 +40,8 @@ same number rendered twice and cannot disagree.
     <div class="n26-range-slider-fill"
          :style="`left: ${lowPct}%; right: ${100 - highPct}%`"></div>
 
-    {% comment %}
-    :value rather than x-model: x-model owns the element and would write the raw
-    dragged number back before the clamp could look at it. Binding the value and
-    handling input directly sets the caller's variable once, already clamped, so
-    a thumb pushed past its partner stops instead of overshooting and springing
-    back.
-    {% endcomment %}
     {% if model_min and model_max %}
+        {# CSS in app.css: inputs ignore pointer events; only the thumbs take a drag. #}
         <input type="range" aria-label="Minimum"
                min="{{ min }}" max="{{ max }}" step="{{ step }}"
                :value="{{ model_min }}"

@@ -1,16 +1,11 @@
 {% comment %}
-<c-ui.label> — a form label, with an optional `badge` alongside its text.
+<c-ui.label> — The caption for a control, with an optional badge.
 
-Overrides the kit so attributes come from `attrs.attrs_dict` rather than
-`attrs.dict`: only the former filters out props declared in <c-vars>. Without
-it `for` leaks back out as an HTML attribute, and every label rendered through
-c-ui.field carries `for="None"` — pointing at an element id that does not
-exist. With the accessor fixed, the guard below emits a real `for` only when
-one is passed.
-
-designsystem/tests.py::test_override_still_needed fails once the kit no longer
-needs this override.
+Attributes come from attrs.attrs_dict, not attrs.dict. attrs.dict would leak for=None onto every label and point at an id that does not exist.
+The slot is the caption, not the control. Pass for with the control's id to associate them.
+A control in the slot sits on the caption line beside the badge.
 {% endcomment %}
+
 <c-vars
     badge=""
     :for="None"

@@ -1,22 +1,13 @@
 {% comment %}
-<c-n26.color-link> — text with a colour swatch in front of it.
+<c-n26.color-link> — A text link with a colour swatch as the leading mark.
 
-    <c-n26.color-link color="#8d9900" href="/lists/1/">The Forsaken of Sublevel Theta</c-n26.color-link>
-    <c-n26.color-link color="red" shade="600" underline="always">Les Flambeaux</c-n26.color-link>
-    <c-n26.color-link color="accent">Follows the theme</c-n26.color-link>
-
-A <c-n26.link> with a <c-n26.color-swatch> in the `leading` slot, which sits
-outside the underline so the rule under the words never runs under the swatch.
-
-Only the placing lives here; how a colour is drawn belongs to the swatch. A
-heading or a table cell that already has an anchor of its own should draw
-<c-n26.color-swatch> directly rather than wrap a link it does not want.
-
-  color — a theme colour name, `accent`, or a literal such as #8d9900.
-  shade — which step of a named scale. Default 500; ignored for accent and literals.
-  href, underline, tone — passed straight to <c-n26.link>.
-  label — an accessible name for the swatch. Left empty it is aria-hidden, which is
-    right when the colour is decorative and the text already says what it is.
+label names the swatch for assistive tech, not the link.
+color accepts a theme token or a literal. shade is ignored for singular tokens and literals.
+The default slot is trusted HTML because strip would otherwise escape it.
+The swatch sits in the leading slot, so the underline runs under the words and never under the swatch.
+If the heading or cell already has an anchor, draw the swatch directly. Do not wrap a link you do not want.
+This renders inline. Keep the tags packed tight and do not add a trailing newline.
+Whitespace around the markup becomes a space in the surrounding sentence.
 {% endcomment %}<c-vars
     color="accent"
     shade="500"
@@ -25,8 +16,4 @@ heading or a table cell that already has an anchor of its own should draw
     tone="accent"
     label=""
     class=""
-/>{% comment %}
-This renders inline, so the tags are packed tight and the file ends without a
-newline: any whitespace emitted around the markup becomes a space in the
-surrounding sentence.
-{% endcomment %}<c-n26.link href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" class="{{ class }}"><c-slot name="leading"><c-n26.color-swatch color="{{ color }}" shade="{{ shade }}" label="{{ label }}" /></c-slot>{{ slot.strip|safe }}</c-n26.link>
+/><c-n26.link href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" class="{{ class }}"><c-slot name="leading"><c-n26.color-swatch color="{{ color }}" shade="{{ shade }}" label="{{ label }}" /></c-slot>{# strip returns a plain string, so |safe is required or nested HTML renders as text. #}{{ slot.strip|safe }}</c-n26.link>

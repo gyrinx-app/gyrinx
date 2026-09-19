@@ -1,42 +1,17 @@
 {% comment %}
-<c-n26.share> — a share button for a page other people can open.
+<c-n26.share> — a share control that copies the URL, or opens the system share sheet.
 
-    <c-n26.share url="{% url 'n26-gang' gang.pk %}" />
-    <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" message="Link copied." />
-
-A link to the page itself, so without JavaScript it is a plain link the
-reader can copy or right-click. With Alpine it takes over the click: the
-device's share sheet where there is one (navigator.share), the clipboard
-otherwise, and then the message beside the button for a few seconds. A
-dismissed share sheet copies nothing and says nothing; any other failure
-of the sheet, thrown or rejected, falls back to the clipboard. Where there is no
-clipboard to write to (plain http, an old browser) or the write fails,
-the click navigates to the page instead, as the bare link would, so the
-reader can copy the address from the bar.
-
-The address handed to the share sheet is the link's own href, which the
-browser has already made absolute — so a path is enough here, and the
-button shares the same address it would navigate to.
-
-The button is the quietest thing on the page it sits on: a ghost at xs, the
-icon carrying it, the word "Share" only from the sm breakpoint up. The name is
-on the control either way, so a reader who cannot see the icon hears it at
-every width.
-
-The two overrides on it are measurements, not taste. It sits on the breadcrumb
-row, so it has to stand exactly as tall as a line of trail text — 20px — or it
-becomes the tallest thing in the row and drags the heading and everything under
-it down the page. A button's own padding puts it at 29px, and wrapping the
-contents in an inline-level box adds a line box's leading on top of that. So
-the contents are laid out by the button itself, and the vertical padding is cut
-to the one pixel that brings 16px of line plus 2px of border up to 20. Change
-the size prop and these want re-measuring.
-
-  url — the page to share. A path is fine.
-  message — shown once the address is on the clipboard. Default "Link copied."
-  size, variant — passed to <c-ui.button>. Default xs / ghost.
-  class — extra classes on the wrapper that holds the button and its message.
+url is the href of a real link, so the control still goes there when script does not run.
+If clipboard is missing or the copy fails, the browser navigates to the URL instead.
+AbortError from the share sheet is ignored. Any other failure falls back to copy.
+Pass a path. The button shares the link's own href, which the browser has already made absolute.
+The word Share is hidden below sm. Keep the aria-label so a reader who cannot see the icon still hears the name.
+The padding overrides keep this 20px tall so it can sit on the breadcrumb row.
+A button's own padding is 29px and would push the heading down.
+Lay the contents out on the button itself. A wrapper around them adds a line box's leading on top.
+Change the size prop and these measurements need doing again.
 {% endcomment %}
+
 <c-vars
     url=""
     message="Link copied."

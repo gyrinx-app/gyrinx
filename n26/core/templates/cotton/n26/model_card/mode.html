@@ -1,17 +1,14 @@
 {% comment %}
-<c-n26.model-card.mode> — a region of the card that one mode draws.
+<c-n26.model-card.mode> — Renders the slot when the parent card's mode matches a word in when.
 
-    <c-n26.model-card.mode when="edit">…edit controls…</c-n26.model-card.mode>
-    <c-n26.model-card.mode when="gang view">…both of those…</c-n26.model-card.mode>
+when is a space-separated list of alternatives, not a compound name. "gang edit" means gang or edit.
+This component does not take mode as a prop. It reads mode from the surrounding card or body.
+Used outside that context, mode is missing and the slot never shows.
 
-For use inside <c-n26.model-card>, whose three modes are gang, edit and view.
-The wrapper reads the enclosing card's mode from context rather than taking it
-as a prop, so a mode-only region is a wrap and not a flag threaded through
-every region between here and the call site.
-
-Outside a model card there is no mode to read and the slot never draws.
-
-  when — the modes this region belongs to, space-separated.
+<c-n26.model-card.mode when="gang edit">
+    ...
+</c-n26.model-card.mode>
 {% endcomment %}
+
 <c-vars when="" />
 {% if mode in when.split %}{{ slot }}{% endif %}

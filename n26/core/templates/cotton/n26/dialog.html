@@ -1,36 +1,21 @@
 {% comment %}
-<c-n26.dialog> — the panel every server-decided dialog is built from.
+<c-n26.dialog> — a form in a dialog that starts as a page panel and is promoted to a modal.
 
-    <c-n26.dialog title="Sell the Meltagun?" action="/n26/assignments/1/sell/"
-                  cancel_url="/n26/fighters/2/equip/?list=3"
-                  submit_label="Sell" submit_variant="danger">
-        <c-slot name="lead">Half of 135¢, rounded up — 68¢.</c-slot>
-        {% csrf_token %}
-    </c-n26.dialog>
-
-Open state lives in the URL: the server renders it open. It is a native
-<dialog open> in the page's flow, promoted to a modal by showModal() where
-Alpine runs, so with no script the panel is still there and still works.
-Dismissing navigates to cancel_url; without one there is no way out but the
-act.
-
-A caller may instead draw it closed (open="") and open it with
-$dispatch('n26-dialog-open', { id, url }), which writes `url` through
-history.replaceState rather than navigating; dismissal puts the address back
-the same way. Every such panel needs its own `id` — the event carries it, and
-the heading's id is derived from it.
-
-The slot carries the csrf token and the question's own fields: a component has
-no request and renders none itself.
-
-  :htmx — the form posts through htmx and the server sends back only the
-    elements the act changed. Only a screen holding every element such an
-    update names may set it; anywhere else the act would run and nothing on
-    screen would change. Off by default.
-  :redrawn — this panel was rendered on its own, for a page that was not
-    rebuilt. Dismissing it then puts the address back instead of navigating.
-    Implies the screen set :htmx as well.
+The HTML open attribute is non-modal. promote() strips it, then calls showModal().
+Leaving both set throws. The catch puts open back so the panel still shows.
+promote() must not call close(). close fires dismiss, which would navigate to cancel_url.
+try cannot live in x-init. Alpine compiles that directive as an expression, so a method holds the catch.
+Without script it stays in document flow. Place it where a reader will find it.
+clicked marks a client open. Dismiss without a click navigates to cancel_url.
+A redrawn copy was swapped in by htmx already open. Init sets clicked, and dismiss removes the node.
+The form posts with swap none. The response must update other hosts out of band.
+Put the csrf token in the default slot.
+The actions slot is not in c-vars, so a view variable named actions will draw here if the call site leaves it empty.
+Give every panel its own id. The open event matches on it, and the heading id is derived from it.
+Set htmx only on a screen that holds every host the response names.
+Left closed in the host, htmx copies the promoted class onto the next panel and it lands at the top left.
 {% endcomment %}
+
 <c-vars
     title=""
     lead=""
@@ -47,28 +32,9 @@ no request and renders none itself.
     class=""
 />
 
-{% comment %}
-showModal() throws on a dialog that already carries `open`, so the attribute
-comes off first — removed rather than close()d, because close() fires the
-`close` event and the handler below responds to it by navigating to cancel_url.
-
-A method rather than an expression in x-init: Alpine compiles a directive's
-value in expression position, where `try` is a syntax error, and it skips the
-directive instead of failing visibly. A promotion that does throw puts the
-attribute back, leaving the reader the in-flow panel the server drew.
-
-`clicked` separates the two ways a panel opened. One this page opened is closed
-by putting the address back; one the server drew open can only be left by
-asking for a page without it.
-
-A redrawn panel leaves the page when it is dismissed. Left in place, closed,
-it shares its id with the next panel fetched into the same host, and htmx
-then settles that new element's attributes against the old one: the class
-Alpine set on promotion is written back to the in-flow one, and a modal that
-is open lands at the top left of the page.
-{% endcomment %}
 <dialog {% if open %}open{% endif %}
         id="{{ id }}"
+        {# open is non-modal. promote() strips it, then showModal(); the catch puts open back. #}
         {% if modal %}x-data="{
             promoted: false,
             clicked: false,
@@ -113,11 +79,8 @@ is open lands at the top left of the page.
                 }
             }
         }"
-        {% comment %}
-        A panel rendered on its own, into a page that was not rebuilt, counts
-        as one this page opened: dismissing it puts the address back rather
-        than navigating, keeping the page the reader still has.
-        {% endcomment %}
+
+        {# A redrawn copy is already open on the page: mark clicked so dismiss removes it. #}
         {% if open %}x-init="{% if redrawn %}clicked = true; {% endif %}promote($el)"{% endif %}
         @n26-dialog-open.window="if ($event.detail.id === $el.id) reveal($el, $event.detail.url)"
         :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
@@ -126,15 +89,10 @@ is open lands at the top left of the page.
         aria-labelledby="{{ id }}-title"
         {{ attrs }}
         class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
-    {% comment %}
-    With htmx set, submitting posts through htmx and the server sends back
-    only the elements the act changed — the row, the money, this panel. Only
-    a screen holding those elements may set it (see
-    n26/includes/equip_hosts.html). It stays an ordinary form to an ordinary
-    address, so without JavaScript the whole page is served.
-    {% endcomment %}
+
     <form method="post"
           action="{{ action }}"
+          {# Swap none: the response must update other hosts. Replacing this dialog would drop the modal. #}
           {% if htmx %}hx-post="{{ action }}" hx-swap="none"{% endif %}
           class="space-y-5 p-6">
         <div class="space-y-1.5">

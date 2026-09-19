@@ -1,24 +1,10 @@
-{% load artwork %}
 {% comment %}
-<c-n26.flair.gang-type> — the badge a gang type carries, if it carries one.
+<c-n26.flair.gang-type> — Inline SVG artwork for a gang type, sanitised on the way out.
 
-    <c-n26.flair-link text="{{ gang.gang_type }}">
-        <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
-    </c-n26.flair-link>
-
-Unlike the other badges in this directory, the artwork here is stored by an
-author rather than shipped, so it is untrusted. All this component does is put
-it through safe_artwork, the platform's SVG allowlist, before it reaches the
-page.
-
-A gang type with no artwork renders nothing — no placeholder, no spacer — so a
-column where only some names carry a badge keeps its left edge.
-
-Pass the icon with a colon (`:icon=`) so the markup arrives as a value: SVG
-source carries quotes and newlines and does not survive being folded into an
-HTML attribute.
-
-  icon — the gang type's stored SVG source. Empty draws nothing.
-{% endcomment %}
-<c-vars icon="" />
-{{ icon|safe_artwork }}
+Pass stored SVG markup as icon.
+Blank or unusable artwork renders nothing, so a missing mark does not hold space.
+The filter already marks the result safe. Do not add |safe to the raw value.
+Sizing and accessible names belong to the wrapping component.
+Pass icon as an expression. SVG source carries quotes and newlines and does not survive being folded into an HTML attribute.
+This renders inline. Keep the tags packed tight and do not add a trailing newline.
+{% endcomment %}{% load artwork %}<c-vars icon="" />{{ icon|safe_artwork }}

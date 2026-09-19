@@ -1,35 +1,28 @@
 {% comment %}
-<c-ui.tabs> — in-page panels with a generated tab bar.
+<c-ui.tabs> — Panels switched in the page, with every panel shown when JavaScript is off.
 
-Overrides the kit's strip. The default variant's strip is two blocks switched
-at the sm breakpoint by c-n26.tab-strip: every tab from sm up, below it at
-most two — two tabs or fewer drawn whole, three or more as the open tab with
-the rest behind a c-n26.quick-switcher — so the strip never wraps to a second
-row and never scrolls sideways, and the switcher's menu never holds fewer
-than two. The kit's single strip pairs overflow-x-auto with buttons that
-overhang their box by a pixel, which is exactly the shape that grows a
-scrollbar.
+<c-ui.tabs default_tab="Card">
+    <c-ui.tabs.tab name="Card">...</c-ui.tabs.tab>
+</c-ui.tabs>
 
-The segmented variant keeps the kit's own strip and DOM shape: .n26-card-tabs
-addresses it by position (root div, then first-child div), so an extra
-wrapper there silently unstyles every card strip. Its few short tabs share
-one row by construction and need no switcher.
-
-The switcher's rows are written out rather than composed from
-c-n26.quick-switcher.choice: that component bakes its label into the HTML
-when Django renders, and a tab here exists only in the browser, registered by
-its panel after Alpine boots. The row keeps the choice contract — it
-registers with the panel above it, hides while the filter excludes it, and
-dispatches quick-switcher-choose for the strip to act on.
-
-  default_tab — the tab open on load; the first registered wins otherwise.
-  variant — default or segmented.
-  size — sm, md or lg.
-  accent — the open tab in the accent colour rather than ink.
-  fill — tabs share the row's width equally.
+default_tab must match a tab name exactly. A mismatch leaves every panel hidden once Alpine runs.
+Two tabs with the same name both show when that name is active.
+The default variant draws through c-n26.tab-strip.
+On a narrow strip, more than two tabs keep only the active one visible. The rest open from a quick-switcher.
+An idle tab's border must stay opaque. A transparent border is a hole in the line under the strip.
+Do not compose these rows from c-n26.quick-switcher.choice. That bakes the label at render, and a tab exists only after Alpine boots.
+Keep the open tab in the menu. Hiding it leaves a search for that tab as a blank menu with no empty state.
+The segmented variant stays a scrolling strip and does not collapse. no-scrollbar is defined in app.css; the package names the class and does not ship it.
+An extra wrapper around the segmented strip unstyles every card tab strip. .n26-card-tabs selects the first child div by position.
+Without JavaScript a noscript rule shows every panel. display none is only for Alpine.
+param copies the active name into the query string. Nested strips on one page must leave it empty.
+Alpine applies the query when a registered tab's name matches, so an unknown name cannot hide every panel.
+Pass the query as default_tab as well, so the first paint matches before Alpine runs.
 {% endcomment %}
+
 <c-vars
     :default_tab="None"
+    param=""
     variant="default"
     size="md"
     :accent="True"
@@ -38,22 +31,39 @@ dispatches quick-switcher-choose for the strip to act on.
 
 <div x-data="{
     tabs: [],
+    param: '{{ param|escapejs }}',
     activeTab: '{{ default_tab|default:''|escapejs }}',
     register(name, icon) {
         this.tabs.push({name: name, icon: icon});
         if (!this.activeTab && this.tabs.length === 1) {
             this.activeTab = name;
         }
+        if (!this.param) return;
+        var q = new URLSearchParams(location.search).get(this.param);
+        if (q === name) this.activeTab = q;
     },
     isActive(name) {
         return this.activeTab === name;
+    },
+    select(name) {
+        this.activeTab = name;
+        if (!this.param) return;
+        var u = new URL(location.href);
+        u.searchParams.set(this.param, name);
+        history.replaceState(null, '', u);
     }
 }"
 class="w-full space-y-4"
 {{ attrs }}>
+    <noscript>
+        {# display none on panels is what noscript overrides. x-cloak would keep them hidden without JS. #}
+        <style>
+            .n26-tabs-panel { display: block !important; }
+        </style>
+    </noscript>
 
     {% if variant == 'segmented' %}
-        <!-- Tab List -->
+
         <div class="
             flex items-center
             bg-ink-100 dark:bg-ink-800 p-1 rounded-box
@@ -61,7 +71,7 @@ class="w-full space-y-4"
         ">
             <template x-for="tab in tabs" :key="tab.name">
                 <button type="button"
-                    @click="activeTab = tab.name"
+                    @click="select(tab.name)"
                     class="
                         inline-flex items-center justify-center whitespace-nowrap transition-all focus-ring
                         {% if fill %}flex-1{% endif %}
@@ -86,7 +96,7 @@ class="w-full space-y-4"
             <c-slot name="full">
                 <template x-for="tab in tabs" :key="tab.name">
                     <button type="button"
-                        @click="activeTab = tab.name"
+                        @click="select(tab.name)"
                         class="
                             inline-flex items-center justify-center whitespace-nowrap transition-all focus-ring
                             border-b-2 font-medium rounded-t-md
@@ -96,12 +106,7 @@ class="w-full space-y-4"
                             {% elif size == 'lg' %}text-base px-4 py-2
                             {% else %}text-sm px-3 py-1.5{% endif %}
                         "
-                        {% comment %}
-                        An idle tab's border is drawn, not transparent: the
-                        rule under the strip is the tabs' own borders plus the
-                        trailing spacer, so a see-through border is a hole in
-                        the line.
-                        {% endcomment %}
+
                         :class="{
                             {% if accent %}
                                 'border-accent text-accent': isActive(tab.name),
@@ -117,17 +122,11 @@ class="w-full space-y-4"
                 </template>
             </c-slot>
             <c-slot name="narrow">
-                {% comment %}
-                Up to two tabs drawn whole, and from three the open tab with
-                the rest behind the switcher: "+1 more" takes the room the
-                other tab would and says less, and a menu of one is not worth
-                opening. The same buttons as the wide strip, with the name
-                allowed to truncate, since here it may have the width alone.
-                {% endcomment %}
+
                 <template x-for="tab in tabs" :key="tab.name">
                     <button type="button"
                         x-show="tabs.length <= 2 || isActive(tab.name)"
-                        @click="activeTab = tab.name"
+                        @click="select(tab.name)"
                         class="
                             inline-flex max-w-full items-center justify-center whitespace-nowrap transition-all focus-ring
                             border-b-2 font-medium rounded-t-md
@@ -150,14 +149,10 @@ class="w-full space-y-4"
                         <span class="min-w-0 truncate" x-text="tab.name"></span>
                     </button>
                 </template>
-                {% comment %}
-                order-last, as on the skeleton's spacer: the tabs above are
-                x-for clones, which Alpine appends at the end of the
-                container, and this span is written before the spacer so the
-                two keep their order.
-                {% endcomment %}
+
+                {# order-last: Alpine appends x-for clones at the end of the container. #}
                 <span x-show="tabs.length > 2" x-cloak
-                      @quick-switcher-choose="activeTab = $event.detail.value"
+                      @quick-switcher-choose="select($event.detail.value)"
                       class="order-last flex shrink-0 items-center border-b-2 border-box-border"
                 >
                     <c-n26.quick-switcher heading="Which tab"
@@ -167,18 +162,8 @@ class="w-full space-y-4"
                         <c-slot name="trigger_words">
                             <span x-text="'+' + (tabs.length - 1) + ' more'"></span>
                         </c-slot>
-                        {% comment %}
-                        register, matches, highlight, active and close come
-                        from the switcher's own panel, which shadows this
-                        strip's register — the shadowing is what the row
-                        wants. tabs, activeTab and isActive reach up past the
-                        panel unshadowed. The open tab stays in the menu,
-                        ticked: every row registers with the panel, whose
-                        count and arrow keys walk all of them — a row shown
-                        to the panel but hidden from the eye would leave a
-                        search for the open tab a blank menu with no
-                        no-matches line, and Enter on an invisible row.
-                        {% endcomment %}
+
+                        {# register here is the switcher's, not the tabs register. #}
                         <template x-for="tab in tabs" :key="tab.name">
                             <button type="button"
                                     role="menuitem"
@@ -212,7 +197,6 @@ class="w-full space-y-4"
         </c-n26.tab-strip>
     {% endif %}
 
-    <!-- Panels -->
     <div class="mt-2 focus-ring">
         {{ slot }}
     </div>

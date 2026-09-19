@@ -1,43 +1,17 @@
 {% comment %}
-<c-n26.page-header> — what this page is, at the top of it.
+<c-n26.page-header> — page title with optional breadcrumb, lead, and actions.
 
-    <c-n26.page-header title="Hire a fighter" lead="Joining The Ashen Choir" />
-
-    <c-n26.page-header title="{{ gang.name }}">
-        <c-slot name="breadcrumb">…</c-slot>
-        <c-slot name="lead">Escher (HoB) <c-n26.flair.house /></c-slot>
-        <c-slot name="actions"><c-ui.button>Edit</c-ui.button></c-slot>
-    </c-n26.page-header>
-
-One heading scale for every page in the app, decided here.
-
-`title` and `lead` each take either shape: an attribute for plain words, or a
-slot of the same name for markup — a reader's badge after their username, say.
-An attribute is escaped, so markup passed that way is printed as source; pass
-both and the attribute wins, silently. Both are tested with `.strip`, which
-works on a string and on slot content alike.
-
-  title — the page's name, as its h1. There should be one per page.
-  leading — a mark before the title and inside the h1: a gang's colour swatch,
-    and nothing that carries meaning, since whatever is here is read out as part
-    of the page's name.
-  trailing — a control after the title, on its line but outside the h1, where it
-    would otherwise be read out as part of the name. A switcher to the page's
-    siblings is the case it exists for.
-  actions — controls for the page as a whole. They sit under the title on a
-    narrow screen rather than squeezing it.
-  breadcrumb_actions — a control at the far end of the breadcrumb row, opposite
-    the trail. For what acts on the page rather than on anything in it, and is
-    wanted at every width: the share button is the case it exists for. It keeps
-    its line down to the narrowest screen, so whatever goes here must stand no
-    taller than a line of trail text — 20px — or it becomes the tallest thing in
-    the row and pushes the heading and the whole page down. The host is a flex
-    container for the same reason: a block one would reserve a line box taller
-    than the control and reintroduce the gap by itself.
+Keep the named slots in c-vars. An undeclared slot name picks up the caller's variable of the same name.
+Test slots with strip. Whitespace-only content is truthy and would draw an empty row.
+trailing sits beside the title, outside the h1, so it is not read as part of the page name.
+title and lead each take an attribute or a slot of the same name. Markup in the attribute prints as source.
+Pass both and the attribute wins, silently.
+Put nothing meaningful in leading. It is prepended inside the heading, marked safe, and read as part of the page name.
+breadcrumb_actions must stand no taller than a line of trail text, or it pushes the heading down.
+Keep that host a flex container. A block one reserves a line box taller than the control.
+Keep sm:flex-1 on the title column. Sized to its content, a long lead pushes the actions onto their own line.
 {% endcomment %}
-{# The slots are declared: an undeclared slot name is not empty when nobody #}
-{# fills it — it resolves to the caller's own variable of that name, and a #}
-{# wrapper drawing this header usually has an `actions` slot of its own. #}
+
 <c-vars
     title=""
     lead=""
@@ -50,13 +24,7 @@ works on a string and on slot content alike.
 />
 
 <div class="flex flex-col gap-1 {{ class }}">
-    {% comment %}
-    One row: the trail at the start, whatever acts on the page at the end. The
-    trail takes the squeeze — min-w-0 lets it wrap inside itself — so the
-    control at the far end keeps its place instead of being pushed under.
-    items-start keeps that control on the first line of a trail that has
-    wrapped, rather than centred against the block.
-    {% endcomment %}
+
     {% if breadcrumb.strip or breadcrumb_actions.strip %}
         <div class="mb-1 flex items-start justify-between gap-2">
             <div class="min-w-0">{{ breadcrumb }}</div>
@@ -65,31 +33,11 @@ works on a string and on slot content alike.
     {% endif %}
 
     <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-4">
-        {% comment %}
-        A column on a phone, so the title and its lead keep the first rows and
-        the actions sit under them. Wrapping with min-w-0 lets the heading
-        shrink beside a wide strip — a gang's figures — and the name then
-        reads as a second block under the numbers. sm:flex-1 from there, so
-        the words take the slack and what sits at the far end stays there.
-        Sized to their own content instead, a lead of any length is wider than
-        the room left over and pushes the actions onto a line of their own,
-        where "the far end" means the left.
-        {% endcomment %}
+
         <div class="min-w-0 w-full sm:w-auto sm:flex-1">
-            {% comment %}
-            leading.strip, and hard against the title: a slot written across
-            several lines arrives wrapped in newlines, which collapse into a
-            space on top of whatever gap the mark already carries. |safe puts
-            back the marking .strip drops, so markup in the slot survives.
-            {% endcomment %}
+
             {% if trailing.strip %}
-                {% comment %}
-                No wrap: the h1 is a block, so wrapping this row always drops
-                the control under the name, on a line of its own. items-start
-                keeps the chevron on the first line of a wrapping name rather
-                than vertically centred between the two. min-w-0 lets the
-                heading take the squeeze and wrap inside itself instead.
-                {% endcomment %}
+
                 <div class="flex flex-nowrap items-start gap-2">
                     <h1 class="min-w-0 text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
                     <div class="shrink-0">{{ trailing }}</div>
@@ -97,17 +45,7 @@ works on a string and on slot content alike.
             {% else %}
                 <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
             {% endif %}
-            {% comment %}
-            lead.strip, not lead: a header written across several lines with
-            only named slots inside it still passes the newlines between them,
-            and Django counts whitespace as truthy.
 
-            Body size, quiet from its colour rather than from shrinking: the
-            lead is usually the sentence saying what the page is for, and small
-            text is for what a reader is meant to scan past. The type's badge
-            keeps itself on the words; nowrap on this line would clip a real
-            sentence on a phone.
-            {% endcomment %}
             {% if lead.strip %}<p class="flex items-center text-muted">{{ lead }}</p>{% endif %}
         </div>
 

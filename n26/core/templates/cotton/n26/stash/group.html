@@ -1,18 +1,13 @@
 {% comment %}
-<c-n26.stash.group> — one kind of thing in the stash.
+<c-n26.stash.group> — One kind of stashed gear, as a labelled list.
 
-    <c-n26.stash.group label="wargear" :lines="lines" />
-
-A read-only group is a compact comma-separated run. Actions require one row per
-item so each menu stays beside the assignment it changes; print and read-only
-sheets therefore remain compact.
-
-  label — the kind. Capitalised here because kinds arrive from a model's
-    verbose_name, written lower case to appear mid-sentence.
-  :lines — n26.render.StashLine objects of this one kind. A line whose kit
-    brought a pet onto the roster names the pet after its own name, as a
-    card's gear line does.
+The first line's menu is the switch for the whole group.
+A print-out and a reader who does not own the gang have empty menus on every line.
+Danger acts are collected after the others. A single loop would leave a destructive act in the middle of the menu.
+A zero rating is omitted. This drawing cannot tell a bundled figure from a gift, so it must not say free.
+Capitalise the label here. Kinds arrive from verbose_name in lower case, written to sit mid-sentence.
 {% endcomment %}
+
 {% load listing %}
 <c-vars label="" :lines="None" class="" />
 

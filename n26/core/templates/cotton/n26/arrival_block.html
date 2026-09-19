@@ -1,15 +1,18 @@
 {% comment %}
-<c-n26.arrival-block> — one screen an author attached to a slot that just
-arrived: its heading and words, and the slot's questions beneath.
+<c-n26.arrival-block> — One screen of questions after an act, with the author's heading and words.
+
+Put the questions in the default slot.
+
     <c-n26.arrival-block :block="block">
-        …a <c-n26.arrival-question> per question…
+        <c-n26.arrival-question :question="question" />
     </c-n26.arrival-block>
-Takes a n26.render.ArrivalBlock. The questions come through the slot rather
-than being drawn here, so the page can put every block inside the one form
-that Continue submits. Nothing here submits or skips: Continue and Skip sit
-once at the foot of the screen.
-  :block — a n26.render.ArrivalBlock.
+
+The parent form wraps every block so Continue submits them together.
+This component is not a form.
+The description is not narrowed to a reading column.
+Do not add Continue or Skip here. They sit once at the foot of the screen.
 {% endcomment %}
+
 <c-vars :block="None" class="" />
 <section {{ attrs }} class="space-y-6 {{ class }}">
     <div class="space-y-2">

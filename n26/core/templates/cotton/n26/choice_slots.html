@@ -1,33 +1,13 @@
 {% comment %}
-<c-n26.choice-slots> — the open questions, as rows in a strip of standing facts.
+<c-n26.choice-slots> — Detail-list lines for a model's choice slots, with dismiss or restore on each.
 
-    <c-n26.detail-list>
-        <c-n26.choice-slots :choices="sheet.choices" />
-        {% for counter in sheet.counters %}
-            <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
-        {% endfor %}
-    </c-n26.detail-list>
-
-Draws <c-n26.detail-list.row>s and no container of its own, so one list can
-hold a gang's choices and its counters as a single run of labelled facts. It
-has to be called inside a <c-n26.detail-list>, and `class` lands on every row
-because there is nothing else to put it on.
-
-Takes n26.render.ChoiceLine values from a ModelCard or a GangSheet. A settled
-slot and an unsettled one are the same control leading to the same page:
-clicking a settled slot is how a choice is changed. A slot with nothing chosen
-is information, never an error — nothing marks it, counts it, or refuses to
-proceed without it.
-
-A line with no href draws as plain text with an em dash. That is a card built
-from a profile's default equipment: real offers, but no stored assignment to
-choose against. Views fill the addresses in (n26.core.views.choose).
-
-An open slot the owner may dismiss carries an X after its control, drawn by
-<c-n26.choice-dismiss>; a slot the owner has dismissed and asked to see again
-reads as dismissed, with a Restore button in the X's place. A slot nobody may
-dismiss — every reader who is not the owner sees only those — carries nothing.
+choices is an iterable of ChoiceLine. A single line is not enough. This always loops.
+An unresolved line with no href draws a dash and no control. That is print and other readers.
+Dismissed lines say Dismissed and offer Restore. Open lines with href offer Choose.
+Must sit inside a detail-list. This emits rows and no container, and class lands on every row.
+A settled slot with an href is still a control. Clicking it is how that choice is changed.
 {% endcomment %}
+
 <c-vars :choices="None" choose_label="Choose" class="" />
 
 {% for choice in choices %}

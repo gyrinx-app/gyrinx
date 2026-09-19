@@ -38,6 +38,7 @@ places — the same pattern a gang's screens use for their siblings.
     {% endcomment %}
     <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
                           :campaigns_mark="campaigns_mark"
+                          default_tab="{{ dashboard_tab }}"
                           new_campaign_href="{% if campaigns_open %}{% url 'n26-create-campaign' %}{% endif %}"
                           new_campaign_label="Set up campaign">
         {% comment %}

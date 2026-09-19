@@ -1,23 +1,12 @@
 {% comment %}
-<c-n26.print.entry> — one labelled thing in a column.
+<c-n26.print.entry> — A labelled value that print engines must not split.
 
-    <c-n26.print.entry label="Skills">Gang Hierarchy, Spring Up</c-n26.print.entry>
-    <c-n26.print.entry label="Lore" stacked>{{ prose }}</c-n26.print.entry>
-    <c-n26.print.entry label="XP" aligned>61/79</c-n26.print.entry>
-
-The label sits beside the value by default, wrapped to its narrowest so a long
-heading takes two short lines rather than reserving a wide column and starving
-the value. `stacked` puts it above instead, for prose.
-
-The entry is an atomic inline-level box, which no fragmentation engine may
-split. print.css has the rules, including the one case where it is blockified
-back to an ordinary flex row.
-
-  label — omit it and the value stands alone, still on its own line.
-  stacked — label above the value.
-  aligned — a fixed-width label column, so a run of entries starts its values at
-    the same x. `label_width` sets that width and means nothing without it.
+inline-flex makes the box atomic. WebKit ignores break-inside on a flex item.
+Inside a print column the entry is blockified back to flex, so keep columns inside a card.
+aligned pins the label to --print-label-w, which defaults to 14mm. label_width does nothing without aligned.
+Set the same label_width on every aligned entry in a run only when that default is wrong.
 {% endcomment %}
+
 <c-vars label="" stacked="" aligned="" label_width="" class="" />
 
 <div {{ attrs }}

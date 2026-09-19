@@ -1,26 +1,16 @@
 {% comment %}
-<c-n26.founding-mark> — the mark that ties the Found and equip gang action to
-the Trade Points it hands out.
+<c-n26.founding-mark> — Violet flag that marks a founding action or allowance.
 
-    <c-n26.founding-mark />
-    <c-n26.founding-mark class="size-3.5" />
-
-Drawn beside the action on the gang page, beside a model card's founding Trade
-Points, on the allowance block of an equip screen and inside the button that
-starts the action. One shape in four places, so a reader who has met it once
-reads the rest as the same feature.
-
-The drawing and the colour are stated in this file and nowhere else: change
-the icon name and the two colour classes below and every place the mark
-appears follows. The colour is deliberately neither the accent a primary
-control is painted in nor the green a completing button is painted in, so the
-mark is never taken for a control.
-
-  class — size classes for the drawing. size-4 by default.
-  label — accessible name. Omit beside words that already say it.
+The colour lives on the wrapper so every call site draws the same violet.
+class is forwarded to the inner icon. A colour utility there overrides the mark.
+Pass label when the flag is the only content that conveys founding.
+Use this same mark wherever founding Trade Points appear, so those places read as one feature.
+Do not paint this in accent or in the green a completing button uses. The mark must not be taken for a control.
 {% endcomment %}
+
 <c-vars class="size-4" label="" />
 
+{# Colour is on this span. A colour class on the icon overrides it. #}
 <span class="inline-flex shrink-0 items-center text-violet-600 dark:text-violet-400">
     <c-n26.icon name="flag" class="{{ class }}" label="{{ label }}" stroke_width="2" />
 </span>

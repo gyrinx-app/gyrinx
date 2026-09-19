@@ -1,56 +1,17 @@
 {% comment %}
-<c-n26.model-card> — one model's card: who they are, what they can do, what
-they carry.
+<c-n26.model-card> — One model's card: name, rating, and the body or Card, Lore and Notes tabs.
 
-    <c-n26.model-card :card="card" mode="edit" />
-
-Draws a n26.render.ModelCard (n26/core/render.py) and computes nothing; the
-figure beside the name is the model's pinned rating, with what it has left of
-its founding Trade Points ahead of it where its books grant any and the gang
-is still being founded. That figure carries <c-n26.founding-mark>, the same
-mark the Found and equip gang action carries on the gang page.
-card.collections and card.effects are on the structure and deliberately not
-drawn.
-
-mode decides how much of the card is clickable: gang keeps the controls to the
-actions slot, edit brings out the choice buttons and a menu on each piece of
-kit, view has nothing to click at all. A region belonging to one mode is wrapped in
-<c-n26.model-card.mode>, which reads mode from context.
-
-Every control is drawn from an href, and an empty href draws nothing — a print
-sheet or a hire preview passes none and gets a card nobody can click. An
-unaddressed choice still reads as words, because <c-n26.link> renders a span.
-
-The weapon table takes its stat columns from card.weapon_columns, so all of one
-card's weapons must share a statline shape.
-
-A stored model's card is three tabs: the rules' card, then Lore and Notes —
-the two sections a player writes rather than earns, read off the structure
-and sanitised here. tabs=False draws the rules' card alone, for a screen that
-already has a tab strip of its own directly under the card and does not want a
-second one inside it. notes_href and lore_href say where their Edit goes;
-without one the panel is read-only, which is what a reader who does not own
-the gang gets. status_href is where the status badge leads — the owner's Mark
-as dialog — and empty draws the badge as words and offers an Active model
-nothing. status_hx makes the badge ask
-for that dialog over htmx; only a page holding the status dialog host may set
-it (see n26/includes/status_dialogs.html). The model's picture never sits
-on the card's face — a small control by the actions opens it.
-
-A pet's card says whose it is. Given owner_href — the gang sheet passes the
-owner's card anchor — it is a cat beside the model's name, naming the owner
-in its tooltip; without one there is nowhere to send anyone, so the card says
-it in words under the profile name ("Owned by Yolanda", or "In the stash"
-where the collar that brought it sits there), which is what the model's own
-page wants. A stored model's card carries id="model-<pk>" on its header
-band, the anchor the sheet links to.
-
-The header band keeps the name and figures opposite one another at every
-width, so the rating stays at the top right. The profile and controls share
-the row below, each in its own corner. The status sits with the figures rather
-than with the acts below it — where a model stands is something the card says,
-not something to do.
+id="model-<pk>" is the fragment owner links jump to. Only a stored model has an id; a hire preview must not grow an empty anchor.
+.n26-card-tabs in app.css sits outside any layer so it can beat the kit's margin utilities. Its selectors assume the kit's strip then panels DOM.
+Pass mode into the body. Nested mode checks read that value from context, not from their own props.
+Rating is what the model is worth, weapons and wargear included. Stashed gear counts in wealth instead.
+Founding Trade Points are not the rating. They show in gang or edit mode only, while a founding budget is open.
+Lore and notes are sanitised editor HTML. A card can be read by people who are not its owner.
+card.collections and card.effects are on the structure and are not drawn.
+An empty href draws nothing. A print sheet or hire preview that passes none cannot be clicked.
+status_hx needs the host in n26/includes/status_dialogs.html.
 {% endcomment %}
+
 {% load richtext %}
 <c-vars
     :card="None"
@@ -68,40 +29,23 @@ not something to do.
 />
 
 <c-ui.card padding="none" class="{% if card.status == 'dead' %}opacity-60 {% endif %}{{ class }}">
-    {% comment %}
-    The header band is drawn here rather than in the kit's card header slot,
-    which hardcodes px-6 where every row below is px-4. It carries the card's
-    anchor, so a link to a model lands on its name; a card with no id depicts
-    nobody and gets none.
-    {% endcomment %}
+
+    {# Drawn here, not in the kit header slot, which hardcodes px-6 where every row below is px-4. #}
     <div class="border-b border-box-border px-4 py-3"{% if card.id %} id="model-{{ card.id }}"{% endif %}>
-        {% comment %}
-        The figures take the width their unbroken line needs; the name gives
-        up width and wraps. The status, founding figure and rating stay on one
-        baseline at every card width, with the rating in the top-right corner.
-        The profile and controls occupy the two cells below.
-        {% endcomment %}
+
         <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
-            {% comment %}
-            The model's name. The library profile it was hired from sits in
-            the cell below, so the controls can remain beside it.
-            {% endcomment %}
+
             <div class="min-w-0">
                 <div class="font-semibold">
                     {{ card.name }}{% if name_action %}{{ name_action }}{% endif %}
-                    {% comment %}
-                    The model whose purchase brought this one in — a pet's
-                    owner — as a way to their card, beside the name it
-                    belongs to rather than among the acts on the right. The
-                    tooltip says whose, since a cat on its own does not
-                    name the owner.
-                    {% endcomment %}
+
                     {% if owner_href and card.owned_by %}
                         <c-ui.tooltip size="sm">
                             <c-ui.button size="xs"
                                          variant="ghost"
                                          href="{{ owner_href }}"
                                          aria-label="Owned by {{ card.owned_by }}">
+                                {# Height is 1lh so an icon-only button matches a labelled sibling. #}
                                 <span class="n26-icon-only">
                                     <c-n26.icon name="cat" class="size-3" />
                                 </span>
@@ -113,44 +57,21 @@ not something to do.
             </div>
 
             <div class="col-start-1 row-start-2 min-w-0 self-center">
-                {% comment %}
-                The profile name is skipped when it agrees with the model's
-                name, as n26.render_text skips it, so a model nobody has
-                renamed is not named twice.
-                {% endcomment %}
+
                 {% if card.profile_name and card.profile_name != card.name %}
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
                 {% endif %}
-                {% comment %}
-                Whose the model is, where a purchase brought it in. A sheet
-                that draws the owner's card gives owner_href, and the name
-                becomes the link control among the others rather than a line
-                of its own — a third line here with nothing opposite it is
-                what makes the band grow. Without an address there is nowhere
-                to send anyone, so the fact is words: ModelCard.owner_line,
-                the one sentence every renderer says.
-                {% endcomment %}
+
                 {% if card.owner_line and not owner_href %}
                     <div class="text-sm text-muted">{{ card.owner_line }}</div>
                 {% endif %}
             </div>
 
+            {# contents puts these children on the header grid. Drop it and the two-column layout collapses. #}
             <div class="contents">
                 <div class="col-start-2 row-start-1 flex min-w-0 items-baseline justify-end gap-1 whitespace-nowrap text-sm font-medium tabular-nums">
-                    {% comment %}
-                    Where the model stands between battles, ahead of the
-                    figures rather than among the acts below: a status is
-                    something the card says, not something to do. Anything
-                    but Active is a badge, its colour following how bad it
-                    is: Recovery amber, Critical or Captured red, Dead
-                    plain. Active is the quiet case and gets no badge — a
-                    reader is owed the word only where it is news — so
-                    where the status can be set the way in is a muted
-                    control instead. It sits on the figures' baseline
-                    like the words it stands beside. No separator after
-                    it: it is a control beside two figures, and the dot
-                    below is the one between them.
-                    {% endcomment %}
+
+                        {# Do not swap this control. The server answers with a dialog or an out-of-band update. #}
                         {% if card.status_label %}
                             {% if status_hx and status_href %}
                                 <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
@@ -166,26 +87,12 @@ not something to do.
                             {% endif %}
                             {# djlint:on #}
                         {% endif %}
-                    {% comment %}
-                    What the model has left of the Trade Points its books
-                    give it to spend as it joins, ahead of the rating and
-                    quieter than it: the allowance runs out with the
-                    founding, and the rating is the figure a card is read
-                    by. Drawn only where the owner is reading — what one
-                    of their fighters may still spend is their business.
-                    {% endcomment %}
+
                         {% if card.founding_budget %}
                             <c-n26.model-card.mode when="gang edit">
                                 <c-ui.tooltip size="sm">
-                                    {% comment %}
-                                    Plain inline, not a flex: this figure sits on
-                                    the rating's baseline, and a flex box takes
-                                    its baseline from its first item — the mark,
-                                    whose bottom edge is a pixel or two off the
-                                    text beside it. Inline, the text's own
-                                    baseline is the box's, and the mark is nudged
-                                    onto it by its wrapper.
-                                    {% endcomment %}
+
+                                    {# Inline, not flex: a flex box takes its baseline from the mark, which sits a pixel off the rating. #}
                                     <span class="text-muted">
                                         <span class="inline-block align-[-0.1875em]"><c-n26.founding-mark class="size-3.5" /></span>
                                         <span>{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend while the gang is being founded</span></span>
@@ -202,10 +109,7 @@ not something to do.
                 </div>
 
                 {% if actions or card.image_url %}
-                    {% comment %}
-                    The controls share the lower row with the profile and
-                    wrap within their own cell when the card is narrow.
-                    {% endcomment %}
+
                     <div class="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end gap-2">
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
@@ -233,26 +137,13 @@ not something to do.
         </div>
     </div>
 
-    {% comment %}
-    A stored model gets the tab strip: the rules' card, then the two sections
-    the player writes. A card with no id depicts nobody — a hire preview, a
-    picker option — and has nothing written, so it draws the body plain, and
-    so does a card the caller has asked to draw without tabs.
-
-    The strip and the panels are Alpine's; scriptless readers get every panel
-    in a run instead (the layout's no-script rule reveals them), so nothing
-    written is ever unreachable.
-    {% endcomment %}
     {% if card.id and tabs %}
         <div class="n26-card-tabs">
             <c-ui.tabs variant="segmented" size="sm" :fill="True">
                 <c-ui.tabs.tab name="Card">
                     <c-n26.model-card.body :card="card" mode="{{ mode }}" :htmx="htmx" />
                 </c-ui.tabs.tab>
-                {% comment %}
-                The dot marks a tab with something behind it; without one,
-                nobody opens a tab to find out it is empty.
-                {% endcomment %}
+
                 <c-ui.tabs.tab name="Lore"
                                icon="{% if card.lore %}<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><circle cx='12' cy='12' r='4'/></svg>{% endif %}">
                     <c-n26.model-card.prose href="{{ lore_href }}" empty="Nothing written yet.">

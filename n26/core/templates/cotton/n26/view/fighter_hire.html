@@ -1,27 +1,17 @@
 {% comment %}
-<c-n26.view.fighter-hire> — pick what a fighter is, one click at a time.
+<c-n26.view.fighter-hire> — Hire screen: gang figures, notices, and the profile list in the default slot.
 
-    <c-n26.view.fighter-hire action="/gangs/1/hire/" gang="The Ashen Choir">
-        <c-n26.profile-picker …>…</c-n26.profile-picker>
+Hire controls in the slot submit the form.
+Do not pass submit_label. A footer submit would hire with no profile.
+Do not wrap notice. A wrapper would leave a gap when the slot is empty.
+
+    <c-n26.view.fighter-hire action="{{ action }}" :form="form">
+        <c-slot name="figures">...</c-slot>
+        <c-slot name="notice">...</c-slot>
+        ...
     </c-n26.view.fighter-hire>
-
-A screen, not a page: no chrome and no routing. The frame is <c-n26.form-page>,
-given no submit_label so it draws no footer — every Hire button in the picker is
-this form's submit, carrying which profile and which options were clicked. A
-primary action at the end would be a second answer to the same question.
-
-Naming a fighter is asked after the click, by <c-n26.hire-dialog>, so that
-buying three Gangers in a row is three clicks.
-
-  :form — a Django form, for its non-field errors.
-  gang — whose roster this is. Shown in the breadcrumb.
-  figures — the gang's wealth strip and roster count, drawn under the lead so
-    the credits a click will spend are on the same screen as the click.
-    Server-rendered per request, so a hire's redirect brings it back updated.
-  notice — the confirmation or refusal of the last hire, drawn above the picker
-    rather than at the top of the page, beside the list it was clicked in.
-  slot — the picker.
 {% endcomment %}
+
 <c-vars
     action=""
     gang=""
@@ -41,10 +31,6 @@ buying three Gangers in a row is three clicks.
 
     {{ figures }}
 
-    {% comment %}
-    No wrapper of its own: a div here would draw a gap on every page with
-    nothing to say. What fills the slot brings its own spacing.
-    {% endcomment %}
     {{ notice }}
 
     {{ slot }}

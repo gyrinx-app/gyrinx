@@ -1,40 +1,24 @@
 {% comment %}
-<c-n26.activities-square> — what the gang has open, and the way to start something.
+<c-n26.activities-square> — What a gang has open, what is waiting, and its recent history.
 
-    <c-n26.activities-square :square="actions" />
-
-A card built to sit in the same grid as the stash and the models, ahead of
-both: what a gang has open is read beside what it is being spent on. It is
-drawn whether or not anything is open — a square that came and went would
-shift every card after it, and a reader deciding what to do next is owed
-"nothing is open" as plainly as they are owed what is.
-
-Under what is open, what the rules are waiting on: a ransom to settle, the
-cycle to close. The two are different questions — one is something the owner
-started and can end, the other is something owed — so they are drawn apart,
-and "No action is open." is kept for a square with nothing on either half.
-
-Under that, the gang's last few acts. What has been done is the other half
-of what is open, and a reader who wants more than the snapshot follows it
-through to the history page. The sentences are the history page's own, so
-neither describes an act the other way.
-
-Every way to start an action posts rather than links, so nothing that
-follows links can start one. The header holds the title alone, at the
-same height as the stash card's beside it; the controls live in the body.
-
+Say no action is open only when nothing is running and nothing is waiting.
+A reader with something waiting is not told there is nothing to do.
+An open founding is drawn unboxed, as the current action.
+The start control posts only while founding is not already open.
+A waiting step is a form when it has post, and a link otherwise.
+A step that acts on the click must post. Following a link must not change the roster.
+Always draw this square. A square that appears and vanishes would shift every card after it.
 Whoever draws this owns the gang. There is no reader-facing shape.
-
-  :square — a n26.core.activities.ActivitiesSquare.
-  class — extra classes on the card.
+Name models in the snapshot. Do not link them. The roster is the way through to a model.
 {% endcomment %}
+
 {% load humanize %}
 <c-vars :square="None" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
-        {# -mx-2 because the kit's header band hardcodes px-6 where the rows #}
-        {# below are px-4, so the name would start further in than the contents. #}
+
+        {# Pull the header back. The kit header is px-6 while the body is px-4, so the title would start further in. #}
         <div class="-mx-2 flex items-center gap-3">
             <span class="min-w-0 flex-1 text-sm font-semibold text-ink-900 dark:text-ink-100">Actions</span>
         </div>
@@ -43,12 +27,7 @@ Whoever draws this owns the gang. There is no reader-facing shape.
         {% if square.founding %}
             <c-n26.activity-card :card="square.founding" :boxed="False" />
         {% endif %}
-        {% comment %}
-        A line rather than a card: what a visit is worth is decided and spent
-        on its own page, so this says it is open and how much is left, and
-        sends the reader there. Ruled off from the action above it when there
-        is one.
-        {% endcomment %}
+
         {% if square.visit %}
             <div class="flex flex-wrap items-center justify-between gap-2 {% if square.founding %}border-t border-box-border pt-3{% endif %}">
                 <span class="text-xs text-muted">
@@ -61,18 +40,11 @@ Whoever draws this owns the gang. There is no reader-facing shape.
                 </c-ui.button>
             </div>
         {% endif %}
-        {% comment %}
-        Nothing running and nothing waiting. Said only then: a reader with
-        a ransom to settle is not told there is nothing to do.
-        {% endcomment %}
+
         {% if not square.anything_open and not square.to_do %}
             <p class="text-xs text-muted">No action is open.</p>
         {% endif %}
-        {% comment %}
-        What the rules are waiting on. A step that asks a question first
-        is a link to it; one that acts on the click is a form, because
-        following a link must not change the roster.
-        {% endcomment %}
+
         {% for step in square.to_do %}
             <div class="flex flex-wrap items-center justify-between gap-2 {% if not forloop.first or square.anything_open %}border-t border-box-border pt-3{% endif %}">
                 <span class="text-xs text-ink-700 dark:text-ink-300">{{ step.told }}</span>
@@ -86,13 +58,7 @@ Whoever draws this owns the gang. There is no reader-facing shape.
                 {% endif %}
             </div>
         {% endfor %}
-        {% comment %}
-        A plain form, drawn whenever the founding action is not open,
-        whatever else the gang has going on. The button names what the
-        owner gets rather than the state it puts the gang in, and carries
-        the founding mark, so the control and the figures it brings out
-        read as one feature.
-        {% endcomment %}
+
         {% if square.start_founding %}
             <form method="post" action="{{ square.start_founding }}">
                 {% csrf_token %}
@@ -106,16 +72,7 @@ Whoever draws this owns the gang. There is no reader-facing shape.
             </form>
         {% endif %}
     </div>
-    {% comment %}
-    The story, newest first, ruled off from what is open above it. Each
-    time is relative, with the full one on the element itself: a snapshot
-    says how long ago, and the page it links to spends a column on the
-    exact time.
 
-    Models are named rather than linked. The way through to a model is the
-    roster below, and the way through to the whole story is the link at the
-    foot of this.
-    {% endcomment %}
     <div class="flex flex-col gap-2 border-t border-box-border px-4 py-3">
         <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">Recent history</h3>
         {% if square.history %}

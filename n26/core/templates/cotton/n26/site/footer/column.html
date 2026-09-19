@@ -1,27 +1,16 @@
 {% comment %}
-<c-n26.site.footer.column> — one column of the footer.
+<c-n26.site.footer.column> — One footer column: optional lead, heading, and either free content or a list of links.
 
-    <c-n26.site.footer.column heading="Help & Documentation">
-        <li><c-n26.link href="/help/" tone="muted">Getting started</c-n26.link></li>
+Passing content skips the list wrapper. The default slot is then unused.
+lead is a div. heading is an h3. They share the heading class.
+The default slot is the inside of a ul, so pass li elements.
+lead is not a heading. A brand block inside an h3 reads badly in the heading outline.
+
+    <c-n26.site.footer.column heading="Product">
+        <li><a href="...">...</a></li>
     </c-n26.site.footer.column>
-
-    <c-n26.site.footer.column heading="Support us">
-        <c-slot name="content"><a class="n26-img-tilt" href="…"><img …></a></c-slot>
-    </c-n26.site.footer.column>
-
-The default slot is the inside of a <ul>, so it takes <li> elements. A real list
-is what lets a screen reader announce "list, four items" and skip the lot.
-
-  heading — a plain title. Rendered as an <h3>.
-  lead — a title that is markup rather than a word: a brand block, a link. Drawn
-    above the list and not wrapped in a heading, since "logo, Gyrinx, link"
-    reads badly in a list of headings.
-  content — replaces the list outright, for a column holding something that is
-    not links.
 {% endcomment %}
-{# The slots are declared: an undeclared slot name is not empty when nobody #}
-{# fills it — it resolves to the caller's own variable of that name, and #}
-{# this column is drawn on every page in the site's footer. #}
+
 <c-vars heading="" lead="" content="" class="" />
 
 <div {{ attrs }} class="{{ class }}">

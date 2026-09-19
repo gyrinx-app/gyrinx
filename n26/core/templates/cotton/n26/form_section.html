@@ -1,18 +1,10 @@
 {% comment %}
-<c-n26.form-section> — a titled group of fields inside a form.
+<c-n26.form-section> — A labelled group of fields inside a form page.
 
-    <c-n26.form-section title="General" description="What the gang is called.">
-        …fields…
-    </c-n26.form-section>
-
-The unit a form is built from. Sections are separated by space and a heading and
-never boxed — <c-ui.card> is there for the cases that want a container.
-
-  title — the group's heading. Renders as an h2, so a form of these has a real
-    outline rather than a run of bold text.
-  description — what a reader needs before answering, not a restatement of the
-    labels below. Better absent than that.
+title renders as an h2 so a run of sections is a real outline.
+space-y, not flex gap: a missing field must not leave an empty box collecting space.
 {% endcomment %}
+
 <c-vars title="" description="" class="" />
 
 <section {{ attrs }} class="space-y-4 {{ class }}">
@@ -27,9 +19,5 @@ never boxed — <c-ui.card> is there for the cases that want a container.
         </div>
     {% endif %}
 
-    {% comment %}
-    space-y rather than a gap on a flex column, so a caller can draw a field
-    conditionally without an empty div collecting a gap on either side of it.
-    {% endcomment %}
     <div class="space-y-5">{{ slot }}</div>
 </section>

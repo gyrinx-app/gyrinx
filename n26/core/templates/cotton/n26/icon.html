@@ -1,38 +1,20 @@
 {% comment %}
-<c-n26.icon> — one drawing from n26's Lucide icon library.
+<c-n26.icon> — One Lucide or brand drawing, sized and coloured by CSS.
 
-    <c-n26.icon name="pencil" />
-    <c-n26.icon name="plus" class="size-4" stroke_width="2" />
-    <c-n26.icon name="truck" label="Deliveries" />
-
-The Lucide package supplies the drawing; everything else is the same for every
-icon, which is what makes one component enough. A line icon takes the colour of
-the text it sits in, so there is no colour prop, and its size comes from a class.
-The server inlines only drawings used by the page: there is no icon font, sprite,
-stylesheet or JavaScript bundle to download.
-
-Stroke weight follows rendered size rather than the drawing, so it is a prop:
-1.7 suits the sizes icons usually appear at, and something at size-3 wants 2 or
-more before it fades out.
-
-An icon with a `label` is announced; one without is hidden from screen readers,
-which is the default and right for decoration beside text that already says it.
-
-The approved brand marks are the exception and the reason for the `if`: a logo
-is a filled shape and cannot be restated as a line drawing, so its metadata swaps
-fill for stroke and stroke_width is ignored. A mark published on a canvas other
-than the 24 grid keeps it, which is why the viewBox comes from the resolver.
-
-  name — a canonical Lucide name, or an approved brand name. An unknown name
-    raises rather than rendering an empty <svg>.
-  stroke_width — 1.7 by default. Raise it as the rendered size falls. No effect
-    on a solid icon.
-  label — accessible name. Omit for decorative icons.
+name is required. An unknown name raises and the page does not render.
+Choose a canonical Lucide name from /n26/design/c/icon/, or github, discord, or patreon.
+Pass label when the icon conveys meaning without adjacent text.
+Solid drawings fill with currentColor and ignore stroke_width.
+Do not paste general-purpose SVG into templates. This component inlines only the drawing this call site uses.
+There is no colour prop. A line icon takes the colour of the text it sits in, and its size comes from a class.
+Do not add an icon font, sprite, or bundle. The server inlines only drawings this page uses.
+Raise stroke_width as the rendered size falls. Something at size-3 wants 2 or more before it fades out.
+viewBox comes from the resolver. A mark published on a canvas other than the 24 grid keeps that canvas.
 {% endcomment %}{% load icons %}<c-vars
     name=""
     stroke_width="1.7"
     label=""
     class=""
-/>{% resolve_icon name as icon %}<svg {{ attrs }} class="{{ class }}" viewBox="{{ icon.viewbox }}"
+/>{# An unknown name raises KeyError. The page fails to render. #}{% resolve_icon name as icon %}<svg {{ attrs }} class="{{ class }}" viewBox="{{ icon.viewbox }}"
      {% if icon.solid %}fill="currentColor" stroke="none"{% else %}fill="none" stroke="currentColor" stroke-width="{{ stroke_width }}" stroke-linecap="round" stroke-linejoin="round"{% endif %}
      {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>{{ icon.body }}</svg>

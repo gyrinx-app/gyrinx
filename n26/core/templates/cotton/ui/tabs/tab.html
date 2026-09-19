@@ -1,17 +1,16 @@
 {% comment %}
-<c-ui.tabs.tab> — one tab and its panel, inside <c-ui.tabs>.
+<c-ui.tabs.tab> — One panel of a c-ui.tabs parent.
 
-Overrides the kit, which declares only `name` — so an `icon` passed for
-the strip's registration also falls into `{{ attrs }}` and lands on the
-panel div as a literal icon="<svg …>" attribute. Contained only while
-the markup happens to hold no double quote; one in a future icon string
-would break out of the attribute. Declaring both keeps the panel clean.
-
-  name — the tab's label, and the key the strip switches on.
-  icon — markup drawn before the label on the strip's button, or empty.
+It calls register and isActive on the parent tabs component. Outside that parent, Alpine throws.
+name is the identity shown on the strip. It must match default_tab if you set one.
+icon must stay in c-vars. An undeclared icon would land on the panel as an HTML attribute and an SVG quote would break out of it.
+display none hides the panel until Alpine runs. The parent's noscript rule shows every panel when JavaScript is off.
+icon is HTML, passed into the parent and drawn with x-html.
 {% endcomment %}
+
 <c-vars name icon="" />
 
+{# Hidden until Alpine: without this, every panel paints before x-show runs. #}
 <div x-init="register('{{ name|escapejs }}', '{{ icon|default:''|escapejs }}')"
      x-show="isActive('{{ name|escapejs }}')"
      x-transition:enter="transition ease-out duration-200"
@@ -20,7 +19,7 @@ would break out of the attribute. Declaring both keeps the panel clean.
      style="display: none;"
      role="tabpanel"
      tabindex="0"
-     class="mt-2"
+     class="n26-tabs-panel mt-2"
      {{ attrs }}>
     {{ slot }}
 </div>

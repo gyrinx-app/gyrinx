@@ -1,38 +1,19 @@
 {% comment %}
-<c-n26.owned-dialog> — confirm what is about to happen to something the gang owns.
+<c-n26.owned-dialog> — Confirms an act on held kit from the dialog dict the owned view builds.
 
-    <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
+Pass dialog from owned_dialog(). Kinds this template does not name use the delete copy.
 
-Sell, move, fit, detach, refund, remove, accessorise and rechoose share
-one panel, since the difference between them is a sentence and, for most
-of them, one control. Which is being asked, along with the figures, the
-roster, the guns and the accessories that fit, arrives in `dialog` from
-n26.core.views.owned. The panel itself is <c-n26.dialog>, where the
-open-state rules are written down.
+open, redrawn, htmx, and id must reach c-n26.dialog so a swapped-in panel can
+dismiss without navigating away.
 
-Only the clicked submit is sent, so a move is told apart by `to=stash`
-arriving. Move, fit and detach are one act with one address, asked as
-three questions: which model holds a thing is not the same question as
-which gun it is bolted to, and taking it off that gun is not the same
-question as putting it on another. Some end up with nothing to submit:
-a move with nobody else on the roster posts a hidden to=stash and draws
-no select, a fit draws no submit where the card carries no gun, and
-accessorise draws none when nothing in the library fits the weapon.
+The empty fit branch must stay. Without it, a fit with no weapons falls through
+to the model picker.
 
-Accessorise is also the one an equip page draws for every weapon on it rather
-than only for the one the URL names, so those panels are passed open="" and an
-id each.
-
-The slot carries the csrf token: a component has no request and renders none
-itself.
-
-  :htmx — the form posts through htmx and the server sends back only the
-    elements the act changed. Only a screen holding those elements may set it
-    — anywhere else the act would run and nothing on screen would change; see
-    n26/includes/equip_hosts.html. Off by default.
-  :redrawn — this panel was rendered on its own, for a page that was not
-    rebuilt. Dismissing it puts the address back instead of navigating.
+Put the csrf token in the default slot.
+Set htmx only on a screen that holds every host the response names.
+A page that draws one panel per weapon must pass a distinct id. The accessory field uses that id.
 {% endcomment %}
+
 <c-vars
     :dialog="None"
     :modal="True"
@@ -98,17 +79,13 @@ itself.
     </c-slot>
 
     {{ slot }}
-    {# Preserve the page and picker state that opened the dialog. #}
+
+    {# return, list, section, and dismissed keep the page and picker that opened this panel. #}
     <input type="hidden" name="return" value="{{ dialog.cancel_url }}">
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
     {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}
     {% if dialog.dismissed %}<input type="hidden" name="dismissed" value="{{ dialog.dismissed }}">{% endif %}
 
-    {% comment %}
-    The listing's own include, so a set is asked about the same way wherever it
-    is asked about. It starts on what this copy took, and the server reads the
-    answer back as places in the offer it re-derives.
-    {% endcomment %}
     {% if dialog.kind == "rechoose" %}
         <div class="-my-0.5">
             {% include "n26/includes/equip_choices.html" with choices=dialog.choices %}
@@ -116,15 +93,11 @@ itself.
     {% endif %}
 
     {% if dialog.kind == "accessorise" %}
-        {% comment %}
-        The field takes its id from the panel's: a page draws one of these per
-        weapon, and a label pointing at a repeated id points at the first gun
-        on the screen whichever one it sits under. The form submits the
-        accessory's identity and never its price — the server reads that off
-        the library.
-        {% endcomment %}
+
         {% if dialog.accessories %}
             <c-ui.field label="Accessory" for="{{ id }}-what">
+                {# id from the panel: a repeated Accessory label would point at the first gun on the page. #}
+                {# Submit the accessory's identity, never its price. The server reads the price off the library. #}
                 <c-ui.select.native name="accessory" id="{{ id }}-what" placeholder="">
                     {% for accessory in dialog.accessories %}
                         <c-ui.select.option value="{{ accessory.pk }}">
@@ -137,10 +110,7 @@ itself.
     {% endif %}
 
     {% if dialog.kind == "sell" and dialog.keepable %}
-        {% comment %}
-        The two sales pay differently, so each card states its own figure. The
-        wording and the arithmetic both come from the view.
-        {% endcomment %}
+
         <c-n26.radio-cards label="What is bolted to it"
                            description="{{ dialog.keepable }}"
                            min="16rem">
@@ -171,18 +141,12 @@ itself.
                 </c-ui.select.native>
             </c-ui.field>
         {% elif dialog.kind == "fit" %}
-            {% comment %}
-            Nothing to fit it to, so nothing to submit: the panel says so in
-            its lead and the way out is the only control it needs. The
-            destinations below belong to the move and would send this
-            somewhere it was never asked to go.
-            {% endcomment %}
+            {# Stay empty. Falling through would offer the model picker on a fit. #}
+
         {% elif dialog.models %}
-            {% comment %}
-            No placeholder option: the first name on the roster is selected
-            from the start, so Move always has an answer.
-            {% endcomment %}
+
             <c-ui.field label="To" for="reassign-to">
+                {# No placeholder option: Move must already have an answer. #}
                 <c-ui.select.native name="miniature" id="reassign-to" placeholder="">
                     {% for model in dialog.models %}
                         <c-ui.select.option value="{{ model.pk }}">{{ model.name }}</c-ui.select.option>
@@ -191,11 +155,9 @@ itself.
             </c-ui.field>
             {% if not dialog.stash_host %}
                 <c-slot name="actions">
-                    {% comment %}
-                    The kit writes its own type="button" after {{ attrs }}, and
-                    HTML keeps the first of a duplicate pair — which is the only
-                    reason the type set here wins and this stays a submit.
-                    {% endcomment %}
+
+                    {# A named submit, not a hidden field: it overrides the miniature pick. #}
+                    {# type=submit must come first. The kit appends type=button, and HTML keeps the first type. #}
                     <c-ui.button type="submit" name="to" value="stash" size="md">
                         To the stash
                     </c-ui.button>

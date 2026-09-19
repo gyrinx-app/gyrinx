@@ -1,45 +1,26 @@
 {% comment %}
-<c-n26.roster-summary> — how many models, and the arithmetic behind the count.
+<c-n26.roster-summary> — How many models are in the gang, with a breakdown by profile and by rating.
 
-    <c-n26.roster-summary :summary="summary" />
-
-The count is the control: a button reading the number of models the gang fields,
-which opens two readings of that same roster — how many of each profile at each
-rank, and what each model is worth. The figure a reader glances at and the
-breakdown they occasionally check are one thing, so there is one place to look
-and one thing to click.
-
-Both tables keep the roster's own order, pets after their keepers, so the tally
-reads down the way the sheet does. The counts total matches the number on the
-trigger; the ratings total need not match the gang's rating figure, since a gang
-can carry worth that no single model does.
-
-The number carries no unit, unlike every figure in <c-n26.wealth> beside it: it
-counts models, not credits. The icon says which, and the tooltip says it in
-words, because a drawing names nothing on its own.
-
-  :summary — a n26.render.RosterSummary. Its `count` is what the trigger draws,
-    so the button and the tally cannot disagree about how many there are.
+The total rating is the sum of the models listed.
+The gang's rating also counts what no single model carries, so the two can differ.
+The trigger and the counts total both read summary.count, so they cannot disagree.
+Keep both tables in the roster's own order, pets after their keepers. The tally then reads the way the sheet does.
+The number carries no unit. It counts models, not credits.
+The icon and tooltip say which, because a drawing names nothing on its own.
+class sits on the outer span, not on the dropdown.
+The dropdown does not declare class, so a class passed to it would print first and drop its positioning.
+Wrap the tooltip around the button, not the other way around.
+It opens on hover and focus, never on click.
+Its bubble takes no pointer events, so the click still reaches the trigger.
+Do not add a title attribute. The tooltip and the browser box would show the same words twice.
 {% endcomment %}
-{% comment %}
-class is declared but deliberately not forwarded to c-ui.dropdown, which does
-not declare one: it would land in {{ attrs }} ahead of the root's own class
-attribute, the browser would keep the first, and the dropdown would lose its
-positioning context.
-{% endcomment %}
+
 <c-vars :summary="None" class="" />
 
 <span class="{{ class }}">
 <c-ui.dropdown min_width="18rem">
     <c-slot name="trigger">
-        {% comment %}
-        The tooltip wraps the button rather than the other way about: it opens on
-        hover and focus and never on click, and its bubble takes no pointer
-        events, so the click it sits over still reaches the trigger beneath.
 
-        No title attribute alongside it — the two would draw the same words
-        twice, one of them in the browser's own box.
-        {% endcomment %}
         <c-ui.tooltip size="sm">
             <c-ui.button size="sm"
                          variant="default"

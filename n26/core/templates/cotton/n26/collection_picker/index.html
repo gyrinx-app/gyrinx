@@ -1,45 +1,29 @@
 {% comment %}
-<c-n26.collection-picker> — a long categorised list, filtered at the top and
-acted on inline.
+<c-n26.collection-picker> — Filters nested sections and items in the page, without a round trip.
 
-    <c-n26.collection-picker :categories="names" :sections="sections">
-        <c-slot name="filters">…range menus, toggles…</c-slot>
-        <c-n26.collection-picker.section name="Weapons">…categories, items…</c-n26.collection-picker.section>
-    </c-n26.collection-picker>
+Nest items in section and category children. Those children register with this Alpine scope.
+Pass the filter menu in the filters slot. Its name must be category so apply and reset match.
 
-Two tiers, as n26.browse.CollectionView has them: sections hold categories
-hold items. An item may sit straight in a section, and then registers the
-section's name as its category.
+<c-n26.collection-picker :categories="categories" :sections="sections">
+    <c-slot name="filters">...</c-slot>
+    <c-n26.collection-picker.section name="Weapons">...</c-n26.collection-picker.section>
+</c-n26.collection-picker>
 
-Filtering narrows what is already on the page and fetches nothing. Items
-register their facets on init, and one effect — recount() — walks them and
-writes the counts table that every group, tab and readout reads. Nothing else
-may walk the items: Alpine caches no getter, so a count computed per read is
-recomputed for every group on every click.
-
-The controls belong to the caller. They go in the `filters` slot, render inside
-this component's Alpine scope, and drive its state by name: query, categories,
-minPrice, maxPrice, maxTradePoints, includeExclusive. <c-n26.filter-menu> has a
-scope of its own and cannot reach them, so it reports through the `filter-apply`
-event and is told to clear itself by `filter-reset`.
-
-  :categories — every category name, in order. All are selected to start with.
-  :sections — every section name, in order. The tab strip needs them; without
-    them the picker falls back to the stacked form.
-  tabs — draw the sections as a tab strip, one at a time, instead of stacking
-    them as collapsibles. On by default.
-  price_floor, price_ceiling, tp_ceiling — the ends of each numeric filter,
-    which are also its "off" positions.
-  filters — the control bar.
-  empty — what to show when nothing matches.
+A picker with no sections ignores tabs and stacks every section.
+Exclusive lines are equipment-list only. Moving the trade-points cap treats the picker as a trading post and hides them.
+Stickiness reads --n26-sticky-top from the page. Without it the bar sits under the nav.
+Only recount() walks the items. Alpine does not cache getters, so a count per read repeats on every click.
+Items are keyed, so a redrawn line replaces its registration instead of adding a second one.
+A category count ignores the category filter. A section count respects it, so a section with every category unticked hides itself.
+Count categories per section. The same name can appear under two sections.
+visibleSection is derived. Do not write the chosen tab back when a filter empties it.
+Do not put divide-y on the list. x-show uses display none, and divide-y would leave a rule on hidden groups.
 {% endcomment %}
+
 <c-vars
     :categories="[]"
     :sections="[]"
-    {% comment %}
-    Pass an empty tabs value for the stacked form, which suits a collection
-    with more sections than a strip can hold.
-    {% endcomment %}
+
     tabs="1"
     price_floor="0"
     price_ceiling="9999"
@@ -50,11 +34,7 @@ event and is told to clear itself by `filter-reset`.
 
 <div {{ attrs }} class="{{ class }}"
      x-data="{
-        {% comment %}
-        Rows by their own key rather than in a list, so a row redrawn in
-        place replaces its registration instead of adding a second one.
-        A key is one piece of content, and a listing draws each once.
-        {% endcomment %}
+
         items: {},
         query: '',
         categories: {{ categories|json_dumps }},
@@ -64,18 +44,12 @@ event and is told to clear itself by `filter-reset`.
         // With no sections the chosen tab matches nothing and the whole list
         // disappears, so a picker given none falls back to the stacked form.
         //
-        // No quote characters anywhere in this object: it is the value of a
-        // double-quoted attribute, and one would end the attribute and print
+        // No quote characters anywhere in this object. It is the value of a
+        // double-quoted attribute. One quote would end the attribute and print
         // the rest of the state machine onto the page.
         get tabbed() { return this.wantsTabs && this.sections.length > 0 },
         chosenSection: {{ sections.0|default:""|json_dumps }},
-        {% comment %}
-        The chosen section lives in ?section= so it survives a reload, and
-        a hidden input below carries it into any POST this picker sits in,
-        so a view redirecting after a click can restore the tab. An unknown
-        name needs no guard: visibleSection falls back to the first section
-        holding anything.
-        {% endcomment %}
+
         init() {
             const fromUrl = new URLSearchParams(location.search).get('section');
             if (fromUrl) this.chosenSection = fromUrl;
@@ -91,29 +65,9 @@ event and is told to clear itself by `filter-reset`.
         maxTradePoints: {{ tp_ceiling }},
         includeExclusive: true,
 
-        {% comment %}
-        A row without a key of its own is counted under a made-up one, so
-        rows that never get redrawn — a gallery demo, a listing whose call
-        site names nothing — still each count once rather than collapsing
-        into a single entry.
-        {% endcomment %}
         autoKey: 0,
         register(key, facets) { this.items[key || 'row:' + (++this.autoKey)] = facets },
 
-        {% comment %}
-        Every count on the page reads this table, and one effect rebuilds it
-        when the items or a filter change. It must stay the only place the
-        items are walked — see the note at the top of this file.
-
-        A category's number ignores the category filter, so the filter menu
-        can show what each choice would yield; a section's number respects
-        it, so a section with every category unticked hides itself.
-
-        Categories are counted per section, because a category name is only
-        unique within one — the rulebook files Primitive Weapons under both
-        Ranged and Close Combat. Counted by name alone, one section's
-        matches draw the other section a header with nothing behind it.
-        {% endcomment %}
         counts: { section: {}, category: {}, sectionTotal: {}, shown: 0, total: 0 },
         recount() {
             const bySection = {}, byCategory = {}, sectionTotal = {};
@@ -141,13 +95,7 @@ event and is told to clear itself by `filter-reset`.
         matches(facets) {
             if (this.query && !facets.search.includes(this.query.trim().toLowerCase())) return false;
             if (facets.price < this.minPrice || facets.price > this.maxPrice) return false;
-            {% comment %}
-            "E" means equipment list only, not a point on the trade-points
-            scale, so narrowing that slider at all drops exclusive items
-            rather than comparing them against it. n26.browse.narrow draws
-            the same line, and the same catalogue filtered on the server and
-            filtered in the hand must not show different things.
-            {% endcomment %}
+
             if (facets.exclusive) {
                 if (!this.includeExclusive) return false;
                 if (this.maxTradePoints < {{ tp_ceiling }}) return false;
@@ -159,13 +107,7 @@ event and is told to clear itself by `filter-reset`.
 
         categoryOn(name) { return this.categories.includes(name) },
         countIn(section, name) { return (this.counts.category[section] || {})[name] || 0 },
-        {% comment %}
-        Which section is on screen is derived, never stored: chosenSection is
-        only what was last clicked, and what shows is that section if it still
-        holds anything, else the first that does. Correcting the stored choice
-        instead would be an effect racing the filter that caused it, and would
-        lose the reader's tab as soon as a filter emptied it.
-        {% endcomment %}
+
         get liveSections() { return this.sections.filter(s => this.countInSection(s) > 0) },
         get visibleSection() {
             const live = this.liveSections;
@@ -174,11 +116,7 @@ event and is told to clear itself by `filter-reset`.
         sectionIsActive(name) { return !this.tabbed || this.visibleSection === name },
 
         countInSection(name) { return this.counts.section[name] || 0 },
-        {% comment %}
-        The readout counts what the list could be drawing now, which under
-        tabs is one section's worth: a total spanning the sections a tab is
-        hiding would contradict the list beneath it.
-        {% endcomment %}
+
         get shown() {
             return this.tabbed ? this.countInSection(this.visibleSection) : this.counts.shown;
         },
@@ -203,40 +141,21 @@ event and is told to clear itself by `filter-reset`.
             this.maxTradePoints = {{ tp_ceiling }};
             this.includeExclusive = true;
             this.categories = this.allCategories.slice();
-            {% comment %}
-            The category menu keeps its own selection, so clearing this
-            component's state is not enough: filter-menu listens for
-            filter-reset by name.
-            {% endcomment %}
+
             this.$dispatch('filter-reset', { name: 'category' });
         },
 
         toggleAll(open) { this.$dispatch('collection-picker-toggle', { open: open }) },
      }"
-     {% comment %}
-     The one effect that walks the items: registration and every filter land
-     here, batched to one rebuild per flush.
-     {% endcomment %}
+
+     {# This is the only walk of the items. Registration and every filter land here, batched to one rebuild per flush. #}
      x-effect="recount()"
      @filter-apply.window="if ($event.detail.name === 'category') categories = $event.detail.values">
 
-    {% comment %}
-    The section on screen, carried by whatever form this picker sits inside.
-    Empty without tabs or without script, which views read as "no tab to
-    restore".
-    {% endcomment %}
+    {# Submit sends the visible tab. Stacked mode sends empty so the server does not think a tab is chosen. #}
     <input type="hidden" name="section" :value="tabbed ? (visibleSection || '') : ''">
 
-    {% comment %}
-    One sticky box holds every band — filters, readout, tab strip — because
-    two stacked sticky boxes would each have to know the height of everything
-    above it. Anything a call site wants pinned goes in the filters slot.
-
-    How far down it sticks is the page's business: it reads --n26-sticky-top
-    and defaults to 0, so a page with a fixed header of its own sets that
-    variable once. Written inline, because a `top` utility passed through
-    `class` would tie with this one and leave stylesheet order to decide.
-    {% endcomment %}
+    {# top is inline so a class top utility cannot tie with it. --n26-sticky-top is the page nav height. #}
     <div class="sticky z-20 -mx-1 space-y-2 bg-[var(--color-bg)] px-1 pt-1 {% if tabs %}pb-0{% else %}pb-3{% endif %}"
          style="top: var(--n26-sticky-top, 0px)">
         {{ filters }}
@@ -261,23 +180,6 @@ event and is told to clear itself by `filter-reset`.
             </span>
         </div>
 
-        {% comment %}
-        A tab with nothing behind it is hidden rather than disabled, so a
-        filter that empties a section takes its tab away with it.
-
-        Two strips, and a breakpoint picks one: from sm up every section is a
-        tab; below it, two live sections or fewer are both tabs, and from three
-        the section on screen stands alone with the rest behind a switcher.
-        Both draw the rule under the strip from the tabs' own 2px
-        bottom borders plus a trailing span across the width they do not fill —
-        a rule on the strip with the active tab pulled over it lands the
-        indicator a pixel proud and reads as a double line.
-
-        The two-container skeleton exists on its own as c-n26.tab-strip; this
-        strip keeps its own copy because its containers are the tablist
-        itself — the role and the choose listener sit on them, and the
-        skeleton's containers take no attributes of their own.
-        {% endcomment %}
         {% if tabs %}
             <div role="tablist" class="relative hidden flex-wrap gap-x-1 sm:flex">
                 <template x-for="name in sections" :key="name">
@@ -295,22 +197,11 @@ event and is told to clear itself by `filter-reset`.
                               x-text="countInSection(name)"></span>
                     </button>
                 </template>
-                {% comment %}
-                order-last, because Alpine appends x-for clones at the end of
-                the container: this span, written after the template, ends up
-                before the generated tabs in the DOM.
-                {% endcomment %}
+
+                {# order-last: Alpine appends x-for clones at the end, so this span would otherwise sit before the tabs. #}
                 <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
             </div>
 
-            {% comment %}
-            The narrow strip: up to two live sections drawn as tabs, and from
-            three the section on screen with every other live section behind
-            the switcher's chevron. "+1 more" would take the room the other
-            tab takes and say less, and a menu of one is not worth opening.
-            Filtering changes how many are live, so which shape the strip
-            takes is bound rather than decided at render.
-            {% endcomment %}
             <div role="tablist" class="relative flex flex-wrap gap-x-1 sm:hidden"
                  @quick-switcher-choose="chooseSection($event.detail.value)">
                 <template x-for="name in sections" :key="name">
@@ -328,20 +219,9 @@ event and is told to clear itself by `filter-reset`.
                               x-text="countInSection(name)"></span>
                     </button>
                 </template>
-                {% comment %}
-                This component's state under a name of its own, so the rows
-                inside the panel can reach it. The switcher's panel has a scope
-                of its own that shares several names with this one — items,
-                matches, register, shown, query — so an expression written bare
-                down there silently reads the menu's rows instead of the
-                listing's. $data is this scope before the panel's is stacked on
-                top of it.
-                {% endcomment %}
-                {% comment %}
-                order-last on this span and the spacer after it, as on the
-                wide strip: Alpine appends the x-for clones at the end of the
-                container, and both are written before the generated tabs.
-                {% endcomment %}
+
+                {# Capture this scope. The switcher opens its own x-data, and $data inside it is the menu. #}
+                {# order-last, as on the wide strip: Alpine appends x-for clones at the end of the container. #}
                 <span x-data="{ picker: $data }"
                       x-show="liveSections.length > 2"
                       x-cloak
@@ -350,25 +230,14 @@ event and is told to clear itself by `filter-reset`.
                                           menu_label="Other sections"
                                           placeholder="Search sections"
                                           align="end">
-                        {% comment %}
-                        How many sections the menu holds beyond the one on
-                        screen. Bound rather than written, because filtering
-                        changes how many are live.
-                        {% endcomment %}
+
                         <c-slot name="trigger_words">
                             <span x-text="`+${picker.liveSections.length - 1} more`"></span>
                         </c-slot>
                         {% for name in sections %}
-                            {% comment %}
-                            Two escaping traps. The availability expression
-                            avoids a comparison operator: an expression handed
-                            to a component travels as an attribute twice over,
-                            and a `>` escaped on the way in arrives as the
-                            characters of an entity with nothing left to decode
-                            it. And the name is bound rather than written,
-                            because written it is escaped twice and a section
-                            called "Kit & gear" then equals nothing.
-                            {% endcomment %}
+
+                            {# available uses !== 0, not a greater-than. Cotton escapes the expression twice and a > never comes back as an operator. #}
+                            {# Bind the label. Written text is escaped twice, so a name with an ampersand then matches nothing. #}
                             <c-n26.quick-switcher.choice :label="name"
                                                          current_value="picker.visibleSection"
                                                          available="picker.countInSection(label) !== 0" />
@@ -380,12 +249,6 @@ event and is told to clear itself by `filter-reset`.
         {% endif %}
     </div>
 
-    {% comment %}
-    Nothing draws a rule between the groups, and nothing should: Tailwind's
-    divide-y keys off [hidden] while x-show sets display:none, so a hidden
-    group would leave its separator behind and the list would grow stray lines
-    as a reader typed.
-    {% endcomment %}
     <div>{{ slot }}</div>
 
     <div x-show="shown === 0" x-cloak class="px-1 py-10 text-center text-sm text-ink-900 dark:text-ink-100">

@@ -1,50 +1,25 @@
 {% comment %}
-<c-n26.model-card.body> — the rules' half of one model's card: the statline,
-the named rows, the weapon table. Everything here is the rules engine's answer
-to a question; what the player writes lives in the card's other tabs. Split
-out so the tabbed card and the tabless one (a hire preview, a picker option)
-draw the same thing.
+<c-n26.model-card.body> — The statline, counters, skills, gear and weapons under a model's header.
 
-  card — the n26.render.ModelCard.
-  mode — as <c-n26.model-card> takes it; the mode-only regions read it.
-  htmx — passed to the counter controls and to each piece of kit's menu,
-    and set only by a screen holding the card's host and the dialog host.
-    Threaded rather than read from context: a control that posts over htmx
-    on a page with nowhere to put the answer would run the act and change
-    nothing on screen, and a menu item that fetched its panel would land
-    it nowhere.
-
-A piece of kit with acts on it — the model's own page fills them in —
-carries one menu right beside its name, drawn by <c-n26.owned-actions>.
+Mode checks read mode from context. Pass it from the parent card or the choose controls vanish.
+Pass htmx through to counters and owned-actions. Without it those acts navigate the whole page.
+Set htmx only on a page that holds the card host and the dialog host. Otherwise the act runs and the screen does not change.
+An empty href must not reach a kit button. The kit still draws a clickable button that goes nowhere.
+Skill and power questions are not in card.choices. They are drawn on those rows.
+The weapon header uses card.weapon_columns. Every weapon on this card must share that statline shape.
+A weapon's own line with no stats uses colspan 99 to span the table. That number is a stand-in, not a column count.
+Trait lines under a named weapon profile start with an empty cell so they sit under the stats, not under the name.
 {% endcomment %}
+
 <c-vars :card="None" mode="gang" :htmx="False" />
 
-    {% comment %}
-    The statline carries the type line and the XP pair in the columns its
-    second row leaves spare, so the header above does not repeat either.
-    {% endcomment %}
     <c-n26.statline :statline="card.statline" layout="book"
                     type_line="{{ card.type_line }}"
                     xp="{{ card.xp }}" xp_target="{{ card.xp_target|default_if_none:'–' }}" />
 
-    {% comment %}
-    items-baseline: grid items stretch by default, so a row carrying a button
-    grows taller and its label would sit at the top of the cell rather than on
-    the same line as the value.
-    {% endcomment %}
+    {# items-baseline: grid items stretch, so a button would lift its label off the value line. #}
     <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
-        {% comment %}
-        The running numbers, above the rows that say what the model is and
-        carries: they sit under the statline strip, next to the XP cell in
-        it, so every tally reads as one block.
 
-        A line changes where it has an address and is a settled number
-        everywhere else, so the gang sheet, a print sheet and a hire
-        preview all draw the same block with nothing to click. Which
-        lines those are is ModelCard.counter_lines' decision, not this
-        template's — an XP nobody can move is the cell above and nothing
-        here.
-        {% endcomment %}
         {% for counter in card.counter_lines %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ counter.name }}</dt>
             <dd class="min-w-0 tabular-nums text-ink-900 dark:text-ink-100">
@@ -58,13 +33,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
             <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
-            {% comment %}
-            An open skill question is drawn in the Skills row, on a line of its
-            own under the skills the model already has — not among the choice
-            rows below, and not in the flow of the list, where wrapping would
-            fold it into the names. Choices use ghost buttons wherever they
-            can be changed; the way to the skills screen is edit mode's alone.
-            {% endcomment %}
+
             <c-n26.model-card.mode when="gang view">
                 {% if card.skill_choices %}
                     <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -81,11 +50,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                     </div>
                 {% endif %}
             </c-n26.model-card.mode>
-            {% comment %}
-            A question with no href gets words, never a button: handed an empty
-            href the kit's button still draws a clickable <button> that goes
-            nowhere.
-            {% endcomment %}
+
             <c-n26.model-card.mode when="edit">
                 {% if card.skill_choices or card.skills_href %}
                     <div class="mt-1 flex flex-wrap items-center gap-1">
@@ -121,10 +86,6 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             </c-n26.model-card.mode>
         </dd>
 
-        {% comment %}
-        Named special rules, kept apart from skills as the book prints them.
-        Names and annotations only — the rules text itself is never stored.
-        {% endcomment %}
         {% if card.rules %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Rules</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
@@ -132,11 +93,6 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             </dd>
         {% endif %}
 
-        {% comment %}
-        Powers are a kind of their own and keep a row of their own, drawn as
-        the Skills row is: one list, and open questions on a line of their
-        own beneath it.
-        {% endcomment %}
         {% if card.powers or card.power_choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
@@ -183,11 +139,6 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             {% include "n26/includes/gear_lines.html" with lines=card.equipment has_actions=card.equipment_has_actions %}
         </dd>
 
-        {% comment %}
-        Gear whose category asks for a heading of its own, after the general
-        Gear row. Each group is drawn exactly as Gear is, menus included:
-        these are possessions, and an owner must be able to take one off.
-        {% endcomment %}
         {% for group in card.gear_groups %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ group.name }}</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
@@ -195,12 +146,6 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
             </dd>
         {% endfor %}
 
-        {% comment %}
-        One row per open or settled choice, labelled by what it asks for.
-        Questions belonging to a card row of their own are not in card.choices
-        — they arrive in card.skill_choices and card.power_choices and are
-        drawn in those rows.
-        {% endcomment %}
         {% for choice in card.choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
             <dd class="flex min-w-0 items-center gap-0 text-ink-900 dark:text-ink-100">
@@ -211,13 +156,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                         {{ choice.chosen }}
                     {% endif %}
                 {% endif %}
-                {% comment %}
-                A choice of one is chosen; a choice of several has picks
-                added to it, and keeps its Add beside what it holds while
-                there is room. Choose and Add are the same size, and Add
-                stays that size whether or not anything is held yet, so
-                the control does not shrink the moment a pick lands.
-                {% endcomment %}
+
                 {% if not choice.is_full %}
                     {% if choice.takes_several %}
                         {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
@@ -225,9 +164,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                         {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
                     {% endif %}
                 {% endif %}
-                {% comment %}
-                Only the owner gets an X to dismiss an open choice.
-                {% endcomment %}
+
                 <c-n26.choice-dismiss :choice="choice" />
             </dd>
         {% endfor %}
@@ -250,19 +187,10 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                 </thead>
                 <tbody>
                     {% for weapon in card.weapons %}
-                        {% comment %}
-                        The unnamed profile is the weapon, so its stats sit on
-                        the weapon's own row and every named profile gets a row
-                        beneath. WeaponLine decides that, so the text card, the
-                        print card and this one cannot drift.
 
-                        The test is WeaponLine.own_stats, not whether an unnamed
-                        profile exists: a combi-weapon has one with no
-                        characteristics on it, and would otherwise leave the
-                        stat columns empty beside its name.
-                        {% endcomment %}
                         {% with own=weapon.own_line stats=weapon.own_stats %}
                         <tr class="{% if not forloop.first %}border-t border-box-border{% endif %}">
+                            {# own_stats, not an unnamed profile: a combi-weapon has one with no characteristics. #}
                             {% if stats %}
                                 <c-n26.statline.cells :cells="stats">
                                     <c-slot name="leading">
@@ -272,6 +200,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                     </c-slot>
                                 </c-n26.statline.cells>
                             {% else %}
+                                {# 99 spans the table. It is not a column count. #}
                                 <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
                                     {% include "n26/includes/weapon_name.html" %}
                                 </td>
@@ -294,14 +223,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                 <c-n26.statline.cells :cells="profile.statline.cells">
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
-                                            {% comment %}
-                                            The dash is the mark the book and n26.render_text open a
-                                            named profile with: this row hangs off the weapon above. A
-                                            flex item beside the name rather than a character in front
-                                            of it, because a phone-width column wraps an inline mark
-                                            onto a line of its own; aria-hidden, so the name is read
-                                            out alone.
-                                            {% endcomment %}
+
                                             <span class="flex items-center gap-2 pl-2">
                                                 <span class="flex min-w-0 gap-1">
                                                     <span aria-hidden="true">-</span>
@@ -320,10 +242,8 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
 
                             {% if profile.traits %}
                                 <tr>
-                                    {% comment %}
-                                    An empty cell under the name column, so the
-                                    traits start under the stats they describe.
-                                    {% endcomment %}
+
+                                    {# Empty cell is the name column, so traits sit under the stats. #}
                                     <td></td>
                                     <td colspan="{{ profile.statline.cells|length }}"
                                         class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
@@ -333,24 +253,10 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                             {% endif %}
                         {% endfor %}
 
-                        {% comment %}
-                        Accessories hang off the weapon rather than off any one
-                        profile, so they span the row. Drawn under the profiles,
-                        where n26.render_text draws them above: a weapon whose
-                        own row carries its stats has no separate name row for
-                        them to sit under.
-                        {% endcomment %}
                         {% if weapon.accessories %}
                             <tr>
                                 <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
-                                    {% comment %}
-                                    The "+" is the mark n26.render_text opens an
-                                    accessory with; without it the line sits at
-                                    the profiles' indent and reads as a profile
-                                    missing its stats. Actions need one line
-                                    per assignment, the same reason the Gear
-                                    row stacks when a menu is present.
-                                    {% endcomment %}
+
                                     {% if weapon.accessories_have_actions %}
                                         <ul class="flex flex-col gap-1 pl-2">
                                             {% for line in weapon.accessories %}
@@ -376,12 +282,7 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                 </td>
                             </tr>
                         {% endif %}
-                        {% comment %}
-                        A choice the weapon brought — its augmentation level —
-                        is drawn under the weapon, as the book prints the tier
-                        beside the item. The gang sheet states the level; only
-                        the model's own page offers a way to change it.
-                        {% endcomment %}
+
                         {% if weapon.choices %}
                             <tr>
                                 <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
@@ -390,17 +291,13 @@ carries one menu right beside its name, drawn by <c-n26.owned-actions>.
                                             <li class="flex items-center gap-2">
                                                 <span class="min-w-0">{{ choice.kind_label }}: {% if choice.is_resolved %}{{ choice.chosen }}{% else %}&mdash;{% endif %}</span>
                                                 <div class="inline-flex items-center gap-0">
+                                                    {# Dismiss on the gang sheet as well as the model page. Only edit mode can change the level. #}
                                                     <c-n26.model-card.mode when="edit">
                                                         {% if choice.href %}
                                                             <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
                                                         {% endif %}
                                                     </c-n26.model-card.mode>
-                                                    {% comment %}
-                                                    Dismissing is offered wherever the owner reads the
-                                                    card, as it is for the card's other offers: the
-                                                    sheet as well as the model's own page. Only the
-                                                    way to change the level is the page's alone.
-                                                    {% endcomment %}
+
                                                     <c-n26.model-card.mode when="gang edit">
                                                         <c-n26.choice-dismiss :choice="choice" />
                                                     </c-n26.model-card.mode>

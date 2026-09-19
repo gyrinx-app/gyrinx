@@ -1,31 +1,12 @@
 {% comment %}
-<c-n26.view.dashboard> — the screen you land on: the gangs you own, and what
-changed.
+<c-n26.view.dashboard> — Signed-in home: gangs, campaigns, content packs, and an optional changelog.
 
-    <c-n26.view.dashboard username="tom" new_gang_href="/gangs/new/">
-        <c-slot name="gangs">…c-n26.record-table…</c-slot>
-        <c-slot name="changelog">…c-n26.changelog…</c-slot>
-    </c-n26.view.dashboard>
-
-The reader's name takes either shape: a `username` attribute for plain text, or
-a `username` slot for markup, which is how a <c-n26.user-link> gets in. An
-attribute is escaped, so markup passed that way prints as source; pass both and
-the attribute wins, silently.
-
-The changelog sits beside the tab strip rather than inside a tab, so it stays on
-screen whichever tab is showing.
-
-  new_gang_href, new_campaign_href — each draws its button only when given.
-  campaigns, content_packs — left empty, each tab falls back to
-    <c-n26.coming-soon>, so the strip holds three tabs either way.
-  campaigns_mark — markup drawn beside the Campaigns tab's label, for a
-    question waiting there. Empty draws nothing. The strip renders it
-    through the tab's own icon, which is the only thing it will draw
-    that is not the label's text.
+An empty Gangs slot draws nothing. Campaigns and Content Packs fall back to coming-soon.
+Declare gangs and changelog. An undeclared name resolves to the caller's variable of that name.
+campaigns_mark is markup for the Campaigns tab icon. That is the only extra the strip will draw.
+default_tab is the open panel. The home page reads it from ?tab=.
 {% endcomment %}
-{# The slots are declared: an undeclared slot name is not empty when nobody #}
-{# fills it — it resolves to the caller's own variable of that name, and a #}
-{# view filling this page calls its context `gangs` and `changelog` too. #}
+
 <c-vars
     username=""
     new_gang_href=""
@@ -37,23 +18,16 @@ screen whichever tab is showing.
     campaigns_mark=""
     content_packs=""
     changelog=""
+    default_tab="Gangs"
     class=""
 />
 
 <div class="flex flex-col gap-8 {{ class }}">
-    {% comment %}
-    A slot rather than a title attribute: the name may be markup, and an
-    attribute is escaped, so a badge passed through one prints as source.
-    {% endcomment %}
+
     <c-n26.page-header>
         <c-slot name="title">Hello, {{ username }}</c-slot>
         <c-slot name="actions">
-            {% comment %}
-            Source order is the phone's — the buttons first, under the greeting
-            — and `order` puts these marks back in front on a wide row. Sized in
-            em against the row's own text, and carrying no colour of their own,
-            so both follow the page's ink and the theme.
-            {% endcomment %}
+
             <div class="order-last flex items-center gap-3 text-sm sm:order-first">
                 <c-n26.link href="https://www.patreon.com/c/Gyrinx"
                             target="_blank"
@@ -83,15 +57,10 @@ screen whichever tab is showing.
         </c-slot>
     </c-n26.page-header>
 
-    {% comment %}
-    Two thirds and one third from lg up, stacked below it: a gang row needs its
-    name, a four-figure wealth strip and two buttons on one line, and the two
-    thirds left at md is narrower than that. items-start so the changelog keeps
-    its own height rather than stretching to a list of five gangs.
-    {% endcomment %}
     <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
         <div class="min-w-0 lg:col-span-2">
-            <c-ui.tabs default_tab="Gangs">
+            <c-ui.tabs default_tab="{{ default_tab }}" param="tab">
+                {# Gangs has no empty state. An empty slot is a blank tab. #}
                 <c-ui.tabs.tab name="Gangs">{{ gangs }}</c-ui.tabs.tab>
 
                 <c-ui.tabs.tab name="Campaigns" icon="{{ campaigns_mark }}">

@@ -1,32 +1,14 @@
 {% comment %}
-<c-n26.form-actions> — how a form ends: the way out, then the act.
+<c-n26.form-actions> — Cancel, extra controls, then the submit that ends the form.
 
-    <c-n26.form-actions submit_label="Hire" cancel_url="/gangs/1/hire/" />
-
-    <c-n26.form-actions submit_label="Delete gang" submit_variant="danger"
-                        cancel_url="/gangs/1/" />
-
-<c-n26.form-page> draws its footer with this, so a full-page form gets one by
-filling in props; anything that is not a form-page — a dialog, or one of several
-forms on a page — writes the tag itself.
-
-The order and the alignment are not props: the way out first, the act last,
-right-aligned. Cancel is a plain href rather than a submit or a scripted step
-back through history, so a reader who clicks it lands where they already were.
-
-A form offering two acts puts the second in the slot with a name and value of
-its own. Only the clicked submit is sent, which is how the view tells the two
-apart, and the act at the end needs no name because its click sends nothing
-extra.
-
-  submit_label — the act's wording. Without one no submit is drawn.
-  submit_variant — the act's colour. `success` by default, because the button
-    ending a form usually brings a thing into existence; `danger` where it takes
-    one away, `primary` where it only carries on.
-  cancel_url — where the way out leads. Without one there is no cancel, which is
-    better than one leading somewhere arbitrary.
-  size — both buttons' size, for a footer that ends a step rather than a screen.
+Extra controls go in the default slot and land between Cancel and Submit.
+Cancel is a link, so it never submits.
+Do not script Cancel as history.back. The href is the place they already were.
+No submit_label means no submit button.
+A second act in the slot needs its own name and value. Only the clicked submit is sent.
+Leave the end submit unnamed so it sends nothing extra.
 {% endcomment %}
+
 <c-vars
     submit_label=""
     submit_variant="success"
@@ -36,10 +18,6 @@ extra.
     class=""
 />
 
-{% comment %}
-Wrapping rather than shrinking: two buttons that will not fit on one line drop
-onto two, still right-aligned, rather than squeezing their wording to nothing.
-{% endcomment %}
 <div {{ attrs }} class="flex flex-wrap items-center justify-end gap-2 {{ class }}">
     {% if cancel_url %}
         <c-ui.button variant="ghost" size="{{ size }}" href="{{ cancel_url }}">{{ cancel_label }}</c-ui.button>

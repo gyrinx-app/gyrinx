@@ -1,50 +1,26 @@
 {% comment %}
-<c-n26.owned-actions> — Sell and the rest of what can happen to one copy.
+<c-n26.owned-actions> — Sell, more, and add controls for something the fighter already holds.
 
-    <c-n26.owned-actions :sell="copy.sell" :more="copy.more" label="{{ copy.name }}" />
-    <c-n26.owned-actions :sell="weapon.sell" :more="weapon.more" :add="weapon.accessorise" layout="menu" label="{{ weapon.name }}" />
-
-The same acts the equip listing draws next to something owned. Which
-acts those are, and which of them is red, is the structure's word (see
-n26/includes/row_action.html), so an act added there appears here with
-nothing edited.
-
-Two drawings of the same acts:
-
-  buttons — the listing's pair: Sell as a red button, the rest behind a
-    chevron.
-  menu — one quiet chevron holding everything, drawn right beside the
-    name on the model card.
-
-Either menu is grouped: the additive act on its own at the top, then
-the acts that keep or move the thing, then — after a rule, in red —
-the ones that take it away for nothing. An act's tone says which group
-it lands in. A line with nothing to click draws nothing.
-
-  :sell — n26.core.listing.Action, or empty when this line cannot be sold.
-  :more — the rest of the acts, each a link to a confirmation.
-  :add — the one act that adds something (Add accessory on a gun), or
-    empty. Only menu draws it.
-  layout — buttons (default) or menu.
-  label — the thing's name, for the chevron's accessible name.
-  :htmx — as n26/includes/row_action.html: the click fetches the panel
-    alone. Off by default; only a screen holding the update's hosts may
-    set it. Both layouts read it.
+The add control is drawn only when layout is menu. The buttons layout ignores it.
+Pass htmx so the included snippets fetch confirmations in place.
+This file never names htmx. The includes read it from context.
+Turn htmx on only on a screen that already hosts the update panels.
+Which acts appear, and which of them is red, comes from the included snippets. An act added there appears here with nothing edited.
+Walk more twice so danger actions come last, behind a separator.
+Only the menu layout uses strategy=fixed, so a listing's overflow does not clip it.
+A doubled colon passes Alpine bindings through. A single colon is a Cotton prop and resolves to nothing.
 {% endcomment %}
+
 {% load listing %}
 <c-vars :sell="None" :more="None" :add="None" layout="buttons" label="" :htmx="False" class="" />
 
 {% if layout == "menu" %}
     {% if sell or more or add %}
         <span class="flex shrink-0 items-center {{ class }}">
-            {% comment %}
-            strategy="fixed": this menu is drawn beside a name inside the
-            card's weapon table, which scrolls sideways on a narrow
-            screen. A menu placed in that box is cut off at its edges —
-            see <c-ui.dropdown>.
-            {% endcomment %}
+
             <c-ui.dropdown align="end" min_width="10rem" strategy="fixed">
                 <c-slot name="trigger">
+                    {# A doubled colon passes this Alpine binding through. A single colon resolves to nothing. #}
                     <c-ui.button size="xs"
                                  variant="ghost"
                                  class="flex items-center px-1! py-0! text-ink-500 dark:text-ink-400"
@@ -102,12 +78,7 @@ it lands in. A line with nothing to click draws nothing.
                         </span>
                     </c-ui.button>
                 </c-slot>
-                {% comment %}
-                Each of these opens a confirmation the server renders; on
-                a screen opted into partial updates (:htmx) the click
-                fetches the panel alone. Still a link underneath — see
-                n26/includes/menu_item.html.
-                {% endcomment %}
+
                 {% for action in more %}
                     {% if action.tone|tone_variant != "danger" %}
                         {% include "n26/includes/menu_item.html" with action=action variant="" %}

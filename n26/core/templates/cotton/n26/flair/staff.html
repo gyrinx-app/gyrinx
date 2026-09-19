@@ -1,17 +1,9 @@
 {% comment %}
-<c-n26.flair.staff> — the pixel-art staff badge.
+<c-n26.flair.staff> — Staff badge artwork with no wrapper of its own.
 
-The artwork comes from the platform's badge registry rather than being copied
-here, so the same mark means the same thing in both editions.
-
-Unlike the house icons this keeps a fixed palette, not currentColor, whatever
-the surrounding text does. Its crispEdges attribute has no effect: app.css sets
-shape-rendering: geometricPrecision on every svg, and a CSS declaration outranks
-a presentation attribute.
-
-Sized by whatever contains it — <c-n26.flair-link> sets svg to 1em — so there is
-no size prop.
-
-Drawing a particular person's badge is <c-n26.user-link>, which decides which
-mark they show.
+The platform tag draws only the SVG. Sizing, tooltip, and accessible name belong to the wrapper.
+The artwork comes from the platform badge registry. Do not copy the SVG here, or the two editions will drift.
+This keeps a fixed palette, not currentColor, whatever the surrounding text does.
+A crispEdges attribute on the SVG has no effect. app.css sets geometricPrecision on every svg, and a CSS declaration outranks a presentation attribute.
+Drawing a particular person's badge is user-link, which decides which mark they show.
 {% endcomment %}{% load badge_tags %}{% badge_svg "staff" %}

@@ -1,41 +1,16 @@
 {% comment %}
-<c-n26.choice-picks> — a list of things to choose and unchoose one at a time.
+<c-n26.choice-picks> — Add and remove controls for a ChoiceOffer that is settled one pick at a time.
 
-    <c-n26.choice-picks :offer="offer">
-        <c-slot name="empty">Nothing available to choose here.</c-slot>
-    </c-n26.choice-picks>
-
-Draws the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws, for a
-choice that holds several picks. Each option is a row: the name, an optional
-muted remark, and a button drawn as a link, so a table of thirty rows is not a
-column of thirty solid buttons. The offer says which each option gets
-(n26.render.Choosable.control): "remove" for what the choice holds, "choose"
-for what it does not; an option with neither control gets no button. A full
-choice lists only what it holds.
-
-Plain submit buttons and no form of its own — the page it sits on owns the
-form and the token, and only the clicked button is sent, so the view knows
-which option to add or take back.
-
-  :offer — a n26.render.ChoiceOffer.
-  name — the input name a Choose click submits under, matching what the view
-    reads.
-  remove_name — the same for a Remove click. Both are named where one page
-    draws several of these, so a click says which question it answered.
-  empty — what to say when there is nothing to pick; the page knows why it is
-    empty, so the page supplies the words.
-  labelled_by — the id of the heading that asks this question, where the page
-    draws one above the list. Each group is then named by that heading and its
-    own, so a reader who hears the options hears which question they answer.
-    Optional.
+offer must be a ChoiceOffer with takes_several. Each option's control is choose, remove, or both.
+Use choice-offer when the list is settled in one submit.
+A lifted group draws Add as primary. That is the group a roll opened.
+Remove submits remove_name. Add submits name. Both are real form posts, not client-side ticks.
+This draws no form of its own. Sit it in the page form so only the clicked button is sent.
+An option with neither control gets no button.
 {% endcomment %}
+
 <c-vars :offer="None" name="thing" remove_name="remove" labelled_by="" class="" />
 
-{% comment %}
-space-y-8 between groups, the same rhythm <c-n26.choice-offer> keeps, so a
-choice that holds several does not read as a different application from one
-that holds one.
-{% endcomment %}
 <div {{ attrs }} class="space-y-8 {{ class }}">
     {% if offer.is_empty %}
         <c-n26.form-section>
@@ -55,28 +30,14 @@ that holds one.
                 <ul class="divide-y divide-box-border border-y border-box-border">
                     {% for option in group.options %}
                         <li class="flex items-center gap-3 py-2">
-                            {% comment %}
-                            On a roll table the band leads the row, in a fixed
-                            column, so a player who rolled on the physical
-                            table finds their result by scanning the numbers.
-                            {% endcomment %}
+
                             {% if option.band %}<span class="w-12 shrink-0 text-right tabular-nums text-muted">{{ option.band }}</span>{% endif %}
                             <span class="min-w-0 flex-1">
                                 <span class="block text-ink-900 dark:text-ink-100">{{ option.name }}</span>
-                                {% comment %}
-                                Whatever the option has to say about itself: a remark
-                                about picking it, and — where the slot type takes one
-                                pickable once — the other choice that has already had
-                                it. Said, never enforced.
-                                {% endcomment %}
+
                                 {% if option.remark %}<span class="block text-muted">{{ option.remark }}</span>{% endif %}
                             </span>
-                            {% comment %}
-                            The act says which option it acts on, for a reader who
-                            hears the button rather than seeing the row it sits in:
-                            twenty-six buttons all called "Add" are twenty-six
-                            unlabelled buttons.
-                            {% endcomment %}
+
                             {% if option.control == "remove" or option.control == "both" %}
                                 <c-ui.button type="submit"
                                              name="{{ remove_name }}"

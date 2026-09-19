@@ -78,6 +78,28 @@ class TestTheDefaultStrip:
         # escaped or the whole tab state fails to parse.
         assert "activeTab: 'Psyker\\u0027s'" in html
 
+    def test_noscript_shows_every_panel(self):
+        html = render(DEFAULT)
+        assert "<noscript>" in html
+        assert ".n26-tabs-panel { display: block !important; }" in html
+        assert html.count('class="n26-tabs-panel mt-2"') == 2
+
+    def test_select_writes_the_query_string_only_when_param_is_set(self):
+        html = render(
+            """
+            <c-ui.tabs param="tab">
+                <c-ui.tabs.tab name="Gangs">A table of gangs.</c-ui.tabs.tab>
+            </c-ui.tabs>
+            """
+        )
+        assert "select(tab.name)" in html
+        assert "u.searchParams.set(this.param, name)" in html
+        assert "param: 'tab'" in html
+        # An unknown query value must not become activeTab: that would
+        # hide every panel. The match is the name just registered.
+        assert "if (q === name) this.activeTab = q;" in html
+        assert "if (q) this.activeTab = q;" not in html
+
 
 class TestTheSegmentedStrip:
     """The segmented variant keeps the kit's own single strip: its DOM shape

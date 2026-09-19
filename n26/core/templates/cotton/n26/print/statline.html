@@ -1,36 +1,25 @@
 {% comment %}
-<c-n26.print.statline> — a set of characteristics on paper, in the book's layout.
+<c-n26.print.statline> — Characteristics in the book's two-row groups.
 
-    <c-n26.print.statline :statline="card.statline"
-                          type_line="Fighter (Leader)" xp="61/79" />
-
-The paper counterpart of <c-n26.statline layout="book">, drawing the same
-Statline the same way: a row pair per group, so M–Sv sits above Ld–Int as the
-rulebook prints it, with the last row's leftover columns spent on the type line
-and XP. Paper has only this layout — the screen's single strip relies on being
-able to scroll.
-
-Where the row breaks is content, from is_first_of_group on the stat, and the
-tint from is_highlighted, so a pack that regroups a statline regroups this. The
-widest group sets the column count and every later row lands on the same grid.
-
-A modified characteristic is marked with a dotted underline, as on screen. It
-cannot say what changed it, since there is nowhere on paper to put a tooltip.
-
-  :statline — a n26.render.Statline.
-  type_line, xp — the trailing cells on the last row. Omit both and the last
-    group ends where it ends.
+This is its own table. A data table rules every row; a statline is a centred grid ruled between groups.
+Pass :statline a Statline. groups splits on first_of_group. An empty statline draws an empty table.
+Header rows stay in tbody. A table may have only one thead, and only at the top, which cannot interleave with values.
+The first group sets the column count. A later group that is wider overflows the table.
+Type and XP share the last group's leftover columns. They render only when type_line is set; xp alone is dropped.
+A modified value is a dotted underline only. Paper has nowhere to put what changed it.
 {% endcomment %}
+
 {% load arith %}
 <c-vars :statline="None" type_line="" xp="" class="" />
 
 <table {{ attrs }} class="n26-print-statline {{ class }}">
-    {# Header rows inside tbody: the layout interleaves headings with values, and #}
-    {# a table may have only one thead, only at the top. #}
+
     <tbody>
         {% for group in statline.groups %}
-            {# The cell loops below shadow forloop, so the group's last is captured here. #}
+
             {% with last=forloop.last wide=statline.groups.0|length narrow=group|length %}
+                {# The cell loops below shadow forloop, so the group's last is captured here. #}
+                {# leftover columns minus one, floored at 1, so XP sits in the last cell of the first group's grid #}
                 {% with span=wide|sub:narrow|sub:1|at_least:1 %}
                     <tr>
                         {% for cell in group %}

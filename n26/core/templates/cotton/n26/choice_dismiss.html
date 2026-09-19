@@ -1,23 +1,11 @@
 {% comment %}
-<c-n26.choice-dismiss> — the way to put one open offer out of sight, or to
-bring a dismissed one back.
+<c-n26.choice-dismiss> — Posts Restore or Dismiss for one ChoiceLine, when that line carries the matching URL.
 
-    <c-n26.choice-dismiss :choice="choice" />
-
-Drawn at the end of an offer wherever a card or a sheet draws one, and only
-where the line carries an address: a reader who does not own the gang, a print
-sheet and a card that depicts nobody all draw the offer alone. The addresses
-are filled in by n26.core.views.choose.link_slots, which points an open offer
-at dismiss and a dismissed one at restore, so this draws an X for the first and
-a Restore button for the second, and nothing at all for a line with neither —
-which is every offer holding a pick.
-
-A form each, posting to an ordinary address and landing back on the screen the
-line names, so the page works with no script and the act is a redirect rather
-than anything hidden on the client.
-
-  :choice — a n26.render.ChoiceLine.
+choice must be a ChoiceLine. restore_href wins over dismiss_href. Empty URLs draw nothing.
+Both acts POST back so the next render is the screen that asked, not the act's own address.
+A line that already holds a pick has neither URL, so this draws nothing.
 {% endcomment %}
+
 <c-vars :choice="None" class="" />
 
 {% if choice.restore_href %}
@@ -29,7 +17,8 @@ than anything hidden on the client.
         </c-ui.button>
     </form>
 {% elif choice.dismiss_href %}
-    {% comment %}Flex both tooltip wrappers so their inline baselines add no height.{% endcomment %}
+
+    {# The kit wraps the button in nested divs. These selectors keep the control on one horizontal line. #}
     <form method="post" action="{{ choice.dismiss_href }}" class="inline-flex shrink-0 items-center [&>div]:flex [&>div>div]:flex {{ class }}">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ choice.back }}">

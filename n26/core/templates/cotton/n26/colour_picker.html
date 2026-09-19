@@ -1,33 +1,18 @@
 {% comment %}
-<c-n26.colour-picker> — pick a colour from the palette, or none.
+<c-n26.colour-picker> — A radio grid of colour swatches, plus a none choice.
 
-    <c-n26.colour-picker name="colour" value="teal"
-                         label="Colour"
-                         description="Shown next to the gang's name wherever it is listed." />
+An empty value checks the none choice.
 
-A grid of swatches, one radio each, so the whole palette can be compared at a
-glance.
+Each colours entry must exist in swatches. get_item returns nothing for a miss,
+so the square draws unfilled.
 
-The first swatch is None, and it is a real radio with a real value rather than
-the absence of a selection. Without it a reader could not get back to no colour
-once they had touched the picker, and the form could not tell "no colour" apart
-from "not filled in yet".
-
-Each radio is sr-only and the swatch beside it is styled through peer-checked,
-so this is a label wrapping a real input: keyboard-reachable, arrow-keyed like
-any radio group, and submits without JavaScript.
-
-The `swatches` classes are written out rather than built as bg-{{ name }}-500,
-because Tailwind reads class names as literal strings and never emits a class
-assembled from a variable. `ink` follows the theme's neutral scale and so is the
-one swatch that changes between light and dark.
-
-  name — the form field name.
-  value — the colour currently chosen. Empty means None, which is the default.
-  label, description — the fieldset's legend and the line under it. Optional.
-  colours — the palette, if you want a shorter one. Names must be keys of
-    swatches; anything else renders as an empty box rather than raising.
+Radios are visually hidden. The visible square is a sibling. peer-checked is
+what rings the pick.
+None is a real radio with an empty value. Without it, the reader cannot return to no colour, and the form cannot tell unset from empty.
+Write swatch classes as literals. Tailwind does not emit a class built from a variable.
+Use a legend, not a label. A label would point at one swatch and announce nothing for the rest.
 {% endcomment %}
+
 <c-vars
     name="colour"
     value=""
@@ -59,29 +44,19 @@ one swatch that changes between light and dark.
 
 <fieldset {{ attrs }} class="{{ class }}">
     {% if label %}
-        {% comment %}
-        A legend, not a label: the caption belongs to the whole group, and a
-        <label> would have to point at one swatch and announce nothing for the
-        rest.
-        {% endcomment %}
+
         <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">{{ label }}</legend>
     {% endif %}
     {% if description %}
         <p class="mb-2 text-muted">{{ description }}</p>
     {% endif %}
 
-    {% comment %}
-    auto-fill rather than a column count per breakpoint: the swatches are one
-    size, so the number per row follows from the width available.
-    {% endcomment %}
     <div class="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2">
-        {% comment %}
-        None is drawn as an outlined box with a line through it, not as a white
-        swatch: white is itself a colour and would not read as "unset".
-        {% endcomment %}
+
         <label class="group relative cursor-pointer" title="No colour">
             <input type="radio" name="{{ name }}" value=""
                    class="peer sr-only" {% if not value %}checked{% endif %}>
+            {# Ring on the page background, not inset: an inset ring vanishes on ink and glares on yellow. #}
             <span class="block aspect-square rounded-control border border-box-border
                          bg-[linear-gradient(to_top_right,transparent_calc(50%_-_1px),currentColor_calc(50%_-_1px),currentColor_calc(50%_+_1px),transparent_calc(50%_+_1px))]
                          text-ink-300 dark:text-ink-600
@@ -94,11 +69,8 @@ one swatch that changes between light and dark.
             <label class="group relative cursor-pointer" title="{{ colour|capfirst }}">
                 <input type="radio" name="{{ name }}" value="{{ colour }}"
                        class="peer sr-only" {% if value == colour %}checked{% endif %}>
-                {% comment %}
-                The ring sits outside the swatch, on the page's own background,
-                so dark and pale colours are marked the same way; an inset ring
-                would vanish into ink and glare out of yellow.
-                {% endcomment %}
+
+                {# A colour missing from swatches draws an unfilled square. #}
                 <span class="block aspect-square rounded-control {{ swatches|get_item:colour }}
                              ring-accent ring-offset-2 ring-offset-[var(--color-bg)]
                              peer-checked:ring-2 peer-focus-visible:ring-2"></span>

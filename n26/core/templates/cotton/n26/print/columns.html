@@ -1,32 +1,13 @@
 {% comment %}
-<c-n26.print.columns> — side-by-side columns, filled by you, not by CSS.
+<c-n26.print.columns> — Flex columns side by side, never a CSS multi-column container.
 
-    {# n26.printing.balance_columns did the splitting #}
-    <c-n26.print.columns gap="3mm">
-        {% for column in detail_columns %}
-            <c-n26.print.column>
-                {% for group in column %}
-                    <c-n26.print.entry label="{{ group.label }}">{{ group.text }}</c-n26.print.entry>
-                {% endfor %}
-            </c-n26.print.column>
-        {% endfor %}
-    </c-n26.print.columns>
-
-CSS multi-column layout is the obvious tool and it does not survive printing:
-when printing, the page is itself a fragmentation context, and WebKit collapses
-a nested `columns: 2` block to one full-width column. So the split happens in
-Python before the HTML does — `n26.printing.balance_columns` cuts the groups at
-the point that minimises the taller side, deterministically and in every engine.
-
-Flex is safe here because these columns belong inside a <c-n26.print.card>,
-which is atomic and resolves wholly within one page. Put a tall one straight
-onto a sheet and it will be sliced with no regard for its contents.
-
-  gap — between columns.
-  fill — take the height left in a fixed-height card rather than sizing to the
-    content. <c-n26.print.column spread> needs this: with no definite height,
-    there is no slack to share out.
+WebKit collapses nested multi-column inside a page, so this is flex, not columns.
+Split the groups in Python with n26.printing.balance_columns. This component only lays the columns out.
+Flex is safe only inside a card: a card is atomic, so the fold cannot cut the row.
+A tall columns block on a sheet is sliced through its contents.
+fill takes leftover height in a fixed-height card. spread on a column then needs that height.
 {% endcomment %}
+
 <c-vars gap="3mm" fill="" class="" />
 
 <div {{ attrs }}

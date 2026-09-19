@@ -1,60 +1,18 @@
 {% comment %}
-<c-n26.tab-links> — a strip of tabs that are links, one of them current.
+<c-n26.tab-links> — link tabs for whole-page destinations, with a narrow overflow menu.
 
-    <c-n26.tab-links label="Equipment lists" :tabs="collection_tabs" />
-
-Each tab is an <a>, so the choice is a URL: linkable, in the history, and made
-without JavaScript. Behind a tab here is a whole render, which is what separates
-this from the kit's c-ui.tabs — panels already on the page, switched in the
-hand. It is also why a tab carries no count: only the chosen tab's contents have
-been built, and numbering the rest would mean building all of them on every
-load. Counting belongs inside whatever the chosen tab drew.
-
-A nav rather than role="tablist", because these navigate; a reader told "tab" by
-a screen reader expects arrow keys and a panel swapping underneath.
-aria-current="page" says which one they are on.
-
-The strip never wraps to a second row: c-n26.tab-strip draws every tab from the
-sm breakpoint up, and below it at most two. Two tabs or fewer are drawn whole —
-"+1 more" would take the room the other tab takes, and say less. Three or more
-leave the current tab standing with the rest behind a c-n26.quick-switcher whose
-rows are the same real links, so the menu always holds at least two. The
-switcher's panel needs script; without it, the switcher's own <noscript> strip
-lists the links flat. A name too long for the width truncates rather than
-pushing the strip wider than the page.
-
-  :tabs — [{label, href, current, title}]. `title` is optional and is the full
-    name when `label` has been shortened to fit; it becomes the link's tooltip.
-  label — what the strip is choosing between, as its accessible name.
-  speculate — "prefetch" or "prerender", asking the browser to start on the
-    other tabs before they are clicked. Prefetch holds the HTML only and the
-    click still parses and boots the page; prerender builds the whole hidden
-    page for an instant click but keeps a full document per tab in memory, so
-    reach for it only where the pages are light. Off by default. Browsers with
-    no speculation rules ignore it and the tabs stay ordinary links. Every
-    linked page must be a side-effect-free GET, since the browser may fetch it
-    before anyone chooses it.
-  eagerness — when to start. "moderate" (the default) waits for hover or
-    touch-down; "immediate" starts as soon as the page settles, buying the most
-    head start on pages that may never be opened.
-  htmx — draw the tabs as htmx controls as well as links, for a page that
-    answers an htmx GET with the part of itself the tab changes. The page must
-    opt in: it needs the ids the answer replaces, and the answer must set
-    HX-Replace-Url so the address still says which tab is open. See
-    n26/core/views/htmx.py. Off by default, and without script or on a page
-    that has not opted in the same links navigate as usual. A click holding a
-    modifier is left to the browser, so a tab still opens in a new window.
-    Below the sm breakpoint a strip of three or more puts the other tabs in
-    the switcher's menu, whose rows are plain links: that width changes tab
-    by loading the page, which is the same address and the same result.
-  busy — a CSS selector. While the chosen tab's page loads, that element's
-    contents give way to a small centred spinner, so a click on a strip whose
-    pages take seconds to build is seen to have landed. Modified clicks are
-    left alone — they open elsewhere and this page keeps standing — and a
-    page served back from the browser's history cache puts its contents
-    back, since it returns exactly as it was left. Off by default; without
-    script the links still navigate, just without the feedback.
+Each tab needs label, href, and current. Mark exactly one tab current.
+Both strips stay in the HTML. CSS picks which one shows, so a current tab is marked twice.
+Linked pages must be side-effect-free GETs. The browser may fetch them before anyone clicks.
+busy is a CSS selector for the element whose children hide while a spinner is shown.
+If the selector matches nothing, the click looks like it did nothing.
+Pass :htmx only on a page that hosts every id the response will swap out of band.
+This is a nav, not a tablist. A reader told tab expects arrow keys and a panel swapping underneath.
+Do not put a count on a tab. Only the chosen tab's contents have been built.
+htmx cancels an anchor's own navigation whatever key is held, so modified clicks are named on the trigger.
+The spinner lives in a template. It is cloned only while waiting, and removed whole on restore.
 {% endcomment %}
+
 <c-vars :tabs="[]" label="" speculate="" eagerness="moderate" busy="" :htmx="False" class="" />
 
 <nav {{ attrs }}
@@ -70,6 +28,7 @@ pushing the strip wider than the page.
              if (!link || link.hasAttribute('aria-current')) return;
              const body = document.querySelector({{ busy|json_dumps }});
              if (!body || this.shown) return;
+             {# Hide with display so a cancelled navigation can restore the same nodes. #}
              for (const child of body.children) { child.style.setProperty('display', 'none'); }
              this.shown = this.$refs.wait.content.firstElementChild.cloneNode(true);
              body.setAttribute('aria-busy', 'true');
@@ -85,6 +44,7 @@ pushing the strip wider than the page.
                  body.removeAttribute('aria-busy');
                  for (const child of body.children) { child.style.removeProperty('display'); }
              };
+             {# Back-forward cache restores this page without rerunning Alpine init. #}
              window.addEventListener('pageshow', this.restore);
          },
          destroy() { window.removeEventListener('pageshow', this.restore); }
@@ -96,12 +56,7 @@ pushing the strip wider than the page.
         <c-slot name="full">
             {% for tab in tabs %}
                 <a href="{{ tab.href }}"
-                   {% comment %}
-                   A modified click is left to the browser, so a tab still
-                   opens in a new window or tab. htmx cancels an anchor's
-                   own navigation whatever key is held, and only spares a
-                   boosted one, so the keys are named on the trigger.
-                   {% endcomment %}
+
                    {% if htmx and not tab.current %}hx-get="{{ tab.href }}" hx-swap="none" hx-trigger="click[!ctrlKey&amp;&amp;!metaKey&amp;&amp;!shiftKey&amp;&amp;!altKey]"{% endif %}
                    {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
                    {% if tab.current %}aria-current="page"{% endif %}
@@ -113,11 +68,7 @@ pushing the strip wider than the page.
             {% endfor %}
         </c-slot>
         <c-slot name="narrow">
-            {% comment %}
-            Up to two tabs drawn whole, and from three the current tab with
-            the rest behind the switcher: "+1 more" takes the room the other
-            tab would and says less, and a menu of one is not worth opening.
-            {% endcomment %}
+
             {% for tab in tabs %}
                 {% if tab.current or tabs|length <= 2 %}
                     <a href="{{ tab.href }}"
@@ -140,16 +91,8 @@ pushing the strip wider than the page.
                         <c-slot name="trigger_words">
                             <span>+{{ tabs|length|add:"-1" }} more</span>
                         </c-slot>
-                        {% comment %}
-                        The current tab is left out: it stands beside the
-                        chevron already, and a menu offering the page you are
-                        on offers nothing. Every value is bound rather than
-                        written: an attribute handed to a component is escaped
-                        twice over, so a written list called "Kit &amp; gear"
-                        displays wrong, its filter matches nothing, and a
-                        written href loses the ampersands between its query
-                        parameters.
-                        {% endcomment %}
+
+                        {# Bind label and href. A written attribute is escaped twice and the destination breaks. #}
                         {% for tab in tabs %}
                             {% if not tab.current %}
                                 {% if tab.title and tab.title != tab.label %}
@@ -167,11 +110,7 @@ pushing the strip wider than the page.
         </c-slot>
     </c-n26.tab-strip>
     {% if busy %}
-        {% comment %}
-        A template rather than a hidden element, so the spinner is drawn
-        only when a click clones it into place — one copy per wait, removed
-        whole on restore.
-        {% endcomment %}
+
         <template x-ref="wait">
             <div class="flex justify-center py-10">
                 <c-ui.spinner size="sm" color="ink" />
@@ -180,12 +119,7 @@ pushing the strip wider than the page.
     {% endif %}
 </nav>
 {% if speculate %}
-    {% comment %}
-    The rule is keyed on this strip's own nav, so two strips on one page
-    can ask for different treatment. The current tab is excluded: it is
-    this page, and speculating on it would build it twice. The switcher's
-    rows sit inside the nav too, so its links are speculated the same way.
-    {% endcomment %}
+
     <script type="speculationrules">
         {"{{ speculate }}": [{
             "where": {"selector_matches": "nav[data-speculate='{{ label|slugify }}'] a:not([aria-current])"},

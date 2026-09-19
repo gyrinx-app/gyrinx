@@ -1,26 +1,16 @@
 {% comment %}
-<c-n26.roll-result> — what a roll came to, above the table it was rolled on.
+<c-n26.roll-result> — A roll already made for a choice, and the controls to apply or reroll it.
 
-    <c-n26.roll-result :roll="roll" />
-
-Draws a n26.render.RollResult: the dice where the total says which faces they
-showed, the figure, the die, and where it landed — or that the table has no
-result for it, or that it has already been applied. Where the roll landed on
-one result that may be added, the panel carries that Add as the page's main
-act; Roll again sits beside it as the quiet alternative. Plain submit buttons
-and no form of its own: the page owns the form.
-
-  :roll — a n26.render.RollResult.
+Must sit inside the pick form. Its buttons are submits with no form of their own.
+The page must carry the roll key in a hidden field. This component does not.
+A spent roll hides those buttons. The pick must not name that roll again.
 {% endcomment %}
+
 <c-vars :roll="None" class="" />
 
 <section {{ attrs }}
          class="flex flex-col gap-5 rounded-box border border-box-border p-6 sm:flex-row sm:items-center sm:gap-6 {{ class }}">
-    {% comment %}
-    Two halves: what came up, and what to do about it. Side by side where
-    there is room; stacked on a narrow screen, where the words would otherwise
-    be squeezed into a column beside the buttons.
-    {% endcomment %}
+
     <span class="flex min-w-0 flex-1 items-center gap-4">
         {% if roll.faces %}
             <span class="flex shrink-0 gap-2">
@@ -40,13 +30,8 @@ and no form of its own: the page owns the form.
             </span>
         </span>
     </span>
-    {% comment %}
-    The next step is the big one: Add what the roll landed on. Roll again is
-    the quiet alternative beside it — the rules allow a re-roll only where
-    something grants one, and the record keeps both rolls either way. On a
-    narrow screen the Add takes the width the row leaves it. A spent roll
-    draws neither: the page's own Roll controls are back beneath it.
-    {% endcomment %}
+
+    {# These submits belong to the parent pick form. #}
     {% if not roll.is_spent %}
         <span class="flex shrink-0 items-center gap-2">
             {% if roll.add %}

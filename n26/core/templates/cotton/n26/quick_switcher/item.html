@@ -1,41 +1,13 @@
 {% comment %}
-<c-n26.quick-switcher.item> — one destination in the switcher's list.
+<c-n26.quick-switcher.item> — A navigable destination in a quick switcher, marked as the current page when current is set.
 
-    <c-n26.quick-switcher.item label="Pit of Teeth" href="/n26/gangs/2/"
-                               icon="star" :current="True" />
-
-A real <a>, always in the HTML, so the list is reachable whether or not the
-filter above it runs. The row registers its searchable text with the panel on
-init and hides itself while the query excludes it.
-
-The current row is ticked and tinted, and says so with aria-current: a reader
-seeing neither the glyph nor the colour still has to be told which one they are
-on. The highlight is separate — where the arrow keys have got to, and where
-Enter goes — and the pointer moves it too, so only one row is ever marked as
-Enter's destination.
-
-Each row draws its own bottom rule rather than the list dividing between its
-children: filtering hides rows without removing them, and a divide would leave
-the first row still showing with a rule above nothing.
-
-  label — what the row says, and what the filter matches against.
-  href — where it goes.
-  title — the full name behind a shortened label, as the row's tooltip.
-  icon — a c-n26.icon name before the label.
-  :current — this is the thing the switcher is currently on.
+Must sit inside quick-switcher. x-init registers with that scope, and click calls its close.
+current marks this page. It does not change the URL. href does.
+Each row draws its own bottom rule. Filtering hides rows without removing them, and divide-y would leave a rule above a gap.
 {% endcomment %}
+
 <c-vars label="" href="" title="" icon="" :current="False" class="" />
 
-{% comment %}
-register, matches, highlight, active and close all live above this row in the
-Alpine scope chain — the first four on the panel, close() on the dropdown. The
-row holds only the text it is matched on and the id the panel minted for it,
-which the filter box points at while this row is highlighted.
-
-The highlight tint has to win against the current row's, which is the colour
-hover uses; two plain background utilities are settled by the order Tailwind
-emitted them, so this one is marked important.
-{% endcomment %}
 <a href="{{ href }}"
    {% if title %}title="{{ title }}"{% endif %}
    role="menuitem"
@@ -45,6 +17,7 @@ emitted them, so this one is marked important.
    x-show="matches(facets)"
    @click="close()"
    @mouseenter="highlight(id)"
+   {# The highlight tint is marked important so it wins against the current row's hover colour. #}
    :class="{ 'bg-ink-200! dark:bg-ink-700!': active === id }"
    {% if current %}aria-current="page"{% endif %}
    {{ attrs }}

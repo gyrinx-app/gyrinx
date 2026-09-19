@@ -1,34 +1,19 @@
 {% comment %}
-<c-n26.print.grid> — tiles items across the page, never cutting one in half.
+<c-n26.print.grid> — Tiles children N-up without cutting one in half.
 
-    <c-n26.print.grid columns="2" gutter="4mm">
-        {% for fighter in fighters %}
-            <c-n26.print.card>…</c-n26.print.card>
-        {% endfor %}
-    </c-n26.print.grid>
-
-Called a grid, but neither `display: grid` nor flex: WebKit discards
-`break-inside: avoid` on a grid or flex item, and a card comes off the printer
-in two halves on two sheets. This is a block container of inline-blocks
-instead — an inline-block is an atomic inline, so nothing in the layout model
-is capable of cutting one, and a line box that does not fit the space left on
-the page moves to the next page whole.
-
-The cell width is derived from columns and gutter, so no combination of props
-overflows the paper, and a card picks the width up without being told it.
-
-Every child takes a turn, including one hidden with display:none — nth-child
-counts elements, so a hidden child shifts the end-of-row rule onto the wrong
-card. Leave it out of the loop instead.
-
-  columns — 1 to 6, written out as one CSS rule per count in print.css because
-    the end-of-row rule needs an :nth-child literal.
-  gutter — between cards, both ways. Any CSS length.
+This is a block of inline-blocks. CSS grid or flex slices items at the page fold.
+columns must be 1 to 6. The stylesheet names each count; a seventh still takes a gutter and wraps early.
+A child with display none still occupies a turn in nth-child, so the trailing gutter lands on the wrong card.
+The grid zeros font-size and line-height so template newlines between children do not wrap a column early. Cards restore type for their own content.
+A child that is not a print-card inherits that zero type and draws blank.
+Cards inherit --print-cell-w. Set width on a card that must not follow the grid.
 {% endcomment %}
+
 <c-vars columns="2" gutter="4mm" class="" />
 
 <div {{ attrs }}
      class="n26-print-grid {{ class }}"
+     {# nth-child cannot read a custom property, so the gutter reset keys off this data attribute #}
      data-print-cols="{{ columns }}"
      style="--print-cols: {{ columns }}; --print-gutter: {{ gutter }}">
     {{ slot }}

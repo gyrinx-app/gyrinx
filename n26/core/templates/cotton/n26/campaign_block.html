@@ -1,36 +1,21 @@
 {% comment %}
-<c-n26.campaign-block> — what a gang has from its campaign, as rows in the
-strip of standing facts.
+<c-n26.campaign-block> — What a gang has because it is in a campaign.
+
+Must sit inside a detail list. It emits a heading and facts, not its own list.
 
     <c-n26.detail-list>
         <c-n26.campaign-block :campaign="sheet.campaign" />
     </c-n26.detail-list>
 
-Draws <c-n26.detail-list.row>s and no container of its own, so the campaign's
-facts sit in the same list as the gang's own. It has to be called inside a
-<c-n26.detail-list>.
-
-Takes a n26.render.CampaignBlock. An asset draws a row whose label is the
-campaign type's word for its asset type — Settlement, Territory — and whose
-value is this one's name, whether the gang owns it or only holds it. A
-possession has a tooltip naming the campaign type that brought it; a holding's
-value links to the campaign's assets, because a holding is the campaign's and
-another gang may hold it next.
-
-Each counter draws an ordinary counter row, so a campaign's Reputation looks
-the same as any counter the gang keeps. Its tally controls are drawn only where
-the line carries an address, which n26.core.views.owned.link_counters sets for
-the gang's owner and for nobody else.
-
-The campaign's own two addresses arrive the same way, from
-n26.core.views.permissions.link_campaign, and are empty for a reader who cannot
-open the campaign pages. Building them here from a URL name instead would offer
-everybody a link that answers most of them with a 404.
-
-  :campaign — a n26.render.CampaignBlock.
-  class — extra classes; they land on every row, because there is nothing else
-    to put them on.
+Holdings link to the campaign's assets, not to the holding itself.
+They are held, never owned, and add nothing to the gang's rating.
+Counter controls render only when the counter has an href.
+The view fills a counter href for the gang's owner and for nobody else.
+Do not build campaign links from a URL name here.
+Empty addresses mean the reader cannot open those pages. A named URL would 404 for most readers.
+class lands on every heading and fact. There is no container of its own to put it on.
 {% endcomment %}
+
 <c-vars :campaign="None" class="" />
 
 {% if campaign %}

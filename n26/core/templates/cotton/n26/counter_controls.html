@@ -1,46 +1,25 @@
 {% comment %}
-<c-n26.counter-controls> — the way to move one counter up or down by one.
+<c-n26.counter-controls> — Plus and minus that post a change of one on a counter line.
 
-    <c-n26.counter-controls :counter="counter" :htmx="True" />
+counter is an n26.core.render.CounterLine. Minus draws only when tallied is
+truthy, because contributions cannot be tallied away.
 
-Drawn beside a counter's number, and only where the line carries an address: a
-card that depicts nobody, a print sheet and a reader who does not own the gang
-all draw the number alone. Two screens fill those addresses in — a model's own
-page for the counters it keeps, and the gang sheet for the campaign's.
+Each direction is its own form. htmx does not read a form's submitter, so two
+buttons in one form would post the same hidden change.
 
-A form each way, because the value has to reach the server in a field: htmx
-does not read a form's submitter, so a single form with two buttons would post
-no `change` at all.
+back cannot be read off the request after an htmx redraw, so the line carries it.
 
-`hx-sync` queues them against the document rather than letting them overlap.
-Each form disables only its own submit while it is in flight, so without this
-a quick reader could have two tallies running at once and the card would paint
-whichever answer arrived last, not the one that is true.
-
-With htmx set, the act posts through htmx and the server sends back the model
-card alone. Only a screen holding the card's host may set it — see
-n26/core/templates/cotton/n26/view/model_edit.html. It stays an ordinary form
-to an ordinary address, so without JavaScript the whole page is served.
-
-The screen to return to rides on the line rather than being read off the
-request: a card redrawn after an act is rendered under that act's address, and
-a control built from it would send the next reader to a POST-only endpoint.
-
-Minus is drawn from the tallied half of the reading, not the whole of it. A
-tally floors at zero and can only move what is written down, so a counter
-reading above zero purely because a rule contributes to it has nothing to take
-off: the control would post an act that writes a ledger event saying the value
-went from 0 to 0.
-
-  :counter — a n26.render.CounterLine.
-  :htmx — post through htmx and take back only what changed.
+Plus always draws. Callers that should not offer a change must not mount this.
+Set htmx only on a screen that holds the model card host. Anywhere else the act runs and the card does not change.
 {% endcomment %}
+
 <c-vars :counter="None" :htmx="False" />
 
 <span class="ms-1 inline-flex items-center gap-1 align-middle">
     {% if counter.tallied %}
         <form method="post"
               action="{{ counter.href }}"
+              {# Swap none and queue on body: the card updates out of band, and rapid clicks must not race. #}
               {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none" hx-sync="body:queue all"{% endif %}
               class="inline">
             {% csrf_token %}

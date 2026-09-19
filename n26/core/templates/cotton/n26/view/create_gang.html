@@ -1,23 +1,12 @@
 {% comment %}
-<c-n26.view.create-gang> — found a gang: name it, say what it is, and start.
+<c-n26.view.create-gang> — Founding form: name, gang type, optional starting credits and colour.
 
-    <c-n26.view.create-gang action="/gangs/new/" :form="form" :gang_types="types" />
-
-A screen, not a page: no chrome and no routing. The frame — the measure, the
-rhythm, the heading and the action at the end — is <c-n26.form-page>, shared with
-every other form; this view supplies the fields.
-
-A component has no request, so no csrf token is rendered here. The embedding page
-puts one in the default slot, along with any hidden field it needs carried
-through.
-
-  :form — a bound or unbound Django form. The fields read labels, help text and
-    errors straight off it, so a redisplay after a failed submit needs nothing
-    added here.
-  :gang_types — the type cards, each a dict of value, label, description, icon
-    (the type's stored artwork, or empty) and checked.
-  breadcrumb — the trail above the title. Passed through to form-page.
+The default slot lands after the breadcrumb and before the General section.
+Put the csrf token there. This view has no request, so it draws none.
+Pass gang_types yourself. The radio cards do not read the form field.
+Keep the starting credits help text: an empty number field otherwise reads as zero.
 {% endcomment %}
+
 <c-vars
     action=""
     :form="None"
@@ -35,6 +24,7 @@ through.
                  class="{{ class }}">
     {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
 
+    {# Caller extras land here, before General. #}
     {{ slot }}
 
     <c-n26.form-section title="General">
@@ -44,11 +34,6 @@ through.
                         value="{{ form.name.value|default:'' }}" />
         </c-ui.field>
 
-        {% comment %}
-        Native radios over a shared name, so the browser enforces the one choice
-        and the form posts with no script. `checked` comes from the form, so a
-        redisplay after a failed submit keeps the reader's pick made.
-        {% endcomment %}
         <c-n26.radio-cards label="Gang type *"
                            description="What the gang is. It decides who you can hire and what they can carry."
                            :form="form" name="gang_type">
@@ -68,10 +53,7 @@ through.
 
     <c-n26.form-section title="Setup"
                         description="Both optional, and both changeable once the gang exists.">
-        {% comment %}
-        Blank means no limit, and the help text has to say so: an empty number
-        field otherwise reads as zero, which is the opposite.
-        {% endcomment %}
+
         <c-ui.field label="Starting credits"
                     description="Leave blank to spend as much as you like."
                     error="x" :form="form" name="starting_credits" for="starting-credits">

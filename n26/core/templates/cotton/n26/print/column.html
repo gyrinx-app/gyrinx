@@ -1,21 +1,11 @@
 {% comment %}
-<c-n26.print.column> — one column of a <c-n26.print.columns>.
+<c-n26.print.column> — One flex column in a print columns row.
 
-    <c-n26.print.column spread>
-        <c-n26.print.field label="Skills" />
-        <c-n26.print.field label="Gear" />
-    </c-n26.print.column>
-
-Equal width whatever is in it, and it stretches to the height of the block
-rather than to its own content, which is what lets `spread` mean anything.
-
-Never render an empty one: each column is a flex item claiming an equal share
-of the width, so an empty second column holds half the block open.
-balance_columns already drops empties.
-
-  spread — space the children down the full height instead of stacking them at
-    the top. For a worksheet column of write-in boxes.
+spread spaces children down the full height. Without a stretched parent of definite height, spreading is a no-op.
+Never render an empty column. Each flex item takes an equal share, so an empty one holds half the row open.
+Keep columns inside a card. A tall columns block on a sheet is sliced at the page fold.
 {% endcomment %}
+
 <c-vars spread="" class="" />
 
 <div {{ attrs }} class="n26-print-column{% if spread %} is-spread{% endif %} {{ class }}">

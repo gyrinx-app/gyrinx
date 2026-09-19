@@ -1,29 +1,23 @@
 {% comment %}
-<c-n26.activity-card.body> — an open action's figures and its button.
+<c-n26.activity-card.body> — The tally, extra body, and the form that completes an action.
 
-Everything <c-n26.activity-card> draws below the title, kept apart so the boxed
-and unboxed shapes cannot come to draw different contents.
-
-  :card — a n26.core.activities.ActivityCard.
-  button_size — the button's size; sm boxed, xs inside the Actions square.
-  help_size — the help sentence's type size, sm or xs. Both classes are
-    written out rather than built from the prop, because a class assembled
-    at render time is one the stylesheet build never sees.
-  slot — drawn between the tally and the button.
+The hidden act field is what the view reads for the button.
+Slot content sits above the form, so extra fields there are not submitted.
+Kept as its own template so the boxed and unboxed shapes cannot draw different contents.
+Write the help size classes out. A class name built at render time is one the stylesheet build never sees.
+Keep the label and tick in one flex span. Loose in the button they break onto two lines.
 {% endcomment %}
+
 <c-vars :card="None" button_size="sm" help_size="sm" />
 
 <div class="space-y-4">
     {% if card.facts %}<c-n26.tally :facts="card.facts" />{% endif %}
+    {# This slot sits outside the form. Fields here will not submit with the button. #}
     {% if slot.strip %}{{ slot }}{% endif %}
     <form method="post" action="{{ card.action }}">
         {% csrf_token %}
         <input type="hidden" name="act" value="{{ card.act }}">
-        {% comment %}
-        The label and its tick sit in one flex span, as every other
-        icon-and-words button here does: loose in the button they break
-        onto two lines.
-        {% endcomment %}
+
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
             <c-ui.button type="submit" size="{{ button_size }}" variant="success">
                 <span class="flex items-center gap-1.5">

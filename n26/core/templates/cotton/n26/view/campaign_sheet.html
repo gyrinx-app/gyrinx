@@ -1,64 +1,23 @@
 {% comment %}
-<c-n26.view.campaign-sheet> — a campaign, whole: who runs it, who is at the
-table, what they hold, what has been fought.
+<c-n26.view.campaign-sheet> — Draws the campaign screen: header, budget, gangs, assets, players, battles, and the log.
 
-    <c-n26.view.campaign-sheet :sheet="sheet" edit_href="/n26/campaigns/1/edit/">
-        <c-slot name="breadcrumb">…</c-slot>
-        <c-slot name="arbitrator"><c-n26.user-link … /></c-slot>
-        <c-slot name="actions">…Edit, ⋮…</c-slot>
-        <c-slot name="gangs_actions"><c-ui.button …>Add gang</c-ui.button></c-slot>
-        <c-slot name="players">…</c-slot>
-        <c-slot name="battles">…</c-slot>
-        <c-slot name="log">…</c-slot>
+Players, battles, and log are markup slots, not fields on the sheet.
+Declare those slots. An undeclared name resolves to the caller's variable of that name.
+assets_actions never appears in this file. The assets include reads it from the same context.
+The share slot fills the header's breadcrumb_actions.
+An empty edit_href draws the budget without a link. A None budget prints None set, which is distinct from zero.
+Add counter and Add label come from sheet hrefs. Extra gang controls go in gangs_actions.
+Figures, gangs, and assets live in n26/includes/campaign_*.html hosts. Only a page that holds every host may set htmx on its dialogs.
+Keep the header actions slot filled. Left empty, Cotton would draw this page's own actions beside the title.
+log_count may be markup: the campaign page passes a host that a roll update redraws.
+
+    <c-n26.view.campaign-sheet :sheet="sheet">
+        <c-slot name="players">...</c-slot>
+        <c-slot name="battles">...</c-slot>
+        <c-slot name="log">...</c-slot>
     </c-n26.view.campaign-sheet>
-
-The gang sheet's sibling, in the gang sheet's shape: a header naming the
-campaign with the type it was founded on under it, the headline figures where
-the gang sheet keeps its money, a strip of standing facts beside the page's
-controls, then the sections. The gangs table and the assets tables are drawn
-here from the sheet; the players, the battles and the log arrive as slots,
-because each names addresses this component has no business knowing.
-
-The figures, the gangs table and the Assets section each sit in a host with
-a stable id (n26/includes/campaign_*.html): a roll made on the campaign page
-redraws those out of band, and only a page holding every host may let its
-dialogs post over htmx.
-
-The lead reads "Territory campaign · arbitrated by tom", so the type is said
-once, here, and nowhere else on the page. The budget is a fact a reader can
-click into where `edit_href` is given — the facts strip is a strip of
-controls, as on the gang sheet — and settled text otherwise.
-
-What the arbitrator adds to the campaign sits where it shows: the sheet's
-`add_asset_type_href` draws beside the Assets heading, and its
-`add_counter_href` and `add_label_href` beside the Gangs heading, since a
-counter or a label is a column of that table; its `tables_href` — where the
-arbitrator opens and writes the tables every gang may roll on — sits beside
-the Assets heading too. Each is a control for the arbitrator alone, drawn
-only where the address is filled.
-
-  :sheet — a n26.render.CampaignSheet.
-  edit_href — where the campaign's own facts are changed. Empty draws the
-    budget as a settled fact; give it to the arbitrator alone.
-  arbitrator — the arbitrator's name as markup, for a badge after it. Left
-    empty, the sheet's own `arbitrator` is drawn as text.
-  breadcrumb, trailing — passed to <c-n26.page-header>.
-  share — <c-n26.share> for this campaign, at the far end of the breadcrumb
-    row, where the gang sheet puts its own.
-  actions — the page's controls, beside the facts strip: Edit and the overflow.
-  gangs_actions, assets_actions, players_actions, battles_actions — the
-    controls of each section, at the far end of its heading, drawn after the
-    sheet's own.
-  players, battles, log — the contents of those three sections.
-  log_count — the log heading's count, e.g. "12 earlier acts not shown". May
-    be markup: the campaign page passes it as a slot holding the host a roll's
-    update redraws.
-  log_href — where the whole log is read. Given, the Log heading carries a
-    "Full log" link; empty, the count stands alone.
 {% endcomment %}
-{# Every slot is declared: an undeclared slot name is not empty when nobody #}
-{# fills it — it resolves to the caller's own variable of that name, and the #}
-{# page filling this calls its context `battles` and `players` too. #}
+
 <c-vars
     :sheet="None"
     edit_href=""
@@ -86,17 +45,9 @@ only where the address is filled.
             {% if breadcrumb.strip %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
             {% if share.strip %}<c-slot name="breadcrumb_actions">{{ share }}</c-slot>{% endif %}
             {% if trailing.strip %}<c-slot name="trailing">{{ trailing }}</c-slot>{% endif %}
-            {% comment %}
-            The type where the gang sheet puts the gang's, then who runs the
-            campaign: the two facts a reader wants before anything else on the
-            page. The type is said here and in no strip or table below.
-            {% endcomment %}
+
             <c-slot name="lead">
-                {% comment %}
-                The type's description, where the library has one, sits
-                behind its name: the name is the fact a reader scans for,
-                and what the type means is read on hover or tap.
-                {% endcomment %}
+
                 {% if sheet.campaign_type_description %}
                     <c-ui.tooltip size="sm">
                         <span class="cursor-help underline decoration-dotted underline-offset-2">{{ sheet.campaign_type }}</span>
@@ -106,28 +57,19 @@ only where the address is filled.
                     <span>{{ sheet.campaign_type }}</span>
                 {% endif %}
                 <span class="mx-1.5 text-ink-400" aria-hidden="true">·</span>
+                {# Markup here, such as a user link. Empty falls back to the sheet name. #}
                 <span>arbitrated by {% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</span>
             </c-slot>
-            {% comment %}
-            Filled even where there is nothing else to put in it: a wrapper
-            drawing this header usually has an `actions` slot of its own, and
-            an unfilled slot here would draw that one up beside the title.
-            {% endcomment %}
+
             <c-slot name="actions">
                 {% include "n26/includes/campaign_figures.html" %}
             </c-slot>
         </c-n26.page-header>
 
-        {% comment %}
-        The gang sheet's second row: the standing facts on the left, the
-        page's controls on the right, wrapping under each other on a phone.
-        The budget is a control where the reader may change it and a fact
-        where they may not — a settled fact is padded to a control's inset,
-        so the two sit level.
-        {% endcomment %}
         <div class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
             <div class="min-w-0 max-w-full">
                 <c-n26.detail-list>
+                    {# None means no budget. Zero is a budget of nothing. #}
                     {% if edit_href %}
                         <c-n26.detail-list.row label="Gang budget" href="{{ edit_href }}">
                             {% if sheet.budget is None %}None set{% else %}{{ sheet.budget }}¢{% endif %}
@@ -144,11 +86,6 @@ only where the address is filled.
             {% endif %}
         </div>
 
-        {% comment %}
-        The arbitrator's own words, so the editor's markup is drawn rather
-        than escaped — sanitised on the way out by the richtext tag, which is
-        why a tightened allowlist reaches what was already saved.
-        {% endcomment %}
         {% if sheet.summary %}
             <c-n26.prose>
                 {{ sheet.summary|safe_rich_text }}
@@ -156,10 +93,6 @@ only where the address is filled.
         {% endif %}
     </div>
 
-    {% comment %}
-    A counter or a label the arbitrator adds is a column of this table, so
-    the controls that add one sit on its heading.
-    {% endcomment %}
     <c-n26.section id="gangs" title="Gangs" count="{{ sheet.gang_count }} gang{{ sheet.gang_count|pluralize }}">
         {% if gangs_actions.strip or sheet.add_counter_href or sheet.add_label_href %}
             <c-slot name="actions">
@@ -175,19 +108,9 @@ only where the address is filled.
         {% include "n26/includes/campaign_gangs.html" %}
     </c-n26.section>
 
-    {% comment %}
-    The Assets section is an include the campaign page's partial update
-    draws too, in a host of its own: a roll changes its count as well as
-    adding a line, so the whole section is what an update replaces. The
-    gangs table and the figures sit in hosts of their own for the same
-    reason (see n26/includes/campaign_update.html).
-    {% endcomment %}
+    {# Reads assets_actions from this component context. Removing that prop empties the include. #}
     {% include "n26/includes/campaign_assets_section.html" %}
 
-    {% comment %}
-    Side by side from xl, where both are short lists and a page that stacked
-    them would spend a screen on two columns of names. Stacked below that.
-    {% endcomment %}
     <div class="grid grid-cols-1 gap-8 xl:grid-cols-2">
         <c-n26.section id="players" title="Players">
             {% if players_actions.strip %}<c-slot name="actions">{{ players_actions }}</c-slot>{% endif %}
