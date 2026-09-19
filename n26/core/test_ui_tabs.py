@@ -95,6 +95,10 @@ class TestTheDefaultStrip:
         assert "select(tab.name)" in html
         assert "u.searchParams.set(this.param, name)" in html
         assert "param: 'tab'" in html
+        # An unknown query value must not become activeTab: that would
+        # hide every panel. The match is the name just registered.
+        assert "if (q === name) this.activeTab = q;" in html
+        assert "if (q) this.activeTab = q;" not in html
 
 
 class TestTheSegmentedStrip:

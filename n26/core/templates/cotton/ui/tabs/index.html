@@ -16,7 +16,8 @@ The segmented variant stays a scrolling strip and does not collapse. no-scrollba
 An extra wrapper around the segmented strip unstyles every card tab strip. .n26-card-tabs selects the first child div by position.
 Without JavaScript a noscript rule shows every panel. display none is only for Alpine.
 param copies the active name into the query string. Nested strips on one page must leave it empty.
-The view must honour that query name as default_tab if the first paint should match.
+Alpine applies the query when a registered tab's name matches, so an unknown name cannot hide every panel.
+Pass the query as default_tab as well, so the first paint matches before Alpine runs.
 {% endcomment %}
 
 <c-vars
@@ -32,16 +33,14 @@ The view must honour that query name as default_tab if the first paint should ma
     tabs: [],
     param: '{{ param|escapejs }}',
     activeTab: '{{ default_tab|default:''|escapejs }}',
-    init() {
-        if (!this.param) return;
-        var q = new URLSearchParams(location.search).get(this.param);
-        if (q) this.activeTab = q;
-    },
     register(name, icon) {
         this.tabs.push({name: name, icon: icon});
         if (!this.activeTab && this.tabs.length === 1) {
             this.activeTab = name;
         }
+        if (!this.param) return;
+        var q = new URLSearchParams(location.search).get(this.param);
+        if (q === name) this.activeTab = q;
     },
     isActive(name) {
         return this.activeTab === name;
