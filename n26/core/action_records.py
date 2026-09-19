@@ -164,7 +164,7 @@ def _counter_assignment(gang, fighter, counter, payer, action):
         assignments = assignments.filter(gang=gang)
     matches = list(assignments.select_related("counter_value")[:2])
     if not matches:
-        raise Refusal("That counter is no longer available to pay this action's price.")
+        raise Refusal("That counter is no longer available.")
     if len(matches) != 1 or not hasattr(matches[0], "counter_value"):
         raise LibraryError(f"{action} does not resolve one {counter} balance.")
     return matches[0]

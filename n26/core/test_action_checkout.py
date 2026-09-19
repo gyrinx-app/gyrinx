@@ -557,6 +557,95 @@ def test_replace_slot_pick_refuses_a_pick_from_another_anchor(user, gang, fighte
     assert not unrelated.archived
 
 
+def test_replace_slot_pick_refuses_a_cross_gang_context(user, gang, fighter):
+    slot_type = authoring.create_slot_type("Status")
+    table = authoring.create_picklist("Statuses", slot_type)
+    slot = authoring.create_slot("Status", slot_type, table)
+    pick = Pickable.objects.create(name="Glitched", slot_type=slot_type)
+    other_gang = Gang.objects.create(
+        name="The Other Hunt",
+        owner=user,
+        gang_type=gang.gang_type,
+        starting_credits=1000,
+        credits=1000,
+    )
+    with operation(other_gang, actor=user) as op:
+        other_fighter = op.hire(
+            fighter.membership.profile,
+            "Mara",
+            paid=fighter.membership.profile.price,
+        )
+        other_anchor = op.assign(slot, miniature=other_fighter)
+
+    with pytest.raises(Refusal, match="augmentation has changed"):
+        with operation(gang, actor=user) as op:
+            op.replace_slot_pick(
+                other_anchor,
+                slot,
+                pick,
+                previous_pick=None,
+                miniature=other_fighter,
+                action_record=None,
+            )
+
+    with operation(other_gang, actor=user) as op:
+        other_pick = op.choose(other_anchor, pick, slot=slot, miniature=other_fighter)
+    with pytest.raises(Refusal, match="augmentation has changed"):
+        with operation(gang, actor=user) as op:
+            op.replace_slot_pick(
+                other_anchor,
+                slot,
+                None,
+                previous_pick=other_pick,
+                miniature=other_fighter,
+                action_record=None,
+            )
+
+    other_pick.refresh_from_db()
+    assert not other_pick.archived
+
+
+def test_restore_slot_pick_refuses_a_cross_gang_context(user, gang, fighter):
+    slot_type = authoring.create_slot_type("Status")
+    table = authoring.create_picklist("Statuses", slot_type)
+    slot = authoring.create_slot("Status", slot_type, table)
+    old = Pickable.objects.create(name="Glitched", slot_type=slot_type)
+    new = Pickable.objects.create(name="Repaired", slot_type=slot_type)
+    other_gang = Gang.objects.create(
+        name="The Other Hunt",
+        owner=user,
+        gang_type=gang.gang_type,
+        starting_credits=1000,
+        credits=1000,
+    )
+    with operation(other_gang, actor=user) as op:
+        other_fighter = op.hire(
+            fighter.membership.profile,
+            "Mara",
+            paid=fighter.membership.profile.price,
+        )
+        other_anchor = op.assign(slot, miniature=other_fighter)
+        old_pick = op.choose(other_anchor, old, slot=slot, miniature=other_fighter)
+        op.remove(old_pick)
+        new_pick = op.choose(other_anchor, new, slot=slot, miniature=other_fighter)
+
+    with pytest.raises(Refusal, match="cannot be restored"):
+        with operation(gang, actor=user) as op:
+            op.restore_slot_pick(
+                other_anchor,
+                slot,
+                restore_pick=old_pick,
+                replacing=new_pick,
+                miniature=other_fighter,
+                action_record=None,
+            )
+
+    old_pick.refresh_from_db()
+    new_pick.refresh_from_db()
+    assert old_pick.archived
+    assert not new_pick.archived
+
+
 def test_counter_only_payment_has_an_action_payment_event(user, gang, fighter):
     action, outcome, _, _ = configured_action(user, gang, fighter)
     action.use_price.filter(resource="credits").delete()

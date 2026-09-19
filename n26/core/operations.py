@@ -2309,10 +2309,17 @@ class Operation:
         action_record,
     ):
         """Archive one slot pick and retain exact before/after provenance."""
+        anchor, miniature = _slot_context_under_the_lock(
+            self.gang,
+            anchor,
+            miniature,
+            "That augmentation has changed. Review it again.",
+        )
         if previous_pick is not None:
             previous_pick = _under_the_lock(previous_pick)
             if (
                 previous_pick.archived
+                or previous_pick.gang_root_id != self.gang.pk
                 or previous_pick.chosen_for_id != anchor.pk
                 or previous_pick.chosen_for_slot_id != slot.pk
                 or previous_pick.miniature_root_id != miniature.pk
@@ -2353,11 +2360,20 @@ class Operation:
         action_record,
     ):
         """Restore the exact archived pick replaced by an earlier action."""
+        message = "That augmentation has changed and cannot be restored."
+        anchor, miniature = _slot_context_under_the_lock(
+            self.gang,
+            anchor,
+            miniature,
+            message,
+        )
         restore_pick = _under_the_lock(restore_pick)
         replacing = _under_the_lock(replacing)
         if (
             not restore_pick.archived
             or replacing.archived
+            or restore_pick.gang_root_id != self.gang.pk
+            or replacing.gang_root_id != self.gang.pk
             or restore_pick.chosen_for_id != anchor.pk
             or restore_pick.chosen_for_slot_id != slot.pk
             or replacing.chosen_for_id != anchor.pk
@@ -2372,7 +2388,7 @@ class Operation:
             .exclude(pk=replacing.pk)
             .exists()
         ):
-            raise Refusal("That augmentation has changed and cannot be restored.")
+            raise Refusal(message)
         self.remove(
             replacing,
             action_record=action_record,
@@ -2889,6 +2905,22 @@ def _under_the_lock(assignment):
     from n26.core.models import Assignment
 
     return Assignment.objects.select_related("ledger_entry").get(pk=assignment.pk)
+
+
+def _slot_context_under_the_lock(gang, anchor, miniature, message):
+    """Reload and prove a slot edit belongs to the operation's gang."""
+    anchor = _under_the_lock(anchor)
+    miniature = Miniature.objects.select_related("membership").get(pk=miniature.pk)
+    membership = miniature.membership if miniature.membership_id else None
+    if (
+        anchor.archived
+        or anchor.gang_root_id != gang.pk
+        or membership is None
+        or membership.archived
+        or membership.gang_id != gang.pk
+    ):
+        raise Refusal(message)
+    return anchor, miniature
 
 
 def subtree(assignment):
