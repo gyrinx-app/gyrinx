@@ -9,7 +9,11 @@ Does not pass tp_ceiling, so lowering trade points cannot hide exclusive profile
 <c-vars
     :categories="[]"
     :sections="[]"
-
+    {% comment %}
+    tabs is declared so an empty default cannot override the collection picker
+    and quietly untab every gang list. Cotton tokenises this region: no quote
+    marks, apostrophes or angle brackets in this comment.
+    {% endcomment %}
     tabs="1"
     price_floor="0"
     price_ceiling="9999"

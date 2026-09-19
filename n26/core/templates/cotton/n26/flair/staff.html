@@ -6,6 +6,4 @@ The artwork comes from the platform badge registry. Do not copy the SVG here, or
 This keeps a fixed palette, not currentColor, whatever the surrounding text does.
 A crispEdges attribute on the SVG has no effect. app.css sets geometricPrecision on every svg, and a CSS declaration outranks a presentation attribute.
 Drawing a particular person's badge is user-link, which decides which mark they show.
-{% endcomment %}
-
-{% load badge_tags %}{% badge_svg "staff" %}
+{% endcomment %}{% load badge_tags %}{% badge_svg "staff" %}

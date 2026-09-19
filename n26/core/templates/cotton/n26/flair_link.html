@@ -18,9 +18,7 @@ wrap skips n26-icon-inline because that class's vertical-align is for a 1em mark
 Strip the slot. An artwork file's own newlines would otherwise pad the flair.
 Leave label empty when the text already says the same thing. The flair is then hidden from assistive tech.
 Do not size the child svg with a nested-bracket utility. The extractor drops those classes, and an unsized svg is 300 by 150.
-{% endcomment %}
-
-<c-vars
+{% endcomment %}<c-vars
     text=""
     href=""
     underline="hover"
