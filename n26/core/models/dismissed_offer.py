@@ -2,25 +2,20 @@
 
 An offer is not a stored row. It is a slot computed from a modifier or a
 profile while its carrier stands (``n26.core.effects``), and only what
-was chosen for it is ever written. A player who knows they will never
-choose for one — a Choose they scroll past on every visit — has nothing
-to delete, so this row is what stands in: the slot's address, which
-every renderer of the gang then leaves out.
+was chosen for it is ever written. This row stands in for the slot's
+address, which every renderer of the gang then leaves out.
 
-Per gang, everywhere. A dismissed offer is gone from the owner's screens,
-the sheet anyone reads and the printed roster alike, because the sheet
-is one document and a Choose the owner has waved away is not a fact
-about the gang. It is display state, like ``PrintConfig``: it moves no
-money, changes no rating and never goes through ``n26.operations``. Only
-an offer with nothing chosen for it can be dismissed; one holding a pick
-draws that pick and offers no way to hide it.
+Per gang, everywhere: the owner's screens, the sheet anyone reads, and
+the printed roster. It is display state, like ``PrintConfig``: it moves
+no money, changes no rating and never goes through ``n26.operations``.
+Only an offer with nothing chosen for it can be dismissed; one holding
+a pick draws that pick and offers no way to hide it.
 
 The key is the slot's address as ``n26.core.render._slot_key`` writes
 it — the card it sits on, the assignment carrying the offer, the offer
 itself — and is only as durable as those rows. Re-buying the carrier or
-re-authoring the offer brings the Choose back, which is the right way
-round: the row hides one offer, never a kind of offer. A carrier that is
-sold leaves its row behind, keyed to nothing; a stale row hides nothing.
+re-authoring the offer brings the Choose back. A carrier that is sold
+leaves its row behind, keyed to nothing; a stale row hides nothing.
 """
 
 from django.db import models
@@ -68,16 +63,14 @@ class DismissedOffer(Base):
     @classmethod
     def clear(cls, gang, *, host, anchor, identity):
         """Take off any dismissal of one slot, because a pick has landed
-        on it: the owner has changed their mind, and taking that pick back
-        later should leave the offer open rather than hide it again."""
+        on it: taking that pick back later should leave the offer open
+        rather than hide it again."""
         cls.objects.filter(
             gang=gang, slot_key=slot_key(host, anchor.pk, identity.pk)
         ).delete()
 
     @classmethod
     def keys_for(cls, gang):
-        """Every slot address this gang's owner has dismissed — one query,
-        whatever the roster's size."""
         return frozenset(
             cls.objects.filter(gang=gang).values_list("slot_key", flat=True)
         )

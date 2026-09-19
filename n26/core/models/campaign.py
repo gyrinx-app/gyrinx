@@ -9,8 +9,7 @@ class CampaignQuerySet(models.QuerySet):
 
         The two halves of what somebody means by their campaigns: the ones
         they run, and the ones they were asked into and said yes to. An
-        invitation still waiting is not one of them — an unanswered question
-        belongs with the questions, and a declined one is over.
+        invitation still waiting is not one of them.
 
         Says nothing about archiving: an archived campaign is still one this
         person is in, so a caller listing campaigns to read must ask for
@@ -266,8 +265,8 @@ class CampaignMembership(Base):
     #: When the gang stopped playing. Unset while it still is, which is what
     #: the one-at-a-time constraint counts.
     left = models.DateTimeField(null=True, blank=True)
-    #: The gang-hosted assignment naming the campaign's shared type, written
-    #: on joining. What the type gives every member gang is caused by it.
+    #: The gang-hosted assignment naming the campaign's shared type.
+    #: What the type gives every member gang is caused by it.
     type_carrier = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.SET_NULL,
@@ -279,9 +278,8 @@ class CampaignMembership(Base):
             "built-ins on this gang are caused by it."
         ),
     )
-    #: The gang-hosted assignment naming the campaign's additions type,
-    #: written on joining beside the other. What the arbitrator adds is
-    #: caused by it.
+    #: The gang-hosted assignment naming the campaign's additions type.
+    #: What the arbitrator adds is caused by it.
     additions_carrier = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.SET_NULL,
@@ -316,7 +314,6 @@ class CampaignMembership(Base):
 
     @property
     def playing(self):
-        """Whether the gang is still in the campaign."""
         return self.left is None
 
 
@@ -381,9 +378,6 @@ class CampaignAsset(Base):
     class Meta:
         verbose_name = "campaign asset"
         verbose_name_plural = "campaign assets"
-        # Grouped by asset type, as the campaign page's assets tables are,
-        # then by asset and by name. The joins are paid once per campaign
-        # page, which reads every asset of the campaign at once.
         ordering = ["asset__asset_type__position", "asset__name", "name", "created"]
         indexes = [
             models.Index(
@@ -401,8 +395,6 @@ class CampaignAsset(Base):
 
     @property
     def type_label(self):
-        """What sort of asset this is, in the campaign type's own word,
-        lowercased for a sentence: "territory", "settlement"."""
         return self.asset.asset_type.label_singular.lower()
 
 
@@ -511,7 +503,6 @@ class CampaignParticipant(Base):
 
     @property
     def waiting(self):
-        """Whether the question still stands."""
         return self.state == self.State.INVITED
 
     def get_absolute_url(self):

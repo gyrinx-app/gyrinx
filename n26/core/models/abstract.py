@@ -1,15 +1,3 @@
-"""
-Shared abstract models.
-
-These are deliberately small and composable. Concrete models mix in whichever
-they need, e.g.::
-
-    class Thing(Base, Owned, Archived):
-        ...
-
-Ported from ``gyrinx/models.py``.
-"""
-
 from django.db import models
 from django.utils import timezone
 
@@ -17,8 +5,6 @@ from n26.core.fields import ULIDField
 
 
 class Base(models.Model):
-    """Identity and timestamps. Everything persistent inherits this."""
-
     id = ULIDField(primary_key=True, editable=False)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     modified = models.DateTimeField(auto_now=True, db_index=True)
@@ -28,15 +14,9 @@ class Base(models.Model):
 
 
 class Archived(models.Model):
-    """An Archived object is no longer in use.
-
-    Archiving is a soft delete: archived rows stay readable and nothing filters
-    them out by default. Callers that want to hide archived rows must say so
-    explicitly — see the note on default-open filtering in
-    ``library/models/base.py``.
-
-    Subclasses may define an ``archive_with`` property returning related
-    objects that should be archived alongside this one.
+    """Soft-delete flag. Nothing filters archived rows out by default;
+    callers that want them hidden must ask. Subclasses may define
+    ``archive_with`` — related objects archived alongside this one.
     """
 
     archived = models.BooleanField(default=False, db_index=True)
@@ -63,8 +43,6 @@ class Archived(models.Model):
 
 
 class Owned(models.Model):
-    """An Owned object is owned by a User."""
-
     owner = models.ForeignKey(
         "auth.User", on_delete=models.CASCADE, null=True, blank=False, db_index=True
     )
@@ -74,19 +52,9 @@ class Owned(models.Model):
 
 
 class Rated(models.Model):
-    """Something with a pinned rating — a sum of what it and its parts are
-    worth.
-
-    The number is a cache. It is rewritten at the end of every operation
-    that touches the thing (see ``n26.operations``), and ``n26.reconcile``
-    proves it still matches a fresh recompute. Subclasses say what the sum
-    is over.
-
-    Signed, because a contribution can be: gear priced below nothing takes
-    credits off what its holder is worth, and a stash holding only such a
-    thing is worth less than nothing. The ledger the sum is taken from has
-    always been signed, so an unsigned column here could only refuse a
-    total the ledger already holds.
+    """Pinned rating cache, rewritten at operation boundaries and checked
+    by ``n26.reconcile``. Signed: a contribution can be negative, and an
+    unsigned column would refuse a total the ledger already holds.
     """
 
     rating = models.IntegerField(
@@ -98,7 +66,6 @@ class Rated(models.Model):
         abstract = True
 
     def recompute_rating(self):
-        """The rating, summed fresh from the ledger. Subclasses implement."""
         raise NotImplementedError
 
     def repin_rating(self):

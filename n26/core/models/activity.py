@@ -25,8 +25,6 @@ from n26.core.models.abstract import Base
 
 
 class Activity(Base):
-    """One act a gang opened, and — once it is done — closed."""
-
     class Kind(models.TextChoices):
         FOUNDING = "founding", "Found and equip gang"
         TRADING_POST_VISIT = "trading_post_visit", "Visit Trading Post"
@@ -35,17 +33,15 @@ class Activity(Base):
         "n26.Gang", on_delete=models.CASCADE, related_name="activities"
     )
     kind = models.CharField(max_length=32, choices=Kind)
-    #: The event that opened this. Cascades, because the event is the act:
-    #: an activity whose opening is gone is a record of nothing. Nothing
-    #: deletes a gang's events but the gang itself going, which takes the
-    #: activity either way. Which kind of event it is follows from the act:
-    #: one that writes a boundary of its own points at that rather than
-    #: at a second event saying the same thing twice.
+    #: Cascades: an activity whose opening is gone is a record of nothing.
+    #: Which kind of event it is follows from the act — one that writes a
+    #: boundary of its own points at that rather than at a second event
+    #: saying the same thing twice.
     opened = models.ForeignKey(
         "n26.LedgerEvent", on_delete=models.CASCADE, related_name="+"
     )
-    #: The event that closed it, and the whole of what "open" means:
-    #: nothing here while the activity is still being performed.
+    #: Null while the activity is still being performed — that is the
+    #: whole of what "open" means.
     closed = models.ForeignKey(
         "n26.LedgerEvent",
         on_delete=models.CASCADE,
