@@ -539,6 +539,19 @@ def test_clear_is_meaningful_when_matching_picks_exist(user, gang, fighter):
     child.refresh_from_db()
     assert held_pick.archived
     assert child.archived
+    root_event = LedgerEvent.objects.get(
+        action_record=record,
+        assignment=held_pick,
+        kind=LedgerEvent.Kind.REMOVED,
+    )
+    child_event = LedgerEvent.objects.get(
+        action_record=record,
+        assignment=child,
+        kind=LedgerEvent.Kind.REMOVED,
+    )
+    assert root_event.before_pick == held_pick
+    assert child_event.before_pick_id is None
+    assert child_event.after_pick_id is None
     assert [row.before_assignment_id for row in action_changes(record).picks] == [
         str(held_pick.pk)
     ]

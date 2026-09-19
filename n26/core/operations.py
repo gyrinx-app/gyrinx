@@ -1099,6 +1099,11 @@ class Operation:
         assignment = _under_the_lock(assignment)
         if assignment.archived:
             return None
+        descendant_event_fields = {
+            key: value
+            for key, value in event_fields.items()
+            if key not in {"before_pick", "after_pick"}
+        }
         for target in [assignment, *subtree(assignment)]:
             if target.archived:
                 continue
@@ -1106,7 +1111,16 @@ class Operation:
             target.archived = True
             target.archived_at = _now()
             target.save(update_fields=["archived", "archived_at", "modified"])
-            self.event(target, LedgerEvent.Kind.REMOVED, note=note, **event_fields)
+            self.event(
+                target,
+                LedgerEvent.Kind.REMOVED,
+                note=note,
+                **(
+                    event_fields
+                    if target.pk == assignment.pk
+                    else descendant_event_fields
+                ),
+            )
         return assignment
 
     def refund(self, assignment, note=""):
