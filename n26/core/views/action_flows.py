@@ -244,7 +244,7 @@ def _selection_summary(record, stage):
                 else target["result"]
             )
     if stage == "done":
-        selection = getattr(record, "augmentation_selection", None)
+        selection = getattr(record, "slot_selection", None)
         if selection and selection.item_assignment and selection.intended_pick:
             return f"{selection.item_assignment.assignable}: {selection.intended_pick}."
         advancement = getattr(record, "advancement_selection", None)
