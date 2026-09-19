@@ -2555,9 +2555,14 @@ def _counter_history_run(pause, run_id, generation):
         or str(pause.generation) != str(generation)
     ):
         raise ActivationRefused("The write pause changed. Reload this page.")
-    return Backfill.objects.select_for_update().get(
-        pk=run_id, operation=Operation.ACTIVATE_COUNTER_HISTORY
-    )
+    try:
+        return Backfill.objects.select_for_update().get(
+            pk=run_id, operation=Operation.ACTIVATE_COUNTER_HISTORY
+        )
+    except Backfill.DoesNotExist as exc:
+        raise ActivationRefused(
+            "The maintenance run no longer exists. n26 writes remain paused."
+        ) from exc
 
 
 def restart_counter_history(run_id, generation, *, cleanup=False):

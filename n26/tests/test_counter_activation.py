@@ -355,6 +355,76 @@ class TestOperatorPage:
         ).exists()
         assert WritePause.objects.get(scope="n26").state == WritePause.State.OPEN
 
+    @pytest.mark.parametrize("action", ["retry", "cleanup", "resume"])
+    def test_deleted_run_controls_show_an_error_and_keep_writes_paused(
+        self, action, admin_client, counters, owner, task_queue
+    ):
+        record, generation = start(task_queue, owner)
+        run_id = record.pk
+        record.delete()
+        before = snapshot()
+        old_events = list(LedgerEvent.objects.order_by("pk").values())
+        pause_before = WritePause.objects.filter(scope="n26").values().get()
+        queued_before = task_queue.pending()
+
+        with task_queue.capture():
+            response = admin_client.post(
+                reverse("admin:maintenance_n26_activate_counter_history"),
+                {
+                    "action": action,
+                    "run_id": str(run_id),
+                    "generation": generation,
+                },
+            )
+
+        assert response.status_code == 200
+        assert (
+            b"The maintenance run no longer exists. n26 writes remain paused."
+            in response.content
+        )
+        assert not is_active()
+        assert not Backfill.objects.filter(
+            operation=maintenance.Operation.ACTIVATE_COUNTER_HISTORY
+        ).exists()
+        assert task_queue.pending() == queued_before
+        assert WritePause.objects.filter(scope="n26").values().get() == pause_before
+        assert snapshot() == before
+        assert list(LedgerEvent.objects.order_by("pk").values()) == old_events
+
+    @pytest.mark.parametrize("action", ["retry", "cleanup", "resume"])
+    @pytest.mark.parametrize(
+        "field,value", [("run_id", "not-a-uuid"), ("generation", "not-a-number")]
+    )
+    def test_malformed_controls_are_rejected_without_changing_the_run(
+        self, action, field, value, admin_client, counters, owner, task_queue
+    ):
+        record, generation = start(task_queue, owner)
+        before = snapshot()
+        old_events = list(LedgerEvent.objects.order_by("pk").values())
+        pause_before = WritePause.objects.filter(scope="n26").values().get()
+        run_before = Backfill.objects.filter(pk=record.pk).values().get()
+        queued_before = task_queue.pending()
+        payload = {
+            "action": action,
+            "run_id": str(record.pk),
+            "generation": generation,
+            field: value,
+        }
+
+        with task_queue.capture():
+            response = admin_client.post(
+                reverse("admin:maintenance_n26_activate_counter_history"), payload
+            )
+
+        assert response.status_code == 200
+        assert b"The write pause changed. Reload this page." in response.content
+        assert not is_active()
+        assert Backfill.objects.filter(pk=record.pk).values().get() == run_before
+        assert task_queue.pending() == queued_before
+        assert WritePause.objects.filter(scope="n26").values().get() == pause_before
+        assert snapshot() == before
+        assert list(LedgerEvent.objects.order_by("pk").values()) == old_events
+
     def test_existing_structured_history_refuses_activation_without_changing_data(
         self, counters, owner, task_queue
     ):
