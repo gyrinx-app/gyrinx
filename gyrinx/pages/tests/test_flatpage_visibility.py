@@ -5,6 +5,7 @@ from django.contrib.auth.models import Group, User
 from django.contrib.flatpages.models import FlatPage
 from django.test import Client
 
+from gyrinx.pages.access import accessible_flatpages
 from gyrinx.pages.models import FlatPageVisibility
 
 
@@ -222,3 +223,51 @@ def test_flatpage_visibility_admin_inline(protected_flatpage, group):
     assert protected_flatpage.flatpagevisibility_set.count() == 1
     assert visibility.groups.count() == 1
     assert visibility.groups.first() == group
+
+
+@pytest.mark.django_db
+def test_accessible_pages_excludes_an_empty_visibility_rule(
+    site, protected_flatpage, user
+):
+    FlatPageVisibility.objects.create(page=protected_flatpage)
+
+    pages = accessible_flatpages(site_id=site.pk, user=user)
+
+    assert protected_flatpage not in pages
+
+
+@pytest.mark.django_db
+def test_accessible_pages_allows_a_matching_rule_alongside_an_empty_rule(
+    site, protected_flatpage, group, user_with_group
+):
+    FlatPageVisibility.objects.create(page=protected_flatpage)
+    matching = FlatPageVisibility.objects.create(page=protected_flatpage)
+    matching.groups.add(group)
+
+    pages = accessible_flatpages(site_id=site.pk, user=user_with_group)
+
+    assert protected_flatpage in pages
+
+
+@pytest.mark.django_db
+def test_accessible_pages_can_hide_registration_required_pages(site, flatpage, user):
+    flatpage.registration_required = True
+    flatpage.save(update_fields=["registration_required"])
+
+    direct_pages = accessible_flatpages(site_id=site.pk, user=None)
+    navigation_pages = accessible_flatpages(
+        site_id=site.pk, user=None, include_registration_required=False
+    )
+
+    assert flatpage in direct_pages
+    assert flatpage not in navigation_pages
+
+
+@pytest.mark.django_db
+def test_accessible_pages_are_limited_to_the_current_site(site, flatpage):
+    from django.contrib.sites.models import Site
+
+    other_site = Site.objects.create(domain="other.test", name="Other")
+
+    assert flatpage in accessible_flatpages(site_id=site.pk, user=None)
+    assert flatpage not in accessible_flatpages(site_id=other_site.pk, user=None)
