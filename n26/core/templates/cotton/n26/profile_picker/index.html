@@ -3,7 +3,7 @@
 
 Forwards filters, the default slot, and empty to collection-picker. Sections and categories still need that picker's nested children.
 tabs is passed through explicitly. An empty value here would override collection-picker and quietly untab the list.
-Omitting tp_ceiling inherits collection-picker's default of 99. Exclusive profiles stay visible until a call site lowers that cap.
+The trade-points cap is fixed at 99. This wrapper neither declares nor forwards tp_ceiling, so a call site cannot lower it.
 {% endcomment %}
 
 <c-vars
