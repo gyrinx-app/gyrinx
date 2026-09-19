@@ -326,6 +326,34 @@ class TestThePage:
         page = client.get(sheet).content.decode()
         assert "In Recovery" in page
 
+    def test_the_print_card_says_the_current_status_once(
+        self, client, owner, gang, krago, tables
+    ):
+        """Several injuries can set one status; paper prints the status, not
+        each stored operation that set it.
+        """
+        add_result(krago, "Lasting Injuries", tables["injury"], "Grievous Wound")
+        add_result(krago, "Lasting Injuries", tables["injury"], "Eye Injury")
+        client.force_login(owner)
+
+        page = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+
+        assert page.count("In Recovery") == 1
+        assert "marks the model In Recovery" not in page
+
+    def test_clean_house_leaves_no_stale_status_on_the_print_card(
+        self, client, owner, gang, krago, tables
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Grievous Wound")
+        with operation(gang, actor=owner) as op:
+            op.clean_house()
+        client.force_login(owner)
+
+        page = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+
+        assert "In Recovery" not in page
+        assert "marks the model In Recovery" not in page
+
     def test_the_badge_on_the_edit_page_leads_to_the_dialog(
         self, client, owner, gang, krago, sheet
     ):

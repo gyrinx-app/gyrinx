@@ -99,7 +99,21 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
             brought_in=brought_in,
         )
         hide_dismissed(dismissed, model_card)
-        rows.append({"card": model_card, "columns": detail_columns(model_card)})
+        rows.append(
+            {
+                "card": model_card,
+                "subtitle": " · ".join(
+                    part
+                    for part in (
+                        model_card.status_label,
+                        model_card.profile_name,
+                        model_card.owner_line,
+                    )
+                    if part
+                ),
+                "columns": detail_columns(model_card),
+            }
+        )
     return rows
 
 
