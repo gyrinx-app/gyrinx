@@ -159,7 +159,6 @@ def _ladders(record, configured, *, card=None, projected=None):
         if node.assignment is not None
         and node.assignment.pickable_id is not None
         and not node.assignment.archived
-        and not node.suppressed
         and node.assignment.miniature_root_id == record.fighter_id
     ]
     picks_by_slot = {}
@@ -645,6 +644,7 @@ def correct_augmentation(op, record, configured, terms):
             "Review the change before continuing."
         )
 
+    restored_pick = None
     if selection.previous_pick is None:
         op.replace_slot_pick(
             selection.slot_assignment,
@@ -655,7 +655,7 @@ def correct_augmentation(op, record, configured, terms):
             action_record=record,
         )
     else:
-        op.restore_slot_pick(
+        restored_pick = op.restore_slot_pick(
             selection.slot_assignment,
             selection.slot_assignment.slot,
             restore_pick=selection.previous_pick,
@@ -663,7 +663,11 @@ def correct_augmentation(op, record, configured, terms):
             miniature=record.fighter,
             action_record=record,
         )
-    current = ladder.current
+    current = (
+        restored_pick
+        if restored_pick is not None and ladder.slot.pk == selection.slot_assignment_id
+        else ladder.current
+    )
     new_pick = op.replace_slot_pick(
         ladder.slot,
         ladder.slot.slot,

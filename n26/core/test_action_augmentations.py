@@ -6,6 +6,7 @@ import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
+from n26.core import augmentations
 from n26.core.augmentations import (
     apply_augmentation,
     augmentation_options,
@@ -287,6 +288,49 @@ def test_preview_does_not_offer_an_item_suppressed_by_an_effect(
     assert (
         augmentation_options(action_record, configured(augmentation)).candidates == ()
     )
+
+
+def test_apply_replaces_a_suppressed_current_tier_without_duplicating_it(
+    action_record, augmentation, monkeypatch
+):
+    rig = create_wargear("Rig", price=0)
+    tiers = ladder(rig, augmentation, [1, 2])
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    _apply(action_record, outcome, carried, tiers[0])
+    first_pick = SlotSelection.objects.get(action_record=action_record).new_pick
+
+    original_compute = augmentations.compute
+
+    def compute_with_suppressed_tier(card, index):
+        computed = original_compute(card, index)
+        node = next(
+            (
+                node
+                for node in card.all_nodes()
+                if node.assignment is not None and node.assignment.pk == first_pick.pk
+            ),
+            None,
+        )
+        if node is not None:
+            node.suppressed = True
+        return computed
+
+    monkeypatch.setattr(augmentations, "compute", compute_with_suppressed_tier)
+
+    _apply(action_record, outcome, carried, tiers[1])
+
+    first_pick.refresh_from_db()
+    selection = SlotSelection.objects.get(action_record=action_record)
+    assert first_pick.archived
+    assert selection.previous_pick == first_pick
+    assert list(
+        Assignment.objects.filter(
+            chosen_for=selection.slot_assignment,
+            pickable__isnull=False,
+            archived=False,
+        )
+    ) == [selection.new_pick]
 
 
 def test_preview_preserves_named_effect_identity(action_record, augmentation):
@@ -826,6 +870,36 @@ def test_correction_restores_the_exact_previous_assignment(action_record, augmen
         ).pk
         == first_assignment.pk
     )
+
+
+def test_correction_can_reapply_a_tier_on_the_original_ladder(
+    action_record, augmentation
+):
+    rig = create_wargear("Rig", price=0)
+    tiers = ladder(rig, augmentation, [1, 2])
+    carried = buy(action_record.fighter, thing=rig, paid=0)
+    outcome = configured(augmentation)
+    _apply(action_record, outcome, carried, tiers[0])
+    first_pick = SlotSelection.objects.get(action_record=action_record).new_pick
+    _apply(action_record, outcome, carried, tiers[1])
+    _mark_completed(action_record)
+
+    with operation(action_record.gang) as op:
+        correct_augmentation(
+            op,
+            action_record,
+            outcome,
+            {
+                "item_assignment": str(carried.pk),
+                "intended_pick": str(tiers[1].pk),
+            },
+        )
+
+    selection = SlotSelection.objects.get(action_record=action_record)
+    first_pick.refresh_from_db()
+    assert first_pick.archived
+    assert selection.previous_pick == first_pick
+    assert selection.new_pick.pickable == tiers[1]
 
 
 def test_correction_refuses_dependent_changes(action_record, augmentation):
