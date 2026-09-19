@@ -2618,7 +2618,7 @@ def resume_after_counter_history(run_id, generation, actor):
             task_name=COUNTER_HISTORY_TASK_PATH,
             run_id=str(record.pk),
         )
-        resume_scope(SCOPE, generation=generation, actor=actor)
+        resume_scope(SCOPE, generation=pause.generation, actor=actor)
 
 
 @task
