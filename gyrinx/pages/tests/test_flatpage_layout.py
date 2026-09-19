@@ -63,7 +63,7 @@ def test_layout_only_renders_navigation_columns_with_content(
     assert document.select_one("aside.flatpage-help-nav") is not None
     assert (document.select_one("aside.flatpage-toc") is not None) is shows_toc
     trigger = document.select_one(
-        '.flatpage-heading button[aria-label="Help & documentation"]'
+        '.flatpage-mobile-tools button[aria-label="Help & documentation"]'
     )
     assert trigger is not None
     assert not trigger.get_text(strip=True)

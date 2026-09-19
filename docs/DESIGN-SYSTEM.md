@@ -81,8 +81,8 @@ Default flatpages use three columns on wide screens: a 14rem navigation tree,
 a flexible article, and a 12rem **On this page** list. The layout shares the
 navbar's outer edges. At tablet widths the Help
 tree stays on the left and the page contents move into a popover. On phones,
-a menu icon beside the breadcrumbs and title opens the **Help & documentation**
-drawer, and **On this page** opens the popover.
+a compact row above the breadcrumbs and title holds the menu icon for the
+**Help & documentation** drawer and an underlined **On this page** popover control.
 Both controls have native disclosure fallbacks when JavaScript is disabled.
 
 The navigation tree lists accessible top-level pages, including Help with both

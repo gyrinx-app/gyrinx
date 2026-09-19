@@ -11,10 +11,12 @@
             </aside>
         {% endif %}
         <article class="flatpage-main">
-            <header class="flatpage-header">
-                <div class="flatpage-heading">
+            {% if presentation.navigation_tree or presentation.show_toc %}
+                <div class="flatpage-mobile-tools{% if not presentation.show_toc %} lg:hidden{% endif %}"
+                     x-data
+                     x-cloak>
                     {% if presentation.navigation_tree %}
-                        <div class="shrink-0 lg:hidden print:hidden" x-data x-cloak>
+                        <div class="shrink-0 lg:hidden">
                             <c-ui.drawer title="Help & documentation" side="left" size="sm">
                                 <c-ui.button type="button"
                                              variant="ghost"
@@ -32,29 +34,31 @@
                             </c-ui.drawer>
                         </div>
                     {% endif %}
-                    <div class="flatpage-title-row">
-                        {% if presentation.parent %}
-                            <a href="{{ presentation.parent.url }}" class="flatpage-parent-link">
-                                <c-n26.icon name="chevron-left" class="size-3.5" />
-                                {{ presentation.parent.title }}
-                            </a>
-                        {% endif %}
-                        <h1>{{ flatpage.title }}</h1>
-                    </div>
+                    {% if presentation.show_toc %}
+                        <div class="ml-auto">
+                            <c-ui.popover trigger_text="On this page"
+                                          position="bottom"
+                                          align="end"
+                                          panel_label="On this page"
+                                          trigger_class="!border-0 !bg-transparent !shadow-none !px-0 !py-1 !font-normal !text-muted underline underline-offset-4 hover:!text-accent-text">
+                                {% include "flatpages/includes/toc.html" with headings=presentation.toc compact=True %}
+                            </c-ui.popover>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+            <header class="flatpage-header">
+                <div class="flatpage-title-row">
+                    {% if presentation.parent %}
+                        <a href="{{ presentation.parent.url }}" class="flatpage-parent-link">
+                            <c-n26.icon name="chevron-left" class="size-3.5" />
+                            {{ presentation.parent.title }}
+                        </a>
+                    {% endif %}
+                    <h1>{{ flatpage.title }}</h1>
                 </div>
                 {% if presentation.introduction_html %}<div class="flatpage-introduction rich-text">{{ presentation.introduction_html }}</div>{% endif %}
             </header>
-            {% if presentation.show_toc %}
-                <div class="flatpage-mobile-tools xl:hidden" x-data x-cloak>
-                    <c-ui.popover trigger_text="On this page"
-                                  position="bottom"
-                                  align="end"
-                                  panel_label="On this page"
-                                  trigger_class="flatpage-toc-trigger">
-                        {% include "flatpages/includes/toc.html" with headings=presentation.toc compact=True %}
-                    </c-ui.popover>
-                </div>
-            {% endif %}
             {% if presentation.navigation_tree %}
                 <noscript>
                     <details class="flatpage-noscript-nav">
