@@ -218,6 +218,45 @@ class TestACopySomebodyCountedOn:
         assert standing.counter_value.value == 7
         settled(gang)
 
+    def test_multiple_counter_merges_settle_the_gang_once(
+        self, gang, person_type, gang_type, default_pack, counter_tracking, monkeypatch
+    ):
+        from n26.core.operations import Operation as GangOperation
+
+        counter = create_counter("Kill Count")
+        profile = create_profile("Hunter", person_type, gang_type, price=100)
+        add_built_in(profile, counter)
+        fighters = [hire(gang, profile, name, paid=100) for name in ("Ana", "Bea")]
+        strip_provenance(gang)
+        member = profile.built_ins.members.get(counter=counter)
+        for fighter in fighters:
+            duplicate = caught_up_copy(
+                gang, fighter, member, fighter.membership, counter
+            )
+            with operation(gang, actor=gang.owner) as op:
+                op.tally(duplicate, 7)
+
+        settlements = []
+        original_settle = GangOperation.settle
+
+        def settle(op):
+            settlements.append(op.gang.pk)
+            return original_settle(op)
+
+        monkeypatch.setattr(GangOperation, "settle", settle)
+        outcome = de_duplicate(gang.pk)
+
+        assert outcome.merged == 2
+        assert settlements == [gang.pk]
+        assert list(
+            CounterValue.objects.filter(assignment__gang_root=gang).values_list(
+                "value", flat=True
+            )
+        ) == [7, 7]
+        movements = LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TALLIED)
+        assert [event.note for event in movements] == ["+7 → 7", "+7 → 7"]
+        settled(gang)
+
     def test_a_missing_survivor_value_gets_an_opening_event(
         self, gang, person_type, gang_type, default_pack, counter_tracking
     ):

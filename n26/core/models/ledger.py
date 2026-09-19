@@ -463,6 +463,11 @@ class LedgerEvent(Base):
                 name="ledger_event_counter_movement_kind_v2",
             ),
             models.CheckConstraint(
+                condition=models.Q(counter_before__isnull=True)
+                | models.Q(assignment__isnull=False),
+                name="ledger_event_counter_has_assignment",
+            ),
+            models.CheckConstraint(
                 condition=(
                     models.Q(counter_before__isnull=True)
                     | models.Q(

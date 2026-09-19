@@ -518,6 +518,8 @@ class TestThePageIsTheOwners:
 
 
 class TestCounterBookkeepingStaysOutOfHistory:
+    """Counter baselines do not displace the gang's visible acts."""
+
     def test_checkpoints_do_not_displace_player_acts(self, gang, vex):
         from n26.core.models import LedgerEvent
         from n26.library.authoring import create_counter

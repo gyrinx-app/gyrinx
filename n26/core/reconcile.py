@@ -6,7 +6,9 @@ cache, and each can be recomputed. These functions do the recomputing, so a
 test (or a management command) can prove the caches are honest.
 """
 
-from django.db.models import Prefetch, Sum
+from collections import defaultdict
+
+from django.db.models import Sum
 
 from n26.core.models import Assignment, LedgerEntry
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
@@ -366,23 +368,23 @@ def check_gang(gang):
     from n26.core.counter_tracking import is_active
     from n26.core.models import CounterValue, LedgerEvent
 
-    counters = (
-        CounterValue.objects.filter(assignment__gang_root=gang)
-        .select_related("assignment", "assignment__counter")
-        .prefetch_related(
-            Prefetch(
-                "assignment__ledger_events",
-                queryset=LedgerEvent.objects.filter(
-                    counter_before__isnull=False
-                ).order_by("created", "pk"),
-                to_attr="counter_events",
-            )
-        )
-    )
     if is_active():
+        events_by_assignment = defaultdict(list)
+        for event in LedgerEvent.objects.filter(
+            assignment__gang_root=gang, counter_before__isnull=False
+        ).order_by("created", "pk"):
+            events_by_assignment[event.assignment_id].append(event)
+        counters = CounterValue.objects.filter(
+            assignment__gang_root=gang
+        ).select_related("assignment", "assignment__counter")
         for counter_value in counters:
             problems += check_counter_value(
-                counter_value, events=counter_value.assignment.counter_events
+                counter_value,
+                events=events_by_assignment.pop(counter_value.assignment_id, []),
+            )
+        for assignment_id in events_by_assignment:
+            problems.append(
+                f"Counter assignment {assignment_id}: history has no counter value."
             )
     stash = getattr(gang, "stash", None)
     if stash is not None:

@@ -419,6 +419,53 @@ class TestGivingExistingCampaignsTheirPacks:
     """The data migration's logic: a campaign or membership written before
     founding and joining gave anything is brought up to what they give."""
 
+    @pytest.mark.parametrize("tracking", ["absent", "inactive", "historical", "active"])
+    def test_counter_openings_follow_the_installations_tracking_state(
+        self, tracking, request, gang, campaign
+    ):
+        from django.db.migrations.state import ProjectState
+
+        from n26.core.models import CounterTracking, CounterValue
+        from n26.core.operations import operation
+
+        registry = apps
+        if tracking == "active":
+            request.getfixturevalue("counter_tracking")
+        elif tracking == "inactive":
+            CounterTracking.objects.create()
+        elif tracking == "historical":
+            state = ProjectState.from_apps(apps)
+            state.remove_model("n26", "countertracking")
+            registry = state.apps
+        CampaignMembership.objects.create(campaign=campaign, gang=gang)
+
+        give_campaigns_their_packs(registry)
+
+        values = list(CounterValue.objects.filter(assignment__gang_root=gang))
+        assert len(values) == 2
+        openings = LedgerEvent.objects.filter(gang=gang, counter_before__isnull=False)
+        if tracking == "active":
+            assert set(openings.values_list("assignment_id", "counter_after")) == {
+                (value.assignment_id, value.value) for value in values
+            }
+            assert all(
+                event.kind == LedgerEvent.Kind.COUNTER_OPENED
+                and event.counter_before == 0
+                and event.counter_delta == event.counter_after
+                and event.campaign_id == campaign.pk
+                for event in openings
+            )
+        else:
+            assert not openings.exists()
+        event_count = LedgerEvent.objects.filter(gang=gang).count()
+        assert give_campaigns_their_packs(registry) == []
+        assert LedgerEvent.objects.filter(gang=gang).count() == event_count
+        with operation(gang, actor=gang.owner) as op:
+            assert op.tally(values[0].assignment, 3) == values[0].value + 3
+        movement = LedgerEvent.objects.get(gang=gang, kind=LedgerEvent.Kind.TALLIED)
+        assert (movement.counter_before is not None) == (tracking == "active")
+        assert_reconciled(gang)
+
     def test_a_membership_without_carriers_is_given_them(self, gang, campaign):
         # A membership as one was written before joining carried anything:
         # the row and nothing else.

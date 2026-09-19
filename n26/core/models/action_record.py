@@ -210,7 +210,7 @@ class AugmentationSelection(Base):
     )
     intended_pick = models.ForeignKey(
         "library.Pickable",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="intended_action_augmentations",
@@ -246,7 +246,7 @@ class AdvancementSelection(Base):
     )
     intended_pick = models.ForeignKey(
         "library.Pickable",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="intended_action_advancements",
@@ -261,7 +261,7 @@ class AdvancementSelection(Base):
 
 
 class SkillSelection(Base):
-    """The skill set, random attempts and final skill for an advancement."""
+    """The selection mode, access, skill set and final skill for an advancement."""
 
     class Mode(models.TextChoices):
         SELECT = "select", "Select"
@@ -279,14 +279,14 @@ class SkillSelection(Base):
     access = models.CharField(max_length=20, choices=Access)
     skill_set = models.ForeignKey(
         "library.Category",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="action_skill_selections",
     )
     selected_skill = models.ForeignKey(
         "library.Skill",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="action_skill_results",

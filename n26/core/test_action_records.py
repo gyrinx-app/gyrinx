@@ -4,7 +4,7 @@ from datetime import timedelta
 import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models.deletion import RestrictedError
+from django.db.models.deletion import ProtectedError, RestrictedError
 
 from n26.core import reconcile
 from n26.core.models import (
@@ -196,8 +196,9 @@ def test_a_consumed_allowance_cannot_be_deleted_on_its_own(gang, fighter, action
         allowance.delete()
 
 
+@pytest.mark.parametrize("state", ActionRecord.State.values)
 def test_exact_action_selections_persist_and_leave_with_the_record(
-    user, gang, fighter, action
+    state, user, gang, fighter, action
 ):
     from n26.core.models import (
         AdvancementSelection,
@@ -207,10 +208,13 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
     from n26.library.models import Category, Pickable, Section, Skill, SlotType
 
     record = ActionRecord.objects.create(
-        gang=gang, fighter=fighter, action=action, request_key=uuid.uuid4()
+        gang=gang, fighter=fighter, action=action, request_key=uuid.uuid4(), state=state
     )
     slot_type = SlotType.objects.create(name="Selection")
     intended = Pickable.objects.create(name="Exact result", slot_type=slot_type)
+    advance_pick = Pickable.objects.create(
+        name="Exact advancement", slot_type=slot_type
+    )
     section = Section.objects.create(name="Selection skills")
     skill_set = Category.objects.create(name="Selection set", section=section)
     skill = Skill.objects.create(name="Exact skill", category=skill_set)
@@ -231,7 +235,7 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
         action_record=record,
         slot_assignment=assignment,
         roll_event=event,
-        intended_pick=intended,
+        intended_pick=advance_pick,
         pick_assignment=assignment,
     )
     selected = SkillSelection.objects.create(
@@ -247,10 +251,25 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
     assert advancement.roll_event_id == event.pk
     assert selected.selected_skill_id == skill.pk
 
+    for content in (intended, advance_pick, skill, skill_set):
+        with pytest.raises(ProtectedError):
+            content.delete()
+    augmentation.refresh_from_db()
+    advancement.refresh_from_db()
+    selected.refresh_from_db()
+    assert augmentation.intended_pick_id == intended.pk
+    assert advancement.intended_pick_id == advance_pick.pk
+    assert selected.selected_skill_id == skill.pk
+    assert selected.skill_set_id == skill_set.pk
+
     record.delete()
     assert not AugmentationSelection.objects.filter(pk=augmentation.pk).exists()
     assert not AdvancementSelection.objects.filter(pk=advancement.pk).exists()
     assert not SkillSelection.objects.filter(pk=selected.pk).exists()
+    intended.delete()
+    advance_pick.delete()
+    skill.delete()
+    skill_set.delete()
 
 
 def test_tally_writes_a_structured_chain(user, gang, fighter):
@@ -386,6 +405,25 @@ def test_legacy_tally_without_structured_counter_fields_is_kept(user, gang, figh
     assert event.counter_before is None
     assert event.counter_delta is None
     assert event.counter_after is None
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        LedgerEvent.Kind.COUNTER_OPENED,
+        LedgerEvent.Kind.COUNTER_CHECKPOINTED,
+        LedgerEvent.Kind.TALLIED,
+    ],
+)
+def test_structured_counter_events_require_an_assignment(kind, gang):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        LedgerEvent.objects.create(
+            gang=gang,
+            kind=kind,
+            counter_before=0,
+            counter_delta=0,
+            counter_after=0,
+        )
 
 
 def test_events_with_the_same_timestamp_have_stable_primary_key_order(

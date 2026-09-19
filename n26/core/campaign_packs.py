@@ -212,13 +212,15 @@ def _grant(apps, membership, batch, reason, **fields):
 
 
 def _open_counter(apps, membership, assignment, value, batch):
-    """Write an opening when the historical model state supports it."""
-    LedgerEvent = apps.get_model("n26", "LedgerEvent")
-    fields = {field.name for field in LedgerEvent._meta.fields}
-    if not {"counter_before", "counter_delta", "counter_after"} <= fields:
-        # The original migration predates these columns. The later structured
-        # counter checkpoint migration records rows created in that state.
+    """Write an opening only when the counter journal is active."""
+    try:
+        CounterTracking = apps.get_model("n26", "CounterTracking")
+    except LookupError:
+        # Historical states without tracking leave openings to activation.
         return
+    if not CounterTracking.objects.filter(pk=1, activated_at__isnull=False).exists():
+        return
+    LedgerEvent = apps.get_model("n26", "LedgerEvent")
     LedgerEvent.objects.create(
         assignment=assignment,
         gang=membership.gang,

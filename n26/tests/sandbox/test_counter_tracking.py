@@ -3,7 +3,7 @@
 import pytest
 
 from n26.core.counter_tracking import is_active
-from n26.core.models import Gang, LedgerEvent
+from n26.core.models import CounterValue, Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import check_counter_value, check_gang
 from n26.library.authoring import create_counter
@@ -67,4 +67,40 @@ class TestCounterTrackingAfterActivation:
         assert is_active()
         held.counter_value.refresh_from_db()
         assert check_counter_value(held.counter_value) == []
+        assert check_gang(gang) == []
+
+    @pytest.mark.parametrize("archived", [False, True])
+    def test_history_with_a_missing_balance_is_reported(
+        self, archived, gang, counter_tracking
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            held = op.assign(create_counter("Kill Count"), gang=gang)
+            op.tally(held, 6)
+        held.archived = archived
+        held.save(update_fields=["archived", "modified"])
+        CounterValue.objects.filter(assignment=held).delete()
+
+        assert any(
+            str(held.pk) in problem and "history has no counter value" in problem
+            for problem in check_gang(gang)
+        )
+
+    def test_an_untouched_counter_needs_no_balance(self, gang, counter_tracking):
+        with operation(gang, actor=gang.owner) as op:
+            held = op.assign(create_counter("Kill Count"), gang=gang)
+
+        assert not CounterValue.objects.filter(assignment=held).exists()
+        assert check_gang(gang) == []
+
+    def test_deleting_an_assignment_removes_its_balance_and_history(
+        self, gang, counter_tracking
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            held = op.assign(create_counter("Kill Count"), gang=gang)
+            op.tally(held, 6)
+        assignment_id = held.pk
+        held.delete()
+
+        assert not CounterValue.objects.filter(assignment_id=assignment_id).exists()
+        assert not LedgerEvent.objects.filter(assignment_id=assignment_id).exists()
         assert check_gang(gang) == []
