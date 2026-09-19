@@ -189,21 +189,21 @@ class AugmentationSelection(Base):
     )
     item_assignment = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_item_selections",
     )
     slot_assignment = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_augmentation_slots",
     )
     previous_pick = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_previous_tiers",
@@ -217,7 +217,7 @@ class AugmentationSelection(Base):
     )
     new_pick = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_new_tiers",
@@ -232,7 +232,7 @@ class AdvancementSelection(Base):
     )
     slot_assignment = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_advancement_slots",
@@ -253,7 +253,7 @@ class AdvancementSelection(Base):
     )
     pick_assignment = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_advancement_picks",
@@ -293,7 +293,7 @@ class SkillSelection(Base):
     )
     skill_assignment = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="action_skill_assignments",

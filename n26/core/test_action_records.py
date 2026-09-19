@@ -10,8 +10,12 @@ from n26.core import reconcile
 from n26.core.models import (
     ActionAllowance,
     ActionRecord,
+    AdvancementSelection,
+    Assignment,
+    AugmentationSelection,
     Gang,
     LedgerEvent,
+    SkillSelection,
 )
 from n26.core.operations import operation
 from n26.library.models import Action, Counter, RankTable
@@ -197,14 +201,10 @@ def test_a_consumed_allowance_cannot_be_deleted_on_its_own(gang, fighter, action
 
 
 @pytest.mark.parametrize("state", ActionRecord.State.values)
+@pytest.mark.parametrize("delete", ["record", "fighter", "gang"])
 def test_exact_action_selections_persist_and_leave_with_the_record(
-    state, user, gang, fighter, action
+    state, delete, user, gang, fighter, action
 ):
-    from n26.core.models import (
-        AdvancementSelection,
-        AugmentationSelection,
-        SkillSelection,
-    )
     from n26.library.models import Category, Pickable, Section, Skill, SlotType
 
     record = ActionRecord.objects.create(
@@ -221,7 +221,10 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
     event = LedgerEvent.objects.create(
         gang=gang, actor=user, kind=LedgerEvent.Kind.ROLLED, miniature=fighter
     )
-    assignment = fighter.membership
+    with operation(gang, actor=user) as op:
+        assignment = op.assign(
+            Counter.objects.create(name="Recorded selection"), miniature=fighter
+        )
 
     augmentation = AugmentationSelection.objects.create(
         action_record=record,
@@ -262,7 +265,7 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
     assert selected.selected_skill_id == skill.pk
     assert selected.skill_set_id == skill_set.pk
 
-    record.delete()
+    {"record": record, "fighter": fighter, "gang": gang}[delete].delete()
     assert not AugmentationSelection.objects.filter(pk=augmentation.pk).exists()
     assert not AdvancementSelection.objects.filter(pk=advancement.pk).exists()
     assert not SkillSelection.objects.filter(pk=selected.pk).exists()
@@ -270,6 +273,97 @@ def test_exact_action_selections_persist_and_leave_with_the_record(
     advance_pick.delete()
     skill.delete()
     skill_set.delete()
+
+
+@pytest.mark.parametrize(
+    "selection_model", [AugmentationSelection, AdvancementSelection, SkillSelection]
+)
+def test_recorded_selection_assignments_cannot_be_deleted_separately(
+    selection_model, gang, fighter, action
+):
+    record = ActionRecord.objects.create(
+        gang=gang,
+        fighter=fighter,
+        action=action,
+        request_key=uuid.uuid4(),
+        state=ActionRecord.State.COMPLETED,
+    )
+    fields = [
+        field
+        for field in selection_model._meta.fields
+        if field.is_relation and field.related_model is Assignment
+    ]
+    assert fields
+    extra = (
+        {"mode": SkillSelection.Mode.SELECT, "access": SkillSelection.Access.ANY}
+        if selection_model is SkillSelection
+        else {}
+    )
+    for field in fields:
+        with operation(gang, actor=gang.owner) as op:
+            held = op.assign(
+                Counter.objects.create(name=f"Selection {field.name}"),
+                miniature=fighter,
+            )
+        selection = selection_model.objects.create(
+            action_record=record, **{field.name: held}, **extra
+        )
+        held.archived = True
+        held.save(update_fields=["archived", "modified"])
+        with pytest.raises(RestrictedError):
+            held.delete()
+        selection.refresh_from_db()
+        assert getattr(selection, field.attname) == held.pk
+        selection.delete()
+        held.delete()
+
+
+@pytest.mark.parametrize("field", ["before_pick", "after_pick"])
+@pytest.mark.parametrize("delete", ["fighter", "gang"])
+def test_recorded_event_picks_are_kept_until_the_owning_graph_is_deleted(
+    field, delete, gang, fighter
+):
+    with operation(gang, actor=gang.owner) as op:
+        held = op.assign(
+            Counter.objects.create(name="Recorded pick"), miniature=fighter
+        )
+        event = op.event(fighter, LedgerEvent.Kind.AMENDED, **{field: held})
+    event_id = event.pk
+
+    with pytest.raises(RestrictedError):
+        held.delete()
+    event.refresh_from_db()
+    assert getattr(event, f"{field}_id") == held.pk
+
+    {"fighter": fighter, "gang": gang}[delete].delete()
+    assert not LedgerEvent.objects.filter(pk=event_id).exists()
+
+
+def test_removing_action_access_keeps_the_record_and_its_source_snapshot(
+    gang, fighter, action
+):
+    with operation(gang, actor=gang.owner) as op:
+        access = op.assign(action, miniature=fighter)
+    source = {
+        "assignment": str(access.pk),
+        "action": str(action.pk),
+        "name": str(action),
+    }
+    record = ActionRecord.objects.create(
+        gang=gang,
+        fighter=fighter,
+        action=action,
+        request_key=uuid.uuid4(),
+        source_assignment=access,
+        source=source,
+        state=ActionRecord.State.COMPLETED,
+    )
+
+    access.delete()
+
+    record.refresh_from_db()
+    assert record.source_assignment is None
+    assert record.source == source
 
 
 def test_tally_writes_a_structured_chain(user, gang, fighter):

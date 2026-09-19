@@ -360,17 +360,17 @@ class LedgerEvent(Base):
         related_name="reversals",
     )
     #: Exact tier or result assignments before and after a recorded change.
-    #: They may be archived later; deletion only occurs with their gang.
+    #: Archiving preserves the link; deletion requires this event to go too.
     before_pick = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="ledger_events_before_pick",
     )
     after_pick = models.ForeignKey(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.RESTRICT,
         null=True,
         blank=True,
         related_name="ledger_events_after_pick",
