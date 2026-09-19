@@ -125,6 +125,7 @@ def test_rank_allowance_accepts_a_positive_threshold(fighter, action):
         threshold=1,
         rank_table=ranks,
     )
+    allowance.full_clean()
     assert allowance.threshold == 1
 
 

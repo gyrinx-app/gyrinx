@@ -13,7 +13,7 @@ from n26.core.models.abstract import Base
 
 
 class ActionAllowance(Base):
-    """One earned use of an action, linked to its source assignment."""
+    """One earned use of an action, tied to the model's membership."""
 
     class Source(models.TextChoices):
         RECRUITMENT = "recruitment", "Recruitment"
