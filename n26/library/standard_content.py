@@ -183,6 +183,11 @@ FOUNDING_BUDGETS = [
 #: to the same entries the gang type's own figures name.
 FOUNDING_BUDGET_AFFILIATIONS = [("Clanless", "Outcast", ["Leader", "Champion"], 1)]
 
+#: The slot type the live affiliation choice uses. The seed hangs the
+#: Clanless founding figure on a pickable of this type where one exists,
+#: because that is what a gang holds.
+AFFILIATION_SLOT_TYPE = "Affiliation"
+
 
 def _budget_modifier_name(carrier, ranks, amount, more=False):
     """What a founding-budget modifier is filed under on the authoring
@@ -555,19 +560,38 @@ def founding_budget_counter():
     ).first()
 
 
-def _by_name(model, name):
+def _by_name(model, name, **extra):
     """A row of this kind called this in the default pack, or None.
 
     Pinned to the pack for the same reason the counter is: names are
     unique per pack, so a homebrew pack's gang type or subtype of the
     same name is a different thing and must not stand in for the
-    standard one.
+    standard one. Extra filters narrow further — a pickable of this
+    name under a different slot type is a different thing.
     """
     from django.conf import settings
 
     return model.objects.filter(
-        name__iexact=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        name__iexact=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, **extra
     ).first()
+
+
+def _affiliation_carrier(name):
+    """The row a gang holds when it chooses this affiliation.
+
+    The live choice is a pickable of the Affiliation slot type where
+    that slot type exists. A library that still stores the choice as
+    an Affiliation row is found the same way. A pickable of this name
+    under a different slot type is a different thing.
+    """
+    from n26.library.models import Affiliation, Pickable, SlotType
+
+    slot_type = _by_name(SlotType, AFFILIATION_SLOT_TYPE)
+    if slot_type is not None:
+        pickable = _by_name(Pickable, name, slot_type=slot_type)
+        if pickable is not None:
+            return pickable
+    return _by_name(Affiliation, name)
 
 
 def _gang_list_profiles(gang_type, subtype):
@@ -672,6 +696,26 @@ def _drop_modifier(row):
             part.delete()
 
 
+def _take_affiliation_budget(name, carrier, counter, amount):
+    """Move this founding figure onto the live carrier, if an Affiliation
+    row of the same name still holds it.
+
+    Modifier names are unique per pack, so creating a second row of the
+    same name would be refused; the contribution is one contribution,
+    and the pickable is who now holds it.
+    """
+    from n26.library.models import Affiliation
+
+    affiliation = _by_name(Affiliation, name)
+    if affiliation is None or affiliation.pk == carrier.pk:
+        return
+    standing = _raises_founding_budget(affiliation, counter, amount).first()
+    if standing is None:
+        return
+    affiliation.modifiers.remove(standing)
+    carrier.modifiers.add(standing)
+
+
 def _settle_budget(carrier, counter, name, amount, subtypes, wanted):
     """Make this contribution say what it should, whatever it said before.
 
@@ -759,7 +803,9 @@ def _create_founding_budgets():
     Gang types and subtypes are matched, not duplicated: their own seeds
     create the same rows, and any of them may be run first. An
     affiliation is authored content and is never created here — a library
-    without one has no gang holding it either.
+    without one has no gang holding it either. Where the live choice is
+    a pickable, the figure hangs there; an Affiliation row of the same
+    name is not what a gang holds.
 
     A rank's contribution is matched by what it does — a modifier this
     carrier holds that raises this counter by this figure — rather than
@@ -768,7 +814,7 @@ def _create_founding_budgets():
     an entry authored since the last one is named and an entry that has
     moved to another rank stops being.
     """
-    from n26.library.models import Affiliation, Counter, GangType, Subtype
+    from n26.library.models import Counter, GangType, Pickable, Subtype
 
     counter = founding_budget_counter()
     if counter is None:
@@ -795,13 +841,15 @@ def _create_founding_budgets():
             )
 
     for name, gang_type_name, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS:
-        affiliation = _by_name(Affiliation, name)
+        carrier = _affiliation_carrier(name)
         gang_type = _by_name(GangType, gang_type_name)
-        if affiliation is None or gang_type is None:
+        if carrier is None or gang_type is None:
             continue
         subtypes = [_by_name(Subtype, rank) for rank in ranks]
+        if isinstance(carrier, Pickable):
+            _take_affiliation_budget(name, carrier, counter, amount)
         _settle_budget(
-            affiliation,
+            carrier,
             counter,
             _budget_modifier_name(name, ranks, amount, more=True),
             amount,
@@ -834,9 +882,10 @@ def _check_founding_budgets():
 
     An affiliation that is not in the library is not counted, because the
     seed does not create one: it is authored content, and a library
-    without it has no gang holding it.
+    without it has no gang holding it. The carrier is the pickable a
+    gang holds, where that exists.
     """
-    from n26.library.models import Affiliation, GangType
+    from n26.library.models import GangType
 
     counter = founding_budget_counter()
     wanted, present = 1, 1 if counter is not None else 0
@@ -873,11 +922,11 @@ def _check_founding_budgets():
             count(gang_type, amount, profiles)
 
     for name, gang_type_name, ranks, amount in FOUNDING_BUDGET_AFFILIATIONS:
-        affiliation = _by_name(Affiliation, name)
+        carrier = _affiliation_carrier(name)
         gang_type = _by_name(GangType, gang_type_name)
-        if affiliation is None or gang_type is None:
+        if carrier is None or gang_type is None:
             continue
-        count(affiliation, amount, _affiliation_profiles(gang_type, ranks))
+        count(carrier, amount, _affiliation_profiles(gang_type, ranks))
 
     return present, wanted
 
