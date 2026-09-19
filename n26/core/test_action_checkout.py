@@ -245,12 +245,13 @@ def test_earned_allowance_survives_removed_access(user, gang, fighter):
     allowance = ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
-        recruitment=fighter.membership,
+        source=fighter.membership,
         source_kind=ActionAllowance.Source.RECRUITMENT,
     )
     with operation(gang, actor=user) as op:
-        record = op.start_action(fighter, action, uuid.uuid4(), allowance=allowance)
+        record = op.start_action(fighter, action, uuid.uuid4())
         op.remove(access)
+    assert record.allowance == allowance
     with operation(gang, actor=user) as op:
         record = op.review_action(record, outcome=outcome)
     with operation(gang, actor=user) as op:

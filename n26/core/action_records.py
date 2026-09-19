@@ -391,7 +391,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
     elif rule is not None:
         allowance = (
             ActionAllowance.objects.select_for_update()
-            .filter(action=action, fighter=fighter, recruitment=fighter.membership)
+            .filter(action=action, fighter=fighter, source=fighter.membership)
             .exclude(
                 records__state__in=[
                     ActionRecord.State.STARTED,
