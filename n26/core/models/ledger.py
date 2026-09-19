@@ -204,11 +204,18 @@ class LedgerEvent(Base):
 
         # An activity opening and closing (``n26.core.models.activity``).
         # Neither moves anything of its own: what an activity did is the
-        # log between the two. The note holds the kind, so a reader of
-        # the history can be told which activity without a join, and the
-        # figure the act carried where it carried one.
+        # log between the two. The note holds the kind, so history can name
+        # the activity without a join.
         ACTION_OPENED = "action_opened", "Action started"
         ACTION_CLOSED = "action_closed", "Action completed"
+
+        # A fighter using a library action. Payment, completion and correction
+        # can carry the credits or rating change made by that lifecycle step.
+        ACTION_USE_STARTED = "use_started", "Action use started"
+        ACTION_USE_COMPLETED = "use_completed", "Action use completed"
+        ACTION_USE_CANCELLED = "use_cancelled", "Action use cancelled"
+        ACTION_USE_PAID = "use_paid", "Action use paid"
+        ACTION_USE_CORRECTED = "use_corrected", "Action use corrected"
 
         # Where the gang plays. Its own acts, because a gang joining or
         # leaving is something that happened to the gang — the campaign it

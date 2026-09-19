@@ -384,6 +384,7 @@ class Operation:
         removes=False,
         kind=None,
         roll=None,
+        action_record=None,
     ):
         """Write one assignment: an assignable, a host, and a cause.
 
@@ -463,6 +464,7 @@ class Operation:
             trade_points_delta=trade_points,
             rating_delta=rating,
             note=note,
+            action_record=action_record,
         )
         self.touched(assignment.miniature_root)
         self.written.add(str(assignment.pk))
@@ -1084,7 +1086,7 @@ class Operation:
             self.remove(assignment, note="reset")
         return edits
 
-    def remove(self, assignment, note=""):
+    def remove(self, assignment, note="", **event_fields):
         """Take something away — and everything it brought with it.
 
         Archives rather than deletes: the ledger is append-only, so the
@@ -1097,6 +1099,11 @@ class Operation:
         assignment = _under_the_lock(assignment)
         if assignment.archived:
             return None
+        descendant_event_fields = {
+            key: value
+            for key, value in event_fields.items()
+            if key not in {"before_pick", "after_pick"}
+        }
         for target in [assignment, *subtree(assignment)]:
             if target.archived:
                 continue
@@ -1104,7 +1111,16 @@ class Operation:
             target.archived = True
             target.archived_at = _now()
             target.save(update_fields=["archived", "archived_at", "modified"])
-            self.event(target, LedgerEvent.Kind.REMOVED, note=note)
+            self.event(
+                target,
+                LedgerEvent.Kind.REMOVED,
+                note=note,
+                **(
+                    event_fields
+                    if target.pk == assignment.pk
+                    else descendant_event_fields
+                ),
+            )
         return assignment
 
     def refund(self, assignment, note=""):
@@ -2296,6 +2312,115 @@ class Operation:
             **kwargs,
         )
 
+    def replace_slot_pick(
+        self,
+        anchor,
+        slot,
+        chosen,
+        *,
+        previous_pick,
+        miniature,
+        action_record,
+    ):
+        """Archive one slot pick and retain exact before/after provenance."""
+        anchor, miniature = _slot_context_under_the_lock(
+            self.gang,
+            anchor,
+            slot,
+            miniature,
+            "That augmentation has changed. Review it again.",
+        )
+        if previous_pick is not None:
+            previous_pick = _under_the_lock(previous_pick)
+            if (
+                previous_pick.archived
+                or previous_pick.gang_root_id != self.gang.pk
+                or previous_pick.chosen_for_id != anchor.pk
+                or previous_pick.chosen_for_slot_id != slot.pk
+                or previous_pick.miniature_root_id != miniature.pk
+            ):
+                raise Refusal("That augmentation has changed. Review it again.")
+            self.remove(
+                previous_pick,
+                action_record=action_record,
+                before_pick=previous_pick,
+            )
+        replacement = None
+        if chosen is not None:
+            replacement = self.choose(
+                anchor,
+                chosen,
+                slot=slot,
+                miniature=miniature,
+                action_record=action_record,
+            )
+        if replacement is not None or previous_pick is not None:
+            self.event(
+                replacement or previous_pick,
+                LedgerEvent.Kind.AMENDED,
+                action_record=action_record,
+                before_pick=previous_pick,
+                after_pick=replacement,
+            )
+        return replacement
+
+    def restore_slot_pick(
+        self,
+        anchor,
+        slot,
+        *,
+        restore_pick,
+        replacing,
+        miniature,
+        action_record,
+    ):
+        """Restore the exact archived pick replaced by an earlier action."""
+        message = "That augmentation has changed and cannot be restored."
+        anchor, miniature = _slot_context_under_the_lock(
+            self.gang,
+            anchor,
+            slot,
+            miniature,
+            message,
+        )
+        restore_pick = _under_the_lock(restore_pick)
+        replacing = _under_the_lock(replacing)
+        if (
+            not restore_pick.archived
+            or replacing.archived
+            or restore_pick.gang_root_id != self.gang.pk
+            or replacing.gang_root_id != self.gang.pk
+            or restore_pick.chosen_for_id != anchor.pk
+            or restore_pick.chosen_for_slot_id != slot.pk
+            or replacing.chosen_for_id != anchor.pk
+            or replacing.chosen_for_slot_id != slot.pk
+            or restore_pick.miniature_root_id != miniature.pk
+            or replacing.miniature_root_id != miniature.pk
+            or Assignment.objects.filter(
+                chosen_for=anchor,
+                chosen_for_slot=slot,
+                archived=False,
+            )
+            .exclude(pk=replacing.pk)
+            .exists()
+        ):
+            raise Refusal(message)
+        self.remove(
+            replacing,
+            action_record=action_record,
+            before_pick=replacing,
+        )
+        restore_pick.unarchive()
+        self.touched(miniature)
+        self.event(
+            restore_pick,
+            LedgerEvent.Kind.AMENDED,
+            action_record=action_record,
+            before_pick=replacing,
+            after_pick=restore_pick,
+        )
+        return restore_pick
+
     def add_legacy_profile(self, miniature, profile, **kwargs):
         """A second profile on a model — the Venator case.
 
@@ -2528,7 +2653,7 @@ class Operation:
             note=note,
         )
 
-    def tally(self, assignment, change, note=""):
+    def tally(self, assignment, change, note="", **event_fields):
         """Change a counter's value — the only writer it has.
 
         ``change`` is signed; the value floors at zero. Every change is a
@@ -2565,8 +2690,55 @@ class Operation:
             LedgerEvent.Kind.TALLIED,
             note=_movement_note(moved, note),
             **amounts,
+            **event_fields,
         )
         return held.value
+
+    def start_action(self, fighter, action, request_key, allowance=None):
+        """Start or resume one idempotent fighter action use."""
+        from n26.core.action_records import start_action
+
+        return start_action(self, fighter, action, request_key, allowance=allowance)
+
+    def review_action(self, record, *, outcome, terms=None):
+        """Capture the exact terms and balances offered for confirmation."""
+        from n26.core.action_records import review_action
+
+        return review_action(self, record, outcome=outcome, terms=terms)
+
+    def save_action_choices(self, record, *, outcome, terms):
+        """Persist incomplete typed choices so a draft resumes at the same step."""
+        from n26.core.action_records import save_action_choices
+
+        return save_action_choices(self, record, outcome=outcome, terms=terms)
+
+    def complete_action(self, record, *, revision, review, outcome):
+        """Verify and atomically pay for and apply a reviewed action use."""
+        from n26.core.action_records import complete_action
+
+        return complete_action(
+            self, record, revision=revision, review=review, outcome=outcome
+        )
+
+    def cancel_action(self, record):
+        """Cancel an unpaid action draft."""
+        from n26.core.action_records import cancel_action
+
+        return cancel_action(self, record)
+
+    def review_action_correction(self, record, *, terms):
+        """Capture exact completed-result state before a safe correction."""
+        from n26.core.action_records import review_action_correction
+
+        return review_action_correction(self, record, terms=terms)
+
+    def correct_action(self, record, *, revision, review, terms):
+        """Correct a completed typed result without replaying its payment."""
+        from n26.core.action_records import correct_action
+
+        return correct_action(
+            self, record, revision=revision, review=review, terms=terms
+        )
 
     def open_counter(self, assignment, value):
         """Store an opening balance, journalling it once tracking is active."""
@@ -2751,6 +2923,24 @@ def _under_the_lock(assignment):
     return Assignment.objects.select_related("ledger_entry").get(pk=assignment.pk)
 
 
+def _slot_context_under_the_lock(gang, anchor, slot, miniature, message):
+    """Reload and prove a slot edit belongs to the operation's gang."""
+    anchor = _under_the_lock(anchor)
+    miniature = Miniature.objects.select_related("membership").get(pk=miniature.pk)
+    membership = miniature.membership if miniature.membership_id else None
+    if (
+        anchor.archived
+        or anchor.gang_root_id != gang.pk
+        or anchor.slot_id != slot.pk
+        or anchor.miniature_root_id != miniature.pk
+        or membership is None
+        or membership.archived
+        or membership.gang_id != gang.pk
+    ):
+        raise Refusal(message)
+    return anchor, miniature
+
+
 def subtree(assignment):
     """Everything hanging off an assignment: its children and what it caused."""
     found = {}
@@ -2910,6 +3100,7 @@ def operation(gang, actor=None, batch=None, also=()):
             # already be stale — two clicks on one button arrive
             # together often enough. What is decided in here is decided
             # on what stands under that line.
+            gang.refresh_from_db(fields=["starting_credits"])
             gang.forget_open_activities()
         yield op
         op.settle()
