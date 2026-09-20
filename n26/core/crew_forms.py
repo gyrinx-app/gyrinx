@@ -19,6 +19,7 @@ class CrewFormModel:
     saved_source: str
     search: str
     may_override: bool
+    available: bool
 
 
 class CrewForm(forms.Form):
@@ -79,6 +80,7 @@ class CrewForm(forms.Form):
                     saved.get_source_display() if saved else "",
                     f"{model.name} {model.membership.profile if model.membership else ''}".lower(),
                     item.available and model.status != Status.ACTIVE,
+                    item.available,
                 )
             )
 
@@ -103,7 +105,7 @@ class CrewForm(forms.Form):
             if not item.available:
                 self.add_error(
                     f"role_{suffix}",
-                    "This model is no longer available. Select Not selected.",
+                    "This model is no longer available. Remove it from the crew.",
                 )
             elif item.miniature.status != Status.ACTIVE and not override:
                 self.add_error(

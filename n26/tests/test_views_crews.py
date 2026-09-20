@@ -1,5 +1,6 @@
 """Crew pages work as ordinary forms and keep drafts private."""
 
+import json
 from datetime import date
 from types import SimpleNamespace
 
@@ -122,15 +123,23 @@ class TestCrewForms:
         assert 'aria-label="Model cards"' not in body
         assert "Reinforcements" in body
 
-    def test_sheet_puts_back_link_first_and_matches_action_button_markup(
+    def test_sheet_links_the_battle_in_its_header_and_matches_action_buttons(
         self, client, table, feature
     ):
         give_weapon(table.models[0], create_weapon("Bolt pistol"), paid=10)
         give_weapon(table.models[1], create_weapon("Knife"), paid=5)
         client.post(address(table), fields(table))
         body = client.get(address(table, sheet=True)).content.decode()
-        assert body.index("Back to battle") < body.index("Iron Hounds crew</h1>")
+        assert "Back to battle" not in body
         document = BeautifulSoup(body, "html.parser")
+        lead = document.find("h1", string="Iron Hounds crew").find_next_sibling("p")
+        back = lead.find(
+            "a",
+            href=reverse("n26-battle", args=[table.campaign.pk, table.battle.pk]),
+        )
+        assert back.get_text(" ", strip=True) == table.battle.title
+        assert back.find("svg") is not None
+        assert "20 September 2026" in lead.get_text()
         edit = document.find("a", href=address(table))
         print_link = document.find("a", href="?print=1")
         assert edit.get_text(" ", strip=True) == "Edit crew"
@@ -186,12 +195,12 @@ class TestCrewForms:
         attach(selected, create_weapon_accessory("Sight"), paid=3)
         assert ratings() == (15, 7)
         editor = client.get(address(table))
-        document = BeautifulSoup(editor.content, "html.parser")
-        model_row = document.find("legend", string="Mara").find_parent("fieldset")
-        assert "Full equipment: 43¢" in model_row.get_text(" ", strip=True)
-        actions = document.select_one('[aria-label="Save crew"]')
-        assert actions.select_one(".font-semibold").get_text(strip=True) == "2 models"
-        assert "¢" not in actions.get_text()
+        picker = editor.context["crew_picker"]
+        assert picker["models"][0]["fullRating"] == 43
+        assert [model["role"]["value"] for model in picker["models"]] == [
+            "starting",
+            "reserve",
+        ]
         payload = fields(table, revision=str(crew.revision))
         for model in table.models:
             key = f"card_{model.pk}"
@@ -200,6 +209,60 @@ class TestCrewForms:
         assert ratings() == (18, 7)
         table.gang.refresh_from_db()
         assert_reconciled(table.gang)
+
+    def test_picker_props_preserve_saved_choices_and_use_one_react_owner(
+        self, client, table, feature
+    ):
+        client.post(address(table), fields(table))
+        response = client.get(address(table))
+        document = BeautifulSoup(response.content, "html.parser")
+        host = document.select_one("[data-react-module]")
+        assert host is not None
+        props = json.loads(document.find(id=host["data-react-props"]).string)
+        assert props == response.context["crew_picker"]
+        assert props["battleUrl"] == reverse(
+            "n26-battle", args=[table.campaign.pk, table.battle.pk]
+        )
+        assert props["revision"] == 1
+        assert len(props["models"]) == 2
+        for model in props["models"]:
+            assert model["available"] is True
+            assert model["card"]["value"].startswith("saved:")
+            assert model["card"]["choices"][0]["value"] == model["card"]["value"]
+            assert model["role"]["name"] == f"role_{model['id']}"
+        form = host.find_parent("form")
+        assert not form.select("[x-data], [x-model], [x-show]")
+        assert not form.select('script[src$="battle-actions.js"]')
+
+    def test_invalid_post_preserves_picker_values_and_field_errors(
+        self, client, table, feature
+    ):
+        model = table.models[0]
+        model.status = Status.RECOVERY
+        model.save(update_fields=["status"])
+        response = client.post(address(table), fields(table))
+        assert response.status_code == 200
+        props = response.context["crew_picker"]
+        selected = props["models"][0]
+        assert selected["role"]["value"] == "starting"
+        assert selected["card"]["value"] == str(table.card.pk)
+        assert selected["mayOverride"] is True
+        assert selected["override"]["value"] is False
+        assert selected["override"]["errors"] == [
+            "Allow this model for this battle or remove it from the crew."
+        ]
+        assert not BattleCrew.objects.exists()
+
+    def test_picker_json_escapes_model_names(self, client, table, feature):
+        model = table.models[0]
+        model.name = '</script><script>alert("model")</script>'
+        model.save(update_fields=["name"])
+        response = client.get(address(table))
+        document = BeautifulSoup(response.content, "html.parser")
+        host = document.select_one("[data-react-module]")
+        props = json.loads(document.find(id=host["data-react-props"]).string)
+        assert props["models"][0]["name"] == model.name
+        assert model.name not in response.content.decode()
 
     def test_crew_cards_show_injuries_without_editing_prompts(
         self, client, table, feature
@@ -450,6 +513,22 @@ class TestCrewPagePermissions:
 
 
 class TestCrewPageQueryGrowth:
+    def test_more_models_add_no_per_model_query_to_the_picker(
+        self, client, table, feature
+    ):
+        client.get(address(table))
+        with CaptureQueriesContext(connection) as small:
+            assert client.get(address(table)).status_code == 200
+        profile = table.models[0].membership.profile
+        for number in range(4):
+            hire(table.gang, profile, f"Extra {number}")
+        client.get(address(table))
+        with CaptureQueriesContext(connection) as large:
+            response = client.get(address(table))
+            assert response.status_code == 200
+        assert len(response.context["crew_picker"]["models"]) == 6
+        assert len(large) <= len(small)
+
     @pytest.mark.parametrize("print_view", [False, True])
     def test_more_models_add_no_per_card_query_to_the_sheet(
         self, client, table, feature, print_view

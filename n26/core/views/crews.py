@@ -30,6 +30,50 @@ def _context(request, pk, battle_pk, gang_pk):
     return campaign, battle, gang, editable, crew
 
 
+def _picker_field(field):
+    return {
+        "name": field.html_name,
+        "id": field.id_for_label,
+        "value": field.value(),
+        "errors": list(field.errors),
+        "choices": [
+            {"value": str(value), "label": str(label)}
+            for value, label in field.field.choices
+        ],
+    }
+
+
+def _crew_picker(form, *, crew, battle_url):
+    return {
+        "battleUrl": battle_url,
+        "revision": crew.revision if crew else None,
+        "models": [
+            {
+                "id": str(entry.miniature.pk),
+                "name": entry.miniature.name,
+                "profile": str(entry.miniature.membership.profile)
+                if entry.miniature.membership
+                else "",
+                "fullRating": entry.miniature.rating,
+                "savedSource": entry.saved_source,
+                "search": entry.search,
+                "warning": entry.warning,
+                "mayOverride": entry.may_override,
+                "available": entry.available,
+                "role": _picker_field(entry.role),
+                "card": _picker_field(entry.card),
+                "override": {
+                    "name": entry.override.html_name,
+                    "id": entry.override.id_for_label,
+                    "value": bool(entry.override.value()),
+                    "errors": list(entry.override.errors),
+                },
+            }
+            for entry in form.models
+        ],
+    }
+
+
 @requires_flag(CAMPAIGNS)
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -78,7 +122,6 @@ def edit_crew(request, pk, battle_pk, gang_pk):
                     battle_pk=battle.pk,
                     gang_pk=gang.pk,
                 )
-    selected = [m for m in form.models if m.role.value() in {"starting", "reserve"}]
     return render(
         request,
         "n26/crew.html",
@@ -88,9 +131,11 @@ def edit_crew(request, pk, battle_pk, gang_pk):
             "gang": gang,
             "crew": crew,
             "form": form,
-            "selected_count": len(selected),
-            "starting_count": sum(m.role.value() == "starting" for m in selected),
-            "reserve_count": sum(m.role.value() == "reserve" for m in selected),
+            "crew_picker": _crew_picker(
+                form,
+                crew=crew,
+                battle_url=reverse("n26-battle", args=[campaign.pk, battle.pk]),
+            ),
         },
     )
 

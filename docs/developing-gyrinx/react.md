@@ -229,19 +229,6 @@ This removes the need for the maintainer to repeatedly request React. It is a
 default plus executable checks, not a guarantee that every agent will make the
 right scoping decision without review.
 
-### Temporary crew-search exception
-
-`n26/core/templates/n26/crew.html` has an explicitly approved ceiling of three
-Alpine directives: `x-data`, `x-model` and `x-show` for searching the roster.
-The filter contains server-rendered model cards and live crew-selection forms.
-A React conversion needs a shared card and selection surface; moving only the
-search input would split ownership of the filtered content.
-
-This exception covers only those three directives, not further Alpine behaviour.
-When the crew-selection surface migrates to React, remove the directives and
-lower the baseline with `python scripts/check_n26_alpine.py --update`. Other
-templates retain their existing ceilings.
-
 ### Sequence and exit conditions
 
 1. **Leaf lists:** prove packaging, visual reuse, props and lifecycle with a real

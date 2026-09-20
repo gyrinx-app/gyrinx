@@ -10,9 +10,21 @@
 {% endblock %}
 {% block content %}
     <div class="w-full space-y-6">
-        <div><c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}">Back to battle</c-n26.link></div>
-        <c-n26.page-header title="{{ gang.name }} crew"
-                           lead="{{ battle.title }} · {{ battle.date|date:'j F Y' }}">
+        <c-n26.page-header title="{{ gang.name }} crew">
+            <c-slot name="lead">
+                <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
+                                tone="muted"
+                                class="inline-flex items-center gap-1">
+                        <c-slot name="leading">
+                            <c-n26.icon name="chevron-left" class="size-4 shrink-0" />
+                        </c-slot>
+                        {{ battle.title }}
+                    </c-n26.link>
+                    <span class="whitespace-nowrap"><span class="hidden sm:inline"
+      aria-hidden="true">· </span>{{ battle.date|date:'j F Y' }}</span>
+                </span>
+            </c-slot>
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
