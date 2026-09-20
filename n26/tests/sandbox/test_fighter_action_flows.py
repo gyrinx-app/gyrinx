@@ -203,8 +203,8 @@ class TestSuitEvolutionForms:
         assert tabs_row.find("nav", attrs={"aria-label": "This model's screens"})
         assert title.find_parent("section") in actions.descendants
         assert "After a cycle" in header.get_text(" ", strip=True)
-        assert start_button.get_text(" ", strip=True) == "Start flow"
-        assert "bg-accent" in start_button.get("class", [])
+        assert start_button.get_text(" ", strip=True) == "Start →"
+        assert "bg-transparent" in start_button.get("class", [])
         assert html.index("Available") < html.index("Price")
         assert "After payment" not in html
 
