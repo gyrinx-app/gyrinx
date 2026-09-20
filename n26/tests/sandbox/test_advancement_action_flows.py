@@ -261,7 +261,7 @@ class TestSelectingSkills:
             == 302
         )
         retry = client.get(first.url)
-        assert "already owned or unavailable" in retry.content.decode()
+        assert "No available skill was rolled." in retry.content.decode()
         second = client.post(
             first.url,
             {
