@@ -34,12 +34,19 @@ def _validate_draft(op, record, configured):
 
     record = (
         ActionRecord.objects.select_for_update(of=("self",))
-        .select_related("fighter__membership", "action")
+        .select_related("fighter__membership", "action", "allowance")
         .filter(pk=record.pk, gang=op.gang, state=ActionRecord.State.STARTED)
         .first()
     )
-    if record is None or record.fighter.membership.gang_id != op.gang.pk:
+    if record is None:
         raise Refusal("That advancement is no longer awaiting a roll.")
+    from n26.core.action_records import (
+        _refuse_unless_owned,
+        _validate_draft_definition,
+    )
+
+    _refuse_unless_owned(op, record.fighter)
+    _validate_draft_definition(record)
     if not record.action.outcomes.filter(
         outcome__resolve_advancement=configured
     ).exists():

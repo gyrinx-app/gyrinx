@@ -1929,6 +1929,7 @@ def _create_fighter_actions():
     slot, _ = Slot.objects.get_or_create(
         pack=pack,
         name="Advancement",
+        qualifier="",
         defaults={
             "slot_type": advancement_type,
             "picklist": table,
@@ -2113,6 +2114,7 @@ def _check_fighter_actions():
     from n26.library.models import (
         Action,
         ChangesStat,
+        CollectionSection,
         Counter,
         OffersChoice,
         Outcome,
@@ -2142,7 +2144,7 @@ def _check_fighter_actions():
         .count()
     )
     raw_present += (
-        RankTable.objects.filter(pack=pack, name="Standard fighter ranks")
+        RankTable.objects.filter(pack=pack, name="Standard fighter ranks", qualifier="")
         .values("thresholds")
         .count()
     )
@@ -2213,8 +2215,10 @@ def _check_fighter_actions():
         ).first(),
         name__iexact="Fighter advancement table",
     ).first()
-    slot = Slot.objects.filter(pack=pack, name="Advancement").first()
-    ranks = RankTable.objects.filter(pack=pack, name="Standard fighter ranks").first()
+    slot = Slot.objects.filter(pack=pack, name="Advancement", qualifier="").first()
+    ranks = RankTable.objects.filter(
+        pack=pack, name="Standard fighter ranks", qualifier=""
+    ).first()
     advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()
     augment_outcome = Outcome.objects.filter(
         pack=pack, name="Hunting Rig Augmentation"
@@ -2224,7 +2228,9 @@ def _check_fighter_actions():
     glitch_type = SlotType.objects.filter(
         pack=pack, name="Spyrer Hunting Rig Glitch"
     ).first()
-    glitches = Counter.objects.filter(pack=pack, name="Glitch count").first()
+    glitches = Counter.objects.filter(
+        pack=pack, name="Glitch count", qualifier=""
+    ).first()
     if (
         table is None
         or table.dice != "2d6"
@@ -2237,6 +2243,7 @@ def _check_fighter_actions():
         or ranks is None
         or ranks.counter.name != XP_COUNTER
         or ranks.counter.pack_id != pack.pk
+        or ranks.counter.qualifier != ""
         or actions["Advancement"].rank_allowance_rule.counter_id != ranks.counter_id
         or advance_outcome is None
         or advance_outcome.resolve_advancement_id is None
@@ -2276,6 +2283,16 @@ def _check_fighter_actions():
     } != expected_advancements:
         return incomplete()
     characteristic_names = {full for _, full, _, _ in MODEL_CHARACTERISTICS}
+    skill_sections = dict(
+        CollectionSection.objects.filter(
+            collection__pack=pack,
+            collection__name=SKILLS_COLLECTION,
+            collection__qualifier="",
+            name__in=("Primary", "Secondary"),
+        ).values_list("name", "pk")
+    )
+    if set(skill_sections) != {"Primary", "Secondary"}:
+        return incomplete()
     for member in members:
         modifiers = member.pickable.modifiers.all()
         name = member.pickable.name
@@ -2300,11 +2317,11 @@ def _check_fighter_actions():
                 else OffersChoice.Mode.SELECT
             )
             and modifier.effect.will_be_assigned_to == "bearer"
-            and (
-                modifier.effect.from_section is None
+            and modifier.effect.from_section_id
+            == (
+                None
                 if "any" in name.lower()
-                else getattr(modifier.effect.from_section, "name", None)
-                == ("Primary" if "Primary" in name else "Secondary")
+                else skill_sections["Primary" if "Primary" in name else "Secondary"]
             )
             for modifier in modifiers
         ):

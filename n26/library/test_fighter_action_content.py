@@ -262,16 +262,40 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
 def test_qualified_skills_collection_is_not_used_as_the_standard_collection(
     default_pack,
 ):
-    from n26.library.models import Collection
+    from n26.library.models import Collection, Counter
 
     custom = Collection.objects.create(
         pack=default_pack,
         name="Skills & Powers",
         qualifier="Custom",
     )
+    advancement_type = SlotType.objects.create(pack=default_pack, name="Advancement")
+    table = Picklist.objects.create(
+        pack=default_pack,
+        name="Fighter advancement table",
+        slot_type=advancement_type,
+        dice="2d6",
+        roll_selects="threshold",
+    )
+    custom_slot = Slot.objects.create(
+        pack=default_pack,
+        name="Advancement",
+        qualifier="Custom",
+        slot_type=advancement_type,
+        picklist=table,
+        min_picks=3,
+        max_picks=3,
+    )
+    xp = Counter.objects.create(pack=default_pack, name="XP", qualifier="")
+    custom_ranks = RankTable.objects.create(
+        pack=default_pack,
+        name="Standard fighter ranks",
+        qualifier="Custom",
+        counter=xp,
+    )
 
     content = STANDARD_CONTENT["fighter-actions"]
-    assert content.status() == "missing"
+    assert content.status() == "incomplete"
     content.create()
 
     standard = Collection.objects.get(
@@ -282,6 +306,49 @@ def test_qualified_skills_collection_is_not_used_as_the_standard_collection(
     assert standard != custom
     assert custom.sections.count() == 0
     assert custom.selectors.count() == 0
+    assert (
+        Slot.objects.get(pack=default_pack, name="Advancement", qualifier="")
+        != custom_slot
+    )
+    custom_slot.refresh_from_db()
+    assert (custom_slot.min_picks, custom_slot.max_picks) == (3, 3)
+    assert (
+        RankTable.objects.get(
+            pack=default_pack, name="Standard fighter ranks", qualifier=""
+        )
+        != custom_ranks
+    )
+    assert custom_ranks.thresholds.count() == 0
+    assert content.status() == "complete"
+
+
+def test_qualified_skill_section_does_not_satisfy_fighter_action_completeness(
+    default_pack,
+):
+    from n26.library.models import Collection, CollectionSection
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    custom = Collection.objects.create(
+        pack=default_pack,
+        name="Skills & Powers",
+        qualifier="Custom",
+    )
+    wrong_primary = CollectionSection.objects.create(
+        pack=default_pack,
+        collection=custom,
+        name="Primary",
+    )
+    result = Pickable.objects.get(name="Random Primary skill", qualifier="")
+    offer = result.modifiers.get().effect
+    offer.from_section = wrong_primary
+    offer.save(update_fields=["from_section"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    repaired = result.modifiers.get().effect
+    assert repaired.from_section.collection.qualifier == ""
     assert content.status() == "complete"
 
 

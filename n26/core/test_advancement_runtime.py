@@ -182,6 +182,42 @@ def test_advancement_slot_refuses_a_different_die(fighter):
     ).exists()
 
 
+def test_advancement_roll_refuses_a_changed_action_contract(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+
+    action.rank_allowance_rule = None
+    action.save(update_fields=["rank_allowance_rule", "modified"])
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="allowance belongs to another action use"):
+            op.record_action_roll(record, configured, uuid4(), rolled=7)
+
+    assert not LedgerEvent.objects.filter(
+        action_record=record, kind=LedgerEvent.Kind.ROLLED
+    ).exists()
+
+
+def test_advancement_roll_refuses_a_fighter_no_longer_in_the_gang(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+
+    fighter.membership.archived = True
+    fighter.membership.save(update_fields=["archived", "modified"])
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="fighter is no longer in this gang"):
+            op.record_action_roll(record, configured, uuid4(), rolled=7)
+
+    assert not LedgerEvent.objects.filter(
+        action_record=record, kind=LedgerEvent.Kind.ROLLED
+    ).exists()
+
+
 def test_earned_advancement_with_a_roll_cannot_be_cancelled(fighter):
     action, outcome, allowance = _advancement(fighter)
     with operation(fighter.gang) as op:
