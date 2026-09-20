@@ -75,6 +75,8 @@ For coding tasks, start the dev server early and share its worktree-specific URL
 If a page needs authentication, load the `dev-server` skill and run:
 
 ```bash
+manage agent_login_url /path/to/page
+# Codex shells:
 .codex/run.sh manage agent_login_url /path/to/page
 ```
 
