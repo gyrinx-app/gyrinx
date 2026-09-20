@@ -768,6 +768,36 @@ class TestApplyingAndCorrecting:
     """A plain first Apply works, while retries and corrections preserve later play."""
 
     @pytest.mark.parametrize("standalone", [False, True])
+    def test_receipt_uses_a_shared_alert_and_consistent_left_aligned_heading(
+        self, client, table, feature, standalone
+    ):
+        report = start(client, table, standalone=standalone)
+        response = client.post(
+            editor_url(report), awards(client.get(editor_url(report)), table)
+        )
+        receipt = client.get(response.url)
+        assert receipt.status_code == 200
+        document = BeautifulSoup(receipt.content, "html.parser")
+        assert document.find("h1").get_text(strip=True) == "Recorded results"
+        breadcrumb = document.select_one('[aria-label="Breadcrumb"]')
+        assert (
+            breadcrumb.select_one('[aria-current="page"]').get_text(strip=True)
+            == "Recorded results"
+        )
+        callout = document.select_one('[role="alert"]:not([data-message])')
+        assert "rounded-box" in callout["class"]
+        assert "bg-green-50" in callout["class"]
+        assert "rounded-xl" not in callout["class"]
+        assert not any("emerald" in value for value in callout["class"])
+        assert "Recorded by" in callout.get_text(" ", strip=True)
+        assert "Recorded results" not in callout.get_text()
+        assert "Results applied" not in callout.get_text()
+        assert callout.find(class_="font-medium") is None
+        assert "w-full" in callout.parent["class"]
+        assert "mx-auto" not in callout.parent["class"]
+        assert "max-w-4xl" not in callout.parent["class"]
+
+    @pytest.mark.parametrize("standalone", [False, True])
     def test_first_apply_needs_no_separate_check_step(
         self, client, table, feature, standalone
     ):

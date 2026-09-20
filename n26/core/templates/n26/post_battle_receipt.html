@@ -4,13 +4,15 @@
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <div class="mx-auto max-w-4xl space-y-6">
-        <c-n26.page-header title="Results recorded"
+    <div class="w-full space-y-6">
+        <c-n26.page-header title="Recorded results"
                            lead="{{ receipt.gang }} · {{ receipt.date }}">
             <c-slot name="breadcrumb"><c-ui.breadcrumbs>{% if battle %}<c-ui.breadcrumbs.item href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ receipt.battle }}</c-ui.breadcrumbs.item>{% else %}<c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ receipt.gang }}</c-ui.breadcrumbs.item>{% endif %}<c-ui.breadcrumbs.item :current="True">Recorded results</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
             <c-slot name="actions"><c-ui.button href="{% url 'n26-gang' gang.pk %}">View gang</c-ui.button></c-slot>
         </c-n26.page-header>
-        <div class="rounded-xl border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950"><p class="font-semibold">{% if revision.sequence > 1 %}Correction{% else %}Results{% endif %} applied</p><p class="mt-1 text-sm">Recorded{% if revision.actor %} by {{ revision.actor.username }}{% endif %} on {{ revision.created|date:'j F Y, H:i' }}. This receipt keeps the values recorded at that time.</p></div>
+        <c-ui.alert variant="success">
+            Recorded{% if revision.actor %} by {{ revision.actor.username }}{% endif %} on {{ revision.created|date:'j F Y, H:i' }}. This receipt keeps the values recorded at that time.
+        </c-ui.alert>
         <c-n26.section title="Gang results"><dl class="grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-muted">Credits adjustment</dt><dd class="mt-1 text-lg font-semibold tabular-nums">{{ receipt.credits_change|stringformat:'+d' }}¢</dd></div><div><dt class="text-muted">Credits balance after applying</dt><dd class="mt-1 text-lg font-semibold tabular-nums">{% if receipt.credits_after != None %}{{ receipt.credits_after }}¢{% else %}Untracked{% endif %}</dd></div>{% if receipt.reason %}<div class="sm:col-span-2"><dt class="text-muted">Reason</dt><dd class="mt-1">{{ receipt.reason }}</dd></div>{% endif %}</dl></c-n26.section>
         <c-n26.section title="Model results">
             <ul class="divide-y divide-box-border">
