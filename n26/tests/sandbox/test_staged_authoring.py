@@ -8,9 +8,11 @@ the import page. The player-facing effect of all this is pinned in
 ``test_staged_content.py``; here only the pages are.
 """
 
+import json
 import re
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.library.authoring import (
@@ -182,12 +184,13 @@ class TestTheListing:
         stage(create_weapon("Plasma caliver"))
         create_weapon("Lasgun")
         body = client.get("/n26/authoring/weapon/").content.decode()
-        assert badges(body) == ["Staged"]
-        # The in-page search reads the word, so typing it narrows to the
-        # staged rows.
-        collapsed = " ".join(body.split())
-        assert "haystack: 'plasma caliver staged'" in collapsed
-        assert collapsed.count("staged'") == 1
+        soup = BeautifulSoup(body, "html.parser")
+        host = soup.select_one("[data-react-module]")
+        rows = json.loads(soup.find(id=host["data-react-props"]).string)["rows"]
+        staged = [row for row in rows if row["staged"]]
+        assert [row["label"] for row in staged] == ["Plasma caliver"]
+        assert staged[0]["search"] == "plasma caliver staged"
+        assert len([row for row in rows if "staged" in row["search"]]) == 1
 
 
 class TestTheStagedContentPage:

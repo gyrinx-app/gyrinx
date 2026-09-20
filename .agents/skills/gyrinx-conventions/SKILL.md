@@ -85,7 +85,15 @@ These are the canonical conventions for the Gyrinx project. All new code should 
 - Custom template tags: `{% load custom_tags %}`, `{% safe_referer '/fallback/' %}`
 - Context variable naming: plural for lists, singular for detail, `has_`/`is_`/`can_` for booleans
 
-## URL-Driven UI (no client-side form mutation)
+## N26 interactive UI
+
+For `n26/`, load `.agents/skills/n26-react/SKILL.md`. New interactions use
+client-rendered React islands in Django pages, reusing the N26 design system.
+Migrate a touched Alpine interaction when bounded; leave unrelated static Cotton
+alone. Shareable state stays in URLs; transient state and drafts can stay in React.
+The no-JS requirement below applies to N23, not N26 islands.
+
+## N23 URL-Driven UI (no client-side form mutation)
 
 This is server-rendered HTML, not an SPA. Any UI state that determines **what
 fields/sections are visible**, **what choices a select has**, or **which

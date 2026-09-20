@@ -1853,6 +1853,15 @@ def leaf(request, kind):
             # can carry one.
             "bulk_attach": _carries_modifiers(kind),
             "retired": kind in RETIRED_KINDS,
+            "authoring_list": {
+                "rows": [{**row, "pk": str(row["pk"])} for row in rows],
+                "pluralLabel": model._meta.verbose_name_plural,
+                "bulkActionUrl": (
+                    reverse("authoring-attach-modifier", args=[kind])
+                    if _carries_modifiers(kind)
+                    else None
+                ),
+            },
         },
     )
 

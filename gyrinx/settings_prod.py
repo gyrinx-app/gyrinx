@@ -117,6 +117,13 @@ STORAGES = {
     },
 }
 
+# Django hashes ordinary static assets; Vite hashes the React module graph.
+# Module imports keep Vite's URLs so the browser shares one React instance.
+WHITENOISE_IMMUTABLE_FILE_TEST = (
+    r"\.[0-9a-f]{12}\."
+    r"|/n26/react/assets/[^/]+-[A-Za-z0-9_-]{8}\.(?:js|css)$"
+)
+
 # Google Cloud Storage configuration for media files
 # Apply GCS configuration
 gcs_config = configure_gcs_storage(STORAGES)

@@ -13,6 +13,8 @@ css/
 n23/core/static/core/css/styles.css
 n23/core/static/core/css/styles.css.map
 n26/designsystem/static/designsystem/app.css
+n26/core/static/n26/react/
+n26/frontend/generated/
 performance_view_queries_latest.json
 dist/
 /node_modules/

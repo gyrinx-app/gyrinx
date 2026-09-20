@@ -209,12 +209,18 @@ Concretely:
 - **Structures before renderers.** Every surface is built as a plain
   dataclass first (a card, a sheet, an equip view, a spec); rendering it is
   a separate, dumber step. Tests assert on the structure.
-- **UI state lives in the URL, with one sanctioned exception.** The
-  platform rule applies here too: anything that picks a form variant,
-  changes what the server renders, or should survive a reload belongs in
-  the URL. The exception: Alpine may narrow or reorder content already
-  on the page (filtering a table, a sidebar search) — presentation only,
-  nothing the server would render differently.
+- **React for interactive UI; Cotton for static UI.** Read
+  `.agents/skills/n26-react/SKILL.md` whenever adding or editing an interaction.
+  Client-rendered islands mount inside Django pages and use the existing design
+  system through `n26/frontend/ui/`. No SSR, hydration or client-side router.
+  Replace a touched Alpine interaction when it is a bounded change; otherwise
+  record the concrete dependency that prevented it. Do not add Alpine directives.
+  The CI ratchet allows existing ones to decrease, not increase.
+- **Shareable state lives in the URL.** Keep page identity, meaningful filters,
+  tabs and form variants linkable with working Back/Forward. React owns transient
+  search over loaded rows, selection, focus, open controls and unsaved form drafts.
+  Django remains authoritative for validation, permissions and domain operations.
+  See `docs/developing-gyrinx/react.md` for the migration sequence and API boundary.
 - **A `success` button ends a form; a `primary` button starts one.**
   Green is the commit — Save, Create, Add this thing. A control that
   opens a form or goes to one is `primary`, however creative the thing

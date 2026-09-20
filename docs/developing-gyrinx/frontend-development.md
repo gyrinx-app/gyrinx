@@ -1,6 +1,9 @@
 # Frontend Development
 
-Gyrinx follows a server-rendered approach using Django templates with Bootstrap 5 for styling. The frontend emphasizes simplicity, accessibility, and mobile-first design.
+N23 uses Django templates with Bootstrap 5. N26 uses Tailwind/Cotton for static
+UI and client-rendered React islands for interactions: see
+[Incremental React in N26](react.md) for the architecture and migration workflow.
+The Bootstrap and progressive-enhancement guidance below applies to N23.
 
 ## Technology Stack
 
@@ -172,8 +175,8 @@ npm run watch
 npm run css-lint
 ```
 
-`npm run css` builds one stylesheet per edition, and `npm run watch` rebuilds
-both when a template or stylesheet changes:
+`npm run css` builds one stylesheet per edition. `npm run build` also builds N26
+React assets; `npm run watch` rebuilds on frontend source changes:
 
 | Edition | Source                                | Output                                          |
 | ------- | ------------------------------------- | ----------------------------------------------- |
@@ -183,6 +186,12 @@ both when a template or stylesheet changes:
 Both outputs are generated: gitignored, built into the Docker image, and never
 committed. `./scripts/dev.sh` builds them on startup, so you only need to run
 `npm run css` by hand if you are not using it.
+
+N26's React source is typechecked with the repository-root `tsconfig.json`; Vite
+and Vitest are configured beside it. `npm run js` makes the production build.
+For local debugging, `npm run js:dev` emits unminified development-runtime
+assets and source maps for the island and shared runtime chunks. The development
+server and `npm run watch` use that mapped build automatically.
 
 n26's build scans the edition's templates for the classes it emits, which is why
 editing a template — not just a stylesheet — changes its output. The directories

@@ -37,3 +37,5 @@ Thumbs.db
 
 # Generated files
 content.egg-info/
+n26/core/static/n26/react/
+n26/frontend/generated/
