@@ -1708,6 +1708,21 @@ def _bearer_scope_matches(modifier):
     return isinstance(modifier.scope, TargetsMiniature) and not modifier.scope.narrows
 
 
+def _modifier_is_exclusive_to(modifier, pickable):
+    """Whether changing ``modifier`` can affect only ``pickable``."""
+    other_carriers = []
+    for relation in modifier._meta.related_objects:
+        if not relation.many_to_many:
+            continue
+        modifier_field = relation.field.m2m_reverse_field_name()
+        carrier_field = relation.field.m2m_field_name()
+        links = relation.through.objects.filter(**{f"{modifier_field}_id": modifier.pk})
+        if relation.related_model is type(pickable):
+            links = links.exclude(**{f"{carrier_field}_id": pickable.pk})
+        other_carriers.append(links.values(modifier_field))
+    return not other_carriers[0].union(*other_carriers[1:]).exists()
+
+
 def fighter_advancement_modifiers():
     """A filter for modifiers carried by the standard advancement table.
 
@@ -1867,6 +1882,7 @@ def _create_fighter_actions():
                 modifier
                 for modifier in pick.modifiers.filter(pack=pack)
                 if modifier.name.casefold() in folded_modifier_names
+                and _modifier_is_exclusive_to(modifier, pick)
             ),
             None,
         )
@@ -2306,7 +2322,7 @@ def _check_fighter_actions():
         or not slot.hidden
         or slot.assigned_to != Slot.WillBeAssignedTo.BEARER
         or ranks is None
-        or ranks.counter.name != XP_COUNTER
+        or ranks.counter.name.casefold() != XP_COUNTER.casefold()
         or ranks.counter.pack_id != pack.pk
         or ranks.counter.qualifier != ""
         or actions["Advancement"].rank_allowance_rule.counter_id != ranks.counter_id

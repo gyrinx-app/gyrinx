@@ -8,6 +8,7 @@ from n26.library.forms import generate_form
 from n26.library.models import (
     Action,
     ChangesStat,
+    Counter,
     Modifier,
     OffersChoice,
     Pickable,
@@ -723,6 +724,47 @@ def test_lowercase_advancement_modifier_is_reused():
     content.create()
 
     assert movement.modifiers.get() == modifier
+    assert content.status() == "complete"
+
+
+def test_reseeding_does_not_modify_a_shared_advancement_modifier(default_pack):
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    movement = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Movement")
+        .pickable
+    )
+    shared = movement.modifiers.get()
+    unrelated = Pickable.objects.create(
+        pack=default_pack,
+        name="Unrelated result",
+        qualifier="",
+        slot_type=movement.slot_type,
+    )
+    unrelated.modifiers.add(shared)
+    shared.targets_miniature.reach = shared.targets_miniature.Reach.EVERY_MODEL
+    shared.targets_miniature.save(update_fields=["reach"])
+
+    content.create()
+
+    shared.targets_miniature.refresh_from_db()
+    assert shared.targets_miniature.reach == shared.targets_miniature.Reach.EVERY_MODEL
+    assert unrelated.modifiers.get() == shared
+    assert movement.modifiers.get() != shared
+    assert content.status() == "complete"
+
+
+def test_lowercase_xp_counter_is_reused_without_duplication(default_pack):
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    xp = Counter.objects.get(pack=default_pack, name="XP", qualifier="")
+    xp.name = "xp"
+    xp.save(update_fields=["name", "modified"])
+
+    content.create()
+
+    assert Counter.objects.filter(pack=default_pack, name__iexact="XP").count() == 1
     assert content.status() == "complete"
 
 
