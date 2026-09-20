@@ -10,6 +10,7 @@ import {
     Callout,
     Grid,
     H1,
+    IconButton,
     LineChart,
     PieChart,
     Stack,
@@ -163,6 +164,7 @@ describe("Canvas runtime", () => {
                 <CardBody>Body</CardBody>
             </Card>,
         );
+        const iconButton = renderToStaticMarkup(<IconButton>×</IconButton>);
 
         expect(pie).toContain('r="25"');
         expect(pie).toContain('stroke-width="50"');
@@ -170,5 +172,6 @@ describe("Canvas runtime", () => {
         expect(card.indexOf(">Action</button>")).toBeGreaterThan(
             card.indexOf("</button>"),
         );
+        expect(iconButton).toContain('aria-label="Icon button"');
     });
 });

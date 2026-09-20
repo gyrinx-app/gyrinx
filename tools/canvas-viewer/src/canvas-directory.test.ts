@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
     listCanvases,
     resolveCanvasDirectory,
+    viteFsModuleUrl,
     workspaceSlug,
 } from "./canvas-directory";
 
@@ -20,6 +21,12 @@ afterEach(() => {
 describe("workspaceSlug", () => {
     it("matches the directory shape used by Cursor projects", () => {
         expect(workspaceSlug("/workspaces/gyrinx")).toBe("workspaces-gyrinx");
+        expect(workspaceSlug(String.raw`C:\Users\developer\gyrinx`)).toBe(
+            "C-Users-developer-gyrinx",
+        );
+        expect(viteFsModuleUrl(String.raw`C:\Users\developer\canvas.tsx`)).toBe(
+            "/@fs/C:/Users/developer/canvas.tsx",
+        );
     });
 });
 
@@ -47,7 +54,7 @@ describe("listCanvases", () => {
             "z.canvas.tsx",
         ]);
         expect(canvases[0]?.moduleUrl).toBe(
-            `/@fs${join(directory, "a.canvas.tsx")}`,
+            viteFsModuleUrl(join(directory, "a.canvas.tsx")),
         );
     });
 

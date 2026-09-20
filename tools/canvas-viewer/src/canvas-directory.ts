@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, win32 } from "node:path";
 
 export type CanvasEntry = {
     name: string;
@@ -11,7 +11,15 @@ export type CanvasEntry = {
 };
 
 export function workspaceSlug(workspacePath: string): string {
-    return resolve(workspacePath).replace(/^\/+/, "").replaceAll("/", "-");
+    const absolute = win32.isAbsolute(workspacePath)
+        ? win32.normalize(workspacePath)
+        : resolve(workspacePath);
+    return absolute.replace(/^[\\/]+/, "").replace(/[:\\/]+/g, "-");
+}
+
+export function viteFsModuleUrl(filePath: string): string {
+    const slashPath = filePath.replaceAll("\\", "/").replace(/^\/+/, "");
+    return `/@fs/${slashPath}`;
 }
 
 export function repositoryWorkspaceRoot(repositoryRoot: string): string {
@@ -62,7 +70,7 @@ export function listCanvases(directory: string): CanvasEntry[] {
             return {
                 name: entry.name,
                 path,
-                moduleUrl: `/@fs${path}`,
+                moduleUrl: viteFsModuleUrl(path),
                 mtimeMs,
             };
         })

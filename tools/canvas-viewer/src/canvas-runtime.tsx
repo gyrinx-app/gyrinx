@@ -1004,7 +1004,7 @@ export function IconButton({
             onClick={onClick}
             disabled={disabled}
             title={title}
-            aria-label={title}
+            aria-label={title ?? "Icon button"}
             style={style}
         >
             {children}
