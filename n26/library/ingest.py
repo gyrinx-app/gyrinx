@@ -3000,6 +3000,7 @@ class _Performer:
                 from_section=section,
                 label=offers["label"],
                 will_be_assigned_to=offers["will_be_assigned_to"],
+                mode=offers.get("mode", "select"),
             )
         places = planned.fields["places"]
         return authoring.ef_places(
@@ -3139,6 +3140,7 @@ def _imported(pack=None):
         SKILLS_SECTION,
         TRADING_POST_COLLECTION,
         VEHICLE_SUBTYPES,
+        fighter_advancement_modifiers,
         lasting_effect_status_modifiers,
         visit_contribution_counter,
     )
@@ -3167,6 +3169,10 @@ def _imported(pack=None):
     # The lasting-effect tables' own status effects are standard content
     # too, and they hold nothing an import made.
     spared |= lasting_effect_status_modifiers()
+    # Advancement results carry the modifiers that make their stat and skill
+    # rewards work.  They are foundations too, and deleting their typed scope
+    # or effect rows makes the seed incomplete even though its table survives.
+    spared |= fighter_advancement_modifiers()
     doomed = list(
         Modifier.objects.filter(**scope).exclude(spared).values_list("pk", flat=True)
     )

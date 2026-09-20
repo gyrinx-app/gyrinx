@@ -2378,20 +2378,22 @@ class TestClearing:
         assert Trait.objects.count() == 0
         # Every modifier goes with them, bar standard content's own,
         # which name nothing an import wrote: the visit contributions,
-        # and the lasting-effect tables' status effects. The
+        # the lasting-effect tables' status effects, and the fighter
+        # advancement results. The
         # founding-budget ones are not among those: each names the
         # fighter entries it reaches, so they belong to the import and go
         # with it.
         from n26.library.standard_content import (
             VISIT_CONTRIBUTION_MODIFIERS,
+            fighter_advancement_modifiers,
             lasting_effect_status_modifiers,
         )
 
         standing = Modifier.objects.all()
         assert sorted(
-            standing.exclude(lasting_effect_status_modifiers()).values_list(
-                "name", flat=True
-            )
+            standing.exclude(
+                lasting_effect_status_modifiers() | fighter_advancement_modifiers()
+            ).values_list("name", flat=True)
         ) == sorted(VISIT_CONTRIBUTION_MODIFIERS)
         assert standing.filter(lasting_effect_status_modifiers()).exists()
 
