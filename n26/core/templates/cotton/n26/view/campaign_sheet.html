@@ -1,10 +1,11 @@
 {% comment %}
-<c-n26.view.campaign-sheet> — Draws the campaign screen: header, budget, gangs, assets, players, battles, and the log.
+<c-n26.view.campaign-sheet> — Draws the campaign screen: header, budget, gangs, assets, battles, log, and players.
 
 Players, battles, and log are markup slots, not fields on the sheet.
 Declare those slots. An undeclared name resolves to the caller's variable of that name.
 assets_actions never appears in this file. The assets include reads it from the same context.
 The share slot fills the header's breadcrumb_actions.
+Player-management controls in players_actions appear beside the page actions.
 An empty edit_href draws the budget without a link. A None budget prints None set, which is distinct from zero.
 Add counter and Add label come from sheet hrefs. Extra gang controls go in gangs_actions.
 Figures, gangs, and assets live in n26/includes/campaign_*.html hosts. Only a page that holds every host may set htmx on its dialogs.
@@ -58,7 +59,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                 {% endif %}
                 <span class="mx-1.5 text-ink-400" aria-hidden="true">·</span>
                 {# Markup here, such as a user link. Empty falls back to the sheet name. #}
-                <span>arbitrated by {% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</span>
+                <span>Arbitrator: {% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</span>
             </c-slot>
 
             <c-slot name="actions">
@@ -81,8 +82,8 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                     {% endif %}
                 </c-n26.detail-list>
             </div>
-            {% if actions.strip %}
-                <div class="flex flex-wrap items-center justify-end gap-2 md:ml-auto md:shrink-0">{{ actions }}</div>
+            {% if actions.strip or players_actions.strip %}
+                <div class="flex flex-wrap items-center justify-end gap-2 md:ml-auto md:shrink-0">{{ players_actions }}{{ actions }}</div>
             {% endif %}
         </div>
 
@@ -111,16 +112,10 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     {# Reads assets_actions from this component context. Removing that prop empties the include. #}
     {% include "n26/includes/campaign_assets_section.html" %}
 
-    <div class="grid grid-cols-1 gap-8 xl:grid-cols-2">
-        <c-n26.section id="players" title="Players">
-            {% if players_actions.strip %}<c-slot name="actions">{{ players_actions }}</c-slot>{% endif %}
-            {{ players }}
-        </c-n26.section>
-        <c-n26.section id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} fought{% endif %}">
-            {% if battles_actions.strip %}<c-slot name="actions">{{ battles_actions }}</c-slot>{% endif %}
-            {{ battles }}
-        </c-n26.section>
-    </div>
+    <c-n26.section id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} recorded{% endif %}">
+        {% if battles_actions.strip %}<c-slot name="actions">{{ battles_actions }}</c-slot>{% endif %}
+        {{ battles }}
+    </c-n26.section>
 
     <c-n26.section id="log" title="Log">
         {% if log_count.strip %}<c-slot name="count">{{ log_count }}</c-slot>{% endif %}
@@ -130,5 +125,9 @@ log_count may be markup: the campaign page passes a host that a roll update redr
             </c-slot>
         {% endif %}
         {{ log }}
+    </c-n26.section>
+
+    <c-n26.section id="players" title="Players">
+        {{ players }}
     </c-n26.section>
 </div>

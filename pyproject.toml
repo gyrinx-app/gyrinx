@@ -86,7 +86,7 @@ dependencies = [
 # (used by `manage prodshell`) prefers IPython and silently falls back to the
 # plain shell without it. It was never declared, so once installs became
 # `uv sync` — which prunes anything the lock does not mention — a hand-installed
-# copy would disappear and the piped-query workflow in CLAUDE.md would quietly
+# copy would disappear and the piped-query workflow in AGENTS.md would quietly
 # stop working.
 dev = [
     "ipython==9.17.1",

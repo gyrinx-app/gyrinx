@@ -129,7 +129,7 @@ jobs:
             Use the available tools to understand the relevant parts of the codebase:
             - Search for related code using grep/rg
             - Read relevant files to understand current implementation
-            - Check CLAUDE.md for project conventions and patterns
+            - Check AGENTS.md for project conventions and patterns
 
             This context will help you ask better clarifying questions and provide more useful plans.
 
@@ -215,7 +215,7 @@ jobs:
             - If the issue is already perfectly clear and well-scoped, just apply labels silently
             - Focus on being genuinely useful, not just filling space
             - Remember this is a Django web app (server-rendered, not SPA)
-            - Check CLAUDE.md for project-specific patterns
+            - Check AGENTS.md for project-specific patterns
 
             ## Web Tool Usage Guidelines
 

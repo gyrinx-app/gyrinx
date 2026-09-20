@@ -576,7 +576,7 @@ class TestTheAuthoringPages:
         territory = dominion["territory"]
         assert f'name="part-{territory.pk}-label_singular"' in body
         assert 'value="Territory"' in body
-        assert "Territories · holding" in body
+        assert "Territories · transferable" in body
         assert "No Territories yet." in body
         assert f'name="add-asset-{territory.pk}-name"' in body
         assert f'name="add-asset-{territory.pk}-income"' in body

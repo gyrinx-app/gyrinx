@@ -10,16 +10,7 @@ user data always resolves. Narrowing is opt-in, and belongs only at the
 handful of *discovery and authoring* surfaces that ask "what may this user
 pick from?" — search, pickers, pack galleries, admin.
 
-This is deliberately the inverse of the earlier gyrinx design, where the
-default manager excluded pack content and every read path had to opt back in.
-That cost 260+ ``with_packs()`` / ``all_content()`` call sites, a bespoke
-prefetch-marker system layered on the ORM, through-table workarounds to dodge
-the excluding manager, a standing domain rule in CLAUDE.md, and a recurring
-bug class where a forgotten call site silently dropped a subscriber's content
-(gyrinx#1742). An anti-join rode along on 50 of 82 queries in the performance
-snapshot.
-
-Inverting it means:
+Default-open scoping means:
 
 - The "forgot pack context" bug class cannot occur — the failure mode of
   forgetting to filter is *showing too much on a discovery page*, which is
@@ -66,6 +57,16 @@ class ContentQuerySet(models.QuerySet):
     def in_default_pack(self):
         """Narrow to the N26 pack."""
         return self.filter(pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG)
+
+    def outside_campaign_packs(self):
+        """Drop content in a campaign's own pack.
+
+        A campaign pack is a player's working space. Staff listings and their
+        counts keep its content apart from the library they maintain. Test the
+        relationship rather than the pack's owner: a person may own another
+        pack that staff still author.
+        """
+        return self.filter(pack__campaign__isnull=True)
 
     def unarchived(self):
         """Drop archived content, and content in archived packs."""

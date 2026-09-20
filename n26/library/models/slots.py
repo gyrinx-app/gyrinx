@@ -73,6 +73,13 @@ class SlotType(Content):
             "Whether one holder may pick the same pickable for two slots of this type."
         ),
     )
+    is_lasting_effect = models.BooleanField(
+        default=False,
+        help_text=(
+            "Offer this type's carried slots when recording post-battle results, "
+            "such as lasting injuries or vehicle damage."
+        ),
+    )
 
     class Meta:
         verbose_name = "slot type"

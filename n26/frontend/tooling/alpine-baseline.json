@@ -63,6 +63,5 @@
   "n26/designsystem/templates/designsystem/theming.html": 11,
   "n26/designsystem/templates/designsystem/tokens.html": 5,
   "n26/library/templates/authoring/_composer.html": 10,
-  "n26/library/templates/authoring/_field.html": 4,
-  "n26/library/templates/authoring/modifiers.html": 7
+  "n26/library/templates/authoring/_field.html": 4
 }

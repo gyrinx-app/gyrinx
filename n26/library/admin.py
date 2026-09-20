@@ -27,6 +27,38 @@ from n26.library.models import (
 )
 
 
+class AuthoringPackFilter(admin.SimpleListFilter):
+    """Show staff-authored packs by default, with campaign content available."""
+
+    title = "pack"
+    parameter_name = "pack"
+
+    def lookups(self, request, model_admin):
+        packs = ContentPack.objects.filter(campaign__isnull=True)
+        return [
+            *((str(pack.pk), pack.name) for pack in packs),
+            ("campaign", "Campaign packs"),
+            ("all", "All packs"),
+        ]
+
+    def choices(self, changelist):
+        everything, *rest = super().choices(changelist)
+        yield {**everything, "display": "Authoring packs"}
+        yield from rest
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value is None:
+            return queryset.outside_campaign_packs()
+        if value == "campaign":
+            return queryset.filter(pack__campaign__isnull=False)
+        if value == "all":
+            return queryset
+        if value in {lookup for lookup, _label in self.lookup_choices}:
+            return queryset.filter(pack_id=value)
+        return queryset.none()
+
+
 @admin.register(ContentPack)
 class ContentPackAdmin(admin.ModelAdmin):
     list_display = ["name", "slug", "owner", "archived"]
@@ -67,7 +99,7 @@ class GangTypeForm(forms.ModelForm):
 class GangTypeAdmin(admin.ModelAdmin):
     form = GangTypeForm
     list_display = ["name", "pack", "archived"]
-    list_filter = ["pack", "archived"]
+    list_filter = [AuthoringPackFilter, "archived"]
     search_fields = ["name"]
     list_select_related = ["pack"]
 
@@ -82,7 +114,7 @@ class AssetTypeInline(admin.TabularInline):
 @admin.register(CampaignType)
 class CampaignTypeAdmin(admin.ModelAdmin):
     list_display = ["name", "pack", "archived"]
-    list_filter = ["pack", "archived"]
+    list_filter = [AuthoringPackFilter, "archived"]
     search_fields = ["name"]
     inlines = [AssetTypeInline]
     list_select_related = ["pack"]
@@ -92,7 +124,7 @@ class CampaignTypeAdmin(admin.ModelAdmin):
 class AssetAdmin(admin.ModelAdmin):
     list_display = ["name", "asset_type", "pack", "archived"]
     list_filter = [
-        "pack",
+        AuthoringPackFilter,
         "asset_type__campaign_type",
         "asset_type__ownership",
         "archived",
@@ -127,7 +159,12 @@ class AssetTableEntryInline(admin.TabularInline):
 @admin.register(AssetTable)
 class AssetTableAdmin(admin.ModelAdmin):
     list_display = ["name", "asset_type", "dice", "pack", "archived"]
-    list_filter = ["pack", "asset_type__campaign_type", "dice", "archived"]
+    list_filter = [
+        AuthoringPackFilter,
+        "asset_type__campaign_type",
+        "dice",
+        "archived",
+    ]
     search_fields = ["name", "qualifier"]
     list_select_related = ["pack", "asset_type", "asset_type__campaign_type"]
     inlines = [AssetTableEntryInline]
@@ -151,7 +188,13 @@ class AssetTableAdmin(admin.ModelAdmin):
 @admin.register(Stat)
 class StatAdmin(admin.ModelAdmin):
     list_display = ["short_name", "full_name", "field_name", "pack"]
-    list_filter = ["pack", "is_inches", "is_target", "is_modifier", "is_inverted"]
+    list_filter = [
+        AuthoringPackFilter,
+        "is_inches",
+        "is_target",
+        "is_modifier",
+        "is_inverted",
+    ]
     search_fields = ["short_name", "full_name", "field_name"]
     list_select_related = ["pack"]
 
@@ -166,7 +209,7 @@ class StatlineTypeStatInline(admin.TabularInline):
 @admin.register(StatlineType)
 class StatlineTypeAdmin(admin.ModelAdmin):
     list_display = ["name", "pack"]
-    list_filter = ["pack"]
+    list_filter = [AuthoringPackFilter]
     search_fields = ["name"]
     inlines = [StatlineTypeStatInline]
     list_select_related = ["pack"]
@@ -175,7 +218,7 @@ class StatlineTypeAdmin(admin.ModelAdmin):
 @admin.register(ProfileType)
 class ProfileTypeAdmin(admin.ModelAdmin):
     list_display = ["name", "statline_type", "pack"]
-    list_filter = ["pack", "statline_type"]
+    list_filter = [AuthoringPackFilter, "statline_type"]
     search_fields = ["name"]
     list_select_related = ["pack", "statline_type"]
 
@@ -189,6 +232,7 @@ class StatlineStatInline(admin.TabularInline):
 @admin.register(Statline)
 class StatlineAdmin(admin.ModelAdmin):
     list_display = ["profile", "pack"]
+    list_filter = [AuthoringPackFilter]
     inlines = [StatlineStatInline]
     list_select_related = ["profile", "pack"]
 
@@ -209,8 +253,20 @@ class StatlineInline(admin.StackedInline):
 
 @admin.register(SlotType)
 class SlotTypeAdmin(admin.ModelAdmin):
-    list_display = ["name", "plural_name", "allows_repeats", "pack", "archived"]
-    list_filter = ["pack", "allows_repeats", "archived"]
+    list_display = [
+        "name",
+        "plural_name",
+        "allows_repeats",
+        "is_lasting_effect",
+        "pack",
+        "archived",
+    ]
+    list_filter = [
+        AuthoringPackFilter,
+        "allows_repeats",
+        "is_lasting_effect",
+        "archived",
+    ]
     search_fields = ["name"]
     list_select_related = ["pack"]
 
@@ -218,7 +274,7 @@ class SlotTypeAdmin(admin.ModelAdmin):
 @admin.register(Pickable)
 class PickableAdmin(admin.ModelAdmin):
     list_display = ["name", "slot_type", "qualifier", "pack", "archived"]
-    list_filter = ["pack", "slot_type", "archived"]
+    list_filter = [AuthoringPackFilter, "slot_type", "archived"]
     search_fields = ["name", "qualifier"]
     list_select_related = ["pack", "slot_type"]
 
@@ -236,7 +292,7 @@ class PicklistMemberInline(admin.TabularInline):
 @admin.register(Picklist)
 class PicklistAdmin(admin.ModelAdmin):
     list_display = ["name", "slot_type", "pack", "archived"]
-    list_filter = ["pack", "slot_type", "archived"]
+    list_filter = [AuthoringPackFilter, "slot_type", "archived"]
     search_fields = ["name"]
     inlines = [PicklistMemberInline]
     list_select_related = ["pack", "slot_type"]
@@ -244,10 +300,17 @@ class PicklistAdmin(admin.ModelAdmin):
 
 @admin.register(PicklistMember)
 class PicklistMemberAdmin(admin.ModelAdmin):
-    list_display = ["picklist", "pickable", "label_override", "position", "archived"]
-    list_filter = ["picklist__slot_type", "archived"]
+    list_display = [
+        "picklist",
+        "pickable",
+        "label_override",
+        "position",
+        "pack",
+        "archived",
+    ]
+    list_filter = [AuthoringPackFilter, "picklist__slot_type", "archived"]
     search_fields = ["picklist__name", "pickable__name"]
-    list_select_related = ["picklist", "pickable"]
+    list_select_related = ["picklist", "pickable", "pack"]
 
 
 @admin.register(Slot)
@@ -264,7 +327,13 @@ class SlotAdmin(admin.ModelAdmin):
         "pack",
         "archived",
     ]
-    list_filter = ["pack", "slot_type", "assigned_to", "hidden", "archived"]
+    list_filter = [
+        AuthoringPackFilter,
+        "slot_type",
+        "assigned_to",
+        "hidden",
+        "archived",
+    ]
     search_fields = ["name", "label"]
     list_select_related = ["pack", "slot_type", "picklist"]
 
@@ -313,7 +382,7 @@ class InterstitialSlotInline(admin.TabularInline):
 @admin.register(Interstitial)
 class InterstitialAdmin(admin.ModelAdmin):
     list_display = ["name", "title", "skippable", "position", "pack", "archived"]
-    list_filter = ["pack", "skippable", "archived"]
+    list_filter = [AuthoringPackFilter, "skippable", "archived"]
     search_fields = ["name", "title"]
     inlines = [InterstitialSlotInline]
     list_select_related = ["pack"]
@@ -323,7 +392,7 @@ class InterstitialAdmin(admin.ModelAdmin):
 class InterstitialSlotAdmin(admin.ModelAdmin):
     form = InterstitialSlotForm
     list_display = ["interstitial", "slot", "position", "pack", "staged", "archived"]
-    list_filter = ["interstitial", "staged", "archived"]
+    list_filter = [AuthoringPackFilter, "interstitial", "staged", "archived"]
     search_fields = ["interstitial__name", "slot__name"]
     list_select_related = ["interstitial", "slot", "pack"]
 
@@ -338,7 +407,12 @@ class ProfileAdmin(admin.ModelAdmin):
         "pack",
         "archived",
     ]
-    list_filter = ["pack", "profile_type", "gang_type", "archived"]
+    list_filter = [
+        AuthoringPackFilter,
+        "profile_type",
+        "gang_type",
+        "archived",
+    ]
     search_fields = ["name"]
     inlines = [StatlineInline]
     list_select_related = ["pack", "profile_type", "gang_type"]

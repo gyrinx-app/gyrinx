@@ -19,10 +19,12 @@ from n26.core.models.campaign import (
     CampaignParticipant,
 )
 from n26.core.models.counter_tracking import CounterTracking
+from n26.core.models.crew import BattleCrew, CrewMember
 from n26.core.models.dismissed_offer import DismissedOffer
 from n26.core.models.gang import Gang
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
 from n26.core.models.miniature import Miniature
+from n26.core.models.post_battle import PostBattleReport, PostBattleRevision
 from n26.core.models.print_config import PrintConfig
 from n26.core.models.settings import (
     SETTING_GROUPS,
@@ -45,6 +47,7 @@ __all__ = [
     "Base",
     "BuiltInPropagationTask",
     "Battle",
+    "BattleCrew",
     "Campaign",
     "CampaignAsset",
     "CampaignEvent",
@@ -53,12 +56,15 @@ __all__ = [
     "ChosenProfileOption",
     "CounterValue",
     "CounterTracking",
+    "CrewMember",
     "DismissedOffer",
     "Gang",
     "LedgerEntry",
     "LedgerEvent",
     "Miniature",
     "Owned",
+    "PostBattleReport",
+    "PostBattleRevision",
     "PrintConfig",
     "ProfileRole",
     "Reason",

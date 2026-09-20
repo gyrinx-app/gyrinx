@@ -22,7 +22,7 @@ The grammar (design/authoring-build-plan.md):
 
 Everything is pack-aware: omit ``pack`` and it lands in the default
 pack, exactly as admin ingestion would. Nothing here stores rules text —
-see CLAUDE.md.
+see n26/library/models/AGENTS.md.
 """
 
 import re
@@ -294,8 +294,8 @@ def create_asset_table(
         raise ValidationError("A table needs a name.")
     if not asset_type.is_holding:
         raise ValidationError(
-            f"{asset_type} is a Possession asset type: every gang has its own, "
-            "so there is nothing to roll for. A table lists a Holding asset type."
+            f"{asset_type} is an inherent asset type: every gang has its own, "
+            "so there is nothing to roll for. A table lists a transferable asset type."
         )
     giver = given_by if given_by is not None else asset_type.campaign_type
     pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
@@ -636,10 +636,12 @@ def stage_all(rows):
 
 @guarded_write
 def put_everything_live():
-    """Release every staged row at once, in one transaction — so a new gang
-    type and the fighters and lists written for it reach players together
-    rather than in whatever order an author clicks. Returns how many rows
-    went live.
+    """Release every staged authoring row at once, in one transaction.
+
+    A new gang type and the fighters and lists written for it reach players
+    together rather than in whatever order an author clicks. Campaign packs
+    are a player's working space, outside this staff release. Returns how many
+    rows went live.
     """
     from django.utils import timezone
 
@@ -648,7 +650,9 @@ def put_everything_live():
     now = timezone.now()
     with transaction.atomic():
         return sum(
-            model.objects.filter(staged=True).update(staged=False, modified=now)
+            model.objects.outside_campaign_packs()
+            .filter(staged=True)
+            .update(staged=False, modified=now)
             for model in content_kinds()
         )
 
@@ -1158,7 +1162,9 @@ def rank_allowance_rule(counter, **kwargs):
 
 
 @guarded_write
-def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
+def create_slot_type(
+    name, plural_name="", allows_repeats=True, is_lasting_effect=False, **kwargs
+):
     """What is chosen — Gang Legacy, Specialisation, Path.
 
     The first thing built: its pickables, its picklists and the slots
@@ -1170,6 +1176,7 @@ def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
         name=name,
         plural_name=plural_name,
         allows_repeats=allows_repeats,
+        is_lasting_effect=is_lasting_effect,
         **kwargs,
     )
 

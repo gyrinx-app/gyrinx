@@ -46,6 +46,7 @@ MONEY = {
     Kind.REPRICED,
     Kind.AMENDED,
     Kind.TRANSFERRED,
+    Kind.INCOME,
 }
 
 #: The kinds that are a campaign's asset coming to the gang or leaving
@@ -182,6 +183,7 @@ def _events(gang, window=None):
         "miniature",
         "actor",
         "action_record__fighter",
+        "post_battle_revision",
         "campaign",
         "campaign_asset__asset__asset_type",
         "counterpart",
@@ -817,6 +819,26 @@ def _tell(e, row, alive):
             if e.credits_delta > 0:
                 return (Span(f"paid {figure} to {other}"), *because), "money"
             return (Span(f"received {figure} from {other}"), *because), "money"
+        case Kind.INCOME:
+            amount = -e.credits_delta
+            wording = (
+                f"received {amount}¢"
+                if amount >= 0
+                else f"corrected income by {amount}¢"
+            )
+            because = (Span(f" — {e.note}"),) if e.note else ()
+            return (Span(wording), *because), "money"
+        case Kind.POST_BATTLE:
+            revision = e.post_battle_revision
+            href = (
+                reverse(
+                    "n26-post-battle-revision",
+                    args=[revision.report_id, revision.sequence],
+                )
+                if revision
+                else ""
+            )
+            return (Span("recorded "), Span("post-battle results", href)), "gang"
         case Kind.RENAMED:
             was, _, now = e.note.rpartition(" → ")
             # About no model, so about the gang: the same act one level up.
@@ -1064,6 +1086,8 @@ _NOTE_IS_MACHINERY = {
     Kind.CLONED,
     Kind.STATUS_SET,
     Kind.TRANSFERRED,
+    Kind.INCOME,
+    Kind.POST_BATTLE,
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,
     Kind.TALLIED,
@@ -1278,6 +1302,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
             "miniature",
             "actor",
             "action_record__fighter",
+            "post_battle_revision",
             "gang",
             "campaign",
             "campaign_asset__asset__asset_type",
@@ -1432,10 +1457,26 @@ def _tell_campaign(e):
                     return (Span("declined the invitation"),), "campaign"
             return (Span(f"removed {who} from the campaign"),), "campaign"
         case kinds.BATTLE_RECORDED:
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            if e.note:
+                return (Span(f"recorded {e.note}", href),), "campaign"
             when = e.battle.date if e.battle else None
             if when:
-                return (Span(f"recorded a battle fought on {when:%-d %B}"),), "campaign"
+                return (
+                    Span(f"recorded a battle fought on {when:%-d %B}", href),
+                ), "campaign"
             return (Span("recorded a battle"),), "campaign"
+        case kinds.BATTLE_EDITED:
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            return (Span(f"edited the battle: {e.note}", href),), "campaign"
         case kinds.BATTLE_REMOVED:
             if e.note:
                 return (Span(f"removed the battle of {e.note}"),), "campaign"

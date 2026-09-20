@@ -85,7 +85,7 @@
 
 2. **Feedback pattern consolidation** — 13 distinct patterns across error/warning/info/success. Changing these affects user-facing error flows. Needs careful testing per-form.
 
-3. **Alert → callout migration** — CLAUDE.md says "avoid alerts" but 30+ templates use `alert-*`. Migration requires verifying each one works correctly with the replacement pattern.
+3. **Alert → callout migration** — the project instructions say "avoid alerts" but 30+ templates use `alert-*`. Migration requires verifying each one works correctly with the replacement pattern.
 
 4. **Print styles** — `print.scss` + `base_print.html` + `zoom: 50%` (non-standard). Any design system changes must preserve print output.
 

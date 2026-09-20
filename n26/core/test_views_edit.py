@@ -734,8 +734,7 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        # Two of these are flag readings — whether the reader is offered
-        # the model's status, and whether they see staged content — each
+        # Three queries check flags for status, staged content and Model cards, each
         # taken once for the page rather than once per model, so the count
         # below still holds however large the gang grows. One more reads
         # which offers the owner has dismissed — the whole gang's in one
@@ -743,7 +742,7 @@ class TestTheQueryBudget:
         # state for the page notice.
         # One reads whether counter tracking is active. Earned action uses,
         # active drafts and completed history are three bounded reads.
-        assert self.measure(client, edit_url(vex)) == 49
+        assert self.measure(client, edit_url(vex)) == 50
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline

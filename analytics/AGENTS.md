@@ -1,4 +1,4 @@
-# Analytics - CLAUDE.md
+# Analytics warehouse
 
 This directory contains tools for analyzing production data locally.
 

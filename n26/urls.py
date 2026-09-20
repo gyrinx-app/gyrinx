@@ -67,6 +67,31 @@ urlpatterns = [
         name="n26-campaign-add-battle",
     ),
     path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/",
+        views.battle,
+        name="n26-battle",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/edit/",
+        views.edit_battle,
+        name="n26-campaign-edit-battle",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/",
+        views.edit_crew,
+        name="n26-battle-crew",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/cards/",
+        views.crew_sheet,
+        name="n26-battle-crew-sheet",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/results/",
+        views.battle_report,
+        name="n26-battle-report",
+    ),
+    path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/remove/",
         views.remove_battle,
         name="n26-campaign-remove-battle",
@@ -294,6 +319,49 @@ urlpatterns = [
     ),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
+    path(
+        "gangs/<str:pk>/post-battle/",
+        views.gang_post_battle,
+        name="n26-gang-post-battle",
+    ),
+    path(
+        "post-battle/<str:pk>/", views.post_battle_editor, name="n26-post-battle-editor"
+    ),
+    path(
+        "post-battle/<str:pk>/receipt/",
+        views.post_battle_receipt,
+        name="n26-post-battle-receipt",
+    ),
+    path(
+        "post-battle/<str:pk>/receipt/<int:sequence>/",
+        views.post_battle_receipt,
+        name="n26-post-battle-revision",
+    ),
+    path(
+        "post-battle/<str:pk>/correct/",
+        views.correct_post_battle,
+        name="n26-post-battle-correct",
+    ),
+    path(
+        "gangs/<str:pk>/models/<str:miniature_pk>/cards/",
+        views.model_cards,
+        name="n26-model-cards",
+    ),
+    path(
+        "gangs/<str:pk>/models/<str:miniature_pk>/cards/new/",
+        views.edit_model_card,
+        name="n26-model-card-create",
+    ),
+    path(
+        "gangs/<str:pk>/models/<str:miniature_pk>/cards/<str:set_pk>/edit/",
+        views.edit_model_card,
+        name="n26-model-card-edit",
+    ),
+    path(
+        "gangs/<str:pk>/models/<str:miniature_pk>/cards/<str:set_pk>/remove/",
+        views.remove_model_card,
+        name="n26-model-card-remove",
+    ),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
     # Before the kind routes: "docs" and "recipes" would read as kind slugs.

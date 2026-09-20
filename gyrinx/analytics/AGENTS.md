@@ -1,4 +1,4 @@
-# Analytics App - CLAUDE.md
+# Analytics application
 
 This file provides guidance specific to the analytics app.
 

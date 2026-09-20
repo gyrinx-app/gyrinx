@@ -1,0 +1,75 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation react %}
+{% block head_title %}Choose crew — {{ gang.name }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="w-full space-y-6">
+        <c-n26.page-header title="Choose crew" lead="{{ gang.name }} · {{ battle.title }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-battle' campaign.pk battle.pk %}">{{ battle.title }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Choose crew
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <p class="text-sm text-muted">Select the starting crew and any reinforcements. Select one equipment set for each model. Reinforcements are not automatically marked as having taken part.</p>
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            {{ form.revision }}
+            <c-ui.error :form="form" name="__all__" />
+            {% if form.errors %}<p class="text-sm text-red-700 dark:text-red-300"
+   role="alert">Check the details below. Your selections have been kept.</p>{% endif %}
+            <section class="border border-box-border bg-surface p-4"
+                     aria-labelledby="crew-draw-heading">
+                <h2 id="crew-draw-heading" class="mb-3 font-semibold">Randomly add models</h2>
+                <div class="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap">
+                    <div class="min-w-0 sm:w-28">
+                        <c-ui.field label="Number"
+                                    error="x"
+                                    :form="form"
+                                    name="random_count"
+                                    for="draw-count">
+                            <c-ui.input type="number"
+                                        id="draw-count"
+                                        name="random_count"
+                                        min="1"
+                                        value="{{ form.random_count.value|default:'' }}" />
+                        </c-ui.field>
+                    </div>
+                    <div class="min-w-0 sm:w-64">
+                        <c-ui.field label="Draw into"
+                                    error="x"
+                                    :form="form"
+                                    name="random_role"
+                                    for="draw-role">
+                            <c-ui.select.native id="draw-role" name="random_role" placeholder="">
+                                {% for value, label in form.fields.random_role.choices %}<option value="{{ value }}"
+        {% if value == form.random_role.value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                            </c-ui.select.native>
+                        </c-ui.field>
+                    </div>
+                    <c-ui.button type="submit"
+                                 name="action"
+                                 value="draw"
+                                 class="col-span-2 w-full sm:w-auto">
+                        <span class="inline-flex items-center gap-2">
+                            <c-n26.icon name="dices" class="size-4" />
+                        Draw and save draft</span>
+                    </c-ui.button>
+                </div>
+                <p class="mt-3 text-xs text-muted">The draw adds to the selections below. Only available, unselected models enter the draw. An equipment set is drawn for each eligible model before the models are drawn.</p>
+                {% if crew.draw_number %}<p class="mt-2 text-xs text-muted">{{ crew.draw_number }} saved draw{{ crew.draw_number|pluralize }}. Reloading this page does not draw again.</p>{% endif %}
+            </section>
+            {% react_island "crew-picker" crew_picker %}
+        </form>
+    </div>
+{% endblock %}

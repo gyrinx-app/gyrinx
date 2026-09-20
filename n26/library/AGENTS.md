@@ -1,4 +1,4 @@
-# CLAUDE.md — n26/library
+# N26 content library
 
 Game content, and the tools for writing it. Everything an author can put
 in the library flows through one chain, and nothing skips a layer:
@@ -16,58 +16,14 @@ offers.py        what a kind declares about itself; forms derive the rest
 artwork.py       uploaded drawings: binds this edition's folder onto gyrinx.artwork
 ```
 
-Read `models/base.py` (107 lines) first — it states the app's governing
-philosophy. Then read `models/assignable.py` and `authoring.py`.
+Read `authoring.py` before changing write flows. Read
+[`models/AGENTS.md`](models/AGENTS.md) before changing library models or
+modifiers.
 
-## The model rules
+## Library models and modifiers
 
-- **Managers do no implicit filtering.** `Profile.objects.all()` returns
-  every pack's content, archived included. Narrowing is opt-in
-  (`in_packs()`, `unarchived()`, `selectable(packs)`). Never add
-  `archived=False` to a read path a subscriber sees; discovery surfaces
-  use `selectable()`.
-- **`Assignable` is a mixin, not a table.** Each kind is its own model.
-  A new kind is: `class X(Content, Assignable[, UsableBy][, Optioned])`,
-  a class-level `family = Family.…`, a `Meta` with verbose names and
-  ordering, the standard constraints (unique per pack on lowercased
-  name + qualifier; exclusive items carry no trade-point price) — and a
-  column on `n26.core`'s `Assignment` plus an entry in
-  `ASSIGNABLE_FIELDS`. Without all of these the app fails at startup.
-- **Help text lives on the model field, nowhere else.** Specs reference
-  it (`source=(Model, "field")`); forms read it through the spec. Model
-  docstrings are shown to authors on the authoring pages — write them
-  as product copy: a plain definition first, detail after.
-- **No rules text, ever.** Names, annotations, and numbers only; the
-  book's wording is copyrighted.
-- A `qualifier` is author-facing only — it tells two same-named things
-  apart in authoring screens and must never reach a player. A test
-  enforces this.
-- Validation is layered on purpose: database constraints for
-  exactly-one invariants; `clean()` for cross-row sense checks; form
-  errors in words for anything an author can trip. `save()` is for
-  canonicalising values only (it runs for importers too, which never
-  call `full_clean`) — never for validation.
-- Migrations are hand-edited and descriptively named. Prefer renames
-  over drop-and-add so authored data survives. `default_pack_id` is
-  referenced by name in migrations and must stay importable from
-  `models/pack.py`. The app label is pinned to `library`. Do not change
-  either.
-
-## Modifiers
-
-A modifier is one **scope** (who it reaches) plus one **effect** (what it
-does), each a small typed row with an exactly-one constraint. Narrowing
-lives in **condition rows** attached to the scope. The grammar:
-
-- Scopes compile to the shared selector algebra in `n26.core.select`
-  via `as_selector()`.
-- Effects split by when they happen: computed at read time (`ef_*`
-  verbs: adds, removes, changes a stat, offers a choice, places a
-  category) versus written at purchase time (`op_*` verbs, for example
-  adds a model).
-- A new condition model must be named in its scope's `CONDITIONS`
-  tuple, or its rows are stored but never read (a startup check
-  catches this).
+The model manager, validation, migration and modifier rules live in
+[`models/AGENTS.md`](models/AGENTS.md), where they apply to the relevant files.
 
 ## Extending the authoring surface
 
@@ -198,15 +154,3 @@ saying what was kept. The one exception inside a built-ins set is the
 fighter's equipment list, which is access rather than kit and comes one
 at a time — naming a list replaces whichever the set held
 (`REPLACED_BUILT_INS`). A blank cell still replaces nothing.
-
-## Comments
-
-A comment states a constraint, an invariant, or a consequence the code
-cannot show — briefly, in plain words. It must make sense to a reader
-who has never seen any earlier version of this code: no people, no
-tickets or PRs, no "graduated from", no "used to be", no "for now".
-Longer reasoning belongs in the module docstring or a `n26/design/`
-doc, cited by filename. Never cite a design doc's section numbers in
-user-visible messages. The examples to imitate:
-`models/statline.py` (why canonicalising happens in `save`),
-`models/pack.py` (why a function must stay importable).

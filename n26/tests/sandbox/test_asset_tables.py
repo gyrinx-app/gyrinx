@@ -201,7 +201,7 @@ class TestTheCoverageCheck:
 
 class TestWhatATableRefuses:
     def test_a_table_on_a_possession_asset_type_is_refused_in_words(self, dominion):
-        with pytest.raises(ValidationError, match="Possession asset type"):
+        with pytest.raises(ValidationError, match="inherent asset type"):
             create_asset_table("Settlements", dominion["settlement"])
         table = AssetTable(name="Settlements", asset_type=dominion["settlement"])
         with pytest.raises(ValidationError, match="nothing to roll for"):

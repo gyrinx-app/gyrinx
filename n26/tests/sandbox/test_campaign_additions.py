@@ -29,7 +29,17 @@ from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
-from n26.library.authoring import add_asset_type, create_asset, create_campaign_type
+from n26.library.authoring import (
+    add_asset_type,
+    create_asset,
+    create_campaign_type,
+    create_counter,
+    create_pack,
+    create_pickable,
+    create_picklist,
+    create_slot,
+    create_slot_type,
+)
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.forms import cross_pack_refusal
 from n26.library.models import (
@@ -37,10 +47,12 @@ from n26.library.models import (
     AssetType,
     CampaignType,
     Counter,
+    Modifier,
     Pickable,
     Slot,
     SlotType,
 )
+from n26.library.staged import staged_count, staged_rows
 from n26.tests.sandbox.actions import (
     add_asset,
     add_campaign_asset_type,
@@ -909,6 +921,177 @@ class TestTheCampaignsOwnTypeIsInvisible:
         client.force_login(arbitrator)
         body = client.get("/n26/campaigns/new/").content.decode()
         assert f'value="{campaign.additions.pk}"' not in body
+
+
+class TestCampaignContentIsOutsideAuthoring:
+    """A campaign's pack stays with its campaign, outside staff authoring."""
+
+    @pytest.fixture(autouse=True)
+    def flag(self, open_to_everyone):
+        return open_to_everyone
+
+    def test_a_labels_four_kinds_are_absent_from_their_listings(
+        self, admin_client, campaign
+    ):
+        campaign_slot = add_campaign_label(
+            campaign, "Alignment", ["Law Abiding", "Outlaw"]
+        )
+        campaign_rows = {
+            "slot-type": campaign_slot.slot_type,
+            "pickable": Pickable.objects.get(pack=campaign.pack, name="Law Abiding"),
+            "picklist": campaign_slot.picklist,
+            "slot": campaign_slot,
+        }
+
+        book_type = create_slot_type("Book label")
+        book_pick = create_pickable("Book option", book_type)
+        book_list = create_picklist("Book options", book_type, members=[book_pick])
+        book_rows = {
+            "slot-type": book_type,
+            "pickable": book_pick,
+            "picklist": book_list,
+            "slot": create_slot("Book label", book_type, book_list),
+        }
+
+        for kind, campaign_row in campaign_rows.items():
+            body = admin_client.get(
+                reverse("authoring-leaf", args=[kind])
+            ).content.decode()
+            assert reverse("authoring-detail", args=[kind, book_rows[kind].pk]) in body
+            assert reverse("authoring-detail", args=[kind, campaign_row.pk]) not in body
+
+        menu = admin_client.get(reverse("authoring-index")).content.decode()
+        assert "Book label" in menu
+        assert "Alignment" not in menu
+
+    def test_a_campaign_row_still_opens_directly_but_is_not_a_sibling(
+        self, admin_client, campaign
+    ):
+        campaign_type = add_campaign_label(campaign, "Alignment", ["Outlaw"]).slot_type
+        first = create_slot_type("First book label")
+        second = create_slot_type("Second book label")
+
+        body = admin_client.get(
+            reverse("authoring-detail", args=["slot-type", first.pk])
+        ).content.decode()
+        assert reverse("authoring-detail", args=["slot-type", second.pk]) in body
+        assert (
+            reverse("authoring-detail", args=["slot-type", campaign_type.pk])
+            not in body
+        )
+        assert (
+            admin_client.get(
+                reverse("authoring-detail", args=["slot-type", campaign_type.pk])
+            ).status_code
+            == 200
+        )
+
+    def test_an_owned_non_campaign_pack_stays_in_authoring(
+        self, admin_client, arbitrator
+    ):
+        pack = create_pack("House rules", owner=arbitrator)
+        slot_type = create_slot_type("House label", pack=pack)
+
+        body = admin_client.get(
+            reverse("authoring-leaf", args=["slot-type"])
+        ).content.decode()
+
+        assert reverse("authoring-detail", args=["slot-type", slot_type.pk]) in body
+
+    def test_campaign_counters_and_income_modifiers_are_absent(
+        self, admin_client, campaign, core, old_ruins
+    ):
+        campaign_counter = add_campaign_counter(campaign, "Meat", opening=3)
+        book_counter = create_counter("Book counter")
+        territory = core.asset_types.get(label_singular="Territory")
+        create_campaign_asset(campaign, territory, "Campaign mine", income=15)
+        campaign_modifier = Modifier.objects.get(pack=campaign.pack)
+        book_modifier = Modifier.objects.get(pack=old_ruins.pack)
+
+        body = admin_client.get(
+            reverse("authoring-leaf", args=["counter"])
+        ).content.decode()
+        assert reverse("authoring-detail", args=["counter", book_counter.pk]) in body
+        assert (
+            reverse("authoring-detail", args=["counter", campaign_counter.pk])
+            not in body
+        )
+
+        body = admin_client.get(reverse("authoring-modifiers")).content.decode()
+        assert reverse("authoring-modifier", args=[book_modifier.pk]) in body
+        assert reverse("authoring-modifier", args=[campaign_modifier.pk]) not in body
+
+        owned_pack = create_pack("House rules", owner=campaign.owner)
+        owned_counter = create_counter("House counter", pack=owned_pack)
+        response = admin_client.post(
+            reverse("authoring-detail", args=["counter", owned_counter.pk]),
+            {"act": "attach", "modifier": str(campaign_modifier.pk)},
+        )
+        assert response.status_code == 404
+        assert not owned_counter.modifiers.exists()
+
+    def test_admin_defaults_to_authoring_packs_and_can_show_campaign_packs(
+        self, admin_client, campaign
+    ):
+        campaign_type = add_campaign_label(campaign, "Alignment", ["Outlaw"]).slot_type
+        book_type = create_slot_type("Book label")
+        campaign_url = reverse("admin:library_slottype_change", args=[campaign_type.pk])
+        book_url = reverse("admin:library_slottype_change", args=[book_type.pk])
+
+        body = admin_client.get("/admin/library/slottype/").content.decode()
+        assert book_url in body
+        assert campaign_url not in body
+        assert "Authoring packs" in body
+
+        body = admin_client.get(
+            "/admin/library/slottype/", {"pack": "campaign"}
+        ).content.decode()
+        assert campaign_url in body
+        assert book_url not in body
+        assert admin_client.get(campaign_url).status_code == 200
+
+    def test_staged_authoring_leaves_campaign_content_alone(
+        self, admin_client, campaign
+    ):
+        add_campaign_label(campaign, "Alignment", ["Outlaw"])
+        campaign_pick = Pickable.objects.get(pack=campaign.pack, name="Outlaw")
+        book_type = create_slot_type("Book label")
+        book_pick = create_pickable("Book option", book_type)
+        campaign_url = reverse("authoring-detail", args=["pickable", campaign_pick.pk])
+        book_url = reverse("authoring-detail", args=["pickable", book_pick.pk])
+
+        assert admin_client.post(campaign_url, {"act": "stage"}).status_code == 302
+        assert admin_client.post(book_url, {"act": "stage"}).status_code == 302
+        assert staged_count() == 1
+        assert staged_rows() == [(Pickable, [book_pick])]
+
+        body = admin_client.get(reverse("authoring-staged")).content.decode()
+        assert book_url in body
+        assert campaign_url not in body
+        delete_page = admin_client.get(reverse("authoring-staged-delete"))
+        assert delete_page.context["count"] == 1
+
+        response = admin_client.post(
+            reverse("authoring-staged"),
+            {
+                "act": "put_live",
+                "model": "pickable",
+                "pk": str(campaign_pick.pk),
+            },
+        )
+        assert response.status_code == 404
+
+        response = admin_client.post(reverse("authoring-staged-put-live"))
+        assert response.status_code == 302
+        campaign_pick.refresh_from_db()
+        book_pick.refresh_from_db()
+        assert campaign_pick.staged is True
+        assert book_pick.staged is False
+
+        response = admin_client.post(reverse("authoring-staged-delete"))
+        assert response.status_code == 302
+        campaign_pick.refresh_from_db()
+        assert campaign_pick.staged is True
 
 
 class TestTheArbitratorTallies:

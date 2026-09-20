@@ -15,11 +15,11 @@ is not drawn on the section's heading.
                         {{ act.when|date:"j M H:i" }}
                     </time>
                     <div class="min-w-0 flex-1">
+                        {% if act.gang_name %}<p class="text-sm font-medium text-muted">{{ act.gang_name }}</p>{% endif %}
                         <p class="text-base">
                             {% if act.actor_user %}<c-n26.user-link :user="act.actor_user" tone="current" class="font-medium" />{% elif act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
                             {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
                         </p>
-                        {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}
                     </div>
                 </li>
             {% endfor %}

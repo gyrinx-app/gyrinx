@@ -252,6 +252,8 @@ class LedgerEvent(Base):
         # campaign type gives at joining, which is an assignment.
         GAINED = "gained", "Gained"
         LOST = "lost", "Lost"
+        INCOME = "income", "Income"
+        POST_BATTLE = "post_battle", "Post-battle results"
 
     assignment = models.ForeignKey(
         "n26.Assignment",
@@ -313,6 +315,14 @@ class LedgerEvent(Base):
         blank=True,
         related_name="gang_events",
     )
+    post_battle_revision = models.ForeignKey(
+        "n26.PostBattleRevision",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ledger_events",
+    )
+    post_battle_occurrence = models.UUIDField(null=True, blank=True, db_index=True)
     kind = models.CharField(max_length=20, choices=Kind)
     #: One mark per operation, shared by every event it wrote. Events
     #: sharing a mark were one act — a hire and everything it brought, a

@@ -496,13 +496,9 @@ class BringGangForm(forms.Form):
 
 
 class BattleForm(forms.Form):
-    """Writing down a battle that was fought: when, and who was in it.
+    """A battle's identity, participants and optional result."""
 
-    The gangs offered are the campaign's own, so the form cannot record a
-    battle between gangs that were never in it. Nobody has to be named — a
-    battle written down before the players are settled is still a date worth
-    keeping.
-    """
+    scenario = forms.CharField(max_length=200, label="Scenario")
 
     date = forms.DateField(
         label="Date",
@@ -514,12 +510,53 @@ class BattleForm(forms.Form):
         label="Participants",
         widget=forms.CheckboxSelectMultiple,
     )
+    result = forms.ChoiceField(label="Result")
+    winners = forms.ModelMultipleChoiceField(
+        queryset=None,
+        required=False,
+        label="Winning gangs",
+        widget=forms.CheckboxSelectMultiple,
+    )
+    revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
 
-    def __init__(self, *args, playing=None, **kwargs):
+    def __init__(self, *args, playing, battle=None, **kwargs):
+        from n26.core.models import Battle
+
         super().__init__(*args, **kwargs)
-        # Handed in rather than looked up, because a form has no campaign of
-        # its own and a queryset built here would offer every gang there is.
         self.fields["gangs"].queryset = playing
+        self.fields["winners"].queryset = playing
+        for name in ("gangs", "winners"):
+            self.fields[name].widget.attrs["class"] = (
+                "size-4 shrink-0 accent-[var(--color-accent)] focus-ring"
+            )
+        self.fields["result"].choices = Battle.Result.choices
+        self.fields["result"].initial = Battle.Result.NOT_RECORDED
+        if battle is None:
+            del self.fields["revision"]
+        else:
+            self.initial.update(
+                scenario=battle.scenario,
+                date=battle.date.isoformat(),
+                gangs=[gang.pk for gang in battle.gangs.all()],
+                result=battle.result,
+                winners=[gang.pk for gang in battle.winners.all()],
+                revision=battle.revision,
+            )
+
+    def clean(self):
+        from n26.core.models import Battle
+
+        cleaned = super().clean()
+        if all(field in cleaned for field in ("result", "gangs", "winners")):
+            try:
+                Battle.validate_outcome(
+                    result=cleaned["result"],
+                    gangs=cleaned["gangs"],
+                    winners=cleaned["winners"],
+                )
+            except forms.ValidationError as exc:
+                self.add_error(None, exc)
+        return cleaned
 
 
 class AddAssetForm(forms.Form):
@@ -600,7 +637,7 @@ class AddAssetTypeForm(forms.Form):
         initial=AssetType.Ownership.HOLDING,
         label="Ownership",
         widget=forms.RadioSelect,
-        error_messages={"required": "Select Possession or Holding."},
+        error_messages={"required": "Select Inherent or Transferable."},
     )
 
 
@@ -647,13 +684,12 @@ class AddCounterForm(forms.Form):
     name = forms.CharField(
         max_length=200,
         label="Name",
-        help_text='e.g. "Meat".',
+        help_text='e.g. "Reputation".',
     )
     opening = forms.IntegerField(
         min_value=0,
         initial=0,
-        label="Opening value",
-        help_text="What every gang starts at.",
+        label="Starting value",
     )
 
 
@@ -663,7 +699,7 @@ class AddLabelForm(forms.Form):
     name = forms.CharField(
         max_length=200,
         label="Name",
-        help_text='What the choice is called, e.g. "Alignment".',
+        help_text='What the choice is called, e.g. "Faction".',
     )
     options = forms.CharField(
         label="Options",

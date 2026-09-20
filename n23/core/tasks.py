@@ -255,8 +255,8 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
 
     # Packs containing this fighter type. This is a subscriber read path, so we
     # must NOT filter `archived` on the pack or pack item — archived content
-    # stays visible to gangs already subscribed (see CLAUDE.md "Content packs:
-    # archive semantics", issue #1742).
+    # stays visible to gangs already subscribed. See "Archived content pack
+    # behaviour" in n23/AGENTS.md.
     fighter_ct = ContentType.objects.get_for_model(ContentFighter)
     pack_ids = list(
         CustomContentPackItem.objects.filter(
