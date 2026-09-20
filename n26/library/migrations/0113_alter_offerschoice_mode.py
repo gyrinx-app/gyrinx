@@ -5,6 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
+        ("library", "0112_clarify_action_thresholds_and_tier_levels"),
         ("library", "0112_offerschoice_mode"),
     ]
 

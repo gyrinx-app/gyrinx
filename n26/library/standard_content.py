@@ -1721,7 +1721,15 @@ def fighter_advancement_modifiers():
         library_pickable_set__listed_on__picklist__pack__slug=(
             settings.DEFAULT_CONTENT_PACK_SLUG
         ),
-        library_pickable_set__listed_on__picklist__name=("Fighter advancement table"),
+        library_pickable_set__listed_on__picklist__slot_type__pack__slug=(
+            settings.DEFAULT_CONTENT_PACK_SLUG
+        ),
+        library_pickable_set__listed_on__picklist__slot_type__name__iexact=(
+            "Advancement"
+        ),
+        library_pickable_set__listed_on__picklist__name__iexact=(
+            "Fighter advancement table"
+        ),
         targets_miniature__isnull=False,
     )
     is_advancement_effect = Q(

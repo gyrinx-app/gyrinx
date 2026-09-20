@@ -43,6 +43,14 @@ def _validate_draft(op, record, configured):
         outcome__resolve_advancement=configured
     ).exists():
         raise Refusal("That advancement does not belong to this action.")
+    if (
+        record.outcome_id is not None
+        and not record.action.outcomes.filter(
+            outcome_id=record.outcome_id,
+            outcome__resolve_advancement=configured,
+        ).exists()
+    ):
+        raise Refusal("That advancement does not match the selected outcome.")
     return record
 
 
@@ -276,7 +284,24 @@ def _configuration(row):
             continue
         value = getattr(row, field.attname)
         fields.append([field.attname, None if value is None else str(value)])
-    return [row._meta.label_lower, fields]
+    many = [
+        [
+            field.name,
+            sorted(
+                str(pk) for pk in getattr(row, field.name).values_list("pk", flat=True)
+            ),
+        ]
+        for field in row._meta.local_many_to_many
+    ]
+    conditions = sorted(
+        (
+            _configuration(condition)
+            for related in getattr(row, "CONDITIONS", ())
+            for condition in getattr(row, related).all()
+        ),
+        key=repr,
+    )
+    return [row._meta.label_lower, fields, many, conditions]
 
 
 def _roll_table(configured):
@@ -285,13 +310,27 @@ def _roll_table(configured):
     from n26.library.models import Modifier
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
+    condition_paths = []
+    for scope_field in SCOPE_FIELDS:
+        scope_model = Modifier._meta.get_field(scope_field).related_model
+        for related in getattr(scope_model, "CONDITIONS", ()):
+            path = f"{scope_field}__{related}"
+            condition_paths.append(path)
+            condition_model = scope_model._meta.get_field(related).related_model
+            condition_paths.extend(
+                f"{path}__{field.name}"
+                for field in condition_model._meta.local_many_to_many
+            )
+
     members = list(
         picklist_lines(configured.slot.picklist)
         .select_related("pickable")
         .prefetch_related(
             Prefetch(
                 "pickable__modifiers",
-                queryset=Modifier.objects.select_related(*SCOPE_FIELDS, *EFFECT_FIELDS),
+                queryset=Modifier.objects.select_related(
+                    *SCOPE_FIELDS, *EFFECT_FIELDS
+                ).prefetch_related(*condition_paths),
             )
         )
     )
@@ -332,6 +371,11 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
         action_record=record
     )
     if selection.roll_event_id:
+        if (
+            selection.slot_assignment_id is None
+            or selection.slot_assignment.slot_id != configured.slot_id
+        ):
+            raise Refusal("This action already has a roll for another advancement.")
         return selection
     _members, table_state = _roll_table(configured)
     slots_owned_by_other_drafts = (
@@ -473,9 +517,15 @@ def advancement_options(record, configured):
 
 
 def skill_options(record, configured, pickable_id):
-    if str(pickable_id) not in {
-        option.id for option in advancement_options(record, configured)
-    }:
+    option = next(
+        (
+            option
+            for option in advancement_options(record, configured)
+            if option.id == str(pickable_id)
+        ),
+        None,
+    )
+    if option is None or not option.gainable:
         raise Refusal("That advancement result is not available for this roll.")
     pickable = configured.slot.picklist.members.get(pickable_id=pickable_id).pickable
     offer = _skill_offer(pickable)

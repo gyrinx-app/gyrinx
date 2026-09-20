@@ -24,9 +24,11 @@ from n26.library.models import (
     Category,
     CollectionSection,
     Counter,
+    CounterAtLeast,
     Pickable,
     PicklistMember,
     Skill,
+    Slot,
     Stat,
 )
 from n26.library.standard_content import STANDARD_CONTENT
@@ -229,6 +231,58 @@ def test_advancement_roll_refuses_switching_to_another_outcome(fighter, entrypoi
     record.refresh_from_db()
     assert record.outcome_id is None
     assert record.review == {}
+
+
+def test_advancement_roll_refuses_a_different_selected_outcome(fighter):
+    action, advancement, allowance = _advancement(fighter)
+    alternative = authoring.create_outcome(
+        "Do nothing",
+        authoring.apply_changes(),
+    )
+    authoring.add_action_outcome(action, alternative)
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.save_action_choices(record, outcome=alternative, terms={})
+        with pytest.raises(Refusal, match="does not match the selected outcome"):
+            op.record_action_roll(
+                record,
+                advancement.resolve_advancement,
+                uuid4(),
+                rolled=7,
+            )
+
+    assert not AdvancementSelection.objects.filter(action_record=record).exists()
+
+
+def test_advancement_roll_retry_refuses_a_different_configured_slot(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    other_slot = Slot.objects.create(
+        name="Other advancement",
+        slot_type=configured.slot.slot_type,
+        picklist=configured.slot.picklist,
+        min_picks=1,
+        max_picks=1,
+    )
+    other_outcome = authoring.create_outcome(
+        "Other advancement",
+        authoring.resolve_advancement(other_slot),
+    )
+    authoring.add_action_outcome(action, other_outcome)
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        first = op.record_action_roll(record, configured, uuid4(), rolled=7)
+        with pytest.raises(Refusal, match="roll for another advancement"):
+            op.record_action_roll(
+                record,
+                other_outcome.resolve_advancement,
+                uuid4(),
+                rolled=8,
+            )
+
+    first.refresh_from_db()
+    assert first.roll_event.roll == 7
+    assert first.slot_assignment.slot_id == configured.slot_id
 
 
 def test_first_available_random_skill_is_immutable_and_completes_checkout(fighter):
@@ -810,6 +864,27 @@ def test_advancement_roll_fingerprints_modifier_configuration(fighter, edited):
         advancement_options(record, configured)
 
 
+def test_advancement_roll_fingerprints_modifier_condition_rows(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    result = configured.slot.picklist.members.get(
+        pickable__name="Random Primary skill"
+    ).pickable
+    condition = CounterAtLeast.objects.create(
+        scope=result.modifiers.get().targets_miniature,
+        counter=Counter.objects.create(name="Reputation"),
+        at_least=1,
+    )
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=7)
+    condition.at_least = 2
+    condition.save(update_fields=["at_least"])
+
+    with pytest.raises(Refusal, match="table changed"):
+        advancement_options(record, configured)
+
+
 def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
     action, outcome, allowance = _advancement(fighter)
     configured = outcome.resolve_advancement
@@ -894,6 +969,9 @@ def test_all_eighteen_results_are_fallback_when_none_landed_are_gainable(
     options = advancement_options(record, outcome.resolve_advancement)
 
     assert len(options) == 18
+    random = next(option for option in options if option.needs_skill)
+    with pytest.raises(Refusal, match="not available for this roll"):
+        skill_options(record, outcome.resolve_advancement, random.id)
     assert all(option.gainable is False for option in options)
 
 

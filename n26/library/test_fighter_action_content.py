@@ -10,11 +10,14 @@ from n26.library.models import (
     ChangesStat,
     Modifier,
     OffersChoice,
+    Pickable,
     Picklist,
+    PicklistMember,
     RankTable,
     Skill,
     Slot,
     SlotType,
+    Stat,
 )
 from n26.library.specs import specs
 from n26.library.standard_content import (
@@ -453,6 +456,42 @@ def test_clearing_imported_content_preserves_advancement_modifiers():
     assert Modifier.objects.filter(
         library_pickable_set__listed_on__picklist__name=("Fighter advancement table")
     ).count() == len(FIGHTER_ADVANCEMENTS)
+
+
+def test_clearing_imported_content_does_not_spare_a_same_named_other_table(
+    default_pack,
+):
+    from n26.library.ingest import clear_imported
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    other_type = SlotType.objects.create(pack=default_pack, name="Other advancement")
+    other_table = Picklist.objects.create(
+        pack=default_pack,
+        slot_type=other_type,
+        name="Fighter advancement table",
+    )
+    other_pick = Pickable.objects.create(
+        pack=default_pack,
+        name="Imported lookalike result",
+        slot_type=other_type,
+    )
+    PicklistMember.objects.create(picklist=other_table, pickable=other_pick)
+    lookalike = authoring.modifier(
+        "Imported lookalike advancement",
+        authoring.targets_model(),
+        authoring.ef_changes_stat(
+            Stat.objects.get(pack=default_pack, full_name="Movement"),
+            mode="improve",
+            amount=1,
+        ),
+    )
+    other_pick.modifiers.add(lookalike)
+
+    clear_imported()
+
+    assert not Modifier.objects.filter(pk=lookalike.pk).exists()
+    assert content.status() == "complete"
 
 
 @pytest.mark.parametrize(
