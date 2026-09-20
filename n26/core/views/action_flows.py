@@ -213,15 +213,20 @@ def _page(
         and stage not in {"start", "done", "cancel"}
         else ""
     )
-    if stage == "cancel":
+    done_href = ""
+    if stage == "done":
+        done_href = back
+        back_href = context.get("correct_href", "")
+        back_label = "Correct result" if back_href else ""
+    elif stage == "cancel":
         back_href = flow_url(fighter, record, "resume")
-        back_label = "Keep flow"
+        back_label = "Save and return later"
     elif outcome_href:
         back_href = outcome_href
-        back_label = "Back"
+        back_label = "← Back"
     else:
         back_href = back
-        back_label = "Back to model"
+        back_label = "← Back to model"
     return render(
         request,
         "n26/action_flow.html",
@@ -236,6 +241,7 @@ def _page(
             "back": back,
             "back_href": back_href,
             "back_label": back_label,
+            "done_href": done_href,
             "cancel_href": cancel_href,
             "selection_summary": _selection_summary(record, stage),
             "outcome_href": outcome_href,
@@ -503,7 +509,6 @@ def action_flow(request, pk, record_id, step):
             stage="done",
             receipt=receipt_lines(record),
             correct_href=flow_url(fighter, record, "correct") if can_correct else "",
-            correct_label="Correct result",
         )
     correction = record.state == ActionRecord.State.COMPLETED
     if step == "outcome" and not correction:

@@ -872,8 +872,10 @@ class TestTheModelEditPage:
         assert "Resume Suit Evolution flow" in page[evolution:advancement]
         assert "1 use available" in page[advancement:notes]
         assert "Resume Advancement flow" in page[advancement:notes]
-        assert "Improved Hunting rig to Tier 1" not in page[actions:tabs]
-        assert "Improved Hunting rig to Tier 1" in page[history:]
+        assert "Hunting Rig Augmentation" not in page[actions:tabs]
+        assert "Hunting Rig Augmentation" in page[history:]
+        assert "Hunting rig: Tier 1. Improve S by 1" in page[history:]
+        assert "minutes ago" in page[history:]
 
 
 class TestCounterLinesInTheGallery:

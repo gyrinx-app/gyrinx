@@ -1,3 +1,4 @@
+{% load humanize %}
 {% if action_history_panels %}
     <div id="n26-action-history">
         <c-ui.card>
@@ -14,7 +15,17 @@
                         <ul class="mt-2 space-y-2 text-sm">
                             {% for result in panel.completed %}
                                 <li>
-                                    <a href="{{ result.href }}" class="linked">{{ result.label }}</a>
+                                    <div class="flex items-baseline justify-between gap-3">
+                                        <c-n26.link href="{{ result.href }}" class="font-medium">
+                                            {{ result.label }}
+                                        </c-n26.link>
+                                        {% if result.when %}
+                                            <time datetime="{{ result.when|date:'c' }}"
+                                                  title="{{ result.when }}"
+                                                  class="shrink-0 text-xs text-muted">{{ result.when|naturaltime }}</time>
+                                        {% endif %}
+                                    </div>
+                                    {% if result.detail %}<p class="mt-0.5 text-muted">{{ result.detail }}</p>{% endif %}
                                 </li>
                             {% endfor %}
                         </ul>

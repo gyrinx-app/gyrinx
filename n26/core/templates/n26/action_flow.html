@@ -18,7 +18,8 @@ would invent a new client/server contract inside this feature.
                      submit_variant="{{ submit_variant }}"
                      cancel_url="{{ back_href }}"
                      cancel_label="{{ back_label }}"
-                     cancel_variant="default">
+                     cancel_variant="ghost"
+                     cancel_class="mr-auto">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
@@ -32,13 +33,15 @@ would invent a new client/server contract inside this feature.
         </c-slot>
         <c-slot name="actions">
             {% if cancel_href and stage != "done" and stage != "cancel" and not correction %}
-                <c-ui.button href="{{ cancel_href }}" variant="danger" :outlined="True">
-                    Cancel flow
+                <c-ui.button href="{{ cancel_href }}"
+                             variant="ghost"
+                             class="text-red-600! dark:text-red-400!">
+                    Cancel
                 </c-ui.button>
             {% endif %}
-            {% if correct_href %}
-                <c-ui.button href="{{ correct_href }}" variant="default">
-                    {{ correct_label }}
+            {% if done_href %}
+                <c-ui.button href="{{ done_href }}" variant="primary">
+                    Done
                 </c-ui.button>
             {% endif %}
         </c-slot>

@@ -6,6 +6,7 @@ No allowance is granted and no draft is opened while rendering a page.
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
@@ -23,6 +24,8 @@ class ActionUseLink:
     key: str
     label: str
     href: str = ""
+    detail: str = ""
+    when: datetime | None = None
 
 
 @dataclass
@@ -209,10 +212,32 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                 and len(panel.completed) < 3
             ):
                 panel.completed.append(
-                    ActionUseLink(str(record.pk), str(record.outcome or action))
+                    ActionUseLink(
+                        str(record.pk),
+                        str(record.outcome or action),
+                        detail=_completed_detail(record),
+                        when=record.created,
+                    )
                 )
         panels.append(panel)
     return panels
+
+
+def _completed_detail(record):
+    """Describe a completed choice from its immutable review snapshot."""
+    target = record.review.get("target", {})
+    if not isinstance(target, dict):
+        return ""
+    selection = target.get("selection")
+    if selection:
+        effect = selection.get("effect", "")
+        detail = f"{selection['item_name']}: {selection['candidate_tier']}"
+        return f"{detail}. {effect[:1].upper()}{effect[1:]}" if effect else detail
+    result = target.get("result")
+    if result:
+        skill = target.get("skill")
+        return f"{result}: {skill}" if skill else str(result)
+    return ""
 
 
 def receipt_lines(record):

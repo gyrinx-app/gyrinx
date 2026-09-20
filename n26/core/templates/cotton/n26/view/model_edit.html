@@ -10,7 +10,7 @@ The include draws the card in edit mode, which is where its controls come out.
 The editors are siblings of the card, not children, so replacing the card leaves them in place.
 Without name_action the include draws the rename pencil.
 flows renders action panels beside the model card and above the screen tabs.
-action_history renders completed results after the edit cards.
+action_history renders completed results as one edit card, beside Lore when both are present.
 {% endcomment %}
 
 <c-vars
@@ -118,7 +118,7 @@ action_history renders completed results after the edit cards.
             </c-ui.card>
         {% endif %}
 
+        {% if action_history.strip %}{{ action_history }}{% endif %}
+
         {{ dismissed_choices }}
     </div>
-
-    {% if action_history.strip %}{{ action_history }}{% endif %}

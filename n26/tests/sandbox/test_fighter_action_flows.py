@@ -183,6 +183,23 @@ class TestSuitEvolutionForms:
             request_key=uuid4(),
             state=ActionRecord.State.COMPLETED,
         )
+        ActionRecord.objects.create(
+            gang=hunt.gang,
+            fighter=hunt.fighter,
+            action=hunt.action,
+            outcome=hunt.upgrade,
+            request_key=uuid4(),
+            state=ActionRecord.State.COMPLETED,
+            review={
+                "target": {
+                    "selection": {
+                        "item_name": "Hunting rig",
+                        "candidate_tier": "Tier 2",
+                        "effect": "improve S by 2",
+                    }
+                }
+            },
+        )
         client.force_login(hunt.owner)
 
         response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
@@ -192,6 +209,17 @@ class TestSuitEvolutionForms:
 
         assert "Clear all glitches" not in actions.get_text(" ", strip=True)
         assert "Clear all glitches" in history.get_text(" ", strip=True)
+        assert "Hunting rig: Tier 2. Improve S by 2" in history.get_text(
+            " ", strip=True
+        )
+        result_link = history.find("a", string="Augment a carried item")
+        assert "text-accent-text" in result_link.get("class", [])
+        assert "hover:underline" in result_link.find("span").get("class", [])
+        timestamp = result_link.find_next("time")
+        assert timestamp.get("datetime")
+        assert timestamp.get("title")
+        grid = history.find_parent("div", class_="grid")
+        assert "md:grid-cols-2" in grid.get("class", [])
         assert response.content.decode().index(
             'id="n26-action-history"'
         ) > response.content.decode().index(">Notes<")
@@ -247,7 +275,7 @@ class TestSuitEvolutionForms:
         assert "After a cycle" in header.get_text(" ", strip=True)
         assert start_button.get_text(" ", strip=True) == "Start →"
         assert "bg-transparent" in start_button.get("class", [])
-        assert "text-ink-900!" in start_button.get("class", [])
+        assert "text-accent-text!" in start_button.get("class", [])
         assert "Recent results" not in actions.get_text(" ", strip=True)
         figures = title.find_parent("section").find("dl")
         values = figures.find_all("dd")
@@ -360,7 +388,7 @@ class TestSuitEvolutionForms:
             "n26-action-flow", args=[hunt.fighter.pk, record.pk, "cancel"]
         )
         cancel_page = client.get(cancel_url).content.decode()
-        assert "Keep flow" in cancel_page
+        assert "Save and return later" in cancel_page
         assert "The saved outcome and selection will be discarded." in cancel_page
         cancelled = client.post(cancel_url)
         assert cancelled.status_code == 302
@@ -384,6 +412,8 @@ class TestSuitEvolutionForms:
         assert "Hidden maintenance" not in response.content.decode()
 
     def test_a_carried_item_is_reviewed_before_any_kills_are_spent(self, client, hunt):
+        from bs4 import BeautifulSoup
+
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
         response = client.get(choose)
@@ -392,8 +422,23 @@ class TestSuitEvolutionForms:
         page = response.content.decode()
         assert page.index("Suit Evolution</h1>") < page.index('aria-label="Progress"')
         assert "Selection (if needed)" not in page
-        assert "Cancel flow" in page
+        assert "Cancel" in page
         assert "Back to model" not in page
+        drawn = BeautifulSoup(page, "html.parser")
+        back = drawn.find("a", string=lambda value: value and "Back" in value)
+        cancel = drawn.find(
+            "a", string=lambda value: value and value.strip() == "Cancel"
+        )
+        submit = drawn.find("button", string=lambda value: value and "Review" in value)
+        assert "mr-auto" in back.get("class", [])
+        assert "text-red-600!" in cancel.get("class", [])
+        assert "bg-transparent" in cancel.get("class", [])
+        assert "bg-accent" in submit.get("class", [])
+        assert back.parent.find_all(["a", "button"], recursive=False) == [
+            back,
+            cancel,
+            submit,
+        ]
         assert hunt.kills.counter_value.value == 6
         response = client.post(
             choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
@@ -418,6 +463,23 @@ class TestSuitEvolutionForms:
         assert "6 → 2" in receipt_html
         assert "+20¢" in receipt_html
         assert "Correct result" in receipt_html
+        completed = BeautifulSoup(receipt_html, "html.parser")
+        correct_result = completed.find(
+            "a", string=lambda value: value and value.strip() == "Correct result"
+        )
+        done = completed.find(
+            "a", string=lambda value: value and value.strip() == "Done"
+        )
+        assert correct_result.get("href") == reverse(
+            "n26-action-flow", args=[hunt.fighter.pk, record.pk, "correct"]
+        )
+        assert "mr-auto" in correct_result.get("class", [])
+        assert done.get("href") == reverse("n26-edit-fighter", args=[hunt.fighter.pk])
+        assert "bg-accent" in done.get("class", [])
+        assert correct_result.parent.find_all(["a", "button"], recursive=False) == [
+            correct_result,
+            done,
+        ]
         assert "Choose tier" not in receipt_html
         assert (
             ActionRecord.objects.get(pk=record.pk).state == ActionRecord.State.COMPLETED

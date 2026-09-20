@@ -871,8 +871,10 @@ def context():
                 completed=[
                     ActionUseLink(
                         "suit-evolution-result",
-                        "Improved Hunting rig to Tier 1",
+                        "Hunting Rig Augmentation",
                         "#suit-evolution-result",
+                        "Hunting rig: Tier 1. Improve S by 1",
+                        timezone.now() - timedelta(minutes=12),
                     )
                 ],
             ),
