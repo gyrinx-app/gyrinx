@@ -281,6 +281,20 @@ def test_reseeding_repairs_missing_action_and_result_links():
     assert isinstance(result.modifiers.get().effect, ChangesStat)
 
 
+def test_clearing_imported_content_preserves_advancement_modifiers():
+    from n26.library.ingest import clear_imported
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+
+    clear_imported()
+
+    assert content.status() == "complete"
+    assert Modifier.objects.filter(
+        library_pickable_set__listed_on__picklist__name=("Fighter advancement table")
+    ).count() == len(FIGHTER_ADVANCEMENTS)
+
+
 @pytest.mark.parametrize(
     ("result", "field", "before", "after"),
     [("Movement", "movement", "5", '6"'), ("Weapon Skill", "weapon_skill", "4+", "3+")],

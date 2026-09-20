@@ -1671,6 +1671,32 @@ FIGHTER_ADVANCEMENTS = (
 )
 
 
+def fighter_advancement_modifiers():
+    """A filter for modifiers carried by the standard advancement table.
+
+    These are foundations, not imported content. Recognise them by where
+    they are used rather than their editable names, just as the lasting-effect
+    seed does for its own modifiers.
+    """
+    from django.conf import settings
+    from django.db.models import Q
+
+    on_standard_table = Q(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+        library_pickable_set__listed_on__picklist__pack__slug=(
+            settings.DEFAULT_CONTENT_PACK_SLUG
+        ),
+        library_pickable_set__listed_on__picklist__name=("Fighter advancement table"),
+        targets_miniature__isnull=False,
+    )
+    is_advancement_effect = Q(
+        changes_stat__isnull=False,
+    ) | Q(
+        offers_choice__isnull=False,
+    )
+    return on_standard_table & is_advancement_effect
+
+
 def _create_fighter_actions():
     _create_model_characteristics()
     _create_skills()
