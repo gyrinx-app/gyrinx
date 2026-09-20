@@ -242,7 +242,7 @@
             </dl>
             <ul class="mt-4 space-y-3 text-sm">
                 {% for model in models %}
-                    {% if model.result.xp_change or model.effects or model.status or model.result.equipment_changed %}
+                    {% if model.result.xp_change or model.result.xp_before != model.result.xp_after or model.effects or model.status or model.result.equipment_changed %}
                         <li>
                             <p class="font-medium">{{ model.name }}</p>
                             {% if model.result.xp_change %}<p class="text-muted">{{ model.result.xp_change|stringformat:'+d' }} XP adjustment</p>{% endif %}

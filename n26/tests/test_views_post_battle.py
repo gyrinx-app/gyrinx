@@ -31,7 +31,13 @@ from n26.library.authoring import (
     op_sets_status,
     targets_model,
 )
-from n26.tests.sandbox.actions import found_campaign, found_gang, hire, join_campaign
+from n26.tests.sandbox.actions import (
+    found_campaign,
+    found_gang,
+    hire,
+    join_campaign,
+    op_changes_counter,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -275,6 +281,37 @@ class TestReportLayout:
         )
         document = BeautifulSoup(response.content, "html.parser")
         assert "XP total: 0 → 2" in document.find("aside").get_text()
+
+    def test_summary_shows_xp_removed_with_a_lasting_effect(
+        self, client, table, feature
+    ):
+        lesson = create_pickable(
+            "Lesson Learned",
+            table.injury_kind,
+            effects=[
+                (targets_model(), op_changes_counter(table.xp, mode="add", amount=2))
+            ],
+        )
+        add_picklist_member(table.injury_table, lesson)
+        report = start(client, table)
+        model = table.models[0]
+        checked, effect_id = with_effect(client, table, report, lesson)
+        applied = client.post(
+            editor_url(report),
+            html_fields(checked, intent="apply", **{f"model-{model.pk}-xp": "0"}),
+        )
+        assert applied.status_code == 302
+        assert xp_value(model) == 2
+        client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        response = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"remove-effect:{effect_id}"
+            ),
+        )
+        document = BeautifulSoup(response.content, "html.parser")
+        assert "XP total: 2 → 0" in document.find("aside").get_text()
+        assert xp_value(model) == 2
 
 
 class TestStartingAndResuming:
