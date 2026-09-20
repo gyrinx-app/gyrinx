@@ -341,28 +341,22 @@ def test_a_prior_attempt_competing_record_retries_after_the_lock_holder_finishes
         summary={"attempts": 1},
     )
     lock_is_free = False
-    enqueued = []
 
     @contextmanager
     def lock(_key):
         yield lock_is_free
 
     monkeypatch.setattr(maintenance, "_single_flight", lock)
-    monkeypatch.setattr(
-        type(maintenance.initialise_action_allowances),
-        "enqueue",
-        lambda self, **kwargs: enqueued.append(kwargs),
-    )
-    maintenance.initialise_action_allowances.call(backfill_id=str(queued.pk))
+    with pytest.raises(RuntimeError, match="already running"):
+        maintenance.initialise_action_allowances.call(backfill_id=str(queued.pk))
 
     queued.refresh_from_db()
     assert queued.status == Backfill.Status.RUNNING
-    assert enqueued == [{"backfill_id": str(queued.pk)}]
 
     running.status = Backfill.Status.DONE
     running.save(update_fields=["status", "modified"])
     lock_is_free = True
-    maintenance.initialise_action_allowances.call(**enqueued.pop())
+    maintenance.initialise_action_allowances.call(backfill_id=str(queued.pk))
 
     queued.refresh_from_db()
     assert queued.status == Backfill.Status.FAILED
@@ -377,28 +371,22 @@ def test_a_duplicate_delivery_does_not_end_the_active_record(monkeypatch):
         summary={"attempts": 1},
     )
     lock_is_free = False
-    enqueued = []
 
     @contextmanager
     def lock(_key):
         yield lock_is_free
 
     monkeypatch.setattr(maintenance, "_single_flight", lock)
-    monkeypatch.setattr(
-        type(maintenance.initialise_action_allowances),
-        "enqueue",
-        lambda self, **kwargs: enqueued.append(kwargs),
-    )
-    maintenance.initialise_action_allowances.call(backfill_id=str(active.pk))
+    with pytest.raises(RuntimeError, match="already running"):
+        maintenance.initialise_action_allowances.call(backfill_id=str(active.pk))
 
     active.refresh_from_db()
     assert active.status == Backfill.Status.RUNNING
-    assert enqueued == [{"backfill_id": str(active.pk)}]
 
     active.status = Backfill.Status.DONE
     active.save(update_fields=["status", "modified"])
     lock_is_free = True
-    maintenance.initialise_action_allowances.call(**enqueued.pop())
+    maintenance.initialise_action_allowances.call(backfill_id=str(active.pk))
 
     active.refresh_from_db()
     assert active.status == Backfill.Status.DONE

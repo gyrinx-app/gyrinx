@@ -1795,6 +1795,12 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
 
     operation = Operation.INITIALISE_ACTION_ALLOWANCES
 
+    def retry_after_lock_holder():
+        # Raising hands this delivery back to Pub/Sub, whose route applies
+        # retry backoff. Enqueuing here would create an immediate delivery
+        # loop for as long as the first worker holds the operation lock.
+        raise RuntimeError("Action allowance initialisation is already running.")
+
     def find_once():
         # run_per_gang calls this only after taking the operation's
         # single-flight lock, so two queued records cannot both pass the
@@ -1819,9 +1825,7 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
         find=find_once,
         apply_one=apply_one,
         again=lambda: initialise_action_allowances.enqueue(backfill_id=backfill_id),
-        stand_down=lambda: initialise_action_allowances.enqueue(
-            backfill_id=backfill_id
-        ),
+        stand_down=retry_after_lock_holder,
     )
 
 

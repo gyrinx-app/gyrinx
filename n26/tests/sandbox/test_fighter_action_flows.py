@@ -145,6 +145,33 @@ class TestSuitEvolutionForms:
                 op.assign(extra, miniature=hunt.fighter)
         assert measure() == one
 
+    def test_the_edit_page_keeps_only_three_recent_results_per_action(
+        self, client, hunt
+    ):
+        records = [
+            ActionRecord.objects.create(
+                gang=hunt.gang,
+                fighter=hunt.fighter,
+                action=hunt.action,
+                outcome=hunt.clear,
+                request_key=uuid4(),
+                state=ActionRecord.State.COMPLETED,
+            )
+            for _ in range(5)
+        ]
+        client.force_login(hunt.owner)
+
+        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+
+        panel = next(
+            panel
+            for panel in response.context["action_panels"]
+            if panel.action_id == str(hunt.action.pk)
+        )
+        assert [result.key for result in panel.completed] == [
+            str(record.pk) for record in reversed(records[-3:])
+        ]
+
     def test_the_edit_page_places_action_panels_below_the_model_card(
         self, client, hunt
     ):

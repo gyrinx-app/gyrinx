@@ -7,6 +7,9 @@ No allowance is granted and no draft is opened while rendering a page.
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
+
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
 from n26.core.flow import PaymentFigures
@@ -60,22 +63,37 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     """The effective actions and retained earned uses, with bounded reads."""
     access = actions_for(fighter, card=card, computed=computed)
     allowances = list(
-        ActionAllowance.objects.filter(fighter=fighter).order_by("created", "pk")
+        ActionAllowance.objects.filter(fighter=fighter)
+        .exclude(
+            records__state__in=(
+                ActionRecord.State.STARTED,
+                ActionRecord.State.COMPLETED,
+            )
+        )
+        .order_by("created", "pk")
     )
-    records = list(
-        ActionRecord.objects.filter(fighter=fighter)
+    drafts = list(
+        ActionRecord.objects.filter(fighter=fighter, state=ActionRecord.State.STARTED)
         .select_related("outcome")
         .order_by("-created", "-pk")
     )
-    reserved = {
-        record.allowance_id
-        for record in records
-        if record.state != ActionRecord.State.CANCELLED
-    }
+    completed = list(
+        ActionRecord.objects.filter(fighter=fighter, state=ActionRecord.State.COMPLETED)
+        .annotate(
+            action_position=Window(
+                expression=RowNumber(),
+                partition_by=F("action_id"),
+                order_by=(F("created").desc(), F("pk").desc()),
+            )
+        )
+        .filter(action_position__lte=3)
+        .select_related("outcome")
+        .order_by("-created", "-pk")
+    )
+    records = [*drafts, *completed]
     available = defaultdict(list)
     for allowance in allowances:
-        if allowance.pk not in reserved:
-            available[allowance.action_id].append(allowance)
+        available[allowance.action_id].append(allowance)
     effective_ids = {found.action.pk for found in access}
     action_ids = (
         effective_ids | set(available) | {record.action_id for record in records}
