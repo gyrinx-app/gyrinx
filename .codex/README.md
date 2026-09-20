@@ -21,13 +21,17 @@ the same repository. Without these variables, setup uses the current checkout
 and copies `.env` from the main checkout.
 
 Setup preserves an existing `.env`, creates separate Python and npm dependencies,
-forks a database from `gyrinx_main`, runs migrations and builds both editions' CSS.
-It exits without starting a server and can be rerun after a partial failure.
-Shared `.env`, `.venv` and `node_modules` symlinks are rejected. Database cloning
-uses the existing dev script, which briefly disconnects template DB connections.
+forks a database from `gyrinx_main`, runs migrations, builds both editions' CSS,
+and builds the ignored React island manifest. It exits without starting a server
+and can be rerun after a partial failure. Shared `.env`, `.venv` and
+`node_modules` symlinks are rejected. Database cloning uses the existing dev
+script, which briefly disconnects template DB connections.
 
 Setup exports do not persist into later agent commands. Use `.codex/run.sh`
-for Python commands, such as `.codex/run.sh manage check`.
+for Python commands, such as `.codex/run.sh manage check`. After a rebase that
+changes `package-lock.json` or `n26/frontend`, `.codex/run.sh` runs `npm ci`
+(never `npm audit fix`) and `npm run js` with the worktree venv on PATH when
+`node_modules` or the React manifest is missing or stale.
 
 ## Cleanup
 

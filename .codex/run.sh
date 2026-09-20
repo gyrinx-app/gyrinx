@@ -28,6 +28,11 @@ provision_worktree_venv "$PROJECT_DIR" || exit 1
 # shellcheck disable=SC1090
 source "$VENV_ACTIVATE"
 
+# A rebase can land new npm deps and gitignored Vite assets without replacing
+# node_modules. Cheap no-op unless the lockfile, sources, or manifest are stale.
+# Must run after venv activation: npm run js starts a Python exporter.
+provision_worktree_frontend "$PROJECT_DIR" || exit 1
+
 # Do not depend on the optional activation block installed by
 # setup-local-postgres.sh. Older main-worktree venvs may not contain it.
 export DB_NAME

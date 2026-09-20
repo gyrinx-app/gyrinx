@@ -121,6 +121,19 @@ unminified local assets with source maps, so source component names remain
 visible in React DevTools. `./scripts/dev.sh` runs that development build before
 serving and watches frontend changes with the same mode.
 
+After rebasing an older worktree onto a branch that added or changed the React
+islands, install from the lockfile and rebuild the gitignored manifest with the
+worktree venv on PATH:
+
+```bash
+npm ci --no-audit --no-fund
+PATH="$PWD/.venv/bin:$PATH" npm run js
+```
+
+`.codex/run.sh` does both when `node_modules` or the manifest is missing or
+stale. `npm run js` starts a Python exporter, so a bare `npm run js` without the
+venv fails. Do not run `npm audit fix` unless the task is the audit itself.
+
 Vite owns the content-hashed filenames under `n26/react/assets/`. The template
 uses those exact URLs and preloads their static imports. The ordinary bootstrap
 script still uses Django's `static` tag. WhiteNoise marks Vite assets immutable;

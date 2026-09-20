@@ -2,6 +2,7 @@ import json
 
 import pytest
 from bs4 import BeautifulSoup
+from django.core.exceptions import ImproperlyConfigured
 from django.template import Context, Template
 from django.test import override_settings
 
@@ -49,6 +50,16 @@ def test_island_asset_urls_preserve_an_absolute_static_host():
 def test_unknown_island_names_fail_before_build_lookup():
     with pytest.raises(ValueError, match="kebab-case"):
         react.react_island("../../file", {})
+
+
+def test_missing_manifest_tells_you_to_rebuild_with_the_worktree_venv(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(react, "BUILD", tmp_path)
+    react._manifest.cache_clear()
+    with pytest.raises(ImproperlyConfigured, match="worktree venv"):
+        react._manifest()
+    react._manifest.cache_clear()
 
 
 def test_production_storage_preserves_vite_module_urls(tmp_path):
