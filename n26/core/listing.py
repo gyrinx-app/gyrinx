@@ -231,7 +231,9 @@ class OwnedPartRow:
     name: str
     #: What this part contributed to the fighter's rating on its own.
     rating: int
-    sell: Action
+    #: Empty when this part came with the gun — a named free profile
+    #: draws a row for its statline, and nothing to click.
+    sell: Action | None
     more: tuple[Action, ...]
 
 
@@ -446,11 +448,17 @@ def copy_row(copy, refunds=True):
                 key=part.key,
                 name=part.name,
                 rating=part.rating,
-                sell=Action("Sell", LINK, part.sell_href, DANGER),
+                sell=(
+                    Action("Sell", LINK, part.sell_href, DANGER)
+                    if part.sell_href
+                    else None
+                ),
                 # A part is refundable for the same reason it is sellable:
                 # somebody paid for the wrong ammunition as easily as for
-                # the wrong gun. Removed rather than deleted, because what
-                # is left afterwards is still the fighter's gun.
+                # the wrong gun. A firing line that came with the weapon
+                # is neither — selling it leaves no way to put it back.
+                # Removed rather than deleted, because what is left
+                # afterwards is still the fighter's gun.
                 more=(
                     # Acts that leave the fighter holding it, before the
                     # ways of parting with it — Detach onto their own
@@ -467,10 +475,14 @@ def copy_row(copy, refunds=True):
                     ),
                     *(
                         (Action("Refund", LINK, part.refund_href, SECONDARY),)
-                        if refunds or part.paid_trade_points
+                        if (refunds or part.paid_trade_points) and part.refund_href
                         else ()
                     ),
-                    Action("Remove", LINK, part.remove_href, DANGER),
+                    *(
+                        (Action("Remove", LINK, part.remove_href, DANGER),)
+                        if part.remove_href
+                        else ()
+                    ),
                 ),
             )
             for part in copy.parts

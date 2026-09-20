@@ -346,6 +346,25 @@ class TestWhatACopyOffers:
         assert [action.label for action in part.more] == ["Refund", "Remove"]
         assert part.sell.target == f"{AT}&sell={ammo.pk}"
 
+    def test_a_weapons_own_named_profile_is_offered_no_way_to_leave(
+        self, fighter, house_list, armed
+    ):
+        """A free firing mode rides with the gun. Drawing a kebab that
+        sells one would be offering a click that leaves the weapon
+        missing a line with no way to put it back."""
+        first, _, _ = armed
+        mode = first.children.get(weapon_profile__name="fully automatic")
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
+        (part,) = [
+            part
+            for copy in row.copies
+            for part in copy.parts
+            if part.id == str(mode.pk)
+        ]
+
+        assert part.sell is None
+        assert part.more == ()
+
     def test_a_bought_accessory_offers_detach(self, gang, fighter, house_list, armed):
         """A sight is gear in its own right. Taking it off leaves the
         fighter holding it, so the row asks that before the ways of
