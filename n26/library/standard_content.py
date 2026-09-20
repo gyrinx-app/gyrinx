@@ -1926,17 +1926,14 @@ def _create_fighter_actions():
                         existing_modifier, "offers_choice", new_effect
                     )
             pick.modifiers.add(existing_modifier)
-    slot, _ = Slot.objects.get_or_create(
-        pack=pack,
-        name="Advancement",
-        qualifier="",
-        defaults={
-            "slot_type": advancement_type,
-            "picklist": table,
-            "min_picks": 1,
-            "max_picks": 1,
-            "hidden": True,
-        },
+    slot = named(
+        Slot,
+        "Advancement",
+        slot_type=advancement_type,
+        picklist=table,
+        min_picks=1,
+        max_picks=1,
+        hidden=True,
     )
     repair(
         slot,
@@ -2144,7 +2141,9 @@ def _check_fighter_actions():
         .count()
     )
     raw_present += (
-        RankTable.objects.filter(pack=pack, name="Standard fighter ranks", qualifier="")
+        RankTable.objects.filter(
+            pack=pack, name__iexact="Standard fighter ranks", qualifier=""
+        )
         .values("thresholds")
         .count()
     )
@@ -2215,9 +2214,11 @@ def _check_fighter_actions():
         ).first(),
         name__iexact="Fighter advancement table",
     ).first()
-    slot = Slot.objects.filter(pack=pack, name="Advancement", qualifier="").first()
+    slot = Slot.objects.filter(
+        pack=pack, name__iexact="Advancement", qualifier=""
+    ).first()
     ranks = RankTable.objects.filter(
-        pack=pack, name="Standard fighter ranks", qualifier=""
+        pack=pack, name__iexact="Standard fighter ranks", qualifier=""
     ).first()
     advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()
     augment_outcome = Outcome.objects.filter(
@@ -2298,6 +2299,7 @@ def _check_fighter_actions():
         name = member.pickable.name
         if name in characteristic_names and not any(
             _bearer_scope_matches(modifier)
+            and modifier.pack_id == pack.pk
             and isinstance(modifier.effect, ChangesStat)
             and modifier.effect.stat.full_name == name
             and modifier.effect.stat.pack_id == pack.pk
@@ -2308,6 +2310,7 @@ def _check_fighter_actions():
             return incomplete()
         if name.startswith(("Random", "Select")) and not any(
             _bearer_scope_matches(modifier)
+            and modifier.pack_id == pack.pk
             and isinstance(modifier.effect, OffersChoice)
             and modifier.effect.of_kind.model_class() is Skill
             and modifier.effect.mode

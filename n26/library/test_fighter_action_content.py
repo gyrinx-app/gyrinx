@@ -286,6 +286,15 @@ def test_qualified_skills_collection_is_not_used_as_the_standard_collection(
         min_picks=3,
         max_picks=3,
     )
+    lower_standard_slot = Slot.objects.create(
+        pack=default_pack,
+        name="advancement",
+        qualifier="",
+        slot_type=advancement_type,
+        picklist=table,
+        min_picks=4,
+        max_picks=4,
+    )
     xp = Counter.objects.create(pack=default_pack, name="XP", qualifier="")
     custom_ranks = RankTable.objects.create(
         pack=default_pack,
@@ -307,9 +316,12 @@ def test_qualified_skills_collection_is_not_used_as_the_standard_collection(
     assert custom.sections.count() == 0
     assert custom.selectors.count() == 0
     assert (
-        Slot.objects.get(pack=default_pack, name="Advancement", qualifier="")
-        != custom_slot
+        Slot.objects.get(pack=default_pack, name__iexact="Advancement", qualifier="")
+        == lower_standard_slot
     )
+    lower_standard_slot.refresh_from_db()
+    assert (lower_standard_slot.min_picks, lower_standard_slot.max_picks) == (1, 1)
+    assert lower_standard_slot.hidden is True
     custom_slot.refresh_from_db()
     assert (custom_slot.min_picks, custom_slot.max_picks) == (3, 3)
     assert (
@@ -349,6 +361,30 @@ def test_qualified_skill_section_does_not_satisfy_fighter_action_completeness(
 
     repaired = result.modifiers.get().effect
     assert repaired.from_section.collection.qualifier == ""
+    assert content.status() == "complete"
+
+
+@pytest.mark.parametrize("result_name", ["Movement", "Random Primary skill"])
+def test_homebrew_modifier_does_not_satisfy_advancement_completeness(
+    default_pack,
+    result_name,
+):
+    from n26.library.models import ContentPack
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    result = Pickable.objects.get(name=result_name, qualifier="")
+    modifier = result.modifiers.get()
+    homebrew = ContentPack.objects.create(
+        name=f"Homebrew {result_name}",
+        slug=f"homebrew-{result_name.lower().replace(' ', '-')}",
+    )
+    Modifier.objects.filter(pk=modifier.pk).update(pack=homebrew)
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    assert result.modifiers.filter(pack=default_pack).exists()
     assert content.status() == "complete"
 
 
