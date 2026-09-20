@@ -1,0 +1,53 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Post-battle · {{ gang.name }}{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-4xl space-y-8">
+        <c-n26.page-header title="Post-battle" lead="{{ gang.name }}">
+            <c-slot name="breadcrumb"><c-ui.breadcrumbs><c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item><c-ui.breadcrumbs.item :current="True">Post-battle</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
+        </c-n26.page-header>
+        <c-n26.section title="Saved reports">
+            <ul class="divide-y divide-box-border">
+                {% for report in reports %}
+                    <li class="flex flex-wrap items-center justify-between gap-3 py-3">
+                        <div><p class="font-medium">{% if report.battle %}{{ report.battle.title }}{% else %}{{ report.reference|default:'Post-battle report' }}{% endif %}</p><p class="text-sm text-muted">{{ report.date|date:'j F Y' }} · {% if report.state == "draft" %}Draft saved{% else %}Results recorded{% endif %} {{ report.modified|date:'j M, H:i' }}</p></div>
+                        {% if report.state == "draft" %}<c-ui.button href="{% url 'n26-post-battle-editor' report.pk %}">Continue draft</c-ui.button>{% else %}<c-ui.button href="{% url 'n26-post-battle-receipt' report.pk %}">View results</c-ui.button>{% endif %}
+                    </li>
+{% empty %}<li class="text-sm text-muted">No reports yet. Choose a battle below or start a standalone report.</li>{% endfor %}
+    </ul>
+    </c-n26.section>
+    {% if battles %}
+        <c-n26.section title="Campaign battles">
+            <ul class="divide-y divide-box-border">{% for battle in battles %}<li class="flex flex-wrap items-center justify-between gap-3 py-3"><div><c-n26.link href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ battle.title }}</c-n26.link><p class="text-sm text-muted">{{ battle.campaign.name }} · {{ battle.date|date:'j F Y' }}</p></div><c-ui.button href="{% url 'n26-battle-report' battle.campaign_id battle.pk gang.pk %}">Post-battle</c-ui.button></li>{% endfor %}</ul>
+        </c-n26.section>
+    {% endif %}
+    <form method="post" class="space-y-6">
+        {% csrf_token %}{{ form.request_key }}
+        <c-ui.error :form="form" name="__all__" />
+        <c-n26.form-section title="Standalone report"
+                            description="For a battle that is not recorded in a Gyrinx campaign.">
+            <c-ui.field label="Date" :form="form" name="date" error="date" for="report-date">
+                <c-ui.input type="date"
+                            id="report-date"
+                            name="date"
+                            required
+                            value="{{ form.date_value }}" />
+            </c-ui.field>
+            <c-ui.field label="Reference"
+                        :form="form"
+                        name="reference"
+                        error="reference"
+                        for="report-reference">
+                <c-ui.input id="report-reference"
+                            name="reference"
+                            maxlength="200"
+                            value="{{ form.reference.value|default:'' }}" />
+                <p class="mt-1 text-sm text-muted">Optional — a scenario or opponent helps you recognise this report.</p>
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-actions submit_label="Start draft" submit_variant="success" />
+    </form>
+    </div>
+{% endblock %}

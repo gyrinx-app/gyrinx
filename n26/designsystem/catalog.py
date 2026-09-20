@@ -2067,7 +2067,7 @@ GROUPS: list[Group] = [
                 summary="Every asset of one asset type in the campaign, as a table.",
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "One call per asset type whose ownership is Holding. The "
+                    "One call per transferable asset type. The "
                     "controls are whatever addresses the structure carries — "
                     "Assign, Unassign, Transfer, Remove, Add and Create "
                     "— so a reader who may not act sees no controls rather "

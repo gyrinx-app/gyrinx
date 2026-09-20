@@ -18,6 +18,7 @@ from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
     link_campaign,
+    link_model_cards,
     may_mark_status,
     may_see_activities_square,
     may_see_founding,
@@ -314,6 +315,7 @@ def gang_sheet(request, pk):
     sheet = render_gang(
         gang, card=card, for_owner=founding_seen, collapse_repeats=not yours
     )
+    campaigns_open = link_model_cards(gang, sheet.models, request.user)
     dialog = None
     link_campaign(sheet.campaign, request.user)
     link_owners(sheet)
@@ -366,6 +368,9 @@ def gang_sheet(request, pk):
             "gang": gang,
             "sheet": sheet,
             "yours": yours,
+            "post_battle_href": reverse("n26-gang-post-battle", args=[gang.pk])
+            if campaigns_open
+            else "",
             "trade_points_href": trade_points_href(gang, request.user),
             # Whether the stash card's way into a visit is shut for now.
             # Free where the square below was drawn: that read which

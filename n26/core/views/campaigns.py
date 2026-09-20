@@ -238,7 +238,7 @@ def campaign(request, pk):
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
     _fill_addresses(sheet, found, yours=yours)
     acts, more_acts = _recent_acts(found, request.user)
-    battles = found.battles.prefetch_related("gangs")[:BATTLES_ON_THE_PAGE]
+    battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
     players = list(_players(found))
@@ -1027,9 +1027,10 @@ def _playing(campaign):
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_battle(request, pk):
-    """Write down a battle that was fought."""
+    """Record a battle before or after it is fought."""
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import BattleForm
+    from n26.core.operations import Refusal
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     playing = _playing(found)
@@ -1037,10 +1038,14 @@ def add_battle(request, pk):
     if request.method == "POST":
         form = BattleForm(request.POST, playing=playing)
         if form.is_valid():
-            with campaign_operation(found, actor=request.user) as act:
-                act.record_battle(form.cleaned_data["date"], form.cleaned_data["gangs"])
-            messages.success(request, "Battle recorded.")
-            return redirect("n26-campaign", pk=found.pk)
+            try:
+                with campaign_operation(found, actor=request.user) as act:
+                    battle = act.record_battle(**form.cleaned_data)
+            except Refusal as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, "Battle recorded.")
+                return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
     else:
         form = BattleForm(playing=playing)
 
@@ -1057,21 +1062,43 @@ def add_battle(request, pk):
 def remove_battle(request, pk, battle_pk):
     """The question at its own address, then the act."""
     from n26.core.campaigns import campaign_operation
-    from n26.core.models import Battle
+    from n26.core.operations import Refusal
+    from n26.core.views.battles import battle_or_404
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
-    battle = get_object_or_404(Battle, pk=battle_pk, campaign=found)
+    battle = battle_or_404(found, battle_pk)
 
     if request.method == "POST":
-        with campaign_operation(found, actor=request.user) as act:
-            act.remove_battle(battle)
-        messages.success(request, "Battle removed.")
-        return redirect("n26-campaign", pk=found.pk)
+        try:
+            revision = int(request.POST.get("revision", ""))
+        except TypeError, ValueError:
+            messages.error(
+                request,
+                "The battle version is missing or invalid. Reload it before removing it.",
+            )
+            return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                act.remove_battle(battle, revision=revision)
+        except Refusal as exc:
+            messages.error(request, str(exc))
+            return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
+        else:
+            messages.success(request, "Battle removed.")
+            return redirect("n26-campaign", pk=found.pk)
 
     return render(
         request,
         "n26/remove_battle.html",
-        {"campaign": found, "battle": battle},
+        {
+            "campaign": found,
+            "battle": battle,
+            "has_history": (
+                battle.gang_events.exists()
+                or battle.crews.exists()
+                or battle.reports.exists()
+            ),
+        },
     )
 
 

@@ -328,7 +328,7 @@ class Operation:
     #: content bug, not a use case.
     MAX_STORED_EFFECT_DEPTH = 3
 
-    def __init__(self, gang, actor=None, batch=None):
+    def __init__(self, gang, actor=None, batch=None, post_battle_revision=None):
         self.gang = gang
         self.actor = actor
         # Every event this operation writes carries the same mark, so
@@ -336,6 +336,8 @@ class Operation:
         # caller writing one act across two gangs — an asset handed from
         # one to the other — passes the mark in, so both halves share it.
         self.batch = batch or uuid4()
+        self.post_battle_revision = post_battle_revision
+        self.post_battle_occurrence = None
         self._miniatures = {}
         self._effect_depth = 0
         self._campaign = _UNASKED
@@ -515,12 +517,21 @@ class Operation:
         if gang is None and isinstance(about, Miniature):
             membership = getattr(about, "membership", None)
             gang = membership.gang if membership else None
+        report = self.post_battle_revision.report if self.post_battle_revision else None
+        if report is not None:
+            deltas.setdefault("post_battle_revision", self.post_battle_revision)
+            deltas.setdefault("post_battle_occurrence", self.post_battle_occurrence)
+            deltas.setdefault("battle", report.battle)
         return LedgerEvent.objects.create(
             assignment=assignment,
             miniature=about if isinstance(about, Miniature) else None,
             campaign_asset=about if isinstance(about, CampaignAsset) else None,
             gang=gang,
-            campaign=self._campaign_of(gang),
+            campaign=(
+                report.battle.campaign
+                if report and report.battle_id
+                else self._campaign_of(gang)
+            ),
             kind=kind,
             batch=self.batch,
             actor=self.actor,
@@ -728,6 +739,16 @@ class Operation:
                     note=note,
                 )
         return paid
+
+    def receive_credits(self, amount, note):
+        """Record signed income, including an exact correction of an earlier receipt."""
+        if not amount:
+            return None
+        if not note.strip():
+            raise Refusal("Enter a reason for the credits.")
+        return self.event(
+            None, LedgerEvent.Kind.INCOME, credits_delta=-amount, note=note[:255]
+        )
 
     def clean_house(self):
         """The end of the cycle: every model In Recovery is Active again.
@@ -3083,14 +3104,16 @@ def clone_gang(source, *, name, owner, actor=None):
 
 
 @contextmanager
-def operation(gang, actor=None, batch=None, also=()):
+def operation(gang, actor=None, batch=None, also=(), post_battle_revision=None):
     """One transaction; pinned numbers rewritten when it closes.
 
     ``also`` names the other gangs this act will write to — the payee of
     a transfer — so their lines are taken with this gang's, together and
     in one order.
     """
-    op = Operation(gang, actor=actor, batch=batch)
+    op = Operation(
+        gang, actor=actor, batch=batch, post_battle_revision=post_battle_revision
+    )
     from n26.write_pause import write_guard
 
     with transaction.atomic(), write_guard():

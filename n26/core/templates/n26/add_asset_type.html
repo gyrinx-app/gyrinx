@@ -67,6 +67,7 @@ are, so the form posts with no script and a redisplay keeps the pick.
                                             value="{{ ownership.value }}"
                                             label="{{ ownership.label }}"
                                             description="{{ ownership.description }}"
+                                            :wrap="True"
                                             :checked="ownership.checked" />
                 {% endfor %}
             </c-n26.radio-cards>

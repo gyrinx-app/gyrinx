@@ -824,7 +824,7 @@ BUILT_INS_PART = {
         [
             "A counter with its opening value, or a rule, that every gang is "
             "given when it joins a campaign of this type. No choice is "
-            "offered. An asset of a Possession asset type is given as well, "
+            "offered. An asset of an inherent asset type is given as well, "
             "but you do not add it here: it is listed above with its asset "
             "type."
         ]
@@ -1352,6 +1352,8 @@ def _describe_slot_type(slot_type):
     ]
     if not slot_type.allows_repeats:
         notes.append("no repeats")
+    if slot_type.is_lasting_effect:
+        notes.append("post-battle results")
     return notes
 
 

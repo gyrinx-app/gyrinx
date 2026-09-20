@@ -1,0 +1,36 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}Remove {{ assignment_set.name }} · {{ miniature.name }}{% endblock %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page title="Remove {{ assignment_set.name }}?"
+                     :form="form"
+                     submit_label="Remove model card"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-edit-fighter' miniature.pk %}">{{ miniature.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    Model cards
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Remove
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {{ form.revision }}
+        <p>This removes the named card, not the model or its equipment. Saved crews keep the card they selected.</p>
+        {% if last_card %}
+            <p class="text-sm text-muted">The model will return to one standard card showing all its equipment.</p>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock %}

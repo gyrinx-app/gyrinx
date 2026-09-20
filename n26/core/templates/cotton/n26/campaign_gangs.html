@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.campaign-gangs> — Every gang in the campaign, with rating, credits, counters, labels, and assets.
+<c-n26.campaign-gangs> — Every gang in the campaign, with rating, credits, wealth, counters, labels, and assets.
 
 Lay counters, labels, and assets by position against the sheet's column lists, never by name.
 A missing counter is None. Draw it as a dash, not a blank.
@@ -20,6 +20,7 @@ Starting rolls fetch with hx-swap none so a dialog opens.
             <th scope="col">Gang</th>
             <th scope="col" class="text-right">Rating</th>
             <th scope="col" class="text-right">Credits</th>
+            <th scope="col" class="text-right">Wealth</th>
             {% for name in sheet.counter_columns %}<th scope="col" class="text-right">{{ name }}</th>{% endfor %}
             {% for name in sheet.label_columns %}<th scope="col">{{ name }}</th>{% endfor %}
             {% for asset_type in sheet.asset_types %}<th scope="col">{{ asset_type.plural }}</th>{% endfor %}
@@ -62,6 +63,7 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                 <td class="text-right tabular-nums whitespace-nowrap">
                     {% if gang.credits_unlimited %}<span class="text-muted">&mdash;</span>{% else %}{{ gang.credits }}¢{% endif %}
                 </td>
+                <td class="text-right tabular-nums whitespace-nowrap">{{ gang.wealth }}¢</td>
                 {% for line in gang.counters %}
                     <td class="text-right tabular-nums whitespace-nowrap">
                         {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}

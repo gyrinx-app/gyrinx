@@ -4,13 +4,14 @@
 id is the fragment target. Omit it and the section cannot be linked to.
 Use the same h2 rank as form-section. A detail section and a form group then read as the same rank of thing.
 Keep the count inside the heading so a reader scanning headings hears the title and the count together.
+heading_class changes the heading style without changing its h2 rank.
 {% endcomment %}
 
-<c-vars title="" count="" actions="" id="" class="" />
+<c-vars title="" count="" actions="" id="" class="" heading_class="text-lg font-semibold text-ink-900 dark:text-ink-100" />
 
 <section {% if id %}id="{{ id }}"{% endif %} class="flex flex-col gap-3 {{ class }}">
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">
+        <h2 class="{{ heading_class }}">
             {{ title }}
             {% if count %}<span class="ml-1 text-sm font-normal text-muted">{{ count }}</span>{% endif %}
         </h2>

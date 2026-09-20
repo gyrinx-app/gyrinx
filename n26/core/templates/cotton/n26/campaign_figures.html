@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.campaign-figures> — Four campaign counts in a horizontal strip.
+<c-n26.campaign-figures> — Gang and battle counts in a horizontal strip.
 
 Pass an empty unit. The figure defaults to a credits sign, which would mark these counts as money.
 The strip does not wrap. Overflow scrolls sideways instead.
@@ -11,8 +11,6 @@ A last figure that drops onto a second line stops reading as a strip.
 <div class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
         <c-n26.wealth.figure short="Gangs" full="Gangs in this campaign" unit="" :value="sheet.gang_count" />
-        <c-n26.wealth.figure short="Held" full="Assets held by a gang" unit="" :value="sheet.assets_held" />
-        <c-n26.wealth.figure short="Unclaimed" full="Assets nobody holds" unit="" :value="sheet.assets_unclaimed" />
-        <c-n26.wealth.figure short="Battles" full="Battles fought" unit="" :value="sheet.battles_fought" />
+        <c-n26.wealth.figure short="Battles" full="Battles recorded" unit="" :value="sheet.battles_fought" />
     </dl>
 </div>

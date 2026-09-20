@@ -139,6 +139,11 @@ that said it twice would be spending the width the name needs.
         {% endcomment %}
         {% if yours %}
             <c-slot name="actions">
+                {% if post_battle_href %}
+                    <c-ui.button size="sm" variant="primary" href="{{ post_battle_href }}">
+                        Post-battle
+                    </c-ui.button>
+                {% endif %}
                 <c-ui.button size="sm"
                              variant="primary"
                              href="{% url 'n26-hire-fighter' gang.pk %}">

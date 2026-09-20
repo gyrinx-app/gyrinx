@@ -1,75 +1,92 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% comment %}
-Writing down a battle that was fought.
-
-Only the date and who was in it. What a battle did to a gang is recorded
-against that gang, so this screen asks for nothing about the fighting.
-{% endcomment %}
-{% block head_title %}Record a battle in {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}{% if battle %}Edit {{ battle.title }}{% else %}Record a battle{% endif %}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
-{% endblock nav_switcher %}
+{% endblock %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-add-battle' campaign.pk %}"
-                     title="Record a battle in {{ campaign.name }}"
+    {% if battle %}
+        {% url 'n26-campaign-edit-battle' campaign.pk battle.pk as action_url %}
+        {% url 'n26-battle' campaign.pk battle.pk as cancel_url %}
+    {% else %}
+        {% url 'n26-campaign-add-battle' campaign.pk as action_url %}
+        {% url 'n26-campaign' campaign.pk as cancel_url %}
+    {% endif %}
+    <c-n26.form-page :action="action_url"
+                     title="{% if battle %}Edit battle{% else %}Record a battle{% endif %}"
+                     lead="You can record the battle before you play and add the result afterwards."
                      :form="form"
-                     submit_label="Record battle"
-                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+                     submit_label="{% if battle %}Save changes{% else %}Record battle{% endif %}"
+                     :cancel_url="cancel_url">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
-                </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    Record a battle
-                </c-ui.breadcrumbs.item>
+                {% if battle %}<c-ui.breadcrumbs.item href="{{ cancel_url }}">{{ battle.title }}</c-ui.breadcrumbs.item>{% endif %}
+                <c-ui.breadcrumbs.item :current="True">{% if battle %}Edit{% else %}Record a battle{% endif %}</c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% if battle %}{{ form.revision }}{% endif %}
         <c-n26.form-section title="The battle">
+            <c-ui.field label="Scenario *"
+                        error="x"
+                        :form="form"
+                        name="scenario"
+                        for="battle-scenario">
+                <c-ui.input id="battle-scenario"
+                            name="scenario"
+                            maxlength="200"
+                            required
+                            value="{{ form.scenario.value|default:'' }}" />
+            </c-ui.field>
             <c-ui.field label="Date *" error="x" :form="form" name="date" for="battle-date">
                 <c-ui.input id="battle-date"
                             name="date"
                             type="date"
+                            required
                             value="{{ form.date.value|default:'' }}" />
             </c-ui.field>
-            {% comment %}
-            Plain boxes rather than the kit's checkbox, which drives itself
-            from Alpine and does nothing with scripting off. Styled the way
-            <c-n26.tick-list> styles its own: a native box takes its colour
-            from accent, never from a border class.
-            {% endcomment %}
-            <c-ui.field label="Participants"
+            <c-ui.field label="Participants" error="x" :form="form" name="gangs">
+                <div class="flex flex-col gap-1.5">
+                    {% for choice in form.gangs %}
+                        <label class="flex min-h-11 items-center gap-3 text-base"
+                               for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
+                    {% empty %}
+                        <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+                    {% endfor %}
+                </div>
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-section title="Result"
+                            description="Recording a result does not change credits, experience or injuries.">
+            <c-ui.field label="Result *"
                         error="x"
                         :form="form"
-                        name="gangs"
-                        for="battle-gangs">
-                {% if form.fields.gangs.queryset %}
-                    <div class="flex flex-col gap-1.5">
-                        {% for gang in form.fields.gangs.queryset %}
-                            <label class="flex items-center gap-2 text-base">
-                                <input type="checkbox"
-                                       name="gangs"
-                                       value="{{ gang.pk }}"
-                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                {{ gang.name }}
-                                <span class="text-sm text-muted">{{ gang.gang_type }}</span>
-                            </label>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-sm text-muted">No gangs in this campaign yet.</p>
-                {% endif %}
+                        name="result"
+                        for="battle-result">
+                <c-ui.select.native id="battle-result" name="result" required placeholder="">
+                    {% for value, label in form.fields.result.choices %}
+                        <option value="{{ value }}"
+                                {% if value == form.result.value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+            <c-ui.field label="Winning gangs" error="x" :form="form" name="winners">
+                <p class="mb-2 text-sm text-muted">Select one or more participants if the result is “Winner or winners”. Leave clear for a draw or a result not yet recorded.</p>
+                <div class="flex flex-col gap-1.5">
+                    {% for choice in form.winners %}
+                        <label class="flex min-h-11 items-center gap-3 text-base"
+                               for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
+                    {% empty %}
+                        <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+                    {% endfor %}
+                </div>
             </c-ui.field>
         </c-n26.form-section>
     </c-n26.form-page>
-{% endblock content %}
+{% endblock %}

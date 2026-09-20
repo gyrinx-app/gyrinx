@@ -1096,6 +1096,7 @@ def _build_registry():
                 "name": Text(source=(SlotType, "name")),
                 "plural_name": Text(source=(SlotType, "plural_name")),
                 "allows_repeats": Bool(source=(SlotType, "allows_repeats")),
+                "is_lasting_effect": Bool(source=(SlotType, "is_lasting_effect")),
             },
         ),
         Spec(

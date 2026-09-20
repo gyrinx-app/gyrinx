@@ -17,7 +17,7 @@ gang's sheet asks it and each gang's owner picks there.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-label' campaign.pk %}"
                      title="Add a label"
-                     lead="A choice every gang makes once, such as an Alignment. Each gang's owner picks one of the options on the gang sheet."
+                     lead="An optional set of categories gangs can be placed into, such as factions."
                      :form="form"
                      submit_label="Add label"
                      cancel_url="{{ back }}">
@@ -38,7 +38,7 @@ gang's sheet asks it and each gang's owner picks there.
         {% csrf_token %}
         <c-n26.form-section title="The label">
             <c-ui.field label="Name *"
-                        description='What the choice is called, e.g. "Alignment".'
+                        description="{{ form.name.help_text }}"
                         error="x"
                         :form="form"
                         name="name"

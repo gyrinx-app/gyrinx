@@ -57,6 +57,24 @@ def may_mark_status(gang, user):
     return may_see_activities_square(gang, user)
 
 
+def link_model_cards(gang, cards, user):
+    """Owner-only card management links, with one feature check per page."""
+    from django.urls import reverse
+
+    from n26.flags import CAMPAIGNS, enabled
+
+    available = (
+        user is not None
+        and user.is_authenticated
+        and gang.owner_id == user.pk
+        and enabled(CAMPAIGNS, user)
+    )
+    if available:
+        for card in cards:
+            card.model_cards_href = reverse("n26-model-cards", args=[gang.pk, card.id])
+    return available
+
+
 def status_href(gang, miniature, user=None, *, back="", ransom=True):
     """Where a model's status badge leads: the sheet's Mark as… dialog, or
     Pay ransom… while the model is held — the act the status wants next.

@@ -1,0 +1,154 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}Choose crew — {{ gang.name }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto w-full max-w-5xl space-y-6">
+        <c-n26.page-header title="Choose crew" lead="{{ gang.name }} · {{ battle.title }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-battle' campaign.pk battle.pk %}">{{ battle.title }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Choose crew
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <p class="text-sm text-muted">Select the starting crew and any reinforcements. Select one model card for each model. Reinforcements are not automatically marked as having taken part.</p>
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            {{ form.revision }}
+            <c-ui.error :form="form" name="__all__" />
+            {% if form.errors %}<p class="text-sm text-red-700 dark:text-red-300"
+   role="alert">Check the details below. Your selections have been kept.</p>{% endif %}
+            <section class="border border-box-border bg-box p-4"
+                     aria-labelledby="crew-draw-heading">
+                <h2 id="crew-draw-heading" class="mb-3 font-semibold">Randomly add models</h2>
+                <div class="flex flex-wrap items-end gap-3">
+                    <div class="w-28">
+                        <c-ui.field label="Number"
+                                    error="x"
+                                    :form="form"
+                                    name="random_count"
+                                    for="draw-count">
+                            <c-ui.input type="number"
+                                        id="draw-count"
+                                        name="random_count"
+                                        min="1"
+                                        value="{{ form.random_count.value|default:'' }}" />
+                        </c-ui.field>
+                    </div>
+                    <div class="min-w-0 flex-1 sm:max-w-xs">
+                        <c-ui.field label="Draw into"
+                                    error="x"
+                                    :form="form"
+                                    name="random_role"
+                                    for="draw-role">
+                            <c-ui.select.native id="draw-role" name="random_role" placeholder="">
+                                {% for value, label in form.fields.random_role.choices %}<option value="{{ value }}"
+        {% if value == form.random_role.value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                            </c-ui.select.native>
+                        </c-ui.field>
+                    </div>
+                    <c-ui.button type="submit" name="action" value="draw">
+                        <span class="inline-flex items-center gap-2">
+                            <c-n26.icon name="dices" class="size-4" />
+                        Draw and save draft</span>
+                    </c-ui.button>
+                </div>
+                <p class="mt-3 text-xs text-muted">The draw adds to the selections below. Only available, unselected models enter the draw. A model card is drawn for each eligible model before the models are drawn.</p>
+                {% if crew.draw_number %}<p class="mt-2 text-xs text-muted">{{ crew.draw_number }} saved draw{{ crew.draw_number|pluralize }}. Reloading this page does not draw again.</p>{% endif %}
+            </section>
+            <section x-data="{ search: '' }" aria-labelledby="crew-roster-heading">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <h2 id="crew-roster-heading" class="text-lg font-semibold">Models</h2>
+                    <div class="w-full sm:w-64">
+                        <label for="crew-search" class="sr-only">Find a model</label>
+                        <c-ui.input id="crew-search"
+                                    type="search"
+                                    x-model="search"
+                                    placeholder="Find a model" />
+                    </div>
+                </div>
+                <div class="divide-y divide-box-border border border-box-border bg-box">
+                    {% for entry in form.models %}
+                        <fieldset class="min-w-0 space-y-3 p-4"
+                                  data-search="{{ entry.search }}"
+                                  x-show="$el.dataset.search.includes(search.toLowerCase())">
+                            <legend class="sr-only">{{ entry.miniature.name }}</legend>
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-semibold">{{ entry.miniature.name }}</p>
+                                    <p class="text-sm text-muted">{{ entry.miniature.membership.profile }}</p>
+                                    {% if entry.saved_source %}<p class="mt-1 text-xs text-muted">{{ entry.saved_source }}</p>{% endif %}
+                                </div>
+                                <span class="shrink-0 text-sm tabular-nums">{{ entry.miniature.rating }}¢</span>
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <c-ui.field label="Crew"
+                                            error="x"
+                                            :form="form"
+                                            name="{{ entry.role.name }}"
+                                            for="{{ entry.role.id_for_label }}">
+                                    <c-ui.select.native id="{{ entry.role.id_for_label }}"
+                                                        name="{{ entry.role.html_name }}"
+                                                        required
+                                                        placeholder="">
+                                        {% for value, label in entry.role.field.choices %}<option value="{{ value }}"
+        {% if value == entry.role.value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                                    </c-ui.select.native>
+                                </c-ui.field>
+                                <c-ui.field label="Model card"
+                                            error="x"
+                                            :form="form"
+                                            name="{{ entry.card.name }}"
+                                            for="{{ entry.card.id_for_label }}">
+                                    <c-ui.select.native id="{{ entry.card.id_for_label }}"
+                                                        name="{{ entry.card.html_name }}"
+                                                        required
+                                                        placeholder="">
+                                        {% for value, label in entry.card.field.choices %}<option value="{{ value }}"
+        {% if value == entry.card.value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                                    </c-ui.select.native>
+                                </c-ui.field>
+                            </div>
+                            {% if entry.warning %}
+                                <div class="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
+                                    <p>{{ entry.warning }}</p>
+                                    {% if entry.may_override %}<label class="mt-2 flex min-h-11 items-center gap-3"
+       for="{{ entry.override.id_for_label }}">{{ entry.override }} Allow for this battle</label>{% endif %}
+                                    {% for error in entry.override.errors %}<p class="text-red-700 dark:text-red-300">{{ error }}</p>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </fieldset>
+                    {% empty %}
+                        <p class="p-4 text-sm text-muted">No available models in this gang yet.</p>
+                    {% endfor %}
+                </div>
+            </section>
+            <p class="text-xs text-muted">A saved selection keeps its card name and equipment selection. To use an edited model card, select it again from the list.</p>
+            <div class="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-box-border bg-box py-4">
+                <div class="text-sm">
+                    <p class="font-semibold">{{ selected_count }} model{{ selected_count|pluralize }} · {{ selected_rating }}¢</p>
+                    <p class="text-xs text-muted">{{ starting_count }} starting · {{ reserve_count }} reinforcements{% if crew %} · Revision {{ crew.revision }}{% endif %}</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <c-ui.button href="{% url 'n26-battle' campaign.pk battle.pk %}" variant="ghost">Back</c-ui.button>
+                    <c-ui.button type="submit" name="action" value="draft">
+                        Save draft
+                    </c-ui.button>
+                    <c-ui.button type="submit" name="action" value="save" variant="success">
+                        Save crew
+                    </c-ui.button>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock %}

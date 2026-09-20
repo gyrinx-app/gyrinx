@@ -330,7 +330,7 @@ class TestSettingOneUp:
         it, and has no row of its own in the facts strip."""
         body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert "Territory campaign" in body
-        assert "arbitrated by" in body
+        assert "Arbitrator:" in body
         assert "Campaign type" not in body
 
     def test_the_form_opens_with_a_thousand_credit_budget(
@@ -518,6 +518,95 @@ class TestArchiving:
     def test_a_deleted_campaign_stops_opening(self, client, campaign, open_to_everyone):
         client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         assert client.get(f"/n26/campaigns/{campaign.pk}/").status_code == 404
+
+
+class TestCampaignDashboardLayout:
+    """The page leads with play and keeps player administration below the log."""
+
+    def test_header_has_only_gangs_and_battles(
+        self, client, campaign, open_to_everyone
+    ):
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        figures = re.search(
+            r'<div id="n26-campaign-figures".*?</dl>', drawn, re.S
+        ).group()
+        assert "Gangs in this campaign" in figures
+        assert "Battles recorded" in figures
+        assert "Held" not in figures
+        assert "Unclaimed" not in figures
+        assert "Cycles" not in figures
+        assert "Arbitrator:" in drawn
+
+    @pytest.mark.parametrize("owner", [True, False])
+    def test_players_follow_battles_and_log_for_every_reader(
+        self, client, campaign, open_to_everyone, owner
+    ):
+        if not owner:
+            client.force_login(User.objects.create_user("reader"))
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assert (
+            drawn.index('id="battles"')
+            < drawn.index('id="log"')
+            < drawn.index('id="players"')
+        )
+        invite = f"/n26/campaigns/{campaign.pk}/players/add/"
+        if owner:
+            assert drawn.count(f'href="{invite}"') == 1
+            assert drawn.index(f'href="{invite}"') < drawn.index('id="gangs"')
+            assert "Invite players" in drawn
+        else:
+            assert invite not in drawn
+
+    def test_wealth_is_drawn_beside_rating_and_credits(
+        self, client, campaign, arbitrator, gang_type, make_profile, open_to_everyone
+    ):
+        from n26.core.reconcile import assert_reconciled
+        from n26.tests.sandbox.actions import join_campaign
+
+        gang = found_gang("The Ashen Choir", gang_type, owner=arbitrator, budget=1000)
+        hire(gang, make_profile("Leader"), "Yolanda", paid=125)
+        assign(create_wargear("Spare kit", price=75), stash=gang.stash, paid=75)
+        join_campaign(gang, campaign)
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        table = drawn.split('id="n26-campaign-gangs"', 1)[1].split("</table>", 1)[0]
+        headings = re.findall(r"<th\b[^>]*>(.*?)</th>", table, re.S)
+        assert [heading.strip() for heading in headings[:4]] == [
+            "Gang",
+            "Rating",
+            "Credits",
+            "Wealth",
+        ]
+        cells = re.findall(r"<td\b[^>]*>(.*?)</td>", table, re.S)
+        assert [cell.strip() for cell in cells[1:4]] == ["125¢", "800¢", "1000¢"]
+        assert_reconciled(gang)
+
+    def test_gang_name_precedes_its_log_action(
+        self, client, campaign, arbitrator, gang_type, open_to_everyone
+    ):
+        from n26.tests.sandbox.actions import join_campaign
+
+        gang = found_gang("The Ashen Choir", gang_type, owner=arbitrator)
+        join_campaign(gang, campaign)
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        log = drawn.split('id="n26-campaign-log"', 1)[1].split("</ol>", 1)[0]
+        assert log.index("The Ashen Choir") < log.index("added the gang to Dust Falls")
+
+    def test_asset_management_controls_keep_their_section(
+        self, client, campaign, open_to_everyone
+    ):
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assets = drawn.split('id="n26-campaign-assets"', 1)[1].split("</section>", 1)[0]
+        assert 'id="assets"' in assets
+        assert re.search(
+            r'<h2 class="text-sm font-medium text-muted">\s*Assets', assets
+        )
+        gangs = drawn.split('id="gangs"', 1)[1].split("</section>", 1)[0]
+        assert re.search(
+            r'<h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">\s*Gangs',
+            gangs,
+        )
+        assert "Add asset type" in assets
+        assert "Tables" in assets
 
 
 class TestTheLogOnTheCampaignsPage:
@@ -849,20 +938,26 @@ class TestBattlesOnTheCampaignsPage:
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         response = client.post(
             f"/n26/campaigns/{campaign.pk}/battles/new/",
-            {"date": "2026-08-03", "gangs": [str(gang.pk)]},
+            {
+                "scenario": "Stand-off",
+                "result": "not_recorded",
+                "date": "2026-08-03",
+                "gangs": [str(gang.pk)],
+            },
         )
         assert response.status_code == 302
 
         drawn = self.page(client, campaign)
         assert "3 Aug 2026" in drawn
-        assert "recorded a battle fought on 3 August" in drawn
+        assert "recorded Stand-off on 2026-08-03" in drawn
         assert Battle.objects.get(campaign=campaign).gangs.count() == 1
 
     def test_a_battle_with_nobody_named_still_draws(
         self, client, campaign, open_to_everyone
     ):
         client.post(
-            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            {"scenario": "Stand-off", "result": "not_recorded", "date": "2026-08-03"},
         )
         assert "No gangs named" in self.page(client, campaign)
 
@@ -895,7 +990,8 @@ class TestBattlesOnTheCampaignsPage:
         self, client, campaign, open_to_everyone
     ):
         client.post(
-            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            {"scenario": "Stand-off", "result": "not_recorded", "date": "2026-08-03"},
         )
         battle = Battle.objects.get()
         address = f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/"
@@ -904,10 +1000,14 @@ class TestBattlesOnTheCampaignsPage:
 
     def test_the_post_removes_it(self, client, campaign, open_to_everyone):
         client.post(
-            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            {"scenario": "Stand-off", "result": "not_recorded", "date": "2026-08-03"},
         )
         battle = Battle.objects.get()
-        client.post(f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/")
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/{battle.pk}/remove/",
+            {"revision": battle.revision},
+        )
 
         assert not Battle.objects.exists()
         drawn = self.page(client, campaign)
@@ -919,7 +1019,8 @@ class TestBattlesOnTheCampaignsPage:
     ):
         elsewhere = found_campaign("Sump City", campaign_type, owner=arbitrator)
         client.post(
-            f"/n26/campaigns/{elsewhere.pk}/battles/new/", {"date": "2026-08-03"}
+            f"/n26/campaigns/{elsewhere.pk}/battles/new/",
+            {"scenario": "Stand-off", "result": "not_recorded", "date": "2026-08-03"},
         )
         battle = Battle.objects.get()
         assert (
@@ -964,7 +1065,8 @@ class TestTheCampaignInTheBar:
     ):
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         client.post(
-            f"/n26/campaigns/{campaign.pk}/battles/new/", {"date": "2026-08-03"}
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            {"scenario": "Stand-off", "result": "not_recorded", "date": "2026-08-03"},
         )
         battle = Battle.objects.get()
 
