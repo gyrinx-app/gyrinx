@@ -25,10 +25,10 @@
             headers: { Accept: "application/json" },
         })
             .then(async (response) => {
-                const result = await response.json();
-                if (!response.ok)
+                const result = await response.json().catch(() => null);
+                if (!response.ok || !result)
                     throw new Error(
-                        result.error || "Draft could not be saved.",
+                        result?.error || "Draft could not be saved.",
                     );
                 form.elements.revision.value = result.revision;
                 form.elements.generation.value = result.generation;

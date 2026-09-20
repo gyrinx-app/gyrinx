@@ -11,7 +11,13 @@ from dataclasses import dataclass, field
 from django.db.models import Q
 
 from n26.core.battle_permissions import may_record_gang
-from n26.core.card import build_gang_card, build_modifier_index, carriers
+from n26.core.card import (
+    assemble,
+    build_gang_card,
+    build_modifier_index,
+    card_rows,
+    carriers,
+)
 from n26.core.effects import compute, compute_gang
 from n26.core.fields import to_ulid
 from n26.core.models import Assignment, AssignmentSet, Battle, Campaign, Gang, Miniature
@@ -180,7 +186,6 @@ def save_crew(
                 saved.assignment_set_id,
             )
             card_source = saved.card_source
-            rating = saved.rating
         else:
             card = next((c for c in item.cards if c.key == selection.card_key), None)
             if card is None:
@@ -194,7 +199,6 @@ def save_crew(
                 in {CrewMember.Source.RANDOM, CrewMember.Source.OVERRIDE}
                 else CrewMember.Source.MANUAL
             )
-            rating = model.rating
         selected[key] = dict(
             miniature=model,
             miniature_name=model.name,
@@ -207,7 +211,6 @@ def save_crew(
             assignment_set_id=card.assignment_set_id,
             card_name=card.name,
             equipment_ids=list(card.equipment_ids),
-            rating=rating,
         )
     if not isinstance(random_count, int) or random_count < 0:
         raise Refusal("Enter a whole number of models to draw, 0 or more.")
@@ -256,10 +259,11 @@ def save_crew(
                 assignment_set_id=card.assignment_set_id,
                 card_name=card.name,
                 equipment_ids=list(card.equipment_ids),
-                rating=model.rating,
             )
     if confirm and not selected:
         raise Refusal("Select at least one model before saving the crew.")
+    if selected:
+        _rate_selected_cards(gang, selected)
     if crew is None:
         crew = BattleCrew.objects.create(battle=battle, gang=gang)
     kept = []
@@ -286,6 +290,21 @@ class EquipmentSnapshot:
 
     def selected_ids(self):
         return {to_ulid(value) for value in self.ids}
+
+
+def _rate_selected_cards(gang, selected):
+    """Freeze each selection's own rating without the gang's broadcast kit."""
+    by_model = {}
+    for assignment in card_rows(gang_root=gang, miniature_root_id__in=selected):
+        by_model.setdefault(assignment.miniature_root_id, []).append(assignment)
+    for values in selected.values():
+        model = values["miniature"]
+        card = assemble(
+            model,
+            by_model[model.pk],
+            assignment_set=EquipmentSnapshot(tuple(values["equipment_ids"])),
+        )
+        values["rating"] = card.rating
 
 
 @dataclass(frozen=True)
@@ -351,6 +370,8 @@ def build_crew_sheet(crew):
             if miniature and raw
             else None
         )
+        if card is not None:
+            card.rating = member.rating
         line = CrewCard(
             member,
             card,

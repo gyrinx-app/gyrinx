@@ -15,10 +15,12 @@ from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
 from n26.core.models import BattleCrew, PrintConfig
 from n26.core.operations import operation
+from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
 from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     assign,
+    attach,
     buy,
     choose,
     create_assignment_set,
@@ -28,6 +30,7 @@ from n26.tests.sandbox.actions import (
     create_slot_type,
     create_wargear,
     create_weapon,
+    create_weapon_accessory,
     found_campaign,
     found_gang,
     give_weapon,
@@ -140,8 +143,63 @@ class TestCrewForms:
             )
             for label in document.select("dt")
         }
-        assert labels["Starting crew"] == "1 10¢ when selected"
+        assert labels["Starting crew"] == "1 0¢ when selected"
         assert labels["Reinforcements"] == "1 5¢ when selected"
+
+    @pytest.mark.parametrize("surface", ["battle", "sheet", "print"])
+    def test_selected_equipment_rating_is_frozen_on_reads_and_updated_on_resave(
+        self, client, table, feature, surface
+    ):
+        starting = table.models[0]
+        selected = give_weapon(starting, create_weapon("Selected pistol"), paid=15)
+        omitted = give_weapon(starting, create_weapon("Omitted sword"), paid=25)
+        table.card.assignments.add(selected)
+        give_weapon(table.models[1], create_weapon("Reserve knife"), paid=7)
+        assert client.post(address(table), fields(table)).status_code == 302
+        crew = BattleCrew.objects.get()
+
+        if surface == "battle":
+            url = reverse(
+                "n26-battle",
+                kwargs={"pk": table.campaign.pk, "battle_pk": table.battle.pk},
+            )
+        else:
+            url = address(table, sheet=True) + (
+                "?print=1" if surface == "print" else ""
+            )
+
+        def ratings():
+            response = client.get(url)
+            assert response.status_code == 200
+            if surface == "battle":
+                saved = response.context["participants"][0].crew
+            else:
+                saved = response.context[
+                    "crew_sheet" if surface == "print" else "sheet"
+                ]
+                for line in [*saved.starting, *saved.reserves]:
+                    assert line.card.rating == line.member.rating
+            return saved.starting_rating, saved.reserve_rating
+
+        assert ratings() == (15, 7)
+        table.card.assignments.set([omitted])
+        attach(selected, create_weapon_accessory("Sight"), paid=3)
+        assert ratings() == (15, 7)
+        editor = client.get(address(table))
+        document = BeautifulSoup(editor.content, "html.parser")
+        model_row = document.find("legend", string="Mara").find_parent("fieldset")
+        assert "Full equipment: 43¢" in model_row.get_text(" ", strip=True)
+        actions = document.select_one('[aria-label="Save crew"]')
+        assert actions.select_one(".font-semibold").get_text(strip=True) == "2 models"
+        assert "¢" not in actions.get_text()
+        payload = fields(table, revision=str(crew.revision))
+        for model in table.models:
+            key = f"card_{model.pk}"
+            payload[key] = editor.context["form"][key].value()
+        assert client.post(address(table), payload).status_code == 302
+        assert ratings() == (18, 7)
+        table.gang.refresh_from_db()
+        assert_reconciled(table.gang)
 
     def test_crew_cards_show_injuries_without_editing_prompts(
         self, client, table, feature
@@ -341,7 +399,7 @@ class TestCrewPagePermissions:
             ): entry.select_one(".n26-print-entry-value").get_text(" ", strip=True)
             for entry in header.select(".n26-print-entry")
         }
-        assert entries["Starting crew"] == "1 · 10¢ when selected"
+        assert entries["Starting crew"] == "1 · 0¢ when selected"
         assert entries["Reinforcements"] == "1 · 5¢ when selected"
         toolbar = document.select_one('[aria-label="Crew print controls"]')
         assert "print:hidden" in toolbar["class"]

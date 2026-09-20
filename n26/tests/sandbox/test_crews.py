@@ -20,14 +20,29 @@ from n26.core.models import AssignmentSet, BattleCrew, CrewMember, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
+from n26.library.authoring import modifier
 from n26.tests.sandbox.actions import (
+    assign,
+    attach,
+    choose,
     create_assignment_set,
+    create_pickable,
+    create_picklist,
+    create_rule,
+    create_skill,
+    create_slot,
+    create_slot_type,
+    create_wargear,
     create_weapon,
+    create_weapon_accessory,
+    ef_adds,
     found_campaign,
     found_gang,
     give_weapon,
     hire,
     join_campaign,
+    targets_every_model,
+    targets_gang,
 )
 
 pytestmark = pytest.mark.django_db
@@ -97,7 +112,7 @@ class TestSavedCrews:
         member = crew.members.get(miniature=table.models[0])
         assert member.card_name == "Long range"
         assert member.equipment_ids == [str(table.gun.pk)]
-        assert member.rating == 40
+        assert member.rating == 35
         assert LedgerEvent.objects.filter(gang=table.gang).count() == before
         assert_reconciled(table.gang)
 
@@ -149,7 +164,7 @@ class TestSavedCrews:
         )
         sheet = build_crew_sheet(crew)
         assert [w.name for w in sheet.starting[0].card.weapons] == ["Autogun"]
-        assert sheet.starting[0].card.rating == 40
+        assert sheet.starting[0].card.rating == 35
         assert sheet.starting[0].member.card_name == "Long range"
 
     def test_removed_equipment_is_reported_without_replacing_the_card(self, table):
@@ -187,6 +202,148 @@ class TestSavedCrews:
         assert_reconciled(table.gang)
 
 
+class TestSelectedCardRatings:
+    """A saved crew rates the kit selected, not everything the model owns."""
+
+    @pytest.mark.parametrize(
+        "selection,expected", [("named", 35), ("full", 40), ("empty", 20)]
+    )
+    def test_equipment_selection_keeps_the_base_and_only_the_selected_gear(
+        self, table, selection, expected
+    ):
+        if selection == "full":
+            table.ranged.delete()
+            table.close.delete()
+            card = "full"
+        elif selection == "empty":
+            card = create_assignment_set(table.models[0], "No equipment", []).pk
+        else:
+            card = table.ranged.pk
+
+        crew = save(table, [select(table.models[0], card=card)])
+        assert crew.members.get().rating == expected
+        table.models[0].refresh_from_db()
+        assert table.models[0].rating == 40
+        assert_reconciled(table.gang)
+
+    def test_equipment_descendants_follow_their_selected_root_at_every_depth(
+        self, table
+    ):
+        sight = attach(table.gun, create_weapon_accessory("Sight"), paid=7)
+        with operation(table.gang, actor=table.owner) as act:
+            act.assign(create_wargear("Lens"), parent=sight, paid=3)
+        attach(table.knife, create_weapon_accessory("Poison reservoir"), paid=11)
+
+        crew = save(table, [select(table.models[0], card=table.ranged.pk)])
+        assert crew.members.get().rating == 20 + 15 + 7 + 3
+        table.gang.refresh_from_db()
+        assert_reconciled(table.gang)
+
+    def test_empty_equipment_keeps_skills_and_advancement_contributions(self, table):
+        model = table.models[0]
+        assign(create_skill("Veteran drill"), miniature=model, paid=7)
+        kind = create_slot_type("Advancement")
+        advance = create_pickable("Toughness advance", kind, rating_contribution=25)
+        choices = create_picklist("Advancements", kind, members=[advance])
+        slot = create_slot("Advancement", kind, choices)
+        choose(assign(slot, miniature=model), advance)
+        empty = create_assignment_set(model, "No equipment", [])
+
+        crew = save(table, [select(model, card=empty.pk)])
+        assert crew.members.get().rating == 20 + 7 + 25
+        model.refresh_from_db()
+        assert model.rating == 20 + 15 + 5 + 7 + 25
+        table.gang.refresh_from_db()
+        assert_reconciled(table.gang)
+
+    @pytest.mark.parametrize("has_equipment", [False, True])
+    def test_free_models_and_free_equipment_have_a_real_zero_rating(
+        self, table, has_equipment
+    ):
+        model = hire(table.gang, table.profile, "Free ganger")
+        equipment = (
+            [give_weapon(model, create_weapon("Free pistol"))] if has_equipment else []
+        )
+        card = create_assignment_set(model, "Free kit", equipment)
+        crew = save(table, [select(model, card=card.pk)], confirm=True)
+        assert crew.members.get().rating == 0
+        assert build_crew_sheet(crew).starting_rating == 0
+        assert_reconciled(table.gang)
+
+    def test_gang_broadcast_and_computed_grants_add_no_model_rating(self, table):
+        charter = create_rule("Shared armoury")
+        modifier(
+            "The armoury lends a pistol",
+            targets_every_model(),
+            ef_adds(create_weapon("Loan pistol", price=70)),
+            attach_to=charter,
+        )
+        assign(charter, gang=table.gang, paid=90)
+        modifier(
+            "The house grants a drill",
+            targets_gang(),
+            ef_adds(create_rule("Shared drill")),
+            attach_to=table.gang.gang_type,
+        )
+
+        crew = save(
+            table,
+            [select(table.models[0], card=table.ranged.pk), select(table.models[1])],
+        )
+        assert sorted(crew.members.values_list("rating", flat=True)) == [20, 35]
+        sheet = build_crew_sheet(crew)
+        assert sheet.starting_rating == 55
+        assert "Loan pistol" in [
+            weapon.name for weapon in sheet.starting[0].card.weapons
+        ]
+        table.gang.refresh_from_db()
+        assert_reconciled(table.gang)
+
+    def test_a_historical_rating_changes_only_when_the_saved_card_is_resaved(
+        self, table
+    ):
+        crew = save(table, [select(table.models[0], card=table.ranged.pk)])
+        member = crew.members.get()
+        # A historical snapshot may include equipment outside its selected card.
+        member.rating = 40
+        member.save(update_fields=["rating"])
+        table.ranged.assignments.set([table.knife])
+        attach(table.gun, create_weapon_accessory("Sight"), paid=10)
+
+        sheet = build_crew_sheet(crew)
+        assert sheet.starting_rating == 40
+        member.refresh_from_db()
+        assert member.rating == 40
+        before = LedgerEvent.objects.filter(gang=table.gang).count()
+        crew = save(
+            table,
+            [select(table.models[0], card=saved_card_key(member))],
+            revision=crew.revision,
+        )
+        member.refresh_from_db()
+        assert member.rating == 20 + 15 + 10
+        assert member.equipment_ids == [str(table.gun.pk)]
+        assert build_crew_sheet(crew).starting_rating == 45
+        assert LedgerEvent.objects.filter(gang=table.gang).count() == before
+        table.gang.refresh_from_db()
+        assert_reconciled(table.gang)
+
+    def test_resaving_a_card_does_not_count_equipment_moved_to_another_model(
+        self, table
+    ):
+        crew = save(table, [select(table.models[0], card=table.ranged.pk)])
+        member = crew.members.get()
+        with operation(table.gang, actor=table.owner) as act:
+            act.move(table.gun, to=table.models[1])
+        crew = save(
+            table,
+            [select(table.models[0], card=saved_card_key(member))],
+            revision=crew.revision,
+        )
+        assert crew.members.get().rating == 20
+        assert_reconciled(table.gang)
+
+
 class TestDraws:
     def test_cards_are_drawn_for_the_whole_pool_before_models(self, table):
         crew = save(table, [select(table.models[1])], random_count=1)
@@ -218,7 +375,9 @@ class TestDraws:
         assert crew.members.filter(role="reserve").count() == 2
         assert not crew.members.filter(role="starting").exists()
 
-    def test_random_card_override_is_explicit_and_rating_is_shared(self, table):
+    def test_random_card_override_changes_the_rating_to_the_selected_equipment(
+        self, table
+    ):
         crew = save(table, random_count=4)
         member = crew.members.get(miniature=table.models[0])
         alternative = (
@@ -235,7 +394,10 @@ class TestDraws:
         crew = save(table, selections, revision=crew.revision)
         changed = crew.members.get(pk=member.pk)
         assert changed.card_source == CrewMember.Source.OVERRIDE
-        assert changed.rating == member.rating == 40
+        assert member.rating == (
+            35 if member.assignment_set_id == table.ranged.pk else 25
+        )
+        assert changed.rating == (35 if alternative == table.ranged else 25)
         assert changed.source == CrewMember.Source.RANDOM
 
     def test_ineligible_models_stay_out_of_the_random_pool(self, table):
@@ -298,6 +460,29 @@ class TestCrewPermissions:
 
 
 class TestCrewQueryGrowth:
+    def test_saving_more_selected_cards_does_not_fetch_assignments_per_model(
+        self, table
+    ):
+        with CaptureQueriesContext(connection) as one:
+            crew = save(table, [select(table.models[0], card=table.ranged.pk)])
+        selected = [
+            select(table.models[0], card=table.ranged.pk),
+            *[select(model) for model in table.models[1:]],
+        ]
+        with CaptureQueriesContext(connection) as many:
+            save(table, selected, revision=crew.revision)
+
+        def assignment_reads(queries):
+            return [
+                query
+                for query in queries
+                if query["sql"].startswith("SELECT")
+                and 'FROM "n26_assignment"' in query["sql"]
+            ]
+
+        assert assignment_reads(one)
+        assert len(assignment_reads(many)) == len(assignment_reads(one))
+
     def test_more_cards_do_not_add_a_query_per_model(self, table):
         crew = save(table, [select(table.models[0], card=table.ranged.pk)])
         with CaptureQueriesContext(connection) as one:

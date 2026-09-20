@@ -89,7 +89,6 @@ def edit_crew(request, pk, battle_pk, gang_pk):
             "crew": crew,
             "form": form,
             "selected_count": len(selected),
-            "selected_rating": sum(m.miniature.rating for m in selected),
             "starting_count": sum(m.role.value() == "starting" for m in selected),
             "reserve_count": sum(m.role.value() == "reserve" for m in selected),
         },

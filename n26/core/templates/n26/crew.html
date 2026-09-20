@@ -89,7 +89,7 @@
                                     <p class="text-sm text-muted">{{ entry.miniature.membership.profile }}</p>
                                     {% if entry.saved_source %}<p class="mt-1 text-xs text-muted">{{ entry.saved_source }}</p>{% endif %}
                                 </div>
-                                <span class="shrink-0 text-sm tabular-nums">{{ entry.miniature.rating }}¢</span>
+                                <span class="shrink-0 text-sm tabular-nums">Full equipment: {{ entry.miniature.rating }}¢</span>
                             </div>
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <c-ui.field label="Crew"
@@ -137,7 +137,7 @@
             <div class="n26-battle-actions" data-battle-actions aria-label="Save crew">
                 <div class="n26-site-container flex flex-wrap items-center justify-between gap-3">
                     <div class="text-sm">
-                        <p class="font-semibold">{{ selected_count }} model{{ selected_count|pluralize }} · {{ selected_rating }}¢</p>
+                        <p class="font-semibold">{{ selected_count }} model{{ selected_count|pluralize }}</p>
                         <p class="text-xs text-muted">{{ starting_count }} starting · {{ reserve_count }} reinforcements{% if crew %} · Revision {{ crew.revision }}{% endif %}</p>
                     </div>
                     <c-n26.form-actions class="w-full sm:w-auto">
