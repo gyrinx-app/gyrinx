@@ -19,8 +19,9 @@ Expects `list` in context.{% endcomment %}
             <div class="badge text-bg-primary">{% credits list.wealth_current %}</div>
             {% if list.status == list.CAMPAIGN_MODE and list.campaign %}
                 <div>
+                    {# Above the mobile stretched-link overlay (z-index 1) so this stays a campaign link. #}
                     <a href="{% url 'core:campaign' list.campaign.id %}"
-                       class="icon-link linked">
+                       class="icon-link linked position-relative z-2">
                         {{ list.campaign.name }}
                         {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
                     </a>
