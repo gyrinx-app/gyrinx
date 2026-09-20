@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import {
     BarChart,
+    Button,
+    Card,
+    CardBody,
+    CardHeader,
     Callout,
     Grid,
     H1,
@@ -145,5 +149,26 @@ describe("Canvas runtime", () => {
         expect(html).toContain('cy="30"');
         expect(html).toContain('class="cv-pie-total">0</text>');
         expect(html).toContain('aria-label="Notifications"');
+    });
+
+    it("keeps pie strokes in bounds and card actions outside disclosure buttons", () => {
+        const pie = renderToStaticMarkup(
+            <PieChart data={[{ label: "Whole", value: 1 }]} />,
+        );
+        const card = renderToStaticMarkup(
+            <Card collapsible>
+                <CardHeader trailing={<Button>Action</Button>}>
+                    Details
+                </CardHeader>
+                <CardBody>Body</CardBody>
+            </Card>,
+        );
+
+        expect(pie).toContain('r="25"');
+        expect(pie).toContain('stroke-width="50"');
+        expect(card).toContain("cv-card-collapsible-header");
+        expect(card.indexOf(">Action</button>")).toBeGreaterThan(
+            card.indexOf("</button>"),
+        );
     });
 });

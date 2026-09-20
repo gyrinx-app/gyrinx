@@ -284,7 +284,8 @@ textarea {
 }
 .cv-card-toggle {
     display: flex;
-    width: 100%;
+    width: auto;
+    flex: 1;
     align-items: center;
     gap: 4px;
     border: 0;
@@ -293,8 +294,8 @@ textarea {
     padding: 0;
     text-align: left;
 }
-.cv-card-toggle > .cv-card-header {
-    flex: 1;
+.cv-card-collapsible-header {
+    padding: 0 12px;
 }
 .cv-card-sticky > .cv-card-header {
     position: sticky;

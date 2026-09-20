@@ -2,6 +2,7 @@ import {
     Children,
     type CSSProperties,
     type ReactNode,
+    isValidElement,
     useCallback,
     useEffect,
     useMemo,
@@ -596,15 +597,30 @@ export function Card({
             className={`cv-card cv-card-${variant} cv-card-${size} ${stickyHeader ? "cv-card-sticky" : ""}`}
             style={style}
         >
-            {collapsible && header ? (
-                <button
-                    className="cv-card-toggle"
-                    type="button"
-                    onClick={toggle}
+            {collapsible &&
+            isValidElement<{
+                children?: ReactNode;
+                trailing?: ReactNode;
+                style?: CSSProperties;
+            }>(header) ? (
+                <div
+                    className="cv-card-header cv-card-collapsible-header"
+                    style={header.props.style}
                 >
-                    <span aria-hidden="true">{open ? "⌄" : "›"}</span>
-                    {header}
-                </button>
+                    <button
+                        className="cv-card-toggle"
+                        type="button"
+                        onClick={toggle}
+                    >
+                        <span aria-hidden="true">{open ? "⌄" : "›"}</span>
+                        <span>{header.props.children}</span>
+                    </button>
+                    {header.props.trailing && (
+                        <span className="cv-card-trailing">
+                            {header.props.trailing}
+                        </span>
+                    )}
+                </div>
             ) : (
                 header
             )}
@@ -1730,7 +1746,8 @@ export function PieChart({ data, size = 200, donut = false, style }: any) {
         ),
     );
     const denominator = Math.max(1, total);
-    const radius = 42;
+    const radius = donut ? 42 : 25;
+    const strokeWidth = donut ? 16 : 50;
     const circumference = 2 * Math.PI * radius;
     let offset = 0;
     return (
@@ -1757,7 +1774,7 @@ export function PieChart({ data, size = 200, donut = false, style }: any) {
                                 r={radius}
                                 fill="none"
                                 stroke={chartColour(item, index)}
-                                strokeWidth={donut ? 16 : 84}
+                                strokeWidth={strokeWidth}
                                 strokeDasharray={`${length} ${circumference - length}`}
                                 strokeDashoffset={dashOffset}
                             >
