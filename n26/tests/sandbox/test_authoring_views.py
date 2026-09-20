@@ -2330,11 +2330,16 @@ def row_printing(body, words):
     return printing[0]
 
 
-def island_rows(body):
-    """Decode the initial data the React authoring list receives."""
+def island_props(body):
+    """Decode the initial data the page's React island receives."""
     soup = BeautifulSoup(body, "html.parser")
     host = soup.select_one("[data-react-module]")
-    return json.loads(soup.find(id=host["data-react-props"]).string)["rows"]
+    return json.loads(soup.find(id=host["data-react-props"]).string)
+
+
+def island_rows(body):
+    """Decode the rows a React authoring list receives."""
+    return island_props(body)["rows"]
 
 
 def cells_of(row):
@@ -4649,10 +4654,20 @@ class TestTheModifiersPage:
         modifier("Grants Wyrd", targets_model(), ef_adds(create_subtype("Wyrd")))
 
         body = client.get("/n26/authoring/modifiers/").content.decode()
-        assert "Grants Mounted" in body
-        assert "adds Mounted" in body
-        assert "on 1 carrier" in body
-        assert "reusable — attached nowhere yet" in body
+        rows = island_rows(body)
+        mounted = next(row for row in rows if row["label"] == "Grants Mounted")
+        reusable = next(row for row in rows if row["label"] == "Grants Wyrd")
+        assert "adds Mounted" in mounted["notes"]
+        assert "on 1 carrier" in mounted["notes"]
+        assert "reusable — attached nowhere yet" in reusable["notes"]
+        assert mounted["url"] == f"/n26/authoring/modifiers/{shared.pk}/"
+        assert mounted["pk"] == str(shared.pk)
+
+    def test_an_empty_page_stays_cotton(self, author, client, default_pack):
+        body = client.get("/n26/authoring/modifiers/").content.decode()
+
+        assert "None yet — the New modifier button makes the first one." in body
+        assert "data-react-module" not in body
 
     def test_it_offers_the_way_in_at_the_top(self, author, client, default_pack):
         """The composer used to sit under the listing, which with a pack
@@ -5123,22 +5138,22 @@ class TestFindingAModifierAmongHundreds:
         return response.context[f"{name}_options"]
 
     def test_there_is_a_search_and_a_menu_per_facet(self, assorted, client):
-        body = client.get("/n26/authoring/modifiers/").content.decode()
+        props = island_props(client.get("/n26/authoring/modifiers/").content.decode())
 
-        assert 'placeholder="Search modifiers"' in body
-        for label in ("Reaches", "Does", "Carried"):
-            assert label in body
+        assert len(props["scopeOptions"]) == 2
+        assert len(props["effectOptions"]) == 2
+        assert len(props["carriedOptions"]) == 2
 
     def test_the_page_hands_every_rows_facets_to_the_browser(self, assorted, client):
         """The narrowing happens in the browser, so each row has to
         arrive knowing what it is — a row that registered nothing would
         simply never show itself again once a filter moved."""
         body = client.get("/n26/authoring/modifiers/").content.decode()
+        props = island_props(body)
 
-        assert body.count('x-init="register(facets)"') == 6
-        # JSON in an attribute, so its quotes arrive as entities and the
-        # browser decodes them.
-        assert "&quot;scope&quot;: &quot;targets_weapons&quot;" in body
+        assert len(props["rows"]) == 6
+        assert any(row["facets"]["scope"] == "targets_weapons" for row in props["rows"])
+        assert 'x-init="register(facets)"' not in body
 
     def test_every_row_carries_what_the_search_reads(self, assorted, client):
         """Name and sentences together, lowercased, so the comparison in
@@ -5206,8 +5221,9 @@ class TestFindingAModifierAmongHundreds:
             "targets_model"
         ]
         body = client.get("/n26/authoring/modifiers/").content.decode()
-        assert "Reaches" not in body
-        assert "Does" not in body
+        props = island_props(body)
+        assert len(props["scopeOptions"]) == 1
+        assert len(props["effectOptions"]) == 1
 
     def test_the_menus_are_named_as_the_composer_names_them(self, assorted, client):
         """The Reaches facet offers one option per reach, in the
@@ -5312,7 +5328,7 @@ class TestFindingAModifierAmongHundreds:
         response = client.get("/n26/authoring/modifiers/")
 
         assert response.context["count"] == 6
-        assert "of 6 modifiers" in response.content.decode()
+        assert len(island_rows(response.content.decode())) == 6
 
     def test_a_page_of_hundreds_still_reads_flat(
         self, author, client, default_pack, django_assert_num_queries

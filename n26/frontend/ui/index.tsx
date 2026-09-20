@@ -130,3 +130,5 @@ export function SearchBar({
         </div>
     );
 }
+
+export { FilterMenu, type FilterOption } from "./FilterMenu";

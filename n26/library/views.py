@@ -4296,6 +4296,7 @@ def modifiers(request):
         rows.append(
             {
                 "pk": modifier.pk,
+                "url": reverse("authoring-modifier", args=[modifier.pk]),
                 "label": modifier.name,
                 "notes": notes,
                 "facets": {
@@ -4313,6 +4314,10 @@ def modifiers(request):
             }
         )
 
+    scope_options = _facet_options(rows, "scope", _scope_choices())
+    effect_options = _facet_options(rows, "effect", _effect_choices())
+    carried_options = _facet_options(rows, "carried", CARRIED_LABELS)
+
     return render(
         request,
         "authoring/modifiers.html",
@@ -4321,9 +4326,15 @@ def modifiers(request):
             "count": len(rows),
             # The composer's own choices, so the filter and the WHO/WHAT
             # pickers stay one vocabulary.
-            "scope_options": _facet_options(rows, "scope", _scope_choices()),
-            "effect_options": _facet_options(rows, "effect", _effect_choices()),
-            "carried_options": _facet_options(rows, "carried", CARRIED_LABELS),
+            "scope_options": scope_options,
+            "effect_options": effect_options,
+            "carried_options": carried_options,
+            "modifier_list": {
+                "rows": [{**row, "pk": str(row["pk"])} for row in rows],
+                "scopeOptions": scope_options,
+                "effectOptions": effect_options,
+                "carriedOptions": carried_options,
+            },
         },
     )
 

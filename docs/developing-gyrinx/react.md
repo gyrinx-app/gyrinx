@@ -74,11 +74,11 @@ evaluate Alpine, inject HTML or transpile arbitrary templates. Generated recipes
 and bundles are ignored by git; CI, Docker and the development command build
 them with the installed Python and npm dependencies.
 
-The first adapters cover buttons, links, tables, the staged badge, action bars
-and search. Unsupported options are not a hidden second implementation: add a
-recipe and a typed adapter when a real caller needs one. Changes to the extracted
-element sequence fail the build; nesting and extra wrappers still require visual
-review. For rich
+The first adapters cover buttons, links, tables, the staged badge, action bars,
+search and a checkbox filter menu. Unsupported options are not a hidden second
+implementation: add a recipe and a typed adapter when a real caller needs one.
+Changes to the extracted element sequence fail the build; nesting and extra
+wrappers still require visual review. For rich
 primitives such as a combobox or dialog, share the visual recipe but implement
 keyboard, focus and selection behaviour in React, with tests. Do not copy the
 kit's Alpine attributes and expect them to work.
@@ -161,6 +161,14 @@ indeterminate state, and does not discard selections hidden by a later filter.
 Hidden inputs submit the selected IDs to the existing bulk-attach GET route.
 No authoring operation or database schema changes.
 
+`/n26/authoring/modifiers/` is the second working migration. Its populated list
+uses a separate `modifier-list` island for search, scope/effect/carried facets,
+the count and the table; the page header and empty state remain Cotton. The
+filters narrow the complete set already embedded by Django, so their state stays
+transient just as it was under Alpine. The shared `FilterMenu` adapter renders
+the Cotton component's extracted presentation while React owns its popup,
+checkbox, Apply, Cancel, outside-click and keyboard behaviour.
+
 The source path is:
 `library.views.leaf` → `authoring/leaf.html` → `react_island` →
 `islands/authoring-list/entry.tsx` → `AuthoringList.tsx` → `ui/`.
@@ -233,8 +241,8 @@ right scoping decision without review.
 
 1. **Leaf lists:** prove packaging, visual reuse, props and lifecycle with a real
    interaction. Retain the existing bulk action.
-2. **Modifier listing:** migrate its search/facets using the shared primitives.
-   Preserve URL state where relevant and check query growth.
+2. **Modifier listing:** its loaded-row search/facets now use the shared React
+   primitives, with the existing transient state and query-growth guards intact.
 3. **Authoring pickers:** build one accessible React picker used by a real field.
    Preserve native field names and server validation. Port consumers gradually.
 4. **Authoring composer:** migrate bounded sections after the picker and JSON
