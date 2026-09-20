@@ -565,6 +565,43 @@ def test_reseeding_replaces_a_same_named_homebrew_action_outcome():
     assert content.status() == "complete"
 
 
+def test_reseeding_repairs_the_evolution_counter_to_the_default_pack(default_pack):
+    from n26.library.models import ContentPack, Counter
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-kill-counter")
+    wrong = Counter.objects.create(pack=homebrew, name="Kill Count", qualifier="")
+    price = Action.objects.get(name="Suit Evolution", qualifier="").use_price.get()
+    price.counter = wrong
+    price.save(update_fields=["counter", "modified"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    price.refresh_from_db()
+    assert price.counter.pack == default_pack
+    assert content.status() == "complete"
+
+
+def test_qualified_pickable_does_not_satisfy_advancement_completeness(default_pack):
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    table = Picklist.objects.get(name="Fighter advancement table")
+    member = table.members.get(pickable__name="Movement")
+    lookalike = Pickable.objects.create(
+        pack=default_pack,
+        name="Movement",
+        qualifier="Custom",
+        slot_type=member.pickable.slot_type,
+        rating_contribution=member.pickable.rating_contribution,
+    )
+    member.pickable = lookalike
+    member.save(update_fields=["pickable", "modified"])
+
+    assert content.status() == "incomplete"
+
+
 def test_reseeding_repairs_the_advancement_rank_counter():
     from n26.library.models import Counter
 
@@ -640,6 +677,28 @@ def test_reseeding_repairs_advancement_modifiers_to_bearer_scope():
 
     modifier.refresh_from_db()
     assert modifier.targets_miniature.reach == (modifier.targets_miniature.Reach.BEARER)
+    assert content.status() == "complete"
+
+
+def test_reseeding_does_not_reuse_an_unrelated_same_named_modifier(default_pack):
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    table = Picklist.objects.get(name="Fighter advancement table")
+    movement = table.members.get(pickable__name="Movement").pickable
+    modifier = movement.modifiers.get()
+    unrelated = Pickable.objects.create(
+        pack=default_pack,
+        name="Unrelated result",
+        qualifier="",
+        slot_type=movement.slot_type,
+    )
+    unrelated.modifiers.add(modifier)
+    movement.modifiers.clear()
+
+    content.create()
+
+    assert movement.modifiers.get() != modifier
+    assert unrelated.modifiers.get() == modifier
     assert content.status() == "complete"
 
 

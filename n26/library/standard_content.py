@@ -1846,9 +1846,28 @@ def _create_fighter_actions():
         )
         repair(member, position=position, roll_low=roll, roll_high=roll)
         modifier_name = f"Advancement: {name}"
-        existing_modifier = Modifier.objects.filter(
-            pack=pack, name=modifier_name
+        fallback_modifier_name = f"Standard fighter advancement: {name}"
+        tied_modifier_name = f"{fallback_modifier_name} ({str(pick.pk)[:8]})"
+        modifier_names = (
+            modifier_name,
+            fallback_modifier_name,
+            tied_modifier_name,
+        )
+        existing_modifier = pick.modifiers.filter(
+            pack=pack, name__in=modifier_names
         ).first()
+        new_modifier_name = modifier_name
+        if existing_modifier is None:
+            for candidate in modifier_names:
+                if not Modifier.objects.filter(
+                    pack=pack, name__iexact=candidate
+                ).exists():
+                    new_modifier_name = candidate
+                    break
+            else:
+                existing_modifier = Modifier.objects.get(
+                    pack=pack, name__iexact=tied_modifier_name
+                )
         if existing_modifier is not None and not _bearer_scope_matches(
             existing_modifier
         ):
@@ -1871,7 +1890,7 @@ def _create_fighter_actions():
                 )
                 if existing_modifier is None:
                     existing_modifier = authoring.modifier(
-                        modifier_name,
+                        new_modifier_name,
                         authoring.targets_model(),
                         new_effect,
                     )
@@ -1919,7 +1938,7 @@ def _create_fighter_actions():
                 )
                 if existing_modifier is None:
                     existing_modifier = authoring.modifier(
-                        modifier_name, authoring.targets_model(), new_effect
+                        new_modifier_name, authoring.targets_model(), new_effect
                     )
                 else:
                     replace_modifier_effect(
@@ -2135,6 +2154,7 @@ def _check_fighter_actions():
         Counter,
         OffersChoice,
         Outcome,
+        Pickable,
         Picklist,
         RankTable,
         Skill,
@@ -2217,15 +2237,20 @@ def _check_fighter_actions():
         return incomplete()
     evolution_price = list(
         actions["Suit Evolution"].use_price.values_list(
-            "resource", "payer", "amount", "counter__name"
+            "resource", "payer", "amount", "counter_id"
         )
     )
     maintenance_price = list(
         actions["Suit Maintenance"].use_price.values_list("resource", "payer", "amount")
     )
-    if evolution_price != [("counter", "fighter", 4, "Kill Count")]:
-        return incomplete()
-    if maintenance_price != [("credits", "gang", 100)]:
+    kills = Counter.objects.filter(
+        pack=pack, name__iexact="Kill Count", qualifier=""
+    ).first()
+    if (
+        kills is None
+        or evolution_price != [("counter", "fighter", 4, kills.pk)]
+        or maintenance_price != [("credits", "gang", 100)]
+    ):
         return incomplete()
     table = Picklist.objects.filter(
         pack=pack,
@@ -2294,12 +2319,20 @@ def _check_fighter_actions():
         != FIGHTER_RANK_THRESHOLDS
     ):
         return incomplete()
+    expected_pickables = {
+        pickable.name.casefold(): pickable.pk
+        for pickable in Pickable.objects.filter(pack=pack, qualifier="")
+    }
+    if any(
+        name.casefold() not in expected_pickables for name, _, _ in FIGHTER_ADVANCEMENTS
+    ):
+        return incomplete()
     expected_advancements = {
-        name: (position, roll, roll, rating)
+        expected_pickables[name.casefold()]: (position, roll, roll, rating)
         for position, (name, roll, rating) in enumerate(FIGHTER_ADVANCEMENTS)
     }
     if {
-        member.pickable.name: (
+        member.pickable_id: (
             member.position,
             member.roll_low,
             member.roll_high,
