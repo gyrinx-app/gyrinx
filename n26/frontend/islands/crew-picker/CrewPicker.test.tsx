@@ -167,7 +167,7 @@ describe("CrewPicker", () => {
         expect(data().get("card_a")).toBe("long");
     });
 
-    it("keeps availability warnings readable and requires selecting a model before its override", async () => {
+    it("uses the recovery override as an outer gate before model selection", async () => {
         const recovering = model("a", "Mara");
         recovering.warning = "In Recovery. Usually unavailable for selection.";
         recovering.mayOverride = true;
@@ -184,10 +184,75 @@ describe("CrewPicker", () => {
         const override = screen.getByRole<HTMLInputElement>("checkbox", {
             name: "Allow Mara for this battle",
         });
-        expect(override.disabled).toBe(true);
-        await user.click(screen.getByRole("checkbox", { name: "Select Mara" }));
+        const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: "Select Mara",
+        });
+        expect(override.disabled).toBe(false);
+        expect(override.closest("[inert]")).toBeNull();
+        expect(
+            override.compareDocumentPosition(checkbox) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(checkbox.disabled).toBe(true);
+        expect(data().get("role_a")).toBe("out");
         await user.click(override);
+        expect(checkbox.disabled).toBe(false);
+        expect(checkbox.checked).toBe(false);
+        expect(data().get("role_a")).toBe("out");
+        await user.click(checkbox);
         expect(data().getAll("override_a")).toEqual(["on"]);
+        expect(data().get("role_a")).toBe("starting");
+    });
+
+    it("excludes a model when its recovery override is off and restores its choices when enabled", async () => {
+        const recovering = model("a", "Mara", "reserve");
+        recovering.warning = "In Recovery. Usually unavailable for selection.";
+        recovering.mayOverride = true;
+        recovering.override.value = true;
+        const { user, data } = setup([recovering]);
+        const override = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: "Allow Mara for this battle",
+        });
+        const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: "Select Mara",
+        });
+        const equipment = screen.getByRole<HTMLSelectElement>("combobox", {
+            name: "Equipment set for Mara",
+        });
+        await user.selectOptions(equipment, "short");
+        await user.click(override);
+        expect(checkbox.checked).toBe(false);
+        expect(checkbox.disabled).toBe(true);
+        expect(equipment.disabled).toBe(true);
+        expect(data().get("role_a")).toBe("out");
+        expect(data().get("override_a")).toBeNull();
+        expect(data().get("card_a")).toBe("short");
+        expect(screen.getByText("0 models")).toBeTruthy();
+        await user.click(override);
+        expect(checkbox.checked).toBe(true);
+        expect(equipment.disabled).toBe(false);
+        expect(equipment.value).toBe("short");
+        expect(data().get("role_a")).toBe("reserve");
+        expect(data().get("override_a")).toBe("on");
+        expect(screen.getByText("1 model")).toBeTruthy();
+    });
+
+    it("requires allowing a saved model whose status has since changed", async () => {
+        const recovering = model("a", "Mara", "starting");
+        recovering.warning = "In Recovery. Usually unavailable for selection.";
+        recovering.mayOverride = true;
+        const { user, data } = setup([recovering]);
+        expect(data().get("role_a")).toBe("out");
+        expect(data().get("card_a")).toBe("saved:old");
+        expect(screen.getByText("0 models")).toBeTruthy();
+        await user.click(
+            screen.getByRole("checkbox", {
+                name: "Allow Mara for this battle",
+            }),
+        );
+        expect(data().get("role_a")).toBe("starting");
+        expect(data().get("card_a")).toBe("saved:old");
+        expect(screen.getByText("1 model")).toBeTruthy();
     });
 
     it("lets an unavailable saved model be removed but not selected again", async () => {

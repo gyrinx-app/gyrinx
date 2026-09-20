@@ -227,6 +227,7 @@ class TestCrewForms:
         assert len(props["models"]) == 2
         for model in props["models"]:
             assert model["available"] is True
+            assert model["savedSource"] == "Added to this crew manually."
             assert model["card"]["value"].startswith("saved:")
             assert model["card"]["choices"][0]["value"] == model["card"]["value"]
             assert model["role"]["name"] == f"role_{model['id']}"
@@ -330,7 +331,12 @@ class TestCrewForms:
         assert response.url == address(table)
         crew = BattleCrew.objects.get()
         snapshot = crew.last_draw.copy()
-        client.get(address(table))
+        editor = client.get(address(table))
+        assert [
+            model["savedSource"]
+            for model in editor.context["crew_picker"]["models"]
+            if model["role"]["value"] != "out"
+        ] == ["Added to this crew by a random draw."]
         client.get(address(table))
         response = client.post(address(table), payload)
         assert response.status_code == 200

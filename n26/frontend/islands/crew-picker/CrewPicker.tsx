@@ -58,9 +58,14 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
     const actions = useRef<HTMLDivElement>(null);
     const wanted = query.trim().toLowerCase();
     const shown = models.filter((model) => model.search.includes(wanted));
-    const selected = Object.values(selections).filter(
-        (value) => value.selected,
-    );
+    function isSelected(model: CrewModel) {
+        const value = selections[model.id];
+        return value.selected && (!model.mayOverride || value.override);
+    }
+
+    const selected = models
+        .filter(isSelected)
+        .map((model) => selections[model.id]);
     const starting = selected.filter(
         (value) => value.role === "starting",
     ).length;
@@ -107,7 +112,7 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                         <input
                             type="hidden"
                             name={model.role.name}
-                            value={value.selected ? value.role : "out"}
+                            value={isSelected(model) ? value.role : "out"}
                         />
                         <input
                             type="hidden"
@@ -140,17 +145,62 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                 <div className="grid auto-rows-min grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {shown.map((model) => {
                         const value = selections[model.id];
+                        const overrideRequired =
+                            model.mayOverride && !value.override;
+                        const included = isSelected(model);
                         const roleErrorId = `${model.role.id}-error`;
                         const cardErrorId = `${model.card.id}-error`;
                         return (
-                            <div key={model.id} className="min-w-0 space-y-2">
+                            <div
+                                key={model.id}
+                                className={`min-w-0 space-y-3 ${model.warning ? "border-l-2 border-amber-500 bg-amber-50 p-3 dark:bg-amber-950/30" : ""}`}
+                            >
+                                {model.warning && (
+                                    <div className="space-y-2 text-sm">
+                                        <p id={`${model.override.id}-warning`}>
+                                            {model.warning}
+                                        </p>
+                                        {model.mayOverride && (
+                                            <label
+                                                className="flex min-h-11 items-center gap-3"
+                                                htmlFor={model.override.id}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    id={model.override.id}
+                                                    aria-label={`Allow ${model.name} for this battle`}
+                                                    aria-describedby={`${model.override.id}-warning`}
+                                                    checked={value.override}
+                                                    onChange={(event) =>
+                                                        update(model.id, {
+                                                            override:
+                                                                event.target
+                                                                    .checked,
+                                                        })
+                                                    }
+                                                />
+                                                Allow for this battle
+                                            </label>
+                                        )}
+                                        {model.override.errors.map((error) => (
+                                            <p
+                                                key={error}
+                                                role="alert"
+                                                className="text-red-700 dark:text-red-300"
+                                            >
+                                                {error}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
                                 <CheckboxCard
                                     label={model.name}
                                     description={model.profile}
                                     checkboxLabel={`Select ${model.name}`}
-                                    checked={value.selected}
+                                    checked={included}
                                     disabled={
-                                        !model.available && !value.selected
+                                        overrideRequired ||
+                                        (!model.available && !value.selected)
                                     }
                                     onCheckedChange={(selected) =>
                                         update(model.id, { selected })
@@ -181,7 +231,7 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                                         : undefined
                                                 }
                                                 value={value.role}
-                                                disabled={!value.selected}
+                                                disabled={!included}
                                                 onChange={(event) =>
                                                     update(model.id, {
                                                         role: event.target
@@ -222,7 +272,7 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                                         : undefined
                                                 }
                                                 value={value.card}
-                                                disabled={!value.selected}
+                                                disabled={!included}
                                                 onChange={(event) =>
                                                     update(model.id, {
                                                         card: event.target
@@ -277,42 +327,6 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                         className="text-sm text-red-700 dark:text-red-300"
                                     >
                                         {model.card.errors.join(" ")}
-                                    </div>
-                                )}
-                                {model.warning && (
-                                    <div className="border-l-2 border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
-                                        <p>{model.warning}</p>
-                                        {model.mayOverride && (
-                                            <label
-                                                className="mt-2 flex min-h-11 items-center gap-3"
-                                                htmlFor={model.override.id}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    id={model.override.id}
-                                                    aria-label={`Allow ${model.name} for this battle`}
-                                                    checked={value.override}
-                                                    disabled={!value.selected}
-                                                    onChange={(event) =>
-                                                        update(model.id, {
-                                                            override:
-                                                                event.target
-                                                                    .checked,
-                                                        })
-                                                    }
-                                                />
-                                                Allow for this battle
-                                            </label>
-                                        )}
-                                        {model.override.errors.map((error) => (
-                                            <p
-                                                key={error}
-                                                role="alert"
-                                                className="text-red-700 dark:text-red-300"
-                                            >
-                                                {error}
-                                            </p>
-                                        ))}
                                     </div>
                                 )}
                             </div>

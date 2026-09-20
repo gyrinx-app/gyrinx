@@ -77,7 +77,13 @@ class CrewForm(forms.Form):
                     self[card_name],
                     self[override_name],
                     warning,
-                    saved.get_source_display() if saved else "",
+                    (
+                        "Added to this crew by a random draw."
+                        if saved.source == CrewMember.Source.RANDOM
+                        else "Added to this crew manually."
+                    )
+                    if saved
+                    else "",
                     f"{model.name} {model.membership.profile if model.membership else ''}".lower(),
                     item.available and model.status != Status.ACTIVE,
                     item.available,
