@@ -34,6 +34,7 @@ describe("filter menu", () => {
             name: "The model carrying it",
         });
         expect(document.activeElement).toBe(checkbox);
+        expect(checkbox.querySelector("input")?.disabled).toBe(true);
         await user.keyboard(" ");
         expect(checkbox.getAttribute("aria-checked")).toBe("false");
 

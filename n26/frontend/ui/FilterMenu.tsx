@@ -260,6 +260,7 @@ export function FilterMenu({
                                             checked={values.includes(
                                                 option.value,
                                             )}
+                                            disabled
                                             readOnly
                                         />
                                         <span
