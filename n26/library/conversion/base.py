@@ -32,7 +32,7 @@ not see it. The gang's history describes an old event by looking up what
 its assignment names now, so moving an assignment from one kind to
 another rewrites the wording of things that already happened. Every
 conversion must check the history page against a converted assignment
-and keep those words the same — see the note in ``n26/core/CLAUDE.md``.
+and keep those words the same — see the note in ``n26/core/AGENTS.md``.
 
 An apply's duration depends on the gangs it reaches, not on the
 assignments it writes. The write is a few hundred updates and is quick.

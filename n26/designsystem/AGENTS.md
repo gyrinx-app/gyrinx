@@ -1,4 +1,4 @@
-# CLAUDE.md — n26/designsystem
+# N26 design system gallery
 
 The living component gallery at `/n26/design/`. It documents the
 components; it owns none of them — they live in

@@ -189,10 +189,18 @@ export function CheckboxCard({
     );
 }
 
-export function Table({ children }: { children: ReactNode }) {
+export function Table({
+    children,
+    className = "",
+}: {
+    children: ReactNode;
+    className?: string;
+}) {
     return (
         <div className={cotton.table[0]}>
-            <table className={cotton.table[1]}>{children}</table>
+            <table className={`${cotton.table[1]} ${className}`}>
+                {children}
+            </table>
         </div>
     );
 }
@@ -297,3 +305,5 @@ export function SearchBar({
         </div>
     );
 }
+
+export { FilterMenu, type FilterOption } from "./FilterMenu";

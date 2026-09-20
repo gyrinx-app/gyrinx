@@ -187,8 +187,8 @@ LISTS = [
 # Rows for the collection-picker composition: a trading post, which is the
 # case it was built for — long, categorised, browsed with a budget in mind.
 #
-# Names, costs and rarity ratings only. What any of it *does* is rulebook text
-# and does not belong in this repository; see CLAUDE.md.
+# Names, prices and rarity ratings only. What any of it *does* is rulebook text
+# and does not belong in this repository; see n26/AGENTS.md.
 #
 # `rarity` is 0 for common, otherwise the rating. `owned` marks the few already
 # in the stash, which is what the row's optional icon is for.

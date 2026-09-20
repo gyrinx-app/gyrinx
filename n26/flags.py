@@ -15,7 +15,7 @@ So this module is the whole of n26's dependency on the platform's flags.
 Every n26 call site goes through it; nothing else in ``n26/`` imports
 ``gyrinx.site.flags``. Keeping it to one file means the seam can be read,
 tested and moved in one place, and it is the reason the boundary rule in
-``n26/CLAUDE.md`` names this file rather than a package.
+``n26/AGENTS.md`` names this file rather than a package.
 """
 
 from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_on

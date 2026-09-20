@@ -13,7 +13,7 @@ finish the requested task and name the dependency that blocked conversion.
 Static content stays Cotton; do not introduce Alpine directives.
 
 Read `docs/developing-gyrinx/react.md` for the technical decisions and
-`n26/frontend/CLAUDE.md` for the source hierarchy. Load the design-system and
+`n26/frontend/AGENTS.md` for the source hierarchy. Load the design-system and
 microcopy skills for UI work. N26 uses Tailwind tokens, not N23's Bootstrap
 styles.
 

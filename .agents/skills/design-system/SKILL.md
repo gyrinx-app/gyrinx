@@ -13,7 +13,7 @@ First identify the edition. N26 uses Tailwind and django-cotton-ui, not Bootstra
 
 ## N26
 
-Read `n26/designsystem/CLAUDE.md`, `n26/designsystem/assets/app.css`, and the
+Read `n26/designsystem/AGENTS.md`, `n26/designsystem/assets/app.css`, and the
 relevant primitives under `n26/core/templates/cotton/`. The living gallery is
 `/n26/design/`; the catalog is `n26/designsystem/catalog.py`. For interactive
 work also load `.agents/skills/n26-react/SKILL.md`. React adapters in

@@ -94,6 +94,115 @@ def checkbox_card_recipe():
     }
 
 
+def filter_menu_recipe():
+    """Extract the static presentation of the composed filter menu.
+
+    Alpine supplies the Cotton component's state and positioning, so React owns
+    those behaviours. The element sequence still comes from the real component:
+    a structural change fails this build instead of silently drifting the
+    adapter.
+    """
+    source = '<c-n26.filter-menu label="Filter" name="filter" :options="options" />'
+    rendered = Template(CottonCompiler().process(source)).render(
+        Context({"options": [{"value": "one", "label": "One"}]})
+    )
+    elements = Elements(rendered).elements
+    expected = (
+        "fieldset",
+        "div",
+        "div",
+        "div",
+        "div",
+        "button",
+        "span",
+        "span",
+        "svg",
+        "path",
+        "div",
+        "div",
+        "div",
+        "button",
+        "span",
+        "button",
+        "div",
+        "div",
+        "label",
+        "input",
+        "div",
+        "div",
+        "svg",
+        "path",
+        "div",
+        "div",
+        "span",
+        "button",
+        "div",
+        "button",
+        "button",
+    )
+    if tuple(tag for tag, _ in elements) != expected:
+        raise ValueError(f"Cotton filter-menu structure changed: {elements}")
+
+    def at(index):
+        return " ".join(elements[index][1].get("class", "").split())
+
+    def state_classes(index, attribute, expected):
+        found = tuple(
+            " ".join(value.split())
+            for value in re.findall(r"'([^']+)'\s*:", elements[index][1][attribute])
+        )
+        if found != expected:
+            raise ValueError(
+                f"Cotton filter-menu state classes changed: {index}: {found}"
+            )
+        return found
+
+    indicator_states = state_classes(
+        21,
+        ":class",
+        (
+            "border-accent bg-accent",
+            "border-ink-300 dark:border-ink-600",
+        ),
+    )
+    check_states = state_classes(
+        22,
+        ":class",
+        ("scale-100", "scale-0", "text-accent-foreground"),
+    )
+    indicator_base = at(21).replace(indicator_states[1], "").strip()
+    check_base = at(22).replace(check_states[1], "").strip()
+
+    return {
+        "root": at(3),
+        "trigger": at(5),
+        "triggerContent": at(6),
+        "count": at(7),
+        "panel": at(10),
+        "body": at(11),
+        "quickActions": at(12),
+        "quickAction": at(13),
+        "separator": at(14),
+        "options": at(16),
+        "option": at(17),
+        "checkbox": at(18),
+        "checkboxInput": at(19),
+        "checkboxIndicatorWrap": at(20),
+        "checkboxIndicator": indicator_base,
+        "checkboxIndicatorChecked": indicator_states[0],
+        "checkboxIndicatorUnchecked": indicator_states[1],
+        "checkboxCheck": check_base,
+        "checkboxCheckChecked": f"{check_states[0]} {check_states[2]}",
+        "checkboxCheckUnchecked": check_states[1],
+        "checkboxContent": at(24),
+        "checkboxText": at(25),
+        "only": at(27),
+        "actions": at(28),
+        "apply": at(29),
+        "cancel": at(30),
+    }
+
+
 def recipes():
     from n26.core.icons import resolve
 
@@ -151,12 +260,13 @@ def recipes():
                 strict=True,
             )
         ),
+        "filterMenu": filter_menu_recipe(),
         "icons": {
             name: [
                 {"tag": tag, "attrs": attrs}
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
-            for name in ("search", "x")
+            for name in ("search", "x", "chevron-down")
         },
     }
 
