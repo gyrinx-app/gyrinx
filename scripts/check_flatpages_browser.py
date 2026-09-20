@@ -153,12 +153,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", help="Local Help page with at least two h2/h3 headings.")
     parser.add_argument("--screenshots", type=Path)
-    parser.add_argument(
+    toc_mode = parser.add_mutually_exclusive_group()
+    toc_mode.add_argument(
         "--no-toc",
         action="store_true",
         help="Check a page with fewer than two h2/h3 headings.",
     )
-    parser.add_argument(
+    toc_mode.add_argument(
         "--check-hierarchy",
         action="store_true",
         help="Require h2 section dividers, an accent h4 and a sticky desktop ToC.",
