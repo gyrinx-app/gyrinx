@@ -169,9 +169,11 @@ describe("filter menu", () => {
         expect(panel.style.top).toBe("54px");
         expect(panel.style.maxHeight).toBe("330px");
 
-        const callsAfterResize = rect.mock.calls.length;
+        anchor = { ...anchor, left: 30, top: 100, bottom: 130, x: 30, y: 100 };
         fireEvent.scroll(window);
-        expect(rect).toHaveBeenCalledTimes(callsAfterResize + 1);
-        expect(panel.style.left).toBe("16px");
+        expect(rect).toHaveBeenCalledTimes(3);
+        expect(panel.style.left).toBe("30px");
+        expect(panel.style.top).toBe("134px");
+        expect(panel.style.maxHeight).toBe("250px");
     });
 });
