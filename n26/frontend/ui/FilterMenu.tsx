@@ -91,15 +91,23 @@ export function FilterMenu({
             const gap = 4;
             const anchor = trigger.current.getBoundingClientRect();
             const width = Math.min(320, window.innerWidth - margin * 2);
-            const below = window.innerHeight - anchor.bottom - margin - gap;
-            const above = anchor.top - margin - gap;
+            const belowTop = Math.min(
+                Math.max(margin, anchor.bottom + gap),
+                window.innerHeight - margin,
+            );
+            const aboveBottom = Math.max(
+                margin,
+                Math.min(anchor.top - gap, window.innerHeight - margin),
+            );
+            const below = window.innerHeight - margin - belowTop;
+            const above = aboveBottom - margin;
             const opensAbove =
                 panel.current.scrollHeight > below && above > below;
             const maxHeight = Math.max(80, opensAbove ? above : below);
             const height = Math.min(panel.current.scrollHeight, maxHeight);
             const top = opensAbove
-                ? Math.max(margin, anchor.top - gap - height)
-                : anchor.bottom + gap;
+                ? Math.max(margin, aboveBottom - height)
+                : belowTop;
             const left = Math.min(
                 Math.max(margin, anchor.left),
                 window.innerWidth - width - margin,

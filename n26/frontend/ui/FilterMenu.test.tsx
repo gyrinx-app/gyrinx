@@ -175,5 +175,10 @@ describe("filter menu", () => {
         expect(panel.style.left).toBe("30px");
         expect(panel.style.top).toBe("134px");
         expect(panel.style.maxHeight).toBe("250px");
+
+        anchor = { ...anchor, top: -50, bottom: -20, y: -50 };
+        fireEvent.scroll(window);
+        expect(panel.style.top).toBe("16px");
+        expect(panel.style.maxHeight).toBe("368px");
     });
 });
