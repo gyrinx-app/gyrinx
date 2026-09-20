@@ -161,6 +161,27 @@ def test_advancement_roll_is_saved_and_full_checkout_uses_it(fighter):
     )
 
 
+def test_advancement_slot_refuses_a_different_die(fighter):
+    from n26.library.models import Dice
+
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        with pytest.raises(Refusal, match="uses a 2D6, not a D6"):
+            op.roll(
+                configured.slot,
+                miniature=fighter,
+                rolled=6,
+                dice=Dice.D6,
+                action_record=record,
+            )
+
+    assert not LedgerEvent.objects.filter(
+        action_record=record, kind=LedgerEvent.Kind.ROLLED
+    ).exists()
+
+
 def test_earned_advancement_with_a_roll_cannot_be_cancelled(fighter):
     action, outcome, allowance = _advancement(fighter)
     with operation(fighter.gang) as op:

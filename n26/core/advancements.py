@@ -12,6 +12,7 @@ from n26.core.models import (
     ActionRecord,
     AdvancementSelection,
     Assignment,
+    LedgerEvent,
     SkillSelection,
 )
 from n26.core.operations import Refusal
@@ -674,14 +675,18 @@ def record_skill_roll(
     ):
         event_id, result = latest["event_id"], latest["roll"]
     else:
-        event = op.roll(
-            configured.slot,
-            miniature=record.fighter,
-            rolled=rolled,
-            rng=rng,
-            dice=Dice.D6,
-            action_record=record,
+        if rolled is None:
+            rolled = Dice.roll(Dice.D6, rng)
+        elif rolled not in Dice.rolls(Dice.D6):
+            raise Refusal(f"You cannot roll {rolled} on a {Dice.D6.label}.")
+        event = op.event(
+            record.fighter,
+            LedgerEvent.Kind.ROLLED,
+            roll=rolled,
+            dice=Dice.D6.value,
+            slot=configured.slot,
             note=str(category),
+            action_record=record,
         )
         event_id, result = str(event.pk), event.roll
     from n26.library.models import Skill

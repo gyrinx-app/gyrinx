@@ -972,7 +972,7 @@ def _create_skills_collection():
     from n26.library.models.pack import get_default_pack
 
     collection, _ = Collection.objects.get_or_create(
-        pack=get_default_pack(), name=SKILLS_COLLECTION
+        pack=get_default_pack(), name=SKILLS_COLLECTION, qualifier=""
     )
     for position, (name, is_default) in enumerate(SKILL_TIERS):
         CollectionSection.objects.get_or_create(
@@ -999,17 +999,19 @@ def _check_skills_collection():
     from n26.library.models.pack import get_default_pack
 
     pack = get_default_pack()
-    present = _count(Collection, pack=pack, name=SKILLS_COLLECTION)
+    present = _count(Collection, pack=pack, name=SKILLS_COLLECTION, qualifier="")
     present += _count(
         CollectionSection,
         collection__pack=pack,
         collection__name=SKILLS_COLLECTION,
+        collection__qualifier="",
         name__in=[name for name, _ in SKILL_TIERS],
     )
     present += _count(
         CollectionSelector,
         collection__pack=pack,
         collection__name=SKILLS_COLLECTION,
+        collection__qualifier="",
         of_kind__in=[
             ContentType.objects.get_for_model(model)
             for model in skills_collection_sweeps()
@@ -1890,6 +1892,7 @@ def _create_fighter_actions():
                 CollectionSection.objects.filter(
                     collection__pack=pack,
                     collection__name=SKILLS_COLLECTION,
+                    collection__qualifier="",
                     name=access,
                 ).first()
                 if access

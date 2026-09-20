@@ -2657,7 +2657,13 @@ class Operation:
         picklist = slot.picklist
         if not picklist.dice:
             raise ValueError(f"{slot.choice_label} is not rolled for.")
-        dice = Dice(dice or picklist.dice)
+        configured_dice = Dice(picklist.dice)
+        if dice is not None and Dice(dice) != configured_dice:
+            raise Refusal(
+                f"{slot.choice_label} uses a {configured_dice.label}, not a "
+                f"{Dice(dice).label}."
+            )
+        dice = configured_dice
         if rolled is None:
             rolled = Dice.roll(dice, rng)
         elif rolled not in Dice.rolls(dice):

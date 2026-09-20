@@ -259,6 +259,32 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
     }
 
 
+def test_qualified_skills_collection_is_not_used_as_the_standard_collection(
+    default_pack,
+):
+    from n26.library.models import Collection
+
+    custom = Collection.objects.create(
+        pack=default_pack,
+        name="Skills & Powers",
+        qualifier="Custom",
+    )
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    assert content.status() == "missing"
+    content.create()
+
+    standard = Collection.objects.get(
+        pack=default_pack,
+        name="Skills & Powers",
+        qualifier="",
+    )
+    assert standard != custom
+    assert custom.sections.count() == 0
+    assert custom.selectors.count() == 0
+    assert content.status() == "complete"
+
+
 def test_same_named_picklist_for_another_slot_type_is_left_untouched(default_pack):
     other_type = SlotType.objects.create(pack=default_pack, name="Other advancement")
     other_table = Picklist.objects.create(
