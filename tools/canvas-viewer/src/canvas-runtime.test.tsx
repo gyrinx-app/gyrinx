@@ -7,9 +7,11 @@ import {
     Grid,
     H1,
     LineChart,
+    PieChart,
     Stack,
     Table,
     Text,
+    Toggle,
     canvasPaletteDark,
     canvasPaletteLight,
     canvasTokens,
@@ -107,5 +109,41 @@ describe("Canvas runtime", () => {
         expect(html).toContain('data-reference-value="50"');
         expect(html).toContain('data-reference-value="100"');
         expect(html).toContain("<polygon");
+    });
+
+    it("keeps grouped bars, sub-unit ranges, and zero pies numerically honest", () => {
+        const html = renderToStaticMarkup(
+            <Stack>
+                <BarChart
+                    categories={["p95"]}
+                    series={[{ name: "Latency", data: [90] }]}
+                    beginAtZero={false}
+                    yMin={80}
+                    yMax={120}
+                />
+                <LineChart
+                    categories={["Low", "High"]}
+                    series={[{ name: "Ratio", data: [0.1, 0.2] }]}
+                    beginAtZero={false}
+                    yMin={0.1}
+                    yMax={0.2}
+                />
+                <PieChart
+                    data={[
+                        { label: "One", value: 0 },
+                        { label: "Two", value: -1 },
+                    ]}
+                    donut
+                />
+                <Toggle label="Notifications" />
+            </Stack>,
+        );
+
+        expect(html).toContain('data-start="80"');
+        expect(html).toContain('data-end="90"');
+        expect(html).toContain('cy="230"');
+        expect(html).toContain('cy="30"');
+        expect(html).toContain('class="cv-pie-total">0</text>');
+        expect(html).toContain('aria-label="Notifications"');
     });
 });

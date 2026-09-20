@@ -924,6 +924,8 @@ export function Toggle({
     onChange,
     disabled,
     size = "sm",
+    label,
+    "aria-label": ariaLabel,
     style,
 }: any) {
     return (
@@ -931,6 +933,7 @@ export function Toggle({
             type="button"
             role="switch"
             aria-checked={checked ?? false}
+            aria-label={ariaLabel ?? label ?? "Toggle"}
             className={`cv-toggle cv-toggle-${size} ${checked ? "cv-toggle-on" : ""}`}
             onClick={() => onChange?.(!checked)}
             disabled={disabled}
@@ -1286,10 +1289,9 @@ export function BarChart({
                   ? { beginAtZero: true, referenceLines }
                   : { beginAtZero, yMin, yMax, referenceLines },
           );
+    const domainSpan = domain.maximum - domain.minimum || 1;
     const scale = (value: number, span: number) =>
-        ((value - domain.minimum) /
-            Math.max(1, domain.maximum - domain.minimum)) *
-        span;
+        ((value - domain.minimum) / domainSpan) * span;
     const suffix = normalized ? "%" : valueSuffix;
     const prefix = normalized ? "" : valuePrefix;
     const valuesVisible =
@@ -1383,10 +1385,15 @@ export function BarChart({
                                 const value =
                                     plotted[categoryIndex]?.[seriesIndex] ?? 0;
                                 const colour = chartColour(item, seriesIndex);
-                                const start = stack
-                                    ? cumulative
-                                    : domain.minimum;
+                                const baseline =
+                                    domain.minimum <= 0 && domain.maximum >= 0
+                                        ? 0
+                                        : domain.minimum > 0
+                                          ? domain.minimum
+                                          : domain.maximum;
+                                const start = stack ? cumulative : baseline;
                                 if (stack) cumulative += value;
+                                const end = stack ? cumulative : value;
                                 if (horizontal) {
                                     const barHeight = stack
                                         ? Math.min(30, categorySpan * 0.62)
@@ -1403,12 +1410,16 @@ export function BarChart({
                                           categoryIndex * categorySpan +
                                           categorySpan * 0.15 +
                                           seriesIndex * barHeight;
+                                    const startPosition = scale(
+                                        start,
+                                        plotWidth,
+                                    );
+                                    const endPosition = scale(end, plotWidth);
                                     const x =
-                                        padding.left + scale(start, plotWidth);
-                                    const barWidth = Math.max(
-                                        0,
-                                        scale(start + value, plotWidth) -
-                                            scale(start, plotWidth),
+                                        padding.left +
+                                        Math.min(startPosition, endPosition);
+                                    const barWidth = Math.abs(
+                                        endPosition - startPosition,
                                     );
                                     return (
                                         <g key={item.name}>
@@ -1419,6 +1430,9 @@ export function BarChart({
                                                 height={barHeight}
                                                 rx="2"
                                                 fill={colour}
+                                                data-value={value}
+                                                data-start={start}
+                                                data-end={end}
                                             >
                                                 <title>
                                                     {item.name}:{" "}
@@ -1459,10 +1473,15 @@ export function BarChart({
                                       categoryIndex * categorySpan +
                                       categorySpan * 0.15 +
                                       seriesIndex * barWidth;
-                                const top = scale(start + value, plotHeight);
-                                const bottom = scale(start, plotHeight);
-                                const y = padding.top + plotHeight - top;
-                                const barHeight = Math.max(0, top - bottom);
+                                const startPosition = scale(start, plotHeight);
+                                const endPosition = scale(end, plotHeight);
+                                const y =
+                                    padding.top +
+                                    plotHeight -
+                                    Math.max(startPosition, endPosition);
+                                const barHeight = Math.abs(
+                                    endPosition - startPosition,
+                                );
                                 return (
                                     <g key={item.name}>
                                         <rect
@@ -1472,6 +1491,9 @@ export function BarChart({
                                             height={barHeight}
                                             rx="2"
                                             fill={colour}
+                                            data-value={value}
+                                            data-start={start}
+                                            data-end={end}
                                         >
                                             <title>
                                                 {item.name}:{" "}
@@ -1567,11 +1589,9 @@ export function LineChart({
     });
     const x = (index: number) =>
         pad + (index * (width - pad * 2)) / Math.max(1, categories.length - 1);
+    const domainSpan = maximum - minimum || 1;
     const y = (value: number) =>
-        height -
-        pad -
-        ((value - minimum) / Math.max(1, maximum - minimum)) *
-            (height - pad * 2);
+        height - pad - ((value - minimum) / domainSpan) * (height - pad * 2);
     return (
         <div className="cv-chart" style={style}>
             <div className="cv-chart-legend">
@@ -1703,12 +1723,13 @@ export function LineChart({
 
 export function PieChart({ data, size = 200, donut = false, style }: any) {
     const total = Math.max(
-        1,
+        0,
         data.reduce(
             (sum: number, item: any) => sum + Math.max(0, item.value),
             0,
         ),
     );
+    const denominator = Math.max(1, total);
     const radius = 42;
     const circumference = 2 * Math.PI * radius;
     let offset = 0;
@@ -1724,7 +1745,8 @@ export function PieChart({ data, size = 200, donut = false, style }: any) {
                 <g transform="rotate(-90 50 50)">
                     {data.map((item: any, index: number) => {
                         const length =
-                            (Math.max(0, item.value) / total) * circumference;
+                            (Math.max(0, item.value) / denominator) *
+                            circumference;
                         const dashOffset = -offset;
                         offset += length;
                         return (
