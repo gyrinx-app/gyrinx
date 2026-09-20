@@ -104,14 +104,19 @@ def test_fighter_action_content_is_complete_and_idempotent():
         if isinstance(modifier.effect, OffersChoice)
     }
     assert {
-        (name, offer.mode, offer.from_section.name if offer.from_section else "any")
+        (
+            name,
+            offer.mode,
+            offer.from_section.name if offer.from_section else "any",
+            offer.label,
+        )
         for name, offer in offers.items()
     } == {
-        ("Random Primary skill", "random", "Primary"),
-        ("Select Primary skill", "select", "Primary"),
-        ("Random Secondary skill", "random", "Secondary"),
-        ("Select Secondary skill", "select", "Secondary"),
-        ("Select any skill", "select", "any"),
+        ("Random Primary skill", "random", "Primary", ""),
+        ("Select Primary skill", "select", "Primary", ""),
+        ("Random Secondary skill", "random", "Secondary", ""),
+        ("Select Secondary skill", "select", "Secondary", ""),
+        ("Select any skill", "select", "any", ""),
     }
     assert not Action.objects.filter(name__icontains="Power Boost").exists()
     changes = {
@@ -840,6 +845,25 @@ def test_reseeding_repairs_a_skill_offer_for_the_wrong_kind():
     modifier.refresh_from_db()
     assert isinstance(modifier.effect, OffersChoice)
     assert modifier.effect.of_kind.model_class() is Skill
+    assert content.status() == "complete"
+
+
+def test_reseeding_files_advancement_skill_choices_in_the_skills_row():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    result = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Select Primary skill")
+        .pickable
+    )
+    offer = result.modifiers.get().effect
+    offer.label = "Select Primary skill"
+    offer.save(update_fields=["label"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    assert result.modifiers.get().effect.label == ""
     assert content.status() == "complete"
 
 
