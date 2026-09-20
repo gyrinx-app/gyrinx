@@ -3,8 +3,8 @@
 #
 # Assumes PostgreSQL is running and the venv is active (the SessionStart
 # hook handles both for Claude Code sessions; ./scripts/dev.sh handles them
-# for interactive use).  CI invokes pytest directly — see
-# .github/workflows/test.yaml.
+# for interactive use). CI builds the same React assets before invoking pytest
+# directly — see .github/workflows/test.yaml.
 #
 # pyproject.toml already sets `-n auto --nomigrations`, so the bare
 # invocation runs in parallel by default.  Pass `-n 0` to force serial.
@@ -16,4 +16,5 @@
 
 set -e
 
+npm run js
 exec pytest "$@"

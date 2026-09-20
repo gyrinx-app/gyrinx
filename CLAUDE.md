@@ -393,7 +393,7 @@ manage inspect_page /n26/authoring/ --all --limit 3 --json
 ### Testing
 
 ```bash
-# Run full test suite (thin wrapper over pytest; tests use local Postgres)
+# Build React assets, then run the full suite against local Postgres
 ./scripts/test.sh
 
 # Run tests with pytest-watcher for continuous testing
@@ -402,7 +402,8 @@ ptw .
 # Run specific test
 pytest n23/core/tests/test_models_core.py::test_basic_list
 
-# Run tests with pytest directly
+# Run tests with pytest directly (`npm run js` once on a clean checkout or
+# after changing React build inputs)
 pytest
 
 # Run tests in parallel using pytest-xdist (significant performance improvement)

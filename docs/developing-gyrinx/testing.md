@@ -30,11 +30,12 @@ pytest --cov=gyrinx
 ### Full Test Suite
 
 ```bash
-# Run the full suite against local Postgres (thin wrapper over pytest)
+# Build React assets, then run the full suite against local Postgres
 ./scripts/test.sh
 
-# Or invoke pytest directly — pyproject.toml already sets -n auto, so this
-# runs in parallel by default
+# Or build the React assets once and invoke pytest directly. pyproject.toml
+# already sets -n auto, so this runs in parallel by default.
+npm run js
 pytest
 
 # Continuous test runner
