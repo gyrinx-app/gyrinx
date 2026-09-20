@@ -1794,7 +1794,11 @@ def _create_fighter_actions():
     kills = named(Counter, "Kill Count")
     glitches = named(Counter, "Glitch count")
     advancement_type = named(SlotType, "Advancement")
-    table = Picklist.objects.filter(pack=pack, name="Fighter advancement table").first()
+    table = Picklist.objects.filter(
+        pack=pack,
+        slot_type=advancement_type,
+        name__iexact="Fighter advancement table",
+    ).first()
     if table is None:
         table = Picklist.objects.create(
             pack=pack,
@@ -2161,7 +2165,13 @@ def _check_fighter_actions():
         return incomplete()
     if maintenance_price != [("credits", "gang", 100)]:
         return incomplete()
-    table = Picklist.objects.filter(pack=pack, name="Fighter advancement table").first()
+    table = Picklist.objects.filter(
+        pack=pack,
+        slot_type=SlotType.objects.filter(
+            pack=pack, name__iexact="Advancement"
+        ).first(),
+        name__iexact="Fighter advancement table",
+    ).first()
     slot = Slot.objects.filter(pack=pack, name="Advancement").first()
     ranks = RankTable.objects.filter(pack=pack, name="Standard fighter ranks").first()
     advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()

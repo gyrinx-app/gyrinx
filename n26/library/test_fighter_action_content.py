@@ -256,6 +256,31 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
     }
 
 
+def test_same_named_picklist_for_another_slot_type_is_left_untouched(default_pack):
+    other_type = SlotType.objects.create(pack=default_pack, name="Other advancement")
+    other_table = Picklist.objects.create(
+        pack=default_pack,
+        slot_type=other_type,
+        name="Fighter advancement table",
+        dice="d6",
+        roll_selects="threshold",
+    )
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+
+    other_table.refresh_from_db()
+    assert other_table.slot_type == other_type
+    assert other_table.dice == "d6"
+    assert content.status() == "complete"
+    assert (
+        Picklist.objects.filter(
+            pack=default_pack, name="Fighter advancement table"
+        ).count()
+        == 2
+    )
+
+
 def test_reseeding_repairs_the_old_broad_glitch_cleanup():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()

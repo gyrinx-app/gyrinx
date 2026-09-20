@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
@@ -268,16 +268,31 @@ def _gainable(record, pickable, *, evaluation=None, skills_for=None):
     )
 
 
+def _configuration(row):
+    """Return stable semantic fields for a modifier scope or effect."""
+    fields = []
+    for field in row._meta.concrete_fields:
+        if field.primary_key:
+            continue
+        value = getattr(row, field.attname)
+        fields.append([field.attname, None if value is None else str(value)])
+    return [row._meta.label_lower, fields]
+
+
 def _roll_table(configured):
     """Return active members and the semantic table state bound to a roll."""
     from n26.core.browse import picklist_lines
+    from n26.library.models import Modifier
+    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
     members = list(
         picklist_lines(configured.slot.picklist)
         .select_related("pickable")
         .prefetch_related(
-            "pickable__modifiers__offers_choice",
-            "pickable__modifiers__changes_stat",
+            Prefetch(
+                "pickable__modifiers",
+                queryset=Modifier.objects.select_related(*SCOPE_FIELDS, *EFFECT_FIELDS),
+            )
         )
     )
     state = {
@@ -294,7 +309,12 @@ def _roll_table(configured):
                 "roll_low": member.roll_low,
                 "roll_high": member.roll_high,
                 "modifiers": sorted(
-                    [str(modifier.pk), modifier.modified.isoformat()]
+                    [
+                        str(modifier.pk),
+                        modifier.modified.isoformat(),
+                        _configuration(modifier.scope),
+                        _configuration(modifier.effect),
+                    ]
                     for modifier in member.pickable.modifiers.all()
                 ),
             }
@@ -566,7 +586,8 @@ def record_skill_roll(
     matching = [
         attempt
         for attempt in selection.random_attempts
-        if attempt.get("skill_set_id") == str(category.pk)
+        if attempt.get("pickable_id") == str(pickable_id)
+        and attempt.get("skill_set_id") == str(category.pk)
         and (
             attempt.get("access") == access
             or (

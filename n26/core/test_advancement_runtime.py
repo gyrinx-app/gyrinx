@@ -450,6 +450,55 @@ def test_revisiting_random_access_restores_its_accepted_attempt(fighter):
     )
 
 
+def test_random_attempts_are_bound_to_their_advancement_result(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    original = configured.slot.picklist.members.get(
+        pickable__name="Random Primary skill"
+    ).pickable
+    alternative = Pickable.objects.create(
+        name="Another random Primary skill",
+        slot_type=configured.slot.slot_type,
+    )
+    alternative.modifiers.add(*original.modifiers.all())
+    PicklistMember.objects.create(
+        picklist=configured.slot.picklist,
+        pickable=alternative,
+        position=configured.slot.picklist.members.count(),
+        roll_low=12,
+        roll_high=12,
+    )
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    original_option = next(row for row in options if row.id == str(original.pk))
+    alternative_option = next(row for row in options if row.id == str(alternative.pk))
+
+    with operation(fighter.gang) as op:
+        first = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=original_option.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+        second = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=alternative_option.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+
+    assert first["pickable_id"] == original_option.id
+    assert second["pickable_id"] == alternative_option.id
+    assert first["event_id"] != second["event_id"]
+
+
 def test_completed_correction_can_reuse_an_earlier_accepted_random_attempt(fighter):
     action, outcome, allowance = _advancement(fighter)
     primary = _primary_agility(fighter)
@@ -737,6 +786,28 @@ def test_noop_foundation_reseed_preserves_a_recorded_roll(fighter):
 
     assert record.terms["advancement_table"] == snapshot
     assert advancement_options(record, configured)
+
+
+@pytest.mark.parametrize("edited", ["effect", "scope"])
+def test_advancement_roll_fingerprints_modifier_configuration(fighter, edited):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=7)
+    result = configured.slot.picklist.members.get(
+        pickable__name="Random Primary skill"
+    ).pickable
+    modifier = result.modifiers.get()
+    if edited == "effect":
+        modifier.offers_choice.mode = modifier.offers_choice.Mode.SELECT
+        modifier.offers_choice.save(update_fields=["mode"])
+    else:
+        modifier.scope.reach = modifier.scope.Reach.EVERY_MODEL
+        modifier.scope.save(update_fields=["reach"])
+
+    with pytest.raises(Refusal, match="table changed"):
+        advancement_options(record, configured)
 
 
 def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
