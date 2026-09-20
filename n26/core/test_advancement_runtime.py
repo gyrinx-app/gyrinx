@@ -184,6 +184,27 @@ def test_advancement_roll_reuses_the_unfilled_configured_slot(fighter):
     assert fighter.assignments.filter(slot=configured.slot, archived=False).count() == 1
 
 
+def test_advancement_roll_does_not_reuse_another_drafts_slot(fighter):
+    action, outcome, first_allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    second_allowance = ActionAllowance.objects.create(
+        action=action,
+        fighter=fighter,
+        source=fighter.membership,
+        source_kind=ActionAllowance.Source.RANK,
+        threshold=7,
+        rank_table=first_allowance.rank_table,
+    )
+    with operation(fighter.gang) as op:
+        first = op.start_action(fighter, action, uuid4(), first_allowance)
+        first_selection = op.record_action_roll(first, configured, uuid4(), rolled=7)
+        second = op.start_action(fighter, action, uuid4(), second_allowance)
+        second_selection = op.record_action_roll(second, configured, uuid4(), rolled=7)
+
+    assert first_selection.slot_assignment_id != second_selection.slot_assignment_id
+    assert fighter.assignments.filter(slot=configured.slot, archived=False).count() == 2
+
+
 @pytest.mark.parametrize("entrypoint", ["save_action_choices", "review_action"])
 def test_advancement_roll_refuses_switching_to_another_outcome(fighter, entrypoint):
     action, advancement, allowance = _advancement(fighter)
@@ -429,6 +450,61 @@ def test_revisiting_random_access_restores_its_accepted_attempt(fighter):
     )
 
 
+def test_completed_correction_can_reuse_an_earlier_accepted_random_attempt(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    secondary = _secondary_cunning(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    random_primary = next(row for row in options if row.name == "Random Primary skill")
+    random_secondary = next(
+        row for row in options if row.name == "Random Secondary skill"
+    )
+    with operation(fighter.gang) as op:
+        primary_attempt = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+        op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=1,
+        )
+        reviewed = op.review_action(
+            record,
+            outcome=outcome,
+            terms={"pickable_id": random_secondary.id},
+        )
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+
+    assert (
+        str(recorded_skill(completed, configured, random_primary.id).pk)
+        == primary_attempt["skill_id"]
+    )
+    with operation(fighter.gang) as op:
+        correction = op.review_action_correction(
+            completed, terms={"pickable_id": random_primary.id}
+        )
+
+    assert correction.review
+
+
 def test_exact_skill_roll_retry_survives_lost_access(fighter):
     action, outcome, allowance = _advancement(fighter)
     category = Category.objects.get(name="Agility", section__name="Skills")
@@ -541,6 +617,21 @@ def test_unavailable_skill_attempt_replays_before_rechecking_access(fighter):
             )
 
     assert unavailable["is_available"] is False
+
+
+def test_noop_foundation_reseed_preserves_a_recorded_roll(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=7)
+    snapshot = record.terms["advancement_table"]
+
+    STANDARD_CONTENT["fighter-actions"].create()
+    record.refresh_from_db()
+
+    assert record.terms["advancement_table"] == snapshot
+    assert advancement_options(record, configured)
 
 
 def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
@@ -727,6 +818,70 @@ def test_completed_advancement_correction_keeps_roll_and_allowance(fighter):
         ).count()
         == 1
     )
+
+
+def test_completed_skill_is_available_to_its_own_correction(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    category = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=5)
+    select_primary = next(
+        option
+        for option in advancement_options(record, configured)
+        if option.name == "Select Primary skill"
+    )
+    skill = skill_options(record, configured, select_primary.id)[category][0]
+    terms = {"pickable_id": select_primary.id, "skill_id": str(skill.pk)}
+    with operation(fighter.gang) as op:
+        reviewed = op.review_action(record, outcome=outcome, terms=terms)
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+        for other in category.skills.exclude(pk=skill.pk):
+            op.assign(other, miniature=fighter)
+
+    assert skill_options(completed, configured, select_primary.id)[category] == [skill]
+    with operation(fighter.gang) as op:
+        correction = op.review_action_correction(completed, terms=terms)
+
+    assert correction.review
+
+
+def test_completed_skill_moved_to_another_fighter_cannot_be_corrected(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    category = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        other = op.hire(fighter.membership.profile, "Other", paid=0)
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=5)
+    select_primary = next(
+        option
+        for option in advancement_options(record, configured)
+        if option.name == "Select Primary skill"
+    )
+    skill = skill_options(record, configured, select_primary.id)[category][0]
+    terms = {"pickable_id": select_primary.id, "skill_id": str(skill.pk)}
+    with operation(fighter.gang) as op:
+        reviewed = op.review_action(record, outcome=outcome, terms=terms)
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+        op.move(completed.skill_selection.skill_assignment, other)
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="Later changes depend"):
+            op.review_action_correction(completed, terms=terms)
 
 
 def test_completed_skill_advancement_with_a_dependent_cannot_be_corrected(fighter):

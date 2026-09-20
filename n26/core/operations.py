@@ -1288,9 +1288,6 @@ class Operation:
         clone = result.primary
         if clone is None:
             raise ValueError("A model clone plan did not create its primary model.")
-        from n26.core.allowances import clone_unused_allowances
-
-        clone_unused_allowances(self, source, clone)
         # Assignment-level openings keep every copied ledger entry
         # reconcilable. The journal-only record's note carries presentation
         # totals so a paged history need not pull the whole snapshot merely to
@@ -1495,6 +1492,11 @@ class Operation:
                 for assignment in source_config.assignments.all()
                 if assignment.pk in assignment_map
             )
+
+        from n26.core.allowances import clone_unused_allowances
+
+        for source in plan.miniatures:
+            clone_unused_allowances(self, source, miniature_map[source.pk])
 
         return _CloneResult(
             primary=miniature_map.get(getattr(plan.primary, "pk", None)),

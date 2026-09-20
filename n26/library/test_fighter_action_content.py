@@ -3,6 +3,7 @@ import pytest
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import build_model_card
+from n26.library import authoring
 from n26.library.forms import generate_form
 from n26.library.models import (
     Action,
@@ -11,6 +12,7 @@ from n26.library.models import (
     OffersChoice,
     Picklist,
     RankTable,
+    Skill,
     Slot,
     SlotType,
 )
@@ -141,8 +143,10 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
         Counter,
         Pickable,
         PicklistMember,
+        ProfileType,
         RankThreshold,
         Stat,
+        StatlineType,
     )
 
     homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-actions")
@@ -151,6 +155,9 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
         short_name="M",
         full_name="Movement",
     )
+    model_shape = StatlineType.objects.create(pack=homebrew, name="Model")
+    ProfileType.objects.create(pack=homebrew, name="Fighter", statline_type=model_shape)
+    ProfileType.objects.create(pack=homebrew, name="Vehicle", statline_type=model_shape)
     skill_collection = Collection.objects.create(pack=homebrew, name="Skills & Powers")
     for position, name in enumerate(("Primary", "Secondary")):
         CollectionSection.objects.create(
@@ -217,6 +224,9 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
         == 5
     )
     assert Stat.objects.filter(pack=default_pack, full_name="Movement").exists()
+    assert StatlineType.objects.filter(pack=default_pack, name="Model").exists()
+    assert ProfileType.objects.filter(pack=default_pack, name="Fighter").exists()
+    assert ProfileType.objects.filter(pack=default_pack, name="Vehicle").exists()
     assert RankTable.objects.get(
         pack=default_pack, name="Standard fighter ranks"
     ).thresholds.count() == len(FIGHTER_RANK_THRESHOLDS)
@@ -279,6 +289,53 @@ def test_reseeding_repairs_missing_action_and_result_links():
     assert content.status() == "complete"
     assert action.outcomes.get().outcome.name == "Clear glitches"
     assert isinstance(result.modifiers.get().effect, ChangesStat)
+
+
+def test_reseeding_repairs_the_advancement_outcome_operation():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Advancement", qualifier="")
+    outcome = action.outcomes.get().outcome
+    wrong = authoring.apply_changes(
+        authoring.remove_picks(SlotType.objects.get(name="Augmentation"))
+    )
+    type(outcome).objects.filter(pk=outcome.pk).update(
+        resolve_advancement=None,
+        apply_changes=wrong,
+    )
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    outcome.refresh_from_db()
+    assert outcome.resolve_advancement.slot == Slot.objects.get(name="Advancement")
+    assert content.status() == "complete"
+
+
+def test_reseeding_repairs_a_skill_offer_for_the_wrong_kind():
+    from django.contrib.contenttypes.models import ContentType
+
+    from n26.library.models import Subtype
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    result = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Random Primary skill")
+        .pickable
+    )
+    modifier = result.modifiers.get()
+    offer = modifier.effect
+    offer.of_kind = ContentType.objects.get_for_model(Subtype)
+    offer.save(update_fields=["of_kind"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    modifier.refresh_from_db()
+    assert isinstance(modifier.effect, OffersChoice)
+    assert modifier.effect.of_kind.model_class() is Skill
+    assert content.status() == "complete"
 
 
 def test_clearing_imported_content_preserves_advancement_modifiers():

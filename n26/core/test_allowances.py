@@ -6,8 +6,8 @@ from n26.core.allowances import (
     grant_recruitment_allowances,
     starting_counter_value,
 )
-from n26.core.models import ActionAllowance, Gang, LedgerEvent
-from n26.core.operations import operation
+from n26.core.models import ActionAllowance, Gang, LedgerEvent, Miniature
+from n26.core.operations import clone_gang, operation
 from n26.library.models import (
     Action,
     Counter,
@@ -144,6 +144,28 @@ def test_clone_copies_only_unused_allowances(fighter, counter_tracking):
     )
     with operation(fighter.gang) as op:
         clone = op.clone_miniature(fighter)
+    copied = clone.action_allowances.get()
+    assert copied.action == unused.action
+    assert copied.source == clone.membership
+    assert copied.granted_event.kind == LedgerEvent.Kind.GRANTED
+
+
+def test_gang_clone_copies_unused_fighter_allowances(fighter, counter_tracking, user):
+    action = Action.objects.create(
+        name="Recruitment augmentation",
+        timing="recruitment",
+        recruitment_allowance_rule=RecruitmentAllowanceRule.objects.create(),
+    )
+    unused = ActionAllowance.objects.create(
+        action=action,
+        fighter=fighter,
+        source=fighter.membership,
+        source_kind=ActionAllowance.Source.RECRUITMENT,
+    )
+
+    gang = clone_gang(fighter.gang, name="The Hunt II", owner=user)
+
+    clone = Miniature.objects.get(membership__gang=gang, name=fighter.name)
     copied = clone.action_allowances.get()
     assert copied.action == unused.action
     assert copied.source == clone.membership

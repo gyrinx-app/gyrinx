@@ -365,10 +365,13 @@ def _statline_type(name, rows):
     """A statline shape and its ordered stats. ``rows`` are
     ``(stat, display flags)`` in print order."""
     from n26.library.models import StatlineType, StatlineTypeStat
+    from n26.library.models.pack import get_default_pack
 
-    statline_type, _ = StatlineType.objects.get_or_create(name=name)
+    pack = get_default_pack()
+    statline_type, _ = StatlineType.objects.get_or_create(pack=pack, name=name)
     for position, (stat, display) in enumerate(rows):
         StatlineTypeStat.objects.get_or_create(
+            pack=pack,
             statline_type=statline_type,
             stat=stat,
             defaults={"position": position, **display},
@@ -391,7 +394,9 @@ def _count(model, **lookup):
 
 def _create_model_characteristics():
     from n26.library.models import ProfileType
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     rows = []
     for short, full, flags, display in MODEL_CHARACTERISTICS:
         stat = _stat(short, full, flags)
@@ -399,6 +404,7 @@ def _create_model_characteristics():
     statline_type = _statline_type(MODEL_STATLINE, rows)
     for name in TYPE_NAMES:
         ProfileType.objects.get_or_create(
+            pack=pack,
             name=name,
             defaults={"statline_type": statline_type},
         )
@@ -406,11 +412,13 @@ def _create_model_characteristics():
 
 def _check_model_characteristics():
     from n26.library.models import ProfileType, Stat, StatlineType
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     names = [full for _, full, _, _ in MODEL_CHARACTERISTICS]
-    present = _count(Stat, full_name__in=names)
-    present += _count(StatlineType, name=MODEL_STATLINE)
-    present += _count(ProfileType, name__in=TYPE_NAMES)
+    present = _count(Stat, pack=pack, full_name__in=names)
+    present += _count(StatlineType, pack=pack, name=MODEL_STATLINE)
+    present += _count(ProfileType, pack=pack, name__in=TYPE_NAMES)
     return present, len(names) + 1 + len(TYPE_NAMES)
 
 
@@ -424,10 +432,12 @@ def _create_weapon_characteristics():
 
 def _check_weapon_characteristics():
     from n26.library.models import Stat, StatlineType
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     names = [full for _, full, _ in WEAPON_CHARACTERISTICS]
-    present = _count(Stat, full_name__in=names)
-    present += _count(StatlineType, name=WEAPON_STATLINE)
+    present = _count(Stat, pack=pack, full_name__in=names)
+    present += _count(StatlineType, pack=pack, name=WEAPON_STATLINE)
     return present, len(names) + 1
 
 
@@ -1671,6 +1681,25 @@ FIGHTER_ADVANCEMENTS = (
 )
 
 
+def _clear_glitches_matches(outcome, counter, slot_type):
+    if outcome.apply_changes_id is None:
+        return False
+    changes = list(
+        outcome.apply_changes.changes.select_related("counter_change", "remove_picks")
+    )
+    return (
+        len(changes) == 2
+        and changes[0].position == 0
+        and changes[0].counter_change_id is not None
+        and changes[0].counter_change.counter_id == counter.pk
+        and changes[0].counter_change.mode == "set"
+        and changes[0].counter_change.amount == 0
+        and changes[1].position == 1
+        and changes[1].remove_picks_id is not None
+        and changes[1].remove_picks.slot_type_id == slot_type.pk
+    )
+
+
 def fighter_advancement_modifiers():
     """A filter for modifiers carried by the standard advancement table.
 
@@ -1704,9 +1733,11 @@ def _create_fighter_actions():
     from n26.library import authoring
     from n26.library.models import (
         Action,
+        ChangesStat,
         CollectionSection,
         Counter,
         Modifier,
+        OffersChoice,
         Outcome,
         Pickable,
         Picklist,
@@ -1718,6 +1749,7 @@ def _create_fighter_actions():
         SlotType,
         Stat,
     )
+    from n26.library.models.modifier import EFFECT_FIELDS
     from n26.library.models.pack import get_default_pack
 
     pack = get_default_pack()
@@ -1729,44 +1761,93 @@ def _create_fighter_actions():
         found = model.objects.filter(**lookup).first()
         return found or model.objects.create(pack=pack, name=name, **defaults)
 
+    def repair(row, **expected):
+        changed = [
+            name for name, value in expected.items() if getattr(row, name) != value
+        ]
+        for name in changed:
+            setattr(row, name, expected[name])
+        if changed:
+            row.save(update_fields=[*changed, "modified"])
+        return row
+
+    def replace_operation(outcome, field, operation):
+        outcome.augment_carried_item = None
+        outcome.resolve_advancement = None
+        outcome.apply_changes = None
+        setattr(outcome, field, operation)
+        outcome.save(
+            update_fields=[
+                "augment_carried_item",
+                "resolve_advancement",
+                "apply_changes",
+                "modified",
+            ]
+        )
+
+    def replace_modifier_effect(modifier, field, effect):
+        for effect_field in EFFECT_FIELDS:
+            setattr(modifier, effect_field, effect if effect_field == field else None)
+        modifier.save(update_fields=[*EFFECT_FIELDS, "modified"])
+
     xp = named(Counter, XP_COUNTER)
     kills = named(Counter, "Kill Count")
     glitches = named(Counter, "Glitch count")
     advancement_type = named(SlotType, "Advancement")
-    table, _ = Picklist.objects.get_or_create(
-        pack=pack,
-        name="Fighter advancement table",
+    table = Picklist.objects.filter(pack=pack, name="Fighter advancement table").first()
+    if table is None:
+        table = Picklist.objects.create(
+            pack=pack,
+            name="Fighter advancement table",
+            slot_type=advancement_type,
+            dice="2d6",
+            roll_selects="threshold",
+        )
+    repair(
+        table,
         slot_type=advancement_type,
-        defaults={"dice": "2d6", "roll_selects": "threshold"},
+        dice="2d6",
+        roll_selects="threshold",
     )
-    table.dice, table.roll_selects = "2d6", "threshold"
-    table.save(update_fields=["dice", "roll_selects", "modified"])
     for position, (name, roll, rating) in enumerate(FIGHTER_ADVANCEMENTS):
         pick = named(
             Pickable, name, slot_type=advancement_type, rating_contribution=rating
         )
-        pick.rating_contribution = rating
-        pick.save(update_fields=["rating_contribution", "modified"])
-        PicklistMember.objects.update_or_create(
+        repair(pick, slot_type=advancement_type, rating_contribution=rating)
+        member, _ = PicklistMember.objects.get_or_create(
             picklist=table,
             pickable=pick,
             defaults={"position": position, "roll_low": roll, "roll_high": roll},
         )
+        repair(member, position=position, roll_low=roll, roll_high=roll)
         modifier_name = f"Advancement: {name}"
         existing_modifier = Modifier.objects.filter(
             pack=pack, name=modifier_name
         ).first()
         if name in {full for _, full, _, _ in MODEL_CHARACTERISTICS}:
-            if existing_modifier is None:
-                existing_modifier = authoring.modifier(
-                    modifier_name,
-                    authoring.targets_model(),
-                    authoring.ef_changes_stat(
-                        Stat.objects.get(pack=pack, full_name=name),
-                        mode="improve",
-                        amount=1,
-                    ),
+            stat = Stat.objects.get(pack=pack, full_name=name)
+            effect = existing_modifier.effect if existing_modifier is not None else None
+            if not (
+                isinstance(effect, ChangesStat)
+                and effect.stat_id == stat.pk
+                and effect.mode == "improve"
+                and effect.amount == 1
+            ):
+                new_effect = authoring.ef_changes_stat(
+                    stat,
+                    mode="improve",
+                    amount=1,
                 )
+                if existing_modifier is None:
+                    existing_modifier = authoring.modifier(
+                        modifier_name,
+                        authoring.targets_model(),
+                        new_effect,
+                    )
+                else:
+                    replace_modifier_effect(
+                        existing_modifier, "changes_stat", new_effect
+                    )
             pick.modifiers.add(existing_modifier)
         elif name.startswith(("Random", "Select")) and "skill" in name.lower():
             access = (
@@ -1785,16 +1866,33 @@ def _create_fighter_actions():
                 if access
                 else None
             )
-            if existing_modifier is None:
-                effect = authoring.ef_offers_choice(
+            effect = existing_modifier.effect if existing_modifier is not None else None
+            if not (
+                isinstance(effect, OffersChoice)
+                and effect.of_kind.model_class() is Skill
+                and effect.from_section_id == getattr(section, "pk", None)
+                and effect.mode
+                == (
+                    OffersChoice.Mode.RANDOM
+                    if name.startswith("Random")
+                    else OffersChoice.Mode.SELECT
+                )
+                and effect.will_be_assigned_to == OffersChoice.WillBeAssignedTo.BEARER
+            ):
+                new_effect = authoring.ef_offers_choice(
                     Skill,
                     from_section=section,
                     label=name,
                     mode="random" if name.startswith("Random") else "select",
                 )
-                existing_modifier = authoring.modifier(
-                    modifier_name, authoring.targets_model(), effect
-                )
+                if existing_modifier is None:
+                    existing_modifier = authoring.modifier(
+                        modifier_name, authoring.targets_model(), new_effect
+                    )
+                else:
+                    replace_modifier_effect(
+                        existing_modifier, "offers_choice", new_effect
+                    )
             pick.modifiers.add(existing_modifier)
     slot, _ = Slot.objects.get_or_create(
         pack=pack,
@@ -1807,22 +1905,16 @@ def _create_fighter_actions():
             "hidden": True,
         },
     )
-    slot.slot_type = advancement_type
-    slot.picklist = table
-    slot.min_picks = 1
-    slot.max_picks = 1
-    slot.hidden = True
-    slot.save(
-        update_fields=[
-            "slot_type",
-            "picklist",
-            "min_picks",
-            "max_picks",
-            "hidden",
-            "modified",
-        ]
+    repair(
+        slot,
+        slot_type=advancement_type,
+        picklist=table,
+        min_picks=1,
+        max_picks=1,
+        hidden=True,
     )
     ranks = named(RankTable, "Standard fighter ranks", counter=xp)
+    repair(ranks, counter=xp)
     for threshold in FIGHTER_RANK_THRESHOLDS:
         RankThreshold.objects.get_or_create(rank_table=ranks, threshold=threshold)
     augment_type = named(SlotType, "Augmentation")
@@ -1836,6 +1928,14 @@ def _create_fighter_actions():
         advance_outcome = authoring.create_outcome(
             "Advancement", authoring.resolve_advancement(slot)
         )
+    elif advance_outcome.resolve_advancement_id is None:
+        replace_operation(
+            advance_outcome,
+            "resolve_advancement",
+            authoring.resolve_advancement(slot),
+        )
+    else:
+        repair(advance_outcome.resolve_advancement, slot=slot)
     augment_outcome = Outcome.objects.filter(
         pack=pack, name="Hunting Rig Augmentation"
     ).first()
@@ -1843,6 +1943,14 @@ def _create_fighter_actions():
         augment_outcome = authoring.create_outcome(
             "Hunting Rig Augmentation", authoring.augment_carried_item(augment_type)
         )
+    elif augment_outcome.augment_carried_item_id is None:
+        replace_operation(
+            augment_outcome,
+            "augment_carried_item",
+            authoring.augment_carried_item(augment_type),
+        )
+    else:
+        repair(augment_outcome.augment_carried_item, slot_type=augment_type)
     clear = Outcome.objects.filter(pack=pack, name="Clear glitches").first()
     if clear is None:
         clear = authoring.create_outcome(
@@ -1852,11 +1960,41 @@ def _create_fighter_actions():
                 authoring.remove_picks(glitch_type),
             ),
         )
-    else:
-        for member in clear.apply_changes.changes.select_related("remove_picks"):
-            if member.remove_picks_id:
-                member.remove_picks.slot_type = glitch_type
-                member.remove_picks.save(update_fields=["slot_type", "modified"])
+    elif not _clear_glitches_matches(clear, glitches, glitch_type):
+        changes = (
+            list(
+                clear.apply_changes.changes.select_related(
+                    "counter_change", "remove_picks"
+                )
+            )
+            if clear.apply_changes_id
+            else []
+        )
+        counter_member = next(
+            (member for member in changes if member.counter_change_id), None
+        )
+        removal_member = next(
+            (member for member in changes if member.remove_picks_id), None
+        )
+        if len(changes) == 2 and counter_member and removal_member:
+            repair(counter_member, position=0)
+            repair(
+                counter_member.counter_change,
+                counter=glitches,
+                mode="set",
+                amount=0,
+            )
+            repair(removal_member, position=1)
+            repair(removal_member.remove_picks, slot_type=glitch_type)
+        else:
+            replace_operation(
+                clear,
+                "apply_changes",
+                authoring.apply_changes(
+                    authoring.counter_change(glitches, "set", 0),
+                    authoring.remove_picks(glitch_type),
+                ),
+            )
     definitions = (
         (
             "Suit Evolution",
@@ -1902,7 +2040,7 @@ def _create_fighter_actions():
                     authoring.rank_allowance_rule(xp) if rule_kind == "rank" else None
                 )
             )
-            action = authoring.create_action(
+            authoring.create_action(
                 name, timing, outcomes=outcomes, allowance_rule=rule, use_price=price
             )
             continue
@@ -1928,10 +2066,14 @@ def _check_fighter_actions():
     from n26.library.models import (
         Action,
         ChangesStat,
+        Counter,
         OffersChoice,
+        Outcome,
         Picklist,
         RankTable,
+        Skill,
         Slot,
+        SlotType,
     )
     from n26.library.models.pack import get_default_pack
 
@@ -2010,6 +2152,16 @@ def _check_fighter_actions():
     table = Picklist.objects.filter(pack=pack, name="Fighter advancement table").first()
     slot = Slot.objects.filter(pack=pack, name="Advancement").first()
     ranks = RankTable.objects.filter(pack=pack, name="Standard fighter ranks").first()
+    advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()
+    augment_outcome = Outcome.objects.filter(
+        pack=pack, name="Hunting Rig Augmentation"
+    ).first()
+    clear_outcome = Outcome.objects.filter(pack=pack, name="Clear glitches").first()
+    augment_type = SlotType.objects.filter(pack=pack, name="Augmentation").first()
+    glitch_type = SlotType.objects.filter(
+        pack=pack, name="Spyrer Hunting Rig Glitch"
+    ).first()
+    glitches = Counter.objects.filter(pack=pack, name="Glitch count").first()
     if (
         table is None
         or table.dice != "2d6"
@@ -2022,6 +2174,17 @@ def _check_fighter_actions():
         or ranks is None
         or ranks.counter.name != XP_COUNTER
         or actions["Advancement"].rank_allowance_rule.counter_id != ranks.counter_id
+        or advance_outcome is None
+        or advance_outcome.resolve_advancement_id is None
+        or advance_outcome.resolve_advancement.slot_id != slot.pk
+        or augment_outcome is None
+        or augment_type is None
+        or augment_outcome.augment_carried_item_id is None
+        or augment_outcome.augment_carried_item.slot_type_id != augment_type.pk
+        or clear_outcome is None
+        or glitch_type is None
+        or glitches is None
+        or not _clear_glitches_matches(clear_outcome, glitches, glitch_type)
     ):
         return incomplete()
     members = list(
@@ -2063,6 +2226,7 @@ def _check_fighter_actions():
             return incomplete()
         if name.startswith(("Random", "Select")) and not any(
             isinstance(effect, OffersChoice)
+            and effect.of_kind.model_class() is Skill
             and effect.mode
             == (
                 OffersChoice.Mode.RANDOM

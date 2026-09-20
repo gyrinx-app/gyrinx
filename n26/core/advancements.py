@@ -8,7 +8,12 @@ from django.db.models import Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import AdvancementSelection, Assignment, SkillSelection
+from n26.core.models import (
+    ActionRecord,
+    AdvancementSelection,
+    Assignment,
+    SkillSelection,
+)
 from n26.core.operations import Refusal
 
 
@@ -41,15 +46,8 @@ def _validate_draft(op, record, configured):
     return record
 
 
-def _computed(fighter):
-    card = build_card(fighter, with_statlines=True)
-    return card, compute(card, build_modifier_index(carriers(card)))
-
-
 def _correction_result(record, *, lock=False):
     """Return and validate the completed result being counterfactually removed."""
-    from n26.core.models import ActionRecord
-
     if record.state != ActionRecord.State.COMPLETED:
         return None, None
     query = AdvancementSelection.objects
@@ -73,7 +71,11 @@ def _correction_result(record, *, lock=False):
         or old_pick.chosen_for_id != selection.slot_assignment_id
         or (
             old_skill is not None
-            and (old_skill.archived or old_skill.caused_by_id != old_pick.pk)
+            and (
+                old_skill.archived
+                or old_skill.miniature_root_id != record.fighter_id
+                or old_skill.caused_by_id != old_pick.pk
+            )
         )
     ):
         raise Refusal("Later changes depend on this advancement.")
@@ -214,18 +216,22 @@ def _listed_skills(record, offer, *, computed=None, owned=None):
     from n26.library.models import Skill
     from n26.library.models.assignable import USABLE_BY_LISTS
 
+    card = None
+    if computed is None or owned is None:
+        card, _selection, _skill_selection = _counterfactual_card(record)
     if computed is None:
-        _, computed = _computed(record.fighter)
+        computed = compute(card, build_modifier_index(carriers(card)))
     question = SimpleNamespace(slot=None, offer=offer, kind_label=offer.kind_label)
     listed = offered_by(question, computed)
     rows = listed.all_lines() if hasattr(listed, "all_lines") else listed
     fighter = usability_for(computed)
     if owned is None:
-        owned = set(
-            Assignment.objects.filter(
-                miniature_root=record.fighter, archived=False, skill__isnull=False
-            ).values_list("skill_id", flat=True)
-        )
+        owned = {
+            node.assignable.pk
+            for node in card.all_nodes()
+            if node.assignment is not None
+            and getattr(node.assignable._meta, "label_lower", "") == "library.skill"
+        }
         owned.update(
             contribution.thing.pk
             for contribution in computed.skills
@@ -308,6 +314,14 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
     if selection.roll_event_id:
         return selection
     _members, table_state = _roll_table(configured)
+    slots_owned_by_other_drafts = (
+        AdvancementSelection.objects.filter(
+            action_record__state=ActionRecord.State.STARTED,
+            slot_assignment__isnull=False,
+        )
+        .exclude(action_record=record)
+        .values("slot_assignment_id")
+    )
     bound = list(
         Assignment.objects.select_for_update()
         .filter(
@@ -316,6 +330,7 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
             caused_by=record.fighter.membership,
             archived=False,
         )
+        .exclude(pk__in=slots_owned_by_other_drafts)
         .exclude(caused__pickable__isnull=False, caused__archived=False)[:2]
     )
     if len(bound) > 1:
@@ -374,11 +389,12 @@ def advancement_options(record, configured):
         index,
         build_model_card(record.fighter, card=card, computed=computed),
     )
-    owned = set(
-        Assignment.objects.filter(
-            miniature_root=record.fighter, archived=False, skill__isnull=False
-        ).values_list("skill_id", flat=True)
-    )
+    owned = {
+        node.assignable.pk
+        for node in card.all_nodes()
+        if node.assignment is not None
+        and getattr(node.assignable._meta, "label_lower", "") == "library.skill"
+    }
     owned.update(
         contribution.thing.pk
         for contribution in computed.skills
@@ -462,22 +478,44 @@ def recorded_skill(record, configured, pickable_id):
     if offer is None or offer.mode != offer.Mode.RANDOM:
         return None
     selection = getattr(record, "skill_selection", None)
-    skill = selection.selected_skill if selection else None
-    if (
-        skill is None
-        or selection.mode != offer.Mode.RANDOM
-        or selection.access != _skill_access(configured, pickable_id)
-        or selection.skill_set_id != skill.category_id
-    ):
+    if selection is None or selection.mode != offer.Mode.RANDOM:
         return None
-    accepted = any(
-        attempt.get("is_available")
-        and attempt.get("pickable_id") == str(pickable.pk)
-        and attempt.get("skill_id") == str(skill.pk)
-        and attempt.get("skill_set_id") == str(skill.category_id)
-        for attempt in selection.random_attempts
+    access = _skill_access(configured, pickable_id)
+    if record.state != ActionRecord.State.COMPLETED:
+        skill = selection.selected_skill
+        if (
+            skill is None
+            or selection.access != access
+            or selection.skill_set_id != skill.category_id
+        ):
+            return None
+        accepted = any(
+            attempt.get("is_available")
+            and attempt.get("pickable_id") == str(pickable.pk)
+            and attempt.get("skill_id") == str(skill.pk)
+            and attempt.get("skill_set_id") == str(skill.category_id)
+            for attempt in selection.random_attempts
+        )
+        return skill if accepted else None
+    accepted = next(
+        (
+            attempt
+            for attempt in reversed(selection.random_attempts)
+            if attempt.get("is_available")
+            and attempt.get("pickable_id") == str(pickable.pk)
+            and attempt.get("skill_id")
+            and attempt.get("skill_set_id")
+            and attempt.get("access", selection.access) == access
+        ),
+        None,
     )
-    return skill if accepted else None
+    if accepted is None:
+        return None
+    from n26.library.models import Skill
+
+    return Skill.objects.filter(
+        pk=accepted["skill_id"], category_id=accepted["skill_set_id"]
+    ).first()
 
 
 def record_skill_roll(
