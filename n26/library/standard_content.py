@@ -1700,6 +1700,12 @@ def _clear_glitches_matches(outcome, counter, slot_type):
     )
 
 
+def _bearer_scope_matches(modifier):
+    from n26.library.models import TargetsMiniature
+
+    return isinstance(modifier.scope, TargetsMiniature) and not modifier.scope.narrows
+
+
 def fighter_advancement_modifiers():
     """A filter for modifiers carried by the standard advancement table.
 
@@ -1749,7 +1755,7 @@ def _create_fighter_actions():
         SlotType,
         Stat,
     )
-    from n26.library.models.modifier import EFFECT_FIELDS
+    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
     from n26.library.models.pack import get_default_pack
 
     pack = get_default_pack()
@@ -1790,6 +1796,11 @@ def _create_fighter_actions():
             setattr(modifier, effect_field, effect if effect_field == field else None)
         modifier.save(update_fields=[*EFFECT_FIELDS, "modified"])
 
+    def replace_modifier_scope(modifier, field, scope):
+        for scope_field in SCOPE_FIELDS:
+            setattr(modifier, scope_field, scope if scope_field == field else None)
+        modifier.save(update_fields=[*SCOPE_FIELDS, "modified"])
+
     xp = named(Counter, XP_COUNTER)
     kills = named(Counter, "Kill Count")
     glitches = named(Counter, "Glitch count")
@@ -1828,6 +1839,12 @@ def _create_fighter_actions():
         existing_modifier = Modifier.objects.filter(
             pack=pack, name=modifier_name
         ).first()
+        if existing_modifier is not None and not _bearer_scope_matches(
+            existing_modifier
+        ):
+            replace_modifier_scope(
+                existing_modifier, "targets_miniature", authoring.targets_model()
+            )
         if name in {full for _, full, _, _ in MODEL_CHARACTERISTICS}:
             stat = Stat.objects.get(pack=pack, full_name=name)
             effect = existing_modifier.effect if existing_modifier is not None else None
@@ -2195,6 +2212,7 @@ def _check_fighter_actions():
         or not slot.hidden
         or ranks is None
         or ranks.counter.name != XP_COUNTER
+        or ranks.counter.pack_id != pack.pk
         or actions["Advancement"].rank_allowance_rule.counter_id != ranks.counter_id
         or advance_outcome is None
         or advance_outcome.resolve_advancement_id is None
@@ -2235,34 +2253,36 @@ def _check_fighter_actions():
         return incomplete()
     characteristic_names = {full for _, full, _, _ in MODEL_CHARACTERISTICS}
     for member in members:
-        effects = [modifier.effect for modifier in member.pickable.modifiers.all()]
+        modifiers = member.pickable.modifiers.all()
         name = member.pickable.name
         if name in characteristic_names and not any(
-            isinstance(effect, ChangesStat)
-            and effect.stat.full_name == name
-            and effect.stat.pack_id == pack.pk
-            and effect.mode == "improve"
-            and effect.amount == 1
-            for effect in effects
+            _bearer_scope_matches(modifier)
+            and isinstance(modifier.effect, ChangesStat)
+            and modifier.effect.stat.full_name == name
+            and modifier.effect.stat.pack_id == pack.pk
+            and modifier.effect.mode == "improve"
+            and modifier.effect.amount == 1
+            for modifier in modifiers
         ):
             return incomplete()
         if name.startswith(("Random", "Select")) and not any(
-            isinstance(effect, OffersChoice)
-            and effect.of_kind.model_class() is Skill
-            and effect.mode
+            _bearer_scope_matches(modifier)
+            and isinstance(modifier.effect, OffersChoice)
+            and modifier.effect.of_kind.model_class() is Skill
+            and modifier.effect.mode
             == (
                 OffersChoice.Mode.RANDOM
                 if name.startswith("Random")
                 else OffersChoice.Mode.SELECT
             )
-            and effect.will_be_assigned_to == "bearer"
+            and modifier.effect.will_be_assigned_to == "bearer"
             and (
-                effect.from_section is None
+                modifier.effect.from_section is None
                 if "any" in name.lower()
-                else getattr(effect.from_section, "name", None)
+                else getattr(modifier.effect.from_section, "name", None)
                 == ("Primary" if "Primary" in name else "Secondary")
             )
-            for effect in effects
+            for modifier in modifiers
         ):
             return incomplete()
     return total, total

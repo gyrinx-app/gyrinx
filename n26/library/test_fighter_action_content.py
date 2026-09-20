@@ -333,6 +333,24 @@ def test_reseeding_repairs_the_advancement_rank_counter():
     assert content.status() == "complete"
 
 
+def test_reseeding_repairs_the_rank_table_to_default_pack_xp(default_pack):
+    from n26.library.models import ContentPack, Counter
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-xp")
+    ranks = RankTable.objects.get(name="Standard fighter ranks")
+    ranks.counter = Counter.objects.create(pack=homebrew, name="XP")
+    ranks.save(update_fields=["counter", "modified"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    ranks.refresh_from_db()
+    assert ranks.counter.pack == default_pack
+    assert content.status() == "complete"
+
+
 def test_reseeding_replaces_the_wrong_advancement_allowance_kind():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
@@ -353,6 +371,26 @@ def test_reseeding_replaces_the_wrong_advancement_allowance_kind():
     action.refresh_from_db()
     assert action.recruitment_allowance_rule_id is None
     assert action.rank_allowance_rule.counter.name == "XP"
+    assert content.status() == "complete"
+
+
+def test_reseeding_repairs_advancement_modifiers_to_bearer_scope():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    result = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Random Primary skill")
+        .pickable
+    )
+    modifier = result.modifiers.get()
+    modifier.targets_miniature.reach = modifier.targets_miniature.Reach.EVERY_MODEL
+    modifier.targets_miniature.save(update_fields=["reach"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    modifier.refresh_from_db()
+    assert modifier.targets_miniature.reach == (modifier.targets_miniature.Reach.BEARER)
     assert content.status() == "complete"
 
 
