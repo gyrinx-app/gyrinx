@@ -6,6 +6,7 @@ them, and none of it is a page a player has any use for.
 """
 
 import json
+from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -149,6 +150,67 @@ def theming(request):
             "buckets": tokens.BUCKETS,
             "presets": tokens.PRESETS,
             "presets_json": json.dumps(tokens.PRESETS),
+        },
+    )
+
+
+@staff_member_required
+def react_demo(request):
+    """A database-free comparison using the real list and Cotton primitives."""
+    rows = [
+        {
+            "pk": "sample-lasgun",
+            "label": "Lasgun",
+            "qualifier": "House",
+            "notes": ["15cr"],
+            "help": "Basic weapon",
+            "staged": False,
+        },
+        {
+            "pk": "sample-autopistol",
+            "label": "Autopistol",
+            "qualifier": "",
+            "notes": ["10cr"],
+            "help": "Pistol",
+            "staged": False,
+        },
+        {
+            "pk": "sample-lasgun-staged",
+            "label": "Lasgun",
+            "qualifier": "Trading post",
+            "notes": ["15cr"],
+            "help": "Needs review",
+            "staged": True,
+        },
+    ]
+    for row in rows:
+        row["url"] = reverse("authoring-leaf", args=["weapon"])
+        row["search"] = " ".join(
+            [
+                row["label"],
+                row["qualifier"],
+                row["help"],
+                *row["notes"],
+                "staged" if row["staged"] else "",
+            ]
+        ).lower()
+    directory = Path(__file__).resolve().parent
+    return render(
+        request,
+        "designsystem/react.html",
+        _base_context()
+        | {
+            "demo": {
+                "rows": rows,
+                "pluralLabel": "sample weapons",
+                "bulkActionUrl": None,
+            },
+            "entry_source": (
+                directory.parent / "frontend/entries/authoring-list.tsx"
+            ).read_text(),
+            "template_source": (
+                directory / "templates/designsystem/react_example.html"
+            ).read_text(),
         },
     )
 

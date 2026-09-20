@@ -15,6 +15,7 @@ them:
 * the surface is staff-only.
 """
 
+import json
 import re
 from html import unescape
 
@@ -2329,6 +2330,13 @@ def row_printing(body, words):
     return printing[0]
 
 
+def island_rows(body):
+    """Decode the initial data the React authoring list receives."""
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one("[data-react-module]")
+    return json.loads(soup.find(id=host["data-react-props"]).string)["rows"]
+
+
 def cells_of(row):
     """A row's cells, in the order they are read. A box to tick is a
     control rather than something read, so it is left out."""
@@ -2347,11 +2355,6 @@ def words_in(markup):
 def link_words(markup):
     """The words the first link here carries — what a reader clicks."""
     return words_in(re.search(r"<a\b[^>]*>(.*?)</a>", markup, re.S).group(1))
-
-
-def haystack_of(row):
-    """What the row hands the in-page search to match on."""
-    return re.search(r"haystack: '(.*?)'", row, re.S).group(1)
 
 
 class TestTheQualifier:
@@ -2425,11 +2428,11 @@ class TestTheQualifier:
             create_weapon("Ferocious jaws", qualifier=qualifier)
 
         body = client.get("/n26/authoring/weapon/").content.decode()
-        name_cell, _ = cells_of(row_printing(body, "Sumpkroc"))
+        row = next(row for row in island_rows(body) if row["qualifier"] == "Sumpkroc")
 
-        assert link_words(name_cell) == "Ferocious jaws"
-        # Beside the link, in the reader's words, and unclickable.
-        assert words_in(name_cell) == "Ferocious jaws — Sumpkroc"
+        assert row["label"] == "Ferocious jaws"
+        assert row["qualifier"] == "Sumpkroc"
+        assert row["url"] == f"/n26/authoring/weapon/{row['pk']}/"
 
     def test_the_link_still_carries_the_bracket_a_card_prints(
         self, author, client, default_pack
@@ -2441,10 +2444,10 @@ class TestTheQualifier:
         create_wargear("Ammo", annotation="5+", qualifier="Goliath")
 
         body = client.get("/n26/authoring/wargear/").content.decode()
-        name_cell, _ = cells_of(row_printing(body, "Goliath"))
+        row = island_rows(body)[0]
 
-        assert link_words(name_cell) == "Ammo (5+)"
-        assert words_in(name_cell) == "Ammo (5+) — Goliath"
+        assert row["label"] == "Ammo (5+)"
+        assert row["qualifier"] == "Goliath"
 
     def test_the_search_still_finds_a_row_by_it(self, author, client, default_pack):
         """Told apart by the qualifier, an author looks for it by the
@@ -2455,7 +2458,7 @@ class TestTheQualifier:
 
         body = client.get("/n26/authoring/weapon/").content.decode()
 
-        assert "sumpkroc" in haystack_of(row_printing(body, "Sumpkroc"))
+        assert "sumpkroc" in island_rows(body)[0]["search"]
 
     def test_a_carrier_table_splits_it_from_the_name_too(
         self, author, client, default_pack
@@ -3359,9 +3362,10 @@ class TestListingsSayWhatARowIs:
         )
 
         body = client.get("/n26/authoring/wargear/").content.decode()
-        _, notes = cells_of(row_printing(body, "Mesh armour"))
+        row = island_rows(body)[0]
 
-        assert words_in(notes) == "15cr · Ask before repricing these."
+        assert row["notes"] == ["15cr"]
+        assert row["help"] == "Ask before repricing these."
 
     def test_a_row_with_no_note_says_only_what_the_kind_says(
         self, author, client, default_pack
@@ -3373,9 +3377,10 @@ class TestListingsSayWhatARowIs:
         create_wargear("Mesh armour", price=15)
 
         body = client.get("/n26/authoring/wargear/").content.decode()
-        _, notes = cells_of(row_printing(body, "Mesh armour"))
+        row = island_rows(body)[0]
 
-        assert words_in(notes) == "15cr"
+        assert row["notes"] == ["15cr"]
+        assert row["help"] == ""
 
     def test_the_search_finds_a_row_by_the_note(self, author, client, default_pack):
         """A note is often the only place a word an author remembers was
@@ -3390,7 +3395,7 @@ class TestListingsSayWhatARowIs:
 
         body = client.get("/n26/authoring/wargear/").content.decode()
 
-        assert "repricing" in haystack_of(row_printing(body, "Mesh armour"))
+        assert "repricing" in island_rows(body)[0]["search"]
 
     def test_a_carrier_table_carries_the_note_too(self, author, client, default_pack):
         """The page asking whether to change a shared modifier is one of
@@ -7400,16 +7405,22 @@ class TestAttachingAModifierToSeveral:
         self, author, client, gang_types
     ):
         body = client.get("/n26/authoring/gang-type/").content.decode()
-        assert body.count('name="pk"') == 3
-        assert "Attach a modifier" in body
-        assert 'action="/n26/authoring/gang-type/attach-modifier/"' in body
+        props = json.loads(
+            BeautifulSoup(body, "html.parser").select_one('script[id$="-props"]').string
+        )
+        assert {row["pk"] for row in props["rows"]} == {
+            str(row.pk) for row in gang_types
+        }
+        assert props["bulkActionUrl"] == "/n26/authoring/gang-type/attach-modifier/"
 
     def test_a_kind_that_cannot_carry_modifiers_offers_none(
         self, author, client, fighter_stats
     ):
         body = client.get("/n26/authoring/stat/").content.decode()
-        assert 'name="pk"' not in body
-        assert "Attach a modifier" not in body
+        props = json.loads(
+            BeautifulSoup(body, "html.parser").select_one('script[id$="-props"]').string
+        )
+        assert props["bulkActionUrl"] is None
         assert client.get("/n26/authoring/stat/attach-modifier/").status_code == 404
 
     def test_the_page_names_what_was_ticked_and_offers_every_modifier(
@@ -7654,8 +7665,9 @@ class TestTheInterstitialsOwnPage:
         create_interstitial("Unattached")
         body = client.get("/n26/authoring/interstitial/").content.decode()
 
-        assert "skippable · on 1 slot" in body
-        assert "cannot be skipped · on no slot yet" in body
+        notes = [row["notes"] for row in island_rows(body)]
+        assert ["skippable", "on 1 slot"] in notes
+        assert ["cannot be skipped", "on no slot yet"] in notes
 
     def test_the_listing_does_not_count_an_archived_attachment(
         self, author, client, legacy

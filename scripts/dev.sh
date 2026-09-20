@@ -245,6 +245,14 @@ if [ ! -d "${WT_ROOT}/node_modules" ] \
   (cd "$WT_ROOT" && npm install --no-audit --no-fund)
 fi
 
+# Tailwind must see the current Cotton recipes before its source scan.
+echo "Building React islands..."
+(cd "$WT_ROOT" && npm run js > "$LOG_DIR/npm-js-build.log" 2>&1) || {
+  tail -20 "$LOG_DIR/npm-js-build.log" >&2
+  exit 1
+}
+echo "React ready: ${WT_ROOT}/n26/core/static/n26/react/manifest.json"
+
 # Rebuild if styles.css is missing, older than package-lock.json (deps
 # changed), or older than any source file under the scss directory (a
 # `git pull` or branch switch may have updated scss without touching the
@@ -258,11 +266,11 @@ fi
 
 # Tailwind reads the templates it scans as well as its own input files, so an
 # edited template dates app.css exactly as an edited stylesheet does — a class
-# used for the first time has no rule until the next build. Hence html as well
-# as css here, and the output itself excluded so it never dates itself.
+# used for the first time has no rule until the next build. Include React source
+# and generated recipes, excluding the CSS output so it never dates itself.
 n26_changed=false
 if [ -f "$N26_CSS_FILE" ]; then
-  if [ -n "$(find "${WT_ROOT}/n26" -type f \( -name '*.html' -o -name '*.css' \) \
+  if [ -n "$(find "${WT_ROOT}/n26" -type f \( -name '*.html' -o -name '*.css' -o -name '*.tsx' -o -name '*.ts' -o -path '*/frontend/generated/cotton.json' \) \
     ! -path "$N26_CSS_FILE" -newer "$N26_CSS_FILE" -print -quit 2>/dev/null)" ]; then
     n26_changed=true
   fi

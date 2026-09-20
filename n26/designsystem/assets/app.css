@@ -44,6 +44,7 @@
  * so nothing said so — automatic detection was quietly covering them. */
 @source "../../core/templates";
 @source "../../library/templates";
+@source "../../frontend";
 @source "../../../gyrinx/pages/templates/flatpages";
 
 /* Paper. Kept in its own file because print is a different medium with rules

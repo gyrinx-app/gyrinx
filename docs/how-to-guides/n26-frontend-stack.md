@@ -1,4 +1,10 @@
-# How to build an n26 screen with cotton, Alpine, and htmx
+# Maintaining N26 Cotton, Alpine and htmx screens
+
+This guide covers existing, unmigrated screens. For new interactions and bounded
+changes to existing ones, use [React islands](../developing-gyrinx/react.md) and
+the `n26-react` skill. Keep Cotton for static UI. The no-JavaScript requirement
+below applies to the legacy controls described here, not client-rendered React
+regions. Do not introduce new Alpine controls by following this guide.
 
 n26 — the app for the game's 2026 edition, under `n26/` — is built from
 server-rendered Django templates. Three libraries sit on top, and each one
@@ -156,7 +162,7 @@ controls emit `hx-get` and forms carry `hx-post` at all. A screen that does
 neither — the gang sheet, the component gallery — gets plain links and full
 pages, automatically.
 
-To add partial updates to a new screen:
+When maintaining an existing htmx screen outside a React island:
 
 1. Render the host elements the update template names, or write a new
    update template naming your own. Fixed ids, one per replaceable region.

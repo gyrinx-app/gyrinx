@@ -1,0 +1,54 @@
+{% extends "designsystem/base.html" %}
+{% block title %}React islands{% endblock %}
+{% block mobile_title %}React islands{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-5xl space-y-8">
+        <header>
+            <h1 class="text-3xl font-semibold sm:text-4xl">React islands</h1>
+            <p class="mt-3 max-w-2xl text-lg text-muted">
+                The same design system, rendered by Cotton and React. The React list uses the
+                classes exported from the Cotton components below, with the same app stylesheet.
+            </p>
+        </header>
+        <section class="space-y-3" aria-labelledby="cotton-heading">
+            <h2 id="cotton-heading" class="text-xl font-semibold">Cotton reference</h2>
+            <p class="text-sm text-muted">A static table of sample content. Its links open the weapons authoring page.</p>
+            <c-ui.table>
+                <tbody>
+                    {% for row in demo.rows %}
+                        <tr>
+                            <td class="whitespace-nowrap">
+                                <c-n26.link :href="row.url">
+                                    {{ row.label }}
+                                </c-n26.link>
+                                {% if row.qualifier %}— {{ row.qualifier }}{% endif %}
+                                {% if row.staged %}<span class="ml-1"><c-ui.badge color="amber"
+            size="sm">Staged</c-ui.badge></span>{% endif %}
+                            </td>
+                            <td class="w-full text-muted">{{ row.notes|join:" · " }} · {{ row.help }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </section>
+        <section class="space-y-3" aria-labelledby="react-heading">
+            <h2 id="react-heading" class="text-xl font-semibold">Interactive React list</h2>
+            <p class="text-sm text-muted">
+                Search for “House”, “Pistol” or “Staged”, then clear the search. Change the
+                gallery theme to compare both tables. This demo does not save anything.
+            </p>
+            {% include "designsystem/react_example.html" %}
+            <p class="text-sm">
+                <c-n26.link href="{% url 'authoring-leaf' 'weapon' %}">Try search and bulk selection on the weapons page</c-n26.link>
+            </p>
+        </section>
+        <section class="space-y-3" aria-labelledby="source-heading">
+            <h2 id="source-heading" class="text-xl font-semibold">Embedding this component</h2>
+            <p class="text-sm text-muted">The template and entry below are read from the files used by this demo.</p>
+            <h3 class="font-semibold">Django template</h3>
+            <pre class="overflow-x-auto rounded-box border border-box-border bg-surface p-4 text-xs"><code>{{ template_source }}</code></pre>
+            <h3 class="font-semibold">React entry</h3>
+            <pre class="overflow-x-auto rounded-box border border-box-border bg-surface p-4 text-xs"><code>{{ entry_source }}</code></pre>
+        </section>
+    </div>
+{% endblock %}

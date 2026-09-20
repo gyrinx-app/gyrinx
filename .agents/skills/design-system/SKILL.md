@@ -9,6 +9,19 @@ description: |
 
 # Design System
 
+First identify the edition. N26 uses Tailwind and django-cotton-ui, not Bootstrap.
+
+## N26
+
+Read `n26/designsystem/CLAUDE.md`, `n26/designsystem/assets/app.css`, and the
+relevant primitives under `n26/core/templates/cotton/`. The living gallery is
+`/n26/design/`; the catalog is `n26/designsystem/catalog.py`. For interactive
+work also load `.agents/skills/n26-react/SKILL.md`. React adapters in
+`n26/frontend/ui.tsx` take their classes from rendered Cotton at build time;
+extend those adapters instead of copying class recipes into features.
+
+## N23
+
 Load both the design system spec and the living HTML reference into context.
 
 ## Reference files

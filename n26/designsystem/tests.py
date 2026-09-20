@@ -32,6 +32,27 @@ def reader(client):
     return client
 
 
+class TestReactDemo:
+    def test_sample_comparison_and_source_render_without_library_content(self, reader):
+        import json
+
+        from bs4 import BeautifulSoup
+
+        response = reader.get("/n26/design/react/")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert len(soup.select("table tr")) == 3
+        host = soup.select_one("[data-react-module]")
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        assert len(props["rows"]) == 3
+        assert props["bulkActionUrl"] is None
+        assert 'react_island "authoring-list" demo' in soup.get_text()
+        assert "mountRoot" in soup.get_text()
+
+    def test_gallery_requires_staff(self, client):
+        assert client.get("/n26/design/react/").status_code == 302
+
+
 class TestTheQuickSwitchersPage:
     """Its props, its subcomponent and its demos all reach the gallery."""
 

@@ -9,7 +9,7 @@
 
 ## How-To Guides
 
-- [Building an n26 Screen with Cotton, Alpine, and htmx](how-to-guides/n26-frontend-stack.md)
+- [Maintaining N26 Cotton, Alpine and htmx screens](how-to-guides/n26-frontend-stack.md)
 - [Bootstrap Usage Guide](bootstrap-usage-guide.md)
 - [SQL Debugging Guide](sql-debugging.md)
 - [Query Debugging Utilities](query-debugging-utilities.md)
@@ -72,6 +72,7 @@ Documentation for Necromunda 2023, the edition Gyrinx currently implements. Ever
 - [Technology Choices](explanation/technology-choices.md)
 - [Key Concepts](developing-gyrinx/key-concepts.md)
 - [Frontend Development](developing-gyrinx/frontend-development.md)
+- [Incremental React in N26](developing-gyrinx/react.md)
 - [Testing](developing-gyrinx/testing.md)
 - [Integration Testing](integration_testing.md)
 - [Test Performance Improvements](test-performance-improvements.md)

@@ -1,12 +1,20 @@
 # Gyrinx — repository instructions
 
 Gyrinx is a Django app for managing Necromunda gangs and campaigns. Server-rendered
-HTML with Bootstrap 5 and a little vanilla JS. There is no SPA, no client-side
-framework and no JS build step. Python 3.12, Postgres, deployed to Cloud Run.
+HTML with Bootstrap 5 in N23; Tailwind/Cotton with client-rendered React islands
+in N26. Django owns page routing; there is no SPA. Python 3.14, Postgres,
+deployed to Cloud Run. N26's TypeScript is built with Vite.
 
 ## What matters most in review
 
-**UI state belongs in the URL.** Anything that picks a form variant, switches a
+**N26 interactions use React.** Read `.agents/skills/n26-react/SKILL.md` and
+`docs/developing-gyrinx/react.md`. Prefer bounded conversion of touched Alpine
+interactions, with existing Cotton-derived React primitives. Static markup stays
+Cotton. No SSR/no-JS fallback is required for islands. Shareable state belongs
+in URLs; temporary interaction state and drafts may live in React. Server-side
+permissions and validation remain authoritative.
+
+**N23 UI state belongs in the URL.** Anything that picks a form variant, switches a
 visible section or selects a tab is a navigation: a link or a GET form pointing at
 the same view, with the state in the query string, rendered by the server. JS may
 enhance, but the page must work and be linkable without it. Flag any

@@ -73,6 +73,8 @@ jobs:
             exit 1
           fi
 
+      - uses: ./.github/actions/react-build
+
       - name: List the tests this pull request touched
         if: github.event_name == 'pull_request'
         # `shell: bash` turns on pipefail, so a failing script fails the step
@@ -128,6 +130,8 @@ jobs:
       - uses: ./.github/actions/python-env
         with:
           postgres-container: ${{ job.services.postgres.id }}
+
+      - uses: ./.github/actions/react-build
 
       - name: Run the full suite
         timeout-minutes: 60

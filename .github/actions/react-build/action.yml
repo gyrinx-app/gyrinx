@@ -1,0 +1,14 @@
+name: React assets
+description: Build N26 islands with the installed Python environment and locked npm dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: "24"
+        cache: npm
+    - shell: bash
+      run: |
+        source .venv/bin/activate
+        npm ci
+        npm run js
