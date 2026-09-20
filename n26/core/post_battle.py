@@ -83,6 +83,7 @@ class ModelResult:
     xp_change: int
     xp_assignment_id: str | None
     xp_available: bool
+    xp_award_assignment_id: str | None = None
     is_vehicle: bool = False
     effect_slots: list[EffectSlot] = field(default_factory=list)
     effects: list[EffectResult] = field(default_factory=list)
@@ -600,6 +601,81 @@ def _equipment_disposal(card, assignments):
     return movable, sorted(affected), names, exclusions
 
 
+def _manual_xp_sources(report, old_models):
+    """Keep an award's original counter, including receipts without a saved pin.
+
+    Historical tallies identify assignments, while frozen model results identify
+    their signed changes. Unmodified assignment ownership disambiguates equal
+    changes; one remaining model and tally can be paired without trusting the
+    assignment's present location. Anything still ambiguous stays unidentified.
+    """
+    pins = {
+        key: model.get("xp_award_assignment_id") for key, model in old_models.items()
+    }
+    missing = {
+        key
+        for key, model in old_models.items()
+        if model.get("xp", 0) and "xp_award_assignment_id" not in model
+    }
+    if not missing:
+        return pins
+    revisions = list(
+        report.revisions.filter(sequence__lte=report.latest_sequence).order_by(
+            "sequence"
+        )
+    )
+    tallies = defaultdict(list)
+    for event in LedgerEvent.objects.filter(
+        post_battle_revision__report=report,
+        post_battle_revision__sequence__lte=report.latest_sequence,
+        kind=LedgerEvent.Kind.TALLIED,
+        post_battle_occurrence__isnull=True,
+        reversal_of__isnull=True,
+    ).select_related("assignment"):
+        tallies[event.post_battle_revision_id].append(event)
+    historical_pins = {}
+    contributions = {}
+    for revision in revisions:
+        models = {model["id"]: model for model in revision.inputs.get("models", [])}
+        changes = {
+            key: model.get("xp", 0) - contributions.get(key, 0)
+            for key, model in models.items()
+        }
+        resolved = {}
+        for delta in set(changes.values()) - {0}:
+            pending_models = {key for key, change in changes.items() if change == delta}
+            pending_events = [
+                event
+                for event in tallies[revision.pk]
+                if event.counter_delta == delta and event.assignment_id
+            ]
+            for key in list(pending_models):
+                matches = [
+                    event
+                    for event in pending_events
+                    if str(event.assignment.miniature_root_id) == key
+                    and event.assignment.modified <= event.created
+                ]
+                if len(matches) == 1:
+                    event = matches[0]
+                    resolved[key] = str(event.assignment_id)
+                    pending_models.remove(key)
+                    pending_events.remove(event)
+            if len(pending_models) == len(pending_events) == 1:
+                resolved[pending_models.pop()] = str(pending_events[0].assignment_id)
+        for key, model in models.items():
+            if "xp_award_assignment_id" in model:
+                historical_pins[key] = model["xp_award_assignment_id"]
+            elif model.get("xp", 0):
+                if not contributions.get(key, 0):
+                    historical_pins[key] = resolved.get(key)
+                elif changes[key] and resolved.get(key) != historical_pins.get(key):
+                    historical_pins[key] = None
+            contributions[key] = model.get("xp", 0)
+    pins.update({key: historical_pins.get(key) for key in missing})
+    return pins
+
+
 def preview_report(report, *, actor, payload=None):
     _require_editor(report, actor)
     payload = _draft(report.draft if payload is None else payload)
@@ -627,6 +703,7 @@ def preview_report(report, *, actor, payload=None):
     )
     old = previous.inputs if previous else {}
     old_models = {m["id"]: m for m in old.get("models", [])}
+    xp_sources = _manual_xp_sources(report, old_models)
     old_occurrences = previous.receipt.get("occurrences", {}) if previous else {}
     credits = _integer(payload.get("credits"), "credits", errors)
     reason = str(payload.get("reason", "")).strip()
@@ -780,12 +857,21 @@ def preview_report(report, *, actor, payload=None):
             model_errors.append(
                 "This model needs one tracked XP counter before XP can be changed."
             )
-        if xp_assignment is not None and xp_change < 0:
-            held = getattr(xp_assignment, "counter_value", None)
-            if (held.value if held else 0) + xp_change < 0:
+        xp_source = xp_sources.get(model_id)
+        if before.get("xp", 0):
+            if xp_change and (
+                xp_source is None
+                or xp_assignment is None
+                or str(xp_assignment.pk) != xp_source
+                or xp_assignment.miniature_root_id != miniature.pk
+                or xp_assignment.gang_root_id != report.gang_id
+                or xp_assignment.archived
+            ):
                 model_errors.append(
-                    "This model no longer has enough XP to make this correction."
+                    "You cannot correct this XP award because its original XP counter is unavailable or has changed. Adjust the XP separately."
                 )
+        elif xp and xp_assignment is not None:
+            xp_source = str(xp_assignment.pk)
         primary = next(
             (n.assignable for n in card.all_nodes() if n.is_primary_profile), None
         )
@@ -800,6 +886,7 @@ def preview_report(report, *, actor, payload=None):
             xp_change,
             str(xp_assignment.pk) if xp_assignment else None,
             xp_assignment is not None and active,
+            xp_award_assignment_id=xp_source,
             is_vehicle=vehicle,
             errors=model_errors,
             participated=raw.get("participated") is True,
@@ -991,6 +1078,7 @@ def preview_report(report, *, actor, payload=None):
                 "id": model_id,
                 "participated": result.participated,
                 "xp": xp,
+                "xp_award_assignment_id": xp_source,
                 "status": explicit,
                 "equipment": disposition,
                 "effects": normalized_effects,
@@ -1043,34 +1131,37 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 plan.credits_change,
                 plan.inputs["reason"] or "Post-battle income correction",
             )
-            reversals = [
-                (occurrence, event)
+            counter_changes = [
+                (-event.counter_delta, event.assignment, occurrence, event)
                 for occurrence, _, events in plan._removals
                 for event in events
                 if event.kind == LedgerEvent.Kind.TALLIED and event.counter_delta
             ]
-            # Restoring deductions first cannot clip a later reversed addition.
-            for occurrence, event in sorted(
-                reversals, key=lambda pair: pair[1].counter_delta
+            counter_changes.extend(
+                (
+                    model.xp_change,
+                    Assignment.objects.get(pk=model.xp_assignment_id),
+                    None,
+                    None,
+                )
+                for model in plan.models
+                if model.xp_change
+            )
+            # The preview validates their combined balance. Positive adjustments
+            # must arrive first so tally's zero floor cannot clip a valid total.
+            for change, assignment, occurrence, event in sorted(
+                counter_changes, key=lambda item: -item[0]
             ):
-                op.post_battle_occurrence = UUID(occurrence)
+                op.post_battle_occurrence = UUID(occurrence) if occurrence else None
                 op.tally(
-                    event.assignment,
-                    -event.counter_delta,
-                    note="Post-battle correction",
-                    reversal_of=event,
+                    assignment,
+                    change,
+                    note="Post-battle correction" if event else "Post-battle XP",
+                    **({"reversal_of": event} if event else {}),
                 )
             for occurrence, root, _ in plan._removals:
                 op.post_battle_occurrence = UUID(occurrence)
                 op.remove(root, note="Post-battle correction")
-            op.post_battle_occurrence = None
-            for model in plan.models:
-                if model.xp_change:
-                    op.tally(
-                        Assignment.objects.get(pk=model.xp_assignment_id),
-                        model.xp_change,
-                        note="Post-battle XP",
-                    )
             for (
                 occurrence,
                 key,
@@ -1170,6 +1261,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "xp_before": m.xp_before,
                     "xp_after": m.xp_after,
                     "xp_change": m.xp_change,
+                    "xp_award_assignment_id": m.xp_award_assignment_id,
                     "status_before": m.status,
                     "status_after": m.final_status,
                     "status_before_label": m.status_label,

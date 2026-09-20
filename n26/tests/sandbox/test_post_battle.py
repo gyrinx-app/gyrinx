@@ -181,6 +181,17 @@ def effect_for(report, owner, pick):
     return {"id": str(uuid4()), "slot": slot.key, "pick": str(pick.pk), "choices": {}}
 
 
+def unpin_historical_revision(revision):
+    """Represent immutable receipts written before XP assignment pins existed."""
+    inputs = deepcopy(revision.inputs)
+    receipt = deepcopy(revision.receipt)
+    for model in [*inputs["models"], *receipt["models"]]:
+        model.pop("xp_award_assignment_id", None)
+    PostBattleRevision.objects.filter(pk=revision.pk).update(
+        inputs=inputs, receipt=receipt
+    )
+
+
 class TestDrafts:
     def test_incomplete_draft_is_saved_without_changing_the_gang(
         self, report, owner, gang
@@ -376,6 +387,84 @@ class TestApplication:
 
 @pytest.mark.usefixtures("counter_tracking")
 class TestCorrections:
+    @pytest.mark.parametrize(
+        "effect_mode,original_xp,spent_xp,corrected_xp,reversal_delta",
+        [("add", 0, 2, 2, -2), ("subtract", 2, 0, 0, 2)],
+    )
+    def test_manual_xp_and_effect_reversal_share_one_unclipped_balance(
+        self,
+        report,
+        owner,
+        model,
+        content,
+        effect_mode,
+        original_xp,
+        spent_xp,
+        corrected_xp,
+        reversal_delta,
+    ):
+        from n26.tests.sandbox.actions import add_picklist_member
+
+        pick = create_pickable(
+            "Counter adjustment",
+            content["kind"],
+            effects=[
+                (
+                    targets_model(),
+                    op_changes_counter(content["xp"], mode=effect_mode, amount=2),
+                )
+            ],
+        )
+        add_picklist_member(content["table"], pick)
+        injury = effect_for(report, owner, pick)
+        report = save(
+            report, owner, payload_for(model, xp=original_xp, effects=[injury])
+        )
+        original = apply(report, owner)
+        original_tally = original.ledger_events.get(
+            kind=LedgerEvent.Kind.TALLIED, post_battle_occurrence=injury["id"]
+        )
+        xp = Assignment.objects.get(miniature=model, counter__name="XP")
+        if spent_xp:
+            tally(xp, -spent_xp)
+        assert CounterValue.objects.get(assignment=xp).value == 0
+
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=corrected_xp))
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        assert plan.models[0].xp_after == 0
+        key = uuid4()
+        saved = apply(report, owner, key=key)
+        tallies = saved.ledger_events.filter(kind=LedgerEvent.Kind.TALLIED)
+        assert list(
+            tallies.order_by("created", "pk").values_list(
+                "counter_before", "counter_delta", "counter_after"
+            )
+        ) == [(0, 2, 2), (2, -2, 0)]
+        reversal = tallies.get(reversal_of=original_tally)
+        assert reversal.counter_delta == reversal_delta
+        assert str(reversal.post_battle_occurrence) == injury["id"]
+        manual = tallies.get(reversal_of__isnull=True)
+        assert manual.counter_delta == -reversal_delta
+        assert manual.post_battle_occurrence is None
+        assert CounterValue.objects.get(assignment=xp).value == 0
+        assert saved.receipt["models"][0]["xp_before"] == 0
+        assert saved.receipt["models"][0]["xp_after"] == 0
+        event_count = LedgerEvent.objects.count()
+        retry = apply_report(
+            report,
+            actor=owner,
+            generation=report.generation,
+            revision=report.draft_revision,
+            submission_key=key,
+            review=plan.review,
+        )
+        assert retry.pk == saved.pk
+        assert LedgerEvent.objects.count() == event_count
+        assert CounterValue.objects.get(assignment=xp).value == 0
+        assert_reconciled(report.gang)
+
     def test_incomplete_correction_cannot_silently_zero_an_omitted_model(
         self, report, owner, model
     ):
@@ -505,7 +594,188 @@ class TestCorrections:
         tally(Assignment.objects.get(miniature=model, counter__name="XP"), -3)
         report = start_correction(report, actor=owner)
         report = save(report, owner, payload_for(model))
-        assert "enough XP" in " ".join(preview_report(report, actor=owner).errors)
+        assert "below zero" in " ".join(preview_report(report, actor=owner).errors)
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestManualXpSources:
+    @pytest.mark.parametrize("change", ["archive", "move", "replace"])
+    @pytest.mark.parametrize("historical", [False, True])
+    def test_changed_counter_refuses_xp_correction_without_partial_income(
+        self, report, owner, model, gang, content, change, historical
+    ):
+        report = save(report, owner, payload_for(model, xp=4))
+        original = apply(report, owner)
+        xp = Assignment.objects.get(miniature=model, counter__name="XP")
+        source = str(xp.pk)
+        assert original.inputs["models"][0]["xp_award_assignment_id"] == source
+        assert original.receipt["models"][0]["xp_award_assignment_id"] == source
+        if historical:
+            unpin_historical_revision(original)
+        other = hire(gang, content["profile"], "Ember") if change == "move" else None
+        with operation(gang, actor=owner) as op:
+            if other:
+                op.move(xp, other)
+            else:
+                op.remove(xp)
+            if change == "replace":
+                replacement = op.assign(content["xp"], miniature=model, paid=0)
+                op.tally(replacement, 2)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=2, credits=40))
+        plan = preview_report(report, actor=owner)
+        assert not plan.valid
+        assert "original XP counter" in " ".join(plan.errors)
+        event_count = LedgerEvent.objects.count()
+        with pytest.raises(Refusal, match="original XP counter"):
+            apply_report(
+                report,
+                actor=owner,
+                generation=report.generation,
+                revision=report.draft_revision,
+                submission_key=uuid4(),
+                review=plan.review,
+            )
+        assert LedgerEvent.objects.count() == event_count
+        assert report.revisions.count() == 1
+        gang.refresh_from_db()
+        assert gang.credits == 1000
+        if change == "replace":
+            assert CounterValue.objects.get(assignment=replacement).value == 2
+
+    @pytest.mark.parametrize("historical", [False, True])
+    def test_credit_only_corrections_preserve_the_original_counter(
+        self, report, owner, model, gang, content, historical
+    ):
+        report = save(report, owner, payload_for(model, xp=4))
+        original = apply(report, owner)
+        xp = Assignment.objects.get(miniature=model, counter__name="XP")
+        source = str(xp.pk)
+        if historical:
+            unpin_historical_revision(original)
+        # A zero-delta historical revision has no manual tally of its own.
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=4, credits=10))
+        interim = apply(report, owner)
+        assert interim.inputs["models"][0]["xp_award_assignment_id"] == source
+        if historical:
+            unpin_historical_revision(interim)
+        with operation(gang, actor=owner) as op:
+            op.remove(xp)
+            replacement = op.assign(content["xp"], miniature=model, paid=0)
+            op.tally(replacement, 2)
+        report = start_correction(report, actor=owner)
+        draft = payload_for(model, xp=4, credits=20)
+        draft["models"][0]["xp_award_assignment_id"] = str(replacement.pk)
+        report = save(report, owner, draft)
+        saved = apply(report, owner)
+        assert saved.inputs["models"][0]["xp_award_assignment_id"] == source
+        assert saved.receipt["models"][0]["xp_award_assignment_id"] == source
+        assert not saved.ledger_events.filter(kind=LedgerEvent.Kind.TALLIED).exists()
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=2, credits=30))
+        assert "original XP counter" in " ".join(
+            preview_report(report, actor=owner).errors
+        )
+        assert CounterValue.objects.get(assignment=replacement).value == 2
+        gang.refresh_from_db()
+        assert gang.credits == 1020
+
+    def test_zero_contribution_can_start_a_new_award_on_the_current_counter(
+        self, report, owner, model, gang, content
+    ):
+        report = save(report, owner, payload_for(model, xp=4))
+        apply(report, owner)
+        xp = Assignment.objects.get(miniature=model, counter__name="XP")
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=0))
+        apply(report, owner)
+        with operation(gang, actor=owner) as op:
+            op.remove(xp)
+            replacement = op.assign(content["xp"], miniature=model, paid=0)
+            op.tally(replacement, 2)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=3))
+        saved = apply(report, owner)
+        assert saved.inputs["models"][0]["xp_award_assignment_id"] == str(
+            replacement.pk
+        )
+        assert CounterValue.objects.get(assignment=replacement).value == 5
+
+    def test_historical_award_corrects_the_same_counter(self, report, owner, model):
+        report = save(report, owner, payload_for(model, xp=4))
+        original = apply(report, owner)
+        unpin_historical_revision(original)
+        xp = Assignment.objects.get(miniature=model, counter__name="XP")
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=2))
+        saved = apply(report, owner)
+        assert saved.inputs["models"][0]["xp_award_assignment_id"] == str(xp.pk)
+        assert CounterValue.objects.get(assignment=xp).value == 2
+
+    def test_more_historical_awards_do_not_add_preview_queries(
+        self, report, owner, model, gang, content
+    ):
+        report = save(report, owner, payload_for(model, xp=4))
+        unpin_historical_revision(apply(report, owner))
+        report = start_correction(report, actor=owner)
+        with CaptureQueriesContext(connection) as one:
+            first = preview_report(report, actor=owner)
+        models = [
+            model,
+            hire(gang, content["profile"], "Ember"),
+            hire(gang, content["profile"], "Ash"),
+        ]
+        report = start_report(gang, actor=owner, request_key=uuid4())
+        payload = payload_for(model, xp=4)
+        payload["models"] = [payload_for(m, xp=4)["models"][0] for m in models]
+        report = save(report, owner, payload)
+        unpin_historical_revision(apply(report, owner))
+        report = start_correction(report, actor=owner)
+        with CaptureQueriesContext(connection) as many:
+            expanded = preview_report(report, actor=owner)
+        assert first.valid and expanded.valid
+        assert len(one) == len(many), (len(one), len(many))
+        assert all(
+            result.xp_award_assignment_id == result.xp_assignment_id
+            for result in expanded.models
+        )
+
+    def test_reselected_injury_counter_cannot_receive_an_old_manual_correction(
+        self, report, owner, model, gang, content
+    ):
+        xp = Assignment.objects.get(miniature=model, counter__name="XP")
+        with operation(gang, actor=owner) as op:
+            op.remove(xp)
+        injury_report = start_report(gang, actor=owner, request_key=uuid4())
+        injury = effect_for(injury_report, owner, content["lesson"])
+        injury_report = save(injury_report, owner, payload_for(model, effects=[injury]))
+        injury_result = apply(injury_report, owner)
+        report = save(report, owner, payload_for(model, xp=4))
+        original = apply(report, owner)
+        root = Assignment.objects.get(
+            pk=injury_result.receipt["occurrences"][injury["id"]]["root_id"]
+        )
+        with operation(gang, actor=owner) as op:
+            op.remove(root)
+            op.choose(
+                root.chosen_for,
+                content["lesson"],
+                slot=content["slot"],
+                miniature=model,
+            )
+        replacement = Assignment.objects.get(
+            miniature=model, counter__name="XP", archived=False
+        )
+        assert CounterValue.objects.get(assignment=replacement).value == 2
+        assert original.inputs["models"][0]["xp_award_assignment_id"] != str(
+            replacement.pk
+        )
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, xp=2))
+        assert "original XP counter" in " ".join(
+            preview_report(report, actor=owner).errors
+        )
 
 
 @pytest.mark.usefixtures("counter_tracking")
