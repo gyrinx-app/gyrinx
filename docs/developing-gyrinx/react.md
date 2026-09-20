@@ -17,7 +17,8 @@ The migration's hard part is shared ownership, not installing React:
   installed kit. Removing its script now would break menus, navigation and theme
   controls even on a page whose main interaction has migrated.
 - htmx can replace a fragment containing a React root. Without a lifecycle
-  boundary that leaves subscriptions alive or gives two systems the same DOM.
+  boundary, that replacement can leave subscriptions alive or give both
+  systems ownership of the same DOM.
 - Django already prepares display structures and owns domain operations. A broad
   API rewrite would add work before the first useful React component appears.
 - Existing agent instructions prohibit React and require no-JS forms. Without

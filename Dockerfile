@@ -51,9 +51,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install node dependencies. Vite's root config is needed by `npm run build`;
-# test and typecheck configs are not part of the production build.
-COPY package.json package-lock.json vite.config.mts /app/
+# Install node dependencies. Vite's root config and the shared TypeScript
+# compiler options are needed by `npm run build`; the test config is not.
+COPY package.json package-lock.json tsconfig.json vite.config.mts /app/
 RUN nodeenv -p
 RUN npm install
 

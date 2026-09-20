@@ -33,6 +33,8 @@ def reader(client):
 
 
 class TestReactDemo:
+    """Staff can compare React and Cotton without seeded library content."""
+
     def test_sample_comparison_and_source_render_without_library_content(self, reader):
         import json
 
