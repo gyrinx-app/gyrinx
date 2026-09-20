@@ -1,4 +1,10 @@
 {% extends "n26/layouts/base.html" %}
+{% comment %}
+This flow remains server-rendered until the React layer has a form bridge for
+Django validation, CSRF, signed review state, persisted random rolls and
+multi-stage resume state. Converting it before that shared primitive exists
+would invent a new client/server contract inside this feature.
+{% endcomment %}
 {% block head_title %}{{ action }} — {{ miniature.name }}{% endblock %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="gangs" %}

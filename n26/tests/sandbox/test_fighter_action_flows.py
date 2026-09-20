@@ -182,6 +182,29 @@ class TestSuitEvolutionForms:
         assert "Start Suit Evolution flow" in html
         assert html.index("Available") < html.index("After payment")
 
+    def test_credit_prices_use_the_credit_unit(self, client, hunt):
+        paid = a.create_action(
+            "Paid maintenance",
+            "post_cycle",
+            outcomes=[hunt.clear],
+            use_price=[{"resource": "credits", "payer": "gang", "amount": 20}],
+        )
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.assign(paid, miniature=hunt.fighter)
+        client.force_login(hunt.owner)
+
+        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+
+        panel = next(
+            panel
+            for panel in response.context["action_panels"]
+            if panel.action_id == str(paid.pk)
+        )
+        available = hunt.gang.recompute_credits()
+        assert panel.prices[0].available == f"{available}¢"
+        assert panel.prices[0].price == "20¢"
+        assert panel.prices[0].remaining == f"{available - 20}¢"
+
     def test_inactive_tracking_explains_why_a_flow_cannot_start(
         self, client, hunt, counter_tracking
     ):

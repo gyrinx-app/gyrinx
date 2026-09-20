@@ -46,14 +46,19 @@ class ReceiptLine:
 
 def payment_figures(quote):
     """Format the same resolved prices used by final checkout."""
+
+    def display(line, value):
+        if value is None:
+            return "Unlimited"
+        suffix = "¢" if line.balance.resource == Resource.CREDITS else ""
+        return f"{value}{suffix}"
+
     return tuple(
         PaymentFigures(
             label=line.name,
-            available="Unlimited" if line.available is None else str(line.available),
-            price=str(line.amount),
-            remaining="Unlimited"
-            if line.after_payment is None
-            else str(line.after_payment),
+            available=display(line, line.available),
+            price=display(line, line.amount),
+            remaining=display(line, line.after_payment),
         )
         for line in quote.lines
     )
