@@ -426,9 +426,11 @@ def advancement_options(record, configured):
             and record.state == ActionRecord.State.COMPLETED
             and offer is not None
             and offer.mode == offer.Mode.RANDOM
-            and recorded_skill(record, configured, member.pickable_id) is None
         ):
-            can_gain = False
+            recorded = recorded_skill(record, configured, member.pickable_id)
+            can_gain = recorded is not None and any(
+                skill.pk == recorded.pk for skill in skills_for(offer)
+            )
         gainable[member.pk] = can_gain
 
     gainable_members = [member for member in landed if gainable[member.pk]]
@@ -478,10 +480,12 @@ def recorded_skill(record, configured, pickable_id):
     if offer is None or offer.mode != offer.Mode.RANDOM:
         return None
     selection = getattr(record, "skill_selection", None)
-    if selection is None or selection.mode != offer.Mode.RANDOM:
+    if selection is None:
         return None
     access = _skill_access(configured, pickable_id)
     if record.state != ActionRecord.State.COMPLETED:
+        if selection.mode != offer.Mode.RANDOM:
+            return None
         skill = selection.selected_skill
         if (
             skill is None

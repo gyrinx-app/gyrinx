@@ -505,6 +505,111 @@ def test_completed_correction_can_reuse_an_earlier_accepted_random_attempt(fight
     assert correction.review
 
 
+def test_completed_select_can_reuse_an_earlier_accepted_random_attempt(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    random_primary = next(row for row in options if row.name == "Random Primary skill")
+    select_primary = next(row for row in options if row.name == "Select Primary skill")
+    with operation(fighter.gang) as op:
+        random_attempt = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+        selected = next(
+            skill
+            for skill in skill_options(record, configured, select_primary.id)[primary]
+            if str(skill.pk) != random_attempt["skill_id"]
+        )
+        reviewed = op.review_action(
+            record,
+            outcome=outcome,
+            terms={"pickable_id": select_primary.id, "skill_id": str(selected.pk)},
+        )
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+
+    assert completed.skill_selection.mode == "select"
+    assert (
+        str(recorded_skill(completed, configured, random_primary.id).pk)
+        == random_attempt["skill_id"]
+    )
+    with operation(fighter.gang) as op:
+        correction = op.review_action_correction(
+            completed, terms={"pickable_id": random_primary.id}
+        )
+
+    assert correction.review
+
+
+def test_completed_random_attempt_is_not_offered_after_skill_becomes_owned(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    secondary = _secondary_cunning(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    random_primary = next(row for row in options if row.name == "Random Primary skill")
+    random_secondary = next(
+        row for row in options if row.name == "Random Secondary skill"
+    )
+    with operation(fighter.gang) as op:
+        primary_attempt = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+        op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=1,
+        )
+        reviewed = op.review_action(
+            record,
+            outcome=outcome,
+            terms={"pickable_id": random_secondary.id},
+        )
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+        op.assign(Skill.objects.get(pk=primary_attempt["skill_id"]), miniature=fighter)
+
+    assert all(
+        row.id != random_primary.id or not row.gainable
+        for row in advancement_options(completed, configured)
+    )
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="Choose an advancement result"):
+            op.review_action_correction(
+                completed, terms={"pickable_id": random_primary.id}
+            )
+
+
 def test_exact_skill_roll_retry_survives_lost_access(fighter):
     action, outcome, allowance = _advancement(fighter)
     category = Category.objects.get(name="Agility", section__name="Skills")
