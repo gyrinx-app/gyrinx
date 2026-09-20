@@ -152,8 +152,15 @@ class TestCrewForms:
             )
             for label in document.select("dt")
         }
-        assert labels["Starting crew"] == "1 0¢ when selected"
-        assert labels["Reinforcements"] == "1 5¢ when selected"
+        assert labels["Starting crew"] == "1"
+        assert labels["Reinforcements"] == "1 5¢"
+        assert labels["Crew rating"] == "0¢"
+        stats = document.find("dt", string="Crew rating").find_parent("dl").select("dd")
+        assert len(stats) == 3
+        assert stats[0]["class"] == stats[1]["class"] == stats[2]["class"]
+        assert "when selected" not in body
+        assert "The saved cards keep their equipment selection" not in body
+        assert "Saved crew" not in body
 
     @pytest.mark.parametrize("surface", ["battle", "sheet", "print"])
     def test_selected_equipment_rating_is_frozen_on_reads_and_updated_on_resave(
@@ -298,6 +305,11 @@ class TestCrewForms:
         assert response.url == address(table)
         crew = BattleCrew.objects.get()
         assert not crew.confirmed
+        sheet = client.get(address(table, sheet=True))
+        assert sheet.status_code == 200
+        document = BeautifulSoup(sheet.content, "html.parser")
+        assert "Draft" in document.stripped_strings
+        assert "Saved crew" not in sheet.content.decode()
         response = client.get(address(table))
         assert (
             response.context["form"][f"role_{table.models[0].pk}"].value() == "starting"
@@ -469,8 +481,9 @@ class TestCrewPagePermissions:
             ): entry.select_one(".n26-print-entry-value").get_text(" ", strip=True)
             for entry in header.select(".n26-print-entry")
         }
-        assert entries["Starting crew"] == "1 · 0¢ when selected"
-        assert entries["Reinforcements"] == "1 · 5¢ when selected"
+        assert entries["Starting crew"] == "1 · 0¢"
+        assert entries["Reinforcements"] == "1 · 5¢"
+        assert "when selected" not in paper.get_text()
         toolbar = document.select_one('[aria-label="Crew print controls"]')
         assert "print:hidden" in toolbar["class"]
         assert toolbar.find("button", onclick="window.print()") is not None

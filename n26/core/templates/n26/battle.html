@@ -58,8 +58,8 @@
                                 <h3 class="text-sm font-semibold">Crew</h3>
                                 <p class="mt-1 text-sm text-muted">{% if participant.crew.confirmed %}{{ participant.crew.starting_count }} starting · {{ participant.crew.reserve_count }} reinforcement{{ participant.crew.reserve_count|pluralize }}{% elif participant.crew %}Draft saved{% else %}Not selected{% endif %}</p>
                                 {% if participant.crew.confirmed %}
-                                    <p class="mt-1 text-sm tabular-nums">Crew rating: {{ participant.crew.starting_rating }}¢ <span class="text-muted">when selected</span></p>
-                                    {% if participant.crew.reserve_count %}<p class="mt-1 text-sm text-muted tabular-nums">Reinforcements rating: {{ participant.crew.reserve_rating }}¢ when selected</p>{% endif %}
+                                    <p class="mt-1 text-sm tabular-nums">Crew rating: {{ participant.crew.starting_rating }}¢</p>
+                                    {% if participant.crew.reserve_count %}<p class="mt-1 text-sm text-muted tabular-nums">Reinforcements rating: {{ participant.crew.reserve_rating }}¢</p>{% endif %}
                                 {% endif %}
                             </div>
                             <div class="flex flex-wrap gap-2">

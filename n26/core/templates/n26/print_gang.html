@@ -36,12 +36,12 @@
                     <c-n26.print.columns>
                         <c-n26.print.column>
                             <c-n26.print.entry label="Starting crew">
-                                {{ crew_sheet.starting|length }} · {{ crew_sheet.starting_rating }}¢ when selected
+                                {{ crew_sheet.starting|length }} · {{ crew_sheet.starting_rating }}¢
                             </c-n26.print.entry>
                         </c-n26.print.column>
                         <c-n26.print.column>
                             <c-n26.print.entry label="Reinforcements">
-                                {{ crew_sheet.reserves|length }}{% if crew_sheet.reserves %} · {{ crew_sheet.reserve_rating }}¢ when selected{% endif %}
+                                {{ crew_sheet.reserves|length }}{% if crew_sheet.reserves %} · {{ crew_sheet.reserve_rating }}¢{% endif %}
                             </c-n26.print.entry>
                             {% if not crew_sheet.crew.confirmed %}<c-n26.print.entry label="Crew">Draft</c-n26.print.entry>{% endif %}
                         </c-n26.print.column>

@@ -53,25 +53,29 @@
             </c-slot>
         </c-n26.page-header>
         <div class="space-y-3">
-            <div>{% if crew.confirmed %}<c-ui.badge color="green">Saved crew</c-ui.badge>{% else %}<c-ui.badge color="amber">Draft</c-ui.badge>{% endif %}</div>
-            <dl class="grid grid-cols-2 gap-4 rounded-box border border-box-border bg-surface p-4">
+            {% if not crew.confirmed %}<div><c-ui.badge color="amber">Draft</c-ui.badge></div>{% endif %}
+            <dl class="grid grid-cols-2 gap-4 rounded-box border border-box-border bg-surface p-4 sm:grid-cols-3">
                 <div>
                     <dt class="text-sm text-muted">Starting crew</dt>
                     <dd class="mt-1 text-xl font-semibold tabular-nums">
                         {{ sheet.starting|length }}
-                        <span class="block text-sm font-normal text-muted">{{ sheet.starting_rating }}¢ when selected</span>
                     </dd>
                 </div>
                 <div>
                     <dt class="text-sm text-muted">Reinforcements</dt>
                     <dd class="mt-1 text-xl font-semibold tabular-nums">
                         {{ sheet.reserves|length }}
-                        {% if sheet.reserves %}<span class="block text-sm font-normal text-muted">{{ sheet.reserve_rating }}¢ when selected</span>{% endif %}
+                        {% if sheet.reserves %}<span class="block text-sm font-normal text-muted">{{ sheet.reserve_rating }}¢</span>{% endif %}
+                    </dd>
+                </div>
+                <div class="col-span-2 sm:col-span-1">
+                    <dt class="text-sm text-muted">Crew rating</dt>
+                    <dd class="mt-1 text-xl font-semibold tabular-nums">
+                        {{ sheet.starting_rating }}¢
                     </dd>
                 </div>
             </dl>
         </div>
-        <p class="text-sm text-muted">The saved cards keep their equipment selection. Characteristics, XP and status show the model as it is now.</p>
         {% for label, members in groups %}
             {% if members %}
                 <section aria-label="{{ label }}" class="space-y-3">

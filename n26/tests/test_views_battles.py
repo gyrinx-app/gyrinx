@@ -149,8 +149,9 @@ class TestBattlePages:
         assert crew.reserve_count == 1
         soup = BeautifulSoup(response.content, "html.parser")
         drawn = soup.get_text(" ", strip=True)
-        assert "Crew rating: 20¢ when selected" in drawn
-        assert "Reinforcements rating: 35¢ when selected" in drawn
+        assert "Crew rating: 20¢" in drawn
+        assert "Reinforcements rating: 35¢" in drawn
+        assert "when selected" not in drawn
         assert "Crew rating: 55¢" not in drawn
         assert_reconciled(gang)
 
