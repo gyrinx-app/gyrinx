@@ -169,9 +169,13 @@ transient just as it was under Alpine. The shared `FilterMenu` adapter renders
 the Cotton component's extracted presentation while React owns its popup,
 checkbox, Apply, Cancel, outside-click and keyboard behaviour.
 
-The source path is:
+The leaf-list source path is:
 `library.views.leaf` → `authoring/leaf.html` → `react_island` →
 `islands/authoring-list/entry.tsx` → `AuthoringList.tsx` → `ui/`.
+
+The modifier-list source path is:
+`library.views.modifiers` → `authoring/modifiers.html` → `react_island` →
+`islands/modifier-list/entry.tsx` → `ModifierList.tsx` → `ui/`.
 
 Frontend source follows four dependency layers. Feature code is co-located under
 `islands/<name>/`; generic mounting belongs in `runtime/`; Cotton-derived React

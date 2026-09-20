@@ -104,13 +104,22 @@ export function FilterMenu({
                 Math.max(margin, anchor.left),
                 window.innerWidth - width - margin,
             );
-            setPanelStyle({
+            const nextStyle = {
                 visibility: "visible",
                 left,
                 top,
                 width,
                 maxHeight,
-            });
+            } satisfies CSSProperties;
+            setPanelStyle((previous) =>
+                previous.visibility === nextStyle.visibility &&
+                previous.left === nextStyle.left &&
+                previous.top === nextStyle.top &&
+                previous.width === nextStyle.width &&
+                previous.maxHeight === nextStyle.maxHeight
+                    ? previous
+                    : nextStyle,
+            );
         }
 
         placePanel();

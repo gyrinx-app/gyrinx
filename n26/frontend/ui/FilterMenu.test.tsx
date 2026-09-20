@@ -1,12 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FilterMenu } from "./FilterMenu";
 
 const options = [
     { value: "model", label: "The model carrying it" },
     { value: "weapons", label: "The model's weapons" },
 ];
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+});
 
 describe("filter menu", () => {
     it("supports keyboard opening, selection, dismissal, and focus return", async () => {
@@ -123,5 +128,50 @@ describe("filter menu", () => {
             screen.getByRole("button", { name: "Outside" }),
         );
         expect(onApply).not.toHaveBeenCalled();
+    });
+
+    it("flips, clamps, and repositions the panel with the viewport", async () => {
+        const user = userEvent.setup();
+        let anchor = {
+            left: 350,
+            top: 320,
+            right: 390,
+            bottom: 350,
+            width: 40,
+            height: 30,
+            x: 350,
+            y: 320,
+            toJSON: () => ({}),
+        };
+        const rect = vi
+            .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+            .mockImplementation(() => anchor);
+        vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+            300,
+        );
+        vi.stubGlobal("innerWidth", 390);
+        vi.stubGlobal("innerHeight", 400);
+
+        render(
+            <FilterMenu label="Reaches" options={options} onApply={vi.fn()} />,
+        );
+        await user.click(screen.getByRole("button", { name: "Reaches" }));
+
+        const panel = screen.getByRole("group", { name: "Filter: Reaches" });
+        expect(panel.style.left).toBe("54px");
+        expect(panel.style.top).toBe("16px");
+        expect(panel.style.width).toBe("320px");
+        expect(panel.style.maxHeight).toBe("300px");
+
+        anchor = { ...anchor, left: -5, top: 20, bottom: 50, x: -5, y: 20 };
+        fireEvent.resize(window);
+        expect(panel.style.left).toBe("16px");
+        expect(panel.style.top).toBe("54px");
+        expect(panel.style.maxHeight).toBe("330px");
+
+        const callsAfterResize = rect.mock.calls.length;
+        fireEvent.scroll(window);
+        expect(rect).toHaveBeenCalledTimes(callsAfterResize + 1);
+        expect(panel.style.left).toBe("16px");
     });
 });
