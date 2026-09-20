@@ -9,7 +9,7 @@
 | 2026-07-24 | Section header actions: a `.section-actions` row with `·` between items. Links to a management page are `bi-pencil` + the noun ("Attributes"), not "Manage Attributes →". |
 | 2026-09-12 | Flat page (help) headings: weight and colour per level inside `.flatpage-content` (bold gold h2, emphasis-grey h3/h4), no underline on heading anchors, optional contents block. |
 | 2026-09-13 | Flat page h4 and below take their own mid-grey (`--gy-flatpage-h4-color`) so prominence falls at every level. Flat page options gain an Introduction, rendered above the contents block. |
-| 2026-09-20 | Default flatpages separate top-level h2 sections with a neutral rule and use the accessible amber text token for h4 headings. |
+| 2026-09-20 | Default flatpages separate the title and top-level h2 sections with neutral rules, and use the accessible amber text token for h4 headings. |
 
 ---
 

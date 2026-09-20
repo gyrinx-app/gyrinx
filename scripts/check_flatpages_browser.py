@@ -63,6 +63,7 @@ def check(
         hierarchy = page.evaluate(
             """() => {
                 const article = document.querySelector('.flatpage-prose');
+                const header = document.querySelector('.flatpage-header');
                 const sections = [...article.querySelectorAll(':scope > h2')];
                 const h4 = article.querySelector('h4');
                 const accentProbe = document.createElement('span');
@@ -70,6 +71,9 @@ def check(
                 document.body.append(accentProbe);
                 const result = {
                     sectionCount: sections.length,
+                    headerBorder: getComputedStyle(header).borderBottomWidth,
+                    headerWidth: header.getBoundingClientRect().width,
+                    articleWidth: article.getBoundingClientRect().width,
                     firstElementIsH2: article.firstElementChild === sections[0],
                     firstSectionBorder: sections[0]
                         ? getComputedStyle(sections[0]).borderTopWidth
@@ -85,6 +89,8 @@ def check(
             }"""
         )
         assert hierarchy["sectionCount"] >= 2, hierarchy
+        assert hierarchy["headerBorder"] != "0px", hierarchy
+        assert abs(hierarchy["headerWidth"] - hierarchy["articleWidth"]) < 1, hierarchy
         if hierarchy["firstElementIsH2"]:
             assert hierarchy["firstSectionBorder"] == "0px", hierarchy
         assert hierarchy["secondSectionBorder"] != "0px", hierarchy
