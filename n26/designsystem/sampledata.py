@@ -19,6 +19,7 @@ from n26.core.activities import (
     HistoryLine,
     VisitLine,
     open_card,
+    steps_waiting,
 )
 from n26.core.browse import (
     CategoryGroup,
@@ -2549,6 +2550,8 @@ def gang_sheet_context():
             (141, "You", "created the gang, a House Escher gang"),
         )
     )
+    post_battle_steps = steps_waiting(sheet, post_battle_at="#post-battle")
+    recovery_sheet = replace(sheet, models=[model_card_in_recovery()])
     return {
         "gang": sheet,
         # The two shapes an action card has: a visit, which has figures to
@@ -2577,6 +2580,24 @@ def gang_sheet_context():
         # than drawing a heading over nothing.
         "sample_square_no_history": ActivitiesSquare(
             start_founding="#", history_href="#"
+        ),
+        "sample_square_post_battle": ActivitiesSquare(
+            history=lately, history_href="#", to_do=post_battle_steps
+        ),
+        "sample_square_post_battle_empty": ActivitiesSquare(
+            history_href="#", to_do=post_battle_steps
+        ),
+        "sample_square_all_actions": ActivitiesSquare(
+            founding=founding_open,
+            visit=a_visit,
+            history=lately,
+            history_href="#",
+            to_do=steps_waiting(
+                recovery_sheet,
+                ransoms=(("Vex", "#ransom"),),
+                clean_house_at="#clean-house",
+                post_battle_at="#post-battle",
+            ),
         ),
         # The two blocks an equip screen's rail draws for a model
         # part-way through the founding: its own allowance, and the

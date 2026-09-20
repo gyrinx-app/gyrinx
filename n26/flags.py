@@ -37,7 +37,7 @@ CAMPAIGNS = "campaigns"
 #: edits still file their passes; nothing runs them until it opens.
 BUILT_IN_PROPAGATION = "built-in-propagation"
 
-#: Founding a gang as an action: the Actions square on the gang page, the
+#: Founding a gang as an action: its controls in the gang's Actions panel, the
 #: founding Trade Point budgets on the cards and equip screens, and list
 #: lines counting Trade Points while the action is open. Shut, none of it
 #: is drawn, and purchases count against no founding budget.

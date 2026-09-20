@@ -2047,9 +2047,9 @@ GROUPS: list[Group] = [
                 ),
                 notes=(
                     "Draw it first in the gang sheet's grid for an owner with "
-                    "founding or campaigns access. Pass square only for founding "
-                    "access, and post_battle_href only for campaigns access. "
-                    "Without square, only the post-battle link is drawn. "
+                    "founding or campaigns access. Pass one square with only the "
+                    "controls the owner may use. Post-battle uses the same next-step "
+                    "layout as ransom and Clean House; recent history is shared. "
                     "The nothing-open message shows "
                     "only when nothing is running and nothing is waiting. The start "
                     "control is a form, as is any waiting step that acts on the "

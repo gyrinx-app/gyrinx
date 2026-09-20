@@ -20,7 +20,6 @@ from n26.core.views.permissions import (
     link_campaign,
     link_model_cards,
     may_mark_status,
-    may_see_activities_square,
     may_see_founding,
     trade_points_href,
 )
@@ -368,39 +367,38 @@ def gang_sheet(request, pk):
             "gang": gang,
             "sheet": sheet,
             "yours": yours,
-            "post_battle_href": reverse("n26-gang-post-battle", args=[gang.pk])
-            if campaigns_open
-            else "",
             "trade_points_href": trade_points_href(gang, request.user),
             # Whether the stash card's way into a visit is shut for now.
             # Free where the square below was drawn: that read which
             # actions the gang has open, and the gang holds the reading.
             "founding_blocks_visit": founding_blocks_visit(gang, founding_seen),
-            # The gang's own actions, which are the owner's to perform.
-            # Drawn for the owners the founding flag admits; every other
-            # reader gets no square. A fixed handful of
-            # queries for the whole page, whatever the roster: the open
-            # actions, and the last stretch of the gang's story with the
-            # records it names. What a visit has left is already on the
-            # sheet.
+            # Each feature supplies only its permitted controls. History
+            # and Trading Post visits are already available to every owner.
             "activities_square": (
                 activities_square(
                     gang,
                     sheet,
-                    founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
+                    founding_at=reverse("n26-gang-founding-action", args=[gang.pk])
+                    if founding_seen
+                    else "",
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                     history_at=reverse("n26-gang-history", args=[gang.pk]),
-                    clean_house_at=reverse("n26-clean-house", args=[gang.pk]),
+                    clean_house_at=reverse("n26-clean-house", args=[gang.pk])
+                    if founding_seen
+                    else "",
                     # Every model held for ransom, by name: an unpaid one
                     # dies, so it is the first thing the square asks for.
                     ransoms=tuple(
                         (model.name, f"{at}?ransom={model.id}")
                         for model in sheet.models
-                        if model.status == Status.RANSOMED
+                        if founding_seen and model.status == Status.RANSOMED
                     ),
+                    post_battle_at=reverse("n26-gang-post-battle", args=[gang.pk])
+                    if campaigns_open
+                    else "",
                     viewer=request.user,
                 )
-                if founding_seen
+                if founding_seen or campaigns_open
                 else None
             ),
             # Printing follows reading rather than owning, so a reader
@@ -1628,9 +1626,7 @@ def gang_founding_action(request, pk):
     from n26.core.operations import Refusal, operation
 
     gang = _own_gang_or_404(request, pk)
-    # The square that posts here is drawn for the owners the founding
-    # flag admits, so the address is theirs alone too.
-    if not may_see_activities_square(gang, request.user):
+    if not may_see_founding(gang, request.user):
         raise Http404
     at = reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":

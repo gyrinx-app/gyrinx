@@ -41,6 +41,8 @@ VISIT_HELP = (
     "Points are lost when you complete the action."
 )
 
+POST_BATTLE_HELP = "Record XP, credits and lasting effects after a battle."
+
 #: How many acts the square prints. Enough to say what has been going on
 #: without becoming the history page, which is one click away.
 SNAPSHOT = 5
@@ -106,7 +108,7 @@ class HistoryLine:
 
 @dataclass(frozen=True)
 class Step:
-    """One thing waiting for the owner to do.
+    """One next step available to the owner, with a description and a control.
 
     ``told`` says what stands, in a sentence naming the model where one
     model is what it is about. ``verb`` is the button. Exactly one of
@@ -130,12 +132,11 @@ class ActivitiesSquare:
     would move every card after it, and "nothing is open" is worth
     saying to a reader deciding what to do next.
 
-    The two halves are different questions and the square keeps them
-    apart. An **action** is something running that the owner opened, and
-    it has an end. A **step** in ``to_do`` is something the rules are
-    waiting on: a ransom to settle, the cycle to close. So "No action is
-    open." is said only when there is nothing on either half — a reader
-    with a ransom to pay is not told there is nothing to do.
+    An **action** is something running that the owner opened, and it has
+    an end. A **step** in ``to_do`` may be required work, such as a ransom,
+    or an optional workflow, such as recording a battle's results. Required
+    work comes first. "No action is open." appears only when neither an
+    open action nor a next step is available.
 
     ``start_founding`` is where the start form posts, and is empty while
     a founding action is open.
@@ -150,9 +151,7 @@ class ActivitiesSquare:
     history: tuple = ()
     start_founding: str = ""
     history_href: str = ""
-    #: What the rules are waiting on, in the order it wants doing:
-    #: ransoms first, because an unpaid one kills the model, then the
-    #: end of the cycle.
+    #: Ransoms first, then Clean House, then optional post-battle recording.
     to_do: tuple = ()
 
     @property
@@ -249,6 +248,7 @@ def activities_square(
     history_at,
     clean_house_at="",
     ransoms=(),
+    post_battle_at="",
     viewer=None,
 ):
     """The gang page's Actions square: what is open, what has been done,
@@ -261,9 +261,11 @@ def activities_square(
     story is the one thing here that is nobody else's reading, and it is
     bounded — the last stretch of events, whatever the gang's age.
     """
-    founding = founding_card(gang, founding_at)
+    # Empty destinations withhold the corresponding controls and state.
+    # Opening the panel for another feature must not open founding access.
+    founding = founding_card(gang, founding_at) if founding_at else None
     visit = None
-    if sheet.visiting_trading_post:
+    if visit_at and sheet.visiting_trading_post:
         visit = VisitLine(trade_points_left=sheet.trade_points_left, href=visit_at)
     return ActivitiesSquare(
         founding=founding,
@@ -271,17 +273,22 @@ def activities_square(
         history=history_lines(gang, viewer=viewer),
         start_founding="" if founding is not None else founding_at,
         history_href=history_at,
-        to_do=steps_waiting(sheet, clean_house_at=clean_house_at, ransoms=ransoms),
+        to_do=steps_waiting(
+            sheet,
+            clean_house_at=clean_house_at,
+            ransoms=ransoms,
+            post_battle_at=post_battle_at,
+        ),
     )
 
 
-def steps_waiting(sheet, *, clean_house_at="", ransoms=()):
-    """What the rules are waiting on, in the order it wants doing.
+def steps_waiting(sheet, *, clean_house_at="", ransoms=(), post_battle_at=""):
+    """Available next steps, with required work before optional workflows.
 
     A ransom comes first however many there are: unpaid, the model dies,
     and Clean House is the end of the same cycle. Both are drawn only
-    where the reader may act — the addresses are empty otherwise, and an
-    empty address is a step nobody is offered.
+    where the reader may act. Optional post-battle recording follows them.
+    Empty addresses withhold their controls independently.
     """
     from n26.core.status import Status
 
@@ -299,5 +306,9 @@ def steps_waiting(sheet, *, clean_house_at="", ransoms=()):
                 verb="Clean House",
                 post=clean_house_at,
             )
+        )
+    if post_battle_at:
+        steps.append(
+            Step(told=POST_BATTLE_HELP, verb="Post-battle", href=post_battle_at)
         )
     return tuple(steps)

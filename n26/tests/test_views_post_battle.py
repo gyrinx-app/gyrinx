@@ -12,9 +12,16 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
+from n26.core.activities import POST_BATTLE_HELP
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
-from n26.core.models import Assignment, CounterValue, LedgerEvent, PostBattleReport
+from n26.core.models import (
+    Activity,
+    Assignment,
+    CounterValue,
+    LedgerEvent,
+    PostBattleReport,
+)
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
@@ -331,6 +338,9 @@ class TestGangActions:
             name="Founding",
             availability=Availability.EVERYONE if founding_open else Availability.OFF,
         )
+        with operation(table.gang, actor=table.owner) as act:
+            act.set_status(table.models[0], Status.RANSOMED)
+            act.set_status(table.models[1], Status.RECOVERY)
         response = client.get(reverse("n26-gang", args=[table.gang.pk]))
         assert response.status_code == 200
         document = BeautifulSoup(response.content, "html.parser")
@@ -341,14 +351,88 @@ class TestGangActions:
         if campaigns_open:
             assert links[0] in panel.find_all("a")
             assert links[0].get_text(strip=True) == "Post-battle"
+            assert POST_BATTLE_HELP in links[0].parent.get_text()
+            assert "No action is open." not in panel.get_text()
         if panel:
             founding_url = reverse("n26-gang-founding-action", args=[table.gang.pk])
             assert bool(panel.find("form", action=founding_url)) == founding_open
-            assert ("Recent history" in panel.get_text()) == founding_open
+            assert "Recent history" in panel.get_text()
+            assert panel.find(
+                "a", href=reverse("n26-gang-history", args=[table.gang.pk])
+            )
             assert "Hire Fighters" not in panel.get_text()
+            square = response.context["activities_square"]
+            assert bool(square.founding) == founding_open
+            verbs = [step.verb for step in square.to_do]
+            assert verbs == (
+                (["Pay ransom", "Clean House"] if founding_open else [])
+                + (["Post-battle"] if campaigns_open else [])
+            )
+            assert ("Pay ransom" in panel.get_text()) == founding_open
+            assert ("Clean House" in panel.get_text()) == founding_open
             if not founding_open:
-                assert "No action is open." not in panel.get_text()
+                assert "Current action" not in panel.get_text()
+                assert not panel.find("form")
                 assert "No history for this gang yet." not in panel.get_text()
+
+    def test_campaigns_alone_keeps_the_existing_founding_and_status_guards(
+        self, client, table, feature
+    ):
+        urls = [
+            reverse("n26-gang-founding-action", args=[table.gang.pk]),
+            reverse("n26-clean-house", args=[table.gang.pk]),
+            reverse("n26-mark-fighter", args=[table.models[0].pk]),
+        ]
+        for url in urls:
+            assert client.post(url, {}).status_code == 404
+        assert table.gang.open_activity(Activity.Kind.FOUNDING) is not None
+
+    def test_campaigns_alone_shares_the_open_visit_and_history(
+        self, client, table, feature
+    ):
+        with operation(table.gang, actor=table.owner) as act:
+            act.close_activity(table.gang.open_activity(Activity.Kind.FOUNDING))
+            act.open_activity(Activity.Kind.TRADING_POST_VISIT, trade_points=3)
+        response = client.get(reverse("n26-gang", args=[table.gang.pk]))
+        square = response.context["activities_square"]
+        assert square.founding is None
+        assert square.start_founding == ""
+        assert square.visit.trade_points_left == 3
+        assert square.visit.href == reverse(
+            "n26-gang-trade-points", args=[table.gang.pk]
+        )
+        assert square.history
+        panel = BeautifulSoup(response.content, "html.parser").select_one(
+            '[role="region"][aria-label="Actions"]'
+        )
+        assert "Trading Post visit open" in panel.get_text()
+        assert "Recent history" in panel.get_text()
+        assert panel.find("a", href=start_url(table, standalone=True))
+
+    @pytest.mark.parametrize("founding_open", [False, True])
+    def test_the_shared_panel_has_no_per_model_queries(
+        self, client, table, feature, make_profile, founding_open
+    ):
+        FeatureFlag.objects.create(
+            slug=FOUNDING,
+            name="Founding",
+            availability=Availability.EVERYONE if founding_open else Availability.OFF,
+        )
+        profile = make_profile("Extra ganger")
+        hire(table.gang, profile, "Extra 0")
+        url = reverse("n26-gang", args=[table.gang.pk])
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+                assert response.status_code == 200
+            return len(captured)
+
+        measure()
+        small = measure()
+        for number in range(1, 6):
+            hire(table.gang, profile, f"Extra {number}")
+        assert measure() == small
 
     @pytest.mark.parametrize("member", [False, True])
     def test_one_campaigns_group_controls_the_link_and_creation_page(
