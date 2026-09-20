@@ -205,6 +205,9 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **dev-server** — Knowledge about starting/stopping the dev server, reading ports, log files, and creating
   **one-click DEBUG login links** for local `agent` users. Do not POST `/accounts/login/` from an agent session;
   reCAPTCHA and mandatory email verification block it.
+- **canvas-viewer** — Open and visually check `.canvas.tsx` artifacts when the IDE Canvas surface is unavailable.
+  Start the loopback-only viewer with `./scripts/canvas-viewer.sh`; it discovers this repository's Canvas files
+  and reloads them when they change.
 - **pr-screenshots** — Capture useful UI evidence and attach it to a PR with GitHub-native attachments.
   Load for meaningful rendered UI changes, especially when working in a cloud session where the user cannot
   see the browser, and when preserving or refreshing screenshots while rewriting a PR description.
