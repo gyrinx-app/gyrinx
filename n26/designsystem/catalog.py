@@ -1556,7 +1556,7 @@ GROUPS: list[Group] = [
                 slug="payment-figures",
                 tag="c-n26.payment-figures",
                 template="n26/payment_figures.html",
-                summary="Available balance, price and balance after payment.",
+                summary="Available balance and price for one payment resource.",
             ),
             Component(
                 slug="form-actions",

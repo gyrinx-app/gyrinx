@@ -175,12 +175,37 @@ class TestSuitEvolutionForms:
     def test_the_edit_page_places_action_panels_below_the_model_card(
         self, client, hunt
     ):
+        from bs4 import BeautifulSoup
+
         client.force_login(hunt.owner)
         response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
         assert response.status_code == 200
         html = response.content.decode()
-        assert "Start Suit Evolution flow" in html
-        assert html.index("Available") < html.index("After payment")
+        page = BeautifulSoup(html, "html.parser")
+        title = page.find("span", string="Suit Evolution")
+        header = title.find_parent("div")
+        start_button = page.find("a", attrs={"aria-label": "Start Suit Evolution flow"})
+
+        assert "After a cycle" in header.get_text(" ", strip=True)
+        assert start_button.get_text(" ", strip=True) == "Start flow"
+        assert "bg-accent" in start_button.get("class", [])
+        assert html.index("Available") < html.index("Price")
+        assert "After payment" not in html
+
+    def test_the_gear_menu_sits_with_the_name_above_its_tier(self, client, hunt):
+        from bs4 import BeautifulSoup
+
+        client.force_login(hunt.owner)
+        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        page = BeautifulSoup(response.content, "html.parser")
+        menu = page.find(attrs={"aria-label": "More for Hunting rig"})
+        gear_line = menu.find_parent("li")
+        name_line = gear_line.find("div", recursive=False)
+
+        assert "Hunting rig" in name_line.get_text(" ", strip=True)
+        assert menu in name_line.descendants
+        assert "Rig augmentation" not in name_line.get_text(" ", strip=True)
+        assert "Rig augmentation" in gear_line.get_text(" ", strip=True)
 
     def test_credit_prices_use_the_credit_unit(self, client, hunt):
         paid = a.create_action(
@@ -201,6 +226,7 @@ class TestSuitEvolutionForms:
             if panel.action_id == str(paid.pk)
         )
         available = hunt.gang.recompute_credits()
+        assert panel.prices[0].label == ""
         assert panel.prices[0].available == f"{available}¢"
         assert panel.prices[0].price == "20¢"
         assert panel.prices[0].remaining == f"{available - 20}¢"

@@ -863,8 +863,10 @@ class TestTheModelEditPage:
 
         assert card < evolution < advancement < notes
         assert "Kill Count" in page[evolution:advancement]
+        assert "After payment" not in page[evolution:advancement]
+        assert 'aria-label="Start Suit Evolution flow"' in page[evolution:advancement]
         assert "Resume Suit Evolution flow" in page[evolution:advancement]
-        assert "1 available use" in page[advancement:notes]
+        assert "1 use available" in page[advancement:notes]
         assert "Resume Advancement flow" in page[advancement:notes]
 
 

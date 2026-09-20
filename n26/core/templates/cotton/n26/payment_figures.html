@@ -1,27 +1,24 @@
 {% comment %}
-<c-n26.payment-figures> — available balance, price and balance after payment.
+<c-n26.payment-figures> — available balance and price for one payment resource.
 
     <c-n26.payment-figures :figures="payment" />
 
 Pass a PaymentFigures value. Figures are already formatted, including currency
-symbols or unlimited balances. The balance name appears once below the numbers.
+symbols or unlimited balances. The balance name appears above the numbers when
+the unit is not already clear from the formatted values.
 Render one component per balance when a payment has several components.
 {% endcomment %}
 <c-vars :figures="None" class="" />
 <div {{ attrs }} class="{{ class }}">
-    <dl class="grid grid-cols-3 gap-3 text-right">
+    {% if figures.label %}<p class="mb-1 text-sm text-muted">{{ figures.label }}</p>{% endif %}
+    <dl class="grid max-w-xs grid-cols-2 gap-x-6 text-left">
         <div>
             <dt class="text-sm text-muted">Available</dt>
-            <dd class="mt-1 text-xl font-semibold tabular-nums">{{ figures.available }}</dd>
+            <dd class="mt-0.5 text-base font-semibold tabular-nums">{{ figures.available }}</dd>
         </div>
         <div>
             <dt class="text-sm text-muted">Price</dt>
-            <dd class="mt-1 text-xl font-semibold tabular-nums">{{ figures.price }}</dd>
-        </div>
-        <div>
-            <dt class="text-sm text-muted">After payment</dt>
-            <dd class="mt-1 text-xl font-semibold tabular-nums">{{ figures.remaining }}</dd>
+            <dd class="mt-0.5 text-base font-semibold tabular-nums">{{ figures.price }}</dd>
         </div>
     </dl>
-    <p class="mt-1 text-right text-sm text-muted">{{ figures.label }}</p>
 </div>

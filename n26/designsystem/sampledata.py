@@ -853,7 +853,7 @@ def context():
             FlowStep("Complete"),
         ),
         "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
-        "credit_payment_figures": PaymentFigures("Credits", "430¢", "100¢", "330¢"),
+        "credit_payment_figures": PaymentFigures("", "430¢", "100¢", "330¢"),
         "sample_action_panels": (
             ActionPanel(
                 action_id="suit-evolution",

@@ -1,26 +1,35 @@
 <div id="n26-action-panels" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
     {% if action_panels %}
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
             {% for panel in action_panels %}
-                <c-ui.card>
+                <c-ui.card padding="sm">
                     <c-slot name="header">
-                        <span class="font-semibold">{{ panel.name }}</span>
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                            <span class="font-semibold">{{ panel.name }}</span>
+                            <span class="text-sm text-muted">
+                                {{ panel.timing|capfirst }}{% if panel.available_uses != None %}<span aria-hidden="true"> · </span>{{ panel.available_uses }} use{{ panel.available_uses|pluralize }} available{% endif %}
+                            </span>
+                        </div>
                     </c-slot>
-                    <div class="space-y-4">
-                        <p class="text-sm text-muted">{{ panel.timing|capfirst }}</p>
+                    <div class="space-y-3 text-sm">
                         {% for figures in panel.prices %}<c-n26.payment-figures :figures="figures" />{% endfor %}
-                        {% if panel.available_uses != None %}
-                            <p>{{ panel.available_uses }} available use{{ panel.available_uses|pluralize }}</p>
-                        {% endif %}
                         {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
-                        {% if panel.start_href %}
-                            <a href="{{ panel.start_href }}"
-                               class="linked">Start {{ panel.name }} flow <span aria-hidden="true">→</span></a>
+                        {% if panel.start_href or panel.drafts %}
+                            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                {% if panel.start_href %}
+                                    <c-ui.button href="{{ panel.start_href }}"
+                                                 variant="primary"
+                                                 size="sm"
+                                                 aria-label="Start {{ panel.name }} flow">
+                                        Start flow
+                                    </c-ui.button>
+                                {% endif %}
+                                {% for draft in panel.drafts %}
+                                    <a href="{{ draft.href }}"
+                                       class="linked">{{ draft.label }} <span aria-hidden="true">→</span></a>
+                                {% endfor %}
+                            </div>
                         {% endif %}
-                        {% for draft in panel.drafts %}
-                            <p><a href="{{ draft.href }}"
-   class="linked">{{ draft.label }} <span aria-hidden="true">→</span></a></p>
-                        {% endfor %}
                         {% if panel.completed %}
                             <details class="text-sm">
                                 <summary class="cursor-pointer text-muted">Recent results</summary>

@@ -55,7 +55,7 @@ def payment_figures(quote):
 
     return tuple(
         PaymentFigures(
-            label=line.name,
+            label="" if line.balance.resource == Resource.CREDITS else line.name,
             available=display(line, line.available),
             price=display(line, line.amount),
             remaining=display(line, line.after_payment),
