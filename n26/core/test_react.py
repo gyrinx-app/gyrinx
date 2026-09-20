@@ -3,11 +3,13 @@ import json
 import pytest
 from bs4 import BeautifulSoup
 from django.template import Context, Template
+from django.test import override_settings
 
 from n26.core.templatetags import react
 
 
-def test_island_props_are_inert_json_and_preloads_include_shared_imports(monkeypatch):
+@override_settings(STATIC_URL="static/")
+def test_island_props_are_inert_json_and_asset_urls_are_rooted(monkeypatch):
     monkeypatch.setattr(
         react,
         "_manifest",
@@ -32,6 +34,16 @@ def test_island_props_are_inert_json_and_preloads_include_shared_imports(monkeyp
         "/static/n26/react/assets/list-12345678.js",
         "/static/n26/react/assets/react-12345678.js",
     ]
+    assert host["data-react-module"] == "/static/n26/react/assets/list-12345678.js"
+    assert soup.select_one('script[type="module"]')["src"].startswith("/static/")
+
+
+@override_settings(STATIC_URL="https://static.example/assets/")
+def test_island_asset_urls_preserve_an_absolute_static_host():
+    assert (
+        react.asset_url("assets/list-12345678.js")
+        == "https://static.example/assets/n26/react/assets/list-12345678.js"
+    )
 
 
 def test_unknown_island_names_fail_before_build_lookup():
@@ -48,8 +60,11 @@ def test_production_storage_preserves_vite_module_urls(tmp_path):
     storage = CompressedManifestStaticFilesStorage(location=tmp_path)
     manifest = json.loads((react.BUILD / "manifest.json").read_text())
     files = {chunk["file"] for chunk in manifest.values()}
+    support_files = {
+        str(path.relative_to(react.BUILD)) for path in react.BUILD.rglob("*.map")
+    }
     paths = {}
-    for file in files:
+    for file in files | support_files:
         name = f"n26/react/{file}"
         with source.open(file) as contents:
             storage.save(name, contents)

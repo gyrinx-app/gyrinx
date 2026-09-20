@@ -27,7 +27,7 @@ export function mountWithin(scope, loadModule = (url) => import(url)) {
                 retry.href = window.location.href;
                 retry.className = "underline";
                 retry.textContent = "Reload the page";
-                message.append(retry);
+                message.append(retry, ".");
                 host.append(message);
                 console.error("React island failed to load", error);
             });

@@ -4,6 +4,7 @@ import json
 import re
 from functools import cache
 from pathlib import Path
+from urllib.parse import urljoin
 from uuid import uuid4
 
 from django import template
@@ -29,7 +30,7 @@ def _manifest():
 def asset_url(filename):
     # Vite owns these hashes and relative module imports. Django must not
     # give an imported module a second URL (and a second React instance).
-    return f"{settings.STATIC_URL}n26/react/{filename}"
+    return urljoin("/", f"{settings.STATIC_URL.rstrip('/')}/n26/react/{filename}")
 
 
 @register.simple_tag
@@ -62,7 +63,8 @@ def react_island(name, props):
     )
     identifier = f"react-{uuid4().hex}"
     loader = format_html(
-        '<script type="module" src="{}"></script>', static("n26/react-islands.js")
+        '<script type="module" src="{}"></script>',
+        urljoin("/", static("n26/react-islands.js")),
     )
     return format_html(
         '{}<div id="{}" data-react-module="{}" data-react-props="{}" x-ignore hx-disable class="min-h-32">'

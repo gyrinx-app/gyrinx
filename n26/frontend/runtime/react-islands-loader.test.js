@@ -71,6 +71,9 @@ describe("island lifecycle", () => {
             expect(element.querySelector('[role="alert"]')).not.toBeNull(),
         );
         expect(element.querySelector("a").href).toBe(window.location.href);
+        expect(element.querySelector('[role="alert"]').textContent).toBe(
+            "This section could not load. Reload the page.",
+        );
     });
 
     it("mounts a host delivered by htmx and unmounts it before removal", async () => {
