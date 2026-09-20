@@ -18,7 +18,7 @@ from n26.library.models import (
     RankThreshold,
 )
 
-pytestmark = [pytest.mark.django_db, pytest.mark.core]
+pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
@@ -53,6 +53,7 @@ def legacy_fighter(user, gang_type, make_profile, make_statline, counter_trackin
     return gang, fighter, action, held
 
 
+@pytest.mark.core
 def test_inactive_counter_history_refuses_the_plan(legacy_fighter):
     CounterTracking.objects.all().delete()
 
@@ -63,6 +64,7 @@ def test_inactive_counter_history_refuses_the_plan(legacy_fighter):
     assert plan.problems == (INACTIVE_REASON,)
 
 
+@pytest.mark.core
 def test_application_rechecks_counter_history_under_the_gang_operation(
     legacy_fighter,
 ):
@@ -75,6 +77,7 @@ def test_application_rechecks_counter_history_under_the_gang_operation(
     assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
 
 
+@pytest.mark.core
 def test_inactive_counter_history_fails_the_task_instead_of_recording_done(
     legacy_fighter,
 ):
@@ -113,6 +116,7 @@ def test_inactive_counter_history_is_explained_on_the_maintenance_page(
     ).exists()
 
 
+@pytest.mark.core
 def test_initialisation_grants_only_thresholds_above_the_start(legacy_fighter):
     gang, fighter, action, _ = legacy_fighter
     plan = find()
@@ -130,6 +134,7 @@ def test_initialisation_grants_only_thresholds_above_the_start(legacy_fighter):
     assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 2
 
 
+@pytest.mark.core
 def test_missing_baseline_is_reported_and_skipped(legacy_fighter):
     gang, fighter, action, held = legacy_fighter
     held.ledger_events.all().delete()
@@ -171,6 +176,7 @@ def test_preview_builds_effective_action_access_once_per_fighter(
     assert calls == 1
 
 
+@pytest.mark.core
 def test_task_delivery_records_progress_and_is_idempotent(legacy_fighter):
     gang, fighter, action, _ = legacy_fighter
     record = Backfill.objects.create(
@@ -224,6 +230,7 @@ def test_admin_preview_is_read_only_and_post_enqueues(
     ).exists()
 
 
+@pytest.mark.core
 def test_a_new_task_record_refuses_after_a_successful_run(legacy_fighter):
     gang, fighter, action, _ = legacy_fighter
     first = Backfill.objects.create(
@@ -244,6 +251,7 @@ def test_a_new_task_record_refuses_after_a_successful_run(legacy_fighter):
     assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 2
 
 
+@pytest.mark.core
 def test_completed_run_is_checked_after_taking_the_single_flight_lock(
     legacy_fighter, monkeypatch
 ):
@@ -274,6 +282,7 @@ def test_completed_run_is_checked_after_taking_the_single_flight_lock(
     assert first.status == Backfill.Status.DONE
 
 
+@pytest.mark.core
 def test_a_prior_attempt_competing_record_retries_after_the_lock_holder_finishes(
     monkeypatch,
 ):
@@ -315,6 +324,7 @@ def test_a_prior_attempt_competing_record_retries_after_the_lock_holder_finishes
     assert "already initialised" in queued.error
 
 
+@pytest.mark.core
 def test_a_duplicate_delivery_does_not_end_the_active_record(monkeypatch):
     active = Backfill.objects.create(
         operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
