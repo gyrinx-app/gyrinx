@@ -883,6 +883,29 @@ class TestTheModelEditPage:
             < heading("Lore")
         )
 
+    def test_action_panels_share_the_card_row_above_the_tabs(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page.index('id="n26-model-card-host"')
+        actions = page.index('<span class="font-semibold">Actions</span>', card)
+        evolution = page.index("Suit Evolution", card)
+        advancement = page.index("Advancement", evolution)
+        notes = page.index('<span class="font-semibold">Notes</span>', advancement)
+        tabs = page.index("This model", advancement)
+        history = page.index('<span class="font-semibold">Action history</span>', notes)
+
+        assert card < actions < evolution < advancement < tabs < notes < history
+        assert "lg:grid-cols-2" in page[card - 500 : actions]
+        assert "Kill Count" in page[evolution:advancement]
+        assert "After payment" not in page[evolution:advancement]
+        assert 'aria-label="Start Suit Evolution flow"' in page[evolution:advancement]
+        assert "Resume Suit Evolution flow" in page[evolution:advancement]
+        assert "1 use available" in page[advancement:notes]
+        assert "Resume Advancement flow" in page[advancement:notes]
+        assert "Hunting Rig Augmentation" not in page[actions:tabs]
+        assert "Hunting Rig Augmentation" in page[history:]
+        assert "Hunting rig: Tier 1. Improve S by 1" in page[history:]
+        assert "minutes ago" in page[history:]
+
 
 class TestCounterLinesInTheGallery:
     """Only one sample card offers to move a number.

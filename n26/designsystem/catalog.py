@@ -1547,6 +1547,18 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="flow-progress",
+                tag="c-n26.flow-progress",
+                template="n26/flow_progress.html",
+                summary="The ordered steps above a form, horizontal on wide screens.",
+            ),
+            Component(
+                slug="payment-figures",
+                tag="c-n26.payment-figures",
+                template="n26/payment_figures.html",
+                summary="Available balance and price for one payment resource.",
+            ),
+            Component(
                 slug="form-actions",
                 tag="c-n26.form-actions",
                 template="n26/form_actions.html",

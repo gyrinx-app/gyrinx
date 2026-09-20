@@ -245,6 +245,16 @@ urlpatterns = [
     # owner's notes. Equip is the same header's second tab.
     path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
     path(
+        "fighters/<str:pk>/actions/<str:action_id>/",
+        views.action_start,
+        name="n26-action-start",
+    ),
+    path(
+        "fighters/<str:pk>/action-uses/<str:record_id>/<str:step>/",
+        views.action_flow,
+        name="n26-action-flow",
+    ),
+    path(
         "fighters/<str:pk>/clone/",
         views.clone_fighter,
         name="n26-clone-fighter",

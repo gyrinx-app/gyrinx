@@ -4,6 +4,7 @@
 Do not assemble the tab list at the call site. model_screen_tabs is the one list both screens share.
 active names the tab being drawn, not the URL. Equip stays current whichever list query is open.
 active defaults to edit. Pass it on Equip and Options or the wrong tab looks current.
+card_companion shares the card row at desktop width; each side is at most half the page.
 Named slots use .strip because a cotton slot of newlines is not empty.
 {% endcomment %}
 
@@ -15,6 +16,7 @@ Named slots use .strip because a cotton slot of newlines is not empty.
     breadcrumb=""
     actions=""
     card=""
+    card_companion=""
     tab_actions=""
     class=""
 />
@@ -33,7 +35,16 @@ Named slots use .strip because a cotton slot of newlines is not empty.
         {% endif %}
     </c-n26.page-header>
 
-    {% if card.strip %}<div class="lg:max-w-1/2">{{ card }}</div>{% endif %}
+    {% if card.strip %}
+        {% if card_companion.strip %}
+            <div class="grid items-start gap-4 lg:grid-cols-2">
+                <div class="min-w-0">{{ card }}</div>
+                <div class="min-w-0">{{ card_companion }}</div>
+            </div>
+        {% else %}
+            <div class="lg:max-w-1/2">{{ card }}</div>
+        {% endif %}
+    {% endif %}
     {% model_screen_tabs miniature active as screen_tabs_ %}
     <div class="flex items-stretch">
         <c-n26.tab-links label="This model's screens" :tabs="screen_tabs_" class="min-w-0 flex-1" />

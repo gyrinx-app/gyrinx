@@ -45,7 +45,15 @@ def grant_recruitment_allowances(op, fighter):
 
 
 @transaction.atomic
-def grant_rank_allowances(op, counter_assignment, before, after):
+def grant_rank_allowances(
+    op,
+    counter_assignment,
+    before,
+    after,
+    *,
+    action_accesses=None,
+    table_access=None,
+):
     """Grant allowances for strictly crossed thresholds of the current table."""
     if after <= before or not op.counter_tracking_active:
         return []
@@ -57,16 +65,25 @@ def grant_rank_allowances(op, counter_assignment, before, after):
 
     if not RankAllowanceRule.objects.filter(counter=counter).exists():
         return []
-    card = build_card(fighter)
-    computed = compute(card, build_modifier_index(carriers(card)))
-    table_access = rank_table_for(fighter, counter, card=card, computed=computed)
+
+    card = computed = None
+    if table_access is None or action_accesses is None:
+        card = build_card(fighter)
+        computed = compute(card, build_modifier_index(carriers(card)))
+    if table_access is None:
+        table_access = rank_table_for(fighter, counter, card=card, computed=computed)
     if table_access is None:
         return []
     table = table_access.rank_table
     recruitment = _membership(fighter)
+    accesses = (
+        action_accesses
+        if action_accesses is not None
+        else actions_for(fighter, card=card, computed=computed)
+    )
     actions = [
         access.action
-        for access in actions_for(fighter, card=card, computed=computed)
+        for access in accesses
         if access.action.rank_allowance_rule_id
         and access.action.rank_allowance_rule.counter_id == counter.pk
     ]

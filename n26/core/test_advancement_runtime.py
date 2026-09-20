@@ -10,6 +10,8 @@ from n26.core.advancements import (
     recorded_skill,
     skill_options,
 )
+from n26.core.card import build_card, build_modifier_index, carriers
+from n26.core.effects import compute
 from n26.core.models import (
     ActionAllowance,
     AdvancementSelection,
@@ -18,6 +20,7 @@ from n26.core.models import (
     SkillSelection,
 )
 from n26.core.operations import Refusal, operation
+from n26.core.render import build_model_card
 from n26.library import authoring
 from n26.library.models import (
     Action,
@@ -73,6 +76,15 @@ def _advancement(fighter):
         rank_table=action.rank_allowance_rule.counter.rank_tables.get(),
     )
     return action, outcome, allowance
+
+
+def _rendered_card(fighter):
+    card = build_card(fighter, with_statlines=True)
+    return build_model_card(
+        fighter,
+        card=card,
+        computed=compute(card, build_modifier_index(carriers(card))),
+    )
 
 
 def _primary_agility(fighter):
@@ -1195,11 +1207,56 @@ def test_completed_skill_is_available_to_its_own_correction(fighter):
         for other in category.skills.exclude(pk=skill.pk):
             op.assign(other, miniature=fighter)
 
+    rendered = _rendered_card(fighter)
+    assert str(skill) in {line.name for line in rendered.skills}
+    gained = next(line for line in rendered.skills if line.name == str(skill))
+    assert gained.provenance.source == "Select Primary skill"
+    assert gained.provenance.source_kind == "advancement"
+    assert gained.provenance.annotated
+    assert not gained.provenance.computed
+    assert "Select Primary skill" not in {line.kind_label for line in rendered.choices}
+
     assert skill_options(completed, configured, select_primary.id)[category] == [skill]
     with operation(fighter.gang) as op:
         correction = op.review_action_correction(completed, terms=terms)
 
     assert correction.review
+
+
+def test_completed_characteristic_advancement_only_changes_the_statline(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    before = _rendered_card(fighter)
+    before_toughness = next(
+        cell.value for cell in before.statline.cells if cell.short_name == "T"
+    )
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=10)
+    toughness = next(
+        option
+        for option in advancement_options(record, configured)
+        if option.name == "Toughness"
+    )
+    with operation(fighter.gang) as op:
+        reviewed = op.review_action(
+            record, outcome=outcome, terms={"pickable_id": toughness.id}
+        )
+    with operation(fighter.gang) as op:
+        op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+
+    rendered = _rendered_card(fighter)
+    after_toughness = next(
+        cell.value for cell in rendered.statline.cells if cell.short_name == "T"
+    )
+    assert after_toughness != before_toughness
+    assert rendered.choices == []
+    assert "Toughness" not in {line.name for line in rendered.equipment}
 
 
 def test_completed_skill_moved_to_another_fighter_cannot_be_corrected(fighter):

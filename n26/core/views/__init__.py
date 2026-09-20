@@ -12,6 +12,7 @@ friends off the package: the split is invisible to callers, which is
 what makes it a move rather than a change.
 """
 
+from n26.core.views.action_flows import action_flow, action_start
 from n26.core.views.api import preview_view
 from n26.core.views.arrivals import gang_next
 from n26.core.views.assignment_sets import (
@@ -97,6 +98,8 @@ from n26.core.views.printing import print_gang, print_setup
 from n26.core.views.skills import skills
 
 __all__ = [
+    "action_flow",
+    "action_start",
     "battle_report",
     "correct_post_battle",
     "crew_sheet",

@@ -444,14 +444,33 @@ def render_card_update(request, miniature, at):
     card = link_model_card(gang, miniature, own, computed, host, back=back)
     link_model_cards(gang, [card], request.user)
 
+    on_edit = back.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk])
+    flows = []
+    if on_edit:
+        from n26.core.action_flow import action_panels
+        from n26.core.counter_tracking import is_active as counter_tracking_is_active
+        from n26.core.views.action_flows import link_action_panels, split_action_panels
+
+        flows, _history = split_action_panels(
+            link_action_panels(
+                miniature,
+                action_panels(
+                    miniature,
+                    card=own,
+                    computed=computed,
+                    counter_tracking_active=counter_tracking_is_active(),
+                ),
+            ),
+        )
+
     response = render(
         request,
         "n26/includes/model_card_update.html",
         {
             "card": card,
             "miniature": miniature,
-            "update_dismissed_choices": back.split("?")[0]
-            == reverse("n26-edit-fighter", args=[miniature.pk]),
+            "action_panels": flows,
+            "update_dismissed_choices": on_edit,
             "status_href": (
                 status_href(gang, miniature, back="edit")
                 if may_mark_status(gang, request.user)
@@ -724,6 +743,22 @@ def edit_fighter(request, pk):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
 
+    from n26.core.action_flow import action_panels
+    from n26.core.counter_tracking import is_active as counter_tracking_is_active
+    from n26.core.views.action_flows import link_action_panels, split_action_panels
+
+    flows, action_history = split_action_panels(
+        link_action_panels(
+            miniature,
+            action_panels(
+                miniature,
+                card=own,
+                computed=computed,
+                counter_tracking_active=counter_tracking_is_active(),
+            ),
+        ),
+    )
+
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.
@@ -826,6 +861,8 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
+            "action_panels": flows,
+            "action_history_panels": action_history,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to

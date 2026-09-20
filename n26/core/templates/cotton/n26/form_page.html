@@ -20,6 +20,8 @@ Forward heading markup as slots, not attributes. An attribute would print it as 
     submit_variant="success"
     cancel_url=""
     cancel_label="Cancel"
+    cancel_variant="ghost"
+    cancel_class=""
     actions=""
     breadcrumb=""
     trailing=""
@@ -48,7 +50,9 @@ Forward heading markup as slots, not attributes. An attribute would print it as 
             <c-n26.form-actions submit_label="{{ submit_label }}"
                                 submit_variant="{{ submit_variant }}"
                                 cancel_url="{{ cancel_url }}"
-                                cancel_label="{{ cancel_label }}">{{ actions }}</c-n26.form-actions>
+                                cancel_label="{{ cancel_label }}"
+                                cancel_variant="{{ cancel_variant }}"
+                                cancel_class="{{ cancel_class }}">{{ actions }}</c-n26.form-actions>
         </div>
     {% endif %}
 </form>

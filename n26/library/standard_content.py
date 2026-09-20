@@ -1966,11 +1966,11 @@ def _create_fighter_actions():
                     else OffersChoice.Mode.SELECT
                 )
                 and effect.will_be_assigned_to == OffersChoice.WillBeAssignedTo.BEARER
+                and effect.label == ""
             ):
                 new_effect = authoring.ef_offers_choice(
                     Skill,
                     from_section=section,
-                    label=name,
                     mode="random" if name.startswith("Random") else "select",
                 )
                 if existing_modifier is None:
@@ -2316,7 +2316,7 @@ def _check_fighter_actions():
         pack=pack, name="Spyrer Hunting Rig Glitch"
     ).first()
     glitches = Counter.objects.filter(
-        pack=pack, name="Glitch count", qualifier=""
+        pack=pack, name__iexact="Glitch count", qualifier=""
     ).first()
     if (
         table is None
@@ -2415,6 +2415,7 @@ def _check_fighter_actions():
                 else OffersChoice.Mode.SELECT
             )
             and modifier.effect.will_be_assigned_to == "bearer"
+            and modifier.effect.label == ""
             and modifier.effect.from_section_id
             == (
                 None

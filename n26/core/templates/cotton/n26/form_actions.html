@@ -14,13 +14,18 @@ Leave the end submit unnamed so it sends nothing extra.
     submit_variant="success"
     cancel_url=""
     cancel_label="Cancel"
+    cancel_variant="ghost"
+    cancel_class=""
     size="md"
     class=""
 />
 
 <div {{ attrs }} class="flex flex-wrap items-center justify-end gap-2 {{ class }}">
     {% if cancel_url %}
-        <c-ui.button variant="ghost" size="{{ size }}" href="{{ cancel_url }}">{{ cancel_label }}</c-ui.button>
+        <c-ui.button variant="{{ cancel_variant }}"
+                     size="{{ size }}"
+                     href="{{ cancel_url }}"
+                     class="{{ cancel_class }}">{{ cancel_label }}</c-ui.button>
     {% endif %}
     {{ slot }}
     {% if submit_label %}

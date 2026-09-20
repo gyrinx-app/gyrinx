@@ -26,6 +26,7 @@ from n26.core.effects import (
 )
 from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
 from n26.core.models.dismissed_offer import slot_key as _address
+from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
@@ -116,6 +117,11 @@ class Provenance:
     #: True when it is re-derived on read and written nowhere.
     computed: bool = False
 
+    @property
+    def annotated(self):
+        """Show the source of both computed and stored grants."""
+        return self.computed or (self.reason == Reason.GRANTED and bool(self.source))
+
 
 class SlotMarked:
     """A line that draws the book's asterisk after a two-slot weapon's name.
@@ -194,6 +200,10 @@ class AssignableLine(SlotMarked):
     #: weapon, which is what these lines are — see :class:`SlotMarked`.
     slots: int = 1
     brought_in: tuple[str, ...] = ()
+    #: Choices this exact carried copy brought, such as a wargear tier ladder.
+    #: Kept on the item for the same reason weapon choices are: the tier is a
+    #: fact about this copy, not a separate Gear row.
+    choices: list[ChoiceLine] = field(default_factory=list)
 
     @property
     def count_mark(self):
@@ -580,6 +590,9 @@ class ChoiceLine:
     #: on the control: a choice of one is chosen, a choice of several has
     #: picks added to it.
     takes_several: bool = False
+    #: True when carried kit owns an explicit tier ladder. Its control keeps
+    #: the specific "Choose tier" label after a tier is held.
+    is_tier_ladder: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
@@ -647,6 +660,8 @@ class Choosable:
     #: throughout on a choice that holds one, where the whole list is
     #: settled in a single go.
     control: str = ""
+    effects: tuple[str, ...] = ()
+    rating: int = 0
 
     @property
     def remark(self):
@@ -655,6 +670,35 @@ class Choosable:
         if self.taken_for:
             said.append(f"already chosen for {self.taken_for}")
         return " · ".join(said)
+
+    @property
+    def effect_summary(self):
+        return " ".join(self.effects)
+
+
+def describe_choosables(options):
+    """Add authored effects and rating with one batched modifier hydration."""
+    from n26.core.card import build_modifier_index
+    from n26.library.prose import sentence_for
+
+    things = [option.thing for option in options if option.thing is not None]
+    index = build_modifier_index(things)
+    described = []
+    for option in options:
+        effects = ()
+        if option.thing is not None:
+            effects = tuple(
+                sentence_for(modifier, thing=option.thing).text
+                for modifier, _ in index.for_thing(option.thing)
+            )
+        described.append(
+            replace(
+                option,
+                effects=effects,
+                rating=getattr(option.thing, "rating_contribution", 0),
+            )
+        )
+    return described
 
 
 @dataclass
@@ -967,7 +1011,7 @@ class GearGroup:
         line each with its own menu, and every other surface gets the
         compact run.
         """
-        return any(line.sell for line in self.lines)
+        return any(line.sell or line.choices for line in self.lines)
 
 
 @dataclass(frozen=True)
@@ -1130,7 +1174,7 @@ class ModelCard:
         these into controls reads the address on the line rather than
         assuming one.
         """
-        return [*self.row_questions, *self.weapon_questions]
+        return [*self.row_questions, *self.item_questions]
 
     @property
     def row_questions(self):
@@ -1152,12 +1196,28 @@ class ModelCard:
             self.skill_choices,
             self.power_choices,
             *(weapon.choices for weapon in self.weapons),
+            *(line.choices for line in self.equipment),
+            *(line.choices for group in self.gear_groups for line in group.lines),
         ]
 
     @property
     def weapon_questions(self):
         """The questions drawn under a weapon: what its own choices ask."""
         return [choice for weapon in self.weapons for choice in weapon.choices]
+
+    @property
+    def item_questions(self):
+        """Questions drawn directly beneath carried gear and weapons."""
+        return [*self.weapon_questions, *self.gear_questions]
+
+    @property
+    def gear_questions(self):
+        """Questions carried by non-weapon gear, in their card order."""
+        gear = [
+            *self.equipment,
+            *(line for group in self.gear_groups for line in group.lines),
+        ]
+        return [choice for line in gear for choice in line.choices]
 
     @property
     def weapon_columns(self):
@@ -1254,7 +1314,7 @@ class ModelCard:
         themselves, so a gang sheet, a print sheet and a hire preview —
         none of which fill the acts in — keep the compact drawing.
         """
-        return any(line.sell for line in self.equipment)
+        return any(line.sell or line.choices for line in self.equipment)
 
 
 @dataclass
@@ -1893,6 +1953,7 @@ def _choice_line(slot, host):
         chosen=slot.chosen_name,
         is_full=slot.is_full,
         takes_several=slot.max_picks > 1,
+        is_tier_ladder=is_tier_ladder(slot),
         key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
@@ -1971,6 +2032,24 @@ def weapon_home(slot, weapons_by_key):
     if anchor is None:
         return None
     return weapons_by_key.get(anchor.key) or weapons_by_key.get(
+        getattr(anchor, "caused_by_key", None)
+    )
+
+
+def is_tier_ladder(slot):
+    from n26.library.models import Slot
+
+    return getattr(getattr(slot, "slot", None), "mode", None) == Slot.Mode.TIER_LADDER
+
+
+def gear_home(slot, gear_by_key):
+    """The carried gear line an explicit tier ladder belongs beneath."""
+    if not is_tier_ladder(slot):
+        return None
+    anchor = slot.anchor
+    if anchor is None:
+        return None
+    return gear_by_key.get(anchor.key) or gear_by_key.get(
         getattr(anchor, "caused_by_key", None)
     )
 
@@ -2119,6 +2198,7 @@ def build_choice_offer(slot, computed, *, include_staged=False):
         # own Remove.
         options.append(Choosable(key=NONE_KEY, name="None", is_current=not slot.picks))
 
+    options = describe_choosables(options)
     groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,
@@ -2166,6 +2246,10 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
         for section in view.sections
         for category in section.categories
     ]
+    all_options = [option for group in groups for option in group.options]
+    described = iter(describe_choosables(all_options))
+    for group in groups:
+        group.options = [next(described) for _ in group.options]
     return ChoiceOffer(
         label=label,
         chosen=chosen,
@@ -2264,7 +2348,7 @@ def identity(line):
     (Fang)" and "Phyrr Cat (Claw)", never "Phyrr Cat (x2)". None for a
     line with no content key: it stands alone.
     """
-    if not line.key:
+    if not line.key or getattr(line, "choices", None):
         return None
     return (line.key, line.provenance, line.rating, line.brought_in)
 
@@ -2506,6 +2590,7 @@ def card_to_model_card(
     #: Weapon lines by their node's key, so a question a weapon brought
     #: can be filed under it.
     weapons_by_key = {}
+    gear_by_key = {}
     #: Lines diverted out of Gear, by the category that asked for them.
     #: Keyed by category pk, holding the category itself so the groups
     #: can be put in the taxonomy's order once the walk is done.
@@ -2580,19 +2665,18 @@ def card_to_model_card(
     #: somebody else entirely (``_speaks_for_itself``). The same keys
     #: the causes are resolved from, and a card is walked once.
     asked_here = nodes_by_key.keys()
-
-    def provenance_of(node):
-        cause = nodes_by_key.get(node.caused_by_key)
-        return Provenance(
-            source=node.granted_by
-            if node.granted_by is not None
-            else (cause.name if cause else None),
-            source_kind=node.granted_by_kind
-            if node.granted_by_kind is not None
-            else (kind_of(cause.assignable) if cause else None),
-            reason=node.reason,
-            computed=node.computed,
+    hosted_choice_keys = {
+        key
+        for slot in (computed.choices if computed else ())
+        if is_tier_ladder(slot)
+        for key in (
+            getattr(slot.anchor, "key", None),
+            getattr(slot.anchor, "caused_by_key", None),
         )
+        if key is not None
+    }
+
+    provenance_of = _provenance_within(card, nodes_by_key=nodes_by_key)
 
     def trait_lines(child, weapon_state):
         if weapon_state is None:
@@ -2788,9 +2872,12 @@ def card_to_model_card(
                 provenance=provenance_of(node),
                 rating=node.rating,
                 id=(str(node.assignment.pk) if node.assignment is not None else ""),
-                key=key_of(node),
+                key=("" if node.key in hosted_choice_keys else key_of(node)),
                 brought_in=brought_in_of(node),
             )
+            gear_by_key[node.key] = line
+            for child in node.children:
+                gear_by_key[child.key] = line
             # A possession goes in Gear unless its category asks for a
             # heading of its own. The category is prefetched for the
             # kinds that get here (card.hydrate_rows); a kind carrying
@@ -2868,14 +2955,19 @@ def card_to_model_card(
     # else — unless a named row takes it, as a skill offer a weapon makes
     # still belongs in the Skills row. Decided once per question here;
     # the rows below leave out what was filed.
-    weapon_hosted = set()
+    item_hosted = set()
     for slot in computed.choices if computed else []:
         if question_row(slot) is not None:
             continue
         home = weapon_home(slot, weapons_by_key)
         if home is not None:
             home.choices.append(_choice_line(slot, id))
-            weapon_hosted.add(id_of(slot))
+            item_hosted.add(id_of(slot))
+            continue
+        home = gear_home(slot, gear_by_key)
+        if home is not None:
+            home.choices.append(_choice_line(slot, id))
+            item_hosted.add(id_of(slot))
 
     return ModelCard(
         name=name,
@@ -2930,7 +3022,7 @@ def card_to_model_card(
             *(
                 _choice_line(slot, id)
                 for slot in (computed.choices if computed else [])
-                if question_row(slot) is None and id_of(slot) not in weapon_hosted
+                if question_row(slot) is None and id_of(slot) not in item_hosted
             ),
             # What the gang picked, where a modifier says this model's
             # card draws it. After the card's own questions: they are
@@ -3016,24 +3108,33 @@ def _weapon_changes(weapon_state):
     return changes_for
 
 
-def _provenance_within(card):
+def _provenance_within(card, *, nodes_by_key=None):
     """A ``provenance_of`` resolving causes among one card's own nodes.
 
     The keys it resolved from ride along as ``standing_here``: every
     assignment on the card, which is also what tells a pick whether the
     question it answers is asked here at all.
     """
-    nodes_by_key = {node.key: node for node in card.all_nodes()}
+    if nodes_by_key is None:
+        nodes_by_key = {node.key: node for node in card.all_nodes()}
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
+        source_kind = None
+        if cause is not None:
+            # The slot type names the result's domain: advancement, injury, etc.
+            source_kind = (
+                cause.assignable.slot_type.name.lower()
+                if isinstance(cause.assignable, Pickable)
+                else kind_of(cause.assignable)
+            )
         return Provenance(
             source=node.granted_by
             if node.granted_by is not None
             else (cause.name if cause else None),
             source_kind=node.granted_by_kind
             if node.granted_by_kind is not None
-            else (kind_of(cause.assignable) if cause else None),
+            else source_kind,
             reason=node.reason,
             computed=node.computed,
         )
