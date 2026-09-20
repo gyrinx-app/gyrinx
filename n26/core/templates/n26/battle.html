@@ -56,7 +56,11 @@
                         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-box-border pt-3">
                             <div>
                                 <h3 class="text-sm font-semibold">Crew</h3>
-                                <p class="mt-1 text-sm text-muted">{% if participant.crew.confirmed %}{{ participant.crew.starting_count }} starting · {{ participant.crew.reserve_count }} reinforcements{% elif participant.crew %}Draft saved{% else %}Not selected{% endif %}</p>
+                                <p class="mt-1 text-sm text-muted">{% if participant.crew.confirmed %}{{ participant.crew.starting_count }} starting · {{ participant.crew.reserve_count }} reinforcement{{ participant.crew.reserve_count|pluralize }}{% elif participant.crew %}Draft saved{% else %}Not selected{% endif %}</p>
+                                {% if participant.crew.confirmed %}
+                                    <p class="mt-1 text-sm tabular-nums">Crew rating: {{ participant.crew.starting_rating }}¢ <span class="text-muted">when selected</span></p>
+                                    {% if participant.crew.reserve_count %}<p class="mt-1 text-sm text-muted tabular-nums">Reinforcements rating: {{ participant.crew.reserve_rating }}¢ when selected</p>{% endif %}
+                                {% endif %}
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 {% if participant.crew.confirmed %}<c-ui.button size="sm"
@@ -67,7 +71,7 @@
                         </div>
                         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-box-border pt-3">
                             <div>
-                                <h3 class="text-sm font-semibold">Post-battle</h3>
+                                <h3 class="text-sm font-semibold">Post-battle actions</h3>
                                 <p class="mt-1 text-sm text-muted">{% if participant.report.latest_sequence %}Results recorded{% elif participant.report %}Draft saved{% else %}Not recorded{% endif %}</p>
                             </div>
                             {% if participant.may_record %}<c-ui.button size="sm"
@@ -75,8 +79,6 @@
              href="{% url 'n26-battle-report' campaign.pk battle.pk participant.id %}">{% if participant.report.state == "draft" %}Continue draft{% elif participant.report.latest_sequence %}View results{% else %}Record results{% endif %}</c-ui.button>{% elif participant.report.latest_sequence %}<c-ui.button size="sm"
              href="{% url 'n26-post-battle-receipt' participant.report.pk %}">View results</c-ui.button>{% endif %}
                         </div>
-                        {% if participant.may_read_history %}<c-n26.link href="{% url 'n26-gang-history' participant.id %}"
-            class="text-sm">Gang history</c-n26.link>{% endif %}
                     </li>
                 {% empty %}
                     <li class="text-sm text-muted">No gangs named.</li>
@@ -85,14 +87,9 @@
         </section>
         <div class="border-t border-box-border pt-4 text-sm text-muted">
             {% if recorded %}<p>Recorded{% if recorded.actor %} by <c-n26.user-link :user="recorded.actor" tone="current" />{% endif %} on {{ recorded.created|date:'j F Y' }}.</p>{% endif %}
-            <p class="mt-1">Each player records their gang's results. The arbitrator can also record or correct them. Editing this battle does not change gang rewards or injuries.</p>
-            {% if yours %}
-                {% if has_history %}
-                    <p class="mt-3">This battle cannot be removed because it has a saved crew, report or recorded gang history.</p>
-                {% else %}
-                    <c-n26.link href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
-                                class="mt-3 inline-block">Remove battle</c-n26.link>
-                {% endif %}
+            {% if yours and not has_history %}
+                <c-n26.link href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                            class="mt-3 inline-block">Remove battle</c-n26.link>
             {% endif %}
         </div>
     </div>

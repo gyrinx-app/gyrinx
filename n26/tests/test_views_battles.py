@@ -11,13 +11,21 @@ from django.test.utils import CaptureQueriesContext
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
-from n26.core.crews import save_crew
+from n26.core.crews import CrewSelection, save_crew
 from n26.core.forms import BattleForm
 from n26.core.models import Battle, CampaignEvent, Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.post_battle import start_report
+from n26.core.reconcile import assert_reconciled
 from n26.flags import CAMPAIGNS
-from n26.tests.sandbox.actions import found_campaign, found_gang, join_campaign
+from n26.tests.sandbox.actions import (
+    create_weapon,
+    found_campaign,
+    found_gang,
+    give_weapon,
+    hire,
+    join_campaign,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -102,6 +110,116 @@ class TestBattleForm:
 
 
 class TestBattlePages:
+    @pytest.mark.parametrize("reader", [False, True])
+    def test_confirmed_crew_shows_starting_and_reinforcement_ratings_separately(
+        self,
+        client,
+        campaign,
+        battle,
+        gang,
+        arbitrator,
+        flag,
+        default_pack,
+        make_profile,
+        reader,
+    ):
+        profile = make_profile("Gunner")
+        starting = hire(gang, profile, "Mara", paid=20)
+        reserve = hire(gang, profile, "Nell", paid=35)
+        save_crew(
+            battle=battle,
+            gang=gang,
+            actor=arbitrator,
+            revision=0,
+            selections=[
+                CrewSelection(str(starting.pk), "starting"),
+                CrewSelection(str(reserve.pk), "reserve"),
+            ],
+            confirm=True,
+        )
+        give_weapon(starting, create_weapon("Autogun"), paid=15)
+        if reader:
+            client.force_login(User.objects.create_user("spectator"))
+
+        response = client.get(address(campaign, battle))
+        crew = response.context["participants"][0].crew
+        assert crew.starting_rating == 20
+        assert crew.reserve_rating == 35
+        assert crew.starting_count == 1
+        assert crew.reserve_count == 1
+        soup = BeautifulSoup(response.content, "html.parser")
+        drawn = soup.get_text(" ", strip=True)
+        assert "Crew rating: 20¢ when selected" in drawn
+        assert "Reinforcements rating: 35¢ when selected" in drawn
+        assert "Crew rating: 55¢" not in drawn
+        assert_reconciled(gang)
+
+    def test_zero_rating_is_shown_for_a_confirmed_crew(
+        self,
+        client,
+        campaign,
+        battle,
+        gang,
+        arbitrator,
+        flag,
+        default_pack,
+        make_profile,
+    ):
+        model = hire(gang, make_profile("Gunner"), "Mara")
+        save_crew(
+            battle=battle,
+            gang=gang,
+            actor=arbitrator,
+            revision=0,
+            selections=[CrewSelection(str(model.pk), "starting")],
+            confirm=True,
+        )
+        drawn = client.get(address(campaign, battle)).content.decode()
+        assert "Crew rating: 0¢" in drawn
+        assert "Reinforcements rating:" not in drawn
+
+    def test_draft_crew_rating_is_not_published(
+        self,
+        client,
+        campaign,
+        battle,
+        gang,
+        arbitrator,
+        flag,
+        default_pack,
+        make_profile,
+    ):
+        model = hire(gang, make_profile("Gunner"), "Mara", paid=65)
+        save_crew(
+            battle=battle,
+            gang=gang,
+            actor=arbitrator,
+            revision=0,
+            selections=[CrewSelection(str(model.pk), "starting")],
+        )
+        client.force_login(User.objects.create_user("spectator"))
+        drawn = client.get(address(campaign, battle)).content.decode()
+        assert "Draft saved" in drawn
+        assert "Crew rating:" not in drawn
+        assert "Reinforcements rating:" not in drawn
+        assert_reconciled(gang)
+
+    def test_participant_actions_and_recorded_by_have_no_extra_footer_explanation(
+        self, client, campaign, battle, flag
+    ):
+        response = client.get(address(campaign, battle))
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert (
+            soup.select_one("#battle-participants-heading").get_text() == "Participants"
+        )
+        assert soup.find("h3", string="Post-battle actions") is not None
+        assert "Recorded by arbitrator on" in soup.get_text(" ", strip=True)
+        drawn = response.content.decode()
+        assert "Each player records their gang" not in drawn
+        assert "Editing this battle does not change" not in drawn
+        assert "Crew rating:" not in drawn
+        assert address(campaign, battle, "remove/") in drawn
+
     def test_own_gang_first_with_shared_colour_and_type_flair(
         self, client, campaign, battle, gang, gang_type, flag, arbitrator, monkeypatch
     ):
@@ -239,6 +357,7 @@ class TestBattlePages:
         url = address(campaign, battle, "remove/")
         detail = client.get(address(campaign, battle)).content.decode()
         assert url not in detail
+        assert "This battle cannot be removed because" not in detail
         question = client.get(url).content.decode()
         assert 'type="submit"' not in question
         assert "cannot remove it" in question
@@ -344,11 +463,11 @@ class TestBattlePermissions:
             assert client.get(url).status_code == 404
             assert client.post(url, fields(gang, revision=0)).status_code == 404
 
-    def test_gang_history_link_only_for_its_owner(
+    def test_gang_history_link_is_omitted_for_its_owner_too(
         self, client, campaign, battle, gang, flag
     ):
         drawn = client.get(address(campaign, battle)).content.decode()
-        assert f"/n26/gangs/{gang.pk}/history/" in drawn
+        assert f"/n26/gangs/{gang.pk}/history/" not in drawn
 
     @pytest.mark.parametrize("suffix", ["", "edit/", "remove/"])
     def test_foreign_or_invalid_battle_is_404(
@@ -379,6 +498,64 @@ class TestBattlePermissions:
 
 
 class TestBattleQueryGrowth:
+    def test_more_saved_crews_and_members_add_no_queries(
+        self,
+        client,
+        campaign,
+        battle,
+        gang,
+        gang_type,
+        arbitrator,
+        flag,
+        default_pack,
+        make_profile,
+    ):
+        profile = make_profile("Gunner")
+
+        def select_crew(playing, count):
+            models = [
+                hire(playing, profile, f"Gunner {index}", paid=20)
+                for index in range(count)
+            ]
+            save_crew(
+                battle=battle,
+                gang=playing,
+                actor=arbitrator,
+                revision=0,
+                selections=[
+                    CrewSelection(
+                        str(model.pk), "starting" if index == 0 else "reserve"
+                    )
+                    for index, model in enumerate(models)
+                ],
+                confirm=True,
+            )
+            assert_reconciled(playing)
+
+        select_crew(gang, 1)
+        url = address(campaign, battle)
+        client.get(url)
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(url).status_code == 200
+        for index in range(3):
+            extra = found_gang(f"Gang {index}", gang_type, owner=arbitrator)
+            join_campaign(extra, campaign)
+            battle.gangs.add(extra)
+            select_crew(extra, 3)
+        with CaptureQueriesContext(connection) as many:
+            response = client.get(url)
+            assert response.status_code == 200
+        assert len(many) == len(few)
+        assert sorted(
+            (p.crew.starting_rating, p.crew.reserve_rating)
+            for p in response.context["participants"]
+        ) == [
+            (20, 0),
+            (20, 40),
+            (20, 40),
+            (20, 40),
+        ]
+
     @pytest.mark.parametrize("screen", ["detail", "edit", "create", "campaign"])
     def test_participants_and_winners_add_no_queries(
         self, client, campaign, battle, gang, gang_type, arbitrator, flag, screen

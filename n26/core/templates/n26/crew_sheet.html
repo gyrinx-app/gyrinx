@@ -10,6 +10,7 @@
 {% endblock %}
 {% block content %}
     <div class="w-full space-y-6">
+        <div><c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}">Back to battle</c-n26.link></div>
         <c-n26.page-header title="{{ gang.name }} crew"
                            lead="{{ battle.title }} · {{ battle.date|date:'j F Y' }}">
             <c-slot name="breadcrumb">
@@ -22,26 +23,41 @@
                 </c-ui.breadcrumbs>
             </c-slot>
             <c-slot name="actions">
-                {% if editable %}<c-ui.button href="{% url 'n26-battle-crew' campaign.pk battle.pk gang.pk %}">Edit crew</c-ui.button>{% endif %}
-                {% if print_view %}
-                    <c-ui.button type="button" onclick="window.print()" class="print:hidden">
-                        <span class="inline-flex items-center gap-2">
-                            <c-n26.icon name="printer" class="size-4" />
-                        Print</span>
-                    </c-ui.button>
-                {% else %}
-                    <c-ui.button href="?print=1">
-                        <span class="inline-flex items-center gap-2">
-                            <c-n26.icon name="printer" class="size-4" />
-                        Print view</span>
+                {% if editable %}
+                    <c-ui.button href="{% url 'n26-battle-crew' campaign.pk battle.pk gang.pk %}"
+                                 class="w-32">
+                        <span class="flex items-center justify-center gap-2">
+                            <c-n26.icon name="pencil" class="size-4" />
+                            Edit crew
+                        </span>
                     </c-ui.button>
                 {% endif %}
+                <c-ui.button href="?print=1" class="w-32">
+                    <span class="flex items-center justify-center gap-2">
+                        <c-n26.icon name="printer" class="size-4" />
+                        Print
+                    </span>
+                </c-ui.button>
             </c-slot>
         </c-n26.page-header>
-        <div class="flex flex-wrap items-center gap-3 text-sm">
-            <span>{{ sheet.starting|length }} starting · {{ sheet.reserves|length }} reinforcements</span>
-            <span class="tabular-nums">{{ sheet.rating }}¢ when selected</span>
-            {% if crew.confirmed %}<c-ui.badge color="green">Saved crew</c-ui.badge>{% else %}<c-ui.badge color="amber">Draft</c-ui.badge>{% endif %}
+        <div class="space-y-3">
+            <div>{% if crew.confirmed %}<c-ui.badge color="green">Saved crew</c-ui.badge>{% else %}<c-ui.badge color="amber">Draft</c-ui.badge>{% endif %}</div>
+            <dl class="grid grid-cols-2 gap-4 rounded-box border border-box-border bg-surface p-4">
+                <div>
+                    <dt class="text-sm text-muted">Starting crew</dt>
+                    <dd class="mt-1 text-xl font-semibold tabular-nums">
+                        {{ sheet.starting|length }}
+                        <span class="block text-sm font-normal text-muted">{{ sheet.starting_rating }}¢ when selected</span>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted">Reinforcements</dt>
+                    <dd class="mt-1 text-xl font-semibold tabular-nums">
+                        {{ sheet.reserves|length }}
+                        {% if sheet.reserves %}<span class="block text-sm font-normal text-muted">{{ sheet.reserve_rating }}¢ when selected</span>{% endif %}
+                    </dd>
+                </div>
+            </dl>
         </div>
         <p class="text-sm text-muted">The saved cards keep their equipment selection. Characteristics, XP and status show the model as it is now.</p>
         {% for label, members in groups %}
@@ -56,11 +72,7 @@
                                     <span class="text-muted">{{ line.member.get_source_display }}{% if line.member.card_source == "override" %} · Card overridden{% elif line.member.card_source == "random" %} · Random card{% endif %}</span>
                                 </div>
                                 {% if line.card %}
-                                    {% if print_view %}
-                                        <c-n26.model-card :card="line.card" mode="view" :tabs="False" />
-                                    {% else %}
-                                        <c-n26.model-card :card="line.card" mode="view" />
-                                    {% endif %}
+                                    <c-n26.model-card :card="line.card" mode="readonly" />
                                 {% else %}
                                     <div class="border border-box-border bg-surface p-4">
                                         <p class="font-semibold">{{ line.member.miniature_name }}</p>
@@ -76,6 +88,5 @@
             {% endif %}
         {% endfor %}
         {% if not sheet.starting and not sheet.reserves %}<p class="text-sm text-muted">No models selected yet. Edit the crew to select models.</p>{% endif %}
-        <div class="border-t border-box-border pt-4 print:hidden"><c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}">Back to battle</c-n26.link></div>
     </div>
 {% endblock %}

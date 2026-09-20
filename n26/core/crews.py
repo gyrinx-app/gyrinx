@@ -301,6 +301,8 @@ class CrewSheet:
     starting: list[CrewCard] = field(default_factory=list)
     reserves: list[CrewCard] = field(default_factory=list)
     rating: int = 0
+    starting_rating: int = 0
+    reserve_rating: int = 0
 
 
 def build_crew_sheet(crew):
@@ -329,7 +331,16 @@ def build_crew_sheet(crew):
     compute_gang(gang_card, index)
     minis = [member.miniature for member in members if member.miniature]
     brought = brought_in_by(minis)
-    sheet = CrewSheet(crew=crew, rating=sum(m.rating for m in members))
+    sheet = CrewSheet(
+        crew=crew,
+        starting_rating=sum(
+            m.rating for m in members if m.role == CrewMember.Role.STARTING
+        ),
+        reserve_rating=sum(
+            m.rating for m in members if m.role == CrewMember.Role.RESERVE
+        ),
+    )
+    sheet.rating = sheet.starting_rating + sheet.reserve_rating
     for member in members:
         miniature = member.miniature
         raw = gang_card.members.get(member.miniature_id)

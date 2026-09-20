@@ -5,21 +5,49 @@
     <head>
         <meta charset="utf-8">
         {% comment %}
-        A bare document, not the app shell. This URL is the print target
-        itself — what a phone opens and what the print dialog turns into
-        paper — so it carries no nav, no footer and no theme widget, which
-        would all be hidden again by print rules and each a way for the
-        printed artefact to differ from the previewed one. The lab's sheet
-        page (designsystem/print_sheet.html) establishes the pattern.
+        A bare document, not the app shell. Crew prints add only a screen-only
+        toolbar. Everything inside the sheet is the print target itself.
         {% endcomment %}
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="A printable gang sheet.">
-        <title>Print — {{ gang.name }}</title>
+        <meta name="description"
+              content="A printable {% if crew_sheet %}crew{% else %}gang{% endif %} sheet.">
+        <title>Print — {{ gang.name }}{% if crew_sheet %} crew{% endif %}</title>
         <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
     </head>
     <body>
+        {% if crew_sheet %}
+            <nav aria-label="Crew print controls"
+                 class="flex flex-wrap items-center justify-between gap-3 border-b border-box-border bg-surface px-4 py-3 print:hidden">
+                <c-n26.link href="{{ crew_url }}">
+                    Back to crew
+                </c-n26.link>
+                <c-ui.button type="button" onclick="window.print()" data-busy="off">
+                    <span class="flex items-center justify-center gap-2">
+                        <c-n26.icon name="printer" class="size-4" />
+                        Print
+                    </span>
+                </c-ui.button>
+            </nav>
+        {% endif %}
         <c-n26.print.sheet fit="1" scroll="1">
-            {% if include_header %}
+            {% if crew_sheet %}
+                <c-n26.print.card title="{{ gang.name }} crew"
+                                  subtitle="{{ battle.title }} · {{ battle.date|date:'j F Y' }}">
+                    <c-n26.print.columns>
+                        <c-n26.print.column>
+                            <c-n26.print.entry label="Starting crew">
+                                {{ crew_sheet.starting|length }} · {{ crew_sheet.starting_rating }}¢ when selected
+                            </c-n26.print.entry>
+                        </c-n26.print.column>
+                        <c-n26.print.column>
+                            <c-n26.print.entry label="Reinforcements">
+                                {{ crew_sheet.reserves|length }}{% if crew_sheet.reserves %} · {{ crew_sheet.reserve_rating }}¢ when selected{% endif %}
+                            </c-n26.print.entry>
+                            {% if not crew_sheet.crew.confirmed %}<c-n26.print.entry label="Crew">Draft</c-n26.print.entry>{% endif %}
+                        </c-n26.print.column>
+                    </c-n26.print.columns>
+                </c-n26.print.card>
+            {% elif include_header %}
                 {% comment %}
                 The gang's own block: what it is called, what it is, what it is
                 worth. A card like any other so it obeys the same fragmentation
@@ -48,7 +76,7 @@
                     </c-n26.print.columns>
                 </c-n26.print.card>
             {% endif %}
-            {% if include_notes and gang.notes %}
+            {% if include_notes and gang.notes and not crew_sheet %}
                 <c-n26.print.card title="Notes">
                     {{ gang.notes|safe_rich_text }}
                 </c-n26.print.card>
@@ -83,60 +111,73 @@
             {% endcomment %}
             <c-n26.print.grid columns="2" gutter="4mm">
                 {% for row in rows %}
-                    {% comment %}
+                    {% if row.card %}
+                        {% comment %}
                     Current status leads the subtitle, where it remains visible
                     before the profile and a pet's owner.
-                    {% endcomment %}
-                    <c-n26.print.card title="{{ row.card.name }}"
-                                      subtitle="{{ row.subtitle }}"
-                                      badge="{{ row.card.rating }}¢">
-                        {% if include_notes %}
-                            {% comment %}
+                        {% endcomment %}
+                        <c-n26.print.card title="{{ row.card.name }}"
+                                          subtitle="{{ row.subtitle }}"
+                                          badge="{{ row.card.rating }}¢">
+                            {% if include_notes %}
+                                {% comment %}
                             Notes, a box to write in, and the picture share
                             one footer so they sit together at the bottom of
                             the card. The same toggle takes the whole strip
                             off. Lore never prints — it is read once, not at
                             the table.
-                            {% endcomment %}
-                            <c-slot name="foot">
-                                <div class="n26-print-foot">
-                                    <div class="n26-print-foot-fields">
-                                        {% if row.card.notes %}
-                                            <div class="n26-print-notes">
-                                                <div class="n26-print-label">Notes</div>
-                                                <div class="n26-print-notes-body">{{ row.card.notes|safe_rich_text }}</div>
+                                {% endcomment %}
+                                <c-slot name="foot">
+                                    <div class="n26-print-foot">
+                                        <div class="n26-print-foot-fields">
+                                            {% if row.card.notes %}
+                                                <div class="n26-print-notes">
+                                                    <div class="n26-print-label">Notes</div>
+                                                    <div class="n26-print-notes-body">{{ row.card.notes|safe_rich_text }}</div>
+                                                </div>
+                                            {% endif %}
+                                            <c-n26.print.field height="10mm"
+                                                               label="{% if not row.card.notes %}Notes{% endif %}" />
+                                        </div>
+                                        {% if row.card.image_url %}
+                                            <div class="n26-print-photo">
+                                                <img src="{{ row.card.image_url }}"
+                                                     alt="A picture of {{ row.card.name }}">
                                             </div>
                                         {% endif %}
-                                        <c-n26.print.field height="10mm"
-                                                           label="{% if not row.card.notes %}Notes{% endif %}" />
                                     </div>
-                                    {% if row.card.image_url %}
-                                        <div class="n26-print-photo">
-                                            <img src="{{ row.card.image_url }}" alt="A picture of {{ row.card.name }}">
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </c-slot>
-                        {% endif %}
-                        <c-n26.print.statline :statline="row.card.statline"
-                                              type_line="{{ row.card.type_line }}"
-                                              xp="{{ row.card.xp_display }}"
-                                              class="n26-print-bleed" />
-                        {% if row.card.weapons %}
-                            <c-n26.print.weapons :card="row.card" />
-                        {% endif %}
-                        <c-n26.print.columns class="n26-print-mt">
-                            {% for column in row.columns %}
-                                <c-n26.print.column>
-                                    {% for group in column %}
-                                        <c-n26.print.entry label="{{ group.label }}">
-                                            {{ group.text }}
-                                        </c-n26.print.entry>
-                                    {% endfor %}
-                                </c-n26.print.column>
-                            {% endfor %}
-                        </c-n26.print.columns>
-                    </c-n26.print.card>
+                                </c-slot>
+                            {% endif %}
+                            <c-n26.print.statline :statline="row.card.statline"
+                                                  type_line="{{ row.card.type_line }}"
+                                                  xp="{{ row.card.xp_display }}"
+                                                  class="n26-print-bleed" />
+                            {% if row.card.weapons %}
+                                <c-n26.print.weapons :card="row.card" />
+                            {% endif %}
+                            <c-n26.print.columns class="n26-print-mt">
+                                {% for column in row.columns %}
+                                    <c-n26.print.column>
+                                        {% for group in column %}
+                                            <c-n26.print.entry label="{{ group.label }}">
+                                                {{ group.text }}
+                                            </c-n26.print.entry>
+                                        {% endfor %}
+                                    </c-n26.print.column>
+                                {% endfor %}
+                            </c-n26.print.columns>
+                            {% if row.missing_equipment %}
+                                <p class="n26-print-mt">Some saved equipment is no longer on this model. It is not shown on the card.</p>
+                            {% endif %}
+                            {% if row.member.eligibility_override %}
+                                <p class="n26-print-mt">Selected with an availability override.</p>
+                            {% endif %}
+                        </c-n26.print.card>
+                    {% else %}
+                        <c-n26.print.card title="{{ row.member.miniature_name }}" subtitle="{{ row.subtitle }}">
+                            This model is no longer on the roster.
+                        </c-n26.print.card>
+                    {% endif %}
                 {% endfor %}
             </c-n26.print.grid>
         </c-n26.print.sheet>

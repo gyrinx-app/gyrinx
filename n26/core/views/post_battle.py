@@ -5,8 +5,11 @@ from uuid import uuid4
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -98,6 +101,36 @@ def _report_destination(report):
     return redirect(name, pk=report.pk)
 
 
+def _campaign_report_entry(battle, gang):
+    report = next(iter(battle.gang_reports), None)
+    entry = {"battle": battle, "report": report}
+    if battle.campaign.archived:
+        entry["unavailable"] = "This campaign is archived."
+    elif report and (
+        report.state == PostBattleReport.State.APPLIED
+        or (not battle.is_participant and report.latest_sequence)
+    ):
+        entry.update(
+            href=reverse("n26-post-battle-receipt", args=[report.pk]),
+            label="View results",
+        )
+    elif not battle.is_participant:
+        entry["unavailable"] = "This gang is no longer a participant in this battle."
+    elif report:
+        entry.update(
+            href=reverse("n26-post-battle-editor", args=[report.pk]),
+            label="Continue draft",
+        )
+    else:
+        entry.update(
+            href=reverse(
+                "n26-battle-report", args=[battle.campaign_id, battle.pk, gang.pk]
+            ),
+            label="Post-battle",
+        )
+    return entry
+
+
 @requires_flag(CAMPAIGNS)
 @login_required
 def gang_post_battle(request, pk):
@@ -120,18 +153,37 @@ def gang_post_battle(request, pk):
             form.add_error(None, str(exc))
         else:
             return _report_destination(report)
+
+    reports = gang.post_battle_reports.defer("draft")
+    battles = (
+        Battle.objects.annotate(
+            is_participant=Exists(
+                Battle.gangs.through.objects.filter(battle_id=OuterRef("pk"), gang=gang)
+            )
+        )
+        .filter(
+            Q(is_participant=True, campaign__archived=False)
+            | Exists(reports.filter(battle_id=OuterRef("pk")))
+        )
+        .select_related("campaign")
+        .prefetch_related(Prefetch("reports", queryset=reports, to_attr="gang_reports"))
+        .order_by("-date", "-pk")
+    )
+    campaign_page = Paginator(battles, 30).get_page(request.GET.get("campaign_page"))
+    standalone_page = Paginator(reports.filter(battle__isnull=True), 50).get_page(
+        request.GET.get("standalone_page")
+    )
     return render(
         request,
         "n26/post_battle_list.html",
         {
             "gang": gang,
             "form": form,
-            "reports": gang.post_battle_reports.select_related("battle", "last_editor")[
-                :50
+            "campaign_entries": [
+                _campaign_report_entry(battle, gang) for battle in campaign_page
             ],
-            "battles": Battle.objects.filter(gangs=gang, campaign__archived=False)
-            .select_related("campaign")
-            .order_by("-date", "-pk")[:30],
+            "campaign_page": campaign_page,
+            "standalone_page": standalone_page,
         },
     )
 

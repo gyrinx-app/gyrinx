@@ -2,6 +2,7 @@
 
 from datetime import date
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
@@ -23,6 +24,7 @@ from n26.core.models import (
     PostBattleReport,
 )
 from n26.core.operations import operation
+from n26.core.post_battle import start_report
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
 from n26.flags import CAMPAIGNS, FOUNDING
@@ -475,6 +477,183 @@ class TestGangActions:
         assert document.find("a", href=url) is None
         assert client.get(url).status_code == 404
         assert client.post(url, {}).status_code == 404
+
+
+class TestReportGroups:
+    """Every saved report belongs to one group and has one continuation link."""
+
+    @pytest.mark.parametrize("applied", [False, True])
+    def test_campaign_report_appears_once_beside_its_battle(
+        self, client, table, feature, applied
+    ):
+        report = start(client, table)
+        if applied:
+            response = client.post(
+                editor_url(report), awards(client.get(editor_url(report)), table)
+            )
+            assert response.status_code == 302
+        standalone = start_report(
+            table.gang,
+            actor=table.owner,
+            request_key=uuid4(),
+            reference="A separate battle",
+        )
+        response = client.get(start_url(table, standalone=True))
+        document = BeautifulSoup(response.content, "html.parser")
+        campaign_group = document.select_one("#campaign-battles")
+        standalone_group = document.select_one("#standalone-reports")
+        destination = receipt_url(report) if applied else editor_url(report)
+        assert len(document.find_all("a", href=destination)) == 1
+        assert campaign_group.find("a", href=destination).get_text(strip=True) == (
+            "View results" if applied else "Continue draft"
+        )
+        assert campaign_group.find("a", href=start_url(table)) is None
+        assert standalone_group.find("a", href=destination) is None
+        assert len(document.find_all("a", href=editor_url(standalone))) == 1
+        assert standalone_group.find("a", href=editor_url(standalone)) is not None
+        assert campaign_group.find("a", href=editor_url(standalone)) is None
+        assert "Saved reports" not in document.get_text()
+        assert "Start a standalone report" in standalone_group.get_text()
+
+    def test_other_gangs_reports_do_not_change_this_gangs_battle_action(
+        self, client, table, feature, gang_type
+    ):
+        opponent = found_gang("Opponents", gang_type, owner=table.arbitrator)
+        join_campaign(opponent, table.campaign)
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.edit_battle(
+                table.battle,
+                scenario=table.battle.scenario,
+                date=table.battle.date,
+                gangs=[table.gang, opponent],
+                result="not_recorded",
+                winners=[],
+                revision=0,
+            )
+        report = start_report(
+            opponent,
+            actor=table.arbitrator,
+            battle=table.battle,
+            request_key=uuid4(),
+        )
+        document = BeautifulSoup(
+            client.get(start_url(table, standalone=True)).content, "html.parser"
+        )
+        assert len(document.find_all("a", href=start_url(table))) == 1
+        assert document.find("a", href=editor_url(report)) is None
+        assert "Continue draft" not in document.get_text()
+
+    def test_empty_groups_are_named_and_keep_the_standalone_form(
+        self, client, table, feature
+    ):
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.archive()
+        document = BeautifulSoup(
+            client.get(start_url(table, standalone=True)).content, "html.parser"
+        )
+        assert (
+            document.select_one("#campaign-battles h2").get_text(strip=True)
+            == "Campaign battles"
+        )
+        assert (
+            document.select_one("#standalone-reports h2").get_text(strip=True)
+            == "Standalone reports"
+        )
+        assert "No campaign battles yet." in document.get_text()
+        assert "No standalone reports yet." in document.get_text()
+        assert document.select_one("#standalone-reports form[method=post]") is not None
+
+    @pytest.mark.parametrize("unavailable", ["archived", "removed"])
+    def test_unavailable_drafts_stay_with_their_battle_without_broken_links(
+        self, client, table, feature, unavailable
+    ):
+        report = start(client, table)
+        if unavailable == "archived":
+            with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+                act.archive()
+            explanation = "This campaign is archived."
+        else:
+            # A legacy participant list may not include the gang its report names.
+            table.battle.gangs.remove(table.gang)
+            explanation = "This gang is no longer a participant in this battle."
+        document = BeautifulSoup(
+            client.get(start_url(table, standalone=True)).content, "html.parser"
+        )
+        campaign_group = document.select_one("#campaign-battles")
+        assert table.battle.title in campaign_group.get_text()
+        assert "Draft saved" in campaign_group.get_text()
+        assert explanation in campaign_group.get_text()
+        assert document.find("a", href=editor_url(report)) is None
+        assert document.find("a", href=start_url(table)) is None
+        assert (
+            table.battle.title
+            not in document.select_one("#standalone-reports").get_text()
+        )
+
+    def test_older_reports_remain_reachable_in_their_own_groups(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            for index in range(30):
+                act.record_battle(
+                    date(2026, 9, 21), [table.gang], scenario=f"Later battle {index}"
+                )
+        standalone = [
+            start_report(
+                table.gang,
+                actor=table.owner,
+                request_key=uuid4(),
+                reference=f"Standalone {index}",
+            )
+            for index in range(51)
+        ]
+        url = start_url(table, standalone=True)
+        first = client.get(url)
+        assert len(first.context["campaign_entries"]) == 30
+        assert len(first.context["standalone_page"]) == 50
+        second = client.get(url, {"campaign_page": 2, "standalone_page": 2})
+        document = BeautifulSoup(second.content, "html.parser")
+        campaign_group = document.select_one("#campaign-battles")
+        standalone_group = document.select_one("#standalone-reports")
+        assert campaign_group.find("a", href=editor_url(report)) is not None
+        assert standalone_group.find("a", href=editor_url(standalone[0])) is not None
+        campaign_previous = campaign_group.select_one("nav a[href]")["href"]
+        standalone_previous = standalone_group.select_one("nav a[href]")["href"]
+        assert parse_qs(urlsplit(campaign_previous).query) == {
+            "campaign_page": ["1"],
+            "standalone_page": ["2"],
+        }
+        assert parse_qs(urlsplit(standalone_previous).query) == {
+            "campaign_page": ["2"],
+            "standalone_page": ["1"],
+        }
+
+    def test_more_battles_and_reports_do_not_add_per_entry_queries(
+        self, client, table, feature
+    ):
+        start(client, table)
+        start_report(table.gang, actor=table.owner, request_key=uuid4())
+        url = start_url(table, standalone=True)
+
+        def count():
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(url)
+                assert response.status_code == 200
+            return len(queries)
+
+        before = count()
+        for index in range(4):
+            with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+                battle = act.record_battle(
+                    date(2026, 9, 21), [table.gang], scenario=f"Battle {index}"
+                )
+            start_report(
+                table.gang, actor=table.owner, battle=battle, request_key=uuid4()
+            )
+            start_report(table.gang, actor=table.owner, request_key=uuid4())
+        assert count() <= before
 
 
 class TestStartingAndResuming:

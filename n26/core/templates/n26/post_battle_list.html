@@ -8,46 +8,108 @@
         <c-n26.page-header title="Post-battle" lead="{{ gang.name }}">
             <c-slot name="breadcrumb"><c-ui.breadcrumbs><c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item><c-ui.breadcrumbs.item :current="True">Post-battle</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
         </c-n26.page-header>
-        <c-n26.section title="Saved reports">
+        <c-n26.section title="Campaign battles"
+                       id="campaign-battles"
+                       class="border border-box-border bg-surface p-4 sm:p-6">
             <ul class="divide-y divide-box-border">
-                {% for report in reports %}
+                {% for entry in campaign_entries %}
                     <li class="flex flex-wrap items-center justify-between gap-3 py-3">
-                        <div><p class="font-medium">{% if report.battle %}{{ report.battle.title }}{% else %}{{ report.reference|default:'Post-battle report' }}{% endif %}</p><p class="text-sm text-muted">{{ report.date|date:'j F Y' }} · {% if report.state == "draft" %}Draft saved{% else %}Results recorded{% endif %} {{ report.modified|date:'j M, H:i' }}</p></div>
-                        {% if report.state == "draft" %}<c-ui.button href="{% url 'n26-post-battle-editor' report.pk %}">Continue draft</c-ui.button>{% else %}<c-ui.button href="{% url 'n26-post-battle-receipt' report.pk %}">View results</c-ui.button>{% endif %}
+                        <div class="min-w-0 space-y-1">
+                            {% if entry.battle.campaign.archived %}
+                                <p class="font-medium">{{ entry.battle.title }}</p>
+                            {% else %}
+                                <c-n26.link href="{% url 'n26-battle' entry.battle.campaign_id entry.battle.pk %}">{{ entry.battle.title }}</c-n26.link>
+                            {% endif %}
+                            <p class="text-sm text-muted">{{ entry.battle.campaign.name }} · {{ entry.battle.date|date:'j F Y' }}</p>
+                            {% if entry.report %}
+                                <p class="text-sm text-muted">{% if entry.report.state == "draft" %}Draft saved{% else %}Results recorded{% endif %} {{ entry.report.modified|date:'j M, H:i' }}</p>
+                            {% endif %}
+                            {% if entry.unavailable %}<p class="text-sm text-muted">{{ entry.unavailable }}</p>{% endif %}
+                        </div>
+                        {% if entry.href %}<c-ui.button variant="primary"
+             href="{{ entry.href }}">{{ entry.label }}</c-ui.button>{% endif %}
                     </li>
-{% empty %}<li class="text-sm text-muted">No reports yet. Choose a battle below or start a standalone report.</li>{% endfor %}
-    </ul>
-    </c-n26.section>
-    {% if battles %}
-        <c-n26.section title="Campaign battles">
-            <ul class="divide-y divide-box-border">{% for battle in battles %}<li class="flex flex-wrap items-center justify-between gap-3 py-3"><div><c-n26.link href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ battle.title }}</c-n26.link><p class="text-sm text-muted">{{ battle.campaign.name }} · {{ battle.date|date:'j F Y' }}</p></div><c-ui.button href="{% url 'n26-battle-report' battle.campaign_id battle.pk gang.pk %}">Post-battle</c-ui.button></li>{% endfor %}</ul>
+                {% empty %}
+                    <li class="text-sm text-muted">No campaign battles yet. You can start a standalone report below.</li>
+                {% endfor %}
+            </ul>
+            {% if campaign_page.paginator.num_pages > 1 %}
+                <c-ui.pagination>
+                    {% if campaign_page.has_previous %}
+                        <c-ui.pagination.prev href="{% querystring campaign_page=campaign_page.previous_page_number %}#campaign-battles" />
+                    {% else %}
+                        <c-ui.pagination.prev :disabled="True" />
+                    {% endif %}
+                    <li class="px-2 text-sm text-muted">Page {{ campaign_page.number }} of {{ campaign_page.paginator.num_pages }}</li>
+                    {% if campaign_page.has_next %}
+                        <c-ui.pagination.next href="{% querystring campaign_page=campaign_page.next_page_number %}#campaign-battles" />
+                    {% else %}
+                        <c-ui.pagination.next :disabled="True" />
+                    {% endif %}
+                </c-ui.pagination>
+            {% endif %}
         </c-n26.section>
-    {% endif %}
-    <form method="post" class="space-y-6">
-        {% csrf_token %}{{ form.request_key }}
-        <c-ui.error :form="form" name="__all__" />
-        <c-n26.form-section title="Standalone report"
-                            description="For a battle that is not recorded in a Gyrinx campaign.">
-            <c-ui.field label="Date" :form="form" name="date" error="date" for="report-date">
-                <c-ui.input type="date"
-                            id="report-date"
-                            name="date"
-                            required
-                            value="{{ form.date_value }}" />
-            </c-ui.field>
-            <c-ui.field label="Reference"
-                        :form="form"
-                        name="reference"
-                        error="reference"
-                        for="report-reference">
-                <c-ui.input id="report-reference"
+        <c-n26.section title="Standalone reports"
+                       id="standalone-reports"
+                       class="border border-box-border bg-surface p-4 sm:p-6">
+            <p class="text-sm text-muted">For battles that are not recorded in a Gyrinx campaign.</p>
+            <ul class="divide-y divide-box-border">
+                {% for report in standalone_page %}
+                    <li class="flex flex-wrap items-center justify-between gap-3 py-3">
+                        <div class="min-w-0 space-y-1">
+                            <p class="font-medium">{{ report.reference|default:'Post-battle report' }}</p>
+                            <p class="text-sm text-muted">{{ report.date|date:'j F Y' }} · {% if report.state == "draft" %}Draft saved{% else %}Results recorded{% endif %} {{ report.modified|date:'j M, H:i' }}</p>
+                        </div>
+                        {% if report.state == "draft" %}
+                            <c-ui.button variant="primary"
+                                         href="{% url 'n26-post-battle-editor' report.pk %}">Continue draft</c-ui.button>
+                        {% else %}
+                            <c-ui.button href="{% url 'n26-post-battle-receipt' report.pk %}">View results</c-ui.button>
+                        {% endif %}
+                    </li>
+                {% empty %}
+                    <li class="text-sm text-muted">No standalone reports yet.</li>
+                {% endfor %}
+            </ul>
+            {% if standalone_page.paginator.num_pages > 1 %}
+                <c-ui.pagination>
+                    {% if standalone_page.has_previous %}
+                        <c-ui.pagination.prev href="{% querystring standalone_page=standalone_page.previous_page_number %}#standalone-reports" />
+                    {% else %}
+                        <c-ui.pagination.prev :disabled="True" />
+                    {% endif %}
+                    <li class="px-2 text-sm text-muted">Page {{ standalone_page.number }} of {{ standalone_page.paginator.num_pages }}</li>
+                    {% if standalone_page.has_next %}
+                        <c-ui.pagination.next href="{% querystring standalone_page=standalone_page.next_page_number %}#standalone-reports" />
+                    {% else %}
+                        <c-ui.pagination.next :disabled="True" />
+                    {% endif %}
+                </c-ui.pagination>
+            {% endif %}
+            <form method="post" class="space-y-5 border-t border-box-border pt-5">
+                {% csrf_token %}{{ form.request_key }}
+                <h3 class="font-semibold">Start a standalone report</h3>
+                <c-ui.error :form="form" name="__all__" />
+                <c-ui.field label="Date" :form="form" name="date" error="date" for="report-date">
+                    <c-ui.input type="date"
+                                id="report-date"
+                                name="date"
+                                required
+                                value="{{ form.date_value }}" />
+                </c-ui.field>
+                <c-ui.field label="Reference"
+                            :form="form"
                             name="reference"
-                            maxlength="200"
-                            value="{{ form.reference.value|default:'' }}" />
-                <p class="mt-1 text-sm text-muted">Optional — a scenario or opponent helps you recognise this report.</p>
-            </c-ui.field>
-        </c-n26.form-section>
-        <c-n26.form-actions submit_label="Start draft" submit_variant="success" />
-    </form>
+                            error="reference"
+                            for="report-reference">
+                    <c-ui.input id="report-reference"
+                                name="reference"
+                                maxlength="200"
+                                value="{{ form.reference.value|default:'' }}" />
+                    <p class="mt-1 text-sm text-muted">Optional — a scenario or opponent helps you recognise this report.</p>
+                </c-ui.field>
+                <c-n26.form-actions submit_label="Start draft" submit_variant="success" />
+            </form>
+        </c-n26.section>
     </div>
 {% endblock %}

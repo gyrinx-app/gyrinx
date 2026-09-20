@@ -4,6 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -12,12 +13,20 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag, WritePause
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
-from n26.core.models import BattleCrew
+from n26.core.models import BattleCrew, PrintConfig
 from n26.core.operations import operation
 from n26.core.status import Status
 from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
+    assign,
+    buy,
+    choose,
     create_assignment_set,
+    create_pickable,
+    create_picklist,
+    create_slot,
+    create_slot_type,
+    create_wargear,
     create_weapon,
     found_campaign,
     found_gang,
@@ -107,8 +116,59 @@ class TestCrewForms:
         assert "Long range" in body
         assert "Autogun" in body
         assert "n26-card-tabs" in body
-        assert "Model cards" in body
+        assert 'aria-label="Model cards"' not in body
         assert "Reinforcements" in body
+
+    def test_sheet_puts_back_link_first_and_matches_action_button_markup(
+        self, client, table, feature
+    ):
+        give_weapon(table.models[0], create_weapon("Bolt pistol"), paid=10)
+        give_weapon(table.models[1], create_weapon("Knife"), paid=5)
+        client.post(address(table), fields(table))
+        body = client.get(address(table, sheet=True)).content.decode()
+        assert body.index("Back to battle") < body.index("Iron Hounds crew</h1>")
+        document = BeautifulSoup(body, "html.parser")
+        edit = document.find("a", href=address(table))
+        print_link = document.find("a", href="?print=1")
+        assert edit.get_text(" ", strip=True) == "Edit crew"
+        assert print_link.get_text(" ", strip=True) == "Print"
+        assert edit["class"] == print_link["class"]
+        assert edit.span["class"] == print_link.span["class"]
+        labels = {
+            label.get_text(strip=True): label.find_next_sibling("dd").get_text(
+                " ", strip=True
+            )
+            for label in document.select("dt")
+        }
+        assert labels["Starting crew"] == "1 10¢ when selected"
+        assert labels["Reinforcements"] == "1 5¢ when selected"
+
+    def test_crew_cards_show_injuries_without_editing_prompts(
+        self, client, table, feature
+    ):
+        kind = create_slot_type("Lasting injury", is_lasting_effect=True)
+        wound = create_pickable("Grievous Wound", kind)
+        choices = create_picklist("Injuries", kind, members=[wound])
+        slot = create_slot(
+            "Lasting injuries", kind, choices, min_picks=0, max_picks=100
+        )
+        for model in table.models:
+            anchor = assign(slot, miniature=model)
+            if model == table.models[0]:
+                choose(anchor, wound)
+        client.post(address(table), fields(table))
+        response = client.get(address(table, sheet=True))
+        document = BeautifulSoup(response.content, "html.parser")
+        cards = document.select(".n26-card-tabs")
+        assert len(cards) == 2
+        assert "Grievous Wound" in cards[0].get_text()
+        assert "None" in cards[1].stripped_strings
+        for card in cards:
+            assert not card.select("a[href], form")
+            assert not {"Add", "Choose", "Dismiss", "Restore"}.intersection(
+                card.stripped_strings
+            )
+        assert not document.select('[aria-label="Model cards"]')
 
     def test_saved_draft_reopens_with_selections(self, client, table, feature):
         response = client.post(address(table), fields(table, action="draft"))
@@ -251,12 +311,80 @@ class TestCrewPagePermissions:
         assert client.get(address(table)).status_code == 200
         assert client.post(address(table), fields(table)).status_code == 302
 
-    def test_print_variant_draws_cards_without_tabs(self, client, table, feature):
+    def test_print_opens_the_paper_layout_without_configuration_or_writes(
+        self, client, table, feature
+    ):
+        give_weapon(table.models[0], create_weapon("Bolt pistol"), paid=10)
+        give_weapon(table.models[1], create_weapon("Knife"), paid=5)
         client.post(address(table), fields(table))
+        crew = BattleCrew.objects.get()
+        revision = crew.revision
+        config_count = PrintConfig.objects.count()
         response = client.get(address(table, sheet=True) + "?print=1")
         assert response.status_code == 200
-        assert 'class="n26-card-tabs"' not in response.content.decode()
-        assert "Autogun" in response.content.decode()
+        assert "n26/print_gang.html" in {
+            template.name for template in response.templates
+        }
+        document = BeautifulSoup(response.content, "html.parser")
+        assert not document.select(".n26-card-tabs, form")
+        paper = document.select_one(".n26-print-sheet")
+        assert paper["data-page"] == "a4"
+        assert paper["data-orientation"] == "portrait"
+        assert "Autogun" in paper.get_text()
+        assert "Toll bridge" in paper.get_text()
+        assert "Starting crew · Long range" in paper.get_text()
+        assert "Reinforcements · Full equipment" in paper.get_text()
+        header = paper.select_one(".n26-print-card")
+        entries = {
+            entry.select_one(".n26-print-entry-label").get_text(
+                strip=True
+            ): entry.select_one(".n26-print-entry-value").get_text(" ", strip=True)
+            for entry in header.select(".n26-print-entry")
+        }
+        assert entries["Starting crew"] == "1 · 10¢ when selected"
+        assert entries["Reinforcements"] == "1 · 5¢ when selected"
+        toolbar = document.select_one('[aria-label="Crew print controls"]')
+        assert "print:hidden" in toolbar["class"]
+        assert toolbar.find("button", onclick="window.print()") is not None
+        assert toolbar.find("a", href=address(table, sheet=True)) is not None
+        crew.refresh_from_db()
+        assert crew.revision == revision
+        assert PrintConfig.objects.count() == config_count
+
+    def test_print_keeps_saved_weapons_and_wargear_after_named_card_changes(
+        self, client, table, feature
+    ):
+        model = table.models[0]
+        goggles = buy(model, thing=create_wargear("Photo-goggles"))
+        respirator = buy(model, thing=create_wargear("Respirator"))
+        knife = give_weapon(model, create_weapon("Knife"))
+        table.card.assignments.add(goggles)
+        client.post(address(table), fields(table))
+        table.card.assignments.set([knife, respirator])
+        response = client.get(address(table, sheet=True) + "?print=1")
+        body = response.content.decode()
+        assert "Autogun" in body
+        assert "Photo-goggles" in body
+        assert "Knife" not in body
+        assert "Respirator" not in body
+        card = response.context["rows"][0]["card"]
+        assert [weapon.name for weapon in card.weapons] == ["Autogun"]
+        assert [gear.name for gear in card.equipment] == ["Photo-goggles"]
+
+    def test_print_keeps_a_missing_model_in_its_saved_crew_role(
+        self, client, table, feature
+    ):
+        client.post(address(table), fields(table))
+        BattleCrew.objects.get().members.filter(miniature=table.models[0]).update(
+            miniature=None
+        )
+        response = client.get(address(table, sheet=True) + "?print=1")
+        document = BeautifulSoup(response.content, "html.parser")
+        printed_cards = document.select(".n26-print-grid .n26-print-card")
+        assert len(printed_cards) == 2
+        assert "Mara" in printed_cards[0].get_text()
+        assert "Starting crew · Long range" in printed_cards[0].get_text()
+        assert "This model is no longer on the roster." in printed_cards[0].get_text()
 
     def test_bad_addresses_are_not_server_errors(self, client, table, feature):
         path = address(table).replace(str(table.gang.pk), "not-an-id")
@@ -264,16 +392,18 @@ class TestCrewPagePermissions:
 
 
 class TestCrewPageQueryGrowth:
+    @pytest.mark.parametrize("print_view", [False, True])
     def test_more_models_add_no_per_card_query_to_the_sheet(
-        self, client, table, feature
+        self, client, table, feature, print_view
     ):
         client.post(
             address(table), fields(table, **{f"role_{table.models[1].pk}": "out"})
         )
         # Warm URL, content and template caches before measuring the page.
-        client.get(address(table, sheet=True))
+        sheet_url = address(table, sheet=True) + ("?print=1" if print_view else "")
+        client.get(sheet_url)
         with CaptureQueriesContext(connection) as small:
-            assert client.get(address(table, sheet=True)).status_code == 200
+            assert client.get(sheet_url).status_code == 200
         profile = table.models[1].membership.profile
         extra = [hire(table.gang, profile, f"Extra {number}") for number in range(4)]
         table.models.extend(extra)
@@ -281,7 +411,7 @@ class TestCrewPageQueryGrowth:
         for model in extra:
             payload[f"role_{model.pk}"] = "starting"
         assert client.post(address(table), payload).status_code == 302
-        client.get(address(table, sheet=True))
+        client.get(sheet_url)
         with CaptureQueriesContext(connection) as large:
-            assert client.get(address(table, sheet=True)).status_code == 200
+            assert client.get(sheet_url).status_code == 200
         assert len(large) <= len(small)

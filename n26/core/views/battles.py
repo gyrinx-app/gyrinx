@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -38,7 +38,6 @@ class BattleParticipant:
     id: str
     name: str
     winner: bool
-    may_read_history: bool
     gang: object
     may_record: bool
     crew: object = None
@@ -59,6 +58,12 @@ def battle(request, pk, battle_pk):
         for crew in BattleCrew.objects.filter(battle=found).annotate(
             starting_count=Count("members", filter=Q(members__role="starting")),
             reserve_count=Count("members", filter=Q(members__role="reserve")),
+            starting_rating=Sum(
+                "members__rating", filter=Q(members__role="starting"), default=0
+            ),
+            reserve_rating=Sum(
+                "members__rating", filter=Q(members__role="reserve"), default=0
+            ),
         )
     }
     reports = {
@@ -72,7 +77,6 @@ def battle(request, pk, battle_pk):
             id=str(gang.pk),
             name=gang.name,
             winner=gang.pk in winners,
-            may_read_history=gang.owner_id == request.user.pk,
             gang=gang,
             may_record=may_record_gang(
                 gang=gang,

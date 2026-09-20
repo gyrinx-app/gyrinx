@@ -12,6 +12,7 @@ from n26.core.crew_forms import CrewForm
 from n26.core.crews import build_crew_sheet, crew_roster, may_edit_crew, save_crew
 from n26.core.models.crew import BattleCrew
 from n26.core.operations import Refusal
+from n26.core.printing import detail_columns
 from n26.core.views.battles import battle_or_404
 from n26.core.views.permissions import _any_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
@@ -105,14 +106,51 @@ def crew_sheet(request, pk, battle_pk, gang_pk):
     # The fetched gang is reused so drawing the crew needs no lazy FK query.
     crew.gang = gang
     sheet = build_crew_sheet(crew)
-    print_view = request.GET.get("print") == "1"
-    if gang.owner_id == request.user.pk and not print_view:
+    if request.GET.get("print") == "1":
+        # These cards already use the saved equipment snapshot. The general
+        # print picker keeps all wargear, so rebuilding through it would change
+        # the crew's chosen cards.
+        rows = []
         for line in [*sheet.starting, *sheet.reserves]:
-            if line.card:
-                line.card.model_cards_href = reverse(
-                    "n26-model-cards",
-                    kwargs={"pk": gang.pk, "miniature_pk": line.member.miniature_id},
-                )
+            card = line.card
+            rows.append(
+                {
+                    "card": card,
+                    "member": line.member,
+                    "missing_equipment": line.missing_equipment,
+                    "subtitle": " · ".join(
+                        part
+                        for part in (
+                            line.member.get_role_display(),
+                            line.member.card_name,
+                            card.status_label if card else "",
+                            card.profile_name if card else "",
+                            card.owner_line if card else "",
+                        )
+                        if part
+                    ),
+                    "columns": detail_columns(card) if card else [],
+                }
+            )
+        return render(
+            request,
+            "n26/print_gang.html",
+            {
+                "gang": gang,
+                "battle": battle,
+                "crew_sheet": sheet,
+                "crew_url": reverse(
+                    "n26-battle-crew-sheet",
+                    kwargs={
+                        "pk": campaign.pk,
+                        "battle_pk": battle.pk,
+                        "gang_pk": gang.pk,
+                    },
+                ),
+                "rows": rows,
+                "include_notes": True,
+            },
+        )
     return render(
         request,
         "n26/crew_sheet.html",
@@ -123,7 +161,6 @@ def crew_sheet(request, pk, battle_pk, gang_pk):
             "crew": crew,
             "sheet": sheet,
             "editable": editable,
-            "print_view": print_view,
             "groups": [
                 ("Starting crew", sheet.starting),
                 ("Reinforcements", sheet.reserves),
