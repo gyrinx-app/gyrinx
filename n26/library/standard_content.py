@@ -2091,7 +2091,9 @@ def _create_fighter_actions():
         else:
             action.recruitment_allowance_rule = None
             action.rank_allowance_rule = None
-        if rule_kind is not None:
+        if price:
+            action.use_price.exclude(position__in=range(len(price))).delete()
+        else:
             action.use_price.all().delete()
         action.save()
         action.outcomes.exclude(

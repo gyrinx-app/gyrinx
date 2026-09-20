@@ -448,6 +448,29 @@ def test_reseeding_repairs_missing_action_and_result_links():
     assert isinstance(result.modifiers.get().effect, ChangesStat)
 
 
+def test_reseeding_removes_an_extra_action_price_component():
+    from n26.library.models import ActionPriceComponent
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Suit Maintenance", qualifier="")
+    ActionPriceComponent.objects.create(
+        action=action,
+        resource="credits",
+        payer="gang",
+        amount=1,
+        position=1,
+    )
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    assert list(
+        action.use_price.values_list("resource", "payer", "amount", "position")
+    ) == [("credits", "gang", 100, 0)]
+    assert content.status() == "complete"
+
+
 def test_reseeding_replaces_a_same_named_homebrew_action_outcome():
     from n26.library.models import ActionOutcome, ContentPack
 
