@@ -48,6 +48,8 @@ The entry is deliberately small: import the feature, call `runtime/mount`, and
 return its disposer. Vite discovers island directories automatically, and the
 Django tag resolves the same kebab-case name. Add no registry by hand.
 
-Use `npm run js:dev` for a local one-shot JavaScript build. It emits source maps.
-`npm run watch` and `./scripts/dev.sh` use the same development build. Production
-and CI use `npm run js`, which omits source maps.
+Use `npm run js:dev` for a local one-shot JavaScript build. It selects React's
+development runtime and emits unminified code with source maps, so React DevTools
+shows source component names. `npm run watch` and `./scripts/dev.sh` use the same
+development build. Production and CI use `npm run js`, which selects React's
+production runtime, minifies code, and omits source maps.

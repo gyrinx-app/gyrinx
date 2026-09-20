@@ -189,9 +189,9 @@ committed. `./scripts/dev.sh` builds them on startup, so you only need to run
 
 N26's React source is typechecked with the repository-root `tsconfig.json`; Vite
 and Vitest are configured beside it. `npm run js` makes the production build.
-For local debugging, `npm run js:dev` emits source maps for the island and shared
-runtime chunks. The development server and `npm run watch` use that mapped build
-automatically.
+For local debugging, `npm run js:dev` emits unminified development-runtime
+assets and source maps for the island and shared runtime chunks. The development
+server and `npm run watch` use that mapped build automatically.
 
 n26's build scans the edition's templates for the classes it emits, which is why
 editing a template — not just a stylesheet — changes its output. The directories

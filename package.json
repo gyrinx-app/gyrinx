@@ -8,7 +8,7 @@
     "build": "npm run js && npm run css",
     "build:dev": "npm run js:dev && npm run css",
     "js": "python -m n26.frontend.tooling.export_cotton_recipes && vite build",
-    "js:dev": "python -m n26.frontend.tooling.export_cotton_recipes && vite build --mode development",
+    "js:dev": "python -m n26.frontend.tooling.export_cotton_recipes && NODE_ENV=development vite build --mode development",
     "typecheck": "tsc",
     "test:react": "vitest run",
     "css-compile": "sass --style compressed --source-map --embed-sources --no-error-css --load-path=node_modules n23/core/static/core/scss/:n23/core/static/core/css/",

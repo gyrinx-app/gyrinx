@@ -115,9 +115,10 @@ first actual JSON write; it is not required scaffolding for a local list filter.
 
 `npm run build` exports Cotton recipes, builds production Vite entries, then
 builds CSS. `npm run js` is enough for Django tests that need the island
-manifest. `npm run js:dev` emits the same local assets with source maps;
-`./scripts/dev.sh` runs that development build before serving and watches
-frontend changes with the same mode.
+manifest. `npm run js:dev` selects React's development runtime and emits
+unminified local assets with source maps, so source component names remain
+visible in React DevTools. `./scripts/dev.sh` runs that development build before
+serving and watches frontend changes with the same mode.
 
 Vite owns the content-hashed filenames under `n26/react/assets/`. The template
 uses those exact URLs and preloads their static imports. The ordinary bootstrap

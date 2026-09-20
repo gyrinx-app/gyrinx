@@ -16,27 +16,34 @@ const entries = Object.fromEntries(
         ]),
 );
 
-export default defineConfig(({ mode }) => ({
-    root: frontendRoot,
-    base: "./",
-    build: {
-        outDir: resolve(repositoryRoot, "n26/core/static/n26/react"),
-        emptyOutDir: true,
-        manifest: "manifest.json",
-        modulePreload: { polyfill: false },
-        sourcemap: mode === "development",
-        rolldownOptions: {
-            preserveEntrySignatures: "strict",
-            input: entries,
-            output: {
-                manualChunks(id) {
-                    if (
-                        /node_modules\/(react|react-dom|scheduler)\//.test(id)
-                    ) {
-                        return "react";
-                    }
+export default defineConfig(({ mode }) => {
+    const development = mode === "development";
+
+    return {
+        root: frontendRoot,
+        base: "./",
+        build: {
+            outDir: resolve(repositoryRoot, "n26/core/static/n26/react"),
+            emptyOutDir: true,
+            manifest: "manifest.json",
+            modulePreload: { polyfill: false },
+            minify: !development,
+            sourcemap: development,
+            rolldownOptions: {
+                preserveEntrySignatures: "strict",
+                input: entries,
+                output: {
+                    manualChunks(id) {
+                        if (
+                            /node_modules\/(react|react-dom|scheduler)\//.test(
+                                id,
+                            )
+                        ) {
+                            return "react";
+                        }
+                    },
                 },
             },
         },
-    },
-}));
+    };
+});
