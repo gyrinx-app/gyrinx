@@ -2309,7 +2309,7 @@ def _check_fighter_actions():
         pack=pack, name="Spyrer Hunting Rig Glitch"
     ).first()
     glitches = Counter.objects.filter(
-        pack=pack, name="Glitch count", qualifier=""
+        pack=pack, name__iexact="Glitch count", qualifier=""
     ).first()
     if (
         table is None

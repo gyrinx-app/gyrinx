@@ -768,6 +768,19 @@ def test_lowercase_xp_counter_is_reused_without_duplication(default_pack):
     assert content.status() == "complete"
 
 
+def test_existing_glitch_count_casing_is_reused_and_complete(default_pack):
+    Counter.objects.create(pack=default_pack, name="Glitch Count", qualifier="")
+    content = STANDARD_CONTENT["fighter-actions"]
+
+    content.create()
+
+    assert (
+        Counter.objects.filter(pack=default_pack, name__iexact="Glitch count").count()
+        == 1
+    )
+    assert content.status() == "complete"
+
+
 def test_reseeding_repairs_the_advancement_slot_to_the_bearer():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
