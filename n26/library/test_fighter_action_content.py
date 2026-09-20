@@ -291,6 +291,46 @@ def test_reseeding_repairs_missing_action_and_result_links():
     assert isinstance(result.modifiers.get().effect, ChangesStat)
 
 
+def test_reseeding_repairs_the_advancement_rank_counter():
+    from n26.library.models import Counter
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Advancement", qualifier="")
+    action.rank_allowance_rule.counter = Counter.objects.create(name="Wrong counter")
+    action.rank_allowance_rule.save(update_fields=["counter", "modified"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    action.refresh_from_db()
+    assert action.rank_allowance_rule.counter.name == "XP"
+    assert content.status() == "complete"
+
+
+def test_reseeding_replaces_the_wrong_advancement_allowance_kind():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Advancement", qualifier="")
+    action.rank_allowance_rule = None
+    action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
+    action.save(
+        update_fields=[
+            "rank_allowance_rule",
+            "recruitment_allowance_rule",
+            "modified",
+        ]
+    )
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    action.refresh_from_db()
+    assert action.recruitment_allowance_rule_id is None
+    assert action.rank_allowance_rule.counter.name == "XP"
+    assert content.status() == "complete"
+
+
 def test_reseeding_repairs_the_advancement_outcome_operation():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()

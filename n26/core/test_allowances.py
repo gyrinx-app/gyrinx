@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from n26.core.allowances import (
@@ -93,6 +95,20 @@ def test_tally_grants_each_crossed_rank_allowance(fighter, counter_tracking):
             "threshold", flat=True
         )
     ) == [4, 7]
+
+
+def test_tally_skips_card_building_for_a_counter_without_rank_rules(
+    fighter, counter_tracking
+):
+    unrelated = Counter.objects.create(name="Kill Count")
+    with operation(fighter.gang) as op:
+        counter_assignment = op.assign(unrelated, miniature=fighter)
+        op.open_counter(counter_assignment, 0)
+        with patch(
+            "n26.core.allowances.build_card",
+            side_effect=AssertionError("unrelated counter built a card"),
+        ):
+            assert op.tally(counter_assignment, 1) == 1
 
 
 def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(

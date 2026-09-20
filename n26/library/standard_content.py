@@ -2045,10 +2045,22 @@ def _create_fighter_actions():
             )
             continue
         action.timing = timing
-        if rule_kind == "recruitment" and action.recruitment_allowance_rule_id is None:
-            action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
-        if rule_kind == "rank" and action.rank_allowance_rule_id is None:
-            action.rank_allowance_rule = authoring.rank_allowance_rule(xp)
+        if rule_kind == "recruitment":
+            action.rank_allowance_rule = None
+            if action.recruitment_allowance_rule_id is None:
+                action.recruitment_allowance_rule = (
+                    authoring.recruitment_allowance_rule()
+                )
+        elif rule_kind == "rank":
+            action.recruitment_allowance_rule = None
+            if action.rank_allowance_rule_id is None:
+                action.rank_allowance_rule = authoring.rank_allowance_rule(xp)
+            elif action.rank_allowance_rule.counter_id != xp.pk:
+                action.rank_allowance_rule.counter = xp
+                action.rank_allowance_rule.save(update_fields=["counter", "modified"])
+        else:
+            action.recruitment_allowance_rule = None
+            action.rank_allowance_rule = None
         if rule_kind is not None:
             action.use_price.all().delete()
         action.save()

@@ -53,6 +53,10 @@ def grant_rank_allowances(op, counter_assignment, before, after):
     if fighter is None:
         return []
     counter = counter_assignment.counter
+    from n26.library.models import RankAllowanceRule
+
+    if not RankAllowanceRule.objects.filter(counter=counter).exists():
+        return []
     card = build_card(fighter)
     computed = compute(card, build_modifier_index(carriers(card)))
     table_access = rank_table_for(fighter, counter, card=card, computed=computed)
