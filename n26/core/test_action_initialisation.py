@@ -154,6 +154,51 @@ def test_missing_baseline_is_reported_and_skipped(legacy_fighter):
     assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
 
 
+def test_a_rank_table_conflict_does_not_abort_other_counters(legacy_fighter):
+    gang, fighter, conflicted_action, held = legacy_fighter
+    conflict = RankTable.objects.create(name="Conflicting ranks", counter=held.counter)
+    RankThreshold.objects.create(rank_table=conflict, threshold=64)
+    second_counter = Counter.objects.create(name=f"Second XP {uuid4()}")
+    second_table = RankTable.objects.create(name="Second ranks", counter=second_counter)
+    for threshold in (61, 64, 67):
+        RankThreshold.objects.create(rank_table=second_table, threshold=threshold)
+    second_action = Action.objects.create(
+        name="Second advancement",
+        timing=Action.Timing.POST_CYCLE,
+        rank_allowance_rule=RankAllowanceRule.objects.create(counter=second_counter),
+    )
+    with operation(gang) as op:
+        op.assign(conflict, miniature=fighter)
+        op.assign(second_action, miniature=fighter)
+        op.assign(second_table, miniature=fighter)
+        second_held = op.assign(second_counter, miniature=fighter)
+        value = op.open_counter(second_held, 61)
+        op.event(
+            second_held,
+            LedgerEvent.Kind.TALLIED,
+            counter_before=61,
+            counter_delta=6,
+            counter_after=67,
+        )
+        value.value = 67
+        value.save(update_fields=["value"])
+
+    plan = find()
+    assert plan.gangs == ((gang.pk,),)
+    assert len(plan.problems) == 1
+
+    summary = apply_one(gang.pk)
+
+    assert "granted 2 earned use(s); skipped 1 counter(s)" in summary
+    assert not ActionAllowance.objects.filter(
+        fighter=fighter, action=conflicted_action
+    ).exists()
+    assert (
+        ActionAllowance.objects.filter(fighter=fighter, action=second_action).count()
+        == 2
+    )
+
+
 def test_preview_builds_effective_action_access_once_per_fighter(
     legacy_fighter, monkeypatch
 ):

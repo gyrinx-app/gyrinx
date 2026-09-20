@@ -198,6 +198,22 @@ class TestSuitEvolutionForms:
         record.refresh_from_db()
         assert record.state == ActionRecord.State.CANCELLED
 
+    def test_inactive_tracking_does_not_expose_an_unassigned_action(
+        self, client, hunt, counter_tracking
+    ):
+        hidden = a.create_action(
+            "Hidden maintenance", "post_cycle", outcomes=[hunt.clear]
+        )
+        counter_tracking.delete()
+        client.force_login(hunt.owner)
+
+        response = client.get(
+            reverse("n26-action-start", args=[hunt.fighter.pk, hidden.pk])
+        )
+
+        assert response.status_code == 404
+        assert "Hidden maintenance" not in response.content.decode()
+
     def test_a_carried_item_is_reviewed_before_any_kills_are_spent(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])

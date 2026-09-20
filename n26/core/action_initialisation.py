@@ -180,9 +180,13 @@ def apply_one(gang_id):
                     ]
                     if not matching:
                         continue
-                    table_access = rank_table_for(
-                        fighter, assignment.counter, card=card, computed=computed
-                    )
+                    try:
+                        table_access = rank_table_for(
+                            fighter, assignment.counter, card=card, computed=computed
+                        )
+                    except Refusal, ValueError:
+                        skipped += 1
+                        continue
                     if table_access is None:
                         continue
                     baseline = baselines[assignment.pk]

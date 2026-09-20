@@ -300,6 +300,20 @@ def action_start(request, pk, action_id):
         )
         if existing:
             return redirect(flow_url(fighter, existing, "resume"))
+    allowances = list(
+        ActionAllowance.objects.filter(fighter=fighter, action=action)
+        .exclude(
+            records__state__in=[
+                ActionRecord.State.STARTED,
+                ActionRecord.State.COMPLETED,
+            ]
+        )
+        .order_by("created", "pk")
+    )
+    if not allowances and action.pk not in {
+        access.action.pk for access in actions_for(fighter)
+    }:
+        raise Http404("No such action")
     if not counter_tracking_is_active():
         form = EmptyActionForm({})
         form.add_error(
@@ -321,20 +335,6 @@ def action_start(request, pk, action_id):
             submit_label="",
             submit_variant="primary",
         )
-    allowances = list(
-        ActionAllowance.objects.filter(fighter=fighter, action=action)
-        .exclude(
-            records__state__in=[
-                ActionRecord.State.STARTED,
-                ActionRecord.State.COMPLETED,
-            ]
-        )
-        .order_by("created", "pk")
-    )
-    if not allowances and action.pk not in {
-        access.action.pk for access in actions_for(fighter)
-    }:
-        raise Http404("No such action")
     outcomes = _outcomes(action)
     initial = {
         "request_key": uuid4(),
@@ -410,7 +410,16 @@ def action_flow(request, pk, record_id, step):
         next_step = (
             "done"
             if record.state == ActionRecord.State.COMPLETED
-            else ("review" if record.review else "choose")
+            else (
+                "review"
+                if record.review
+                else (
+                    "skill"
+                    if isinstance(record.outcome.operation, ResolveAdvancement)
+                    and record.terms.get("pickable_id")
+                    else "choose"
+                )
+            )
         )
         return redirect(flow_url(fighter, record, next_step))
     if step == "cancel":

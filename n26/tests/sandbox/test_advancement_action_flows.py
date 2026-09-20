@@ -260,7 +260,11 @@ class TestSelectingSkills:
             ).status_code
             == 302
         )
-        retry = client.get(first.url)
+        resume = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+        )
+        retry = client.get(resume, follow=True)
+        assert retry.context["stage"] == "skill"
         assert "No available skill was rolled." in retry.content.decode()
         second = client.post(
             first.url,
