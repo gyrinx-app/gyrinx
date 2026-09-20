@@ -26,6 +26,7 @@ from n26.core.effects import (
 )
 from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
 from n26.core.models.dismissed_offer import slot_key as _address
+from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
@@ -115,6 +116,11 @@ class Provenance:
     reason: str | None = None
     #: True when it is re-derived on read and written nowhere.
     computed: bool = False
+
+    @property
+    def annotated(self):
+        """Show the source of both computed and stored grants."""
+        return self.computed or (self.reason == Reason.GRANTED and bool(self.source))
 
 
 class SlotMarked:
@@ -2668,18 +2674,7 @@ def card_to_model_card(
         if key is not None
     }
 
-    def provenance_of(node):
-        cause = nodes_by_key.get(node.caused_by_key)
-        return Provenance(
-            source=node.granted_by
-            if node.granted_by is not None
-            else (cause.name if cause else None),
-            source_kind=node.granted_by_kind
-            if node.granted_by_kind is not None
-            else (kind_of(cause.assignable) if cause else None),
-            reason=node.reason,
-            computed=node.computed,
-        )
+    provenance_of = _provenance_within(card, nodes_by_key=nodes_by_key)
 
     def trait_lines(child, weapon_state):
         if weapon_state is None:
@@ -3111,24 +3106,33 @@ def _weapon_changes(weapon_state):
     return changes_for
 
 
-def _provenance_within(card):
+def _provenance_within(card, *, nodes_by_key=None):
     """A ``provenance_of`` resolving causes among one card's own nodes.
 
     The keys it resolved from ride along as ``standing_here``: every
     assignment on the card, which is also what tells a pick whether the
     question it answers is asked here at all.
     """
-    nodes_by_key = {node.key: node for node in card.all_nodes()}
+    if nodes_by_key is None:
+        nodes_by_key = {node.key: node for node in card.all_nodes()}
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
+        source_kind = None
+        if cause is not None:
+            # The slot type names the result's domain: advancement, injury, etc.
+            source_kind = (
+                cause.assignable.slot_type.name.lower()
+                if isinstance(cause.assignable, Pickable)
+                else kind_of(cause.assignable)
+            )
         return Provenance(
             source=node.granted_by
             if node.granted_by is not None
             else (cause.name if cause else None),
             source_kind=node.granted_by_kind
             if node.granted_by_kind is not None
-            else (kind_of(cause.assignable) if cause else None),
+            else source_kind,
             reason=node.reason,
             computed=node.computed,
         )

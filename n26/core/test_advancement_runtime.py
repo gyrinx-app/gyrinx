@@ -1209,6 +1209,11 @@ def test_completed_skill_is_available_to_its_own_correction(fighter):
 
     rendered = _rendered_card(fighter)
     assert str(skill) in {line.name for line in rendered.skills}
+    gained = next(line for line in rendered.skills if line.name == str(skill))
+    assert gained.provenance.source == "Select Primary skill"
+    assert gained.provenance.source_kind == "advancement"
+    assert gained.provenance.annotated
+    assert not gained.provenance.computed
     assert "Select Primary skill" not in {line.kind_label for line in rendered.choices}
 
     assert skill_options(completed, configured, select_primary.id)[category] == [skill]
