@@ -862,8 +862,9 @@ class TestTheModelEditPage:
         advancement = page.index("Advancement", evolution)
         notes = page.index('<span class="font-semibold">Notes</span>', advancement)
         tabs = page.index("This model", advancement)
+        history = page.index('<span class="font-semibold">Action history</span>', notes)
 
-        assert card < actions < evolution < advancement < tabs < notes
+        assert card < actions < evolution < advancement < tabs < notes < history
         assert "lg:grid-cols-2" in page[card - 500 : actions]
         assert "Kill Count" in page[evolution:advancement]
         assert "After payment" not in page[evolution:advancement]
@@ -871,6 +872,8 @@ class TestTheModelEditPage:
         assert "Resume Suit Evolution flow" in page[evolution:advancement]
         assert "1 use available" in page[advancement:notes]
         assert "Resume Advancement flow" in page[advancement:notes]
+        assert "Improved Hunting rig to Tier 1" not in page[actions:tabs]
+        assert "Improved Hunting rig to Tier 1" in page[history:]
 
 
 class TestCounterLinesInTheGallery:

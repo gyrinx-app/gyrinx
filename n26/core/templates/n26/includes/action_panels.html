@@ -17,7 +17,7 @@
                                 <c-ui.button href="{{ panel.start_href }}"
                                              variant="ghost"
                                              size="sm"
-                                             class="ml-auto"
+                                             class="ml-auto text-ink-900! dark:text-ink-100!"
                                              aria-label="Start {{ panel.name }} flow">
                                     Start <span aria-hidden="true">→</span>
                                 </c-ui.button>
@@ -33,14 +33,6 @@
                                            class="linked">{{ draft.label }} <span aria-hidden="true">→</span></a>
                                     {% endfor %}
                                 </div>
-                            {% endif %}
-                            {% if panel.completed %}
-                                <details class="text-sm">
-                                    <summary class="cursor-pointer text-muted">Recent results</summary>
-                                    <ul class="mt-2 space-y-2">
-                                        {% for result in panel.completed %}<li><a href="{{ result.href }}" class="linked">{{ result.label }}</a></li>{% endfor %}
-                                    </ul>
-                                </details>
                             {% endif %}
                         </div>
                     </section>

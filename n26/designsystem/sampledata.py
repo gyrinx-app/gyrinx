@@ -868,6 +868,13 @@ def context():
                         "#resume-suit-evolution",
                     )
                 ],
+                completed=[
+                    ActionUseLink(
+                        "suit-evolution-result",
+                        "Improved Hunting rig to Tier 1",
+                        "#suit-evolution-result",
+                    )
+                ],
             ),
             ActionPanel(
                 action_id="advancement",

@@ -1,0 +1,26 @@
+{% if action_history_panels %}
+    <div id="n26-action-history">
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Action history</span>
+            </c-slot>
+            <p class="mb-4 text-sm text-muted">Recent completed actions for this model.</p>
+            <div class="divide-y divide-box-border">
+                {% for panel in action_history_panels %}
+                    <section class="py-4 first:pt-0 last:pb-0"
+                             aria-labelledby="n26-action-history-{{ panel.action_id }}-title">
+                        <h3 id="n26-action-history-{{ panel.action_id }}-title"
+                            class="font-semibold text-ink-900 dark:text-ink-100">{{ panel.name }}</h3>
+                        <ul class="mt-2 space-y-2 text-sm">
+                            {% for result in panel.completed %}
+                                <li>
+                                    <a href="{{ result.href }}" class="linked">{{ result.label }}</a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </section>
+                {% endfor %}
+            </div>
+        </c-ui.card>
+    </div>
+{% endif %}

@@ -447,15 +447,17 @@ def render_card_update(request, miniature, at):
     if on_edit:
         from n26.core.action_flow import action_panels
         from n26.core.counter_tracking import is_active as counter_tracking_is_active
-        from n26.core.views.action_flows import link_action_panels
+        from n26.core.views.action_flows import link_action_panels, split_action_panels
 
-        flows = link_action_panels(
-            miniature,
-            action_panels(
+        flows, _history = split_action_panels(
+            link_action_panels(
                 miniature,
-                card=own,
-                computed=computed,
-                counter_tracking_active=counter_tracking_is_active(),
+                action_panels(
+                    miniature,
+                    card=own,
+                    computed=computed,
+                    counter_tracking_active=counter_tracking_is_active(),
+                ),
             ),
         )
 
@@ -741,15 +743,17 @@ def edit_fighter(request, pk):
 
     from n26.core.action_flow import action_panels
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
-    from n26.core.views.action_flows import link_action_panels
+    from n26.core.views.action_flows import link_action_panels, split_action_panels
 
-    flows = link_action_panels(
-        miniature,
-        action_panels(
+    flows, action_history = split_action_panels(
+        link_action_panels(
             miniature,
-            card=own,
-            computed=computed,
-            counter_tracking_active=counter_tracking_is_active(),
+            action_panels(
+                miniature,
+                card=own,
+                computed=computed,
+                counter_tracking_active=counter_tracking_is_active(),
+            ),
         ),
     )
 
@@ -855,6 +859,7 @@ def edit_fighter(request, pk):
             "gang": gang,
             "card": card,
             "action_panels": flows,
+            "action_history_panels": action_history,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to

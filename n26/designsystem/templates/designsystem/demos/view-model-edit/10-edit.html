@@ -62,6 +62,9 @@
     <c-slot name="flows">
         {% include "n26/includes/action_panels.html" with action_panels=sample_action_panels %}
     </c-slot>
+    <c-slot name="action_history">
+        {% include "n26/includes/action_history.html" with action_history_panels=sample_action_panels %}
+    </c-slot>
     <c-slot name="picture">
         <c-n26.picture-box action="#"
                            id="demo-model-picture"

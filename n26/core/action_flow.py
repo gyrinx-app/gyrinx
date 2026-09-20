@@ -12,6 +12,7 @@ from django.db.models.functions import RowNumber
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
+from n26.core.confirm import Fact
 from n26.core.flow import PaymentFigures
 from n26.core.models import ActionAllowance, ActionRecord, Assignment
 from n26.library.models import Action
@@ -44,6 +45,13 @@ class ReceiptLine:
     value: str
 
 
+@dataclass(frozen=True)
+class PaymentTally:
+    """One reviewed payment resource, arranged as a receipt."""
+
+    facts: tuple[Fact, ...]
+
+
 def payment_figures(quote):
     """Format the same resolved prices used by final checkout."""
 
@@ -61,6 +69,29 @@ def payment_figures(quote):
             remaining=display(line, line.after_payment),
         )
         for line in quote.lines
+    )
+
+
+def payment_tallies(quote):
+    """Stack the reviewed balance, payment and remainder like a receipt."""
+
+    def with_unit(value, label):
+        return f"{value} {label}" if label else value
+
+    return tuple(
+        PaymentTally(
+            (
+                Fact("Available", with_unit(figures.available, figures.label)),
+                Fact("This action", with_unit(figures.price, figures.label)),
+                Fact(
+                    "Remaining",
+                    with_unit(figures.remaining, figures.label),
+                    ruled=True,
+                    strong=True,
+                ),
+            )
+        )
+        for figures in payment_figures(quote)
     )
 
 

@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from n26.core.access import actions_for
-from n26.core.action_flow import payment_figures, receipt_lines
+from n26.core.action_flow import payment_figures, payment_tallies, receipt_lines
 from n26.core.action_forms import (
     ActionOutcomeForm,
     ActionSelectionForm,
@@ -67,6 +67,15 @@ def link_action_panels(fighter, panels):
             for completed in panel.completed
         ]
     return panels
+
+
+def split_action_panels(panels):
+    """Separate actions the model can use now from completed results."""
+
+    return (
+        [panel for panel in panels if panel.start_href or panel.drafts],
+        [panel for panel in panels if panel.completed],
+    )
 
 
 def _outcomes(action):
@@ -124,7 +133,7 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
     middle = (
         [("choose", "Item and tier")]
         if isinstance(configured, AugmentCarriedItem)
-        else ([("choose", "Selection (if needed)")] if configured is None else [])
+        else ([("choose", "Selection")] if configured is None else [])
     )
     stages = (
         [("correct", "Choose tier")] if correction else [("start", "Outcome"), *middle]
@@ -171,8 +180,8 @@ def _submitted_review(record, token):
     return reviewed
 
 
-def _review_prices(record):
-    return payment_figures(
+def _review_payments(record):
+    return payment_tallies(
         Quote(
             tuple(
                 QuotedLine(
@@ -195,6 +204,24 @@ def _review_prices(record):
 def _page(
     request, fighter, action, *, record=None, stage="start", correction=False, **context
 ):
+    back = reverse("n26-edit-fighter", args=[fighter.pk])
+    cancel_href = flow_url(fighter, record, "cancel") if _can_cancel(record) else ""
+    outcome_href = (
+        flow_url(fighter, record, "outcome")
+        if _can_cancel(record)
+        and not correction
+        and stage not in {"start", "done", "cancel"}
+        else ""
+    )
+    if stage == "cancel":
+        back_href = flow_url(fighter, record, "resume")
+        back_label = "Keep flow"
+    elif outcome_href:
+        back_href = outcome_href
+        back_label = "Back"
+    else:
+        back_href = back
+        back_label = "Back to model"
     return render(
         request,
         "n26/action_flow.html",
@@ -206,16 +233,12 @@ def _page(
             "stage": stage,
             "correction": correction,
             "steps": _steps(record, action=action, stage=stage, correction=correction),
-            "back": reverse("n26-edit-fighter", args=[fighter.pk]),
-            "cancel_href": flow_url(fighter, record, "cancel")
-            if _can_cancel(record)
-            else "",
+            "back": back,
+            "back_href": back_href,
+            "back_label": back_label,
+            "cancel_href": cancel_href,
             "selection_summary": _selection_summary(record, stage),
-            "outcome_href": flow_url(fighter, record, "outcome")
-            if _can_cancel(record)
-            and not correction
-            and stage not in {"start", "done", "cancel"}
-            else "",
+            "outcome_href": outcome_href,
             **context,
         },
     )
@@ -274,6 +297,33 @@ def _selection_summary(record, stage):
                 else str(advancement.intended_pick)
             )
     return ""
+
+
+def _review_choice(record):
+    """Name the result selected inside a reviewed outcome."""
+
+    target = record.review.get("target", {})
+    if not isinstance(target, dict):
+        return None
+    selected = target.get("selection")
+    if selected:
+        return {
+            "label": "Selection",
+            "title": f"{selected['item_name']}: {selected['candidate_tier']}",
+            "description": selected["effect"],
+            "meta": (
+                f"Model rating {selected['rating_before']}¢ → "
+                f"{selected['rating_after']}¢"
+            ),
+        }
+    if target.get("result"):
+        return {
+            "label": "Advancement",
+            "title": target["result"],
+            "description": target.get("skill", ""),
+            "meta": "",
+        }
+    return None
 
 
 @login_required
@@ -453,9 +503,7 @@ def action_flow(request, pk, record_id, step):
             stage="done",
             receipt=receipt_lines(record),
             correct_href=flow_url(fighter, record, "correct") if can_correct else "",
-            correct_label="Choose tier"
-            if isinstance(record.outcome.operation, AugmentCarriedItem)
-            else "Correct result",
+            correct_label="Correct result",
         )
     correction = record.state == ActionRecord.State.COMPLETED
     if step == "outcome" and not correction:
@@ -637,8 +685,10 @@ def _review(request, fighter, record, *, correction):
         stage="review",
         correction=correction,
         form=form,
-        prices=() if correction else _review_prices(record),
+        prices=(),
+        payment_tallies=() if correction else _review_payments(record),
         outcome_description=_description(record.outcome),
+        review_choice=_review_choice(record),
         change_preview=record.review.get("target", [])
         if isinstance(record.outcome.operation, ApplyChanges)
         else [],

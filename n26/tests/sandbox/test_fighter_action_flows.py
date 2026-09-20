@@ -165,12 +165,54 @@ class TestSuitEvolutionForms:
 
         panel = next(
             panel
-            for panel in response.context["action_panels"]
+            for panel in response.context["action_history_panels"]
             if panel.action_id == str(hunt.action.pk)
         )
         assert [result.key for result in panel.completed] == [
             str(record.pk) for record in reversed(records[-3:])
         ]
+
+    def test_recent_results_move_to_the_action_history_at_the_end(self, client, hunt):
+        from bs4 import BeautifulSoup
+
+        ActionRecord.objects.create(
+            gang=hunt.gang,
+            fighter=hunt.fighter,
+            action=hunt.action,
+            outcome=hunt.clear,
+            request_key=uuid4(),
+            state=ActionRecord.State.COMPLETED,
+        )
+        client.force_login(hunt.owner)
+
+        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        page = BeautifulSoup(response.content, "html.parser")
+        actions = page.find(id="n26-action-panels")
+        history = page.find(id="n26-action-history")
+
+        assert "Clear all glitches" not in actions.get_text(" ", strip=True)
+        assert "Clear all glitches" in history.get_text(" ", strip=True)
+        assert response.content.decode().index(
+            'id="n26-action-history"'
+        ) > response.content.decode().index(">Notes<")
+
+    def test_an_action_with_no_available_use_is_not_actionable(self):
+        from n26.core.action_flow import ActionPanel
+        from n26.core.views.action_flows import split_action_panels
+
+        available, history = split_action_panels(
+            [
+                ActionPanel(
+                    action_id="spent",
+                    name="Spent action",
+                    timing="recruitment",
+                    available_uses=0,
+                )
+            ]
+        )
+
+        assert available == []
+        assert history == []
 
     def test_the_edit_page_places_action_panels_beside_the_model_card_above_tabs(
         self, client, hunt
@@ -205,6 +247,8 @@ class TestSuitEvolutionForms:
         assert "After a cycle" in header.get_text(" ", strip=True)
         assert start_button.get_text(" ", strip=True) == "Start →"
         assert "bg-transparent" in start_button.get("class", [])
+        assert "text-ink-900!" in start_button.get("class", [])
+        assert "Recent results" not in actions.get_text(" ", strip=True)
         figures = title.find_parent("section").find("dl")
         values = figures.find_all("dd")
         assert [value.get_text(" ", strip=True) for value in values] == [
@@ -284,7 +328,7 @@ class TestSuitEvolutionForms:
         edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
         html = edit.content.decode()
         assert edit.status_code == 200
-        assert "This flow is temporarily unavailable." in html
+        assert "This flow is temporarily unavailable." not in html
         assert "Start Suit Evolution flow" not in html
 
         url = reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk])
@@ -312,9 +356,13 @@ class TestSuitEvolutionForms:
         assert edit.status_code == 200
         assert "Resume Suit Evolution flow" in edit.content.decode()
 
-        cancelled = client.post(
-            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "cancel"])
+        cancel_url = reverse(
+            "n26-action-flow", args=[hunt.fighter.pk, record.pk, "cancel"]
         )
+        cancel_page = client.get(cancel_url).content.decode()
+        assert "Keep flow" in cancel_page
+        assert "The saved outcome and selection will be discarded." in cancel_page
+        cancelled = client.post(cancel_url)
         assert cancelled.status_code == 302
         record.refresh_from_db()
         assert record.state == ActionRecord.State.CANCELLED
@@ -341,20 +389,36 @@ class TestSuitEvolutionForms:
         response = client.get(choose)
         assert response.status_code == 200
         assert "Hunting rig" in response.content.decode()
+        page = response.content.decode()
+        assert page.index("Suit Evolution</h1>") < page.index('aria-label="Progress"')
+        assert "Selection (if needed)" not in page
+        assert "Cancel flow" in page
+        assert "Back to model" not in page
         assert hunt.kills.counter_value.value == 6
         response = client.post(
             choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
         )
         assert response.status_code == 302
         review = client.get(response.url)
+        review_html = review.content.decode()
         assert review.status_code == 200
-        assert "Hunting rig: Tier 1" in review.content.decode()
+        assert "Hunting rig: Tier 1" in review_html
+        assert "Change selection" in review_html
+        assert "Available" in review_html
+        assert "6 Kill Count" in review_html
+        assert "This action" in review_html
+        assert "4 Kill Count" in review_html
+        assert "Remaining" in review_html
+        assert "2 Kill Count" in review_html
         token = review.context["form"]["review"].value()
         confirmed = client.post(response.url, {"review": token})
         assert confirmed.status_code == 302
         receipt = client.get(confirmed.url)
-        assert "6 → 2" in receipt.content.decode()
-        assert "+20¢" in receipt.content.decode()
+        receipt_html = receipt.content.decode()
+        assert "6 → 2" in receipt_html
+        assert "+20¢" in receipt_html
+        assert "Correct result" in receipt_html
+        assert "Choose tier" not in receipt_html
         assert (
             ActionRecord.objects.get(pk=record.pk).state == ActionRecord.State.COMPLETED
         )
@@ -398,7 +462,7 @@ class TestSuitEvolutionForms:
         )
         assert revisit.status_code == 200
         assert "Glitch Count: 2 → 0" in revisit.content.decode()
-        assert revisit.context["prices"][0].available == "7"
+        assert revisit.context["payment_tallies"][0].facts[0].value == "7 Kill Count"
         fresh_token = revisit.context["form"]["review"].value()
         assert client.post(url, {"review": fresh_token}).status_code == 302
         hunt.kills.counter_value.refresh_from_db()
@@ -419,7 +483,7 @@ class TestSuitEvolutionForms:
         assert response.status_code == 200
         html = response.content.decode()
         assert 'id="n26-action-panels" hx-swap-oob="outerHTML"' in html
-        assert "This flow needs 1 more Kill Count." in html
+        assert "This flow needs 1 more Kill Count." not in html
         assert "Start Suit Evolution flow" not in html
 
     def test_changing_the_outcome_keeps_one_unpaid_record(self, client, hunt):

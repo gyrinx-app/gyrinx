@@ -115,8 +115,13 @@ is named by the page's own heading directly below.
         Save is a success button because it ends the form; the outlined
         controls on the card beside it all start one.
         {% endcomment %}
-        <c-slot name="flows">
-            {% include "n26/includes/action_panels.html" %}
+        {% if action_panels %}
+            <c-slot name="flows">
+                {% include "n26/includes/action_panels.html" %}
+            </c-slot>
+        {% endif %}
+        <c-slot name="action_history">
+            {% include "n26/includes/action_history.html" %}
         </c-slot>
         <c-slot name="notes">
             {% comment %}
