@@ -416,7 +416,7 @@ class ListFighterQuerySet(models.QuerySet):
                 # Equipment-injury links (#1027) drive the treated/untreated
                 # marker and SUPPRESS handling. all_content() so a pack-owned
                 # link isn't dropped for a subscribed list — see "Content
-                # packs: archive semantics" in CLAUDE.md.
+                # archive semantics" in n23/AGENTS.md.
                 Prefetch(
                     "listfighterequipmentassignment_set__content_equipment__injury_links",
                     queryset=ContentEquipmentInjuryLink.objects.all_content(),

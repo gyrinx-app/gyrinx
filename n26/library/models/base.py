@@ -14,7 +14,7 @@ This is deliberately the inverse of the earlier gyrinx design, where the
 default manager excluded pack content and every read path had to opt back in.
 That cost 260+ ``with_packs()`` / ``all_content()`` call sites, a bespoke
 prefetch-marker system layered on the ORM, through-table workarounds to dodge
-the excluding manager, a standing domain rule in CLAUDE.md, and a recurring
+the excluding manager, a standing domain rule in AGENTS.md, and a recurring
 bug class where a forgotten call site silently dropped a subscriber's content
 (gyrinx#1742). An anti-join rode along on 50 of 82 queries in the performance
 snapshot.

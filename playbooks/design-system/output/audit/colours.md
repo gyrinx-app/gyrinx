@@ -244,7 +244,7 @@ Mixed within the same view: `fighter_card_cost.html` uses `text-bg-secondary bg-
 
 ### 4.3 Alert Usage vs Convention
 
-CLAUDE.md says "Avoid `alert` classes -- use `border rounded p-2` instead." But alerts are used in 30+ locations:
+The project instructions say "Avoid `alert` classes -- use `border rounded p-2` instead." But alerts are used in 30+ locations:
 
 - `alert-danger`: 20 occurrences across 15 files
 - `alert-warning`: 19 occurrences across 12 files

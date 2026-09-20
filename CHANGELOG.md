@@ -23,7 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 #### Documentation
 
-- Added note to CLAUDE.md memory for development guidance
+- Added a note to the agent instructions for development guidance
 
 ### 2025-06-08
 
@@ -105,7 +105,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 #### Documentation
 
-- Added PR guidance to CLAUDE.md
+- Added PR guidance to the agent instructions
 - Updated Claude GitHub action to use Opus
 
 ### 2025-06-04

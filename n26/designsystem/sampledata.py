@@ -187,7 +187,7 @@ LISTS = [
 # case it was built for — long, categorised, browsed with a budget in mind.
 #
 # Names, costs and rarity ratings only. What any of it *does* is rulebook text
-# and does not belong in this repository; see CLAUDE.md.
+# and does not belong in this repository; see AGENTS.md.
 #
 # `rarity` is 0 for common, otherwise the rating. `owned` marks the few already
 # in the stash, which is what the row's optional icon is for.

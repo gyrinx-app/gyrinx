@@ -1,4 +1,4 @@
-# CLAUDE.md — n26 tests
+# N26 tests
 
 Three tiers, split by the kind of claim a test makes — not by which
 module changed:

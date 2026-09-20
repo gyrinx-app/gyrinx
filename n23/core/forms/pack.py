@@ -103,7 +103,7 @@ class PackItemFormMixin:
     - ``_apply_grouped_pack_choices`` — the "split choices into Custom (pack)
       and Default (base)" ``__init__`` block.
 
-    CRITICAL — archive semantics (see CLAUDE.md "Content packs: archive
+    CRITICAL — archive semantics (see n23/AGENTS.md "Content-pack archive
     semantics"): every ``CustomContentPackItem`` lookup here filters
     ``archived=False``. Archiving is the pack owner's soft-delete, so an
     archived item must stop reserving its name against its own owner —

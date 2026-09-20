@@ -11,7 +11,7 @@ So this module is the whole of n26's dependency on the platform's analytics.
 Every n26 call site goes through :func:`record`; nothing else in ``n26/``
 imports ``gyrinx.analytics``. Keeping it to one file means the seam can be
 read, tested and moved in one place, and it is the reason the boundary rule in
-``n26/CLAUDE.md`` names this file rather than a package.
+``n26/AGENTS.md`` names this file rather than a package.
 
 The words are ours. A noun claimed by one edition cannot be claimed by
 another, so "gang" here and "list" next door stay different things and the

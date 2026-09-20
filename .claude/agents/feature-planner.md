@@ -53,7 +53,7 @@ Define the testing approach:
 ## 5. Implementation Guidelines
 
 - Specify coding patterns and conventions to follow
-- Note any project-specific requirements from CLAUDE.md
+- Note any project-specific requirements from AGENTS.md
 - Include formatting and linting requirements (`./scripts/fmt.sh`)
 - Highlight security considerations (validate redirects, sanitize inputs)
 - For UI work, name the cotton components to use (`gyrinx/templates/cotton/`) and the responsive design approach — never raw Bootstrap markup

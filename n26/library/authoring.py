@@ -22,7 +22,7 @@ The grammar (design/authoring-build-plan.md):
 
 Everything is pack-aware: omit ``pack`` and it lands in the default
 pack, exactly as admin ingestion would. Nothing here stores rules text —
-see CLAUDE.md.
+see AGENTS.md.
 """
 
 import re

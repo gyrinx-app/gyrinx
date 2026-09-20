@@ -171,7 +171,7 @@ primitives form the public `ui/` boundary; Django-aware build code stays in
 `tooling/`. The ignored `generated/` directory is output, never an authoring
 surface. The repository-root TypeScript, Vite and Vitest configs are shared by
 all islands beside the single root `package.json`; do not create per-island
-configs. `n26/frontend/CLAUDE.md` is the concise directory-level reference.
+configs. `n26/frontend/AGENTS.md` is the concise directory-level reference.
 
 The Django view prepares ordinary display data, including server-generated URLs:
 
@@ -208,7 +208,7 @@ Keep database query-growth assertions: client rendering cannot fix N+1 queries.
 
 ## Migration as part of ordinary work
 
-The defaults are in root and N26 `CLAUDE.md`, the conventions/design skills,
+The defaults are in root and N26 `AGENTS.md`, the conventions/design skills,
 Copilot instructions and `.agents/skills/n26-react/SKILL.md`. Agents should:
 
 - Use React for new N26 interactions without asking for a framework decision.

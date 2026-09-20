@@ -8,7 +8,7 @@ machines.
 
 ## Models
 
-- All core models inherit from `AppBase` ([models/base.py](models/base.py)) — UUID PK,
+- All core models inherit from `AppBase` ([gyrinx/base_models.py](../../gyrinx/base_models.py)) — UUID PK,
   `Owned`, `Archived`, `HistoryMixin`, history-aware manager. Don't subclass `models.Model`
   directly.
 - Every concrete model declares `history = HistoricalRecords()` for django-simple-history.
@@ -21,7 +21,7 @@ machines.
 The fighter list view is the project's hottest query path. When you add a FK or M2M to
 `ListFighter` (or anything fetched alongside it), you **must** update both:
 
-1. `ListFighterQuerySet.with_related_data()` in [models/list.py](models/list.py) — the
+1. `ListFighterQuerySet.with_related_data()` in [models/list/fighter.py](models/list/fighter.py) — the
    central prefetch method.
 2. The query-count snapshot at [tests/fixtures/performance_view_queries.json](tests/fixtures/performance_view_queries.json).
 
@@ -54,5 +54,5 @@ Tests are module-level pytest functions with `@pytest.mark.django_db`; no `TestC
 ## Templates and static
 
 Template and SCSS work has its own localized guidance — see
-[templates/CLAUDE.md](templates/CLAUDE.md) and [static/CLAUDE.md](static/CLAUDE.md). Both
+[templates/AGENTS.md](templates/AGENTS.md) and [static/AGENTS.md](static/AGENTS.md). Both
 point at the `design-system` skill, which should be loaded before changing UI.

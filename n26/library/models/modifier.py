@@ -15,7 +15,7 @@ about it. The foreign keys point out of ``Modifier`` so both
 exactly-one rules are real database check constraints, the way assignment
 hosts and statline owners are.
 
-Nothing here stores rules text — see CLAUDE.md.
+Nothing here stores rules text — see AGENTS.md.
 """
 
 from dataclasses import dataclass

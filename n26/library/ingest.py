@@ -16,7 +16,7 @@ is the interface:
   counts by kind, the differences field by field, worked examples
   (sheet row → planned objects), and the problem list — plain data,
   JSON-able, per the structures-before-renderers convention
-  (CLAUDE.md).
+  (AGENTS.md).
 * **perform**: plan → rows, through the ``n26.library.authoring`` verbs,
   in dependency order, in one transaction. Perform never invents
   anything the plan didn't say: the preview *is* the contract, which

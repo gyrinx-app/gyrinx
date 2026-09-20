@@ -86,7 +86,7 @@ No custom CSS classes used beyond what the common header introduces (e.g., `figh
 ## Inconsistencies
 
 1. **Heading level**: Uses `<h2>` while sibling edit views use `<h1 class="h3">`. This is both a semantic and visual inconsistency.
-2. **No `btn-sm` on submit button**: Convention from CLAUDE.md states primary buttons should use `btn btn-primary btn-sm`, but this view uses `btn btn-primary` (full size). Other views in this batch also omit `btn-sm`, but the convention mismatch is notable.
+2. **No `btn-sm` on submit button**: The project instructions state primary buttons should use `btn btn-primary btn-sm`, but this view uses `btn btn-primary` (full size). Other views in this batch also omit `btn-sm`, but the convention mismatch is notable.
 3. **Form rendering**: Uses `{{ form.as_div }}` (Django default rendering) while sibling views render fields manually with `form-label`, `form-text`, etc. This means error display, help text, and label styling are inconsistent with other edit views.
 4. **Column widths**: Uses `col-12 col-md-8 col-lg-6` matching some peers, but the injuries view uses `col-lg-8` -- inconsistent max widths within the same feature group.
 5. **Title meta**: Uses `fighter.fully_qualified_name` in `<title>` while other views use `fighter.name`.

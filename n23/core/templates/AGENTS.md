@@ -75,7 +75,7 @@ the gate, fix the call site.
   view with the new state in the query string. The page reloads and the
   server returns the correct form. JS is only for enhancements that fail
   gracefully. See the "URL-Driven UI" section in
-  `.claude/skills/gyrinx-conventions/SKILL.md`, and `house_rule_form.html` /
+  `.agents/skills/gyrinx-conventions/SKILL.md`, and `house_rule_form.html` /
   `add_house_rule` view for the canonical example.
 
 ## Microcopy Guidelines

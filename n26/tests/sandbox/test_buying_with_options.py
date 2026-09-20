@@ -13,7 +13,7 @@ by ten and fifteen. The list prices the mount itself its own way, which
 is the case that separates the two numbers involved — what the mount
 costs on this list, and what a swap adds to it.
 
-Rule *names* only; the rulebook's words are copyright (CLAUDE.md).
+Rule *names* only; the rulebook's words are copyright (AGENTS.md).
 """
 
 import pytest

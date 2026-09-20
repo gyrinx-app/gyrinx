@@ -45,7 +45,7 @@ def test_archived_pack_item_does_not_block_the_name(pack, trait_in_pack):
 
     Archiving is the pack owner's soft-delete, so an archived item has to stop
     reserving its name against its own owner — otherwise they can never reuse
-    a name they archived. See CLAUDE.md, "Content packs: archive semantics".
+    a name they archived. See n23/AGENTS.md, "Content-pack archive semantics".
     """
     _trait, item = trait_in_pack
     # The trait is pack-registered, so the default manager (which excludes
