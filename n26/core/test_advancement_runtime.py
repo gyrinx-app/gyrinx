@@ -210,7 +210,7 @@ def test_advancement_roll_refuses_switching_to_another_outcome(fighter, entrypoi
     assert record.review == {}
 
 
-def test_first_available_random_skill_is_immutable_across_request_keys(fighter):
+def test_first_available_random_skill_is_immutable_and_completes_checkout(fighter):
     action, outcome, allowance = _advancement(fighter)
     category = _primary_agility(fighter)
     configured = outcome.resolve_advancement
@@ -255,6 +255,24 @@ def test_first_available_random_skill_is_immutable_across_request_keys(fighter):
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).count()
         == 2
+    )
+    terms = {"pickable_id": random_primary.id}
+    with operation(fighter.gang) as op:
+        reviewed = op.review_action(record, outcome=outcome, terms=terms)
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+
+    skill_selection = SkillSelection.objects.get(action_record=completed)
+    assert completed.state == completed.State.COMPLETED
+    assert str(skill_selection.selected_skill_id) == accepted["skill_id"]
+    assert str(skill_selection.skill_assignment.skill_id) == accepted["skill_id"]
+    assert skill_selection.skill_assignment.caused_by_id == (
+        completed.advancement_selection.pick_assignment_id
     )
 
 
