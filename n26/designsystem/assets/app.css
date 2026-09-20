@@ -254,7 +254,10 @@
         width: 100%;
     }
     .flatpage-header {
-        margin-bottom: 1rem;
+        max-width: 68ch;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--color-box-border);
     }
     .flatpage-share {
         position: relative;
