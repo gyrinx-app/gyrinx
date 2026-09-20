@@ -636,10 +636,12 @@ def stage_all(rows):
 
 @guarded_write
 def put_everything_live():
-    """Release every staged row at once, in one transaction — so a new gang
-    type and the fighters and lists written for it reach players together
-    rather than in whatever order an author clicks. Returns how many rows
-    went live.
+    """Release every staged authoring row at once, in one transaction.
+
+    A new gang type and the fighters and lists written for it reach players
+    together rather than in whatever order an author clicks. Campaign packs
+    are a player's working space, outside this staff release. Returns how many
+    rows went live.
     """
     from django.utils import timezone
 
@@ -648,7 +650,9 @@ def put_everything_live():
     now = timezone.now()
     with transaction.atomic():
         return sum(
-            model.objects.filter(staged=True).update(staged=False, modified=now)
+            model.objects.outside_campaign_packs()
+            .filter(staged=True)
+            .update(staged=False, modified=now)
             for model in content_kinds()
         )
 
