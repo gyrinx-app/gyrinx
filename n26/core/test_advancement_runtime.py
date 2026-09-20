@@ -10,7 +10,13 @@ from n26.core.advancements import (
     recorded_skill,
     skill_options,
 )
-from n26.core.models import ActionAllowance, AdvancementSelection, Gang, LedgerEvent
+from n26.core.models import (
+    ActionAllowance,
+    AdvancementSelection,
+    Gang,
+    LedgerEvent,
+    SkillSelection,
+)
 from n26.core.operations import Refusal, operation
 from n26.library import authoring
 from n26.library.models import (
@@ -121,13 +127,18 @@ def test_advancement_roll_is_saved_and_full_checkout_uses_it(fighter):
         again = op.record_action_roll(record, configured, uuid4(), rolled=12)
         assert first.pk == again.pk
         assert first.roll_event.roll == 7
-        choice = advancement_options(record, configured)[0]
-        op.save_action_choices(
-            record, outcome=outcome, terms={"pickable_id": choice.id}
+        choice = next(
+            option
+            for option in advancement_options(record, configured)
+            if option.gainable
         )
-        reviewed = op.review_action(
-            record, outcome=outcome, terms={"pickable_id": choice.id}
-        )
+        terms = {
+            "pickable_id": choice.id,
+            "advancement_table": {"untrusted": True},
+            "action_roll_request": "untrusted",
+        }
+        op.save_action_choices(record, outcome=outcome, terms=terms)
+        reviewed = op.review_action(record, outcome=outcome, terms=terms)
         reviewed.refresh_from_db()
         completed = op.complete_action(
             reviewed,
@@ -165,7 +176,7 @@ def test_advancement_roll_reuses_the_unfilled_configured_slot(fighter):
         bound = op.assign(
             configured.slot,
             miniature=fighter,
-            caused_by=record.source_assignment,
+            caused_by=fighter.membership,
         )
         selection = op.record_action_roll(record, configured, uuid4(), rolled=7)
 
@@ -244,6 +255,39 @@ def test_first_available_random_skill_is_immutable_across_request_keys(fighter):
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).count()
         == 2
+    )
+
+
+def test_select_skill_result_refuses_a_random_roll_without_writing(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=5)
+    select_primary = next(
+        option
+        for option in advancement_options(record, configured)
+        if option.name == "Select Primary skill"
+    )
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="does not use a random skill roll"):
+            op.record_skill_roll(
+                record,
+                configured,
+                uuid4(),
+                pickable_id=select_primary.id,
+                skill_set_id=uuid4(),
+                rolled=1,
+            )
+
+    assert not SkillSelection.objects.filter(action_record=record).exists()
+    assert (
+        LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).count()
+        == 1
     )
 
 
@@ -468,17 +512,17 @@ def test_unavailable_skill_attempt_replays_before_rechecking_access(fighter):
             skill_set_id=category.pk,
             rolled=1,
         )
-        replayed = op.record_skill_roll(
-            record,
-            configured,
-            request_key,
-            pickable_id=random_primary.id,
-            skill_set_id=uuid4(),
-            rolled=2,
-        )
+        with pytest.raises(Refusal, match="different skill roll"):
+            op.record_skill_roll(
+                record,
+                configured,
+                request_key,
+                pickable_id=random_primary.id,
+                skill_set_id=uuid4(),
+                rolled=2,
+            )
 
     assert unavailable["is_available"] is False
-    assert replayed == unavailable
 
 
 def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
@@ -505,9 +549,22 @@ def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
             roll_low=20,
             roll_high=20,
         )
-    advancement_options(record, configured)
-    with CaptureQueriesContext(connection) as thirty_six:
+    with pytest.raises(Refusal, match="table changed"):
         advancement_options(record, configured)
+    second_allowance = ActionAllowance.objects.create(
+        action=action,
+        fighter=fighter,
+        source=fighter.membership,
+        source_kind=ActionAllowance.Source.RANK,
+        threshold=7,
+        rank_table=allowance.rank_table,
+    )
+    with operation(fighter.gang) as op:
+        second = op.start_action(fighter, action, uuid4(), second_allowance)
+        op.record_action_roll(second, configured, uuid4(), rolled=10)
+    advancement_options(second, configured)
+    with CaptureQueriesContext(connection) as thirty_six:
+        advancement_options(second, configured)
 
     assert len(thirty_six) == len(eighteen)
 
@@ -652,3 +709,40 @@ def test_completed_advancement_correction_keeps_roll_and_allowance(fighter):
         ).count()
         == 1
     )
+
+
+def test_completed_skill_advancement_with_a_dependent_cannot_be_corrected(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    category = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=5)
+    select_primary = next(
+        option
+        for option in advancement_options(record, configured)
+        if option.name == "Select Primary skill"
+    )
+    skill = skill_options(record, configured, select_primary.id)[category][0]
+    terms = {"pickable_id": select_primary.id, "skill_id": str(skill.pk)}
+    with operation(fighter.gang) as op:
+        reviewed = op.review_action(record, outcome=outcome, terms=terms)
+    with operation(fighter.gang) as op:
+        completed = op.complete_action(
+            reviewed,
+            revision=reviewed.revision,
+            review=reviewed.review,
+            outcome=outcome,
+        )
+    selected = SkillSelection.objects.get(action_record=completed)
+    dependent = Counter.objects.create(name="Depends on earned skill")
+    with operation(fighter.gang) as op:
+        op.assign(
+            dependent,
+            miniature=fighter,
+            caused_by=selected.skill_assignment,
+        )
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="Later changes depend"):
+            op.review_action_correction(completed, terms=terms)

@@ -3000,6 +3000,7 @@ class _Performer:
                 from_section=section,
                 label=offers["label"],
                 will_be_assigned_to=offers["will_be_assigned_to"],
+                mode=offers.get("mode", "select"),
             )
         places = planned.fields["places"]
         return authoring.ef_places(

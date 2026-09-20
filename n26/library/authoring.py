@@ -2625,9 +2625,11 @@ def ef_contributes_to_counter(counter, amount=0):
 def ef_offers_choice(
     model, from_section=None, label="", will_be_assigned_to="bearer", mode="select"
 ):
-    """Puts an open question on the bearer's card —
+    """Offers one assignable for the bearer to select or roll randomly —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a
     set that is Primary for this fighter".
+    ``mode="random"`` records a roll against the chosen offered set;
+    select mode lets the player choose from the offer.
     ``will_be_assigned_to="gang"`` is the Leader-picks-for-the-gang arrow."""
     from n26.library.models import OffersChoice
 

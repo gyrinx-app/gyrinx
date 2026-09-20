@@ -1257,8 +1257,10 @@ class RemovesAssignable(AssignableChoice):
 
 
 class OffersChoice(models.Model):
-    """Puts an open question on the card: the bearer chooses one
-    assignable of a given kind.
+    """Puts an open question on the card for one assignable of a given kind.
+
+    Select mode lets the player choose from the offered set. Random mode
+    records a roll against a skill set before storing the available result.
 
     Computed: the offer is a *slot* on the card, present while the carrier
     is; only what was chosen is ever stored (an assignment caused by the
@@ -1275,8 +1277,8 @@ class OffersChoice(models.Model):
     is_stored = False
 
     class Mode(models.TextChoices):
-        SELECT = "select", "select"
-        RANDOM = "random", "random"
+        SELECT = "select", "Select"
+        RANDOM = "random", "Random"
 
     mode = models.CharField(
         max_length=20,
@@ -1284,7 +1286,7 @@ class OffersChoice(models.Model):
         default=Mode.SELECT,
         help_text=(
             "How the choice is resolved. Select lets the player choose; random "
-            "records a roll against the chosen collection section."
+            "records a roll against the chosen offered set."
         ),
     )
 

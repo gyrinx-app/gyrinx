@@ -71,6 +71,30 @@ def test_rank_allowances_grant_only_strict_crossings_and_never_regrant(
     assert not ActionAllowance.objects.filter(granted_event__isnull=True).exists()
 
 
+def test_tally_grants_each_crossed_rank_allowance(fighter, counter_tracking):
+    xp = Counter.objects.create(name="XP")
+    table = RankTable.objects.create(name="Standard ranks", counter=xp)
+    for value in (4, 7, 10):
+        RankThreshold.objects.create(rank_table=table, threshold=value)
+    action = Action.objects.create(
+        name="Advancement",
+        timing="post_cycle",
+        rank_allowance_rule=RankAllowanceRule.objects.create(counter=xp),
+    )
+    with operation(fighter.gang) as op:
+        op.assign(action, miniature=fighter)
+        op.assign(table, miniature=fighter)
+        counter_assignment = op.assign(xp, miniature=fighter)
+        op.open_counter(counter_assignment, 0)
+        assert op.tally(counter_assignment, 8) == 8
+
+    assert list(
+        fighter.action_allowances.order_by("threshold").values_list(
+            "threshold", flat=True
+        )
+    ) == [4, 7]
+
+
 def test_bootstrap_requires_a_real_opening_and_uses_it_as_the_lower_bound(
     fighter, counter_tracking
 ):

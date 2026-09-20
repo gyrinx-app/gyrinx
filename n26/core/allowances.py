@@ -3,7 +3,9 @@
 from django.db import transaction
 
 from n26.core.access import actions_for, rank_table_for
-from n26.core.models import ActionAllowance, CounterValue, LedgerEvent
+from n26.core.card import build_card, build_modifier_index, carriers
+from n26.core.effects import compute
+from n26.core.models import ActionAllowance, ActionRecord, CounterValue, LedgerEvent
 
 
 def _membership(fighter):
@@ -51,19 +53,23 @@ def grant_rank_allowances(op, counter_assignment, before, after):
     if fighter is None:
         return []
     counter = counter_assignment.counter
-    table_access = rank_table_for(fighter, counter)
+    card = build_card(fighter)
+    computed = compute(card, build_modifier_index(carriers(card)))
+    table_access = rank_table_for(fighter, counter, card=card, computed=computed)
     if table_access is None:
         return []
     table = table_access.rank_table
     recruitment = _membership(fighter)
     actions = [
         access.action
-        for access in actions_for(fighter)
+        for access in actions_for(fighter, card=card, computed=computed)
         if access.action.rank_allowance_rule_id
         and access.action.rank_allowance_rule.counter_id == counter.pk
     ]
     thresholds = list(
-        table.thresholds.filter(threshold__gt=before, threshold__lte=after)
+        table.thresholds.filter(threshold__gt=before, threshold__lte=after).order_by(
+            "threshold"
+        )
     )
     granted = []
     for action in actions:
@@ -128,7 +134,7 @@ def clone_unused_allowances(op, source, clone):
         return []
     copied = []
     unused = source.action_allowances.exclude(
-        records__state__in=["started", "completed"]
+        records__state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED]
     ).order_by("created", "pk")
     for allowance in unused:
         duplicate = ActionAllowance.objects.create(

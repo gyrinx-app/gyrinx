@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from django.db import transaction
+from django.db.models import Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
@@ -76,7 +77,13 @@ def _correction_result(record, *, lock=False):
         )
     ):
         raise Refusal("Later changes depend on this advancement.")
-    dependent = old_pick.caused.filter(archived=False)
+    protected = [old_pick.pk]
+    if old_skill is not None:
+        protected.append(old_skill.pk)
+    dependent = Assignment.objects.filter(
+        Q(parent_id__in=protected) | Q(caused_by_id__in=protected),
+        archived=False,
+    )
     if old_skill is not None:
         dependent = dependent.exclude(pk=old_skill.pk)
     if dependent.exists():
@@ -92,9 +99,18 @@ def _counterfactual_card(record):
     hidden = {selection.pick_assignment_id}
     if skill_selection and skill_selection.skill_assignment_id:
         hidden.add(skill_selection.skill_assignment_id)
-    for node in card.all_nodes():
-        if node.assignment is not None and node.assignment.pk in hidden:
-            node.suppressed = True
+
+    def without_hidden(nodes):
+        kept = []
+        for node in nodes:
+            if node.assignment is not None and node.assignment.pk in hidden:
+                continue
+            node.children = without_hidden(node.children)
+            kept.append(node)
+        return kept
+
+    card.roots = without_hidden(card.roots)
+    card.granted = without_hidden(card.granted)
     return card, selection, skill_selection
 
 
@@ -184,7 +200,7 @@ def _stat_gainable(fighter, pickable, *, evaluation=None):
         after = build_model_card(
             fighter,
             card=card,
-            computed=compute(card, build_modifier_index(carriers(card))),
+            computed=compute(card, index),
         )
     finally:
         profile.children.remove(node)
@@ -246,20 +262,58 @@ def _gainable(record, pickable, *, evaluation=None, skills_for=None):
     )
 
 
+def _roll_table(configured):
+    """Return active members and the semantic table state bound to a roll."""
+    from n26.core.browse import picklist_lines
+
+    members = list(
+        picklist_lines(configured.slot.picklist)
+        .select_related("pickable")
+        .prefetch_related(
+            "pickable__modifiers__offers_choice",
+            "pickable__modifiers__changes_stat",
+        )
+    )
+    state = {
+        "slot_id": str(configured.slot_id),
+        "slot_modified": configured.slot.modified.isoformat(),
+        "picklist_id": str(configured.slot.picklist_id),
+        "picklist_modified": configured.slot.picklist.modified.isoformat(),
+        "members": [
+            {
+                "id": str(member.pk),
+                "modified": member.modified.isoformat(),
+                "pickable_id": str(member.pickable_id),
+                "pickable_modified": member.pickable.modified.isoformat(),
+                "roll_low": member.roll_low,
+                "roll_high": member.roll_high,
+                "modifiers": sorted(
+                    [str(modifier.pk), modifier.modified.isoformat()]
+                    for modifier in member.pickable.modifiers.all()
+                ),
+            }
+            for member in members
+        ],
+    }
+    return members, state
+
+
 def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=None):
     """Persist one 2D6 roll and its record-owned slot before any result pick."""
+    requested_record = record
     record = _validate_draft(op, record, configured)
     selection, _ = AdvancementSelection.objects.select_for_update().get_or_create(
         action_record=record
     )
     if selection.roll_event_id:
         return selection
+    _members, table_state = _roll_table(configured)
     bound = list(
         Assignment.objects.select_for_update()
         .filter(
             miniature_root=record.fighter,
             slot=configured.slot,
-            caused_by=record.source_assignment,
+            caused_by=record.fighter.membership,
             archived=False,
         )
         .exclude(caused__pickable__isnull=False, caused__archived=False)[:2]
@@ -285,8 +339,13 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
     )
     selection.slot_assignment, selection.roll_event = anchor, event
     selection.save(update_fields=["slot_assignment", "roll_event", "modified"])
-    record.terms = {**record.terms, "action_roll_request": str(request_key)}
+    record.terms = {
+        **record.terms,
+        "action_roll_request": str(request_key),
+        "advancement_table": table_state,
+    }
     record.save(update_fields=["terms", "modified"])
+    requested_record.terms = record.terms
     return selection
 
 
@@ -299,12 +358,9 @@ def advancement_options(record, configured):
         raise Refusal("Roll 2D6 for this advancement first.") from error
     if not selection.roll_event_id:
         raise Refusal("Roll 2D6 for this advancement first.")
-    members = list(
-        configured.slot.picklist.members.select_related("pickable").prefetch_related(
-            "pickable__modifiers__offers_choice",
-            "pickable__modifiers__changes_stat",
-        )
-    )
+    members, table_state = _roll_table(configured)
+    if record.terms.get("advancement_table") != table_state:
+        raise Refusal("This advancement table changed after the roll was recorded.")
     landed = configured.slot.picklist.landing(selection.roll_event.roll, members)
     card, _selection, _skill_selection = _counterfactual_card(record)
     index = build_modifier_index(
@@ -337,28 +393,27 @@ def advancement_options(record, configured):
             )
         return skill_cache[offer.pk]
 
-    def gainable(member):
-        return _gainable(
+    offers = {member.pk: _skill_offer(member.pickable) for member in members}
+    gainable = {
+        member.pk: _gainable(
             record,
             member.pickable,
             evaluation=evaluation,
             skills_for=skills_for,
         )
+        for member in members
+    }
 
-    gainable_members = [member for member in landed if gainable(member)]
+    gainable_members = [member for member in landed if gainable[member.pk]]
     offered = gainable_members or members
     return tuple(
         AdvancementOption(
             str(member.pickable_id),
             str(member.pickable),
             member.pickable.rating_contribution,
-            gainable(member),
-            _skill_offer(member.pickable) is not None,
-            (
-                _skill_offer(member.pickable).mode
-                if _skill_offer(member.pickable)
-                else ""
-            ),
+            gainable[member.pk],
+            offers[member.pk] is not None,
+            offers[member.pk].mode if offers[member.pk] else "",
             " ".join(
                 sentence_for(modifier, thing=member.pickable).text
                 for modifier, _ in index.for_thing(member.pickable)
@@ -425,17 +480,33 @@ def record_skill_roll(
     rng=None,
 ):
     record = _validate_draft(op, record, configured)
+    from n26.core.browse import picklist_lines
+
+    member = (
+        picklist_lines(configured.slot.picklist).filter(pickable_id=pickable_id).first()
+    )
+    if member is None:
+        raise Refusal("That advancement result is not available for this roll.")
+    offer = _skill_offer(member.pickable)
+    if offer is None or offer.mode != offer.Mode.RANDOM:
+        raise Refusal("That advancement result does not use a random skill roll.")
     selection, _ = SkillSelection.objects.select_for_update().get_or_create(
         action_record=record,
         defaults={"mode": "random", "access": _skill_access(configured, pickable_id)},
     )
     for attempt in selection.random_attempts:
         if attempt["request_key"] == str(request_key):
+            if attempt.get("pickable_id") != str(pickable_id) or attempt.get(
+                "skill_set_id"
+            ) != str(skill_set_id):
+                raise Refusal(
+                    "That request was already used for a different skill roll."
+                )
             return attempt
     options = skill_options(record, configured, pickable_id)
     category = next((row for row in options if str(row.pk) == str(skill_set_id)), None)
     if category is None:
-        raise Refusal("That Skill Set is not available for this advancement.")
+        raise Refusal("That skill set is not available for this advancement.")
     access = _skill_access(configured, pickable_id)
     latest = selection.random_attempts[-1] if selection.random_attempts else None
     matching = [
@@ -495,6 +566,7 @@ def record_skill_roll(
     )
     attempt = {
         "request_key": str(request_key),
+        "pickable_id": str(pickable_id),
         "event_id": event_id,
         "access": access,
         "skill_set_id": str(category.pk),
@@ -503,9 +575,7 @@ def record_skill_roll(
         "result_name": str(rolled_skill) if rolled_skill else None,
         "is_available": available is not None,
         "unavailable_reason": (
-            None
-            if available is not None
-            else "That result is already owned or unavailable."
+            None if available is not None else "No available skill was rolled."
         ),
     }
     selection.random_attempts = [*selection.random_attempts, attempt]
@@ -517,9 +587,10 @@ def record_skill_roll(
 
 def _resolved(record, configured, terms):
     pickable_id = str(terms.get("pickable_id", ""))
-    if pickable_id not in {
-        option.id for option in advancement_options(record, configured)
-    }:
+    options_by_id = {
+        option.id: option for option in advancement_options(record, configured)
+    }
+    if pickable_id not in options_by_id or not options_by_id[pickable_id].gainable:
         raise Refusal("Choose an advancement result available for this roll.")
     pickable = configured.slot.picklist.members.get(pickable_id=pickable_id).pickable
     offer, skill = _skill_offer(pickable), None
@@ -559,6 +630,8 @@ def preview_advancement(record, configured, terms):
         "skill_id": str(skill.pk) if skill else None,
         "skill": str(skill) if skill else None,
         "skill_mode": offer.mode if offer else None,
+        "skill_from_section_id": str(offer.from_section_id) if offer else None,
+        "skill_will_be_assigned_to": offer.will_be_assigned_to if offer else None,
         "fighter_state": _fighter_state(record),
         "result_state": _fighter_state(
             record, [pickable, *([skill] if skill is not None else [])]

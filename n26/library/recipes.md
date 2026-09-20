@@ -26,7 +26,7 @@ access but make the authored source harder to explain.
 
 The five skill advancement results are already configured. Primary and
 Secondary results point at those exact Skills & Powers sections. Random results
-record a D6 choice; select results let the player pick. The any-skill result
+record a D6 roll; select results let the player pick. The any-skill result
 leaves the section blank deliberately.
 
 How to build specific rulebook setups out of the library's pieces. Each

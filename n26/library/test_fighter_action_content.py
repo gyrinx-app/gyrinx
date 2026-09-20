@@ -142,9 +142,15 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
         Pickable,
         PicklistMember,
         RankThreshold,
+        Stat,
     )
 
     homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-actions")
+    Stat.objects.create(
+        pack=homebrew,
+        short_name="M",
+        full_name="Movement",
+    )
     skill_collection = Collection.objects.create(pack=homebrew, name="Skills & Powers")
     for position, name in enumerate(("Primary", "Secondary")):
         CollectionSection.objects.create(
@@ -210,6 +216,7 @@ def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pac
         Pickable.objects.get(pack=default_pack, name="Leadership").rating_contribution
         == 5
     )
+    assert Stat.objects.filter(pack=default_pack, full_name="Movement").exists()
     assert RankTable.objects.get(
         pack=default_pack, name="Standard fighter ranks"
     ).thresholds.count() == len(FIGHTER_RANK_THRESHOLDS)
@@ -252,6 +259,26 @@ def test_reseeding_repairs_the_old_broad_glitch_cleanup():
     removal.refresh_from_db()
     assert removal.slot_type.name == "Spyrer Hunting Rig Glitch"
     assert clear.apply_changes.changes.filter(remove_picks__isnull=False).count() == 1
+
+
+def test_reseeding_repairs_missing_action_and_result_links():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Suit Maintenance", qualifier="")
+    action.outcomes.all().delete()
+    result = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Movement")
+        .pickable
+    )
+    result.modifiers.clear()
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    assert content.status() == "complete"
+    assert action.outcomes.get().outcome.name == "Clear glitches"
+    assert isinstance(result.modifiers.get().effect, ChangesStat)
 
 
 @pytest.mark.parametrize(
