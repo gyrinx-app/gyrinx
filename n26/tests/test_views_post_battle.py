@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from bs4 import BeautifulSoup
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -18,7 +18,7 @@ from n26.core.models import Assignment, CounterValue, LedgerEvent, PostBattleRep
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
-from n26.flags import CAMPAIGNS
+from n26.flags import CAMPAIGNS, FOUNDING
 from n26.library.authoring import (
     add_built_in,
     add_picklist_member,
@@ -312,6 +312,85 @@ class TestReportLayout:
         document = BeautifulSoup(response.content, "html.parser")
         assert "XP total: 2 → 0" in document.find("aside").get_text()
         assert xp_value(model) == 2
+
+
+class TestGangActions:
+    """The roster groups actions without combining their feature permissions."""
+
+    @pytest.mark.parametrize("campaigns_open", [False, True])
+    @pytest.mark.parametrize("founding_open", [False, True])
+    def test_post_battle_is_in_actions_with_its_own_feature_gate(
+        self, client, table, feature, campaigns_open, founding_open
+    ):
+        feature.availability = (
+            Availability.EVERYONE if campaigns_open else Availability.OFF
+        )
+        feature.save()
+        FeatureFlag.objects.create(
+            slug=FOUNDING,
+            name="Founding",
+            availability=Availability.EVERYONE if founding_open else Availability.OFF,
+        )
+        response = client.get(reverse("n26-gang", args=[table.gang.pk]))
+        assert response.status_code == 200
+        document = BeautifulSoup(response.content, "html.parser")
+        panel = document.select_one('[role="region"][aria-label="Actions"]')
+        assert bool(panel) == (campaigns_open or founding_open)
+        links = document.select(f'a[href="{start_url(table, standalone=True)}"]')
+        assert len(links) == int(campaigns_open)
+        if campaigns_open:
+            assert links[0] in panel.find_all("a")
+            assert links[0].get_text(strip=True) == "Post-battle"
+        if panel:
+            founding_url = reverse("n26-gang-founding-action", args=[table.gang.pk])
+            assert bool(panel.find("form", action=founding_url)) == founding_open
+            assert ("Recent history" in panel.get_text()) == founding_open
+            assert "Hire Fighters" not in panel.get_text()
+            if not founding_open:
+                assert "No action is open." not in panel.get_text()
+                assert "No history for this gang yet." not in panel.get_text()
+
+    @pytest.mark.parametrize("member", [False, True])
+    def test_one_campaigns_group_controls_the_link_and_creation_page(
+        self, client, table, feature, member
+    ):
+        group = Group.objects.create(name="Campaigns preview")
+        feature.availability = Availability.ALLOWLIST
+        feature.group = group
+        feature.save()
+        if member:
+            table.owner.groups.add(group)
+        url = start_url(table, standalone=True)
+        document = BeautifulSoup(
+            client.get(reverse("n26-gang", args=[table.gang.pk])).content,
+            "html.parser",
+        )
+        assert bool(document.find("a", href=url)) == member
+        assert client.get(url).status_code == (200 if member else 404)
+        if not member:
+            assert client.post(url, {}).status_code == 404
+        assert not PostBattleReport.objects.exists()
+
+    @pytest.mark.parametrize("who", ["arbitrator", "anonymous"])
+    def test_other_readers_get_neither_the_panel_nor_standalone_creation(
+        self, client, table, feature, who
+    ):
+        FeatureFlag.objects.create(
+            slug=FOUNDING, name="Founding", availability=Availability.EVERYONE
+        )
+        if who == "arbitrator":
+            client.force_login(table.arbitrator)
+        else:
+            client.logout()
+        document = BeautifulSoup(
+            client.get(reverse("n26-gang", args=[table.gang.pk])).content,
+            "html.parser",
+        )
+        assert document.select_one('[role="region"][aria-label="Actions"]') is None
+        url = start_url(table, standalone=True)
+        assert document.find("a", href=url) is None
+        assert client.get(url).status_code == 404
+        assert client.post(url, {}).status_code == 404
 
 
 class TestStartingAndResuming:

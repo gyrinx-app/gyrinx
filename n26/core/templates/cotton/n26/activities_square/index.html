@@ -7,15 +7,17 @@ An open founding is drawn unboxed, as the current action.
 The start control posts only while founding is not already open.
 A waiting step is a form when it has post, and a link otherwise.
 A step that acts on the click must post. Following a link must not change the roster.
-Always draw this square. A square that appears and vanishes would shift every card after it.
+Draw this square when the owner has access to founding or post-battle.
+Pass square only for founding access, and post_battle_href only for campaigns access.
+Without square, the component shows only the post-battle link, not action state or history.
 Whoever draws this owns the gang. There is no reader-facing shape.
 Name models in the snapshot. Do not link them. The roster is the way through to a model.
 {% endcomment %}
 
 {% load humanize %}
-<c-vars :square="None" class="" />
+<c-vars :square="None" post_battle_href="" class="" />
 
-<c-ui.card padding="none" class="{{ class }}">
+<c-ui.card padding="none" class="{{ class }}" role="region" aria-label="Actions">
     <c-slot name="header">
 
         {# Pull the header back. The kit header is px-6 while the body is px-4, so the title would start further in. #}
@@ -41,7 +43,7 @@ Name models in the snapshot. Do not link them. The roster is the way through to 
             </div>
         {% endif %}
 
-        {% if not square.anything_open and not square.to_do %}
+        {% if square and not square.anything_open and not square.to_do %}
             <p class="text-xs text-muted">No action is open.</p>
         {% endif %}
 
@@ -71,8 +73,16 @@ Name models in the snapshot. Do not link them. The roster is the way through to 
                 </c-ui.button>
             </form>
         {% endif %}
+        {% if post_battle_href %}
+            <div>
+                <c-ui.button size="sm" variant="primary" href="{{ post_battle_href }}">
+                    Post-battle
+                </c-ui.button>
+            </div>
+        {% endif %}
     </div>
 
+    {% if square %}
     <div class="flex flex-col gap-2 border-t border-box-border px-4 py-3">
         <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">Recent history</h3>
         {% if square.history %}
@@ -96,4 +106,5 @@ Name models in the snapshot. Do not link them. The roster is the way through to 
             <c-n26.link href="{{ square.history_href }}" class="text-xs">Full history</c-n26.link>
         </div>
     </div>
+    {% endif %}
 </c-ui.card>

@@ -2046,9 +2046,11 @@ GROUPS: list[Group] = [
                     "starts a new one."
                 ),
                 notes=(
-                    "It is the first square of the gang sheet's grid, drawn only "
-                    "for the owner and always drawn: a square that came and went "
-                    "would move every card after it. The nothing-open message shows "
+                    "Draw it first in the gang sheet's grid for an owner with "
+                    "founding or campaigns access. Pass square only for founding "
+                    "access, and post_battle_href only for campaigns access. "
+                    "Without square, only the post-battle link is drawn. "
+                    "The nothing-open message shows "
                     "only when nothing is running and nothing is waiting. The start "
                     "control is a form, as is any waiting step that acts on the "
                     "click, because following a link must not change the roster. "
