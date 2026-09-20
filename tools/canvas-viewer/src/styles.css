@@ -694,6 +694,14 @@ button.cv-pill {
     fill: var(--cv-text-tertiary);
     font-size: 10px;
 }
+.cv-chart-reference {
+    stroke-dasharray: 5 4;
+    stroke-width: 1;
+}
+.cv-chart-hover-guide {
+    stroke: var(--cv-stroke-primary);
+    stroke-width: 1;
+}
 .cv-chart-legend {
     display: flex;
     flex-wrap: wrap;

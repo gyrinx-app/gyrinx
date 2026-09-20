@@ -47,19 +47,13 @@ export function resolveCanvasDirectory(
     repositoryRoot: string,
     configuredDirectory = process.env.CANVAS_DIR,
 ): string {
-    const directory = configuredDirectory
+    return configuredDirectory
         ? resolve(configuredDirectory)
         : defaultCanvasDirectory(repositoryRoot);
-
-    if (!existsSync(directory)) {
-        throw new Error(
-            `Canvas directory does not exist: ${directory}. Set CANVAS_DIR to the directory containing .canvas.tsx files.`,
-        );
-    }
-    return directory;
 }
 
 export function listCanvases(directory: string): CanvasEntry[] {
+    if (!existsSync(directory)) return [];
     return readdirSync(directory, { withFileTypes: true })
         .filter((entry) => entry.isFile() && entry.name.endsWith(".canvas.tsx"))
         .map((entry) => {

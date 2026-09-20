@@ -5,7 +5,6 @@ import {
     useCallback,
     useEffect,
     useMemo,
-    useRef,
     useState,
 } from "react";
 
@@ -13,7 +12,7 @@ export type { CSSProperties, RefObject } from "react";
 export { useEffect, useMemo, useRef, useState } from "react";
 
 type Tone = "success" | "danger" | "warning" | "info" | "neutral";
-type Color =
+export type Color =
     | "gray"
     | "blue"
     | "green"
@@ -24,7 +23,7 @@ type Color =
     | "pink"
     | "cyan";
 
-const categoryColours: Record<Color, string> = {
+const categoryColours: Readonly<Record<Color, string>> = {
     gray: "var(--cv-category-gray)",
     blue: "var(--cv-category-blue)",
     green: "var(--cv-category-green)",
@@ -36,7 +35,7 @@ const categoryColours: Record<Color, string> = {
     cyan: "var(--cv-category-cyan)",
 };
 
-export const usageColorSequence: Color[] = [
+export const usageColorSequence: readonly Color[] = [
     "gray",
     "purple",
     "green",
@@ -47,58 +46,255 @@ export const usageColorSequence: Color[] = [
     "cyan",
     "red",
 ];
-export const colorPalette = categoryColours;
-export const categoryPaletteDark = categoryColours;
-export const categoryPaletteLight = categoryColours;
+export type CategoryPalette = Readonly<Record<Color, string>>;
 
-function createTheme(kind: "light" | "dark") {
-    const theme: Record<string, unknown> = {
-        kind,
-        text: {
-            primary: "var(--cv-text-primary)",
-            secondary: "var(--cv-text-secondary)",
-            tertiary: "var(--cv-text-tertiary)",
-            quaternary: "var(--cv-text-quaternary)",
-            link: "var(--cv-link)",
-            onAccent: "var(--cv-on-accent)",
-        },
-        bg: {
-            editor: "var(--cv-bg)",
-            chrome: "var(--cv-chrome)",
-            elevated: "var(--cv-elevated)",
-        },
-        fill: {
-            primary: "var(--cv-fill-primary)",
-            secondary: "var(--cv-fill-secondary)",
-            tertiary: "var(--cv-fill-tertiary)",
-            quaternary: "var(--cv-fill-quaternary)",
-        },
-        stroke: {
-            primary: "var(--cv-stroke-primary)",
-            secondary: "var(--cv-stroke-secondary)",
-            tertiary: "var(--cv-stroke-tertiary)",
-        },
-        accent: {
-            primary: "var(--cv-accent)",
-            control: "var(--cv-accent)",
-        },
-        diff: {
-            added: "var(--cv-success)",
-            deleted: "var(--cv-danger)",
-        },
-        category: categoryColours,
-        palette: categoryColours,
-    };
-    theme.tokens = theme;
-    return theme;
+export interface CanvasPalette {
+    readonly foreground: string;
+    readonly foregroundSecondary: string;
+    readonly foregroundTertiary: string;
+    readonly foregroundQuaternary: string;
+    readonly editor: string;
+    readonly chrome: string;
+    readonly sidebar: string;
+    readonly elevated: string;
+    readonly fillPrimary: string;
+    readonly fillSecondary: string;
+    readonly fillTertiary: string;
+    readonly fillQuaternary: string;
+    readonly strokePrimary: string;
+    readonly strokeSecondary: string;
+    readonly strokeTertiary: string;
+    readonly strokeFocused: string;
+    readonly accent: string;
+    readonly buttonBackground: string;
+    readonly buttonForeground: string;
+    readonly buttonHoverBackground: string;
+    readonly link: string;
+    readonly diffInsertedLine: string;
+    readonly diffRemovedLine: string;
+    readonly diffStripAdded: string;
+    readonly diffStripRemoved: string;
 }
 
-export const canvasTokensLight = createTheme("light");
-export const canvasTokens = createTheme("dark");
-export const canvasPaletteLight = categoryColours;
-export const canvasPaletteDark = categoryColours;
+export interface CanvasTokens {
+    readonly bg: { editor: string; chrome: string; elevated: string };
+    readonly text: {
+        primary: string;
+        secondary: string;
+        tertiary: string;
+        quaternary: string;
+        link: string;
+        onAccent: string;
+    };
+    readonly stroke: {
+        primary: string;
+        secondary: string;
+        tertiary: string;
+        focused: string;
+    };
+    readonly fill: {
+        primary: string;
+        secondary: string;
+        tertiary: string;
+        quaternary: string;
+    };
+    readonly accent: {
+        primary: string;
+        control: string;
+        controlHover: string;
+    };
+    readonly diff: {
+        insertedLine: string;
+        removedLine: string;
+        stripAdded: string;
+        stripRemoved: string;
+    };
+    readonly category: CategoryPalette;
+}
 
-export function useHostTheme(): any {
+export interface CanvasHostTheme extends CanvasTokens {
+    readonly kind: "light" | "dark";
+    readonly tokens: CanvasTokens;
+    readonly palette: CanvasPalette;
+}
+
+export const canvasPaletteLight: CanvasPalette = {
+    foreground: "#17191d",
+    foregroundSecondary: "#555c66",
+    foregroundTertiary: "#737b87",
+    foregroundQuaternary: "#969da7",
+    editor: "#ffffff",
+    chrome: "#f6f7f9",
+    sidebar: "#f6f7f9",
+    elevated: "#ffffff",
+    fillPrimary: "#eef1f5",
+    fillSecondary: "#f3f5f7",
+    fillTertiary: "#f7f8fa",
+    fillQuaternary: "#fafbfc",
+    strokePrimary: "#c4c9d1",
+    strokeSecondary: "#d7dbe1",
+    strokeTertiary: "#e5e7eb",
+    strokeFocused: "#0771ea",
+    accent: "#0771ea",
+    buttonBackground: "#0771ea",
+    buttonForeground: "#ffffff",
+    buttonHoverBackground: "#075fca",
+    link: "#075fca",
+    diffInsertedLine: "#e8f5ed",
+    diffRemovedLine: "#fbeaec",
+    diffStripAdded: "#1a7b49",
+    diffStripRemoved: "#b4233e",
+};
+
+export const canvasPaletteDark: CanvasPalette = {
+    foreground: "#f2f3f5",
+    foregroundSecondary: "#c1c6ce",
+    foregroundTertiary: "#9fa6b1",
+    foregroundQuaternary: "#7f8792",
+    editor: "#17191d",
+    chrome: "#202329",
+    sidebar: "#202329",
+    elevated: "#22262c",
+    fillPrimary: "#2a2e35",
+    fillSecondary: "#25292f",
+    fillTertiary: "#20242a",
+    fillQuaternary: "#1c1f24",
+    strokePrimary: "#4d535d",
+    strokeSecondary: "#3d424b",
+    strokeTertiary: "#30353c",
+    strokeFocused: "#3f8efc",
+    accent: "#3f8efc",
+    buttonBackground: "#3f8efc",
+    buttonForeground: "#ffffff",
+    buttonHoverBackground: "#3479d8",
+    link: "#75aff8",
+    diffInsertedLine: "#193628",
+    diffRemovedLine: "#40242a",
+    diffStripAdded: "#63c18f",
+    diffStripRemoved: "#f07188",
+};
+
+export const categoryPaletteLight: CategoryPalette = {
+    gray: "#737b87",
+    purple: "#8056c8",
+    green: "#2e8b57",
+    yellow: "#b07a00",
+    cyan: "#168ca0",
+    pink: "#bf4f8d",
+    blue: "#397bd6",
+    orange: "#c76524",
+    red: "#c43d55",
+};
+
+export const categoryPaletteDark: CategoryPalette = {
+    gray: "#9fa6b1",
+    purple: "#aa98d8",
+    green: "#63c18f",
+    yellow: "#e6b449",
+    cyan: "#5bc5d5",
+    pink: "#e8a0c4",
+    blue: "#75aff8",
+    orange: "#f0a040",
+    red: "#f07188",
+};
+
+export const colorPalette = categoryPaletteDark;
+
+export const chartPalette = {
+    green: "#1F8A65E8",
+    darkGreen: "#0D855AE0",
+    lightGreen: "#52B896E0",
+    mintGreen: "#7DCAB0E0",
+    blue: "#2E79B5E0",
+    lightBlue: "#70B0D8E0",
+    indigo: "#5A6CC0F0",
+    lightIndigo: "#9AAADCE0",
+    purple: "#7B64B8F0",
+    lightPurple: "#AA98D8E0",
+    warmPink: "#C85898E0",
+    lightPink: "#E8A0C4E0",
+    brightOrange: "#F0A040E0",
+    deepOrange: "#C06028E0",
+    goldenYellow: "#E8C030E0",
+    darkAmber: "#C04848E0",
+    warmPeach: "#F0A088E0",
+    vibrantTeal: "#2A9A8AE0",
+    muted: "#8888A8E0",
+    neutralLine: "#888899D0",
+} as const;
+
+export const chartColorSequence: readonly string[] = [
+    chartPalette.green,
+    chartPalette.blue,
+    chartPalette.purple,
+    chartPalette.brightOrange,
+    chartPalette.warmPink,
+    chartPalette.vibrantTeal,
+    chartPalette.indigo,
+    chartPalette.goldenYellow,
+];
+
+function tokensFromPalette(
+    palette: CanvasPalette,
+    category: CategoryPalette,
+): CanvasTokens {
+    return {
+        bg: {
+            editor: palette.editor,
+            chrome: palette.chrome,
+            elevated: palette.elevated,
+        },
+        text: {
+            primary: palette.foreground,
+            secondary: palette.foregroundSecondary,
+            tertiary: palette.foregroundTertiary,
+            quaternary: palette.foregroundQuaternary,
+            link: palette.link,
+            onAccent: palette.buttonForeground,
+        },
+        stroke: {
+            primary: palette.strokePrimary,
+            secondary: palette.strokeSecondary,
+            tertiary: palette.strokeTertiary,
+            focused: palette.strokeFocused,
+        },
+        fill: {
+            primary: palette.fillPrimary,
+            secondary: palette.fillSecondary,
+            tertiary: palette.fillTertiary,
+            quaternary: palette.fillQuaternary,
+        },
+        accent: {
+            primary: palette.accent,
+            control: palette.buttonBackground,
+            controlHover: palette.buttonHoverBackground,
+        },
+        diff: {
+            insertedLine: palette.diffInsertedLine,
+            removedLine: palette.diffRemovedLine,
+            stripAdded: palette.diffStripAdded,
+            stripRemoved: palette.diffStripRemoved,
+        },
+        category,
+    };
+}
+
+export const canvasTokensLight = tokensFromPalette(
+    canvasPaletteLight,
+    categoryPaletteLight,
+);
+export const canvasTokens = tokensFromPalette(
+    canvasPaletteDark,
+    categoryPaletteDark,
+);
+
+function hostTheme(kind: "light" | "dark"): CanvasHostTheme {
+    const tokens = kind === "dark" ? canvasTokens : canvasTokensLight;
+    const palette = kind === "dark" ? canvasPaletteDark : canvasPaletteLight;
+    return { ...tokens, kind, tokens, palette };
+}
+
+export function useHostTheme(): CanvasHostTheme {
     const [dark, setDark] = useState(() =>
         typeof window === "undefined"
             ? false
@@ -110,7 +306,7 @@ export function useHostTheme(): any {
         media.addEventListener("change", update);
         return () => media.removeEventListener("change", update);
     }, []);
-    return dark ? canvasTokens : canvasTokensLight;
+    return useMemo(() => hostTheme(dark ? "dark" : "light"), [dark]);
 }
 
 export function useCanvasState<T>(
@@ -993,30 +1189,118 @@ export function DiffView({
 function chartColour(series: any, index: number) {
     if (series?.tone)
         return `var(--cv-${series.tone === "neutral" ? "text-secondary" : series.tone})`;
-    return categoryColours[
-        usageColorSequence[(index + 1) % usageColorSequence.length]
-    ];
+    return chartColorSequence[index % chartColorSequence.length];
+}
+
+type ChartReferenceLine = { value: number; label?: string; tone?: Tone };
+type ChartSeries = { name: string; data: number[]; tone?: Tone };
+
+function chartDomain(
+    values: number[],
+    {
+        beginAtZero = true,
+        yMin,
+        yMax,
+        referenceLines = [],
+    }: {
+        beginAtZero?: boolean;
+        yMin?: number;
+        yMax?: number;
+        referenceLines?: ChartReferenceLine[];
+    },
+) {
+    const finite = [
+        ...values,
+        ...referenceLines.map((line) => line.value),
+    ].filter(Number.isFinite);
+    const dataMinimum = finite.length > 0 ? Math.min(...finite) : 0;
+    const dataMaximum = finite.length > 0 ? Math.max(...finite) : 1;
+    const minimum =
+        yMin ?? (beginAtZero ? Math.min(0, dataMinimum) : dataMinimum);
+    const maximum =
+        yMax ?? (beginAtZero ? Math.max(0, dataMaximum) : dataMaximum);
+    return maximum === minimum
+        ? { minimum, maximum: minimum + 1 }
+        : { minimum, maximum };
+}
+
+function formattedValue(value: number, prefix: string, suffix: string) {
+    return `${prefix}${Number.isInteger(value) ? value : value.toFixed(1)}${suffix}`;
 }
 
 export function BarChart({
     categories,
     series,
     height = 260,
+    stacked = false,
     horizontal = false,
+    normalized = false,
     valuePrefix = "",
     valueSuffix = "",
     showValues,
+    beginAtZero = true,
+    yMin,
+    yMax,
+    referenceLines = [],
     style,
-}: any) {
-    const maximum = Math.max(1, ...series.flatMap((item: any) => item.data));
+}: {
+    categories: string[];
+    series: ChartSeries[];
+    height?: number;
+    stacked?: boolean;
+    horizontal?: boolean;
+    normalized?: boolean;
+    valuePrefix?: string;
+    valueSuffix?: string;
+    showValues?: boolean;
+    beginAtZero?: boolean;
+    yMin?: number;
+    yMax?: number;
+    referenceLines?: ChartReferenceLine[];
+    style?: CSSProperties;
+}) {
+    const width = 720;
+    const padding = { top: 18, right: 24, bottom: 38, left: 52 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const stack = stacked || normalized;
+    const plotted = categories.map((_, categoryIndex) => {
+        const values = series.map((item) => item.data[categoryIndex] ?? 0);
+        if (!normalized) return values;
+        const total = values.reduce(
+            (sum, value) => sum + Math.max(0, value),
+            0,
+        );
+        return values.map((value) =>
+            total > 0 ? (Math.max(0, value) / total) * 100 : 0,
+        );
+    });
+    const domainValues = stack
+        ? plotted.map((values) => values.reduce((sum, value) => sum + value, 0))
+        : plotted.flat();
+    const domain = normalized
+        ? { minimum: 0, maximum: 100 }
+        : chartDomain(
+              domainValues,
+              stack
+                  ? { beginAtZero: true, referenceLines }
+                  : { beginAtZero, yMin, yMax, referenceLines },
+          );
+    const scale = (value: number, span: number) =>
+        ((value - domain.minimum) /
+            Math.max(1, domain.maximum - domain.minimum)) *
+        span;
+    const suffix = normalized ? "%" : valueSuffix;
+    const prefix = normalized ? "" : valuePrefix;
+    const valuesVisible =
+        !stack &&
+        (showValues ?? (series.length === 1 && categories.length <= 8));
+
     return (
-        <div
-            className={`cv-chart ${horizontal ? "cv-chart-horizontal" : ""}`}
-            style={{ minHeight: height, ...style }}
-        >
+        <div className="cv-chart" style={style}>
             <div className="cv-chart-legend">
                 {series.length > 1 &&
-                    series.map((item: any, index: number) => (
+                    series.map((item, index) => (
                         <span key={item.name}>
                             <i
                                 style={{ background: chartColour(item, index) }}
@@ -1025,52 +1309,219 @@ export function BarChart({
                         </span>
                     ))}
             </div>
-            <div className="cv-bars">
-                {categories.map((category: string, categoryIndex: number) => (
-                    <div className="cv-bar-group" key={category}>
-                        <div className="cv-bar-values">
-                            {series.map((item: any, seriesIndex: number) => {
-                                const value = item.data[categoryIndex] ?? 0;
+            <svg
+                viewBox={`0 0 ${width} ${height}`}
+                role="img"
+                aria-label="Bar chart"
+                data-chart-mode={
+                    normalized ? "normalized" : stack ? "stacked" : "grouped"
+                }
+            >
+                {referenceLines.map((line) => {
+                    const position = scale(
+                        line.value,
+                        horizontal ? plotWidth : plotHeight,
+                    );
+                    return (
+                        <g key={`${line.value}-${line.label ?? ""}`}>
+                            <line
+                                x1={
+                                    horizontal
+                                        ? padding.left + position
+                                        : padding.left
+                                }
+                                x2={
+                                    horizontal
+                                        ? padding.left + position
+                                        : width - padding.right
+                                }
+                                y1={
+                                    horizontal
+                                        ? padding.top
+                                        : padding.top + plotHeight - position
+                                }
+                                y2={
+                                    horizontal
+                                        ? padding.top + plotHeight
+                                        : padding.top + plotHeight - position
+                                }
+                                className="cv-chart-reference"
+                                data-reference-value={line.value}
+                                style={{ stroke: chartColour(line, 0) }}
+                            />
+                            {line.label && (
+                                <text
+                                    x={
+                                        horizontal
+                                            ? padding.left + position + 4
+                                            : width - padding.right
+                                    }
+                                    y={
+                                        horizontal
+                                            ? padding.top + 10
+                                            : padding.top +
+                                              plotHeight -
+                                              position -
+                                              4
+                                    }
+                                    textAnchor={horizontal ? "start" : "end"}
+                                >
+                                    {line.label}
+                                </text>
+                            )}
+                        </g>
+                    );
+                })}
+                {categories.map((category, categoryIndex) => {
+                    const categorySpan =
+                        (horizontal ? plotHeight : plotWidth) /
+                        Math.max(1, categories.length);
+                    let cumulative = 0;
+                    return (
+                        <g key={category}>
+                            {series.map((item, seriesIndex) => {
+                                const value =
+                                    plotted[categoryIndex]?.[seriesIndex] ?? 0;
+                                const colour = chartColour(item, seriesIndex);
+                                const start = stack
+                                    ? cumulative
+                                    : domain.minimum;
+                                if (stack) cumulative += value;
+                                if (horizontal) {
+                                    const barHeight = stack
+                                        ? Math.min(30, categorySpan * 0.62)
+                                        : Math.min(
+                                              24,
+                                              (categorySpan * 0.7) /
+                                                  Math.max(1, series.length),
+                                          );
+                                    const y = stack
+                                        ? padding.top +
+                                          categoryIndex * categorySpan +
+                                          (categorySpan - barHeight) / 2
+                                        : padding.top +
+                                          categoryIndex * categorySpan +
+                                          categorySpan * 0.15 +
+                                          seriesIndex * barHeight;
+                                    const x =
+                                        padding.left + scale(start, plotWidth);
+                                    const barWidth = Math.max(
+                                        0,
+                                        scale(start + value, plotWidth) -
+                                            scale(start, plotWidth),
+                                    );
+                                    return (
+                                        <g key={item.name}>
+                                            <rect
+                                                x={x}
+                                                y={y}
+                                                width={barWidth}
+                                                height={barHeight}
+                                                rx="2"
+                                                fill={colour}
+                                            >
+                                                <title>
+                                                    {item.name}:{" "}
+                                                    {formattedValue(
+                                                        value,
+                                                        prefix,
+                                                        suffix,
+                                                    )}
+                                                </title>
+                                            </rect>
+                                            {valuesVisible && (
+                                                <text
+                                                    x={x + barWidth + 4}
+                                                    y={y + barHeight / 2 + 4}
+                                                >
+                                                    {formattedValue(
+                                                        value,
+                                                        prefix,
+                                                        suffix,
+                                                    )}
+                                                </text>
+                                            )}
+                                        </g>
+                                    );
+                                }
+                                const barWidth = stack
+                                    ? Math.min(42, categorySpan * 0.62)
+                                    : Math.min(
+                                          32,
+                                          (categorySpan * 0.7) /
+                                              Math.max(1, series.length),
+                                      );
+                                const x = stack
+                                    ? padding.left +
+                                      categoryIndex * categorySpan +
+                                      (categorySpan - barWidth) / 2
+                                    : padding.left +
+                                      categoryIndex * categorySpan +
+                                      categorySpan * 0.15 +
+                                      seriesIndex * barWidth;
+                                const top = scale(start + value, plotHeight);
+                                const bottom = scale(start, plotHeight);
+                                const y = padding.top + plotHeight - top;
+                                const barHeight = Math.max(0, top - bottom);
                                 return (
-                                    <div
-                                        key={item.name}
-                                        className="cv-bar"
-                                        title={`${item.name}: ${valuePrefix}${value}${valueSuffix}`}
-                                        style={
-                                            horizontal
-                                                ? {
-                                                      width: `${(value / maximum) * 100}%`,
-                                                      background: chartColour(
-                                                          item,
-                                                          seriesIndex,
-                                                      ),
-                                                  }
-                                                : {
-                                                      height: `${(value / maximum) * Math.max(80, height - 90)}px`,
-                                                      background: chartColour(
-                                                          item,
-                                                          seriesIndex,
-                                                      ),
-                                                  }
-                                        }
-                                    >
-                                        {(showValues ??
-                                            (series.length === 1 &&
-                                                categories.length <= 8)) && (
-                                            <span>
-                                                {valuePrefix}
-                                                {value}
-                                                {valueSuffix}
-                                            </span>
+                                    <g key={item.name}>
+                                        <rect
+                                            x={x}
+                                            y={y}
+                                            width={barWidth}
+                                            height={barHeight}
+                                            rx="2"
+                                            fill={colour}
+                                        >
+                                            <title>
+                                                {item.name}:{" "}
+                                                {formattedValue(
+                                                    value,
+                                                    prefix,
+                                                    suffix,
+                                                )}
+                                            </title>
+                                        </rect>
+                                        {valuesVisible && (
+                                            <text
+                                                x={x + barWidth / 2}
+                                                y={y - 5}
+                                                textAnchor="middle"
+                                            >
+                                                {formattedValue(
+                                                    value,
+                                                    prefix,
+                                                    suffix,
+                                                )}
+                                            </text>
                                         )}
-                                    </div>
+                                    </g>
                                 );
                             })}
-                        </div>
-                        <small>{category}</small>
-                    </div>
-                ))}
-            </div>
+                            <text
+                                x={
+                                    horizontal
+                                        ? padding.left - 8
+                                        : padding.left +
+                                          categoryIndex * categorySpan +
+                                          categorySpan / 2
+                                }
+                                y={
+                                    horizontal
+                                        ? padding.top +
+                                          categoryIndex * categorySpan +
+                                          categorySpan / 2 +
+                                          4
+                                        : height - 10
+                                }
+                                textAnchor={horizontal ? "end" : "middle"}
+                            >
+                                {category}
+                            </text>
+                        </g>
+                    );
+                })}
+            </svg>
         </div>
     );
 }
@@ -1082,13 +1533,38 @@ export function LineChart({
     valuePrefix = "",
     valueSuffix = "",
     showValues = false,
+    fill = false,
+    showHoverGuide = true,
+    beginAtZero = true,
+    yMin,
+    yMax,
+    referenceLines = [],
     style,
-}: any) {
+}: {
+    categories: string[];
+    series: ChartSeries[];
+    height?: number;
+    fill?: boolean;
+    valueSuffix?: string;
+    valuePrefix?: string;
+    showValues?: boolean;
+    showHoverGuide?: boolean;
+    beginAtZero?: boolean;
+    yMin?: number;
+    yMax?: number;
+    referenceLines?: ChartReferenceLine[];
+    style?: CSSProperties;
+}) {
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
     const width = 720;
     const pad = 30;
     const values = series.flatMap((item: any) => item.data);
-    const minimum = Math.min(0, ...values);
-    const maximum = Math.max(1, ...values);
+    const { minimum, maximum } = chartDomain(values, {
+        beginAtZero,
+        yMin,
+        yMax,
+        referenceLines,
+    });
     const x = (index: number) =>
         pad + (index * (width - pad * 2)) / Math.max(1, categories.length - 1);
     const y = (value: number) =>
@@ -1110,7 +1586,33 @@ export function LineChart({
                 viewBox={`0 0 ${width} ${height}`}
                 role="img"
                 aria-label="Line chart"
+                onMouseLeave={() => setHoveredIndex(null)}
             >
+                {referenceLines.map((line) => {
+                    const lineY = y(line.value);
+                    return (
+                        <g key={`${line.value}-${line.label ?? ""}`}>
+                            <line
+                                x1={pad}
+                                x2={width - pad}
+                                y1={lineY}
+                                y2={lineY}
+                                className="cv-chart-reference"
+                                data-reference-value={line.value}
+                                style={{ stroke: chartColour(line, 0) }}
+                            />
+                            {line.label && (
+                                <text
+                                    x={width - pad}
+                                    y={lineY - 4}
+                                    textAnchor="end"
+                                >
+                                    {line.label}
+                                </text>
+                            )}
+                        </g>
+                    );
+                })}
                 {series.map((item: any, seriesIndex: number) => {
                     const points = item.data
                         .map(
@@ -1120,6 +1622,13 @@ export function LineChart({
                         .join(" ");
                     return (
                         <g key={item.name}>
+                            {fill && (
+                                <polygon
+                                    points={`${x(0)},${y(minimum)} ${points} ${x(Math.max(0, item.data.length - 1))},${y(minimum)}`}
+                                    fill={chartColour(item, seriesIndex)}
+                                    opacity="0.12"
+                                />
+                            )}
                             <polyline
                                 points={points}
                                 fill="none"
@@ -1156,15 +1665,37 @@ export function LineChart({
                     );
                 })}
                 {categories.map((category: string, index: number) => (
-                    <text
-                        key={category}
-                        x={x(index)}
-                        y={height - 7}
-                        textAnchor="middle"
-                    >
-                        {category}
-                    </text>
+                    <g key={category}>
+                        <rect
+                            x={
+                                x(index) -
+                                (width - pad * 2) /
+                                    Math.max(1, categories.length) /
+                                    2
+                            }
+                            y={pad}
+                            width={
+                                (width - pad * 2) /
+                                Math.max(1, categories.length)
+                            }
+                            height={height - pad * 2}
+                            fill="transparent"
+                            onMouseEnter={() => setHoveredIndex(index)}
+                        />
+                        <text x={x(index)} y={height - 7} textAnchor="middle">
+                            {category}
+                        </text>
+                    </g>
                 ))}
+                {showHoverGuide && hoveredIndex !== null && (
+                    <line
+                        x1={x(hoveredIndex)}
+                        x2={x(hoveredIndex)}
+                        y1={pad}
+                        y2={height - pad}
+                        className="cv-chart-hover-guide"
+                    />
+                )}
             </svg>
         </div>
     );
@@ -1238,17 +1769,224 @@ export function PieChart({ data, size = 200, donut = false, style }: any) {
     );
 }
 
-export function computeDAGLayout(nodes: any[], edges: any[]) {
-    const positioned = nodes.map((node, index) => ({
-        ...node,
-        x: (index % 4) * 220,
-        y: Math.floor(index / 4) * 140,
-        rank: Math.floor(index / 4),
-    }));
+export type DAGLayoutOptions = {
+    nodes: Array<{ id: string }>;
+    edges: Array<{ from: string; to: string }>;
+    direction?: "vertical" | "horizontal";
+    nodeWidth?: number;
+    nodeHeight?: number;
+    rankGap?: number;
+    nodeGap?: number;
+    padding?: number;
+};
+
+export type DAGLayoutNode = {
+    id: string;
+    x: number;
+    y: number;
+    rank: number;
+    order: number;
+};
+
+export type DAGLayoutEdge = {
+    from: string;
+    to: string;
+    sourceX: number;
+    sourceY: number;
+    targetX: number;
+    targetY: number;
+    isBackEdge: boolean;
+};
+
+export type DAGLayoutRank = {
+    rank: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    nodeIds: string[];
+};
+
+export type DAGLayoutResult = {
+    nodes: DAGLayoutNode[];
+    edges: DAGLayoutEdge[];
+    ranks: DAGLayoutRank[];
+    direction: "vertical" | "horizontal";
+    width: number;
+    height: number;
+};
+
+export function computeDAGLayout(options: DAGLayoutOptions): DAGLayoutResult {
+    const {
+        direction = "vertical",
+        nodeWidth = 160,
+        nodeHeight = 40,
+        rankGap = 64,
+        nodeGap = 48,
+        padding = 24,
+    } = options;
+    const nodeIds = [...new Set(options.nodes.map((node) => node.id))];
+    if (nodeIds.length === 0) {
+        return {
+            nodes: [],
+            edges: [],
+            ranks: [],
+            direction,
+            width: padding * 2,
+            height: padding * 2,
+        };
+    }
+    const nodeSet = new Set(nodeIds);
+    const edges = options.edges.filter(
+        (edge) => nodeSet.has(edge.from) && nodeSet.has(edge.to),
+    );
+    const outgoing = new Map<string, Array<{ to: string; index: number }>>(
+        nodeIds.map((id) => [id, []]),
+    );
+    edges.forEach((edge, index) => {
+        outgoing.get(edge.from)?.push({ to: edge.to, index });
+    });
+
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const backEdges = new Set<number>();
+    const visit = (id: string) => {
+        if (visited.has(id)) return;
+        visiting.add(id);
+        for (const edge of outgoing.get(id) ?? []) {
+            if (visiting.has(edge.to)) {
+                backEdges.add(edge.index);
+            } else {
+                visit(edge.to);
+            }
+        }
+        visiting.delete(id);
+        visited.add(id);
+    };
+    nodeIds.forEach(visit);
+
+    const indegree = new Map(nodeIds.map((id) => [id, 0]));
+    const ranks = new Map(nodeIds.map((id) => [id, 0]));
+    edges.forEach((edge, index) => {
+        if (!backEdges.has(index)) {
+            indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1);
+        }
+    });
+    const queue = nodeIds.filter((id) => indegree.get(id) === 0);
+    const ranked = new Set<string>();
+    while (queue.length > 0) {
+        const id = queue.shift();
+        if (!id) continue;
+        ranked.add(id);
+        for (const edge of outgoing.get(id) ?? []) {
+            if (backEdges.has(edge.index)) continue;
+            ranks.set(
+                edge.to,
+                Math.max(ranks.get(edge.to) ?? 0, (ranks.get(id) ?? 0) + 1),
+            );
+            const remaining = (indegree.get(edge.to) ?? 1) - 1;
+            indegree.set(edge.to, remaining);
+            if (remaining === 0) queue.push(edge.to);
+        }
+    }
+    for (const id of nodeIds) {
+        if (!ranked.has(id)) ranks.set(id, 0);
+    }
+
+    const idsByRank = new Map<number, string[]>();
+    for (const id of nodeIds) {
+        const rank = ranks.get(id) ?? 0;
+        idsByRank.set(rank, [...(idsByRank.get(rank) ?? []), id]);
+    }
+    const rankNumbers = [...idsByRank.keys()].sort(
+        (left, right) => left - right,
+    );
+    const largestRank = Math.max(0, ...rankNumbers);
+    const rankSpan = (ids: string[]) =>
+        ids.length * (direction === "vertical" ? nodeWidth : nodeHeight) +
+        Math.max(0, ids.length - 1) * nodeGap;
+    const maximumSpan = Math.max(
+        0,
+        ...rankNumbers.map((rank) => rankSpan(idsByRank.get(rank) ?? [])),
+    );
+    const width =
+        direction === "vertical"
+            ? padding * 2 + maximumSpan
+            : padding * 2 +
+              (largestRank + 1) * nodeWidth +
+              largestRank * rankGap;
+    const height =
+        direction === "vertical"
+            ? padding * 2 +
+              (largestRank + 1) * nodeHeight +
+              largestRank * rankGap
+            : padding * 2 + maximumSpan;
+
+    const positioned: DAGLayoutNode[] = [];
+    const layoutRanks: DAGLayoutRank[] = [];
+    for (const rank of rankNumbers) {
+        const ids = idsByRank.get(rank) ?? [];
+        const span = rankSpan(ids);
+        const offset = padding + (maximumSpan - span) / 2;
+        const rankNodes = ids.map((id, order) => {
+            if (direction === "vertical") {
+                return {
+                    id,
+                    x: offset + order * (nodeWidth + nodeGap),
+                    y: padding + rank * (nodeHeight + rankGap),
+                    rank,
+                    order,
+                };
+            }
+            return {
+                id,
+                x: padding + rank * (nodeWidth + rankGap),
+                y: offset + order * (nodeHeight + nodeGap),
+                rank,
+                order,
+            };
+        });
+        positioned.push(...rankNodes);
+        layoutRanks.push({
+            rank,
+            x:
+                direction === "vertical"
+                    ? offset
+                    : padding + rank * (nodeWidth + rankGap),
+            y:
+                direction === "vertical"
+                    ? padding + rank * (nodeHeight + rankGap)
+                    : offset,
+            width: direction === "vertical" ? span : nodeWidth,
+            height: direction === "vertical" ? nodeHeight : span,
+            nodeIds: ids,
+        });
+    }
+
+    const positionedById = new Map(positioned.map((node) => [node.id, node]));
+    const layoutEdges = edges.map((edge, index) => {
+        const source = positionedById.get(edge.from)!;
+        const target = positionedById.get(edge.to)!;
+        return {
+            ...edge,
+            sourceX:
+                source.x +
+                (direction === "vertical" ? nodeWidth / 2 : nodeWidth),
+            sourceY:
+                source.y +
+                (direction === "vertical" ? nodeHeight : nodeHeight / 2),
+            targetX: target.x + (direction === "vertical" ? nodeWidth / 2 : 0),
+            targetY: target.y + (direction === "vertical" ? 0 : nodeHeight / 2),
+            isBackEdge: backEdges.has(index),
+        };
+    });
+
     return {
         nodes: positioned,
-        edges,
-        width: Math.min(4, nodes.length) * 220,
-        height: Math.ceil(nodes.length / 4) * 140,
+        edges: layoutEdges,
+        ranks: layoutRanks,
+        direction,
+        width,
+        height,
     };
 }

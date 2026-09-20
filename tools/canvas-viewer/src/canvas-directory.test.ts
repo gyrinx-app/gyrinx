@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { listCanvases, workspaceSlug } from "./canvas-directory";
+import {
+    listCanvases,
+    resolveCanvasDirectory,
+    workspaceSlug,
+} from "./canvas-directory";
 
 const temporaryDirectories: string[] = [];
 
@@ -15,9 +19,7 @@ afterEach(() => {
 
 describe("workspaceSlug", () => {
     it("matches the directory shape used by Cursor projects", () => {
-        expect(workspaceSlug("/Users/tom/code/gyrinx/gyrinx")).toBe(
-            "Users-tom-code-gyrinx-gyrinx",
-        );
+        expect(workspaceSlug("/workspaces/gyrinx")).toBe("workspaces-gyrinx");
     });
 });
 
@@ -47,5 +49,16 @@ describe("listCanvases", () => {
         expect(canvases[0]?.moduleUrl).toBe(
             `/@fs${join(directory, "a.canvas.tsx")}`,
         );
+    });
+
+    it("returns an empty list before the Canvas directory exists", () => {
+        const root = mkdtempSync(join(tmpdir(), "canvas-viewer-missing-"));
+        temporaryDirectories.push(root);
+        const directory = join(root, "canvases");
+
+        expect(resolveCanvasDirectory("/workspaces/gyrinx", directory)).toBe(
+            directory,
+        );
+        expect(listCanvases(directory)).toEqual([]);
     });
 });

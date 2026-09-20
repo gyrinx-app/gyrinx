@@ -177,7 +177,10 @@ export function Viewer() {
             <header className="viewer-toolbar">
                 <div className="viewer-toolbar-title">
                     <strong>Canvas viewer</strong>
-                    <span>{canvases.length} files</span>
+                    <span>
+                        {canvases.length}{" "}
+                        {canvases.length === 1 ? "file" : "files"}
+                    </span>
                 </div>
                 <label className="viewer-picker" htmlFor="canvas-picker">
                     <span>Canvas</span>
