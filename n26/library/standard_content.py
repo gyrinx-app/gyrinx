@@ -1067,7 +1067,7 @@ def _check_skills():
         section__name=SKILLS_SECTION,
         name__in=[*SKILL_SETS, INHERENT_SET],
     )
-    present += _count(Skill, pack=pack, name__in=names)
+    present += _count(Skill, pack=pack, name__in=names, qualifier="")
     return present, 1 + len(SKILL_SETS) + 1 + len(names)
 
 
@@ -2078,28 +2078,42 @@ def _create_fighter_actions():
                 name, timing, outcomes=outcomes, allowance_rule=rule, use_price=price
             )
             continue
-        action.timing = timing
+        changed_fields = []
+        if action.timing != timing:
+            action.timing = timing
+            changed_fields.append("timing")
         if rule_kind == "recruitment":
-            action.rank_allowance_rule = None
+            if action.rank_allowance_rule_id is not None:
+                action.rank_allowance_rule = None
+                changed_fields.append("rank_allowance_rule")
             if action.recruitment_allowance_rule_id is None:
                 action.recruitment_allowance_rule = (
                     authoring.recruitment_allowance_rule()
                 )
+                changed_fields.append("recruitment_allowance_rule")
         elif rule_kind == "rank":
-            action.recruitment_allowance_rule = None
+            if action.recruitment_allowance_rule_id is not None:
+                action.recruitment_allowance_rule = None
+                changed_fields.append("recruitment_allowance_rule")
             if action.rank_allowance_rule_id is None:
                 action.rank_allowance_rule = authoring.rank_allowance_rule(xp)
+                changed_fields.append("rank_allowance_rule")
             elif action.rank_allowance_rule.counter_id != xp.pk:
                 action.rank_allowance_rule.counter = xp
                 action.rank_allowance_rule.save(update_fields=["counter", "modified"])
         else:
-            action.recruitment_allowance_rule = None
-            action.rank_allowance_rule = None
+            if action.recruitment_allowance_rule_id is not None:
+                action.recruitment_allowance_rule = None
+                changed_fields.append("recruitment_allowance_rule")
+            if action.rank_allowance_rule_id is not None:
+                action.rank_allowance_rule = None
+                changed_fields.append("rank_allowance_rule")
         if price:
             action.use_price.exclude(position__in=range(len(price))).delete()
         else:
             action.use_price.all().delete()
-        action.save()
+        if changed_fields:
+            action.save(update_fields=[*changed_fields, "modified"])
         action.outcomes.exclude(
             outcome_id__in=[outcome.pk for outcome in outcomes]
         ).delete()
@@ -2131,16 +2145,21 @@ def _check_fighter_actions():
 
     pack = get_default_pack()
     total = 4 + len(FIGHTER_ADVANCEMENTS) + len(FIGHTER_RANK_THRESHOLDS)
-    raw_present = Action.objects.filter(
-        pack=pack,
-        qualifier="",
-        name__in=(
-            "Suit Evolution",
-            "Suit Maintenance",
-            "Recruitment augmentation",
-            "Advancement",
-        ),
-    ).count()
+    expected_outcome_names = {
+        "Suit Evolution": {"Hunting Rig Augmentation", "Clear glitches"},
+        "Suit Maintenance": {"Clear glitches"},
+        "Recruitment augmentation": {"Hunting Rig Augmentation"},
+        "Advancement": {"Advancement"},
+    }
+    actions_by_name = {
+        action.name.casefold(): action
+        for action in Action.objects.filter(pack=pack, qualifier="").prefetch_related(
+            "outcomes__outcome", "use_price"
+        )
+    }
+    raw_present = sum(
+        name.casefold() in actions_by_name for name in expected_outcome_names
+    )
     raw_present += (
         Picklist.objects.filter(pack=pack, name="Fighter advancement table")
         .values("members")
@@ -2157,20 +2176,11 @@ def _check_fighter_actions():
     def incomplete():
         return min(raw_present, total - 1), total
 
-    actions = {
-        action.name: action
-        for action in Action.objects.filter(pack=pack, qualifier="").prefetch_related(
-            "outcomes__outcome", "use_price"
-        )
-    }
-    expected_outcome_names = {
-        "Suit Evolution": {"Hunting Rig Augmentation", "Clear glitches"},
-        "Suit Maintenance": {"Clear glitches"},
-        "Recruitment augmentation": {"Hunting Rig Augmentation"},
-        "Advancement": {"Advancement"},
-    }
-    if set(expected_outcome_names) - set(actions):
+    if any(name.casefold() not in actions_by_name for name in expected_outcome_names):
         return incomplete()
+    actions = {
+        name: actions_by_name[name.casefold()] for name in expected_outcome_names
+    }
     outcomes_by_name = {
         outcome.name.casefold(): outcome.pk
         for outcome in Outcome.objects.filter(pack=pack)

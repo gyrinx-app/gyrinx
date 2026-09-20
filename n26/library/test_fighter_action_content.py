@@ -138,6 +138,34 @@ def test_fighter_action_content_is_complete_and_idempotent():
     ] == ["Spyrer Hunting Rig Glitch"]
 
 
+def test_reseeding_does_not_modify_unchanged_actions():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    before = dict(Action.objects.values_list("pk", "modified"))
+
+    content.create()
+
+    assert dict(Action.objects.values_list("pk", "modified")) == before
+
+
+def test_lowercase_standard_action_is_reused_without_duplication(default_pack):
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Advancement", qualifier="")
+    action.name = "advancement"
+    action.save(update_fields=["name", "modified"])
+
+    content.create()
+
+    assert (
+        Action.objects.filter(
+            pack=default_pack, name__iexact="Advancement", qualifier=""
+        ).count()
+        == 1
+    )
+    assert content.status() == "complete"
+
+
 def test_homebrew_names_do_not_stand_in_for_standard_fighter_content(default_pack):
     from n26.library.models import (
         Collection,
@@ -361,6 +389,25 @@ def test_qualified_skill_section_does_not_satisfy_fighter_action_completeness(
 
     repaired = result.modifiers.get().effect
     assert repaired.from_section.collection.qualifier == ""
+    assert content.status() == "complete"
+
+
+def test_qualified_skill_does_not_satisfy_standard_skill_completeness(default_pack):
+    content = STANDARD_CONTENT["skills"]
+    content.create()
+    skill = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="")
+    skill.qualifier = "Custom"
+    skill.save(update_fields=["qualifier", "modified"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    assert Skill.objects.filter(
+        pack=default_pack, name="Catfall", qualifier=""
+    ).exists()
+    assert Skill.objects.filter(
+        pack=default_pack, name="Catfall", qualifier="Custom"
+    ).exists()
     assert content.status() == "complete"
 
 
