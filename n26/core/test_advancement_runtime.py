@@ -1233,7 +1233,9 @@ def test_completed_skill_moved_to_another_fighter_cannot_be_corrected(fighter):
             op.review_action_correction(completed, terms=terms)
 
 
-def test_completed_skill_advancement_with_a_dependent_cannot_be_corrected(fighter):
+def test_completed_skill_advancement_with_an_active_descendant_cannot_be_corrected(
+    fighter,
+):
     action, outcome, allowance = _advancement(fighter)
     category = _primary_agility(fighter)
     configured = outcome.resolve_advancement
@@ -1260,13 +1262,17 @@ def test_completed_skill_advancement_with_a_dependent_cannot_be_corrected(fighte
         option.name for option in advancement_options(completed, configured)
     }
     selected = SkillSelection.objects.get(action_record=completed)
-    dependent = Counter.objects.create(name="Depends on earned skill")
+    intermediate = Counter.objects.create(name="Archived dependent")
+    dependent = Counter.objects.create(name="Active descendant")
     with operation(fighter.gang) as op:
-        op.assign(
-            dependent,
+        archived = op.assign(
+            intermediate,
             miniature=fighter,
             caused_by=selected.skill_assignment,
         )
+        op.assign(dependent, miniature=fighter, caused_by=archived)
+    archived.archived = True
+    archived.save(update_fields=["archived", "modified"])
 
     with operation(fighter.gang) as op:
         with pytest.raises(Refusal, match="Later changes depend"):

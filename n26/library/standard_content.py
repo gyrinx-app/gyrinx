@@ -1934,6 +1934,7 @@ def _create_fighter_actions():
         min_picks=1,
         max_picks=1,
         hidden=True,
+        assigned_to=Slot.WillBeAssignedTo.BEARER,
     )
     repair(
         slot,
@@ -1942,6 +1943,7 @@ def _create_fighter_actions():
         min_picks=1,
         max_picks=1,
         hidden=True,
+        assigned_to=Slot.WillBeAssignedTo.BEARER,
     )
     ranks = named(RankTable, "Standard fighter ranks", counter=xp)
     repair(ranks, counter=xp)
@@ -2253,6 +2255,7 @@ def _check_fighter_actions():
         or slot.min_picks != 1
         or slot.max_picks != 1
         or not slot.hidden
+        or slot.assigned_to != Slot.WillBeAssignedTo.BEARER
         or ranks is None
         or ranks.counter.name != XP_COUNTER
         or ranks.counter.pack_id != pack.pk

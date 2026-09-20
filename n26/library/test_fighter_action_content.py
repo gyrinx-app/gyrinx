@@ -596,6 +596,21 @@ def test_reseeding_repairs_advancement_modifiers_to_bearer_scope():
     assert content.status() == "complete"
 
 
+def test_reseeding_repairs_the_advancement_slot_to_the_bearer():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    slot = Slot.objects.get(name__iexact="Advancement", qualifier="")
+    slot.assigned_to = Slot.WillBeAssignedTo.GANG
+    slot.save(update_fields=["assigned_to", "modified"])
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    slot.refresh_from_db()
+    assert slot.assigned_to == Slot.WillBeAssignedTo.BEARER
+    assert content.status() == "complete"
+
+
 def test_reseeding_repairs_the_advancement_outcome_operation():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
@@ -15,7 +15,7 @@ from n26.core.models import (
     LedgerEvent,
     SkillSelection,
 )
-from n26.core.operations import Refusal
+from n26.core.operations import Refusal, subtree
 
 
 @dataclass(frozen=True)
@@ -95,16 +95,11 @@ def _correction_result(record, *, lock=False):
         )
     ):
         raise Refusal("Later changes depend on this advancement.")
-    protected = [old_pick.pk]
-    if old_skill is not None:
-        protected.append(old_skill.pk)
-    dependent = Assignment.objects.filter(
-        Q(parent_id__in=protected) | Q(caused_by_id__in=protected),
-        archived=False,
-    )
-    if old_skill is not None:
-        dependent = dependent.exclude(pk=old_skill.pk)
-    if dependent.exists():
+    permitted = {old_skill.pk} if old_skill is not None else set()
+    if any(
+        not descendant.archived and descendant.pk not in permitted
+        for descendant in subtree(old_pick)
+    ):
         raise Refusal("Later changes depend on this advancement.")
     return selection, skill_selection
 

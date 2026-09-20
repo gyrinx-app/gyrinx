@@ -5,7 +5,8 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0071_fighter_action_correction_events"),
+        ("n26", "0074_join_counter_audit_and_checkout"),
+        ("n26", "0076_generic_action_record_names_updated"),
     ]
 
     operations = [
