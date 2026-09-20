@@ -9,7 +9,7 @@
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-8">
+    <div class="flex w-full flex-col gap-8">
         <c-n26.page-header :title="battle.title"
                            lead="{{ battle.date|date:'j F Y' }} · {{ campaign.name }}">
             <c-slot name="breadcrumb">
@@ -28,7 +28,7 @@
             {% endif %}
         </c-n26.page-header>
         {% if not battle.scenario %}<p class="text-sm text-muted">Scenario not recorded.</p>{% endif %}
-        <section class="rounded-xl border border-box-border bg-box p-4 sm:p-6"
+        <section class="border border-box-border bg-surface p-4 sm:p-5"
                  aria-labelledby="battle-result-heading">
             <h2 id="battle-result-heading" class="text-sm font-medium text-muted">Result</h2>
             <p class="mt-1 text-xl font-semibold">{{ battle.result_label }}</p>
@@ -38,7 +38,7 @@
             <h2 id="battle-participants-heading" class="mb-3 text-lg font-semibold">Participants</h2>
             <ul class="grid gap-4 md:grid-cols-2">
                 {% for participant in participants %}
-                    <li class="flex min-w-0 flex-col gap-4 rounded-xl border border-box-border bg-box p-4 sm:p-5">
+                    <li class="flex min-w-0 flex-col gap-4 border border-box-border bg-surface p-4 sm:p-5">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-baseline gap-2">
                                 <c-n26.color-link href="{% url 'n26-gang' participant.id %}"
@@ -60,7 +60,7 @@
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 {% if participant.crew.confirmed %}<c-ui.button size="sm"
-             href="{% url 'n26-battle-crew-sheet' campaign.pk battle.pk participant.id %}">Model cards</c-ui.button>{% endif %}
+             href="{% url 'n26-battle-crew-sheet' campaign.pk battle.pk participant.id %}">View crew</c-ui.button>{% endif %}
                                 {% if participant.may_record %}<c-ui.button size="sm"
              href="{% url 'n26-battle-crew' campaign.pk battle.pk participant.id %}">{% if participant.crew %}Edit crew{% else %}Select crew{% endif %}</c-ui.button>{% endif %}
                             </div>

@@ -5,10 +5,7 @@
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <form method="post"
-          id="post-battle-form"
-          class="mx-auto max-w-6xl space-y-6 pb-8"
-          novalidate>
+    <form method="post" id="post-battle-form" class="space-y-6" novalidate>
         {% csrf_token %}{{ version_form }}
         <c-n26.page-header title="Post-battle results" lead="{{ gang.name }}">
             <c-slot name="breadcrumb"><c-ui.breadcrumbs>{% if battle %}<c-ui.breadcrumbs.item href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ battle.title }}</c-ui.breadcrumbs.item>{% else %}<c-ui.breadcrumbs.item href="{% url 'n26-gang-post-battle' gang.pk %}">Post-battle</c-ui.breadcrumbs.item>{% endif %}<c-ui.breadcrumbs.item :current="True">{{ gang.name }}</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
@@ -19,7 +16,7 @@
                    class="text-sm text-muted">Draft saved {{ report.modified|date:'H:i' }}</p>
             </c-slot>
         </c-n26.page-header>
-        {% if report.latest_sequence %}<div class="rounded-lg border border-box-border bg-box p-4"><p class="font-semibold">Correcting recorded results</p><p class="mt-1 text-sm text-muted">Enter the corrected awards for this battle. Only the difference from the previous report is applied to today's totals.</p><c-n26.link href="{% url 'n26-post-battle-receipt' report.pk %}"
+        {% if report.latest_sequence %}<div class="border border-box-border bg-surface p-4"><p class="font-semibold">Correcting recorded results</p><p class="mt-1 text-sm text-muted">Enter the corrected awards for this battle. Only the difference from the previous report is applied to today's totals.</p><c-n26.link href="{% url 'n26-post-battle-receipt' report.pk %}"
             class="mt-2 inline-block text-sm">View recorded results</c-n26.link></div>{% endif %}
         {% if errors %}
             <section id="report-errors"
@@ -32,6 +29,7 @@
         <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div class="min-w-0 space-y-8">
                 <c-n26.form-section title="Gang results"
+                                    class="border border-box-border bg-surface p-4 sm:p-5"
                                     description="Enter the credits awarded for this battle. Leave blank if there were none.">
                     <div class="grid gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
                         <c-ui.field label="Credits gained" for="report-credits">
@@ -53,119 +51,185 @@
                         </c-ui.field>
                     </div>
                 </c-n26.form-section>
-                <section aria-labelledby="models-heading" class="space-y-4">
+                <section aria-labelledby="models-heading" class="space-y-3">
                     <div>
-                        <h2 id="models-heading" class="text-lg font-semibold">Models</h2>
+                        <h2 id="models-heading" class="text-lg font-semibold">Participation and XP</h2>
                         <p class="mt-1 text-sm text-muted">Select the models that actually took part. Unused reinforcements do not earn participation XP.</p>
                     </div>
-                    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-box-border bg-box p-3">
-                        <p class="text-sm"><span data-participant-count>{{ participant_count }}</span> took part</p>
-                        <c-ui.button type="submit" name="intent" value="participation-xp">
-                            Add 1 XP to participants
-                        </c-ui.button>
-                        {% if payload.bulk_undo %}<c-ui.button type="submit"
+                    <div class="border border-box-border bg-surface">
+                        <c-n26.action-bar class="border-b border-box-border bg-ink-100 p-3 dark:bg-ink-900">
+                            <div class="mr-auto">
+                                <p class="text-sm font-semibold"><span data-participant-count>{{ participant_count }}</span> took part</p>
+                                <p class="mt-1 text-xs text-muted">Add participation XP to the selected models.</p>
+                            </div>
+                            <c-ui.button type="submit"
+                                         name="intent"
+                                         value="participation-xp"
+                                         aria-label="Add 1 XP to participants">
+                                Add 1 XP
+                            </c-ui.button>
+                            {% if payload.bulk_undo %}<c-ui.button type="submit"
              name="intent"
              value="undo-xp"
-             variant="ghost">Undo XP addition</c-ui.button>{% endif %}
+             aria-label="Undo XP addition"
+             variant="ghost">Undo</c-ui.button>{% endif %}
+                        </c-n26.action-bar>
+                        <c-ui.table class="n26-participation-table">
+                            <caption class="sr-only">Models that took part and XP awarded</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Model</th>
+                                    <th scope="col"
+                                        class="text-right">Current<span class="block sm:inline"> XP</span></th>
+                                    <th scope="col">XP gained</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for model in models %}
+                                    <tr>
+                                        <td>
+                                            <input type="hidden" name="model_id" value="{{ model.id }}">
+                                            <label class="flex min-h-11 items-center gap-3"
+                                                   for="{{ model.prefix }}-participated">
+                                                <input id="{{ model.prefix }}-participated"
+                                                       type="checkbox"
+                                                       name="{{ model.prefix }}-participated"
+                                                       aria-label="{{ model.name }} took part"
+                                                       class="size-5 shrink-0 accent-[var(--color-accent)]"
+                                                       {% if model.participated %}checked{% endif %}>
+                                                <span class="min-w-0"><span class="block font-semibold">{{ model.name }}</span><span class="mt-1 block text-xs text-muted">{{ model.result.status_label }}</span></span>
+                                            </label>
+                                        </td>
+                                        <td class="text-right tabular-nums">{{ model.result.xp_before }}</td>
+                                        <td>
+                                            <label for="{{ model.prefix }}-xp"
+                                                   class="sr-only">XP gained for {{ model.name }}</label>
+                                            <c-ui.input id="{{ model.prefix }}-xp"
+                                                        name="{{ model.prefix }}-xp"
+                                                        type="number"
+                                                        min="0"
+                                                        inputmode="numeric"
+                                                        aria-describedby="{{ model.prefix }}-xp-help"
+                                                        value="{{ model.xp }}"
+                                                        size="lg" />
+                                            <div id="{{ model.prefix }}-xp-help">
+                                                {% if not model.result.xp_available %}<p class="mt-1 text-xs text-muted">No editable XP counter. Leave blank.</p>{% endif %}
+                                                {% if show_errors and model.result.errors %}<a href="#{{ model.prefix }}-errors"
+   class="mt-1 block text-xs text-red-700 underline dark:text-red-300">Check this model's results</a>{% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% if show_errors and model.result.errors %}
+                                        <tr>
+                                            <td colspan="3" id="{{ model.prefix }}-errors">
+                                                <ul class="list-disc space-y-1 pl-5 text-sm text-red-700 dark:text-red-300">{% for error in model.result.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                                                <c-n26.link href="#result-{{ model.id }}"
+                                                            class="mt-2 inline-block text-sm">
+                                                    Review {{ model.name }}'s effects and status
+                                                </c-n26.link>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+{% empty %}<tr><td colspan="3">No models on this gang's roster.</td></tr>{% endfor %}
+    </tbody>
+    </c-ui.table>
+    </div>
+    </section>
+    <section aria-labelledby="effects-heading" class="space-y-3">
+        <div>
+            <h2 id="effects-heading" class="text-lg font-semibold">Lasting effects and status</h2>
+            <p class="mt-1 text-sm text-muted">Record injuries and other lasting effects, then check each model's final status.</p>
+        </div>
+        <div class="divide-y divide-box-border border border-box-border bg-surface">
+            {% for model in models %}
+                <fieldset id="result-{{ model.id }}" class="min-w-0 p-4 sm:p-5">
+                    <legend class="sr-only">{{ model.name }}</legend>
+                    <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 class="font-semibold">{{ model.name }}</h3>
+                        <p class="text-xs text-muted">Current status: {{ model.result.status_label }}</p>
                     </div>
-                    {% for model in models %}
-                        <fieldset id="result-{{ model.id }}"
-                                  class="min-w-0 rounded-xl border border-box-border bg-box p-4 sm:p-5">
-                            <legend class="px-1 font-semibold">{{ model.name }}</legend>
-                            <input type="hidden" name="model_id" value="{{ model.id }}">
-                            <label class="flex min-h-11 items-center gap-3"><input type="checkbox"
-       name="{{ model.prefix }}-participated"
-       class="size-5 shrink-0"
-       {% if model.participated %}checked{% endif %}><span>Took part in this battle</span></label>
-                            <p class="mb-4 text-sm text-muted">Current status: {{ model.result.status_label }}</p>
-                            {% if show_errors and model.result.errors %}<ul class="mb-4 list-disc space-y-1 pl-5 text-sm text-red-700 dark:text-red-300">{% for error in model.result.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <c-ui.field label="XP gained" for="{{ model.prefix }}-xp"><c-ui.input id="{{ model.prefix }}-xp"
-            name="{{ model.prefix }}-xp"
-            type="number"
-            min="0"
-            inputmode="numeric"
-            value="{{ model.xp }}"
-            size="lg" /><p class="mt-1 text-sm text-muted">{% if model.result.xp_available %}{{ model.result.xp_before }} → {{ model.result.xp_after }} XP after applying.{% else %}No editable XP counter. Leave XP blank and check this model's content.{% endif %}</p></c-ui.field>
-                                <c-ui.field label="Final status" for="{{ model.prefix }}-status"><c-ui.select.native id="{{ model.prefix }}-status"
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <c-ui.field label="Final status" for="{{ model.prefix }}-status"><c-ui.select.native id="{{ model.prefix }}-status"
                     name="{{ model.prefix }}-status"
                     placeholder=""
                     size="lg"><option value="">From current status and effects</option>{% for value,label in model.status_options %}<option value="{{ value }}" {% if value == model.status %}selected{% endif %}>{{ label }}</option>{% endfor %}</c-ui.select.native></c-ui.field>
-                            </div>
-                            <div class="mt-5 space-y-3">
-                                {% for effect in model.effects %}
-                                    <div class="space-y-3 rounded-lg border border-box-border p-3">
+                        <c-ui.field label="Equipment if dead or destroyed"
+                                    for="{{ model.prefix }}-equipment"><c-ui.select.native id="{{ model.prefix }}-equipment"
+                    name="{{ model.prefix }}-equipment"
+                    placeholder=""
+                    size="lg"><option value="keep" {% if model.equipment == 'keep' %}selected{% endif %}>Leave with the model</option><option value="stash" {% if model.equipment == 'stash' %}selected{% endif %}>Move equipment to the stash</option><option value="lost" {% if model.equipment == 'lost' %}selected{% endif %}>Mark equipment lost</option></c-ui.select.native></c-ui.field>
+                    </div>
+                    <div class="mt-5 space-y-3">
+                        {% for effect in model.effects %}
+                            <div class="space-y-3 rounded-lg border border-box-border p-3">
+                                <input type="hidden"
+                                       name="{{ model.prefix }}-effect"
+                                       value="{{ effect.id }}">
+                                {% for key,selected in effect.retained_choices %}
+                                    <input type="hidden"
+                                           name="effect-{{ effect.id }}-question"
+                                           value="{{ key }}">
+                                    {% for value in selected %}
                                         <input type="hidden"
-                                               name="{{ model.prefix }}-effect"
-                                               value="{{ effect.id }}">
-                                        {% for key,selected in effect.retained_choices %}
-                                            <input type="hidden"
-                                                   name="effect-{{ effect.id }}-question"
-                                                   value="{{ key }}">
-                                            {% for value in selected %}
-                                                <input type="hidden"
-                                                       name="effect-{{ effect.id }}-choice-{{ key }}"
-                                                       value="{{ value }}">
-                                            {% endfor %}
-                                        {% endfor %}
-                                        {% if effect.retained_choices %}
-                                            <div class="space-y-2 text-sm">
-                                                <p>Some saved choices are no longer available for this effect. Reset this effect's choices, then choose its options again.</p>
-                                                <c-ui.button type="submit"
-                                                             name="intent"
-                                                             value="clear-choices:{{ effect.id }}"
-                                                             size="sm">
-                                                    Reset effect choices
-                                                </c-ui.button>
-                                            </div>
-                                        {% endif %}
-                                        <c-ui.field label="Lasting effect {{ forloop.counter }}"
-                                                    for="effect-{{ effect.id }}-pick"><c-ui.select.native id="effect-{{ effect.id }}-pick"
+                                               name="effect-{{ effect.id }}-choice-{{ key }}"
+                                               value="{{ value }}">
+                                    {% endfor %}
+                                {% endfor %}
+                                {% if effect.retained_choices %}
+                                    <div class="space-y-2 text-sm">
+                                        <p>Some saved choices are no longer available for this effect. Reset this effect's choices, then choose its options again.</p>
+                                        <c-ui.button type="submit"
+                                                     name="intent"
+                                                     value="clear-choices:{{ effect.id }}"
+                                                     size="sm">
+                                            Reset effect choices
+                                        </c-ui.button>
+                                    </div>
+                                {% endif %}
+                                <c-ui.field label="Lasting effect {{ forloop.counter }}"
+                                            for="effect-{{ effect.id }}-pick"><c-ui.select.native id="effect-{{ effect.id }}-pick"
                     name="effect-{{ effect.id }}-pick"
                     placeholder=""
                     size="lg"><option value="">Choose a lasting effect</option>{% for value,label in model.effect_options %}<option value="{{ value }}"
         {% if value == effect.selected %}selected{% endif %}>{{ label }}</option>{% endfor %}</c-ui.select.native></c-ui.field>
-                                        {% for question in effect.questions %}
-                                            <input type="hidden"
-                                                   name="effect-{{ effect.id }}-question"
-                                                   value="{{ question.key }}">
-                                            <c-ui.field label="{{ question.label }}"
-                                                        for="effect-{{ effect.id }}-choice-{{ forloop.counter }}">
-                                                <c-ui.select.native id="effect-{{ effect.id }}-choice-{{ forloop.counter }}"
-                                                                    name="effect-{{ effect.id }}-choice-{{ question.key }}"
-                                                                    placeholder=""
-                                                                    size="lg"
-                                                                    :multiple="question.multiple">{% if not question.multiple %}<option value="">{% if question.min_picks %}Choose an option{% else %}None{% endif %}</option>{% endif %}{% for option in question.options %}<option value="{{ option.value }}"
+                                {% for question in effect.questions %}
+                                    <input type="hidden"
+                                           name="effect-{{ effect.id }}-question"
+                                           value="{{ question.key }}">
+                                    <c-ui.field label="{{ question.label }}"
+                                                for="effect-{{ effect.id }}-choice-{{ forloop.counter }}">
+                                        <c-ui.select.native id="effect-{{ effect.id }}-choice-{{ forloop.counter }}"
+                                                            name="effect-{{ effect.id }}-choice-{{ question.key }}"
+                                                            placeholder=""
+                                                            size="lg"
+                                                            :multiple="question.multiple">{% if not question.multiple %}<option value="">{% if question.min_picks %}Choose an option{% else %}None{% endif %}</option>{% endif %}{% for option in question.options %}<option value="{{ option.value }}"
         {% if option.value in question.selected %}selected{% endif %}>{{ option.label }}</option>{% endfor %}</c-ui.select.native>
-                                            </c-ui.field>
-                                        {% endfor %}
-                                        <c-ui.button type="submit"
-                                                     name="intent"
-                                                     value="remove-effect:{{ effect.id }}"
-                                                     variant="ghost"
-                                                     size="sm">
-                                            Remove effect
-                                        </c-ui.button>
-                                    </div>
+                                    </c-ui.field>
                                 {% endfor %}
-                                {% if model.effect_options %}<c-ui.button type="submit"
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="remove-effect:{{ effect.id }}"
+                                             variant="ghost"
+                                             size="sm">
+                                    Remove effect
+                                </c-ui.button>
+                            </div>
+                        {% endfor %}
+                        {% if model.effect_options %}<c-ui.button type="submit"
              name="intent"
              value="add-effect:{{ model.id }}"
              size="sm">Add lasting effect</c-ui.button>{% else %}<p class="text-sm text-muted">No lasting-effect table is available for this model.</p>{% endif %}
-                            </div>
-                            <div class="mt-4"><c-ui.field label="Equipment if dead or destroyed"
-            for="{{ model.prefix }}-equipment"><c-ui.select.native id="{{ model.prefix }}-equipment"
-                    name="{{ model.prefix }}-equipment"
-                    placeholder=""
-                    size="lg"><option value="keep" {% if model.equipment == 'keep' %}selected{% endif %}>Leave with the model</option><option value="stash" {% if model.equipment == 'stash' %}selected{% endif %}>Move equipment to the stash</option><option value="lost" {% if model.equipment == 'lost' %}selected{% endif %}>Mark equipment lost</option></c-ui.select.native><p class="mt-1 text-sm text-muted">Only applies when the final status is dead or destroyed. Equipment changes cannot be undone through a report correction.</p></c-ui.field></div>
-                        </fieldset>
+                    </div>
+                </fieldset>
 {% empty %}<p class="text-sm text-muted">No models on this gang's roster.</p>{% endfor %}
+    </div>
+    <p class="text-xs text-muted">Equipment choices only apply to dead or destroyed models. Equipment moved or lost cannot be restored through a report correction.</p>
     </section>
     </div>
-    <aside class="space-y-4 lg:sticky lg:top-6"
+    <aside class="space-y-4 lg:sticky lg:top-20"
            aria-labelledby="changes-heading">
-        <div class="rounded-xl border border-box-border bg-box p-4">
-            <h2 id="changes-heading" class="font-semibold">Changes to apply</h2>
+        <div class="border border-box-border bg-ink-100 p-4 dark:bg-ink-900">
+            <h2 id="changes-heading" class="text-lg font-semibold">Changes to apply</h2>
             <p class="mt-2 text-sm text-muted">Use Check changes to review the current entries. Nothing changes until you apply them.</p>
             <dl class="mt-4 space-y-3 text-sm">
                 <div class="flex justify-between gap-3">
@@ -182,6 +246,7 @@
                         <li>
                             <p class="font-medium">{{ model.name }}</p>
                             {% if model.result.xp_change %}<p class="text-muted">{{ model.result.xp_change|stringformat:'+d' }} XP adjustment</p>{% endif %}
+                            <p class="text-muted">XP total: {{ model.result.xp_before }} → {{ model.result.xp_after }}</p>
                             {% for effect in model.effects %}{% if effect.name %}<p class="text-muted">{{ effect.name }}</p>{% endif %}{% endfor %}
                             <p class="text-muted">Final status: {{ model.final_status_label }}</p>
                             {% if model.result.equipment_changed %}
@@ -199,31 +264,39 @@
         <p class="text-sm text-muted">Recovery is cleared at the end of a campaign cycle, not automatically after this battle.</p>
     </aside>
     </div>
-    <div class="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
-        <p class="mb-2 text-sm font-semibold text-amber-900 dark:text-amber-100">Required before applying</p>
-        <label class="flex min-h-11 items-start gap-3" for="participation-check"><input id="participation-check"
+    <div class="n26-battle-actions"
+         data-battle-actions
+         aria-label="Save post-battle results">
+        <div class="n26-site-container space-y-3">
+            <div class="border border-amber-400 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950">
+                <label class="flex min-h-11 items-center gap-3" for="participation-check"><input id="participation-check"
        name="participation_confirmed"
        type="checkbox"
+       aria-label="I have checked which models took part."
        aria-required="true"
        aria-describedby="participation-help"
-       class="mt-1 size-5 shrink-0"
-       {% if payload.participation_confirmed %}checked{% endif %}><span class="font-semibold">I have checked which models took part.</span></label>
-        <p id="participation-help"
-           class="mt-1 text-sm text-amber-900 dark:text-amber-100">Include reinforcements that entered the battle. Leave unused reinforcements unselected.</p>
-    </div>
-    <div class="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-box-border bg-[var(--color-bg)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-sm">
-        <p class="text-sm text-muted">Only {{ gang.name }} will change.</p>
-        <div class="flex flex-wrap gap-2">
-            <c-ui.button type="submit" name="intent" value="save">
-                Save draft
-            </c-ui.button>
-            <c-ui.button type="submit" name="intent" value="apply" variant="success">
-                Apply results
-            </c-ui.button>
+       class="size-5 shrink-0 accent-[var(--color-accent)]"
+       {% if payload.participation_confirmed %}checked{% endif %}><span class="min-w-0"><span class="block text-sm font-semibold">I have checked which models took part. <span class="font-normal text-amber-800 dark:text-amber-200">Required</span></span>
+                    <span id="participation-help"
+                          class="mt-1 block text-xs text-amber-900 dark:text-amber-100">Include reinforcements that entered the battle. Leave unused reinforcements unselected.</span></span>
+                </label>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-muted">Changes apply to this gang only.</p>
+                <c-n26.form-actions class="w-full sm:w-auto">
+                    <c-ui.button type="submit" name="intent" value="save">
+                        Save draft
+                    </c-ui.button>
+                    <c-ui.button type="submit" name="intent" value="apply" variant="success">
+                        Apply results
+                    </c-ui.button>
+                </c-n26.form-actions>
+            </div>
         </div>
     </div>
     </form>
 {% endblock %}
 {% block extra_script %}
+    <script defer src="{% static 'n26/battle-actions.js' %}"></script>
     <script defer src="{% static 'n26/post-battle.js' %}"></script>
 {% endblock %}

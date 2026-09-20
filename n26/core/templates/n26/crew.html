@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation static %}
 {% block head_title %}Choose crew — {{ gang.name }}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
@@ -9,7 +9,7 @@
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <div class="mx-auto w-full max-w-5xl space-y-6">
+    <div class="w-full space-y-6">
         <c-n26.page-header title="Choose crew" lead="{{ gang.name }} · {{ battle.title }}">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
@@ -28,7 +28,7 @@
             <c-ui.error :form="form" name="__all__" />
             {% if form.errors %}<p class="text-sm text-red-700 dark:text-red-300"
    role="alert">Check the details below. Your selections have been kept.</p>{% endif %}
-            <section class="border border-box-border bg-box p-4"
+            <section class="border border-box-border bg-surface p-4"
                      aria-labelledby="crew-draw-heading">
                 <h2 id="crew-draw-heading" class="mb-3 font-semibold">Randomly add models</h2>
                 <div class="flex flex-wrap items-end gap-3">
@@ -77,7 +77,7 @@
                                     placeholder="Find a model" />
                     </div>
                 </div>
-                <div class="divide-y divide-box-border border border-box-border bg-box">
+                <div class="divide-y divide-box-border border border-box-border bg-surface">
                     {% for entry in form.models %}
                         <fieldset class="min-w-0 space-y-3 p-4"
                                   data-search="{{ entry.search }}"
@@ -134,21 +134,27 @@
                 </div>
             </section>
             <p class="text-xs text-muted">A saved selection keeps its card name and equipment selection. To use an edited model card, select it again from the list.</p>
-            <div class="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-box-border bg-box py-4">
-                <div class="text-sm">
-                    <p class="font-semibold">{{ selected_count }} model{{ selected_count|pluralize }} · {{ selected_rating }}¢</p>
-                    <p class="text-xs text-muted">{{ starting_count }} starting · {{ reserve_count }} reinforcements{% if crew %} · Revision {{ crew.revision }}{% endif %}</p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <c-ui.button href="{% url 'n26-battle' campaign.pk battle.pk %}" variant="ghost">Back</c-ui.button>
-                    <c-ui.button type="submit" name="action" value="draft">
-                        Save draft
-                    </c-ui.button>
-                    <c-ui.button type="submit" name="action" value="save" variant="success">
-                        Save crew
-                    </c-ui.button>
+            <div class="n26-battle-actions" data-battle-actions aria-label="Save crew">
+                <div class="n26-site-container flex flex-wrap items-center justify-between gap-3">
+                    <div class="text-sm">
+                        <p class="font-semibold">{{ selected_count }} model{{ selected_count|pluralize }} · {{ selected_rating }}¢</p>
+                        <p class="text-xs text-muted">{{ starting_count }} starting · {{ reserve_count }} reinforcements{% if crew %} · Revision {{ crew.revision }}{% endif %}</p>
+                    </div>
+                    <c-n26.form-actions class="w-full sm:w-auto">
+                        <c-ui.button href="{% url 'n26-battle' campaign.pk battle.pk %}"
+                                     variant="ghost">Back</c-ui.button>
+                        <c-ui.button type="submit" name="action" value="draft">
+                            Save draft
+                        </c-ui.button>
+                        <c-ui.button type="submit" name="action" value="save" variant="success">
+                            Save crew
+                        </c-ui.button>
+                    </c-n26.form-actions>
                 </div>
             </div>
         </form>
     </div>
+{% endblock %}
+{% block extra_script %}
+    <script defer src="{% static 'n26/battle-actions.js' %}"></script>
 {% endblock %}

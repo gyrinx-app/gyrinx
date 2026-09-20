@@ -1275,6 +1275,93 @@
         background: color-mix(in oklab, currentColor 12%, transparent);
     }
 
+    /* Fixed form controls need their own document space, including without JS. */
+    html:has([data-battle-actions]) {
+        scroll-padding-top: calc(var(--n26-sticky-top, 3.5rem) + 1rem);
+        scroll-padding-bottom: calc(
+            var(--n26-battle-actions-height, 18rem) + 1rem
+        );
+    }
+
+    body:has([data-battle-actions]) {
+        padding-bottom: var(--n26-battle-actions-height, 18rem);
+    }
+
+    .n26-battle-actions {
+        position: fixed;
+        inset-inline: 0;
+        bottom: 0;
+        z-index: 30;
+        border-top: 1px solid var(--color-ink-300);
+        background: var(--color-ink-100);
+        padding-block: 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+        box-shadow: 0 -2px 8px rgb(0 0 0 / 0.06);
+    }
+
+    .dark .n26-battle-actions {
+        border-color: var(--color-ink-700);
+        background: var(--color-ink-900);
+    }
+
+    .n26-participation-table {
+        table-layout: fixed;
+    }
+
+    .n26-participation-table th:nth-child(2) {
+        width: 5.5rem;
+    }
+
+    .n26-participation-table th:last-child {
+        width: 7rem;
+    }
+
+    .n26-participation-table tr:has(input:checked) {
+        background: color-mix(
+            in oklab,
+            var(--color-accent) 5%,
+            var(--color-surface)
+        );
+    }
+
+    .n26-participation-table label span {
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 30rem) {
+        .n26-participation-table th:nth-child(2) {
+            width: 4.5rem;
+            white-space: normal;
+        }
+
+        .n26-participation-table th:last-child {
+            width: 6rem;
+        }
+    }
+
+    @media (max-height: 32rem) {
+        html:has([data-battle-actions]) {
+            scroll-padding-bottom: 1rem;
+        }
+
+        .n26-battle-actions {
+            position: static;
+        }
+
+        body:has([data-battle-actions]) {
+            padding-bottom: 0;
+        }
+    }
+
+    @media print {
+        .n26-battle-actions {
+            display: none;
+        }
+
+        body:has([data-battle-actions]) {
+            padding-bottom: 0;
+        }
+    }
+
     /* -------------------------------------------------------------- footer */
 
     .n26-site-footer {

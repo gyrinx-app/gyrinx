@@ -209,6 +209,74 @@ def with_effect(client, table, report, injury):
     return checked, effect_id
 
 
+class TestReportLayout:
+    """Participation is tabular; confirmation and submit share one form footer."""
+
+    def test_each_model_has_one_participation_and_xp_control_in_the_table(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
+        form = document.find("form", id="post-battle-form")
+        participants = form.find("table")
+        assert participants.caption.get_text(strip=True) == (
+            "Models that took part and XP awarded"
+        )
+        assert len(participants.tbody.find_all("tr")) == len(table.models)
+        for model in table.models:
+            for field in ("participated", "xp"):
+                name = f"model-{model.pk}-{field}"
+                assert len(form.select(f'[name="{name}"]')) == 1
+                assert participants.select_one(f'[name="{name}"]') is not None
+            assert participants.select_one(f'[name="model_id"][value="{model.pk}"]')
+            details = form.find("fieldset", id=f"result-{model.pk}")
+            assert details.find("select", attrs={"name": f"model-{model.pk}-status"})
+            assert details.find("select", attrs={"name": f"model-{model.pk}-equipment"})
+        footer = form.select_one("[data-battle-actions]")
+        confirmation = footer.find("input", attrs={"name": "participation_confirmed"})
+        assert confirmation["aria-required"] == "true"
+        assert footer.select_one('button[name="intent"][value="save"]')
+        assert footer.select_one('button[name="intent"][value="apply"]')
+        assert len(form.select('[name="participation_confirmed"]')) == 1
+        assert "battle-actions.js" in str(document)
+
+    def test_xp_errors_are_next_to_the_participation_table_controls(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        model = table.models[0]
+        response = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)),
+                intent="check",
+                **{f"model-{model.pk}-xp": "-1"},
+            ),
+        )
+        document = BeautifulSoup(response.content, "html.parser")
+        participants = document.find("table")
+        field = participants.find("input", id=f"model-{model.pk}-xp")
+        help_text = participants.find(id=field["aria-describedby"])
+        error_link = help_text.find("a")
+        errors = participants.select_one(error_link["href"])
+        assert "Enter a whole number" in errors.get_text()
+        assert "Cinder's XP" in errors.get_text()
+
+    def test_checked_summary_includes_the_final_xp_total(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        response = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)),
+                intent="check",
+                **{f"model-{model.pk}-xp": "2"},
+            ),
+        )
+        document = BeautifulSoup(response.content, "html.parser")
+        assert "XP total: 0 → 2" in document.find("aside").get_text()
+
+
 class TestStartingAndResuming:
     """Reading creates nothing; starting and saving can safely be retried."""
 

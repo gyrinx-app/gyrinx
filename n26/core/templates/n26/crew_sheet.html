@@ -9,7 +9,7 @@
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <div class="mx-auto w-full max-w-7xl space-y-6">
+    <div class="w-full space-y-6">
         <c-n26.page-header title="{{ gang.name }} crew"
                            lead="{{ battle.title }} · {{ battle.date|date:'j F Y' }}">
             <c-slot name="breadcrumb">
@@ -62,7 +62,7 @@
                                         <c-n26.model-card :card="line.card" mode="view" />
                                     {% endif %}
                                 {% else %}
-                                    <div class="border border-box-border bg-box p-4">
+                                    <div class="border border-box-border bg-surface p-4">
                                         <p class="font-semibold">{{ line.member.miniature_name }}</p>
                                         <p class="mt-1 text-sm text-muted">This model is no longer on the roster.</p>
                                     </div>
