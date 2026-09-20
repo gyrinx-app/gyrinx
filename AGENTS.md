@@ -131,6 +131,9 @@ checks or pre-commit hooks.
   `manage check_migration_overlap --base origin/main` when another branch may
   touch the same schema or data.
 - `manage prodshell` is read-only. Never work around that protection.
+- Keep piped `prodshell` queries to one expression because IPython echoes
+  multi-line loops unreliably. For example:
+  `echo 'print(User.objects.count())' | manage prodshell`.
 - Production data repair code belongs in the maintenance Backfill flow and runs
   through the task framework. Read
   [`gyrinx/maintenance/AGENTS.md`](gyrinx/maintenance/AGENTS.md) before writing

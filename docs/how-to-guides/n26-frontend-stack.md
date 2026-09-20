@@ -44,8 +44,8 @@ filename, and dots are directories. `<c-n26.filter-menu>` is
 A component declares its inputs in a `<c-vars>` block at the top of the file
 (each attribute there is a prop with its default), and opens with a
 `{% comment %}` block documenting the tag, a usage example, and the props.
-The full authoring rules are in `n26/core/AGENTS.md`, including registering
-new components in the component gallery — the living design-system
+The full authoring rules are in `n26/core/templates/AGENTS.md`, including
+registering new components in the component gallery — the living design-system
 reference at `/n26/design/`, which renders each component on its own page.
 
 What follows is the list of ways cotton silently breaks. None of these
