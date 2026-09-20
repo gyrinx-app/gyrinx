@@ -9,6 +9,7 @@
 | 2026-07-24 | Section header actions: a `.section-actions` row with `·` between items. Links to a management page are `bi-pencil` + the noun ("Attributes"), not "Manage Attributes →". |
 | 2026-09-12 | Flat page (help) headings: weight and colour per level inside `.flatpage-content` (bold gold h2, emphasis-grey h3/h4), no underline on heading anchors, optional contents block. |
 | 2026-09-13 | Flat page h4 and below take their own mid-grey (`--gy-flatpage-h4-color`) so prominence falls at every level. Flat page options gain an Introduction, rendered above the contents block. |
+| 2026-09-20 | Default flatpages separate the title and top-level h2 sections with neutral rules, and use the accessible amber text token for h4 headings. |
 
 ---
 
@@ -92,7 +93,9 @@ omits its branch from navigation; direct page access still follows the page's
 own visibility rules.
 
 Article text uses n26 rich-text typography: body text at 1rem, h2 at 1.4em and
-h3 at 1.15em. Lower headings stay close to body size with increased weight.
+h3 at 1.15em. A top-level h2 that follows earlier article content begins a new
+section with a neutral divider. H4 stays at body size with increased weight and
+the accessible amber text token; lower headings use the neutral text scale.
 Page titles and article h1 headings use medium weight (500).
 Heading links retain fragment URLs and scroll clear of the sticky header.
 

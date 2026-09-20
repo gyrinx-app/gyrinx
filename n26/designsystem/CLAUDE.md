@@ -59,11 +59,22 @@ Read `demos.py` (a hundred lines) first, then `introspect.py`.
 
 ## The `notes` field
 
-A catalog entry's `notes` hold call-site facts the prop table cannot
-show: silent failure modes, required companions, cross-file couplings
-(named file), rendering switches. One or two sentences; no design
-rationale, no history. A component with nothing of that kind has no
-notes.
+Write every catalogue surface as technical reference:
+
+- A group blurb is one plain sentence naming the components in that group.
+- A component summary is one short sentence saying what the component renders
+  and its purpose. It stands alone under the component tag; do not make it a
+  slogan or an inventory of prop values.
+- A part summary says what the subcomponent renders and its role inside the
+  parent.
+- `notes` explain when to use the component, the important configuration
+  choices, and call-site facts the prop table cannot show: silent failure
+  modes, required companions, cross-file couplings and rendering switches.
+
+Keep `notes` to one short paragraph. Put the caller's decision first, then the
+constraints. Name props and companion components exactly. State observable
+behaviour rather than design rationale or history. A component with nothing
+beyond its summary, source documentation and prop table has no notes.
 
 ## Traps
 
