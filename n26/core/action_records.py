@@ -516,6 +516,15 @@ def _validate_recorded_outcome(record, outcome):
         )
 
 
+def _recorded_action_terms(record):
+    """System-owned roll provenance that user-entered terms may not replace."""
+    return {
+        key: deepcopy(record.terms[key])
+        for key in ("action_roll_request", "advancement_table")
+        if key in record.terms
+    }
+
+
 def review_action(op, record, *, outcome, terms=None):
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
@@ -527,7 +536,11 @@ def review_action(op, record, *, outcome, terms=None):
         raise Refusal("That outcome is not available for this action.")
     quote = quote_action(op, record.fighter, record.action)
     record.revision += 1
-    record.terms = {**deepcopy(terms or {}), "outcome": str(outcome.pk)}
+    record.terms = {
+        **deepcopy(terms or {}),
+        **_recorded_action_terms(record),
+        "outcome": str(outcome.pk),
+    }
     configured = outcome.operation
     if configured is None:
         raise LibraryError(f"{outcome} has no operation.")
@@ -555,7 +568,12 @@ def save_action_choices(op, record, *, outcome, terms):
     _validate_recorded_outcome(record, outcome)
     supplied.pop("outcome", None)
     previous = record.terms if record.outcome_id == outcome.pk else {}
-    record.terms = {**previous, **supplied, "outcome": str(outcome.pk)}
+    record.terms = {
+        **previous,
+        **supplied,
+        **_recorded_action_terms(record),
+        "outcome": str(outcome.pk),
+    }
     record.outcome = outcome
     record.revision += 1
     record.review = {}
@@ -853,7 +871,7 @@ def correct_action(op, record, *, revision, review, terms):
         rating_delta=rating_after - rating_before,
         note=str(record.outcome),
     )
-    record.terms = proposed
+    record.terms = {**proposed, **_recorded_action_terms(record)}
     record.review = {"correction_completed": True, "revision": record.revision}
     record.save(update_fields=["terms", "review", "modified"])
     return record, result

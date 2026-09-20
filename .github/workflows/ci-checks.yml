@@ -40,6 +40,14 @@ jobs:
       - name: Check formatter versions
         run: .venv/bin/python scripts/check_formatter_versions.py
 
+      - name: Check React islands
+        run: |
+          source .venv/bin/activate
+          npm run js
+          npm run typecheck
+          npm run test:react
+          python scripts/check_n26_alpine.py
+
       - name: Check Python formatting with ruff
         run: |
           source .venv/bin/activate && \

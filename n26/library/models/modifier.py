@@ -1257,8 +1257,10 @@ class RemovesAssignable(AssignableChoice):
 
 
 class OffersChoice(models.Model):
-    """Puts an open question on the card: the bearer chooses one
-    assignable of a given kind.
+    """Puts an open question on the card for one assignable of a given kind.
+
+    Select mode lets the player choose from the offered set. Random mode
+    records a roll against a skill set before storing the available result.
 
     Computed: the offer is a *slot* on the card, present while the carrier
     is; only what was chosen is ever stored (an assignment caused by the
@@ -1273,6 +1275,20 @@ class OffersChoice(models.Model):
     """
 
     is_stored = False
+
+    class Mode(models.TextChoices):
+        SELECT = "select", "Select"
+        RANDOM = "random", "Random"
+
+    mode = models.CharField(
+        max_length=20,
+        choices=Mode,
+        default=Mode.SELECT,
+        help_text=(
+            "How the choice is resolved. Select lets the player choose; random "
+            "records a roll against the chosen offered set."
+        ),
+    )
 
     of_kind = models.ForeignKey(
         "contenttypes.ContentType",
@@ -1366,6 +1382,7 @@ class OffersChoice(models.Model):
         from_section=None,
         label="",
         will_be_assigned_to=WillBeAssignedTo.BEARER,
+        mode=Mode.SELECT,
     ):
         from django.contrib.contenttypes.models import ContentType
 
@@ -1374,6 +1391,7 @@ class OffersChoice(models.Model):
             from_section=from_section,
             label=label,
             will_be_assigned_to=will_be_assigned_to,
+            mode=mode,
         )
 
     @property

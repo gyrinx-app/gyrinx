@@ -4,6 +4,12 @@ applyTo: "**/*.html"
 
 # Reviewing Django templates
 
+For `n26/`, use its Tailwind/Cotton design system and React-island guidance in
+`.agents/skills/n26-react/SKILL.md`. The Bootstrap and no-client-mutation rules
+below apply to N23. N26 islands own their DOM exclusively, accept props through
+`react_island`, and must not contain Alpine or htmx directives. Static N26
+templates still use `<c-n26.*>` and `<c-ui.*>` components.
+
 ## Prefer the cotton components
 
 UI primitives live in `gyrinx/templates/cotton/` and are invoked as HTML tags. Read

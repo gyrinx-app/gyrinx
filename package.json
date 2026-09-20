@@ -5,7 +5,12 @@
   "private": true,
   "repository": "gyrinx-app/gyrinx",
   "scripts": {
-    "build": "npm run css",
+    "build": "npm run js && npm run css",
+    "build:dev": "npm run js:dev && npm run css",
+    "js": "python -m n26.frontend.tooling.export_cotton_recipes && vite build",
+    "js:dev": "python -m n26.frontend.tooling.export_cotton_recipes && NODE_ENV=development vite build --mode development",
+    "typecheck": "tsc",
+    "test:react": "vitest run",
     "css-compile": "sass --style compressed --source-map --embed-sources --no-error-css --load-path=node_modules n23/core/static/core/scss/:n23/core/static/core/css/",
     "css-lint": "stylelint n23/core/static/core/scss/",
     "css-prefix": "postcss --replace n23/core/static/core/css/*.css --use autoprefixer --map",
@@ -13,17 +18,19 @@
     "css": "npm-run-all css-compile css-prefix css-n26",
     "server": "sirv --dev --no-clear --port 3000",
     "start": "npm-run-all --parallel watch server",
-    "watch": "nodemon -e html,scss,css --ignore \"n23/core/static/core/css/\" --ignore \"n26/designsystem/static/\" -x \"npm run css\"",
+    "watch": "nodemon --watch n26 --watch n23 --watch gyrinx --watch package.json --watch tsconfig.json --watch vite.config.mts --watch vitest.config.mts -e html,scss,css,js,ts,tsx,mts,py --ignore \"n23/core/static/core/css/\" --ignore \"n26/designsystem/static/\" --ignore \"n26/core/static/n26/react/\" --ignore \"n26/frontend/generated/\" -x \"npm run build:dev\"",
     "test": "npm-run-all css-lint css",
     "js-fmt": "prettier --write \"**/*.js\"",
-    "fmt": "prettier --write \"**/*.{js,mjs,css,scss,json,yaml,yml}\"",
-    "fmt-check": "prettier --check \"**/*.{js,mjs,css,scss,json,yaml,yml}\"",
+    "fmt": "prettier --write \"**/*.{js,mjs,mts,ts,tsx,css,scss,json,yaml,yml}\"",
+    "fmt-check": "prettier --check \"**/*.{js,mjs,mts,ts,tsx,css,scss,json,yaml,yml}\"",
     "lint:markdown": "markdownlint-cli2 \"**/*.md\""
   },
   "license": "ISC",
   "dependencies": {
     "@popperjs/core": "^2.11.8",
-    "bootstrap": "^5.3.8"
+    "bootstrap": "^5.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "overrides": {
     "fast-uri": "^3.1.7",
@@ -35,7 +42,13 @@
   "devDependencies": {
     "@github/markdownlint-github": "^0.8.3",
     "@tailwindcss/cli": "^4.3.3",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.1",
+    "jsdom": "^29.1.1",
     "markdown-it": "^15.0.2",
     "markdownlint-cli2": "^0.23.2",
     "markdownlint-cli2-formatter-pretty": "^0.0.10",
@@ -48,6 +61,9 @@
     "sirv-cli": "^3.0.1",
     "stylelint": "^16.26.1",
     "stylelint-config-twbs-bootstrap": "^16.1.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
   }
 }

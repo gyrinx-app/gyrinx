@@ -1,5 +1,6 @@
 {% extends "authoring/base.html" %}
 {% load authoring_nav %}
+{% load react %}
 {% block head_title %}
     {{ verbose_name_plural|capfirst }}
 {% endblock head_title %}
@@ -44,67 +45,9 @@ twice in a row.
             {% for paragraph in kind_help %}<p>{{ paragraph }}</p>{% endfor %}
         </c-n26.prose>
     {% endif %}
-    {% comment %}
-    The search narrows rows already on the page, which is the sanctioned
-    exception to keeping UI state in the URL: nothing here is rendered
-    differently by the server, and a half-typed query is not worth a
-    round trip or a place in history.
-
-    Rows register what they match on and then show themselves only while
-    it passes, the way the gang table's filter works — so the count and
-    the list are computed from one array and cannot disagree. Counting
-    visible rows out of the DOM instead would not be reactive: nothing
-    in that read mentions the query, so the number would never change.
-    {% endcomment %}
-    <div x-data="{ query: '', haystacks: [], register(haystack) { this.haystacks.push(haystack) }, matches(haystack) { const q = this.query.trim().toLowerCase(); return !q || haystack.includes(q); }, get shown() { return this.haystacks.filter(h => this.matches(h)).length }, ticked: 0, count() { this.ticked = this.$root.querySelectorAll('input[name=pk]:checked').length }, tickShown(on) { this.$root.querySelectorAll('tr:not([hidden]) input[name=pk]').forEach(box => { box.checked = on }); this.count() }, }"
-         class="mt-8 flex flex-col gap-3">
+    <div class="mt-8">
         {% if rows %}
-            <c-n26.search-bar :live="True"
-                              model="query"
-                              placeholder="Search {{ verbose_name_plural }}" />
-            <p class="text-sm text-muted">
-                <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
-                      x-text="shown">{{ count }}</span>
-                of {{ count }} {{ verbose_name_plural }}
-            </p>
-            {% comment %}
-            Ticking several rows and acting on them is a form the whole
-            table sits in. The act itself is a page of its own, reached
-            with the ticked rows in its address, so nothing here changes
-            anything and the selection survives a reload. The bar's
-            count and its select-all are script: without it the boxes
-            still tick one by one and the button still leads on.
-            {% endcomment %}
-            {% if bulk_attach %}
-                <form method="get"
-                      action="{% url 'authoring-attach-modifier' kind %}"
-                      @change="count()">
-                    <c-n26.action-bar :surface="True" class="mb-3">
-                        <label class="flex items-center gap-2 text-sm" x-cloak>
-                            <input type="checkbox"
-                                   class="size-4 accent-[var(--color-accent)] focus-ring"
-                                   @change="tickShown($event.target.checked)">
-                            Select all shown
-                        </label>
-                        <span class="text-sm text-muted">
-                            <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
-                                  x-text="ticked">0</span>
-                            selected
-                        </span>
-                        <c-slot name="trailing">
-                            <c-ui.button type="submit" variant="primary">
-                                Attach a modifier
-                            </c-ui.button>
-                        </c-slot>
-                    </c-n26.action-bar>
-                    {% include "authoring/_leaf_table.html" with rows=rows bulk=True %}
-                </form>
-            {% else %}
-                {% include "authoring/_leaf_table.html" with rows=rows bulk=False %}
-            {% endif %}
-            <p x-show="shown === 0"
-               x-cloak
-               class="py-6 text-center text-sm text-muted">No {{ verbose_name_plural }} match that.</p>
+            {% react_island "authoring-list" authoring_list %}
         {% else %}
             <c-ui.description>
                 None yet — the New {{ verbose_name }} button makes the first one.

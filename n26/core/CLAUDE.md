@@ -142,10 +142,10 @@ underlying spec.
   wrap side effects in `operation(...)`, `messages.success`, redirect.
   `create_gang` is the shape to copy. No ModelForms in core.
 - Compute display logic in the view, not the template.
-- UI state lives in the URL. Alpine is allowed for presentation-only
-  narrowing of content already on the page (the gang table's filter is
-  the example to follow) — never for swapping form variants or anything
-  the server would render differently.
+- New interaction state belongs in React islands, not Alpine. Load
+  `.agents/skills/n26-react/SKILL.md`; the authoring list is the working example.
+  Shareable navigation state belongs in the URL; transient controls and unsaved
+  drafts can stay in React. Server validation and operations remain authoritative.
 - Template trees under `n26/core/templates/`:
   - `n26/…` — pages and layouts.
   - `cotton/n26/…` — this edition's components, used as `<c-n26.foo>`.

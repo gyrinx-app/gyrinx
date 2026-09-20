@@ -335,10 +335,12 @@ def _stat(short, full, flags):
     shape, or by hand, still stops where the book says.
     """
     from n26.library.models import Stat
+    from n26.library.models.pack import get_default_pack
 
-    stat = Stat.objects.filter(full_name=full).first()
+    pack = get_default_pack()
+    stat = Stat.objects.filter(pack=pack, full_name=full).first()
     if stat is None:
-        return Stat.objects.create(short_name=short, full_name=full, **flags)
+        return Stat.objects.create(pack=pack, short_name=short, full_name=full, **flags)
     blank = [
         name
         for name in ("minimum", "maximum")
@@ -363,10 +365,13 @@ def _statline_type(name, rows):
     """A statline shape and its ordered stats. ``rows`` are
     ``(stat, display flags)`` in print order."""
     from n26.library.models import StatlineType, StatlineTypeStat
+    from n26.library.models.pack import get_default_pack
 
-    statline_type, _ = StatlineType.objects.get_or_create(name=name)
+    pack = get_default_pack()
+    statline_type, _ = StatlineType.objects.get_or_create(pack=pack, name=name)
     for position, (stat, display) in enumerate(rows):
         StatlineTypeStat.objects.get_or_create(
+            pack=pack,
             statline_type=statline_type,
             stat=stat,
             defaults={"position": position, **display},
@@ -389,7 +394,9 @@ def _count(model, **lookup):
 
 def _create_model_characteristics():
     from n26.library.models import ProfileType
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     rows = []
     for short, full, flags, display in MODEL_CHARACTERISTICS:
         stat = _stat(short, full, flags)
@@ -397,6 +404,7 @@ def _create_model_characteristics():
     statline_type = _statline_type(MODEL_STATLINE, rows)
     for name in TYPE_NAMES:
         ProfileType.objects.get_or_create(
+            pack=pack,
             name=name,
             defaults={"statline_type": statline_type},
         )
@@ -404,11 +412,13 @@ def _create_model_characteristics():
 
 def _check_model_characteristics():
     from n26.library.models import ProfileType, Stat, StatlineType
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     names = [full for _, full, _, _ in MODEL_CHARACTERISTICS]
-    present = _count(Stat, full_name__in=names)
-    present += _count(StatlineType, name=MODEL_STATLINE)
-    present += _count(ProfileType, name__in=TYPE_NAMES)
+    present = _count(Stat, pack=pack, full_name__in=names)
+    present += _count(StatlineType, pack=pack, name=MODEL_STATLINE)
+    present += _count(ProfileType, pack=pack, name__in=TYPE_NAMES)
     return present, len(names) + 1 + len(TYPE_NAMES)
 
 
@@ -422,10 +432,12 @@ def _create_weapon_characteristics():
 
 def _check_weapon_characteristics():
     from n26.library.models import Stat, StatlineType
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     names = [full for _, full, _ in WEAPON_CHARACTERISTICS]
-    present = _count(Stat, full_name__in=names)
-    present += _count(StatlineType, name=WEAPON_STATLINE)
+    present = _count(Stat, pack=pack, full_name__in=names)
+    present += _count(StatlineType, pack=pack, name=WEAPON_STATLINE)
     return present, len(names) + 1
 
 
@@ -957,8 +969,11 @@ def _create_skills_collection():
         CollectionSection,
         CollectionSelector,
     )
+    from n26.library.models.pack import get_default_pack
 
-    collection, _ = Collection.objects.get_or_create(name=SKILLS_COLLECTION)
+    collection, _ = Collection.objects.get_or_create(
+        pack=get_default_pack(), name=SKILLS_COLLECTION, qualifier=""
+    )
     for position, (name, is_default) in enumerate(SKILL_TIERS):
         CollectionSection.objects.get_or_create(
             collection=collection,
@@ -981,16 +996,22 @@ def _check_skills_collection():
         CollectionSection,
         CollectionSelector,
     )
+    from n26.library.models.pack import get_default_pack
 
-    present = _count(Collection, name=SKILLS_COLLECTION)
+    pack = get_default_pack()
+    present = _count(Collection, pack=pack, name=SKILLS_COLLECTION, qualifier="")
     present += _count(
         CollectionSection,
+        collection__pack=pack,
         collection__name=SKILLS_COLLECTION,
+        collection__qualifier="",
         name__in=[name for name, _ in SKILL_TIERS],
     )
     present += _count(
         CollectionSelector,
+        collection__pack=pack,
         collection__name=SKILLS_COLLECTION,
+        collection__qualifier="",
         of_kind__in=[
             ContentType.objects.get_for_model(model)
             for model in skills_collection_sweeps()
@@ -1015,8 +1036,10 @@ def _skill_rows():
 
 def _create_skills():
     from n26.library.models import Category, Section, Skill
+    from n26.library.models.pack import get_default_pack
 
-    section, _ = Section.objects.get_or_create(name=SKILLS_SECTION)
+    pack = get_default_pack()
+    section, _ = Section.objects.get_or_create(pack=pack, name=SKILLS_SECTION)
     sets = {}
     for position, set_name in enumerate([*SKILL_SETS, INHERENT_SET]):
         sets[set_name], _ = Category.objects.get_or_create(
@@ -1024,20 +1047,27 @@ def _create_skills():
         )
     for set_name, skill, number in _skill_rows():
         Skill.objects.get_or_create(
+            pack=pack,
             name=skill,
+            qualifier="",
             defaults={"category": sets[set_name], "position": number},
         )
 
 
 def _check_skills():
     from n26.library.models import Category, Section, Skill
+    from n26.library.models.pack import get_default_pack
 
+    pack = get_default_pack()
     names = [skill for _, skill, _ in _skill_rows()]
-    present = _count(Section, name=SKILLS_SECTION)
+    present = _count(Section, pack=pack, name=SKILLS_SECTION)
     present += _count(
-        Category, section__name=SKILLS_SECTION, name__in=[*SKILL_SETS, INHERENT_SET]
+        Category,
+        section__pack=pack,
+        section__name=SKILLS_SECTION,
+        name__in=[*SKILL_SETS, INHERENT_SET],
     )
-    present += _count(Skill, name__in=names)
+    present += _count(Skill, pack=pack, name__in=names, qualifier="")
     return present, 1 + len(SKILL_SETS) + 1 + len(names)
 
 
@@ -1616,9 +1646,797 @@ def _check_lasting_effect_tables():
     return present, len(names) + members + len(names)
 
 
+FIGHTER_RANK_THRESHOLDS = (
+    4,
+    7,
+    10,
+    13,
+    19,
+    25,
+    31,
+    37,
+    49,
+    61,
+    73,
+    85,
+    97,
+    109,
+    121,
+    133,
+    157,
+    181,
+    205,
+    229,
+)
+FIGHTER_ADVANCEMENTS = (
+    ("Leadership", 2, 5),
+    ("Intelligence", 2, 5),
+    ("Random Primary skill", 2, 5),
+    ("Cool", 3, 5),
+    ("Willpower", 3, 5),
+    ("Select Primary skill", 5, 10),
+    ("Random Secondary skill", 5, 10),
+    ("Initiative", 6, 10),
+    ("Movement", 6, 10),
+    ("Select Secondary skill", 7, 15),
+    ("Weapon Skill", 9, 15),
+    ("Ballistic Skill", 9, 15),
+    ("Strength", 10, 20),
+    ("Toughness", 10, 20),
+    ("Wounds", 11, 20),
+    ("Attacks", 11, 20),
+    ("Save", 11, 20),
+    ("Select any skill", 12, 30),
+)
+
+
+def _clear_glitches_matches(outcome, counter, slot_type):
+    if outcome.apply_changes_id is None:
+        return False
+    changes = list(
+        outcome.apply_changes.changes.select_related("counter_change", "remove_picks")
+    )
+    return (
+        len(changes) == 2
+        and changes[0].position == 0
+        and changes[0].counter_change_id is not None
+        and changes[0].counter_change.counter_id == counter.pk
+        and changes[0].counter_change.mode == "set"
+        and changes[0].counter_change.amount == 0
+        and changes[1].position == 1
+        and changes[1].remove_picks_id is not None
+        and changes[1].remove_picks.slot_type_id == slot_type.pk
+    )
+
+
+def _bearer_scope_matches(modifier):
+    from n26.library.models import TargetsMiniature
+
+    return isinstance(modifier.scope, TargetsMiniature) and not modifier.scope.narrows
+
+
+def _modifier_is_exclusive_to(modifier, pickable):
+    """Whether changing ``modifier`` can affect only ``pickable``."""
+    other_carriers = []
+    for relation in modifier._meta.related_objects:
+        if not relation.many_to_many:
+            continue
+        modifier_field = relation.field.m2m_reverse_field_name()
+        carrier_field = relation.field.m2m_field_name()
+        links = relation.through.objects.filter(**{f"{modifier_field}_id": modifier.pk})
+        if relation.related_model is type(pickable):
+            links = links.exclude(**{f"{carrier_field}_id": pickable.pk})
+        other_carriers.append(links.values(modifier_field))
+    return not other_carriers[0].union(*other_carriers[1:]).exists()
+
+
+def fighter_advancement_modifiers():
+    """A filter for modifiers carried by the standard advancement table.
+
+    These are foundations, not imported content. Recognise them by where
+    they are used rather than their editable names, just as the lasting-effect
+    seed does for its own modifiers.
+    """
+    from django.conf import settings
+    from django.db.models import Q
+
+    on_standard_table = Q(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+        library_pickable_set__listed_on__picklist__pack__slug=(
+            settings.DEFAULT_CONTENT_PACK_SLUG
+        ),
+        library_pickable_set__listed_on__picklist__slot_type__pack__slug=(
+            settings.DEFAULT_CONTENT_PACK_SLUG
+        ),
+        library_pickable_set__listed_on__picklist__slot_type__name__iexact=(
+            "Advancement"
+        ),
+        library_pickable_set__listed_on__picklist__name__iexact=(
+            "Fighter advancement table"
+        ),
+        targets_miniature__isnull=False,
+    )
+    is_advancement_effect = Q(
+        changes_stat__isnull=False,
+    ) | Q(
+        offers_choice__isnull=False,
+    )
+    return on_standard_table & is_advancement_effect
+
+
+def _create_fighter_actions():
+    _create_model_characteristics()
+    _create_skills()
+    _create_skills_collection()
+    from n26.library import authoring
+    from n26.library.models import (
+        Action,
+        ChangesStat,
+        CollectionSection,
+        Counter,
+        Modifier,
+        OffersChoice,
+        Outcome,
+        Pickable,
+        Picklist,
+        PicklistMember,
+        RankTable,
+        RankThreshold,
+        Skill,
+        Slot,
+        SlotType,
+        Stat,
+    )
+    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
+    from n26.library.models.pack import get_default_pack
+
+    pack = get_default_pack()
+
+    def named(model, name, **defaults):
+        lookup = {"pack": pack, "name__iexact": name}
+        if any(field.name == "qualifier" for field in model._meta.fields):
+            lookup["qualifier"] = ""
+        found = model.objects.filter(**lookup).first()
+        return found or model.objects.create(pack=pack, name=name, **defaults)
+
+    def repair(row, **expected):
+        changed = [
+            name for name, value in expected.items() if getattr(row, name) != value
+        ]
+        for name in changed:
+            setattr(row, name, expected[name])
+        if changed:
+            row.save(update_fields=[*changed, "modified"])
+        return row
+
+    def replace_operation(outcome, field, operation):
+        outcome.augment_carried_item = None
+        outcome.resolve_advancement = None
+        outcome.apply_changes = None
+        setattr(outcome, field, operation)
+        outcome.save(
+            update_fields=[
+                "augment_carried_item",
+                "resolve_advancement",
+                "apply_changes",
+                "modified",
+            ]
+        )
+
+    def replace_modifier_effect(modifier, field, effect):
+        for effect_field in EFFECT_FIELDS:
+            setattr(modifier, effect_field, effect if effect_field == field else None)
+        modifier.save(update_fields=[*EFFECT_FIELDS, "modified"])
+
+    def replace_modifier_scope(modifier, field, scope):
+        for scope_field in SCOPE_FIELDS:
+            setattr(modifier, scope_field, scope if scope_field == field else None)
+        modifier.save(update_fields=[*SCOPE_FIELDS, "modified"])
+
+    xp = named(Counter, XP_COUNTER)
+    kills = named(Counter, "Kill Count")
+    glitches = named(Counter, "Glitch count")
+    advancement_type = named(SlotType, "Advancement")
+    table = Picklist.objects.filter(
+        pack=pack,
+        slot_type=advancement_type,
+        name__iexact="Fighter advancement table",
+    ).first()
+    if table is None:
+        table = Picklist.objects.create(
+            pack=pack,
+            name="Fighter advancement table",
+            slot_type=advancement_type,
+            dice="2d6",
+            roll_selects="threshold",
+        )
+    repair(
+        table,
+        slot_type=advancement_type,
+        dice="2d6",
+        roll_selects="threshold",
+    )
+    for position, (name, roll, rating) in enumerate(FIGHTER_ADVANCEMENTS):
+        pick = named(
+            Pickable, name, slot_type=advancement_type, rating_contribution=rating
+        )
+        repair(pick, slot_type=advancement_type, rating_contribution=rating)
+        member = table.members.filter(pickable=pick).first()
+        if member is None:
+            member = table.members.filter(
+                position=position, pickable__name__iexact=name
+            ).first()
+        if member is None:
+            member = PicklistMember.objects.create(picklist=table, pickable=pick)
+        repair(
+            member,
+            pickable=pick,
+            position=position,
+            roll_low=roll,
+            roll_high=roll,
+        )
+        modifier_name = f"Advancement: {name}"
+        fallback_modifier_name = f"Standard fighter advancement: {name}"
+        tied_modifier_name = f"{fallback_modifier_name} ({str(pick.pk)[:8]})"
+        modifier_names = (
+            modifier_name,
+            fallback_modifier_name,
+            tied_modifier_name,
+        )
+        folded_modifier_names = {candidate.casefold() for candidate in modifier_names}
+        existing_modifier = next(
+            (
+                modifier
+                for modifier in pick.modifiers.filter(pack=pack)
+                if modifier.name.casefold() in folded_modifier_names
+                and _modifier_is_exclusive_to(modifier, pick)
+            ),
+            None,
+        )
+        new_modifier_name = modifier_name
+        if existing_modifier is None:
+            for candidate in modifier_names:
+                if not Modifier.objects.filter(
+                    pack=pack, name__iexact=candidate
+                ).exists():
+                    new_modifier_name = candidate
+                    break
+            else:
+                existing_modifier = Modifier.objects.get(
+                    pack=pack, name__iexact=tied_modifier_name
+                )
+        if existing_modifier is not None and not _bearer_scope_matches(
+            existing_modifier
+        ):
+            replace_modifier_scope(
+                existing_modifier, "targets_miniature", authoring.targets_model()
+            )
+        if name in {full for _, full, _, _ in MODEL_CHARACTERISTICS}:
+            stat = Stat.objects.get(pack=pack, full_name=name)
+            effect = existing_modifier.effect if existing_modifier is not None else None
+            if not (
+                isinstance(effect, ChangesStat)
+                and effect.stat_id == stat.pk
+                and effect.mode == "improve"
+                and effect.amount == 1
+            ):
+                new_effect = authoring.ef_changes_stat(
+                    stat,
+                    mode="improve",
+                    amount=1,
+                )
+                if existing_modifier is None:
+                    existing_modifier = authoring.modifier(
+                        new_modifier_name,
+                        authoring.targets_model(),
+                        new_effect,
+                    )
+                else:
+                    replace_modifier_effect(
+                        existing_modifier, "changes_stat", new_effect
+                    )
+            pick.modifiers.set([existing_modifier])
+        elif name.startswith(("Random", "Select")) and "skill" in name.lower():
+            access = (
+                "Primary"
+                if "Primary" in name
+                else "Secondary"
+                if "Secondary" in name
+                else None
+            )
+            section = (
+                CollectionSection.objects.filter(
+                    collection__pack=pack,
+                    collection__name=SKILLS_COLLECTION,
+                    collection__qualifier="",
+                    name=access,
+                ).first()
+                if access
+                else None
+            )
+            effect = existing_modifier.effect if existing_modifier is not None else None
+            if not (
+                isinstance(effect, OffersChoice)
+                and effect.of_kind.model_class() is Skill
+                and effect.from_section_id == getattr(section, "pk", None)
+                and effect.mode
+                == (
+                    OffersChoice.Mode.RANDOM
+                    if name.startswith("Random")
+                    else OffersChoice.Mode.SELECT
+                )
+                and effect.will_be_assigned_to == OffersChoice.WillBeAssignedTo.BEARER
+            ):
+                new_effect = authoring.ef_offers_choice(
+                    Skill,
+                    from_section=section,
+                    label=name,
+                    mode="random" if name.startswith("Random") else "select",
+                )
+                if existing_modifier is None:
+                    existing_modifier = authoring.modifier(
+                        new_modifier_name, authoring.targets_model(), new_effect
+                    )
+                else:
+                    replace_modifier_effect(
+                        existing_modifier, "offers_choice", new_effect
+                    )
+            pick.modifiers.set([existing_modifier])
+    slot = named(
+        Slot,
+        "Advancement",
+        slot_type=advancement_type,
+        picklist=table,
+        min_picks=1,
+        max_picks=1,
+        hidden=True,
+        assigned_to=Slot.WillBeAssignedTo.BEARER,
+    )
+    repair(
+        slot,
+        slot_type=advancement_type,
+        picklist=table,
+        min_picks=1,
+        max_picks=1,
+        hidden=True,
+        assigned_to=Slot.WillBeAssignedTo.BEARER,
+    )
+    ranks = named(RankTable, "Standard fighter ranks", counter=xp)
+    repair(ranks, counter=xp)
+    for threshold in FIGHTER_RANK_THRESHOLDS:
+        RankThreshold.objects.get_or_create(rank_table=ranks, threshold=threshold)
+    augment_type = named(SlotType, "Augmentation")
+    glitch_type = named(
+        SlotType,
+        "Spyrer Hunting Rig Glitch",
+        plural_name="Spyrer Hunting Rig Glitches",
+    )
+    advance_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Advancement"
+    ).first()
+    if advance_outcome is None:
+        advance_outcome = authoring.create_outcome(
+            "Advancement", authoring.resolve_advancement(slot)
+        )
+    elif advance_outcome.resolve_advancement_id is None:
+        replace_operation(
+            advance_outcome,
+            "resolve_advancement",
+            authoring.resolve_advancement(slot),
+        )
+    else:
+        repair(advance_outcome.resolve_advancement, slot=slot)
+    augment_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Hunting Rig Augmentation"
+    ).first()
+    if augment_outcome is None:
+        augment_outcome = authoring.create_outcome(
+            "Hunting Rig Augmentation", authoring.augment_carried_item(augment_type)
+        )
+    elif augment_outcome.augment_carried_item_id is None:
+        replace_operation(
+            augment_outcome,
+            "augment_carried_item",
+            authoring.augment_carried_item(augment_type),
+        )
+    else:
+        repair(augment_outcome.augment_carried_item, slot_type=augment_type)
+    clear = Outcome.objects.filter(pack=pack, name__iexact="Clear glitches").first()
+    if clear is None:
+        clear = authoring.create_outcome(
+            "Clear glitches",
+            authoring.apply_changes(
+                authoring.counter_change(glitches, "set", 0),
+                authoring.remove_picks(glitch_type),
+            ),
+        )
+    elif not _clear_glitches_matches(clear, glitches, glitch_type):
+        changes = (
+            list(
+                clear.apply_changes.changes.select_related(
+                    "counter_change", "remove_picks"
+                )
+            )
+            if clear.apply_changes_id
+            else []
+        )
+        counter_member = next(
+            (member for member in changes if member.counter_change_id), None
+        )
+        removal_member = next(
+            (member for member in changes if member.remove_picks_id), None
+        )
+        if len(changes) == 2 and counter_member and removal_member:
+            repair(counter_member, position=0)
+            repair(
+                counter_member.counter_change,
+                counter=glitches,
+                mode="set",
+                amount=0,
+            )
+            repair(removal_member, position=1)
+            repair(removal_member.remove_picks, slot_type=glitch_type)
+        else:
+            replace_operation(
+                clear,
+                "apply_changes",
+                authoring.apply_changes(
+                    authoring.counter_change(glitches, "set", 0),
+                    authoring.remove_picks(glitch_type),
+                ),
+            )
+    definitions = (
+        (
+            "Suit Evolution",
+            "post_cycle",
+            [augment_outcome, clear],
+            None,
+            [
+                {
+                    "resource": "counter",
+                    "payer": "fighter",
+                    "counter": kills,
+                    "amount": 4,
+                }
+            ],
+        ),
+        (
+            "Suit Maintenance",
+            "post_cycle",
+            [clear],
+            None,
+            [{"resource": "credits", "payer": "gang", "amount": 100}],
+        ),
+        (
+            "Recruitment augmentation",
+            "recruitment",
+            [augment_outcome],
+            "recruitment",
+            [],
+        ),
+        ("Advancement", "post_cycle", [advance_outcome], "rank", []),
+    )
+    from n26.library.models import ActionOutcome, ActionPriceComponent
+
+    for name, timing, outcomes, rule_kind, price in definitions:
+        action = Action.objects.filter(
+            pack=pack, name__iexact=name, qualifier=""
+        ).first()
+        if action is None:
+            rule = (
+                authoring.recruitment_allowance_rule()
+                if rule_kind == "recruitment"
+                else (
+                    authoring.rank_allowance_rule(xp) if rule_kind == "rank" else None
+                )
+            )
+            authoring.create_action(
+                name, timing, outcomes=outcomes, allowance_rule=rule, use_price=price
+            )
+            continue
+        changed_fields = []
+        if action.timing != timing:
+            action.timing = timing
+            changed_fields.append("timing")
+        if rule_kind == "recruitment":
+            if action.rank_allowance_rule_id is not None:
+                action.rank_allowance_rule = None
+                changed_fields.append("rank_allowance_rule")
+            if action.recruitment_allowance_rule_id is None:
+                action.recruitment_allowance_rule = (
+                    authoring.recruitment_allowance_rule()
+                )
+                changed_fields.append("recruitment_allowance_rule")
+        elif rule_kind == "rank":
+            if action.recruitment_allowance_rule_id is not None:
+                action.recruitment_allowance_rule = None
+                changed_fields.append("recruitment_allowance_rule")
+            if action.rank_allowance_rule_id is None:
+                action.rank_allowance_rule = authoring.rank_allowance_rule(xp)
+                changed_fields.append("rank_allowance_rule")
+            elif action.rank_allowance_rule.counter_id != xp.pk:
+                action.rank_allowance_rule.counter = xp
+                action.rank_allowance_rule.save(update_fields=["counter", "modified"])
+        else:
+            if action.recruitment_allowance_rule_id is not None:
+                action.recruitment_allowance_rule = None
+                changed_fields.append("recruitment_allowance_rule")
+            if action.rank_allowance_rule_id is not None:
+                action.rank_allowance_rule = None
+                changed_fields.append("rank_allowance_rule")
+        if price:
+            action.use_price.exclude(position__in=range(len(price))).delete()
+        else:
+            action.use_price.all().delete()
+        if changed_fields:
+            action.save(update_fields=[*changed_fields, "modified"])
+        action.outcomes.exclude(
+            outcome_id__in=[outcome.pk for outcome in outcomes]
+        ).delete()
+        for position, outcome in enumerate(outcomes):
+            ActionOutcome.objects.update_or_create(
+                action=action, outcome=outcome, defaults={"position": position}
+            )
+        for position, component in enumerate(price):
+            ActionPriceComponent.objects.update_or_create(
+                action=action, position=position, defaults=component
+            )
+
+
+def _check_fighter_actions():
+    from n26.library.models import (
+        Action,
+        ChangesStat,
+        CollectionSection,
+        Counter,
+        OffersChoice,
+        Outcome,
+        Pickable,
+        Picklist,
+        RankTable,
+        Skill,
+        Slot,
+        SlotType,
+    )
+    from n26.library.models.pack import get_default_pack
+
+    pack = get_default_pack()
+    total = 4 + len(FIGHTER_ADVANCEMENTS) + len(FIGHTER_RANK_THRESHOLDS)
+    expected_outcome_names = {
+        "Suit Evolution": {"Hunting Rig Augmentation", "Clear glitches"},
+        "Suit Maintenance": {"Clear glitches"},
+        "Recruitment augmentation": {"Hunting Rig Augmentation"},
+        "Advancement": {"Advancement"},
+    }
+    actions_by_name = {
+        action.name.casefold(): action
+        for action in Action.objects.filter(pack=pack, qualifier="").prefetch_related(
+            "outcomes__outcome", "use_price"
+        )
+    }
+    raw_present = sum(
+        name.casefold() in actions_by_name for name in expected_outcome_names
+    )
+    raw_present += (
+        Picklist.objects.filter(pack=pack, name="Fighter advancement table")
+        .values("members")
+        .count()
+    )
+    raw_present += (
+        RankTable.objects.filter(
+            pack=pack, name__iexact="Standard fighter ranks", qualifier=""
+        )
+        .values("thresholds")
+        .count()
+    )
+
+    def incomplete():
+        return min(raw_present, total - 1), total
+
+    if any(name.casefold() not in actions_by_name for name in expected_outcome_names):
+        return incomplete()
+    actions = {
+        name: actions_by_name[name.casefold()] for name in expected_outcome_names
+    }
+    outcomes_by_name = {
+        outcome.name.casefold(): outcome.pk
+        for outcome in Outcome.objects.filter(pack=pack)
+    }
+    expected_outcomes = {
+        action_name: {
+            outcomes_by_name[name.casefold()]
+            for name in names
+            if name.casefold() in outcomes_by_name
+        }
+        for action_name, names in expected_outcome_names.items()
+    }
+    if any(
+        len(expected_outcomes[name]) != len(expected_outcome_names[name])
+        or {member.outcome_id for member in actions[name].outcomes.all()}
+        != expected_outcomes[name]
+        for name in expected_outcome_names
+    ):
+        return incomplete()
+    if {
+        name: action.timing
+        for name, action in actions.items()
+        if name in expected_outcomes
+    } != {
+        "Suit Evolution": "post_cycle",
+        "Suit Maintenance": "post_cycle",
+        "Recruitment augmentation": "recruitment",
+        "Advancement": "post_cycle",
+    }:
+        return incomplete()
+    if not actions["Recruitment augmentation"].recruitment_allowance_rule_id:
+        return incomplete()
+    if not actions["Advancement"].rank_allowance_rule_id:
+        return incomplete()
+    evolution_price = list(
+        actions["Suit Evolution"].use_price.values_list(
+            "resource", "payer", "amount", "counter_id"
+        )
+    )
+    maintenance_price = list(
+        actions["Suit Maintenance"].use_price.values_list("resource", "payer", "amount")
+    )
+    kills = Counter.objects.filter(
+        pack=pack, name__iexact="Kill Count", qualifier=""
+    ).first()
+    if (
+        kills is None
+        or evolution_price != [("counter", "fighter", 4, kills.pk)]
+        or maintenance_price != [("credits", "gang", 100)]
+    ):
+        return incomplete()
+    table = Picklist.objects.filter(
+        pack=pack,
+        slot_type=SlotType.objects.filter(
+            pack=pack, name__iexact="Advancement"
+        ).first(),
+        name__iexact="Fighter advancement table",
+    ).first()
+    slot = Slot.objects.filter(
+        pack=pack, name__iexact="Advancement", qualifier=""
+    ).first()
+    ranks = RankTable.objects.filter(
+        pack=pack, name__iexact="Standard fighter ranks", qualifier=""
+    ).first()
+    advance_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Advancement"
+    ).first()
+    augment_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Hunting Rig Augmentation"
+    ).first()
+    clear_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Clear glitches"
+    ).first()
+    augment_type = SlotType.objects.filter(pack=pack, name="Augmentation").first()
+    glitch_type = SlotType.objects.filter(
+        pack=pack, name="Spyrer Hunting Rig Glitch"
+    ).first()
+    glitches = Counter.objects.filter(
+        pack=pack, name="Glitch count", qualifier=""
+    ).first()
+    if (
+        table is None
+        or table.dice != "2d6"
+        or table.roll_selects != "threshold"
+        or slot is None
+        or slot.picklist_id != table.pk
+        or slot.min_picks != 1
+        or slot.max_picks != 1
+        or not slot.hidden
+        or slot.assigned_to != Slot.WillBeAssignedTo.BEARER
+        or ranks is None
+        or ranks.counter.name.casefold() != XP_COUNTER.casefold()
+        or ranks.counter.pack_id != pack.pk
+        or ranks.counter.qualifier != ""
+        or actions["Advancement"].rank_allowance_rule.counter_id != ranks.counter_id
+        or advance_outcome is None
+        or advance_outcome.resolve_advancement_id is None
+        or advance_outcome.resolve_advancement.slot_id != slot.pk
+        or augment_outcome is None
+        or augment_type is None
+        or augment_outcome.augment_carried_item_id is None
+        or augment_outcome.augment_carried_item.slot_type_id != augment_type.pk
+        or clear_outcome is None
+        or glitch_type is None
+        or glitches is None
+        or not _clear_glitches_matches(clear_outcome, glitches, glitch_type)
+    ):
+        return incomplete()
+    members = list(
+        table.members.select_related("pickable").prefetch_related("pickable__modifiers")
+    )
+    if len(members) != len(FIGHTER_ADVANCEMENTS):
+        return incomplete()
+    if (
+        tuple(ranks.thresholds.values_list("threshold", flat=True))
+        != FIGHTER_RANK_THRESHOLDS
+    ):
+        return incomplete()
+    expected_pickables = {
+        pickable.name.casefold(): pickable.pk
+        for pickable in Pickable.objects.filter(pack=pack, qualifier="")
+    }
+    if any(
+        name.casefold() not in expected_pickables for name, _, _ in FIGHTER_ADVANCEMENTS
+    ):
+        return incomplete()
+    expected_advancements = {
+        expected_pickables[name.casefold()]: (position, roll, roll, rating)
+        for position, (name, roll, rating) in enumerate(FIGHTER_ADVANCEMENTS)
+    }
+    if {
+        member.pickable_id: (
+            member.position,
+            member.roll_low,
+            member.roll_high,
+            member.pickable.rating_contribution,
+        )
+        for member in members
+    } != expected_advancements:
+        return incomplete()
+    characteristic_names = {full for _, full, _, _ in MODEL_CHARACTERISTICS}
+    skill_sections = dict(
+        CollectionSection.objects.filter(
+            collection__pack=pack,
+            collection__name=SKILLS_COLLECTION,
+            collection__qualifier="",
+            name__in=("Primary", "Secondary"),
+        ).values_list("name", "pk")
+    )
+    if set(skill_sections) != {"Primary", "Secondary"}:
+        return incomplete()
+    for member in members:
+        modifiers = member.pickable.modifiers.all()
+        name = member.pickable.name
+        if name in characteristic_names and not any(
+            _bearer_scope_matches(modifier)
+            and modifier.pack_id == pack.pk
+            and isinstance(modifier.effect, ChangesStat)
+            and modifier.effect.stat.full_name == name
+            and modifier.effect.stat.pack_id == pack.pk
+            and modifier.effect.mode == "improve"
+            and modifier.effect.amount == 1
+            for modifier in modifiers
+        ):
+            return incomplete()
+        if name.startswith(("Random", "Select")) and not any(
+            _bearer_scope_matches(modifier)
+            and modifier.pack_id == pack.pk
+            and isinstance(modifier.effect, OffersChoice)
+            and modifier.effect.of_kind.model_class() is Skill
+            and modifier.effect.mode
+            == (
+                OffersChoice.Mode.RANDOM
+                if name.startswith("Random")
+                else OffersChoice.Mode.SELECT
+            )
+            and modifier.effect.will_be_assigned_to == "bearer"
+            and modifier.effect.from_section_id
+            == (
+                None
+                if "any" in name.lower()
+                else skill_sections["Primary" if "Primary" in name else "Secondary"]
+            )
+            for modifier in modifiers
+        ):
+            return incomplete()
+    return total, total
+
+
 STANDARD_CONTENT = {
     item.key: item
     for item in [
+        StandardContent(
+            key="fighter-actions",
+            name="Fighter actions and advancement table",
+            help="The four standard fighter actions, advancement results and XP rank thresholds.",
+            check=_check_fighter_actions,
+            create=_create_fighter_actions,
+        ),
         StandardContent(
             key="model-characteristics",
             name="Model characteristics",

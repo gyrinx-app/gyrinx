@@ -44,8 +44,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Key Principles:**
 
-- Server-rendered HTML, not SPA
-- **URL-driven UI state.** Any state that picks a form variant, switches a
+- Django page routing, not an SPA. **N26 interactive UI uses client-rendered
+  React islands.** Load `.agents/skills/n26-react/SKILL.md` for new or edited
+  N26 interactions. Use React for new behaviour; migrate the touched Alpine
+  interaction when its scope is bounded. Static UI remains Cotton. The migration
+  strategy and exceptions are in `docs/developing-gyrinx/react.md`.
+- **URL-driven UI state (N23).** Any state that picks a form variant, switches a
   visible section, opens a modal, or selects a tab belongs in the URL
   (path or query string). The server renders the right variant. JS may
   enhance (live preview, async validation, autocomplete) but the page MUST
@@ -53,7 +57,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   to swap fields, swap mode choices, hide/show sections, or alter
   validation. If you reach for `addEventListener('change', …)` to rewrite
   a form, you've probably skipped a navigation. See the rationale and the
-  full rule in `.claude/skills/gyrinx-conventions/SKILL.md`.
+  full rule in `.claude/skills/gyrinx-conventions/SKILL.md`. In N26, shareable
+  navigation still belongs in the URL, but React may own transient UI and draft
+  form state. N26 islands do not require server rendering or a no-JS fallback.
 - **Use the cotton components, don't hand-write Bootstrap.** UI primitives live in
   `gyrinx/templates/cotton/` and are invoked as HTML tags:
   `<c-btn variant="primary" size="sm">Edit</c-btn>`, `<c-badge state="injured">`,
@@ -387,7 +393,7 @@ manage inspect_page /n26/authoring/ --all --limit 3 --json
 ### Testing
 
 ```bash
-# Run full test suite (thin wrapper over pytest; tests use local Postgres)
+# Build React assets, then run the full suite against local Postgres
 ./scripts/test.sh
 
 # Run tests with pytest-watcher for continuous testing
@@ -396,7 +402,8 @@ ptw .
 # Run specific test
 pytest n23/core/tests/test_models_core.py::test_basic_list
 
-# Run tests with pytest directly
+# Run tests with pytest directly (`npm run js` once on a clean checkout or
+# after changing React build inputs)
 pytest
 
 # Run tests in parallel using pytest-xdist (significant performance improvement)
@@ -607,7 +614,8 @@ anything else that connects as that role too.
 
 ### Technical Principles
 
-- **Not an SPA**: Server-rendered HTML with form submissions, not React/API
+- **Not an SPA**: Django routes and page shells; N23 uses server-rendered forms,
+  N26 uses React islands for interactive regions (see the N26 React skill).
 - **Mobile-first**: Design for mobile, scale up to desktop
 - **Make it work; make it right; make it fast**: Ship functionality first, optimize later
 - **Security**: Always validate return URLs using `safe_redirect` when accepting redirect URLs from user input to
@@ -651,10 +659,10 @@ If you find a place where archived pack content is being hidden from subscribers
 
 ### Frontend Stack
 
-- Bootstrap 5 for UI components
-- SCSS compiled to CSS via npm scripts
-- No JavaScript framework - vanilla JS where needed
-- Django templates with custom template tags
+- N23: Bootstrap 5, SCSS and small vanilla JavaScript enhancements.
+- N26: Tailwind/Cotton for static UI; React/TypeScript islands for interactions.
+  Vite builds the islands and shared adapters derive classes from Cotton.
+- Both editions keep Django routes, templates and custom template tags.
 
 ### Deployment
 

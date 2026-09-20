@@ -148,7 +148,7 @@ def staged_counts():
     the kinds with something staged."""
     found = []
     for model in content_kinds():
-        count = model.objects.filter(staged=True).count()
+        count = model.objects.outside_campaign_packs().filter(staged=True).count()
         if count:
             found.append((model, count))
     return found
@@ -161,11 +161,12 @@ def staged_count():
 
 
 def staged_rows():
-    """Every staged row, kind by kind — what the Staged content page lists.
+    """Every staged authoring row, kind by kind.
 
     Every kind is asked, not only the stageable ones, so a row staged some
-    other way is never invisible to the people who can put it live. A kind
-    with nothing staged is left out. One query per kind, however many rows.
+    other way is never invisible to the people who can put it live. Campaign
+    packs remain outside this staff workflow. A kind with nothing staged is
+    left out. One query per kind, however many rows.
     """
     from n26.library.references import forward_relations
 
@@ -175,7 +176,9 @@ def staged_rows():
         # list and the thing it joins — loaded with the row, so a page of a
         # hundred staged lines costs the same handful of queries as one.
         rows = list(
-            model.objects.filter(staged=True).select_related(*forward_relations(model))
+            model.objects.outside_campaign_packs()
+            .filter(staged=True)
+            .select_related(*forward_relations(model))
         )
         if rows:
             found.append((model, rows))
