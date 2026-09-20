@@ -1839,12 +1839,20 @@ def _create_fighter_actions():
             Pickable, name, slot_type=advancement_type, rating_contribution=rating
         )
         repair(pick, slot_type=advancement_type, rating_contribution=rating)
-        member, _ = PicklistMember.objects.get_or_create(
-            picklist=table,
+        member = table.members.filter(pickable=pick).first()
+        if member is None:
+            member = table.members.filter(
+                position=position, pickable__name__iexact=name
+            ).first()
+        if member is None:
+            member = PicklistMember.objects.create(picklist=table, pickable=pick)
+        repair(
+            member,
             pickable=pick,
-            defaults={"position": position, "roll_low": roll, "roll_high": roll},
+            position=position,
+            roll_low=roll,
+            roll_high=roll,
         )
-        repair(member, position=position, roll_low=roll, roll_high=roll)
         modifier_name = f"Advancement: {name}"
         fallback_modifier_name = f"Standard fighter advancement: {name}"
         tied_modifier_name = f"{fallback_modifier_name} ({str(pick.pk)[:8]})"
@@ -1853,9 +1861,15 @@ def _create_fighter_actions():
             fallback_modifier_name,
             tied_modifier_name,
         )
-        existing_modifier = pick.modifiers.filter(
-            pack=pack, name__in=modifier_names
-        ).first()
+        folded_modifier_names = {candidate.casefold() for candidate in modifier_names}
+        existing_modifier = next(
+            (
+                modifier
+                for modifier in pick.modifiers.filter(pack=pack)
+                if modifier.name.casefold() in folded_modifier_names
+            ),
+            None,
+        )
         new_modifier_name = modifier_name
         if existing_modifier is None:
             for candidate in modifier_names:

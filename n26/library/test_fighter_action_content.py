@@ -600,6 +600,12 @@ def test_qualified_pickable_does_not_satisfy_advancement_completeness(default_pa
     member.save(update_fields=["pickable", "modified"])
 
     assert content.status() == "incomplete"
+    content.create()
+
+    member.refresh_from_db()
+    assert member.pickable.qualifier == ""
+    assert Pickable.objects.filter(pk=lookalike.pk).exists()
+    assert content.status() == "complete"
 
 
 def test_reseeding_repairs_the_advancement_rank_counter():
@@ -699,6 +705,24 @@ def test_reseeding_does_not_reuse_an_unrelated_same_named_modifier(default_pack)
 
     assert movement.modifiers.get() != modifier
     assert unrelated.modifiers.get() == modifier
+    assert content.status() == "complete"
+
+
+def test_lowercase_advancement_modifier_is_reused():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    movement = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Movement")
+        .pickable
+    )
+    modifier = movement.modifiers.get()
+    modifier.name = modifier.name.lower()
+    modifier.save(update_fields=["name", "modified"])
+
+    content.create()
+
+    assert movement.modifiers.get() == modifier
     assert content.status() == "complete"
 
 
