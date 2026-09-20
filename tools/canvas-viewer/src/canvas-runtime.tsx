@@ -610,6 +610,7 @@ export function Card({
                     <button
                         className="cv-card-toggle"
                         type="button"
+                        aria-expanded={open}
                         onClick={toggle}
                     >
                         <span aria-hidden="true">{open ? "⌄" : "›"}</span>
@@ -1027,6 +1028,7 @@ export function CollapsibleSection({
             <button
                 type="button"
                 className="cv-collapsible-toggle"
+                aria-expanded={open}
                 onClick={() => setOpen((value) => !value)}
             >
                 <span aria-hidden="true">{open ? "⌄" : "›"}</span>

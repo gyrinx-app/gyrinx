@@ -7,6 +7,7 @@ import {
     Card,
     CardBody,
     CardHeader,
+    CollapsibleSection,
     Callout,
     Grid,
     H1,
@@ -165,13 +166,18 @@ describe("Canvas runtime", () => {
             </Card>,
         );
         const iconButton = renderToStaticMarkup(<IconButton>×</IconButton>);
+        const section = renderToStaticMarkup(
+            <CollapsibleSection title="More">Body</CollapsibleSection>,
+        );
 
         expect(pie).toContain('r="25"');
         expect(pie).toContain('stroke-width="50"');
         expect(card).toContain("cv-card-collapsible-header");
+        expect(card).toContain('aria-expanded="true"');
         expect(card.indexOf(">Action</button>")).toBeGreaterThan(
             card.indexOf("</button>"),
         );
         expect(iconButton).toContain('aria-label="Icon button"');
+        expect(section).toContain('aria-expanded="false"');
     });
 });
