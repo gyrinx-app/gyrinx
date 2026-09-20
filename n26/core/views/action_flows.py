@@ -221,6 +221,21 @@ def _page(
     )
 
 
+def _refusal_page(request, fighter, action, refusal, *, record=None, correction=False):
+    form = EmptyActionForm({})
+    form.add_error(None, str(refusal))
+    return _page(
+        request,
+        fighter,
+        action,
+        record=record,
+        stage="unavailable",
+        correction=correction,
+        form=form,
+        submit_label="",
+    )
+
+
 def _can_cancel(record):
     if record is None or record.state != ActionRecord.State.STARTED:
         return False
@@ -291,12 +306,17 @@ def action_start(request, pk, action_id):
             None,
             "This flow is temporarily unavailable.",
         )
+        try:
+            prices = payment_figures(quote_for(fighter, action))
+        except Refusal as refusal:
+            form.add_error(None, str(refusal))
+            prices = ()
         return _page(
             request,
             fighter,
             action,
             form=form,
-            prices=payment_figures(quote_for(fighter, action)),
+            prices=prices,
             tracking_unavailable=True,
             submit_label="",
             submit_variant="primary",
@@ -355,7 +375,10 @@ def action_start(request, pk, action_id):
             return redirect(flow_url(fighter, record, "resume"))
         except Refusal as refusal:
             form.add_error(None, str(refusal))
-    quote = quote_for(fighter, action)
+    try:
+        quote = quote_for(fighter, action)
+    except Refusal as refusal:
+        return _refusal_page(request, fighter, action, refusal)
     return _page(
         request,
         fighter,
@@ -436,9 +459,19 @@ def action_flow(request, pk, record_id, step):
         return redirect(flow_url(fighter, record, "done"))
     configured = record.outcome.operation if record.outcome_id else None
     if isinstance(configured, AugmentCarriedItem):
-        return _choose_augmentation(
-            request, fighter, record, configured, correction=correction
-        )
+        try:
+            return _choose_augmentation(
+                request, fighter, record, configured, correction=correction
+            )
+        except Refusal as refusal:
+            return _refusal_page(
+                request,
+                fighter,
+                record.action,
+                refusal,
+                record=record,
+                correction=correction,
+            )
     if isinstance(configured, ApplyChanges):
         return redirect(flow_url(fighter, record, "review"))
     from n26.core.views.advancement_flows import advancement_step
@@ -482,13 +515,17 @@ def _choose_outcome(request, fighter, record):
             return redirect(flow_url(fighter, record, "resume"))
         except Refusal as refusal:
             form.add_error(None, str(refusal))
+    try:
+        prices = payment_figures(quote_for(fighter, record.action))
+    except Refusal as refusal:
+        return _refusal_page(request, fighter, record.action, refusal, record=record)
     return _page(
         request,
         fighter,
         record.action,
         record=record,
         form=form,
-        prices=payment_figures(quote_for(fighter, record.action)),
+        prices=prices,
         outcomes=[
             {
                 "key": str(item.pk),

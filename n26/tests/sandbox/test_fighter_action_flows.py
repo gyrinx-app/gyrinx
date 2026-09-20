@@ -301,6 +301,56 @@ class TestSuitEvolutionForms:
         assert not record.payment_id
         assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
 
+    def test_a_missing_price_counter_is_shown_on_the_outcome_page(self, client, hunt):
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        hunt.kills.archived = True
+        hunt.kills.save(update_fields=["archived"])
+
+        response = client.get(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"])
+        )
+
+        assert response.status_code == 200
+        assert "That counter is no longer available." in response.content.decode()
+
+    def test_a_missing_price_counter_is_shown_on_the_item_page(self, client, hunt):
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        hunt.kills.archived = True
+        hunt.kills.save(update_fields=["archived"])
+
+        response = client.get(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
+        )
+
+        assert response.status_code == 200
+        assert "That counter is no longer available." in response.content.decode()
+
+    def test_a_changed_item_is_shown_when_revisiting_a_completed_correction(
+        self, client, hunt
+    ):
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
+        review_url = client.post(
+            choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
+        ).url
+        review = client.get(review_url)
+        confirmed = client.post(
+            review_url, {"review": review.context["form"]["review"].value()}
+        )
+        assert confirmed.status_code == 302
+        hunt.item.archived = True
+        hunt.item.save(update_fields=["archived"])
+
+        response = client.get(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "correct"])
+        )
+
+        assert response.status_code == 200
+        assert (
+            "The original item or tier has changed. "
+            "Review the change before continuing."
+        ) in response.content.decode()
+
     def test_another_owner_cannot_open_or_complete_the_flow(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.clear)
         stranger = User.objects.create_user("other-flow-player")
