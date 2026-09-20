@@ -169,4 +169,24 @@ describe("modifier list", () => {
         ).toBe("/modifiers/1/");
         expect(container.querySelector("img")).toBeNull();
     });
+
+    it("wraps long names without squeezing the notes column", () => {
+        const label = "A modifier name that needs more than one line";
+        setup({
+            rows: [{ ...props.rows[0], label }],
+            scopeOptions: [props.scopeOptions[0]],
+            effectOptions: [props.effectOptions[0]],
+            carriedOptions: [props.carriedOptions[0]],
+        });
+
+        const table = screen.getByRole("table");
+        const link = screen.getByRole("link", { name: label });
+        const nameCell = link.closest("td");
+        const notesCell = nameCell?.nextElementSibling;
+
+        expect(table.classList.contains("table-fixed")).toBe(true);
+        expect(link.classList.contains("break-words")).toBe(true);
+        expect(nameCell?.classList.contains("w-2/5")).toBe(true);
+        expect(notesCell?.classList.contains("w-3/5")).toBe(true);
+    });
 });

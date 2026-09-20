@@ -91,14 +91,19 @@ export function ModifierList({
                 </span>{" "}
                 of {rows.length} modifiers
             </p>
-            <Table>
+            <Table className="table-fixed">
                 <tbody>
                     {shown.map((row) => (
                         <tr key={row.pk}>
-                            <td className="whitespace-nowrap">
-                                <Link href={row.url}>{row.label}</Link>
+                            <td className="w-2/5 min-w-0 align-top whitespace-normal">
+                                <Link
+                                    href={row.url}
+                                    className="break-words whitespace-normal"
+                                >
+                                    {row.label}
+                                </Link>
                             </td>
-                            <td className="w-full text-muted">
+                            <td className="w-3/5 break-words whitespace-normal text-muted">
                                 {row.notes.join(" · ")}
                             </td>
                         </tr>
