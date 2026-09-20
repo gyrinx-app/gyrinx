@@ -262,7 +262,8 @@ class TestCrewForms:
         document = BeautifulSoup(response.content, "html.parser")
         host = document.select_one("[data-react-module]")
         props = json.loads(document.find(id=host["data-react-props"]).string)
-        assert props["models"][0]["name"] == model.name
+        selected = next(item for item in props["models"] if item["id"] == str(model.pk))
+        assert selected["name"] == model.name
         assert model.name not in response.content.decode()
 
     def test_crew_cards_show_injuries_without_editing_prompts(

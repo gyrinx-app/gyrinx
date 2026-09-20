@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import {
     Button,
     ButtonLink,
+    Callout,
     CheckboxCard,
     Field,
     FormActions,
@@ -46,11 +47,13 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
             models.map((model) => [
                 model.id,
                 {
-                    selected: !!model.role.value && model.role.value !== "out",
+                    selected:
+                        !!model.role.value &&
+                        model.role.value !== "out" &&
+                        (!model.mayOverride || model.override.value),
                     role:
                         model.role.value === "reserve" ? "reserve" : "starting",
                     card: model.card.value ?? "",
-                    override: model.override.value,
                 },
             ]),
         ),
@@ -58,14 +61,9 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
     const actions = useRef<HTMLDivElement>(null);
     const wanted = query.trim().toLowerCase();
     const shown = models.filter((model) => model.search.includes(wanted));
-    function isSelected(model: CrewModel) {
-        const value = selections[model.id];
-        return value.selected && (!model.mayOverride || value.override);
-    }
-
-    const selected = models
-        .filter(isSelected)
-        .map((model) => selections[model.id]);
+    const selected = Object.values(selections).filter(
+        (value) => value.selected,
+    );
     const starting = selected.filter(
         (value) => value.role === "starting",
     ).length;
@@ -112,14 +110,14 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                         <input
                             type="hidden"
                             name={model.role.name}
-                            value={isSelected(model) ? value.role : "out"}
+                            value={value.selected ? value.role : "out"}
                         />
                         <input
                             type="hidden"
                             name={model.card.name}
                             value={value.card}
                         />
-                        {value.override && (
+                        {value.selected && model.mayOverride && (
                             <input
                                 type="hidden"
                                 name={model.override.name}
@@ -142,194 +140,168 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                         />
                     </div>
                 </div>
-                <div className="grid auto-rows-min grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 items-stretch gap-4 md:auto-rows-fr md:grid-cols-2 xl:grid-cols-3">
                     {shown.map((model) => {
                         const value = selections[model.id];
-                        const overrideRequired =
-                            model.mayOverride && !value.override;
-                        const included = isSelected(model);
+                        const included = value.selected;
                         const roleErrorId = `${model.role.id}-error`;
                         const cardErrorId = `${model.card.id}-error`;
+                        const warningId = `${model.override.id}-warning`;
                         return (
-                            <div
+                            <CheckboxCard
                                 key={model.id}
-                                className={`min-w-0 space-y-3 ${model.warning ? "border-l-2 border-amber-500 bg-amber-50 p-3 dark:bg-amber-950/30" : ""}`}
-                            >
-                                {model.warning && (
-                                    <div className="space-y-2 text-sm">
-                                        <p id={`${model.override.id}-warning`}>
+                                className="min-w-0"
+                                label={model.name}
+                                description={model.profile}
+                                checkboxLabel={`Select ${model.name}`}
+                                checkboxDescribedBy={
+                                    model.warning ? warningId : undefined
+                                }
+                                checked={included}
+                                disabled={!model.available && !value.selected}
+                                onCheckedChange={(selected) =>
+                                    update(model.id, { selected })
+                                }
+                                meta={
+                                    <span className="shrink-0 text-right text-xs tabular-nums text-muted">
+                                        Full equipment
+                                        <br />
+                                        {model.fullRating}¢
+                                    </span>
+                                }
+                                notice={
+                                    model.warning && (
+                                        <Callout
+                                            id={warningId}
+                                            className="mt-3"
+                                        >
                                             {model.warning}
-                                        </p>
-                                        {model.mayOverride && (
-                                            <label
-                                                className="flex min-h-11 items-center gap-3"
-                                                htmlFor={model.override.id}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    id={model.override.id}
-                                                    aria-label={`Allow ${model.name} for this battle`}
-                                                    aria-describedby={`${model.override.id}-warning`}
-                                                    checked={value.override}
-                                                    onChange={(event) =>
-                                                        update(model.id, {
-                                                            override:
-                                                                event.target
-                                                                    .checked,
-                                                        })
-                                                    }
-                                                />
-                                                Allow for this battle
-                                            </label>
-                                        )}
+                                        </Callout>
+                                    )
+                                }
+                                errors={
+                                    <>
                                         {model.override.errors.map((error) => (
                                             <p
                                                 key={error}
                                                 role="alert"
-                                                className="text-red-700 dark:text-red-300"
+                                                className="mt-2 text-sm text-red-700 dark:text-red-300"
                                             >
                                                 {error}
                                             </p>
                                         ))}
-                                    </div>
-                                )}
-                                <CheckboxCard
-                                    label={model.name}
-                                    description={model.profile}
-                                    checkboxLabel={`Select ${model.name}`}
-                                    checked={included}
-                                    disabled={
-                                        overrideRequired ||
-                                        (!model.available && !value.selected)
-                                    }
-                                    onCheckedChange={(selected) =>
-                                        update(model.id, { selected })
-                                    }
-                                    meta={
-                                        <span className="shrink-0 text-right text-xs tabular-nums text-muted">
-                                            Full equipment
-                                            <br />
-                                            {model.fullRating}¢
-                                        </span>
-                                    }
-                                >
-                                    <div className="space-y-3">
-                                        <Field
-                                            label="Crew"
-                                            htmlFor={model.role.id}
-                                        >
-                                            <NativeSelect
-                                                id={model.role.id}
-                                                aria-label={`Crew for ${model.name}`}
-                                                aria-invalid={
-                                                    model.role.errors.length >
-                                                        0 || undefined
-                                                }
-                                                aria-describedby={
-                                                    model.role.errors.length
-                                                        ? roleErrorId
-                                                        : undefined
-                                                }
-                                                value={value.role}
-                                                disabled={!included}
-                                                onChange={(event) =>
-                                                    update(model.id, {
-                                                        role: event.target
-                                                            .value,
-                                                    })
-                                                }
+                                        {model.role.errors.length > 0 && (
+                                            <div
+                                                id={roleErrorId}
+                                                role="alert"
+                                                className="mt-2 text-sm text-red-700 dark:text-red-300"
                                             >
-                                                {model.role.choices
-                                                    .filter(
-                                                        (choice) =>
-                                                            choice.value !==
-                                                            "out",
-                                                    )
-                                                    .map((choice) => (
-                                                        <option
-                                                            key={choice.value}
-                                                            value={choice.value}
-                                                        >
-                                                            {choice.label}
-                                                        </option>
-                                                    ))}
-                                            </NativeSelect>
-                                        </Field>
-                                        <Field
-                                            label="Equipment set"
-                                            htmlFor={model.card.id}
-                                        >
-                                            <NativeSelect
-                                                id={model.card.id}
-                                                aria-label={`Equipment set for ${model.name}`}
-                                                aria-invalid={
-                                                    model.card.errors.length >
-                                                        0 || undefined
-                                                }
-                                                aria-describedby={
-                                                    model.card.errors.length
-                                                        ? cardErrorId
-                                                        : undefined
-                                                }
-                                                value={value.card}
-                                                disabled={!included}
-                                                onChange={(event) =>
-                                                    update(model.id, {
-                                                        card: event.target
-                                                            .value,
-                                                    })
-                                                }
-                                            >
-                                                {!model.card.choices.some(
-                                                    (choice) =>
-                                                        choice.value ===
-                                                        value.card,
-                                                ) && (
-                                                    <option
-                                                        value={value.card}
-                                                        disabled
-                                                    >
-                                                        Select an equipment set
-                                                    </option>
-                                                )}
-                                                {model.card.choices.map(
-                                                    (choice) => (
-                                                        <option
-                                                            key={choice.value}
-                                                            value={choice.value}
-                                                        >
-                                                            {choice.label}
-                                                        </option>
-                                                    ),
-                                                )}
-                                            </NativeSelect>
-                                        </Field>
-                                        {model.savedSource && (
-                                            <p className="text-xs text-muted">
-                                                {model.savedSource}
-                                            </p>
+                                                {model.role.errors.join(" ")}
+                                            </div>
                                         )}
-                                    </div>
-                                </CheckboxCard>
-                                {model.role.errors.length > 0 && (
-                                    <div
-                                        id={roleErrorId}
-                                        role="alert"
-                                        className="text-sm text-red-700 dark:text-red-300"
+                                        {model.card.errors.length > 0 && (
+                                            <div
+                                                id={cardErrorId}
+                                                role="alert"
+                                                className="mt-2 text-sm text-red-700 dark:text-red-300"
+                                            >
+                                                {model.card.errors.join(" ")}
+                                            </div>
+                                        )}
+                                    </>
+                                }
+                            >
+                                <div className="space-y-3">
+                                    <Field label="Crew" htmlFor={model.role.id}>
+                                        <NativeSelect
+                                            id={model.role.id}
+                                            aria-label={`Crew for ${model.name}`}
+                                            aria-invalid={
+                                                model.role.errors.length > 0 ||
+                                                undefined
+                                            }
+                                            aria-describedby={
+                                                model.role.errors.length
+                                                    ? roleErrorId
+                                                    : undefined
+                                            }
+                                            value={value.role}
+                                            disabled={!included}
+                                            onChange={(event) =>
+                                                update(model.id, {
+                                                    role: event.target.value,
+                                                })
+                                            }
+                                        >
+                                            {model.role.choices
+                                                .filter(
+                                                    (choice) =>
+                                                        choice.value !== "out",
+                                                )
+                                                .map((choice) => (
+                                                    <option
+                                                        key={choice.value}
+                                                        value={choice.value}
+                                                    >
+                                                        {choice.label}
+                                                    </option>
+                                                ))}
+                                        </NativeSelect>
+                                    </Field>
+                                    <Field
+                                        label="Equipment set"
+                                        htmlFor={model.card.id}
                                     >
-                                        {model.role.errors.join(" ")}
-                                    </div>
-                                )}
-                                {model.card.errors.length > 0 && (
-                                    <div
-                                        id={cardErrorId}
-                                        role="alert"
-                                        className="text-sm text-red-700 dark:text-red-300"
-                                    >
-                                        {model.card.errors.join(" ")}
-                                    </div>
-                                )}
-                            </div>
+                                        <NativeSelect
+                                            id={model.card.id}
+                                            aria-label={`Equipment set for ${model.name}`}
+                                            aria-invalid={
+                                                model.card.errors.length > 0 ||
+                                                undefined
+                                            }
+                                            aria-describedby={
+                                                model.card.errors.length
+                                                    ? cardErrorId
+                                                    : undefined
+                                            }
+                                            value={value.card}
+                                            disabled={!included}
+                                            onChange={(event) =>
+                                                update(model.id, {
+                                                    card: event.target.value,
+                                                })
+                                            }
+                                        >
+                                            {!model.card.choices.some(
+                                                (choice) =>
+                                                    choice.value === value.card,
+                                            ) && (
+                                                <option
+                                                    value={value.card}
+                                                    disabled
+                                                >
+                                                    Select an equipment set
+                                                </option>
+                                            )}
+                                            {model.card.choices.map(
+                                                (choice) => (
+                                                    <option
+                                                        key={choice.value}
+                                                        value={choice.value}
+                                                    >
+                                                        {choice.label}
+                                                    </option>
+                                                ),
+                                            )}
+                                        </NativeSelect>
+                                    </Field>
+                                    {model.savedSource && (
+                                        <p className="text-xs text-muted">
+                                            {model.savedSource}
+                                        </p>
+                                    )}
+                                </div>
+                            </CheckboxCard>
                         );
                     })}
                 </div>

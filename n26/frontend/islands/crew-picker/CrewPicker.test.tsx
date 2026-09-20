@@ -167,7 +167,7 @@ describe("CrewPicker", () => {
         expect(data().get("card_a")).toBe("long");
     });
 
-    it("uses the recovery override as an outer gate before model selection", async () => {
+    it("opts into an unavailable model with its single selection checkbox", async () => {
         const recovering = model("a", "Mara");
         recovering.warning = "In Recovery. Usually unavailable for selection.";
         recovering.mayOverride = true;
@@ -175,44 +175,35 @@ describe("CrewPicker", () => {
             "Allow this model for this battle or remove it from the crew.",
         ];
         const { user, data } = setup([recovering]);
-        expect(
-            screen.getByText(recovering.warning).closest("[inert]"),
-        ).toBeNull();
+        expect(screen.getByRole("note").closest("[inert]")).toBeNull();
         expect(screen.getByRole("alert").textContent).toContain(
             "Allow this model",
         );
-        const override = screen.getByRole<HTMLInputElement>("checkbox", {
-            name: "Allow Mara for this battle",
-        });
         const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
             name: "Select Mara",
         });
-        expect(override.disabled).toBe(false);
-        expect(override.closest("[inert]")).toBeNull();
-        expect(
-            override.compareDocumentPosition(checkbox) &
-                Node.DOCUMENT_POSITION_FOLLOWING,
-        ).toBeTruthy();
-        expect(checkbox.disabled).toBe(true);
-        expect(data().get("role_a")).toBe("out");
-        await user.click(override);
+        expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+        const notice = screen.getByRole("note");
+        expect(notice.textContent).toBe(recovering.warning);
+        expect(checkbox.getAttribute("aria-describedby")).toContain(notice.id);
+        expect(notice.parentElement).toBe(
+            checkbox.closest("label")!.parentElement,
+        );
         expect(checkbox.disabled).toBe(false);
         expect(checkbox.checked).toBe(false);
         expect(data().get("role_a")).toBe("out");
+        expect(data().get("override_a")).toBeNull();
         await user.click(checkbox);
         expect(data().getAll("override_a")).toEqual(["on"]);
         expect(data().get("role_a")).toBe("starting");
     });
 
-    it("excludes a model when its recovery override is off and restores its choices when enabled", async () => {
+    it("clears the override when deselected and restores choices when selected again", async () => {
         const recovering = model("a", "Mara", "reserve");
         recovering.warning = "In Recovery. Usually unavailable for selection.";
         recovering.mayOverride = true;
         recovering.override.value = true;
         const { user, data } = setup([recovering]);
-        const override = screen.getByRole<HTMLInputElement>("checkbox", {
-            name: "Allow Mara for this battle",
-        });
         const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
             name: "Select Mara",
         });
@@ -220,15 +211,15 @@ describe("CrewPicker", () => {
             name: "Equipment set for Mara",
         });
         await user.selectOptions(equipment, "short");
-        await user.click(override);
+        await user.click(checkbox);
         expect(checkbox.checked).toBe(false);
-        expect(checkbox.disabled).toBe(true);
+        expect(checkbox.disabled).toBe(false);
         expect(equipment.disabled).toBe(true);
         expect(data().get("role_a")).toBe("out");
         expect(data().get("override_a")).toBeNull();
         expect(data().get("card_a")).toBe("short");
         expect(screen.getByText("0 models")).toBeTruthy();
-        await user.click(override);
+        await user.click(checkbox);
         expect(checkbox.checked).toBe(true);
         expect(equipment.disabled).toBe(false);
         expect(equipment.value).toBe("short");
@@ -237,7 +228,7 @@ describe("CrewPicker", () => {
         expect(screen.getByText("1 model")).toBeTruthy();
     });
 
-    it("requires allowing a saved model whose status has since changed", async () => {
+    it("requires a fresh selection for a saved model whose status has since changed", async () => {
         const recovering = model("a", "Mara", "starting");
         recovering.warning = "In Recovery. Usually unavailable for selection.";
         recovering.mayOverride = true;
@@ -247,12 +238,28 @@ describe("CrewPicker", () => {
         expect(screen.getByText("0 models")).toBeTruthy();
         await user.click(
             screen.getByRole("checkbox", {
-                name: "Allow Mara for this battle",
+                name: "Select Mara",
             }),
         );
         expect(data().get("role_a")).toBe("starting");
         expect(data().get("card_a")).toBe("saved:old");
+        expect(data().get("override_a")).toBe("on");
         expect(screen.getByText("1 model")).toBeTruthy();
+    });
+
+    it("preserves the selection override when the model is hidden by search", async () => {
+        const recovering = model("a", "Mara");
+        recovering.warning = "In Recovery. Usually unavailable for selection.";
+        recovering.mayOverride = true;
+        const { user, data } = setup([recovering, model("b", "Nell")]);
+        await user.click(screen.getByRole("checkbox", { name: "Select Mara" }));
+        await user.type(
+            screen.getByRole("searchbox", { name: "Find a model" }),
+            "Nell",
+        );
+        expect(data().getAll("role_a")).toEqual(["starting"]);
+        expect(data().getAll("override_a")).toEqual(["on"]);
+        expect(data().get("override_b")).toBeNull();
     });
 
     it("lets an unavailable saved model be removed but not selected again", async () => {

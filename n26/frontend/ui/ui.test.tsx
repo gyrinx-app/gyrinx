@@ -6,6 +6,7 @@ import cotton from "../generated/cotton.json";
 import {
     Button,
     ButtonLink,
+    Callout,
     CheckboxCard,
     Field,
     FormActions,
@@ -53,6 +54,35 @@ function setupCard(initialChecked = false, disabled = false) {
 }
 
 describe("checkbox card", () => {
+    it("keeps notices and errors inside the card and readable when unselected", () => {
+        const { container } = render(
+            <CheckboxCard
+                checked={false}
+                onCheckedChange={() => {}}
+                label="Mara"
+                description="Leader"
+                checkboxDescribedBy="recovery-note"
+                notice={<Callout id="recovery-note">In recovery.</Callout>}
+                errors={<p role="alert">Select the model again.</p>}
+            >
+                <input aria-label="Nested value" />
+            </CheckboxCard>,
+        );
+        const note = screen.getByRole("note");
+        const error = screen.getByRole("alert");
+        expect(note.parentElement).toBe(container.firstElementChild);
+        expect(error.parentElement).toBe(container.firstElementChild);
+        expect(note.closest("[inert]")).toBeNull();
+        expect(error.closest("[inert]")).toBeNull();
+        expect(note.className).toContain(cotton.callout.root);
+        expect(
+            screen.getByRole("checkbox").getAttribute("aria-describedby"),
+        ).toContain("recovery-note");
+        expect(
+            screen.getByLabelText("Nested value").closest("[inert]"),
+        ).not.toBeNull();
+    });
+
     it("uses the label as its name and the description separately", () => {
         const { checkbox } = setupCard();
         expect(checkbox.checked).toBe(false);

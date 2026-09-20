@@ -94,6 +94,17 @@ def checkbox_card_recipe():
     }
 
 
+def callout_recipe():
+    """Extract the static, icon-free warning used beside selection controls."""
+    root, content, body = classes(
+        '<c-ui.alert variant="warning" :icon="False">Explanation.</c-ui.alert>',
+        "div",
+        "div",
+        "div",
+    )
+    return {"root": root, "content": content, "body": body}
+
+
 def filter_menu_recipe():
     """Extract the static presentation of the composed filter menu.
 
@@ -237,6 +248,7 @@ def recipes():
             for variant in button_variants
         },
         "checkboxCard": checkbox_card_recipe(),
+        "callout": callout_recipe(),
         "nativeSelect": native_select_recipe(),
         "field": {
             **dict(zip(("root", "label", "labelText"), field, strict=True)),

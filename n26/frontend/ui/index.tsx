@@ -126,6 +126,9 @@ export function CheckboxCard({
     disabled = false,
     className = "",
     checkboxLabel,
+    checkboxDescribedBy,
+    notice,
+    errors,
 }: {
     checked: boolean;
     onCheckedChange: (checked: boolean) => void;
@@ -136,6 +139,9 @@ export function CheckboxCard({
     disabled?: boolean;
     className?: string;
     checkboxLabel?: string;
+    checkboxDescribedBy?: string;
+    notice?: ReactNode;
+    errors?: ReactNode;
 }) {
     const id = useId();
     const recipe = cotton.checkboxCard;
@@ -155,7 +161,12 @@ export function CheckboxCard({
                     aria-label={checkboxLabel}
                     aria-labelledby={checkboxLabel ? undefined : `${id}-label`}
                     aria-describedby={
-                        description ? `${id}-description` : undefined
+                        [
+                            description ? `${id}-description` : undefined,
+                            checkboxDescribedBy,
+                        ]
+                            .filter(Boolean)
+                            .join(" ") || undefined
                     }
                 />
                 <span className={recipe.text}>
@@ -173,6 +184,7 @@ export function CheckboxCard({
                 </span>
                 {meta}
             </label>
+            {notice}
             {children != null &&
                 typeof children !== "boolean" &&
                 children !== "" && (
@@ -185,6 +197,29 @@ export function CheckboxCard({
                         {children}
                     </div>
                 )}
+            {errors}
+        </div>
+    );
+}
+
+export function Callout({
+    children,
+    className = "",
+    id,
+}: {
+    children: ReactNode;
+    className?: string;
+    id?: string;
+}) {
+    return (
+        <div
+            id={id}
+            role="note"
+            className={`${cotton.callout.root} ${className}`}
+        >
+            <div className={cotton.callout.content}>
+                <div className={cotton.callout.body}>{children}</div>
+            </div>
         </div>
     );
 }
