@@ -1879,7 +1879,7 @@ def _create_fighter_actions():
                     replace_modifier_effect(
                         existing_modifier, "changes_stat", new_effect
                     )
-            pick.modifiers.add(existing_modifier)
+            pick.modifiers.set([existing_modifier])
         elif name.startswith(("Random", "Select")) and "skill" in name.lower():
             access = (
                 "Primary"
@@ -1925,7 +1925,7 @@ def _create_fighter_actions():
                     replace_modifier_effect(
                         existing_modifier, "offers_choice", new_effect
                     )
-            pick.modifiers.add(existing_modifier)
+            pick.modifiers.set([existing_modifier])
     slot = named(
         Slot,
         "Advancement",
@@ -1953,7 +1953,9 @@ def _create_fighter_actions():
         "Spyrer Hunting Rig Glitch",
         plural_name="Spyrer Hunting Rig Glitches",
     )
-    advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()
+    advance_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Advancement"
+    ).first()
     if advance_outcome is None:
         advance_outcome = authoring.create_outcome(
             "Advancement", authoring.resolve_advancement(slot)
@@ -1967,7 +1969,7 @@ def _create_fighter_actions():
     else:
         repair(advance_outcome.resolve_advancement, slot=slot)
     augment_outcome = Outcome.objects.filter(
-        pack=pack, name="Hunting Rig Augmentation"
+        pack=pack, name__iexact="Hunting Rig Augmentation"
     ).first()
     if augment_outcome is None:
         augment_outcome = authoring.create_outcome(
@@ -1981,7 +1983,7 @@ def _create_fighter_actions():
         )
     else:
         repair(augment_outcome.augment_carried_item, slot_type=augment_type)
-    clear = Outcome.objects.filter(pack=pack, name="Clear glitches").first()
+    clear = Outcome.objects.filter(pack=pack, name__iexact="Clear glitches").first()
     if clear is None:
         clear = authoring.create_outcome(
             "Clear glitches",
@@ -2167,12 +2169,16 @@ def _check_fighter_actions():
     }
     if set(expected_outcome_names) - set(actions):
         return incomplete()
+    outcomes_by_name = {
+        outcome.name.casefold(): outcome.pk
+        for outcome in Outcome.objects.filter(pack=pack)
+    }
     expected_outcomes = {
-        action_name: set(
-            Outcome.objects.filter(pack=pack, name__in=names).values_list(
-                "pk", flat=True
-            )
-        )
+        action_name: {
+            outcomes_by_name[name.casefold()]
+            for name in names
+            if name.casefold() in outcomes_by_name
+        }
         for action_name, names in expected_outcome_names.items()
     }
     if any(
@@ -2222,11 +2228,15 @@ def _check_fighter_actions():
     ranks = RankTable.objects.filter(
         pack=pack, name__iexact="Standard fighter ranks", qualifier=""
     ).first()
-    advance_outcome = Outcome.objects.filter(pack=pack, name="Advancement").first()
-    augment_outcome = Outcome.objects.filter(
-        pack=pack, name="Hunting Rig Augmentation"
+    advance_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Advancement"
     ).first()
-    clear_outcome = Outcome.objects.filter(pack=pack, name="Clear glitches").first()
+    augment_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Hunting Rig Augmentation"
+    ).first()
+    clear_outcome = Outcome.objects.filter(
+        pack=pack, name__iexact="Clear glitches"
+    ).first()
     augment_type = SlotType.objects.filter(pack=pack, name="Augmentation").first()
     glitch_type = SlotType.objects.filter(
         pack=pack, name="Spyrer Hunting Rig Glitch"

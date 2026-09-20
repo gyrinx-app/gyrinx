@@ -691,7 +691,6 @@ def record_skill_roll(
             LedgerEvent.Kind.ROLLED,
             roll=rolled,
             dice=Dice.D6.value,
-            slot=configured.slot,
             note=str(category),
             action_record=record,
         )

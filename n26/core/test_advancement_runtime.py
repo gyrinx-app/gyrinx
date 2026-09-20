@@ -375,6 +375,8 @@ def test_first_available_random_skill_is_immutable_and_completes_checkout(fighte
         )
 
     assert replayed == accepted
+    skill_event = LedgerEvent.objects.get(pk=accepted["event_id"])
+    assert skill_event.slot_id is None
     assert recorded_skill(record, configured, random_primary.id) == category.skills.get(
         pk=accepted["skill_id"]
     )

@@ -385,6 +385,28 @@ def test_homebrew_modifier_does_not_satisfy_advancement_completeness(
     content.create()
 
     assert result.modifiers.filter(pack=default_pack).exists()
+    assert not result.modifiers.filter(pack=homebrew).exists()
+    assert result.modifiers.count() == 1
+    assert content.status() == "complete"
+
+
+def test_lowercase_standard_outcome_is_reused_without_duplication(default_pack):
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    outcome = (
+        Action.objects.get(name="Advancement", qualifier="").outcomes.get().outcome
+    )
+    outcome.name = "advancement"
+    outcome.save(update_fields=["name", "modified"])
+
+    content.create()
+
+    assert (
+        type(outcome)
+        .objects.filter(pack=default_pack, name__iexact="Advancement")
+        .count()
+        == 1
+    )
     assert content.status() == "complete"
 
 
