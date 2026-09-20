@@ -857,11 +857,12 @@ class TestTheModelEditPage:
     def test_action_panels_follow_the_card_using_the_production_include(self, reader):
         page = reader.get("/n26/design/view/view-model-edit/").content.decode()
         card = page.index('id="n26-model-card-host"')
+        actions = page.index('<span class="font-semibold">Actions</span>', card)
         evolution = page.index("Suit Evolution", card)
         advancement = page.index("Advancement", evolution)
         notes = page.index('<span class="font-semibold">Notes</span>', advancement)
 
-        assert card < evolution < advancement < notes
+        assert card < actions < evolution < advancement < notes
         assert "Kill Count" in page[evolution:advancement]
         assert "After payment" not in page[evolution:advancement]
         assert 'aria-label="Start Suit Evolution flow"' in page[evolution:advancement]

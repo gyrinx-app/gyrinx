@@ -182,10 +182,15 @@ class TestSuitEvolutionForms:
         assert response.status_code == 200
         html = response.content.decode()
         page = BeautifulSoup(html, "html.parser")
-        title = page.find("span", string="Suit Evolution")
+        actions = page.find(id="n26-action-panels")
+        title = actions.find("h3", string="Suit Evolution")
         header = title.find_parent("div")
-        start_button = page.find("a", attrs={"aria-label": "Start Suit Evolution flow"})
+        start_button = actions.find(
+            "a", attrs={"aria-label": "Start Suit Evolution flow"}
+        )
 
+        assert actions.find("span", string="Actions")
+        assert title.find_parent("section") in actions.descendants
         assert "After a cycle" in header.get_text(" ", strip=True)
         assert start_button.get_text(" ", strip=True) == "Start flow"
         assert "bg-accent" in start_button.get("class", [])
