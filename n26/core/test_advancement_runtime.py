@@ -734,6 +734,9 @@ def test_completed_skill_advancement_with_a_dependent_cannot_be_corrected(fighte
             review=reviewed.review,
             outcome=outcome,
         )
+    assert "Random Secondary skill" not in {
+        option.name for option in advancement_options(completed, configured)
+    }
     selected = SkillSelection.objects.get(action_record=completed)
     dependent = Counter.objects.create(name="Depends on earned skill")
     with operation(fighter.gang) as op:

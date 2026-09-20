@@ -394,15 +394,26 @@ def advancement_options(record, configured):
         return skill_cache[offer.pk]
 
     offers = {member.pk: _skill_offer(member.pickable) for member in members}
-    gainable = {
-        member.pk: _gainable(
+    from n26.core.models import ActionRecord
+
+    gainable = {}
+    for member in members:
+        offer = offers[member.pk]
+        can_gain = _gainable(
             record,
             member.pickable,
             evaluation=evaluation,
             skills_for=skills_for,
         )
-        for member in members
-    }
+        if (
+            can_gain
+            and record.state == ActionRecord.State.COMPLETED
+            and offer is not None
+            and offer.mode == offer.Mode.RANDOM
+            and recorded_skill(record, configured, member.pickable_id) is None
+        ):
+            can_gain = False
+        gainable[member.pk] = can_gain
 
     gainable_members = [member for member in landed if gainable[member.pk]]
     offered = gainable_members or members
@@ -461,6 +472,7 @@ def recorded_skill(record, configured, pickable_id):
         return None
     accepted = any(
         attempt.get("is_available")
+        and attempt.get("pickable_id") == str(pickable.pk)
         and attempt.get("skill_id") == str(skill.pk)
         and attempt.get("skill_set_id") == str(skill.category_id)
         for attempt in selection.random_attempts
