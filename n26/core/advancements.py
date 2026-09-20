@@ -647,8 +647,14 @@ def record_skill_roll(
             )
         )
     ]
+    available_skill_ids = {str(skill.pk) for skill in options[category]}
     accepted = next(
-        (attempt for attempt in reversed(matching) if attempt.get("is_available")),
+        (
+            attempt
+            for attempt in reversed(matching)
+            if attempt.get("is_available")
+            and attempt.get("skill_id") in available_skill_ids
+        ),
         None,
     )
     if accepted is not None:

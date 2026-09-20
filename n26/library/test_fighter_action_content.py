@@ -319,6 +319,31 @@ def test_reseeding_repairs_missing_action_and_result_links():
     assert isinstance(result.modifiers.get().effect, ChangesStat)
 
 
+def test_reseeding_replaces_a_same_named_homebrew_action_outcome():
+    from n26.library.models import ActionOutcome, ContentPack
+
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    action = Action.objects.get(name="Advancement", qualifier="")
+    correct = action.outcomes.get().outcome
+    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-outcome")
+    wrong = authoring.create_outcome(
+        "Advancement",
+        authoring.apply_changes(),
+        pack=homebrew,
+    )
+    action.outcomes.all().delete()
+    ActionOutcome.objects.create(action=action, outcome=wrong)
+
+    assert content.status() == "incomplete"
+    content.create()
+
+    linked = action.outcomes.get().outcome
+    assert linked == correct
+    assert linked.pack != homebrew
+    assert content.status() == "complete"
+
+
 def test_reseeding_repairs_the_advancement_rank_counter():
     from n26.library.models import Counter
 

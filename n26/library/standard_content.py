@@ -2093,6 +2093,9 @@ def _create_fighter_actions():
         if rule_kind is not None:
             action.use_price.all().delete()
         action.save()
+        action.outcomes.exclude(
+            outcome_id__in=[outcome.pk for outcome in outcomes]
+        ).delete()
         for position, outcome in enumerate(outcomes):
             ActionOutcome.objects.update_or_create(
                 action=action, outcome=outcome, defaults={"position": position}
@@ -2150,17 +2153,27 @@ def _check_fighter_actions():
             "outcomes__outcome", "use_price"
         )
     }
-    expected_outcomes = {
+    expected_outcome_names = {
         "Suit Evolution": {"Hunting Rig Augmentation", "Clear glitches"},
         "Suit Maintenance": {"Clear glitches"},
         "Recruitment augmentation": {"Hunting Rig Augmentation"},
         "Advancement": {"Advancement"},
     }
-    if set(expected_outcomes) - set(actions):
+    if set(expected_outcome_names) - set(actions):
         return incomplete()
+    expected_outcomes = {
+        action_name: set(
+            Outcome.objects.filter(pack=pack, name__in=names).values_list(
+                "pk", flat=True
+            )
+        )
+        for action_name, names in expected_outcome_names.items()
+    }
     if any(
-        {member.outcome.name for member in actions[name].outcomes.all()} != expected
-        for name, expected in expected_outcomes.items()
+        len(expected_outcomes[name]) != len(expected_outcome_names[name])
+        or {member.outcome_id for member in actions[name].outcomes.all()}
+        != expected_outcomes[name]
+        for name in expected_outcome_names
     ):
         return incomplete()
     if {

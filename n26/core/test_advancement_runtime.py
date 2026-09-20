@@ -765,6 +765,42 @@ def test_exact_skill_roll_retry_survives_lost_access(fighter):
     )
 
 
+def test_new_skill_roll_retry_does_not_reuse_a_skill_now_owned(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    category = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=2)
+    random_primary = next(
+        row
+        for row in advancement_options(record, configured)
+        if row.name == "Random Primary skill"
+    )
+    with operation(fighter.gang) as op:
+        first = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=category.pk,
+            rolled=1,
+        )
+        op.assign(Skill.objects.get(pk=first["skill_id"]), miniature=fighter)
+        retried = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=category.pk,
+            rolled=2,
+        )
+
+    assert retried["event_id"] != first["event_id"]
+    assert retried["skill_id"] != first["skill_id"]
+    assert retried["is_available"] is True
+
+
 def test_computed_granted_skill_is_not_offered_again(fighter):
     action, outcome, allowance = _advancement(fighter)
     category = _primary_agility(fighter)
