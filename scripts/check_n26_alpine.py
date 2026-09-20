@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = ROOT / "n26/frontend/alpine-baseline.json"
+BASELINE = ROOT / "n26/frontend/tooling/alpine-baseline.json"
 COMMENTS = re.compile(r"{% comment\b.*?{% endcomment %}|{#.*?#}|<!--.*?-->", re.S)
 DIRECTIVE = re.compile(r"\s(?:x-[\w.-]+|@[\w.:-]+)\b(?=\s|=|/?>)")
 

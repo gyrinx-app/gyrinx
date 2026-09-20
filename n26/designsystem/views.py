@@ -206,7 +206,7 @@ def react_demo(request):
                 "bulkActionUrl": None,
             },
             "entry_source": (
-                directory.parent / "frontend/entries/authoring-list.tsx"
+                directory.parent / "frontend/islands/authoring-list/entry.tsx"
             ).read_text(),
             "template_source": (
                 directory / "templates/designsystem/react_example.html"

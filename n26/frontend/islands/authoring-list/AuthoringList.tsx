@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ActionBar, Button, Link, SearchBar, StagedBadge, Table } from "./ui";
+import {
+    ActionBar,
+    Button,
+    Link,
+    SearchBar,
+    StagedBadge,
+    Table,
+} from "../../ui";
 
 export type AuthoringRow = {
     pk: string;

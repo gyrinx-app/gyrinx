@@ -212,7 +212,7 @@ Concretely:
 - **React for interactive UI; Cotton for static UI.** Read
   `.agents/skills/n26-react/SKILL.md` whenever adding or editing an interaction.
   Client-rendered islands mount inside Django pages and use the existing design
-  system through `n26/frontend/ui.tsx`. No SSR, hydration or client-side router.
+  system through `n26/frontend/ui/`. No SSR, hydration or client-side router.
   Replace a touched Alpine interaction when it is a bounded change; otherwise
   record the concrete dependency that prevented it. Do not add Alpine directives.
   The CI ratchet allows existing ones to decrease, not increase.

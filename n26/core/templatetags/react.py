@@ -39,7 +39,7 @@ def react_island(name, props):
     if settings.DEBUG:
         _manifest.cache_clear()
     manifest = _manifest()
-    entry = f"entries/{name}.tsx"
+    entry = f"islands/{name}/entry.tsx"
     if entry not in manifest:
         raise ImproperlyConfigured(
             f"No built React entry for {name!r}. Run npm run js."

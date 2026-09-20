@@ -11,5 +11,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.mts"]
+  "include": [
+    "n26/frontend/**/*.ts",
+    "n26/frontend/**/*.tsx",
+    "vite.config.mts",
+    "vitest.config.mts"
+  ]
 }

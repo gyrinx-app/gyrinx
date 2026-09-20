@@ -83,7 +83,7 @@ def recipes():
 def main():
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings")
     django.setup()
-    target = Path(__file__).parent / "generated" / "cotton.json"
+    target = Path(__file__).parents[1] / "generated" / "cotton.json"
     target.parent.mkdir(exist_ok=True)
     content = json.dumps(recipes(), indent=2) + "\n"
     if not target.exists() or target.read_text() != content:

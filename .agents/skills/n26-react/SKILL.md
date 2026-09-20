@@ -12,9 +12,10 @@ If migration would require domain/API redesign or a complex shared primitive,
 finish the requested task and name the dependency that blocked conversion.
 Static content stays Cotton; do not introduce Alpine directives.
 
-Read `docs/developing-gyrinx/react.md` for the technical decisions. Load the
-design-system and microcopy skills for UI work. N26 uses Tailwind tokens, not
-N23's Bootstrap styles.
+Read `docs/developing-gyrinx/react.md` for the technical decisions and
+`n26/frontend/CLAUDE.md` for the source hierarchy. Load the design-system and
+microcopy skills for UI work. N26 uses Tailwind tokens, not N23's Bootstrap
+styles.
 
 ## Implementation shape
 
@@ -25,14 +26,15 @@ N23's Bootstrap styles.
   `{% react_island "authoring-list" authoring_list %}`. This tag safely embeds
   JSON, preloads the entry and shared runtime, and installs the lifecycle loader.
   Never use `|safe`, an inline JS object, or `dangerouslySetInnerHTML` for props.
-- Put a component in `n26/frontend/` and a small `mount(element, props)` export
-  in `n26/frontend/entries/<name>.tsx`. Copy the existing authoring-list entry;
-  use the shared `mount` helper and return its disposal function. Entries are
-  discovered by Vite automatically. No router, hydration, SSR or client cache
-  framework is needed for an island.
-- Use `n26/frontend/ui.tsx` primitives. For a missing variant, extend the
-  build-time recipes in `export_ui.py` from the actual Cotton primitive and add
-  a typed adapter. Do not fork its class strings or render `<c-…>` tags in JSX.
+- Co-locate a component, its tests and a small `mount(element, props)` export in
+  `n26/frontend/islands/<name>/`. Copy the existing authoring-list shape; use
+  the shared `runtime/mount` helper and return its disposal function. Vite
+  discovers `entry.tsx` in each island automatically. No router, hydration, SSR
+  or client cache framework is needed for an island.
+- Use `n26/frontend/ui/` primitives. For a missing variant, extend the
+  build-time recipes in `tooling/export_cotton_recipes.py` from the actual
+  Cotton primitive and add a typed adapter. Do not fork its class strings or
+  render `<c-…>` tags in JSX.
   Behaviour and accessibility need a React implementation; Alpine markup cannot
   be reused as an interactive primitive. Use the common app stylesheet, not
   island CSS imports (the template loader does not load CSS chunks).

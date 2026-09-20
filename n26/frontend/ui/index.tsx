@@ -5,7 +5,7 @@ import {
     type ComponentProps,
     type ReactNode,
 } from "react";
-import cotton from "./generated/cotton.json";
+import cotton from "../generated/cotton.json";
 
 export function Button({
     variant = "default",

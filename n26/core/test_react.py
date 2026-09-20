@@ -12,7 +12,7 @@ def test_island_props_are_inert_json_and_preloads_include_shared_imports(monkeyp
         react,
         "_manifest",
         lambda: {
-            "entries/authoring-list.tsx": {
+            "islands/authoring-list/entry.tsx": {
                 "file": "assets/list-12345678.js",
                 "imports": ["_react"],
             },
@@ -62,7 +62,7 @@ def test_production_storage_preserves_vite_module_urls(tmp_path):
         original = (tmp_path / "n26/react" / file).read_text()
         assert original == (react.BUILD / file).read_text()
         assert (tmp_path / "n26/react" / f"{file}.gz").exists()
-    entry = manifest["entries/authoring-list.tsx"]
+    entry = manifest["islands/authoring-list/entry.tsx"]
     for dependency in entry["imports"]:
         assert (
             manifest[dependency]["file"].split("/")[-1]

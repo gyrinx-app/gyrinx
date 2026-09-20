@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountWithin } from "../core/static/n26/react-islands.js";
+import { mountWithin } from "../../core/static/n26/react-islands.js";
 
 function cleanup(element = document.body) {
     document.dispatchEvent(

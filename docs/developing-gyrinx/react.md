@@ -65,9 +65,10 @@ shows a loading status; module or render failures offer a page reload, and
 
 ### Design-system bridge
 
-`n26/frontend/export_ui.py` renders fixed examples through the real Cotton
-compiler, checks their element structure, and extracts their classes and icon
-geometry. `ui.tsx` applies those recipes to ordinary React elements. It does not
+`n26/frontend/tooling/export_cotton_recipes.py` renders fixed examples through
+the real Cotton compiler, checks their element structure, and extracts their
+classes and icon geometry. `ui/` applies those recipes to ordinary React
+elements. It does not
 evaluate Alpine, inject HTML or transpile arbitrary templates. Generated recipes
 and bundles are ignored by git; CI, Docker and the development command build
 them with the installed Python and npm dependencies.
@@ -112,9 +113,11 @@ first actual JSON write; it is not required scaffolding for a local list filter.
 
 ### Assets and cost
 
-`npm run build` exports Cotton recipes, builds Vite entries, then builds CSS.
-`npm run js` is enough for Django tests that need the island manifest.
-`./scripts/dev.sh` builds the entries before serving and watches frontend changes.
+`npm run build` exports Cotton recipes, builds production Vite entries, then
+builds CSS. `npm run js` is enough for Django tests that need the island
+manifest. `npm run js:dev` emits the same local assets with source maps;
+`./scripts/dev.sh` runs that development build before serving and watches
+frontend changes with the same mode.
 
 Vite owns the content-hashed filenames under `n26/react/assets/`. The template
 uses those exact URLs and preloads their static imports. The ordinary bootstrap
@@ -158,7 +161,15 @@ No authoring operation or database schema changes.
 
 The source path is:
 `library.views.leaf` → `authoring/leaf.html` → `react_island` →
-`entries/authoring-list.tsx` → `AuthoringList.tsx` → `ui.tsx`.
+`islands/authoring-list/entry.tsx` → `AuthoringList.tsx` → `ui/`.
+
+Frontend source follows four dependency layers. Feature code is co-located under
+`islands/<name>/`; generic mounting belongs in `runtime/`; Cotton-derived React
+primitives form the public `ui/` boundary; Django-aware build code stays in
+`tooling/`. The ignored `generated/` directory is output, never an authoring
+surface. The repository-root TypeScript, Vite and Vitest configs are shared by
+all islands beside the single root `package.json`; do not create per-island
+configs. `n26/frontend/CLAUDE.md` is the concise directory-level reference.
 
 The Django view prepares ordinary display data, including server-generated URLs:
 
@@ -180,8 +191,8 @@ The template embeds it where the interaction belongs:
 The entry mounts the component with the shared lifecycle and error boundary:
 
 ```tsx
-import { AuthoringList, type AuthoringListProps } from "../AuthoringList";
-import { mount as mountRoot } from "../mount";
+import { mount as mountRoot } from "../../runtime/mount";
+import { AuthoringList, type AuthoringListProps } from "./AuthoringList";
 
 export function mount(element: HTMLElement, props: AuthoringListProps) {
     return mountRoot(element, AuthoringList, props);

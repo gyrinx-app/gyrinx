@@ -247,7 +247,7 @@ fi
 
 # Tailwind must see the current Cotton recipes before its source scan.
 echo "Building React islands..."
-(cd "$WT_ROOT" && npm run js > "$LOG_DIR/npm-js-build.log" 2>&1) || {
+(cd "$WT_ROOT" && npm run js:dev > "$LOG_DIR/npm-js-build.log" 2>&1) || {
   tail -20 "$LOG_DIR/npm-js-build.log" >&2
   exit 1
 }
