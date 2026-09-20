@@ -11,7 +11,15 @@ from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
 
 
-def check(page, url, width, screenshot_dir=None, theme="light", with_toc=True):
+def check(
+    page,
+    url,
+    width,
+    screenshot_dir=None,
+    theme="light",
+    with_toc=True,
+    check_hierarchy=False,
+):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(url)
@@ -50,6 +58,37 @@ def check(page, url, width, screenshot_dir=None, theme="light", with_toc=True):
     else:
         expect(page.locator(".flatpage-help-nav")).to_be_visible()
         expect(page.locator(".flatpage-layout")).to_have_css("display", "grid")
+
+    if check_hierarchy:
+        hierarchy = page.evaluate(
+            """() => {
+                const article = document.querySelector('.flatpage-prose');
+                const sections = [...article.querySelectorAll(':scope > h2')];
+                const h4 = article.querySelector('h4');
+                const accentProbe = document.createElement('span');
+                accentProbe.style.color = 'var(--color-accent-text)';
+                document.body.append(accentProbe);
+                const result = {
+                    sectionCount: sections.length,
+                    firstElementIsH2: article.firstElementChild === sections[0],
+                    firstSectionBorder: sections[0]
+                        ? getComputedStyle(sections[0]).borderTopWidth
+                        : null,
+                    secondSectionBorder: sections[1]
+                        ? getComputedStyle(sections[1]).borderTopWidth
+                        : null,
+                    h4Color: h4 ? getComputedStyle(h4).color : null,
+                    accentColor: getComputedStyle(accentProbe).color,
+                };
+                accentProbe.remove();
+                return result;
+            }"""
+        )
+        assert hierarchy["sectionCount"] >= 2, hierarchy
+        if hierarchy["firstElementIsH2"]:
+            assert hierarchy["firstSectionBorder"] == "0px", hierarchy
+        assert hierarchy["secondSectionBorder"] != "0px", hierarchy
+        assert hierarchy["h4Color"] == hierarchy["accentColor"], hierarchy
 
     if not with_toc:
         expect(
@@ -91,7 +130,14 @@ def check(page, url, width, screenshot_dir=None, theme="light", with_toc=True):
         ).not_to_be_visible()
         toc = page.locator(".flatpage-toc")
         expect(toc).to_be_visible()
-        link = toc.locator('a[href^="#"]').last
+        if check_hierarchy:
+            sticky = toc.locator(".flatpage-sticky-nav")
+            page.evaluate("window.scrollTo(0, 1200)")
+            expect(sticky).to_have_css("position", "sticky")
+            assert abs(sticky.bounding_box()["y"] - 80) < 2
+            page.evaluate("window.scrollTo(0, 0)")
+        links = toc.locator('a[href^="#"]')
+        link = links.nth(1) if check_hierarchy else links.last
         target = link.get_attribute("href")
         link.click()
         assert page.evaluate("location.hash") == target
@@ -112,6 +158,11 @@ def main():
         action="store_true",
         help="Check a page with fewer than two h2/h3 headings.",
     )
+    parser.add_argument(
+        "--check-hierarchy",
+        action="store_true",
+        help="Require h2 section dividers, an accent h4 and a sticky desktop ToC.",
+    )
     args = parser.parse_args()
     if args.screenshots:
         args.screenshots.mkdir(parents=True, exist_ok=True)
@@ -130,6 +181,7 @@ def main():
                     args.screenshots,
                     theme,
                     with_toc=not args.no_toc,
+                    check_hierarchy=args.check_hierarchy,
                 )
                 context.close()
                 print(f"PASS {width}px {theme}")
