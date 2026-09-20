@@ -93,7 +93,7 @@
 
 1. **No common header**: This is the only edit view in this group that uses `back.html` instead of `list_common_header.html`. XP, injuries, narrative, notes, and advancements all include the common header. This means the user loses the gang stats bar and fighter switcher on this page.
 2. **Help text class**: Uses `p.text-muted.mb-3` for help text in the card, rather than the Bootstrap `form-text` class used consistently in other forms (notes, narrative, advancement select).
-3. **Error alert uses `alert` class**: The convention from CLAUDE.md says "Avoid `alert` classes - use `border rounded p-2` instead", but this view uses `alert alert-danger` for `error_message`. The advancement flow also uses `alert` extensively, so this is a systemic inconsistency with the stated convention.
+3. **Error alert uses `alert` class**: The project instructions say "Avoid `alert` classes - use `border rounded p-2` instead", but this view uses `alert alert-danger` for `error_message`. The advancement flow also uses `alert` extensively, so this is a systemic inconsistency with the stated convention.
 4. **Button container**: Uses `div.mt-3` (no flex), whereas XP edit uses `div.hstack.gap-2.mt-3.align-items-center`. The button and cancel link are just inline elements inside a plain div.
 5. **Submit label**: "Save Changes" vs "Update XP" (XP edit) vs "Save" (narrative/notes). Three different labels for the same action class across this group.
 6. **`allauth` tag loaded**: The `allauth` template tag library is loaded but not used in this template. Unnecessary import.

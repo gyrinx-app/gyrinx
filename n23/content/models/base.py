@@ -55,8 +55,8 @@ class ContentQuerySet(models.QuerySet):
         ``Campaign.packs`` subscription — should pass
         ``include_archived_items=True``. Archiving is a pack-owner
         soft-delete and must not retract content from lists/gangs already
-        subscribed to the pack. See "Domain Rules → Content packs: archive
-        semantics" in CLAUDE.md.
+        subscribed to the pack. See "Archived content pack behaviour" in
+        n23/AGENTS.md.
         """
         from django.db.models import Exists, OuterRef
 

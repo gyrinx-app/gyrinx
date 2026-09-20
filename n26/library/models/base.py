@@ -10,16 +10,7 @@ user data always resolves. Narrowing is opt-in, and belongs only at the
 handful of *discovery and authoring* surfaces that ask "what may this user
 pick from?" — search, pickers, pack galleries, admin.
 
-This is deliberately the inverse of the earlier gyrinx design, where the
-default manager excluded pack content and every read path had to opt back in.
-That cost 260+ ``with_packs()`` / ``all_content()`` call sites, a bespoke
-prefetch-marker system layered on the ORM, through-table workarounds to dodge
-the excluding manager, a standing domain rule in CLAUDE.md, and a recurring
-bug class where a forgotten call site silently dropped a subscriber's content
-(gyrinx#1742). An anti-join rode along on 50 of 82 queries in the performance
-snapshot.
-
-Inverting it means:
+Default-open scoping means:
 
 - The "forgot pack context" bug class cannot occur — the failure mode of
   forgetting to filter is *showing too much on a discovery page*, which is

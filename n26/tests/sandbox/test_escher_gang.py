@@ -16,7 +16,7 @@
 * a **mount** that comes with a weapon and offers two priced swaps —
   options on a wargear.
 
-Rule *names* only; the rulebook's words are copyright (CLAUDE.md).
+Rule *names* only; the rulebook's words are copyright (n26/AGENTS.md).
 """
 
 import pytest

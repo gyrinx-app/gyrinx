@@ -90,7 +90,7 @@ jobs:
 
             Focus on the following areas:
             - Use the checklist at .github/code-improvement-checklist.md
-            - Review the patterns documented in CLAUDE.md"
+            - Review the patterns documented in AGENTS.md"
 
           # Automated code improvement prompt
           prompt: |

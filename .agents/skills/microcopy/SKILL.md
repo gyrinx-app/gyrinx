@@ -63,7 +63,7 @@ strings follow this rule too (fix on touch — do not sweep untouched copy).
 **Buttons: bare verb where the object is obvious.** "Save", "Add", "Remove"
 when the screen leaves no doubt; verb + object when it could be ambiguous
 ("Add fighter"). A `success` button ends a form; a `primary` button starts
-one (see `n26/CLAUDE.md`).
+one (see `n26/AGENTS.md`).
 
 **Name the specific noun when the code knows it.** "That weapon is not one of
 the options here." Generic wording ("thing", "item") only when the type

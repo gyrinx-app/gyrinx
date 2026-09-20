@@ -108,7 +108,7 @@ class Assignable(models.Model):
     #: Authoring help: pack-author-owned words for whoever wields this
     #: while building *other* content. Addable and editable at any time —
     #: and the copyright line stays absolute: the book's rules text never
-    #: lives here (CLAUDE.md).
+    #: lives here (n26/library/models/AGENTS.md).
     #:
     #: Never shown to players, which is why it is absent
     #: from ``n26.core.render.AssignableLine`` and ``n26.core.browse.PricedLine`` and
@@ -685,7 +685,7 @@ class Trait(Content, Assignable):
 
     The parameter is the annotation, so Knockback (5+) and Knockback (6+) are
     two rows. No rules text — the rulebook's words are copyrighted and must
-    never be stored in content (see CLAUDE.md).
+    never be stored in content (see n26/library/models/AGENTS.md).
     """
 
     family = Family.GEAR
@@ -946,7 +946,8 @@ class Rule(Content, Assignable):
 
     The card prints these apart from Skills (an Exo-Driller has both, under
     separate headings), so they are their own kind. Name and annotation
-    only — the rule's text is copyrighted and is never stored (CLAUDE.md).
+    only — the rule's text is copyrighted and is never stored
+    (n26/library/models/AGENTS.md).
     A rule that also *does* something the app can compute carries ordinary
     modifiers.
 
