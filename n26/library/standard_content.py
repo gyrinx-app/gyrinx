@@ -19,7 +19,7 @@ Two rules hold:
   there, so this can run against a database that has some of it.
 * **Names and numbers only.** These carry what the rulebook *fixes* —
   a characteristic's short name and how it displays, a Subtype's name —
-  and never rules text (AGENTS.md).
+  and never rules text (n26/AGENTS.md).
 
 Adding one is a definition list and one entry in ``STANDARD_CONTENT``.
 """
@@ -201,7 +201,7 @@ def _budget_modifier_name(carrier, ranks, amount, more=False):
 
 #: The six Skill Sets and their skills, in D6 order (core rules) —
 #: the number a skill is rolled on is its position within its set. Names
-#: only: what each skill *does* is the book's wording (AGENTS.md).
+#: only: what each skill *does* is the book's wording (n26/AGENTS.md).
 SKILL_SETS = {
     "Agility": [
         "Catfall",

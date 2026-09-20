@@ -3,7 +3,7 @@
 The parameter is the annotation — Knockback (5+) and Knockback (6+) are two
 rows. Traits are never copied player-side: the profile's set is the truth,
 so a content fix reaches every existing weapon. No rules text anywhere —
-the rulebook's words are copyrighted (AGENTS.md).
+the rulebook's words are copyrighted (n26/AGENTS.md).
 """
 
 import pytest

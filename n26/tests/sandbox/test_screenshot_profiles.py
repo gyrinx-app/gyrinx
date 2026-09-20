@@ -17,7 +17,7 @@ a different corner of the machinery:
 * **Goliath 'Zerker** — two subtypes, a fists swap, an any-of stash.
 
 Everything below is content authoring plus assertions — no special
-casing anywhere. Rule names only, never rules text (AGENTS.md).
+casing anywhere. Rule names only, never rules text (n26/AGENTS.md).
 """
 
 import pytest
