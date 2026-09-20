@@ -172,7 +172,7 @@ class TestSuitEvolutionForms:
             str(record.pk) for record in reversed(records[-3:])
         ]
 
-    def test_the_edit_page_places_action_panels_below_the_model_card(
+    def test_the_edit_page_places_action_panels_beside_the_model_card_above_tabs(
         self, client, hunt
     ):
         from bs4 import BeautifulSoup
@@ -183,6 +183,7 @@ class TestSuitEvolutionForms:
         html = response.content.decode()
         page = BeautifulSoup(html, "html.parser")
         actions = page.find(id="n26-action-panels")
+        card = page.find(id="n26-model-card-host")
         title = actions.find("h3", string="Suit Evolution")
         header = title.find_parent("div")
         start_button = actions.find(
@@ -190,6 +191,16 @@ class TestSuitEvolutionForms:
         )
 
         assert actions.find("span", string="Actions")
+        shared_row = next(
+            parent
+            for parent in actions.parents
+            if parent.name == "div" and "lg:grid-cols-2" in parent.get("class", [])
+        )
+        assert shared_row.find(id="n26-model-card-host") == card
+        assert shared_row.find(id="n26-action-panels") == actions
+        assert "lg:grid-cols-2" in shared_row.get("class", [])
+        tabs_row = shared_row.find_next_sibling("div")
+        assert tabs_row.find("nav", attrs={"aria-label": "This model's screens"})
         assert title.find_parent("section") in actions.descendants
         assert "After a cycle" in header.get_text(" ", strip=True)
         assert start_button.get_text(" ", strip=True) == "Start flow"

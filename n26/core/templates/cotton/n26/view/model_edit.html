@@ -9,7 +9,7 @@ dismissed_choices stay off the card. Only this page draws them, so a print sheet
 The include draws the card in edit mode, which is where its controls come out.
 The editors are siblings of the card, not children, so replacing the card leaves them in place.
 Without name_action the include draws the rename pencil.
-flows renders action panels beneath the model card and above the editing forms.
+flows renders action panels beside the model card and above the screen tabs.
 {% endcomment %}
 
 <c-vars
@@ -50,12 +50,14 @@ flows renders action panels beneath the model card and above the editing forms.
             {# The include reads htmx and status_href. Set htmx only when the page has the dialog hosts. #}
             {% include "n26/includes/model_card_host.html" with name_action=name_action %}
         </c-slot>
+        {% if flows.strip %}
+            <c-slot name="card_companion">{{ flows }}</c-slot>
+        {% endif %}
         {% if tab_actions.strip %}
             <c-slot name="tab_actions">{{ tab_actions }}</c-slot>
         {% endif %}
     </c-n26.model-header>
 
-    {% if flows.strip %}{{ flows }}{% endif %}
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         {% if picture.strip %}
             <c-ui.card>
